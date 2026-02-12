@@ -1,0 +1,34 @@
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-0);
+  padding: var(--space-0);
+  border-radius: var(--radius-none);
+  background: transparent;
+  border: none;
+  position: relative;
+  width: 100%;
+}
+
+.row + .row {
+  margin-top: -1px;
+}
+
+.instrumentSlot {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  flex: 0 0 auto;
+  height: 100%;
+}
+
+.instrumentSlot + .instrumentSlot {
+  margin-left: -1px;
+}
+
+.placeholderLabel {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-lg);
+}

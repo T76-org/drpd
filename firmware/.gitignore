@@ -1,0 +1,6 @@
+build
+!.vscode/*
+.DS_Store
+*pyc
+__pycache__
+__pycache__/*pyc

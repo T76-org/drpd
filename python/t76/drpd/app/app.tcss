@@ -1,0 +1,170 @@
+/* 
+
+    Copyright (c) 2025 MTA, Inc.
+    Styles for the Dr. PD console app
+
+*/
+
+.side-content {
+    width: 31;
+    align: center top;
+}
+
+.main-content {
+    width: 100%;
+}
+
+.status-panel {
+    width: 30;
+    border: solid grey;
+    border-title-align: center;
+    padding: 1;
+}
+
+.status-row {
+    width: 30;
+}
+
+.status-header {
+    width: 10;
+}
+
+.status-value {
+    text-align: right;
+    width: 16;
+}
+
+.message-panel {
+}
+
+.message-table {
+    height: 15;
+}
+
+.message-details {
+}
+
+.message-tabs {
+    width: 100%;
+    height: 100%;
+}
+
+.message-tabs.single-tab .tabs {
+    display: none;
+}
+
+.message-tabs .tab-panels {
+    height: 100%;
+}
+
+.message-details-header {
+    padding-top: 1;
+    color: $accent;
+}
+
+.message-details-property {
+    width: 100%;
+}
+
+.message-details-property-label {
+    width: 20;
+    color: $primary-lighten-2;
+}
+
+#device_selection_container {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+}
+
+#device_selection_group {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+    display: none;
+}
+
+#device_selection_container.has_devices #device_selection_group {
+    display: block;
+}
+
+#device_selection_group * {
+    max-width: 60;
+}
+
+#device_selection_label {
+    align: right middle;
+}
+
+#no_devices_group {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+    max-width: 60;
+}
+
+#device_selection_container.has_devices #no_devices_group {
+    display: none;
+}
+
+.mode-selection-outer-container {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+}
+
+.mode-selection-inner-container {
+    max-width: 60;
+    align: center middle;
+}
+
+#ovp_modal_container {
+    width: 80;
+    height: 20;
+    border: solid $accent;
+    border-title-align: center;
+    padding: 1;
+}
+
+#ovp_modal_content {
+    width: 100%;
+    height: auto;
+}
+
+.pps-modal-screen  {
+    align: center middle;
+}
+
+.pps-modal-label {
+    width: 13;
+    height: 100%;
+    content-align: center middle;
+}
+
+.pps-modal-input-row {
+    height: 3;
+    align: center middle;
+}
+
+#current-input, #voltage-input {
+    width: 40;
+}
+
+#pps-modal-content {
+    max-width: 60;
+    width: 60;
+    border: solid $accent;
+    border-title-align: center;
+    padding: 1;
+    align: center middle;
+    height: 19;
+}
+
+#pps-modal-buttons {
+    width: 100%;
+    align: right middle;
+}
+
+#pps-modal-buttons Button {
+    margin-left: 1;
+}

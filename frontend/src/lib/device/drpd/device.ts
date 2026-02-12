@@ -1,0 +1,1238 @@
+/**
+ * @file device.ts
+ * @copyright Copyright (c) 2026 MTA, Inc.
+ *
+ * DRPD device driver root.
+ */
+
+import USBTMCTransport from '../../transport/usbtmc'
+import type { DRPDTransport } from './transport'
+import { parseUSBPDMessage } from './usb-pd/parser'
+import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
+import type {
+  AnalogMonitorChannels,
+  AnalogSampleQuery,
+  CapturedMessage,
+  CapturedMessageQuery,
+  CCBusRole,
+  DRPDDeviceState,
+  DRPDLoggingConfig,
+  LogClearResult,
+  LogClearScope,
+  LogExportRequest,
+  LogExportResult,
+  LoggedAnalogSample,
+  LoggedCapturedMessage,
+} from './types'
+import type { DRPDLogStore } from './logging'
+import { DRPDAnalogMonitor } from './analogMonitor'
+import { DRPDCCBus } from './ccBus'
+import { DRPDCapture } from './capture'
+import { DRPDStatus } from './status'
+import { DRPDSink } from './sink'
+import { DRPDSystem } from './system'
+import { DRPDTest } from './test'
+import { DRPDTrigger } from './trigger'
+import { DRPDVBus } from './vbus'
+
+/**
+ * Optional DRPD device constructor overrides.
+ */
+export interface DRPDDeviceOptions {
+  ///< Optional log store factory.
+  createLogStore?: (config: DRPDLoggingConfig) => DRPDLogStore
+}
+
+/**
+ * Main DRPD device driver.
+ */
+export class DRPDDevice extends EventTarget {
+  public static readonly STATE_UPDATED_EVENT = 'stateupdated' ///< State update event.
+  public static readonly ROLE_CHANGED_EVENT = 'rolechanged' ///< Role changed event.
+  public static readonly CCBUS_STATUS_CHANGED_EVENT = 'ccbusstatuschanged' ///< CC bus status event.
+  public static readonly VBUS_CHANGED_EVENT = 'vbuschanged' ///< VBUS change event.
+  public static readonly CAPTURE_STATUS_CHANGED_EVENT = 'capturestatuschanged' ///< Capture status event.
+  public static readonly ANALOG_MONITOR_CHANGED_EVENT = 'analogmonitorchanged' ///< Analog monitor event.
+  public static readonly TRIGGER_CHANGED_EVENT = 'triggerchanged' ///< Trigger info event.
+  public static readonly SINK_INFO_CHANGED_EVENT = 'sinkinfochanged' ///< Sink info event.
+  public static readonly SINK_PDO_LIST_CHANGED_EVENT = 'sinkpdolistchanged' ///< Sink PDO list event.
+  public static readonly MESSAGE_CAPTURED_EVENT = 'messagecaptured' ///< Captured message event.
+  public static readonly STATE_ERROR_EVENT = 'stateerror' ///< State error event.
+
+  public readonly system: DRPDSystem ///< System command group.
+  public readonly status: DRPDStatus ///< Status command group.
+  public readonly analogMonitor: DRPDAnalogMonitor ///< Analog monitor group.
+  public readonly ccBus: DRPDCCBus ///< CC bus command group.
+  public readonly capture: DRPDCapture ///< Capture command group.
+  public readonly vbus: DRPDVBus ///< VBUS command group.
+  public readonly sink: DRPDSink ///< Sink command group.
+  public readonly trigger: DRPDTrigger ///< Trigger command group.
+  public readonly test: DRPDTest ///< Test command group.
+
+  protected readonly transport: DRPDTransport ///< Transport instance.
+  protected state: DRPDDeviceState ///< Current device state.
+  protected interruptSource?: EventTarget ///< Interrupt event source.
+  protected interruptInFlight?: Promise<void> ///< In-flight interrupt handler.
+  protected readonly interruptHandler: () => void ///< Interrupt handler.
+  protected readonly interruptErrorHandler: (event: Event) => void ///< Interrupt error handler.
+  protected analogMonitorTimer?: ReturnType<typeof setInterval> ///< Analog monitor polling timer.
+  protected analogMonitorIntervalMs: number ///< Analog monitor polling interval in ms.
+  protected analogMonitorPollingActive: boolean ///< Analog monitor polling active flag.
+  protected analogMonitorInFlight: boolean ///< Analog monitor request in flight flag.
+  protected captureDrainTimer?: ReturnType<typeof setInterval> ///< Capture drain polling timer.
+  protected captureDrainIntervalMs: number ///< Capture drain polling interval in ms.
+  protected captureDrainPollingActive: boolean ///< Capture drain polling active flag.
+  protected captureDrainInFlight: boolean ///< Capture drain polling in flight flag.
+  protected isConnected: boolean ///< True when the device is connected.
+  protected debugLoggingEnabled: boolean ///< Debug logging flag.
+  protected loggingConfig: DRPDLoggingConfig ///< Active logging configuration.
+  protected logStore?: DRPDLogStore ///< Active log store instance.
+  protected loggingStarted: boolean ///< True when logging is started.
+  protected readonly createLogStore: (config: DRPDLoggingConfig) => DRPDLogStore ///< Log store factory.
+
+  /**
+   * Create a DRPD device driver.
+   *
+   * @param transport - Transport instance.
+   */
+  public constructor(transport: DRPDTransport, options?: DRPDDeviceOptions) {
+    super()
+    this.transport = transport
+    this.system = new DRPDSystem(transport)
+    this.status = new DRPDStatus(transport)
+    this.analogMonitor = new DRPDAnalogMonitor(transport)
+    this.ccBus = new DRPDCCBus(transport)
+    this.capture = new DRPDCapture(transport)
+    this.vbus = new DRPDVBus(transport)
+    this.sink = new DRPDSink(transport)
+    this.trigger = new DRPDTrigger(transport)
+    this.test = new DRPDTest(transport)
+    this.state = {
+      role: null,
+      ccBusRoleStatus: null,
+      analogMonitor: null,
+      vbusInfo: null,
+      captureEnabled: null,
+      triggerInfo: null,
+      sinkInfo: null,
+      sinkPdoList: null
+    }
+    this.analogMonitorIntervalMs = 250
+    this.analogMonitorPollingActive = false
+    this.analogMonitorInFlight = false
+    this.captureDrainIntervalMs = 1000
+    this.captureDrainPollingActive = false
+    this.captureDrainInFlight = false
+    this.isConnected = false
+    this.debugLoggingEnabled = false
+    this.loggingConfig = buildDefaultLoggingConfig()
+    this.loggingStarted = false
+    this.createLogStore = options?.createLogStore ?? ((config) => new SQLiteWasmStore(config))
+    this.interruptHandler = () => {
+      if (this.interruptInFlight) {
+        return
+      }
+      const task = this.handleInterrupt()
+      this.interruptInFlight = task
+      void task.finally(() => {
+        if (this.interruptInFlight === task) {
+          this.interruptInFlight = undefined
+        }
+      })
+    }
+    this.interruptErrorHandler = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : event
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: detail } }),
+      )
+    }
+
+    if ('addEventListener' in transport) {
+      const target = transport as unknown as EventTarget
+      this.interruptSource = target
+      target.addEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
+      target.addEventListener(USBTMCTransport.INTERRUPT_ERROR_EVENT, this.interruptErrorHandler)
+    }
+  }
+
+  /**
+   * Access a snapshot of the current device state.
+   *
+   * @returns Device state snapshot.
+   */
+  public getState(): DRPDDeviceState {
+    return { ...this.state }
+  }
+
+  /**
+   * Enable or disable debug logging.
+   *
+   * @param enabled - True to enable debug logs.
+   */
+  public setDebugLoggingEnabled(enabled: boolean): void {
+    this.debugLoggingEnabled = enabled
+  }
+
+  /**
+   * Configure logging behavior for this device.
+   *
+   * @param config - Logging configuration values.
+   */
+  public async configureLogging(config: DRPDLoggingConfig): Promise<void> {
+    this.loggingConfig = { ...config }
+    if (this.loggingStarted) {
+      await this.stopLogging()
+      if (this.loggingConfig.enabled) {
+        await this.startLogging()
+      }
+    }
+  }
+
+  /**
+   * Start the logging subsystem.
+   */
+  public async startLogging(): Promise<void> {
+    if (this.loggingStarted || !this.loggingConfig.enabled) {
+      return
+    }
+    try {
+      this.logStore = this.createLogStore(this.loggingConfig)
+      await this.logStore.init()
+      this.loggingStarted = true
+      this.logDebug('logging: started')
+    } catch (error) {
+      this.logStore = undefined
+      this.loggingStarted = false
+      this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
+      this.logDebug(`logging: start error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Stop the logging subsystem.
+   */
+  public async stopLogging(): Promise<void> {
+    if (!this.loggingStarted) {
+      return
+    }
+    try {
+      await this.logStore?.close()
+    } finally {
+      this.logStore = undefined
+      this.loggingStarted = false
+      this.logDebug('logging: stopped')
+    }
+  }
+
+  /**
+   * Return true when logging is currently started.
+   *
+   * @returns Logging state.
+   */
+  public isLoggingEnabled(): boolean {
+    return this.loggingStarted
+  }
+
+  /**
+   * Query logged analog samples.
+   *
+   * @param query - Query criteria.
+   * @returns Matching rows.
+   */
+  public async queryAnalogSamples(query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
+    if (!this.logStore) {
+      return []
+    }
+    return this.logStore.queryAnalogSamples(query)
+  }
+
+  /**
+   * Query logged captured USB-PD messages.
+   *
+   * @param query - Query criteria.
+   * @returns Matching rows.
+   */
+  public async queryCapturedMessages(
+    query: CapturedMessageQuery,
+  ): Promise<LoggedCapturedMessage[]> {
+    if (!this.logStore) {
+      return []
+    }
+    return this.logStore.queryCapturedMessages(query)
+  }
+
+  /**
+   * Export selected logged data.
+   *
+   * @param request - Export request.
+   * @returns Export result.
+   */
+  public async exportLogs(request: LogExportRequest): Promise<LogExportResult> {
+    if (!this.logStore) {
+      return {
+        mimeType: request.format === 'json' ? 'application/json' : 'text/csv',
+        payload: request.format === 'json' ? '{\"analogSamples\":[],\"capturedMessages\":[]}' : '',
+        analogCount: 0,
+        messageCount: 0,
+      }
+    }
+    return this.logStore.exportData(request)
+  }
+
+  /**
+   * Clear logged rows.
+   *
+   * @param scope - Clear scope.
+   * @returns Cleared row counts.
+   */
+  public async clearLogs(scope: LogClearScope): Promise<LogClearResult> {
+    if (!this.logStore) {
+      return { analogDeleted: 0, messagesDeleted: 0 }
+    }
+    return this.logStore.clear(scope)
+  }
+
+  /**
+   * Start polling analog monitor channels.
+   *
+   * @param intervalMs - Poll interval in milliseconds.
+   */
+  public startAnalogMonitorPolling(intervalMs = 250): void {
+    this.analogMonitorIntervalMs = intervalMs
+    this.stopAnalogMonitorPolling()
+    this.analogMonitorTimer = setInterval(() => {
+      void this.pollAnalogMonitor()
+    }, intervalMs)
+    this.analogMonitorPollingActive = true
+  }
+
+  /**
+   * Stop polling analog monitor channels.
+   */
+  public stopAnalogMonitorPolling(): void {
+    if (this.analogMonitorTimer) {
+      clearInterval(this.analogMonitorTimer)
+      this.analogMonitorTimer = undefined
+    }
+    this.analogMonitorPollingActive = false
+  }
+
+  /**
+   * Update the analog monitor polling interval.
+   *
+   * @param intervalMs - Poll interval in milliseconds.
+   */
+  public setAnalogMonitorPollingInterval(intervalMs: number): void {
+    this.analogMonitorIntervalMs = intervalMs
+    if (this.analogMonitorPollingActive) {
+      this.startAnalogMonitorPolling(intervalMs)
+    }
+  }
+
+  /**
+   * Start polling the capture queue for new messages.
+   *
+   * @param intervalMs - Poll interval in milliseconds.
+   */
+  public startCaptureDrainPolling(intervalMs = 1000): void {
+    this.captureDrainIntervalMs = intervalMs
+    this.stopCaptureDrainPolling()
+    this.captureDrainTimer = setInterval(() => {
+      void this.pollCaptureDrain()
+    }, intervalMs)
+    this.captureDrainPollingActive = true
+  }
+
+  /**
+   * Stop polling the capture queue.
+   */
+  public stopCaptureDrainPolling(): void {
+    if (this.captureDrainTimer) {
+      clearInterval(this.captureDrainTimer)
+      this.captureDrainTimer = undefined
+    }
+    this.captureDrainPollingActive = false
+  }
+
+  /**
+   * Update the capture drain polling interval.
+   *
+   * @param intervalMs - Poll interval in milliseconds.
+   */
+  public setCaptureDrainPollingInterval(intervalMs: number): void {
+    this.captureDrainIntervalMs = intervalMs
+    if (this.captureDrainPollingActive) {
+      this.startCaptureDrainPolling(intervalMs)
+    }
+  }
+
+  /**
+   * Handle device connection events.
+   */
+  public handleConnect(): void {
+    this.logDebug('connect: start')
+    this.isConnected = true
+    void this.runConnectTasks().finally(() => {
+      if (this.isConnected) {
+        this.startAnalogMonitorPolling(this.analogMonitorIntervalMs)
+        this.startCaptureDrainPolling(this.captureDrainIntervalMs)
+      }
+    })
+  }
+
+  /**
+   * Handle device disconnection events.
+   */
+  public handleDisconnect(): void {
+    this.logDebug('disconnect: start')
+    this.isConnected = false
+    this.stopAnalogMonitorPolling()
+    this.stopCaptureDrainPolling()
+    void this.stopLogging()
+    const hadRole = this.state.role !== null
+    const hadRoleStatus = this.state.ccBusRoleStatus !== null
+    const hadAnalog = this.state.analogMonitor !== null
+    const hadVbus = this.state.vbusInfo !== null
+    const hadCaptureEnabled = this.state.captureEnabled !== null
+    const hadTrigger = this.state.triggerInfo !== null
+    const hadSinkInfo = this.state.sinkInfo !== null
+    const hadPdoList = this.state.sinkPdoList !== null
+    if (
+      hadRole ||
+      hadRoleStatus ||
+      hadAnalog ||
+      hadVbus ||
+      hadCaptureEnabled ||
+      hadTrigger ||
+      hadSinkInfo ||
+      hadPdoList
+    ) {
+    this.state = {
+      role: null,
+      ccBusRoleStatus: null,
+      analogMonitor: null,
+      vbusInfo: null,
+      captureEnabled: null,
+      triggerInfo: null,
+      sinkInfo: null,
+      sinkPdoList: null
+    }
+      const changed: string[] = []
+      if (hadRole) {
+        changed.push('role')
+      }
+      if (hadRoleStatus) {
+        changed.push('ccBusRoleStatus')
+      }
+      if (hadAnalog) {
+        changed.push('analogMonitor')
+      }
+      if (hadVbus) {
+        changed.push('vbusInfo')
+      }
+      if (hadCaptureEnabled) {
+        changed.push('captureEnabled')
+      }
+      if (hadTrigger) {
+        changed.push('triggerInfo')
+      }
+      if (hadSinkInfo) {
+        changed.push('sinkInfo')
+      }
+      if (hadPdoList) {
+        changed.push('sinkPdoList')
+      }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed },
+        }),
+      )
+    }
+  }
+
+  /**
+   * Refresh all tracked state from the device.
+   */
+  public async refreshState(): Promise<void> {
+    this.logDebug('refreshState: start')
+    const updated: DRPDDeviceState = { ...this.state }
+    const changed: string[] = []
+    const roleResult = await this.ccBus.getRole().then(
+      (value) => ({ status: 'fulfilled', value } as const),
+      (reason) => ({ status: 'rejected', reason } as const),
+    )
+    if (roleResult.status === 'fulfilled') {
+      if (updated.role !== roleResult.value) {
+        updated.role = roleResult.value
+        changed.push('role')
+      }
+    } else {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: roleResult.reason } }),
+      )
+    }
+
+    const shouldQuerySink = updated.role === 'SINK'
+
+    const results = await Promise.allSettled([
+      this.ccBus.getRoleStatus(),
+      this.analogMonitor.getStatus(),
+      this.vbus.getInfo(),
+      this.capture.getCaptureEnabled(),
+      this.trigger.getInfo(),
+      shouldQuerySink ? this.sink.getSinkInfo() : Promise.resolve(null),
+      shouldQuerySink ? this.fetchSinkPdoList() : Promise.resolve(null)
+    ])
+
+    const [
+      roleStatusResult,
+      analogResult,
+      vbusResult,
+      captureEnabledResult,
+      triggerResult,
+      sinkInfoResult,
+      pdoListResult
+    ] = results
+
+    if (roleStatusResult.status === 'fulfilled') {
+      if (updated.ccBusRoleStatus !== roleStatusResult.value) {
+        updated.ccBusRoleStatus = roleStatusResult.value
+        changed.push('ccBusRoleStatus')
+      }
+    } else {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: roleStatusResult.reason } }),
+      )
+    }
+
+    if (analogResult.status === 'fulfilled') {
+      if (!this.isAnalogMonitorEqual(updated.analogMonitor, analogResult.value)) {
+        updated.analogMonitor = analogResult.value
+        changed.push('analogMonitor')
+      }
+    } else {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: analogResult.reason } }),
+      )
+    }
+
+    if (vbusResult.status === 'fulfilled') {
+      if (updated.vbusInfo !== vbusResult.value) {
+        updated.vbusInfo = vbusResult.value
+        changed.push('vbusInfo')
+      }
+    } else {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: vbusResult.reason } }),
+      )
+    }
+
+    if (captureEnabledResult.status === 'fulfilled') {
+      if (updated.captureEnabled !== captureEnabledResult.value) {
+        updated.captureEnabled = captureEnabledResult.value
+        changed.push('captureEnabled')
+      }
+    } else {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: captureEnabledResult.reason } }),
+      )
+    }
+
+
+    if (triggerResult.status === 'fulfilled') {
+      if (updated.triggerInfo !== triggerResult.value) {
+        updated.triggerInfo = triggerResult.value
+        changed.push('triggerInfo')
+      }
+    } else {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: triggerResult.reason } }),
+      )
+    }
+
+    if (shouldQuerySink) {
+      if (sinkInfoResult.status === 'fulfilled') {
+        if (updated.sinkInfo !== sinkInfoResult.value) {
+          updated.sinkInfo = sinkInfoResult.value
+          changed.push('sinkInfo')
+        }
+      } else {
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: sinkInfoResult.reason } }),
+        )
+      }
+
+      if (pdoListResult.status === 'fulfilled') {
+        updated.sinkPdoList = pdoListResult.value
+        changed.push('sinkPdoList')
+      } else {
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: pdoListResult.reason } }),
+        )
+      }
+    } else if (this.state.sinkInfo || this.state.sinkPdoList) {
+      updated.sinkInfo = null
+      updated.sinkPdoList = null
+      changed.push('sinkInfo', 'sinkPdoList')
+    }
+
+    if (!changed.length) {
+      this.logDebug('refreshState: no changes')
+      return
+    }
+
+    const previousRole = this.state.role
+    const previousAnalog = this.state.analogMonitor
+    const previousRoleStatus = this.state.ccBusRoleStatus
+    const previousVbus = this.state.vbusInfo
+    const previousCaptureEnabled = this.state.captureEnabled
+    const previousTrigger = this.state.triggerInfo
+    const previousSinkInfo = this.state.sinkInfo
+    const previousPdoList = this.state.sinkPdoList
+    this.state = updated
+
+    if (changed.includes('role')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.ROLE_CHANGED_EVENT, {
+          detail: { role: updated.role, previousRole },
+        }),
+      )
+    }
+
+    if (changed.includes('ccBusRoleStatus')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.CCBUS_STATUS_CHANGED_EVENT, {
+          detail: { roleStatus: updated.ccBusRoleStatus, previousRoleStatus },
+        }),
+      )
+    }
+
+    if (changed.includes('analogMonitor')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.ANALOG_MONITOR_CHANGED_EVENT, {
+          detail: { previous: previousAnalog, current: updated.analogMonitor },
+        }),
+      )
+    }
+
+    if (changed.includes('vbusInfo')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.VBUS_CHANGED_EVENT, {
+          detail: { previous: previousVbus, current: updated.vbusInfo },
+        }),
+      )
+    }
+
+    if (changed.includes('captureEnabled')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, {
+          detail: { previous: previousCaptureEnabled, current: updated.captureEnabled },
+        }),
+      )
+    }
+
+
+    if (changed.includes('triggerInfo')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.TRIGGER_CHANGED_EVENT, {
+          detail: { previous: previousTrigger, current: updated.triggerInfo },
+        }),
+      )
+    }
+
+    if (changed.includes('sinkInfo')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.SINK_INFO_CHANGED_EVENT, {
+          detail: { previous: previousSinkInfo, current: updated.sinkInfo },
+        }),
+      )
+    }
+
+    if (changed.includes('sinkPdoList')) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.SINK_PDO_LIST_CHANGED_EVENT, {
+          detail: { previous: previousPdoList, current: updated.sinkPdoList },
+        }),
+      )
+    }
+
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { state: this.getState(), changed },
+      }),
+    )
+    this.logDebug(`refreshState: changed=${changed.join(',')}`)
+  }
+
+  /**
+   * Stop listening for interrupt events.
+   */
+  public detachInterrupts(): void {
+    if (!this.interruptSource) {
+      return
+    }
+    this.interruptSource.removeEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
+    this.interruptSource.removeEventListener(
+      USBTMCTransport.INTERRUPT_ERROR_EVENT,
+      this.interruptErrorHandler,
+    )
+    this.interruptSource = undefined
+  }
+
+  /**
+   * Handle an interrupt event by querying the device status register.
+   */
+  protected async handleInterrupt(): Promise<void> {
+    this.logDebug('interrupt: start')
+    try {
+      const statusFlags = await this.status.readDeviceStatus()
+      const tasks: Promise<void>[] = []
+      if (statusFlags.roleChanged) {
+        tasks.push(this.refreshRoleFromDevice())
+      }
+      if (statusFlags.ccBusStatusChanged) {
+        tasks.push(this.refreshRoleStatusFromDevice())
+      }
+      if (statusFlags.vbusStatusChanged) {
+        tasks.push(this.refreshVBusFromDevice())
+      }
+      if (statusFlags.captureStatusChanged) {
+        tasks.push(this.refreshCaptureEnabledFromDevice())
+      }
+      if (statusFlags.triggerStatusChanged) {
+        tasks.push(this.refreshTriggerFromDevice())
+      }
+      if (statusFlags.sinkStatusChanged) {
+        tasks.push(this.refreshSinkInfoFromDevice())
+      }
+      if (statusFlags.sinkPdoListChanged) {
+        tasks.push(this.refreshSinkPdoListFromDevice())
+      }
+      if (statusFlags.messageReceived) {
+        tasks.push(this.refreshAndDrainCapturedMessagesFromDevice())
+      }
+      await Promise.all(tasks)
+      this.logDebug('interrupt: done')
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`interrupt: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Update the stored role and emit events as needed.
+   *
+   * @param role - New CC bus role.
+   */
+  protected updateRole(role: CCBusRole): void {
+    const previousRole = this.state.role
+    if (previousRole === role) {
+      return
+    }
+    const shouldClearSink = role !== 'SINK'
+    const previousSinkInfo = this.state.sinkInfo
+    const previousSinkPdoList = this.state.sinkPdoList
+    this.state = {
+      ...this.state,
+      role,
+      sinkInfo: shouldClearSink ? null : this.state.sinkInfo,
+      sinkPdoList: shouldClearSink ? null : this.state.sinkPdoList
+    }
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.ROLE_CHANGED_EVENT, {
+        detail: { role, previousRole },
+      }),
+    )
+    if (shouldClearSink && (previousSinkInfo || previousSinkPdoList)) {
+      if (previousSinkInfo) {
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.SINK_INFO_CHANGED_EVENT, {
+            detail: { previous: previousSinkInfo, current: null },
+          }),
+        )
+      }
+      if (previousSinkPdoList) {
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.SINK_PDO_LIST_CHANGED_EVENT, {
+            detail: { previous: previousSinkPdoList, current: null },
+          }),
+        )
+      }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['role', 'sinkInfo', 'sinkPdoList'] },
+        }),
+      )
+      return
+    }
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { state: this.getState(), changed: ['role'] },
+      }),
+    )
+  }
+
+  /**
+   * Refresh CC bus role from the device.
+   */
+  protected async refreshRoleFromDevice(): Promise<void> {
+    try {
+      const role = await this.ccBus.getRole()
+      this.updateRole(role)
+      this.logDebug(`refreshRole: ${role}`)
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshRole: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh CC bus role status from the device.
+   */
+  protected async refreshRoleStatusFromDevice(): Promise<void> {
+    try {
+      const roleStatus = await this.ccBus.getRoleStatus()
+      if (this.state.ccBusRoleStatus === roleStatus) {
+        return
+      }
+      this.state = { ...this.state, ccBusRoleStatus: roleStatus }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.CCBUS_STATUS_CHANGED_EVENT, {
+          detail: { roleStatus },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['ccBusRoleStatus'] },
+        }),
+      )
+      this.logDebug(`refreshRoleStatus: ${roleStatus}`)
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshRoleStatus: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh VBUS info from the device.
+   */
+  protected async refreshVBusFromDevice(): Promise<void> {
+    try {
+      const vbusInfo = await this.vbus.getInfo()
+      if (this.state.vbusInfo === vbusInfo) {
+        return
+      }
+      this.state = { ...this.state, vbusInfo }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.VBUS_CHANGED_EVENT, {
+          detail: { vbusInfo },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['vbusInfo'] },
+        }),
+      )
+      this.logDebug('refreshVBus: updated')
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshVBus: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh capture enabled status from the device.
+   */
+  protected async refreshCaptureEnabledFromDevice(): Promise<void> {
+    try {
+      const captureEnabled = await this.capture.getCaptureEnabled()
+      if (this.state.captureEnabled === captureEnabled) {
+        return
+      }
+      this.state = { ...this.state, captureEnabled }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, {
+          detail: { captureEnabled },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['captureEnabled'] },
+        }),
+      )
+      this.logDebug(`refreshCaptureEnabled: ${captureEnabled}`)
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshCaptureEnabled: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh trigger info from the device.
+   */
+  protected async refreshTriggerFromDevice(): Promise<void> {
+    try {
+      const triggerInfo = await this.trigger.getInfo()
+      if (this.state.triggerInfo === triggerInfo) {
+        return
+      }
+      this.state = { ...this.state, triggerInfo }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.TRIGGER_CHANGED_EVENT, {
+          detail: { triggerInfo },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['triggerInfo'] },
+        }),
+      )
+      this.logDebug('refreshTrigger: updated')
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshTrigger: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh sink info from the device.
+   */
+  protected async refreshSinkInfoFromDevice(): Promise<void> {
+    try {
+      if (this.state.role !== 'SINK') {
+        this.logDebug('refreshSinkInfo: skipped (role not SINK)')
+        return
+      }
+      const sinkInfo = await this.sink.getSinkInfo()
+      if (this.state.sinkInfo === sinkInfo) {
+        return
+      }
+      this.state = { ...this.state, sinkInfo }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.SINK_INFO_CHANGED_EVENT, {
+          detail: { sinkInfo },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['sinkInfo'] },
+        }),
+      )
+      this.logDebug('refreshSinkInfo: updated')
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshSinkInfo: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh sink PDO list from the device.
+   */
+  protected async refreshSinkPdoListFromDevice(): Promise<void> {
+    try {
+      if (this.state.role !== 'SINK') {
+        this.logDebug('refreshSinkPdoList: skipped (role not SINK)')
+        return
+      }
+      const pdoCount = await this.sink.getAvailablePdoCount()
+      const pdoList = await Promise.all(
+        Array.from({ length: pdoCount }, (_, index) => this.sink.getPdoAtIndex(index)),
+      )
+      this.state = { ...this.state, sinkPdoList: pdoList }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.SINK_PDO_LIST_CHANGED_EVENT, {
+          detail: { sinkPdoList: pdoList },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['sinkPdoList'] },
+        }),
+      )
+      this.logDebug(`refreshSinkPdoList: count=${pdoList.length}`)
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshSinkPdoList: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh capture count and drain captured messages until none remain.
+   */
+  protected async refreshAndDrainCapturedMessagesFromDevice(): Promise<void> {
+    this.logDebug('refreshAndDrainCapturedMessages: start')
+    while (true) {
+      let captureCount: number
+      try {
+        captureCount = await this.capture.getCapturedMessageCount()
+      } catch (error) {
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+        )
+        this.logDebug(`refreshAndDrainCapturedMessages: count error=${String(error)}`)
+        break
+      }
+
+      this.logDebug(`refreshAndDrainCapturedMessages: count=${captureCount}`)
+
+      if (captureCount <= 0) {
+        this.logDebug('refreshAndDrainCapturedMessages: done')
+        break
+      }
+
+      for (let index = 0; index < captureCount; index += 1) {
+        try {
+          const message = await this.capture.getNextCapturedMessage()
+          await this.logCapturedMessage(message)
+          this.dispatchEvent(
+            new CustomEvent(DRPDDevice.MESSAGE_CAPTURED_EVENT, {
+              detail: { message },
+            }),
+          )
+          this.logDebug('refreshAndDrainCapturedMessages: message')
+        } catch (error) {
+          this.dispatchEvent(
+            new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+          )
+          this.logDebug(`refreshAndDrainCapturedMessages: message error=${String(error)}`)
+          return
+        }
+      }
+    }
+  }
+
+  /**
+   * Run initial state refreshes on connect.
+   */
+  protected async runConnectTasks(): Promise<void> {
+    this.logDebug('runConnectTasks: start')
+    if (this.loggingConfig.enabled && this.loggingConfig.autoStartOnConnect) {
+      await this.startLogging()
+    }
+    await this.refreshState()
+    await this.refreshAndDrainCapturedMessagesFromDevice()
+    this.logDebug('runConnectTasks: done')
+  }
+
+  /**
+   * Poll analog monitor channels and update state if changed.
+   */
+  protected async pollAnalogMonitor(): Promise<void> {
+    if (!this.isConnected) {
+      return
+    }
+    if (this.analogMonitorInFlight) {
+      this.logDebug('pollAnalogMonitor: skip (in flight)')
+      return
+    }
+    this.analogMonitorInFlight = true
+    try {
+      const next = await this.analogMonitor.getStatus()
+      await this.logAnalogSample(next)
+      if (this.isAnalogMonitorEqual(this.state.analogMonitor, next)) {
+        return
+      }
+      const previous = this.state.analogMonitor
+      this.state = { ...this.state, analogMonitor: next }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.ANALOG_MONITOR_CHANGED_EVENT, {
+          detail: { previous, current: next },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['analogMonitor'] },
+        }),
+      )
+      this.logDebug('pollAnalogMonitor: updated')
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`pollAnalogMonitor: error=${String(error)}`)
+    } finally {
+      this.analogMonitorInFlight = false
+    }
+  }
+
+  /**
+   * Poll the capture queue and drain any pending messages.
+   */
+  protected async pollCaptureDrain(): Promise<void> {
+    if (!this.isConnected) {
+      return
+    }
+    if (this.captureDrainInFlight) {
+      this.logDebug('pollCaptureDrain: skip (in flight)')
+      return
+    }
+    this.captureDrainInFlight = true
+    try {
+      await this.refreshAndDrainCapturedMessagesFromDevice()
+    } finally {
+      this.captureDrainInFlight = false
+    }
+  }
+
+  /**
+   * Insert one analog sample into the active log store.
+   *
+   * @param sample - Analog monitor sample.
+   */
+  protected async logAnalogSample(sample: AnalogMonitorChannels): Promise<void> {
+    if (!this.loggingStarted || !this.logStore) {
+      return
+    }
+    try {
+      await this.logStore.insertAnalogSample({
+        timestampUs: sample.captureTimestampUs,
+        vbusV: sample.vbus,
+        ibusA: sample.ibus,
+        role: this.state.role,
+        createdAtMs: Date.now(),
+      })
+    } catch (error) {
+      this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
+      this.logDebug(`logging analog insert error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Insert one captured message into the active log store.
+   *
+   * @param message - Captured message from the device.
+   */
+  protected async logCapturedMessage(message: CapturedMessage): Promise<void> {
+    if (!this.loggingStarted || !this.logStore) {
+      return
+    }
+    try {
+      await this.logStore.insertCapturedMessage(this.toLoggedCapturedMessage(message))
+    } catch (error) {
+      this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
+      this.logDebug(`logging message insert error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Convert a captured device message into a persisted log row.
+   *
+   * @param message - Captured message.
+   * @returns Logged captured message row.
+   */
+  protected toLoggedCapturedMessage(message: CapturedMessage): LoggedCapturedMessage {
+    const rawSop = Uint8Array.from(message.sop)
+    const rawDecodedData = Uint8Array.from(message.decodedData)
+    const rawPulseWidths = Uint16Array.from(message.pulseWidths)
+    let sopKind: string | null = null
+    let messageKind: string | null = null
+    let messageType: number | null = null
+    let messageId: number | null = null
+    let senderPowerRole: string | null = null
+    let senderDataRole: string | null = null
+    let parseError: string | null = null
+
+    try {
+      const usbPayload = new Uint8Array(rawSop.length + rawDecodedData.length)
+      usbPayload.set(rawSop, 0)
+      usbPayload.set(rawDecodedData, rawSop.length)
+      const parsedMessage = parseUSBPDMessage(usbPayload)
+      const header = parsedMessage.header.messageHeader
+      sopKind = parsedMessage.sop.kind
+      messageKind = header.messageKind
+      messageType = header.messageTypeNumber
+      messageId = header.messageId
+      senderPowerRole = header.powerRole
+      senderDataRole = header.dataRole
+    } catch (error) {
+      parseError = error instanceof Error ? error.message : String(error)
+    }
+
+    return {
+      startTimestampUs: message.startTimestampUs,
+      endTimestampUs: message.endTimestampUs,
+      decodeResult: message.decodeResult,
+      sopKind,
+      messageKind,
+      messageType,
+      messageId,
+      senderPowerRole,
+      senderDataRole,
+      pulseCount: message.pulseCount,
+      rawPulseWidths,
+      rawSop,
+      rawDecodedData,
+      parseError,
+      createdAtMs: Date.now(),
+    }
+  }
+
+  /**
+   * Compare analog monitor channel values.
+   *
+   * @param left - Previous values.
+   * @param right - New values.
+   * @returns True when values match.
+   */
+  protected isAnalogMonitorEqual(
+    left: AnalogMonitorChannels | null,
+    right: AnalogMonitorChannels | null,
+  ): boolean {
+    if (!left || !right) {
+      return left === right
+    }
+    return (
+      left.captureTimestampUs === right.captureTimestampUs &&
+      left.vbus === right.vbus &&
+      left.ibus === right.ibus &&
+      left.dutCc1 === right.dutCc1 &&
+      left.dutCc2 === right.dutCc2 &&
+      left.usdsCc1 === right.usdsCc1 &&
+      left.usdsCc2 === right.usdsCc2 &&
+      left.adcVref === right.adcVref &&
+      left.groundRef === right.groundRef &&
+      left.currentVref === right.currentVref
+    )
+  }
+
+  /**
+   * Fetch the full sink PDO list.
+   *
+   * @returns Sink PDO list.
+   */
+  protected async fetchSinkPdoList(): Promise<DRPDDeviceState['sinkPdoList']> {
+    const pdoCount = await this.sink.getAvailablePdoCount()
+    const pdoList = await Promise.all(
+      Array.from({ length: pdoCount }, (_, index) => this.sink.getPdoAtIndex(index)),
+    )
+    return pdoList
+  }
+
+  /**
+   * Log a debug message if enabled.
+   *
+   * @param message - Debug message.
+   */
+  protected logDebug(message: string): void {
+    if (!this.debugLoggingEnabled) {
+      return
+    }
+    console.debug(`[DRPDDevice] ${message}`)
+  }
+}

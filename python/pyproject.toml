@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "t76"
+version = "0.1.0"
+description = "A simple Python module"
+readme = "README.md"
+requires-python = ">=3.7"
+license = "MIT"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "async-lru==2.0.5",
+    "pyserial>=3.5",
+    "pyserial-asyncio>=0.6",
+    "pyusb>=1.3.1",
+    "PyVISA>=1.15.0",
+    "textual>=5.0.1",
+]
+
+[project.optional-dependencies]
+# Optional dependencies for different use cases
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=22.0",
+    "isort>=5.0",
+    "flake8>=3.8",
+]
+docs = [
+    "sphinx>=4.0",
+    "sphinx-rtd-theme>=1.0",
+]
+cli = [
+    "click>=8.0.0",
+    "rich>=10.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/t76"
+"Bug Tracker" = "https://github.com/yourusername/t76/issues"

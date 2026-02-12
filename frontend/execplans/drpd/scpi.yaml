@@ -1,0 +1,516 @@
+# Copyright (c) 2025 MTA, Inc.
+#
+# This file defines all the SCPI commands recognized by the interpreter.
+# It should generally include both standard SCPI commands like those prescribed by
+# IEEE 488.2, and custom commands specific to the instrument.
+#
+# A command definition consists of the following components:
+# - `syntax`: The SCPI command syntax. The entire hierarchical path should be
+#   included, starting with the command name and including all subcommands.
+#   Optional portions of a command path element can be indicated in lowercase.
+# - `description`: A brief description of what the command does. This is not
+#   included in the generated code, but is used for documentation purposes.
+# - `handler`: The name of the function that will handle the command when it is
+#   executed. This function should be defined in the concrete interpreter class.
+# - `parameters`: An optional list of parameters that the command accepts.
+#   Each parameter should have a `name`, `type`, and `description`. The `type`
+#   can be a simple type like `number` or `string`, or an `enum` type with a list of
+#   possible values. A parameter can be marked as optional by providing a
+#   `default` value. Note that all optional parameters must be terminal, or
+#   the command will not be recognized correctly.
+#
+# This file is processed by the `trie_generator.py` script to generate the
+# data structures required by the SCPI interpreter.
+
+class_name: App
+namespace: T76::DRPD
+output_file: scpi_commands.cpp
+
+commands:
+  ############################
+  # Default SCPI commands
+  ############################
+
+  - syntax:       "*IDN?"
+    description:  "Query the instrument identification string."
+    handler:      _queryIDN
+
+  - syntax:       "*RST"
+    description:  "Reset the instrument to its power-on state."
+    handler:      _resetInstrument
+
+  - syntax:       "SYSTem:ERRor?"
+    description:  "Query the error queue and return the oldest error."
+    handler:      _querySystemError
+
+  - syntax:       "SYSTem:MEMory?"
+    description:  "Query the amount of free memory on the FreeRTOS heap in bytes."
+    handler:      _querySystemMemory
+
+  - syntax:       "SYSTem:SPeed?"
+    description:  "Query the system clock frequency in hertz."
+    handler:      _querySystemSpeed
+
+  - syntax:       "SYSTem:UPTime?"
+    description:  "Query the number of microseconds since the system was booted."
+    handler:      _querySystemUptime
+
+  - syntax:       "SYSTem:TIMEstamp?"
+    description:  "Query the current timestamp in microseconds."
+    handler:      _querySystemTimestamp
+
+  ############################
+  # Device status register
+  ############################
+
+  - syntax:       "STATus:DEVice?"
+    description:  |
+                    Query device status register; returns a 32-bit integer value and clears it.
+                    The returned value is a bitfield with the following bits:
+                    
+                    - Bit 0 (0x00000001): VBusStatusChanged - VBUS status changed
+                    - Bit 1 (0x00000002): RoleChanged - CC bus controller role changed
+                    - Bit 2 (0x00000004): CaptureStatusChanged - Message capture status changed
+                    - Bit 3 (0x00000008): CCBusStatusChanged - CC bus controller status changed
+                    - Bit 4 (0x00000010): TriggerStatusChanged - Trigger controller status changed
+                    - Bit 5 (0x00000020): SinkPDOListChanged - Sink PDO list changed
+                    - Bit 6 (0x00000040): SinkStatusChanged - Sink status changed
+                    - Bit 7 (0x00000080): MessageReceived - New message received on CC bus
+                    
+                    Multiple bits may be set simultaneously. Reading this register clears all bits.
+    handler:      _queryDeviceStatus
+
+  ############################
+  # Analog monitor commands
+  ############################
+
+  - syntax:       "MEASure:ALL?"
+    description:  |-
+                    Measure all analog monitor voltages and currents.
+                    Returns comma-separated values in the following order:
+                    - VBUS capture timestamp (uint64, microseconds)
+                    - VBUS voltage
+                    - VBUS current
+                    - DUT CC1 voltage
+                    - DUT CC2 voltage
+                    - USDS CC1 voltage
+                    - USDS CC2 voltage
+                    - ADC VREF voltage
+                    - Ground reference voltage
+                    - Current reference voltage
+    handler:      _measureAllAnalogValues
+
+  - syntax:       "MEASure:VOLTage:VBUS?"
+    description:  "Measure the VBUS voltage."
+    handler:      _measureVBusVoltage
+
+  - syntax:       "MEASure:CURRent:VBUS?"
+    description:  "Measure the VBUS current."
+    handler:      _measureVBusCurrent
+
+  - syntax:       "MEASure:VOLTage:CC:DUT1?"
+    description:  "Measure the DUT CC1 voltage."
+    handler:      _measureDUTCC1Voltage
+
+  - syntax:       "MEASure:VOLTage:CC:DUT2?"
+    description:  "Measure the DUT CC2 voltage."
+    handler:      _measureDUTCC2Voltage
+
+  - syntax:       "MEASure:VOLTage:CC:USDS1?"
+    description:  "Measure the USDS CC1 voltage."
+    handler:      _measureUSDSCC1Voltage
+
+  - syntax:       "MEASure:VOLTage:CC:USDS2?"
+    description:  "Measure the USDS CC2 voltage."
+    handler:      _measureUSDSCC2Voltage
+
+  - syntax:       "MEASure:VOLTage:REF:ADC?"
+    description:  "Measure the ADC reference voltage."
+    handler:      _measureADCRefVoltage
+
+  - syntax:       "MEASure:VOLTage:REF:CURRent?"
+    description:  "Measure the current reference voltage."
+    handler:      _measureCurrentRefVoltage
+
+  - syntax:       "MEASure:VOLTage:REF:GND?"
+    description:  "Measure the ground reference voltage."
+    handler:      _measureGroundRefVoltage
+
+  ############################
+  # Bus controller commands
+  ############################
+
+  - syntax:       "BUS:CC:ROLE?"
+    description:  "Query the CC bus controller role"
+    handler:      _queryCCBusControllerRole
+
+  - syntax:       "BUS:CC:ROLE"
+    description:  "Set the CC bus controller role"
+    parameters:
+      - name:        role
+        type:        enum
+        choices:     ["DISABLED", "OBSERVER", "SOURCE", "SINK"]
+        description: "The desired role for the CC bus controller."
+    handler:      _setCCBusControllerRole
+
+  - syntax:       "BUS:CC:ROLE:STATus?"
+    description:  "Query the CC bus controller role status. Returns one of: UNATTACHED, SOURCE_FOUND, ATTACHED"
+    handler:      _queryCCBusControllerRoleStatus
+
+  - syntax:       "BUS:CC:CAPture:CYCLETIME?"
+    description:  "Query the length of a capture cycle in nanoseconds"
+    handler:      _queryCCBusCaptureCycleTime
+
+  - syntax:       "BUS:CC:CAPture:COUNT?"
+    description:  "Query the number of captured CC bus messages"
+    handler:      _queryCCBusCapturedMessageCount
+
+  - syntax:       "BUS:CC:CAPture:DATA?"
+    description:  |
+                    Query the CC bus for the next available captured message.
+                    If no messages are available, returns an error.
+                    Messages are returned as arbitrary data blocks with the following
+                    format:
+
+                    - Start timestamp (8 bytes, uint64_t): The timestamp of when message capture started, in microseconds.
+                    - End timestamp (8 bytes, uint64_t): The timestamp of when message capture ended, in microseconds.
+                    - Message decoding result (4 bytes, uint32_t): The result of decoding the message.
+                      Possible values are:
+                      - 0: Success
+                      - 1: Invalid K-code
+                      - 2: CRC error
+                      - 3: Timeout error
+                      - 4: Incomplete message
+                    - SOP (4 bytes): The Start of Packet identifier.
+                    - Pulse count (4 bytes, uint32_t): The number of pulses in the captured message.
+                    - Pulse widths (N * 2 bytes, uint16_t): An array of pulse widths in PIO cycles.
+                    - Data length (4 bytes, uint32_t): The length of the decoded data in bytes.
+                    - Decoded data (M * 1 bytes, uint8_t): The decoded message
+    handler:      _queryCCBusNextCapturedMessage
+
+  - syntax:       "BUS:CC:CAPture:EN"
+    description:  "Enable or disable CC bus message capture"
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF"]
+        description: "The desired capture state."
+    handler:      _setCCBusMessageCaptureState
+
+  - syntax:       "BUS:CC:CAPture:EN?"
+    description:  "Query the CC bus message capture status"
+    handler:      _queryCCBusMessageCaptureState
+
+  - syntax:       "BUS:CC:CAPture:CLEAR"
+    description:  "Clear the captured CC bus message buffer"
+    handler:      _clearCCBusCapturedMessages
+
+  - syntax:       "BUS:VBUS:STATus?"
+    description:  "Query the VBUS status. Returns one of ENABLED, DISABLED, OVP, OCP. If OVP or OCP is returned, the VBUS controller is in a FAULT state and must be reset."
+    handler:      _queryVBusStatus
+
+  - syntax:       "BUS:VBUS:RESET"
+    description:  "Reset the VBUS controller from a FAULT state."
+    handler:      _resetVBus
+
+  - syntax:       "BUS:VBUS:OVPThreshold"
+    description:  "Set the VBUS overvoltage protection threshold in millivolts."
+    parameters:
+      - name:        threshold_mv
+        type:        number
+        description: "The desired OVP threshold in millivolts."
+    handler:      _setVBusOVPThreshold
+
+  - syntax:       "BUS:VBUS:OVPThreshold?"
+    description:  "Query the VBUS overvoltage protection threshold in millivolts"
+    handler:      _queryVBusOVPThreshold
+
+  - syntax:       "BUS:VBUS:OCPThreshold"
+    description:  "Set the VBUS overcurrent protection threshold in milliamps."
+    parameters:
+      - name:        threshold_ma
+        type:        number
+        description: "The desired OCP threshold in milliamps."
+    handler:      _setVBusOCPThreshold
+
+  - syntax:       "BUS:VBUS:OCPThreshold?"
+    description:  "Query the VBUS overcurrent protection threshold in milliamps"
+    handler:      _queryVBusOCPThreshold
+
+  ############################
+  # Sink commands
+  ############################
+
+  - syntax:       "SINK:PDO:COUNT?"
+    description:  |
+                    Query the number of available PDOs from the source.
+                    Returns a single integer value.
+    handler:      _querySinkAvailablePDOCount
+
+  - syntax:       "SINK:PDO?"
+    description:  |
+                    Query information about a PDO at the specified index.
+                    Returns comma-separated values with format depending on PDO type:
+                    
+                    - Fixed Supply PDO: "FIXED,<voltage>,<max_current>"
+                      - voltage: Voltage in volts (float)
+                      - max_current: Maximum current in amps (float)
+                    
+                    - Variable Supply PDO: "VARIABLE,<min_voltage>,<max_voltage>,<max_current>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_current: Maximum current in amps (float)
+                    
+                    - Battery Supply PDO: "BATTERY,<min_voltage>,<max_voltage>,<max_power>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_power: Maximum power in watts (float)
+                    
+                    - Augmented PDO (PPS): "AUGMENTED,<min_voltage>,<max_voltage>,<max_current>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_current: Maximum current in amps (float)
+    parameters:
+      - name:        index
+        type:        number
+        description: "The index of the requested PDO (0-based)."
+    handler:      _querySinkRequestedPDOAtIndex
+
+  - syntax:       "SINK:PDO"
+    description:  |
+                    Request a PDO at the specified index with a specific voltage and current.
+                    The sink will request the specified current from the source, or the maximum
+                    available current if 0 is specified.
+    parameters:
+      - name:        index
+        type:        number
+        description: "The index of the PDO to request (0-based)."
+      - name:       voltage_mv
+        type:        number
+        description: "The desired voltage in millivolts."
+      - name:        current_ma
+        type:        number
+        description: "The desired current in milliamps. Set to 0 to request the maximum available current."
+    handler:      _setSinkPDO
+
+  - syntax:       "SINK:STATUS?"
+    description:  |
+                    Query the current state of the sink state machine.
+                    Returns one of:
+                    - DISCONNECTED: No source detected
+                    - NEGOTIATING: Power negotiation in progress
+                    - AWAITING_PS_READY: Waiting for PS_RDY message from source
+                    - CONNECTED: Successfully negotiated and receiving power
+                    - ERROR: An error occurred during negotiation
+    handler:      _querySinkStatus
+
+  - syntax:       "SINK:STATUS:PDO?"
+    description:  |
+                    Query information about the negotiated PDO.
+                    Returns comma-separated values with format depending on PDO type:
+                    
+                    - Fixed Supply PDO: "FIXED,<voltage>,<max_current>"
+                      - voltage: Voltage in volts (float)
+                      - max_current: Maximum current in amps (float)
+                    
+                    - Variable Supply PDO: "VARIABLE,<min_voltage>,<max_voltage>,<max_current>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_current: Maximum current in amps (float)
+                    
+                    - Battery Supply PDO: "BATTERY,<min_voltage>,<max_voltage>,<max_power>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_power: Maximum power in watts (float)
+                    
+                    - Augmented PDO (PPS): "AUGMENTED,<min_voltage>,<max_voltage>,<max_current>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_current: Maximum current in amps (float)
+                    
+                    Returns error if no PDO has been negotiated yet.
+    handler:      _querySinkNegotiatedPDO
+
+  - syntax:       "SINK:STATUS:VOLTAGE?"
+    description:  |
+                    Query the negotiated voltage.
+                    Returns a single int value in millivolts.
+                    Returns 0 if no voltage has been negotiated.
+    handler:      _querySinkNegotiatedVoltage
+
+  - syntax:       "SINK:STATUS:CURRENT?"
+    description:  |
+                    Query the negotiated current.
+                    Returns a single int value in milliamps.
+                    Returns 0 if no current has been negotiated.
+    handler:      _querySinkNegotiatedCurrent
+
+  - syntax:       "SINK:STATUS:ERROR?"
+    description:  |
+                    Query the error status of the sink.
+                    Returns:
+                    - 1: Sink is in ERROR state
+                    - 0: Sink is not in ERROR state
+    handler:      _querySinkErrorStatus
+
+  ############################
+  # Trigger commands
+  ############################
+
+  - syntax:       "TRIGger:RESET"
+    description:  "Reset the trigger controller"
+    handler:      _resetTriggerController
+
+  - syntax:       "TRIGger:STATus?"
+    description:  "Query the trigger controller status. Returns one of: IDLE, ARMED, TRIGGERED"
+    handler:      _queryTriggerControllerStatus
+
+  - syntax:       "TRIGger:EVent:TYPE"
+    description:  "Set the trigger event type"
+    parameters:
+      - name:        mode
+        type:        enum
+        choices:     ["OFF", "PREAMBLE_START", "SOP_START", "HEADER_START", "DATA_START", "MESSAGE_COMPLETE", "INVALID_KCODE", "CRC_ERROR", "TIMEOUT_ERROR", "RUNT_PULSE_ERROR", "ANY_ERROR"]
+        description: "The desired trigger event type."
+    handler:      _setTriggerEventType
+
+  - syntax:       "TRIGger:EVent:TYPE?"
+    description:  "Query the trigger event type"
+    handler:      _queryTriggerEventType
+
+  - syntax:       "TRIGger:EVent:THRESHold"
+    description:  "Set the number of events before triggering"
+    parameters:
+      - name:        count
+        type:        number
+        description: "The desired number of events before triggering."
+    handler:      _setTriggerEventThreshold
+
+  - syntax:       "TRIGger:EVent:THRESHold?"
+    description:  "Query the number of events before triggering"
+    handler:      _queryTriggerEventThreshold
+
+  - syntax:       "TRIGger:EVent:AUTOREPEAT"
+    description:  "Enable or disable auto-repeating triggers"
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF"]
+        description: "The desired auto-repeat state."
+    handler:      _setTriggerAutoRepeatState
+
+  - syntax:       "TRIGger:EVent:AUTOREPEAT?"
+    description:  "Query the auto-repeat state"
+    handler:      _queryTriggerAutoRepeatState
+
+  - syntax:       "TRIGger:EVent:COUNT?"
+    description:  "Query the number of events counted since the last reset"
+    handler:      _queryTriggerEventCount
+
+  - syntax:       "TRIGger:SYNC:MODE"
+    description:  "Set the sync output mode"
+    parameters:
+      - name:        mode
+        type:        enum
+        choices:     ["OFF", "PULSE_HIGH", "PULSE_LOW", "TOGGLE"]
+        description: "The desired sync output mode."
+    handler:      _setSyncOutputMode
+
+  - syntax:       "TRIGger:SYNC:MODE?"
+    description:  "Query the sync output mode"
+    handler:      _querySyncOutputMode
+
+  - syntax:       "TRIGger:SYNC:PULSEwidth"
+    description:  "Set the sync pulse width in microseconds"
+    parameters:
+      - name:        width_us
+        type:        number
+        description: "The desired sync pulse width in microseconds."
+    handler:      _setSyncPulseWidth
+
+  - syntax:       "TRIGger:SYNC:PULSEwidth?"
+    description:  "Query the sync pulse width in microseconds"
+    handler:      _querySyncPulseWidth
+
+  ############################
+  # Test commands. These are enabled only if the DRPD_ENABLE_TEST_SCPI_COMMANDS
+  # is set. Otherwise, they will be treated as invalid commands.
+  ############################
+
+  - syntax:       "TEST:VBUSMAN:EN"
+    description:  "Enable or disable VBUS pass-through"
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF"]
+        description: "The desired pass-through state."
+    handler:      _setVBusManagerState
+    
+  - syntax:       "TEST:VBUSMAN:EN?"
+    description:  "Query the VBUS pass-through status"
+    handler:      _queryVBusManagerState
+
+  - syntax:       "TEST:CCROLE:CC1"
+    description:  "Set the CC1 port role"
+    parameters:
+      - name:        role
+        type:        enum
+        choices:     ["SOURCE_DEFAULT", "SOURCE_15", "SOURCE_30", "SINK", "EMARKER",  "VCONN", "OFF"]
+        description: "The desired role for the CC1 port."
+    handler:      _setCC1Role
+
+  - syntax:       "TEST:CCROLE:CC1?"
+    description:  "Query the CC1 port role"
+    handler:      _queryCC1Role
+
+  - syntax:       "TEST:CCROLE:CC2"
+    description:  "Set the CC2 port role"
+    parameters:
+      - name:        role
+        type:        enum
+        choices:     ["SOURCE_DEFAULT", "SOURCE_15", "SOURCE_30", "SINK", "EMARKER",  "VCONN", "OFF"]
+        description: "The desired role for the CC2 port."
+    handler:      _setCC2Role
+
+  - syntax:       "TEST:CCROLE:CC2?"
+    description:  "Query the CC2 port role"
+    handler:      _queryCC2Role
+
+  - syntax:       "TEST:CCBUS:DUT:CHANNEL"
+    description:  "Select the active CC bus"
+    parameters:
+      - name:        channel
+        type:        enum
+        choices:     ["CC1", "CC2"]
+        description: "The desired CC bus channel."
+    handler:      _setDUTChannel
+
+  - syntax:       "TEST:CCBUS:DUT:CHANNEL?"
+    description:  "Query the active CC bus"
+    handler:      _queryDUTChannel
+
+  - syntax:       "TEST:CCBUS:USDS:CHANNEL"
+    description:  "Select the active CC bus for the USDS"
+    parameters:
+      - name:        channel
+        type:        enum
+        choices:     ["CC1", "CC2"]
+        description: "The desired CC bus channel for the USDS."
+    handler:      _setUSDSChannel
+
+  - syntax:       "TEST:CCBUS:USDS:CHANNEL?"
+    description:  "Query the active CC bus for the USDS"
+    handler:      _queryUSDSChannel
+
+  - syntax:       "TEST:CCBUS:MUX"
+    description:  "Enable or disable the DUT CC bus multiplexer"
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF"]
+        description: "The desired DUT CC bus multiplexer state."
+    handler:      _setCCMuxState
+
+  - syntax:       "TEST:CCBUS:MUX?"
+    description:  "Query the DUT CC bus multiplexer status"
+    handler:      _queryCCMuxState

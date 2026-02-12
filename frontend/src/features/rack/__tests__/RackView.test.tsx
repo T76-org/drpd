@@ -1,0 +1,748 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { vi, afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DRPDDeviceDefinition } from '../../../lib/device'
+import { saveRackDocument } from '../../../lib/rack/loadRack'
+import type { RackDocument } from '../../../lib/rack/types'
+import { InstrumentBase } from '../InstrumentBase'
+import { RackView } from '../RackView'
+
+const mockTransportState = vi.hoisted(() => ({
+  ///< Force the mock transport to fail on open.
+  shouldFailOpen: false,
+  analogResponse: [
+    '1000',
+    '5.00',
+    '0.12',
+    '0.33',
+    '0.00',
+    '0.33',
+    '0.00',
+    '1.20',
+    '0.00',
+    '0.60',
+  ],
+  roleResponse: ['DISABLED'],
+  idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
+  captureCountResponse: ['0']
+}))
+
+vi.mock('../../../lib/transport/usbtmc', () => {
+  /**
+   * Mock USBTMC transport for RackView tests.
+   */
+  class MockUSBTMCTransport {
+    ///< Track open/close state for verification.
+    public opened = false
+
+    /**
+     * Create the mock transport.
+     *
+     * @param device - USB device instance.
+     */
+    public constructor(device: USBDevice) {
+      void device
+    }
+
+    /**
+     * Open the mock transport.
+     */
+    public async open(): Promise<void> {
+      if (mockTransportState.shouldFailOpen) {
+        throw new Error('Transport failed to open')
+      }
+      this.opened = true
+    }
+
+    /**
+     * Close the mock transport.
+     */
+    public async close(): Promise<void> {
+      this.opened = false
+    }
+
+    /**
+     * Return a mock SCPI response list.
+     *
+     * @param command - SCPI command string.
+     * @returns Response list.
+     */
+    public async queryText(command: string): Promise<string[]> {
+      if (command === '*IDN?') {
+        return mockTransportState.idnResponse
+      }
+      if (command === 'MEAS:ALL?') {
+        return mockTransportState.analogResponse
+      }
+      if (command === 'BUS:CC:ROLE?') {
+        return mockTransportState.roleResponse
+      }
+      if (command === 'BUS:CC:CAP:COUNT?') {
+        return mockTransportState.captureCountResponse
+      }
+      return []
+    }
+
+    /**
+     * Stub a binary response.
+     *
+     * @returns Empty payload.
+     */
+    public async queryBinary(): Promise<Uint8Array> {
+      return new Uint8Array()
+    }
+
+    /**
+     * Stub SCPI command send.
+     */
+    public async sendCommand(): Promise<void> {
+      return undefined
+    }
+  }
+
+  return { default: MockUSBTMCTransport }
+})
+
+/**
+ * Build a sample rack document for tests.
+ */
+const buildRackDocument = (overrides?: Partial<RackDocument>): RackDocument => {
+  const base: RackDocument = {
+    racks: [
+      {
+        id: 'bench-rack-a',
+        name: 'Bench Rack A',
+        totalUnits: 9,
+        devices: [],
+        rows: [
+          {
+            id: 'row-1',
+            instruments: [
+              {
+                id: 'inst-1',
+                instrumentIdentifier: 'com.mta.drpd.placeholder'
+              }
+            ]
+          },
+          {
+            id: 'row-2',
+            instruments: [
+              {
+                id: 'inst-2',
+                instrumentIdentifier: 'com.mta.drpd.placeholder'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+
+  return {
+    ...base,
+    ...overrides,
+    racks: overrides?.racks ?? base.racks
+  }
+}
+
+/**
+ * Create a minimal in-memory localStorage mock.
+ */
+const createStorage = (): Storage => {
+  let store: Record<string, string> = {}
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = value
+    },
+    removeItem: (key: string) => {
+      delete store[key]
+    },
+    clear: () => {
+      store = {}
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+    get length() {
+      return Object.keys(store).length
+    }
+  } as Storage
+}
+
+/**
+ * Create a minimal USBDevice stub.
+ */
+const createUSBDevice = (): USBDevice =>
+  ({
+    vendorId: 0x2e8a,
+    productId: 0x000a,
+    serialNumber: 'DRPD-TEST-001',
+    productName: 'Dr. PD'
+  }) as USBDevice
+
+/**
+ * Stub the navigator.usb API.
+ */
+const mockUSB = (devices: USBDevice[]) => {
+  const requestDevice = vi.fn(async () => devices[0])
+  const getDevices = vi.fn(async () => devices)
+  vi.stubGlobal('navigator', {
+    usb: {
+      requestDevice,
+      getDevices
+    }
+  })
+
+  return { requestDevice, getDevices }
+}
+
+let originalVerifier: typeof DRPDDeviceDefinition.verifyConnectedDevice
+
+beforeEach(() => {
+  originalVerifier = DRPDDeviceDefinition.verifyConnectedDevice
+  DRPDDeviceDefinition.verifyConnectedDevice = async () => true
+  vi.stubGlobal('localStorage', createStorage())
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+})
+
+afterEach(() => {
+  DRPDDeviceDefinition.verifyConnectedDevice = originalVerifier
+  mockTransportState.shouldFailOpen = false
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+describe('RackView', () => {
+  it('renders rack metadata and rows', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByText('Bench Rack A')).toBeInTheDocument()
+
+    const row = await screen.findByTestId('rack-row-row-2')
+    expect(row).toHaveStyle({ height: '200px' })
+    expect(screen.getByTestId('rack-instrument-inst-2')).toBeInTheDocument()
+  })
+
+  it('toggles theme mode from the header control', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const button = await screen.findByRole('button', { name: /theme/i })
+    expect(button).toHaveTextContent('System')
+
+    await userEvent.click(button)
+    expect(button).toHaveTextContent('Light')
+  })
+
+  it('hides the header when configured on the rack', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            hideHeader: true,
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-1',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByTestId('rack-row-row-1')).toBeInTheDocument()
+    expect(screen.queryByText('Bench Rack A')).not.toBeInTheDocument()
+  })
+
+  it('renders the base instrument header', () => {
+    render(
+      <InstrumentBase
+        instrument={{
+          id: 'inst-1',
+          instrumentIdentifier: 'com.mta.drpd.placeholder'
+        }}
+        displayName="Dr. PD Placeholder"
+      />
+    )
+
+    expect(screen.getByText('Dr. PD Placeholder')).toBeInTheDocument()
+  })
+
+  it('renders a concrete instrument size readout', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/width:/i).length).toBeGreaterThan(0)
+    })
+  })
+
+  it('shows edit controls and allows removing instruments with cancel restore', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const editButton = await screen.findByRole('button', { name: 'Edit' })
+    await userEvent.click(editButton)
+
+    const removeButtons = await screen.findAllByRole('button', {
+      name: /remove instrument/i
+    })
+    expect(removeButtons.length).toBeGreaterThan(0)
+
+    await userEvent.click(removeButtons[0])
+    expect(screen.queryByTestId('rack-instrument-inst-1')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByTestId('rack-instrument-inst-1')).toBeInTheDocument()
+  })
+
+  it('disables devices menu while editing', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('button', { name: 'Devices' })).toBeDisabled()
+  })
+
+  it('saves edits and persists layout changes', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.click(
+      (await screen.findAllByRole('button', { name: /remove instrument/i }))[0],
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    const instruments = stored.racks[0]?.rows.flatMap((row) => row.instruments) ?? []
+    expect(instruments.some((instrument) => instrument.id === 'inst-1')).toBe(false)
+  })
+
+  it('supports drag and drop reordering in edit mode', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    const instrument = await screen.findByTestId('rack-instrument-inst-1')
+    const dropZone = await screen.findByTestId('rack-row-insert-2')
+    const dataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: 'move'
+    }
+
+    fireEvent.dragStart(instrument, { dataTransfer })
+    fireEvent.dragOver(dropZone, { clientX: 10, clientY: 10 })
+    fireEvent.drop(dropZone, { clientX: 10, clientY: 10 })
+    fireEvent.dragEnd(instrument)
+
+    const rows = screen.getAllByTestId(/rack-row-row-/)
+    const lastRow = rows[rows.length - 1]
+    expect(
+      lastRow.querySelector('[data-testid="rack-instrument-inst-1"]'),
+    ).toBeTruthy()
+  })
+
+  it('allocates leftover width equally to flex instruments', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-fixed',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                  },
+                  {
+                    id: 'inst-flex-1',
+                    instrumentIdentifier: 'com.mta.drpd.device-status'
+                  },
+                  {
+                    id: 'inst-flex-2',
+                    instrumentIdentifier: 'com.mta.drpd.device-status'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByTestId('rack-instrument-inst-fixed')).toHaveAttribute(
+      'data-width-units',
+      '6',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-flex-1')).toHaveAttribute(
+      'data-width-units',
+      '3',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-flex-2')).toHaveAttribute(
+      'data-width-units',
+      '3',
+    )
+  })
+
+  it('falls back to a new row when dropping into an over-capacity row', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-a',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                  }
+                ]
+              },
+              {
+                id: 'row-2',
+                instruments: [
+                  {
+                    id: 'inst-b',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                  },
+                  {
+                    id: 'inst-c',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const instrument = await screen.findByTestId('rack-instrument-inst-a')
+    const targetRow = await screen.findByTestId('rack-row-row-2')
+    const dataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: 'move'
+    }
+
+    fireEvent.dragStart(instrument, { dataTransfer })
+    fireEvent.dragOver(targetRow, { clientX: 10, clientY: 10 })
+    fireEvent.drop(targetRow, { clientX: 10, clientY: 10 })
+    fireEvent.dragEnd(instrument)
+
+    const rows = screen.getAllByTestId(/rack-row-row-/)
+    expect(rows).toHaveLength(2)
+    expect(screen.getByTestId('rack-instrument-inst-a')).toBeInTheDocument()
+    expect(
+      screen.getByTestId('rack-row-row-2').querySelector('[data-testid="rack-instrument-inst-a"]'),
+    ).toBeFalsy()
+  })
+
+  it('shows the full-screen overlay when an instrument requests it', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [
+              {
+                id: 'device-1',
+                identifier: 'com.mta.drpd',
+                displayName: 'Dr. PD',
+                vendorId: 0x2e8a,
+                productId: 0x000a,
+                serialNumber: 'DRPD-TEST-001',
+                productName: 'Dr. PD'
+              }
+            ],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-1',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder',
+                    fullScreen: true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+
+    render(<RackView />)
+
+    expect(await screen.findByTestId('rack-fullscreen')).toBeInTheDocument()
+    expect(screen.queryByTestId('rack-rows')).not.toBeInTheDocument()
+  })
+
+  it('connects and persists a device added by the user', async () => {
+    saveRackDocument(buildRackDocument())
+    const { requestDevice } = mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    const connectButton = await screen.findByRole('button', {
+      name: /add device/i
+    })
+    await userEvent.click(connectButton)
+
+    expect(requestDevice).toHaveBeenCalled()
+    expect(await screen.findAllByText('Dr. PD')).not.toHaveLength(0)
+    expect(await screen.findAllByText('connected')).not.toHaveLength(0)
+  })
+
+  it('disconnects a device without removing it', async () => {
+    saveRackDocument(buildRackDocument())
+    const { requestDevice } = mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    const connectButton = await screen.findByRole('button', {
+      name: /add device/i
+    })
+    await userEvent.click(connectButton)
+
+    expect(requestDevice).toHaveBeenCalled()
+    const disconnectButton = await screen.findByRole('button', {
+      name: /disconnect/i
+    })
+    await userEvent.click(disconnectButton)
+
+    expect(await screen.findByText('disconnected')).toBeInTheDocument()
+    expect(await screen.findByText('Dr. PD')).toBeInTheDocument()
+
+    const reconnectButton = await screen.findByRole('button', {
+      name: /connect/i
+    })
+    await userEvent.click(reconnectButton)
+
+    expect(await screen.findByText('connected')).toBeInTheDocument()
+  })
+
+  it('removes a device when remove is clicked', async () => {
+    saveRackDocument(buildRackDocument())
+    const { requestDevice } = mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    const connectButton = await screen.findByRole('button', {
+      name: /add device/i
+    })
+    await userEvent.click(connectButton)
+
+    expect(requestDevice).toHaveBeenCalled()
+    const removeButton = await screen.findByRole('button', {
+      name: /remove/i
+    })
+    await userEvent.click(removeButton)
+    await waitFor(() => {
+      expect(screen.queryByText('Dr. PD')).not.toBeInTheDocument()
+    })
+  })
+
+  it('ignores WebUSB picker cancellations', async () => {
+    saveRackDocument(buildRackDocument())
+    const cancelError = Object.assign(new Error('No device selected'), {
+      name: 'NotFoundError'
+    })
+    const requestDevice = vi.fn(async () => {
+      throw cancelError
+    })
+    vi.stubGlobal('navigator', {
+      usb: {
+        requestDevice,
+        getDevices: vi.fn(async () => [])
+      }
+    })
+
+    render(<RackView />)
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    const connectButton = await screen.findByRole('button', {
+      name: /add device/i
+    })
+    await userEvent.click(connectButton)
+
+    expect(requestDevice).toHaveBeenCalled()
+    expect(screen.queryByText(/device error/i)).not.toBeInTheDocument()
+  })
+
+  it('shows connect when a device is in error state', async () => {
+    mockTransportState.shouldFailOpen = true
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [
+              {
+                id: 'device-1',
+                identifier: 'com.mta.drpd',
+                displayName: 'Dr. PD',
+                vendorId: 0x2e8a,
+                productId: 0x000a,
+                serialNumber: 'DRPD-TEST-001',
+                productName: 'Dr. PD'
+              }
+            ],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-1',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    expect(await screen.findByText('error')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /connect/i })).toBeInTheDocument()
+    mockTransportState.shouldFailOpen = false
+  })
+
+  it('lists the device status instrument for compatible devices', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [
+              {
+                id: 'device-1',
+                identifier: 'com.mta.drpd',
+                displayName: 'Dr. PD',
+                vendorId: 0x2e8a,
+                productId: 0x000a,
+                serialNumber: 'DRPD-TEST-001',
+                productName: 'Dr. PD'
+              }
+            ],
+            rows: []
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const addButton = await screen.findByRole('button', {
+      name: /add instrument/i
+    })
+    await userEvent.click(addButton)
+    expect(
+      await screen.findByRole('button', { name: /device status/i }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /sink control/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('adds an instrument for compatible devices', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [
+              {
+                id: 'device-1',
+                identifier: 'com.mta.drpd',
+                displayName: 'Dr. PD',
+                vendorId: 0x2e8a,
+                productId: 0x000a,
+                serialNumber: 'DRPD-TEST-001',
+                productName: 'Dr. PD'
+              }
+            ],
+            rows: []
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const addButton = await screen.findByRole('button', {
+      name: /add instrument/i
+    })
+    await userEvent.click(addButton)
+    const option = await screen.findByRole('button', {
+      name: /dr\. pd placeholder/i
+    })
+    await userEvent.click(option)
+
+    expect(await screen.findAllByText('Dr. PD Placeholder')).not.toHaveLength(0)
+  })
+})

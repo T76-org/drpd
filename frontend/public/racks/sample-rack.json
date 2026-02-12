@@ -1,0 +1,35 @@
+{
+  "racks": [
+    {
+      "id": "bench-rack-a",
+      "name": "Bench Rack A",
+      "hideHeader": false,
+      "devices": [],
+      "totalUnits": 9,
+      "rows": [
+        {
+          "id": "row-1",
+          "instruments": [
+            {
+              "id": "inst-1",
+              "instrumentIdentifier": "com.mta.drpd.placeholder"
+            },
+            {
+              "id": "inst-2",
+              "instrumentIdentifier": "com.mta.drpd.device-status"
+            }
+          ]
+        },
+        {
+          "id": "row-2",
+          "instruments": [
+            {
+              "id": "inst-3",
+              "instrumentIdentifier": "com.mta.drpd.device-status"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+import type { MessageKind } from './types'
+import { Header } from './header'
+import { SOP } from './sop'
+
+const SOP_LENGTH = 4
+const MESSAGE_HEADER_LENGTH = 2
+const EXTENDED_HEADER_LENGTH = 2
+
+/**
+ * Constructor signature for message classes.
+ */
+export type MessageClass = new (
+  sop: SOP,
+  header: Header,
+  payload: Uint8Array,
+  messageTypeName: string,
+) => Message
+
+/**
+ * Base class for all USB-PD messages.
+ */
+export class Message {
+  ///< SOP metadata for the message.
+  public readonly sop: SOP
+  ///< Parsed header for the message.
+  public readonly header: Header
+  ///< Raw payload bytes including SOP and headers.
+  public readonly payload: Uint8Array
+  ///< Offset where the message payload begins (after SOP and headers).
+  public readonly payloadOffset: number
+  ///< Message kind derived from the header.
+  public readonly kind: MessageKind
+  ///< Message type number from the header.
+  public readonly messageTypeNumber: number
+  ///< Human-readable message type name.
+  public readonly messageTypeName: string
+
+  /**
+   * Create a USB-PD message wrapper.
+   *
+   * @param sop - SOP metadata.
+   * @param header - Parsed message header.
+   * @param payload - Raw payload bytes including SOP and headers.
+   * @param messageTypeName - Human-readable message type name.
+   */
+  public constructor(sop: SOP, header: Header, payload: Uint8Array, messageTypeName: string) {
+    this.sop = sop
+    this.header = header
+    this.payload = payload
+    const headerBytes = header.messageHeader.extended
+      ? MESSAGE_HEADER_LENGTH + EXTENDED_HEADER_LENGTH
+      : MESSAGE_HEADER_LENGTH
+    this.payloadOffset = SOP_LENGTH + headerBytes
+    this.kind = header.messageHeader.messageKind
+    this.messageTypeNumber = header.messageHeader.messageTypeNumber
+    this.messageTypeName = messageTypeName
+  }
+}
+
+/**
+ * Base class for USB-PD control messages.
+ */
+export class ControlMessage extends Message {}
+
+/**
+ * Base class for USB-PD data messages.
+ */
+export class DataMessage extends Message {}
+
+/**
+ * Base class for USB-PD extended messages.
+ */
+export class ExtendedMessage extends Message {}

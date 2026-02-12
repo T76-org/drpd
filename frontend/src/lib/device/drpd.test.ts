@@ -1,0 +1,106 @@
+import { describe, expect, it, vi } from 'vitest'
+import { Device } from './base'
+
+const mockState = vi.hoisted(() => ({ nextResponse: [] as string[] }))
+
+vi.mock('../transport/usbtmc', () => {
+  /**
+   * Mock USBTMC transport for device definition tests.
+   */
+  class MockUSBTMCTransport {
+    ///< Track open/close state for verification.
+    public opened = false
+
+    /**
+     * Create the mock transport.
+     *
+     * @param device - USB device instance.
+     */
+    public constructor(device: USBDevice) {
+      void device
+    }
+
+    /**
+     * Open the mock transport.
+     */
+    public async open(): Promise<void> {
+      this.opened = true
+    }
+
+    /**
+     * Close the mock transport.
+     */
+    public async close(): Promise<void> {
+      this.opened = false
+    }
+
+    /**
+     * Return the next response for a SCPI query.
+     *
+     * @param command - SCPI command string.
+     * @returns Mock response list.
+     */
+    public async queryText(command: string): Promise<string[]> {
+      void command
+      return mockState.nextResponse
+    }
+  }
+
+  return { default: MockUSBTMCTransport }
+})
+
+import { DRPDDeviceDefinition } from './drpd'
+import { buildDefaultLoggingConfig } from './drpd/logging'
+
+/**
+ * Build a mock USB device for tests.
+ *
+ * @returns Mock USB device.
+ */
+const createUsbDevice = () => ({
+  productId: 0x000a,
+  vendorId: 0x2e8a,
+}) as USBDevice
+
+describe('DRPDDeviceDefinition', () => {
+  it('exposes USB search filters', () => {
+    const device = new DRPDDeviceDefinition()
+    expect(device.usbSearch[0]).toMatchObject({ vendorId: 0x2e8a, productId: 0x000a })
+  })
+
+  it('stores configuration on load/save', async () => {
+    const device = new DRPDDeviceDefinition()
+    await device.loadConfig({ logging: { enabled: true, maxAnalogSamples: 25 } })
+    const saved = await device.saveConfig()
+    expect(saved).toEqual({
+      logging: {
+        ...buildDefaultLoggingConfig(),
+        enabled: true,
+        maxAnalogSamples: 25,
+      },
+    })
+  })
+
+  it('emits connect and disconnect events', async () => {
+    const device = new DRPDDeviceDefinition()
+    const usbDevice = createUsbDevice()
+    const connectSpy = vi.fn()
+    const disconnectSpy = vi.fn()
+
+    device.addEventListener(Device.CONNECT_EVENT, connectSpy)
+    device.addEventListener(Device.DISCONNECT_EVENT, disconnectSpy)
+
+    await device.connectDevice(usbDevice)
+    device.disconnectDevice()
+
+    expect(connectSpy).toHaveBeenCalledTimes(1)
+    expect(disconnectSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('verifies connected device via *IDN?', async () => {
+    mockState.nextResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
+    const usbDevice = createUsbDevice()
+    const verified = await DRPDDeviceDefinition.verifyConnectedDevice(usbDevice)
+    expect(verified).toBe(true)
+  })
+})

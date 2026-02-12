@@ -1,0 +1,104 @@
+.instrument {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  border: var(--border-thin) solid var(--color-border-instrument);
+  background: var(--color-surface-instrument);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-none);
+  overflow: visible;
+  box-shadow: none;
+}
+
+.editMode {
+  position: relative;
+  box-shadow: 0 0 0 var(--border-thin) var(--color-edit-glow);
+  border: var(--border-thin) solid var(--color-edit-glow);
+  animation: editGlowPulse 1s ease-in-out infinite;
+}
+
+@keyframes editGlowPulse {
+  0% {
+    border-color: var(--color-edit-glow);
+    box-shadow: var(--shadow-edit-soft);
+  }
+  50% {
+    border-color: var(--color-edit-glow-strong);
+    box-shadow: var(--shadow-edit-strong);
+  }
+  100% {
+    border-color: var(--color-edit-glow);
+    box-shadow: var(--shadow-edit-soft);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-8);
+  background: var(--color-surface-panel-accent);
+  border-bottom: var(--border-thin) solid var(--color-border-panel);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-md);
+  font-size: var(--font-size-xs);
+}
+
+.name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.badge {
+  font-size: var(--font-size-xs);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-none);
+  background: var(--color-surface-chip);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.closeButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: transparent;
+  color: var(--color-text-primary);
+  width: var(--control-icon-size-sm);
+  height: var(--control-icon-size-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-tight);
+  cursor: pointer;
+  padding: var(--space-0);
+}
+
+.content {
+  flex: 1;
+  padding: var(--space-10) var(--space-12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editMode .content {
+  filter: blur(1px) grayscale(0.2);
+  opacity: 0.6;
+}
+
+.placeholder {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+}
+
+.readout {
+  display: grid;
+  gap: var(--space-6);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+  text-align: center;
+}

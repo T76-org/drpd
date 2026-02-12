@@ -1,0 +1,235 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-page-bg);
+  color: var(--color-text-primary);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-12) var(--space-20);
+  border-bottom: var(--border-thin) solid var(--color-border-divider);
+  background: var(--color-surface-header);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: var(--space-0);
+  font-size: var(--font-size-2xl);
+  letter-spacing: var(--letter-spacing-sm);
+  text-transform: uppercase;
+}
+
+.subtitle {
+  margin: var(--space-4) var(--space-0) var(--space-0);
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+
+.metaLabel {
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-lg);
+  color: var(--color-text-muted);
+}
+
+.metaValue {
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-0);
+}
+
+.notice {
+  padding: var(--space-16);
+  border-radius: var(--radius-none);
+  background: var(--color-surface-panel);
+  border: var(--border-thin) solid var(--color-border-panel);
+  color: var(--color-text-muted);
+}
+
+.noticeError {
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.editButton,
+.editButtonSecondary,
+.editButtonPrimary,
+.themeButton,
+.deviceMenuButton,
+.deviceActionButton,
+.deviceMenuItem {
+  border: var(--border-thin) solid var(--color-border-panel);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-lg);
+  cursor: pointer;
+}
+
+.editButton {
+  background: transparent;
+  padding: var(--control-padding-y-sm) var(--control-padding-x-md);
+  font-size: var(--font-size-md);
+}
+
+.editButtonSecondary {
+  background: transparent;
+  padding: var(--control-padding-y-sm) var(--control-padding-x-md);
+  font-size: var(--font-size-md);
+}
+
+.editButtonPrimary {
+  border-color: var(--color-edit-glow);
+  background: var(--color-surface-panel-accent);
+  padding: var(--control-padding-y-sm) var(--control-padding-x-md);
+  font-size: var(--font-size-md);
+}
+
+.themeButton {
+  background: var(--color-surface-panel);
+  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
+  font-size: var(--font-size-md);
+}
+
+.deviceMenuButton {
+  background: var(--color-surface-panel);
+  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
+  font-size: var(--font-size-md);
+}
+
+.deviceMenuButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.deviceMenuPanel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-8));
+  min-width: 100px;
+  width: max-content;
+  background: var(--color-surface-panel);
+  border: var(--border-thin) solid var(--color-border-panel);
+  box-shadow: var(--shadow-strong);
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-10);
+  z-index: 10;
+}
+
+.deviceMenuItem {
+  width: 100%;
+  padding: var(--space-8) var(--space-10);
+  background: var(--color-surface-panel-accent);
+  font-size: var(--font-size-md);
+}
+
+.deviceMenuSeparator {
+  height: var(--border-thin);
+  background: var(--color-border-divider);
+}
+
+.deviceMenuEmpty {
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+  padding: var(--control-padding-y-sm) var(--space-4);
+}
+
+.deviceMenuList {
+  list-style: none;
+  margin: var(--space-0);
+  padding: var(--space-0);
+  display: grid;
+  gap: var(--space-8);
+  width: max-content;
+}
+
+.deviceRow {
+  display: grid;
+  grid-template-columns: auto 170px;
+  align-items: center;
+  gap: var(--space-12);
+  width: max-content;
+}
+
+.deviceInfo {
+  display: grid;
+  grid-template-columns: max-content 100px;
+  align-items: center;
+  column-gap: var(--space-12);
+  min-width: 0;
+  max-width: 412px;
+}
+
+.deviceName {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deviceStatus {
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-lg);
+  color: var(--color-text-muted);
+  width: 100px;
+  text-align: right;
+  display: inline-block;
+}
+
+.deviceStatusConnected {
+  color: var(--color-status-success);
+}
+
+.deviceStatusError {
+  color: var(--color-status-error);
+}
+
+.deviceActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex: 0 0 auto;
+  width: 170px;
+  justify-content: flex-end;
+}
+
+.deviceActionButton {
+  flex: 0 0 auto;
+  background: transparent;
+  padding: var(--space-4) var(--space-8);
+  font-size: var(--font-size-sm);
+}
+
+.deviceMenu {
+  position: relative;
+}
+
+.instrumentMenu {
+  position: relative;
+}
+
+.removeButton {
+  color: var(--color-status-error);
+}

@@ -1,0 +1,37 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Copyright (c) 2025 MTA, Inc.
+;
+; BMC encoder PIO program
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+.program bmc_encoder
+
+    SET PINS, 0b10              ; Initialize output pin high
+    SET PINDIRS, 0b11           ; Set pin direction to output
+
+send_message:
+
+    MOV PINS, ~PINS             ; Perform a transition at the beginning of each cycle
+
+    OUT X, 1                    ; Get next bit to send
+
+    JMP !X, send_zero           ; If bit is 0, wait until the end of the cycle
+
+send_one:
+    MOV PINS, ~PINS             ; Output a one
+
+    NOP
+
+    JMP Y--, send_message       ; Repeat for the number of bits to send
+
+    JMP done
+
+send_zero:
+
+    NOP [1]
+
+    JMP Y--, send_message       ; Repeat for the number of bits to send
+
+done:
+    SET PINDIRS, 0b00            ; Set pin direction to input to release the line
+    IRQ WAIT 0                   ; Wait for IRQ 0 to be cleared before starting again

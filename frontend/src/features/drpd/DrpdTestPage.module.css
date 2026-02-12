@@ -1,0 +1,106 @@
+.page {
+  display: flex;
+  min-height: 100vh;
+  background: var(--color-page-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  padding: var(--space-32);
+}
+
+.panel {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-surface-panel) 72%, var(--color-page-bg)) 0%,
+    color-mix(in srgb, var(--color-surface-panel) 88%, var(--color-page-bg)) 100%
+  );
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-md);
+  padding: var(--space-28);
+  box-shadow: var(--shadow-elevated);
+}
+
+.title {
+  font-size: var(--font-size-3xl);
+  margin: var(--space-0) 0 var(--space-8);
+}
+
+.subtitle {
+  margin: var(--space-0) 0 var(--space-24);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  margin-bottom: var(--space-24);
+}
+
+.button {
+  appearance: none;
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm);
+  padding: var(--control-padding-y-md) var(--control-padding-x-md);
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, var(--color-page-bg));
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-standard);
+}
+
+.button:hover {
+  border-color: var(--color-edit-glow);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status {
+  margin-bottom: var(--space-16);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-panel) 78%, var(--color-page-bg));
+  border: var(--border-thin) solid var(--color-border-panel);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+}
+
+.kvItem {
+  padding: var(--space-12);
+  background: color-mix(in srgb, var(--color-surface-panel) 84%, var(--color-page-bg));
+  border-radius: var(--radius-sm);
+  border: var(--border-thin) solid var(--color-border-panel);
+}
+
+.kvLabel {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+}
+
+.kvValue {
+  font-size: var(--font-size-2xl);
+  color: var(--color-text-primary);
+}
+
+.error {
+  color: var(--color-status-error);
+  margin-top: var(--space-12);
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: var(--space-20);
+  }
+
+  .kv {
+    grid-template-columns: 1fr;
+  }
+}

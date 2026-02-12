@@ -1,0 +1,80 @@
+.rackWrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.rackViewport {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-0);
+  background: var(--color-surface-rack);
+}
+
+.rackScroll {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.rackCanvas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0);
+  padding: var(--space-0);
+  border-radius: var(--radius-none);
+  border: none;
+  background: var(--color-surface-panel);
+  box-shadow: none;
+  transform-origin: top left;
+  position: relative;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0);
+}
+
+.rowInsertionZone {
+  height: var(--space-28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-xl);
+  color: var(--color-text-muted);
+  border: var(--border-thin) dashed var(--color-border-instrument);
+  background: color-mix(in srgb, var(--color-surface-panel) 85%, transparent);
+}
+
+.fullScreenOverlay {
+  position: absolute;
+  inset: 0;
+  padding: var(--space-0);
+  background: var(--color-overlay);
+  border-radius: var(--radius-none);
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  z-index: 2;
+}
+
+.fullScreenFrame {
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.fullScreenContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: color-mix(in srgb, var(--color-text-primary) 75%, transparent);
+  font-size: var(--font-size-xl);
+}
