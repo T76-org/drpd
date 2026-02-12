@@ -1,0 +1,6 @@
+[submodule "firmware/FreeRTOS-Kernel"]
+	path = firmware/FreeRTOS-Kernel
+	url = https://github.com/raspberrypi/FreeRTOS-Kernel.git
+[submodule "firmware/instrument-core"]
+	path = firmware/instrument-core
+	url = https://github.com/T76-org/instrument-core.git
