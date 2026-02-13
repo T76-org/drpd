@@ -10,6 +10,10 @@
  * this is not the only state in which the Sink can receive
  * Source_Capabilities messages; they may also be received in
  * other states as unsolicited messages.
+ *
+ * This handler owns the initial capability wait window after attach and starts
+ * the first contract request flow once valid Source_Capabilities are received.
+ * Unexpected messages are treated as protocol errors and routed through reset.
  * 
  */
 
@@ -28,10 +32,8 @@ namespace T76::DRPD::Logic {
      */
     class WaitForCapabilitiesStateHandler : public SinkStateHandler {
     public:
-        /** 
-         * @brief Construct a new Wait For Capabilities State Handler object
-         * 
-         * @param sink Reference to the Sink instance
+        /**
+         * @brief Construct a Wait-for-Capabilities state handler.
          */
         WaitForCapabilitiesStateHandler() = default;
 
@@ -40,11 +42,30 @@ namespace T76::DRPD::Logic {
          */
         ~WaitForCapabilitiesStateHandler() override = default;
 
-        // Base class overrides
-
+        /**
+         * @brief Handle incoming message in Wait_for_Capabilities state.
+         * @param context Shared sink context.
+         * @param message Decoded incoming message.
+         */
         void handleMessage(SinkContext& context, const PHY::BMCDecodedMessage *message) override;
+
+        /**
+         * @brief Handle sender state changes in Wait_for_Capabilities state.
+         * @param context Shared sink context.
+         * @param state Sender state.
+         */
         void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+
+        /**
+         * @brief Enter Wait_for_Capabilities state.
+         * @param context Shared sink context.
+         */
         void enter(SinkContext& context) override;
+
+        /**
+         * @brief Reset Wait_for_Capabilities timers.
+         * @param context Shared sink context.
+         */
         void reset(SinkContext& context) override;
 
     protected:

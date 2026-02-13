@@ -7,6 +7,10 @@
  * 
  * This is equivalent to the PE_SNK_Startup state in the 
  * USB PD specification.
+ *
+ * In this repository, the disconnected handler is intentionally minimal:
+ * it binds/unbinds context and ignores incoming traffic until attach/reset
+ * transitions policy into an active negotiation state.
  * 
  */
 
@@ -27,10 +31,8 @@ namespace T76::DRPD::Logic {
      */
     class DisconnectedStateHandler : public SinkStateHandler {
     public:
-        /** 
-         * @brief Construct a new Disconnected State Handler object
-         * 
-         * @param sink Reference to the Sink instance
+        /**
+         * @brief Construct a Disconnected state handler.
          */
         DisconnectedStateHandler() = default;
 
@@ -39,11 +41,30 @@ namespace T76::DRPD::Logic {
          */
         ~DisconnectedStateHandler() override = default;
 
-        // Base class overrides
-
+        /**
+         * @brief Handle incoming message in Disconnected state.
+         * @param context Shared sink context.
+         * @param message Decoded incoming message.
+         */
         void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
+
+        /**
+         * @brief Handle sender state change while disconnected.
+         * @param context Shared sink context.
+         * @param state Sender state.
+         */
         void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+
+        /**
+         * @brief Enter Disconnected state.
+         * @param context Shared sink context.
+         */
         void enter(SinkContext& context) override;
+
+        /**
+         * @brief Reset Disconnected state internals.
+         * @param context Shared sink context.
+         */
         void reset(SinkContext& context) override;
     };
 

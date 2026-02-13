@@ -8,6 +8,9 @@
  * When entering this state, the Sink starts a transition timer.
  * If the timer expires before the Source sends a PS_RDY message,
  * the Sink performs a hard reset to recover.
+ *
+ * This handler also contains the handoff logic from first successful explicit
+ * SPR contract into EPR mode entry when the source advertises EPR capability.
  */
 
 #pragma once
@@ -26,10 +29,8 @@ namespace T76::DRPD::Logic {
      */
     class TransitionSinkStateHandler : public SinkStateHandler {
     public:
-        /** 
-         * @brief Construct a new Transition Sink State Handler object
-         * 
-         * @param sink Reference to the Sink instance
+        /**
+         * @brief Construct a Transition Sink state handler.
          */
         TransitionSinkStateHandler() = default;
 
@@ -38,11 +39,30 @@ namespace T76::DRPD::Logic {
          */
         ~TransitionSinkStateHandler() override = default;
 
-        // Base class overrides
-
+        /**
+         * @brief Handle incoming message in Transition_Sink state.
+         * @param context Shared sink context.
+         * @param message Decoded incoming message.
+         */
         void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
+
+        /**
+         * @brief Handle sender state changes in Transition_Sink state.
+         * @param context Shared sink context.
+         * @param state Sender state.
+         */
         void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+
+        /**
+         * @brief Enter Transition_Sink state.
+         * @param context Shared sink context.
+         */
         void enter(SinkContext& context) override;
+
+        /**
+         * @brief Reset Transition_Sink timers.
+         * @param context Shared sink context.
+         */
         void reset(SinkContext& context) override;
 
     protected:
