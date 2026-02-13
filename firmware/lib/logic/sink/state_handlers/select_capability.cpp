@@ -238,6 +238,10 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
             sprAvs.maxVoltageMillivolts()
         );
 
+        if (requestedVoltageMillivolts == 0) {
+            return false;
+        }
+
         uint32_t requestedCurrentMA = currentMA <= 0
             ? sprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts
             : currentMA;
@@ -264,6 +268,10 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
             eprAvs.minVoltageMillivolts(),
             eprAvs.maxVoltageMillivolts()
         );
+
+        if (requestedVoltageMillivolts == 0) {
+            return false;
+        }
 
         uint32_t requestedCurrentMA = currentMA <= 0
             ? eprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts
