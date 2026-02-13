@@ -54,6 +54,12 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
 
     pulseWidth = TimeoutPulseWidthPIOCycles - pulseWidth; 
 
+    if (_pulseBufferLength >= PHY_BMC_DECODER_MAX_MESSAGE_PULSE_BUFFER_SIZE) {
+        _endTimestamp = time_us_64();
+        _result = BMCDecodedMessageResult::InvalidKCode;
+        return BMCDecodedMessageEvent::InvalidKCodeError;
+    }
+
     _pulseBuffer[_pulseBufferLength++] = pulseWidth;
 
     if (pulseWidth >= TimeoutPulseWidthPIOCycles) {
@@ -268,6 +274,12 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInReadingSOPState(u
             _decoderState.currentByte = decodedNibble;
             _decoderState.processingLSNibble = false;
         } else {
+            if (_dataLength >= PHY_BMC_DECODER_MAX_MESSAGE_DATA_SIZE) {
+                _endTimestamp = time_us_64();
+                _result = BMCDecodedMessageResult::InvalidKCode;
+                return BMCDecodedMessageEvent::InvalidKCodeError;
+            }
+
             _data[_dataLength++] = _decoderState.currentByte | (decodedNibble << 4);
             _decoderState.processingLSNibble = true;
 
