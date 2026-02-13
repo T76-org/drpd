@@ -17,9 +17,6 @@
 #include "../proto/pd_sop.hpp"
 
 
-#define PHY_BMC_DECODER_MAX_MESSAGE_PULSE_BUFFER_SIZE (PHY_BMC_DECODER_MAX_MESSAGE_DATA_SIZE * 10)
-
-
 namespace T76::DRPD::PHY {
 
     enum class BMCDecodedMessageEvent : uint32_t {
