@@ -38,11 +38,6 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _waitForCapabilitiesStateHandler,
         _sinkInfoChangedCallback) {
 
-    _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this, std::placeholders::_1));
-    _stateChangedCallbackId = _ccBusController.addStateChangedCallback(
-        std::bind(&Sink::_onCCBusStateChanged, this, std::placeholders::_1)
-    );
-
     _messageQueue = xQueueCreate(LOGIC_SINK_MESSAGE_QUEUE_LENGTH, sizeof(const PHY::BMCDecodedMessage*));
 
     xTaskCreate(
@@ -57,9 +52,19 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     );
 
     reset();
+
+    // Register callbacks only after queue/task are initialized.
+    _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this, std::placeholders::_1));
+    _stateChangedCallbackId = _ccBusController.addStateChangedCallback(
+        std::bind(&Sink::_onCCBusStateChanged, this, std::placeholders::_1)
+    );
 }
 
 Sink::~Sink() {
+    // Unregister callbacks first so no new work is queued during teardown.
+    _bmcDecoder.messageReceivedCallbackCore1(nullptr);
+    _ccBusController.removeStateChangedCallback(_stateChangedCallbackId);
+
     reset();
 
     if (_messagingTaskHandle != nullptr) {
@@ -73,9 +78,6 @@ Sink::~Sink() {
         vQueueDelete(_messageQueue);
         _messageQueue = nullptr;
     }
-
-    _bmcDecoder.messageReceivedCallbackCore1(nullptr);
-    _ccBusController.removeStateChangedCallback(_stateChangedCallbackId);
 }
 
 void Sink::_processTaskHandler() {
