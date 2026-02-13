@@ -21,7 +21,8 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
     const Proto::PDHeader decodedHeader = message->decodedHeader();
 
-    if (decodedHeader.portPowerRole().value() != Proto::PDHeader::PortPowerRole::Source) {
+    const auto powerRole = decodedHeader.portPowerRole();
+    if (!powerRole.has_value() || powerRole.value() != Proto::PDHeader::PortPowerRole::Source) {
         return;
     }
 
