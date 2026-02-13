@@ -306,6 +306,13 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
             // If we have successfully received an Accept message for our requested PDO,
             // update the Sink's negotiated values and transition to Transition_Sink state.
             auto& state = context.runtimeState();
+            // Accept without an in-flight request indicates a sequencing race/out-of-order
+            // response, so reset protocol state instead of dereferencing an empty optional.
+            if (!state._pendingRequestedPDO.has_value()) {
+                context.performReset(SinkResetType::SoftReset);
+                return;
+            }
+
             context.setNegotiatedValues(
                 state._pendingRequestedPDO.value(),
                 state._pendingVoltage,
