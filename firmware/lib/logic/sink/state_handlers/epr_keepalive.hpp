@@ -12,13 +12,13 @@ namespace T76::DRPD::Logic {
 
     class EPRKeepaliveStateHandler : public SinkStateHandler {
     public:
-        explicit EPRKeepaliveStateHandler(Sink &sink) : SinkStateHandler(sink) {}
+        EPRKeepaliveStateHandler() = default;
         ~EPRKeepaliveStateHandler() override = default;
 
-        void handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) override;
-        void handleMessageSenderStateChange(SinkMessageSenderState state) override;
-        void enter() override;
-        void reset() override;
+        void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
+        void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+        void enter(SinkContext& context) override;
+        void reset(SinkContext& context) override;
 
     protected:
         alarm_id_t _keepaliveIntervalAlarmId = -1; ///< Sink keepalive interval timer

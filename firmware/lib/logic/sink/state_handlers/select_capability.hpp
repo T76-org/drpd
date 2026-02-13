@@ -37,7 +37,7 @@ namespace T76::DRPD::Logic {
          * 
          * @param sink Reference to the Sink instance
          */
-        SelectCapabilityStateHandler(Sink &sink) : SinkStateHandler(sink) {}
+        SelectCapabilityStateHandler() = default;
 
         /** 
          * @brief Destroy the Select Capability State Handler object
@@ -46,12 +46,16 @@ namespace T76::DRPD::Logic {
 
         // Base class overrides
 
-        void handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) override;
-        void handleMessageSenderStateChange(SinkMessageSenderState state) override;
-        void enter() override;
-        void reset() override;
+        void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
+        void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+        void enter(SinkContext& context) override;
+        void reset(SinkContext& context) override;
 
-        bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
+        bool requestPDO(
+            SinkContext& context,
+            size_t pdoIndex,
+            uint32_t voltageMV,
+            uint32_t currentMA);
 
     protected:
         /**

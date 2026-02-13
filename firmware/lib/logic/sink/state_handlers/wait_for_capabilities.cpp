@@ -23,11 +23,15 @@ int64_t WaitForCapabilitiesStateHandler::_onCapabilitiesTimeoutCallback(
 }
 
 void WaitForCapabilitiesStateHandler::_onCapabilitiesTimeout() {
-    _sink.reset(SinkResetType::HardReset);
+    if (_context != nullptr) {
+        _context->performReset(SinkResetType::HardReset);
+    }
 }
 
 
-void WaitForCapabilitiesStateHandler::handleMessage(const PHY::BMCDecodedMessage *message) {
+void WaitForCapabilitiesStateHandler::handleMessage(
+    SinkContext& context,
+    const PHY::BMCDecodedMessage *message) {
     Proto::PDHeader decodedHeader = message->decodedHeader();
 
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Control) {
@@ -53,10 +57,10 @@ void WaitForCapabilitiesStateHandler::handleMessage(const PHY::BMCDecodedMessage
                 _capabilitiesTimeoutAlarmId = -1;
             }
 
-            _sink._setSourceCapabilities(Proto::SourceCapabilities(
+            context.setSourceCapabilities(Proto::SourceCapabilities(
                 message->rawBody(), decodedHeader.numDataObjects()));
                             
-            _sink.requestPDO(0, 0.0f, 0.0f);  // Request first PDO with max current
+            context.requestPDO(0, 0.0f, 0.0f);  // Request first PDO with max current
 
             return;
         }
@@ -64,15 +68,20 @@ void WaitForCapabilitiesStateHandler::handleMessage(const PHY::BMCDecodedMessage
 
     // We received an unexpected message - issue a soft reset
     
-    _sink.reset(SinkResetType::SoftReset);
+    context.performReset(SinkResetType::SoftReset);
 }
 
-void WaitForCapabilitiesStateHandler::handleMessageSenderStateChange(SinkMessageSenderState state) {
+void WaitForCapabilitiesStateHandler::handleMessageSenderStateChange(
+    SinkContext& context,
+    SinkMessageSenderState state) {
+    (void)context;
+    (void)state;
     // No specific handling needed in Wait_for_Capabilities state
 }
 
 
-void WaitForCapabilitiesStateHandler::enter() {
+void WaitForCapabilitiesStateHandler::enter(SinkContext& context) {
+    _bindContext(context);
     // Start the capabilities timeout timer
     _capabilitiesTimeoutAlarmId = add_alarm_in_us(
         LOGIC_SINK_WAIT_FOR_CAPABILITIES_TIMEOUT_US,
@@ -82,10 +91,12 @@ void WaitForCapabilitiesStateHandler::enter() {
     );
 }
 
-void WaitForCapabilitiesStateHandler::reset() {
+void WaitForCapabilitiesStateHandler::reset(SinkContext& context) {
+    (void)context;
     // Cancel the capabilities timeout timer
     if (_capabilitiesTimeoutAlarmId != -1) {
         cancel_alarm(_capabilitiesTimeoutAlarmId);
         _capabilitiesTimeoutAlarmId = -1;
     }
+    _unbindContext();
 }

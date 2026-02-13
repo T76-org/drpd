@@ -40,7 +40,7 @@ namespace T76::DRPD::Logic {
          * 
          * @param sink Reference to the Sink instance
          */
-        ReadySinkStateHandler(Sink &sink) : SinkStateHandler(sink) {}
+        ReadySinkStateHandler() = default;
 
         /** 
          * @brief Destroy the Ready Sink State Handler object
@@ -49,10 +49,10 @@ namespace T76::DRPD::Logic {
 
         // Base class overrides
 
-        void handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) override;
-        void handleMessageSenderStateChange(SinkMessageSenderState state) override;
-        void enter() override;
-        void reset() override;
+        void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
+        void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+        void enter(SinkContext& context) override;
+        void reset(SinkContext& context) override;
 
     protected:
         alarm_id_t _sinkRequestTimerAlarmId = -1;  ///< Alarm ID for SinkRequestTimer

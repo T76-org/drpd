@@ -20,8 +20,6 @@
 
 namespace T76::DRPD::Logic {
 
-    class Sink;
-
     /**
      * @brief State handler for the PE_SNK_Wait_for_Capabilities state
      * 
@@ -35,7 +33,7 @@ namespace T76::DRPD::Logic {
          * 
          * @param sink Reference to the Sink instance
          */
-        WaitForCapabilitiesStateHandler(Sink& sink) : SinkStateHandler(sink) {}
+        WaitForCapabilitiesStateHandler() = default;
 
         /** 
          * @brief Destroy the Wait For Capabilities State Handler object
@@ -44,10 +42,10 @@ namespace T76::DRPD::Logic {
 
         // Base class overrides
 
-        void handleMessage(const PHY::BMCDecodedMessage *message) override;
-        void handleMessageSenderStateChange(SinkMessageSenderState state) override;
-        void enter() override;
-        void reset() override;
+        void handleMessage(SinkContext& context, const PHY::BMCDecodedMessage *message) override;
+        void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+        void enter(SinkContext& context) override;
+        void reset(SinkContext& context) override;
 
     protected:
         alarm_id_t _capabilitiesTimeoutAlarmId = -1;  ///< Alarm ID for capabilities timeout timer

@@ -17,14 +17,26 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _ccBusController(ccBusController),
     _bmcDecoder(bmcDecoder),
     _bmcEncoder(bmcEncoder),
-    _disconnectedStateHandler(*this),
-    _eprKeepaliveStateHandler(*this),
-    _eprModeEntryStateHandler(*this),
-    _readySinkStateHandler(*this),
-    _selectCapabilityStateHandler(*this),
-    _transitionSinkStateHandler(*this),
-    _waitForCapabilitiesStateHandler(*this),
-    _messageSender(bmcEncoder, std::bind(&Sink::_onMessageSenderStateChanged, this, std::placeholders::_1)) {
+    _disconnectedStateHandler(),
+    _eprKeepaliveStateHandler(),
+    _eprModeEntryStateHandler(),
+    _readySinkStateHandler(),
+    _selectCapabilityStateHandler(),
+    _transitionSinkStateHandler(),
+    _waitForCapabilitiesStateHandler(),
+    _messageSender(bmcEncoder, std::bind(&Sink::_onMessageSenderStateChanged, this, std::placeholders::_1)),
+    _context(
+        _runtimeState,
+        _messageSender,
+        _ccBusController,
+        _disconnectedStateHandler,
+        _eprKeepaliveStateHandler,
+        _eprModeEntryStateHandler,
+        _readySinkStateHandler,
+        _selectCapabilityStateHandler,
+        _transitionSinkStateHandler,
+        _waitForCapabilitiesStateHandler,
+        _sinkInfoChangedCallback) {
 
     _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this, std::placeholders::_1));
     _stateChangedCallbackId = _ccBusController.addStateChangedCallback(
@@ -93,7 +105,7 @@ void Sink::_processTaskHandler() {
                 }
 
                 if (result == ExtendedFragmentResult::UnsupportedType) {
-                    _sendNotSupportedMessage();
+                    _context.sendNotSupportedMessage();
                     continue;
                 }
 
@@ -102,8 +114,8 @@ void Sink::_processTaskHandler() {
                 }
             }
 
-            if (_currentStateHandler) {
-                _currentStateHandler->handleMessage(messagePtr);
+            if (_runtimeState._currentStateHandler) {
+                _runtimeState._currentStateHandler->handleMessage(_context, messagePtr);
             }
         }
     }

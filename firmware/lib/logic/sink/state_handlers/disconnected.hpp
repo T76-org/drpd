@@ -32,7 +32,7 @@ namespace T76::DRPD::Logic {
          * 
          * @param sink Reference to the Sink instance
          */
-        DisconnectedStateHandler(Sink &sink) : SinkStateHandler(sink) {}
+        DisconnectedStateHandler() = default;
 
         /** 
          * @brief Destroy the Disconnected State Handler object
@@ -41,10 +41,10 @@ namespace T76::DRPD::Logic {
 
         // Base class overrides
 
-        void handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) override;
-        void handleMessageSenderStateChange(SinkMessageSenderState state) override;
-        void enter() override;
-        void reset() override;
+        void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
+        void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+        void enter(SinkContext& context) override;
+        void reset(SinkContext& context) override;
     };
 
 } // namespace T76::DRPD::Logic

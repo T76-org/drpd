@@ -21,10 +21,14 @@ int64_t TransitionSinkStateHandler::_onTransitionTimeoutCallback(
 }
 
 void TransitionSinkStateHandler::_onTransitionTimeout() {
-    _sink.reset(SinkResetType::HardReset);
+    if (_context != nullptr) {
+        _context->performReset(SinkResetType::HardReset);
+    }
 }
 
-void TransitionSinkStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) {
+void TransitionSinkStateHandler::handleMessage(
+    SinkContext& context,
+    const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (_transitionTimeoutAlarmId != -1) {
         cancel_alarm(_transitionTimeoutAlarmId);
         _transitionTimeoutAlarmId = -1;
@@ -36,39 +40,45 @@ void TransitionSinkStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedM
         const auto controlMessageType = decodedHeader.controlMessageType();
 
         if (controlMessageType.has_value() && controlMessageType.value() == Proto::ControlMessageType::PS_RDY) {
-            const bool firstExplicitContract = !_sink._hasExplicitContract;
-            _sink._hasExplicitContract = true;
+            auto& state = context.runtimeState();
+            const bool firstExplicitContract = !state._hasExplicitContract;
+            state._hasExplicitContract = true;
 
             if (firstExplicitContract &&
-                _sink._sourceSupportsEpr &&
-                !_sink._eprModeActive &&
-                !_sink._eprEntryAttempted) {
-                _sink._eprEntryAttempted = true;
-                _sink._setState(SinkState::PE_SNK_EPR_Mode_Entry);
+                state._sourceSupportsEpr &&
+                !state._eprModeActive &&
+                !state._eprEntryAttempted) {
+                state._eprEntryAttempted = true;
+                context.transitionTo(SinkState::PE_SNK_EPR_Mode_Entry);
                 return;
             }
 
-            if (_sink._eprModeActive) {
-                _sink._setState(SinkState::PE_SNK_EPR_Keepalive);
+            if (state._eprModeActive) {
+                context.transitionTo(SinkState::PE_SNK_EPR_Keepalive);
             } else {
-                _sink._setState(SinkState::PE_SNK_Ready);
+                context.transitionTo(SinkState::PE_SNK_Ready);
             }
             return;
         }
     }
 
-    _sink.reset(SinkResetType::SoftReset);
+    context.performReset(SinkResetType::SoftReset);
 }
 
-void TransitionSinkStateHandler::handleMessageSenderStateChange(SinkMessageSenderState state) {
+void TransitionSinkStateHandler::handleMessageSenderStateChange(
+    SinkContext& context,
+    SinkMessageSenderState state) {
+    (void)context;
     (void)state;
 }
 
-void TransitionSinkStateHandler::enter() {
-    bool useEprTimeout = _sink._eprModeActive;
+void TransitionSinkStateHandler::enter(SinkContext& context) {
+    _bindContext(context);
+    const auto& state = context.runtimeState();
+    bool useEprTimeout = state._eprModeActive;
 
-    if (_sink._pendingRequestedPDO.has_value() &&
-        std::holds_alternative<Proto::EPRAVSAPDO>(_sink._pendingRequestedPDO.value())) {
+    if (state._pendingRequestedPDO.has_value() &&
+        std::holds_alternative<Proto::EPRAVSAPDO>(state._pendingRequestedPDO.value())) {
         useEprTimeout = true;
     }
 
@@ -84,9 +94,11 @@ void TransitionSinkStateHandler::enter() {
     );
 }
 
-void TransitionSinkStateHandler::reset() {
+void TransitionSinkStateHandler::reset(SinkContext& context) {
+    (void)context;
     if (_transitionTimeoutAlarmId != -1) {
         cancel_alarm(_transitionTimeoutAlarmId);
         _transitionTimeoutAlarmId = -1;
     }
+    _unbindContext();
 }

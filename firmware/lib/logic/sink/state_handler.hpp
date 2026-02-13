@@ -7,26 +7,37 @@
 #pragma once
 
 #include "message_sender.hpp"
+#include "sink_context.hpp"
 
 #include "../../phy/bmc_decoder.hpp"
 
 
 namespace T76::DRPD::Logic {
 
-    class Sink; ///< Forward declaration
-
     class SinkStateHandler {
     public:
-        SinkStateHandler(Sink &sink) : _sink(sink) {}
+        SinkStateHandler() = default;
         virtual ~SinkStateHandler() = default;
 
-        virtual void handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) = 0;
-        virtual void handleMessageSenderStateChange(SinkMessageSenderState state) = 0;
-        virtual void enter() = 0;
-        virtual void reset() = 0;
+        virtual void handleMessage(
+            SinkContext& context,
+            const T76::DRPD::PHY::BMCDecodedMessage *message) = 0;
+        virtual void handleMessageSenderStateChange(
+            SinkContext& context,
+            SinkMessageSenderState state) = 0;
+        virtual void enter(SinkContext& context) = 0;
+        virtual void reset(SinkContext& context) = 0;
 
     protected:
-        Sink &_sink;
+        SinkContext* _context = nullptr;
+
+        void _bindContext(SinkContext& context) {
+            _context = &context;
+        }
+
+        void _unbindContext() {
+            _context = nullptr;
+        }
     };
     
 } // namespace T76::DRPD::Logic
