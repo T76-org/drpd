@@ -132,6 +132,7 @@ pico_set_program_version(drpd-firmware "0.1")
 pico_enable_stdio_usb(drpd-firmware 1)
 pico_enable_stdio_uart(drpd-firmware 0)
 
+include(config/app.cmake)
 include(config/pins.cmake)
 include(config/logic/cc_bus_controller.cmake)
 include(config/logic/sink.cmake)

@@ -143,7 +143,7 @@ namespace T76::DRPD {
         std::atomic<uint32_t> _deviceStatusRegister{0};
         bool _interruptPending = false;
 
-        Util::CircularArray<PHY::BMCDecodedMessage, 50> _receivedMessages;
+        Util::CircularArray<PHY::BMCDecodedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages;
 
         PHY::AnalogMonitor _analogMonitor;
         PHY::BMCDecoder _bmcDecoder;
