@@ -130,7 +130,7 @@ void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterV
         return;
     }
 
-    PHY::BMCDecodedMessage message = _receivedMessages.pop();
+    CapturedMessage message = _receivedMessages.pop();
 
     // Output the message data as an arbitrary data block
     // The format is:
@@ -144,11 +144,8 @@ void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterV
     //   32-bit data length (nData)
     //   nData bytes of data
 
-    uint64_t startTimestamp = message.startTimestamp();
-    uint64_t endTimestamp = message.endTimestamp();
-
-    std::span<const uint8_t> data = message.data();
-    std::span<const uint16_t> pulseBuffer = message.pulseBuffer();
+    uint64_t startTimestamp = message.startTimestamp;
+    uint64_t endTimestamp = message.endTimestamp;
 
     std::vector<uint8_t> messageBytes;
 
@@ -158,9 +155,9 @@ void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterV
         sizeof(uint32_t) +                          // decoding result
         4 +                                         // SOP
         sizeof(uint32_t) +                          // pulse buffer length
-        pulseBuffer.size() * sizeof(uint16_t) +     // pulse buffer
+        message.pulseBuffer.size() * sizeof(uint16_t) +     // pulse buffer
         sizeof(uint32_t) +                          // data length
-        data.size();                                // data
+        message.data.size();                        // data
 
 
     std::string header = _interpreter.abdPreamble(totalSize);
@@ -175,29 +172,33 @@ void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterV
     messageBytes.insert(messageBytes.end(), endTimestampBytes, endTimestampBytes + sizeof(endTimestamp));
     
     // Decoding result
-    uint32_t decodingResult = static_cast<uint32_t>(message.decodingResult());
+    uint32_t decodingResult = static_cast<uint32_t>(message.decodingResult);
     const uint8_t* resultBytes = reinterpret_cast<const uint8_t*>(&decodingResult);
     messageBytes.insert(messageBytes.end(), resultBytes, resultBytes + sizeof(decodingResult));
 
     // SOP
-    const uint8_t* sopBytes = message.sop();
+    const uint8_t* sopBytes = message.sop.data();
     messageBytes.insert(messageBytes.end(), sopBytes, sopBytes + 4);
 
     // Pulse buffer length
-    uint32_t pulseBufferLength = static_cast<uint32_t>(pulseBuffer.size());
+    uint32_t pulseBufferLength = static_cast<uint32_t>(message.pulseBuffer.size());
     const uint8_t* pulseBufferLengthBytes = reinterpret_cast<const uint8_t*>(&pulseBufferLength);
     messageBytes.insert(messageBytes.end(), pulseBufferLengthBytes, pulseBufferLengthBytes + sizeof(pulseBufferLength));
 
     // Pulse buffer
-    messageBytes.insert(messageBytes.end(), reinterpret_cast<const uint8_t*>(pulseBuffer.data()), reinterpret_cast<const uint8_t*>(pulseBuffer.data()) + pulseBuffer.size() * sizeof(uint16_t));
+    messageBytes.insert(
+        messageBytes.end(),
+        reinterpret_cast<const uint8_t*>(message.pulseBuffer.data()),
+        reinterpret_cast<const uint8_t*>(message.pulseBuffer.data()) + message.pulseBuffer.size() * sizeof(uint16_t)
+    );
 
     // Data length
-    uint32_t dataLength = static_cast<uint32_t>(data.size());
+    uint32_t dataLength = static_cast<uint32_t>(message.data.size());
     const uint8_t* dataLengthBytes = reinterpret_cast<const uint8_t*>(&dataLength);
     messageBytes.insert(messageBytes.end(), dataLengthBytes, dataLengthBytes + sizeof(dataLength));
 
     // Data
-    messageBytes.insert(messageBytes.end(), data.data(), data.data() + data.size());
+    messageBytes.insert(messageBytes.end(), message.data.data(), message.data.data() + message.data.size());
 
     // Newline to terminate the block
     messageBytes.push_back('\n');

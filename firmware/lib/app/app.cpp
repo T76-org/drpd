@@ -97,8 +97,25 @@ void App::_startCore1() {
 }
 
 void App::_messageReceivedCallback(const PHY::BMCDecodedMessage &message) {
-    // Store the message length in the received messages buffer for later retrieval
-    _receivedMessages.push(message);
+    CapturedMessage captured;
+
+    captured.startTimestamp = message.startTimestamp();
+    captured.endTimestamp = message.endTimestamp();
+    captured.decodingResult = message.decodingResult();
+
+    const uint8_t* sop = message.sop();
+    for (size_t i = 0; i < captured.sop.size(); ++i) {
+        captured.sop[i] = sop[i];
+    }
+
+    std::span<const uint16_t> pulseBuffer = message.pulseBuffer();
+    captured.pulseBuffer.assign(pulseBuffer.begin(), pulseBuffer.end());
+
+    std::span<const uint8_t> data = message.data();
+    captured.data.assign(data.begin(), data.end());
+
+    // Store the captured message for later retrieval
+    _receivedMessages.push(std::move(captured));
     deviceStatus(DeviceStatusFlag::MessageReceived);
 }
 
