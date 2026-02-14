@@ -15,6 +15,10 @@
  * via a callback mechanism. This can be used to advance the
  * state machine when a GoodCRC is received or to handle
  * timeouts (for example, by hard resetting the connection).
+ *
+ * This class is transport-focused and policy-agnostic: it does not decide
+ * what message to send next, only how to send and track delivery confirmation.
+ * Policy handlers and `SinkContext` use it to enforce GoodCRC reliability.
  * 
  */
 

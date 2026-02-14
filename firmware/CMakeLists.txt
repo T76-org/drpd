@@ -66,9 +66,10 @@ add_executable(drpd-firmware
         lib/logic/cc_bus_controller.cpp
         lib/logic/sink/message_sender.cpp
         lib/logic/sink/sink.cpp
+        lib/logic/sink/sink_context.cpp
         lib/logic/sink/sink_cc_messaging.cpp
-        lib/logic/sink/sink_private_interface.cpp
         lib/logic/sink/sink_public_interface.cpp
+        lib/logic/sink/sink_runtime_state.cpp
         lib/logic/sink/state_handlers/disconnected.cpp
         lib/logic/sink/state_handlers/epr_keepalive.cpp
         lib/logic/sink/state_handlers/epr_mode_entry.cpp
@@ -131,6 +132,7 @@ pico_set_program_version(drpd-firmware "0.1")
 pico_enable_stdio_usb(drpd-firmware 1)
 pico_enable_stdio_uart(drpd-firmware 0)
 
+include(config/app.cmake)
 include(config/pins.cmake)
 include(config/logic/cc_bus_controller.cmake)
 include(config/logic/sink.cmake)

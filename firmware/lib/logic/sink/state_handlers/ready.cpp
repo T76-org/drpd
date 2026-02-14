@@ -32,18 +32,24 @@ int64_t ReadySinkStateHandler::_onPDORefreshTimeoutCallback(
 }
 
 void ReadySinkStateHandler::_onSinkRequestTimeout() {
-    _sink._setState(SinkState::PE_SNK_Select_Capability);
+    if (_context != nullptr) {
+        _context->transitionTo(SinkState::PE_SNK_Select_Capability);
+    }
 }
 
 void ReadySinkStateHandler::_onPDORefreshTimeout() {
-    _sink._pendingRequestedPDO = _sink._negotiatedPDO;
-    _sink._pendingVoltage = _sink._negotiatedVoltage;
-    _sink._pendingCurrent = _sink._negotiatedCurrent;
-
-    _sink._setState(SinkState::PE_SNK_Select_Capability);
+    if (_context != nullptr) {
+        auto& state = _context->runtimeState();
+        state._pendingRequestedPDO = state._negotiatedPDO;
+        state._pendingVoltage = state._negotiatedVoltage;
+        state._pendingCurrent = state._negotiatedCurrent;
+        _context->transitionTo(SinkState::PE_SNK_Select_Capability);
+    }
 }
 
-void ReadySinkStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) {
+void ReadySinkStateHandler::handleMessage(
+    SinkContext& context,
+    const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (_sinkRequestTimerAlarmId != -1) {
         cancel_alarm(_sinkRequestTimerAlarmId);
         _sinkRequestTimerAlarmId = -1;
@@ -59,13 +65,15 @@ void ReadySinkStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMessag
         const auto dataMessageType = decodedHeader.dataMessageType();
 
         if (dataMessageType.has_value() && dataMessageType.value() == Proto::DataMessageType::Source_Capabilities) {
-            _sink._setSourceCapabilities(Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()));
+            context.setSourceCapabilities(
+                Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()));
 
-            _sink._pendingRequestedPDO = _sink._negotiatedPDO;
-            _sink._pendingVoltage = _sink._negotiatedVoltage;
-            _sink._pendingCurrent = _sink._negotiatedCurrent;
+            auto& state = context.runtimeState();
+            state._pendingRequestedPDO = state._negotiatedPDO;
+            state._pendingVoltage = state._negotiatedVoltage;
+            state._pendingCurrent = state._negotiatedCurrent;
 
-            _sink._setState(SinkState::PE_SNK_Select_Capability);
+            context.transitionTo(SinkState::PE_SNK_Select_Capability);
             return;
         }
     }
@@ -76,21 +84,27 @@ void ReadySinkStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMessag
         if (extendedType.has_value() &&
             (extendedType.value() == Proto::ExtendedMessageType::EPR_Source_Capabilities ||
              extendedType.value() == Proto::ExtendedMessageType::Extended_Control)) {
-            _sink._setState(SinkState::PE_SNK_EPR_Keepalive);
-            _sink._currentStateHandler->handleMessage(message);
+            context.transitionTo(SinkState::PE_SNK_EPR_Keepalive);
+            context.runtimeState()._currentStateHandler->handleMessage(context, message);
             return;
         }
     }
 
-    _sink._sendNotSupportedMessage();
+    context.sendNotSupportedMessage();
 }
 
-void ReadySinkStateHandler::handleMessageSenderStateChange(SinkMessageSenderState state) {
+void ReadySinkStateHandler::handleMessageSenderStateChange(
+    SinkContext& context,
+    SinkMessageSenderState state) {
+    (void)context;
     (void)state;
 }
 
-void ReadySinkStateHandler::enter() {
-    if (_sink._pendingRequestedPDO.has_value()) {
+void ReadySinkStateHandler::enter(SinkContext& context) {
+    _bindContext(context);
+    auto& state = context.runtimeState();
+
+    if (state._pendingRequestedPDO.has_value()) {
         _sinkRequestTimerAlarmId = add_alarm_in_us(
             LOGIC_SINK_READY_SINK_REQUEST_TIMER_US,
             _onSinkRequestTimeoutCallback,
@@ -99,11 +113,11 @@ void ReadySinkStateHandler::enter() {
         );
     }
 
-    if (_sink._negotiatedPDO.has_value()) {
-        const auto &pdo = _sink._negotiatedPDO.value();
+    if (state._negotiatedPDO.has_value()) {
+        const auto &pdo = state._negotiatedPDO.value();
 
-        if (std::holds_alternative<Proto::EPRAVSAPDO>(pdo) && _sink._eprModeActive) {
-            _sink._setState(SinkState::PE_SNK_EPR_Keepalive);
+        if (std::holds_alternative<Proto::EPRAVSAPDO>(pdo) && state._eprModeActive) {
+            context.transitionTo(SinkState::PE_SNK_EPR_Keepalive);
             return;
         }
 
@@ -126,7 +140,8 @@ void ReadySinkStateHandler::enter() {
     }
 }
 
-void ReadySinkStateHandler::reset() {
+void ReadySinkStateHandler::reset(SinkContext& context) {
+    (void)context;
     if (_sinkRequestTimerAlarmId != -1) {
         cancel_alarm(_sinkRequestTimerAlarmId);
         _sinkRequestTimerAlarmId = -1;
@@ -135,4 +150,5 @@ void ReadySinkStateHandler::reset() {
         cancel_alarm(_pdoRefreshTimerAlarmId);
         _pdoRefreshTimerAlarmId = -1;
     }
+    _unbindContext();
 }

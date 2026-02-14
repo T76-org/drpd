@@ -10,6 +10,7 @@
 
 
 #include <FreeRTOS.h>
+#include <utility>
 
 #include <t76/safety.hpp>
 
@@ -49,6 +50,24 @@ namespace T76::DRPD::Util {
             xSemaphoreGive(_mutex);
         }
 
+        /**
+         * Move-based push to avoid deep copies for large or heap-owning types.
+         */
+        void push(T &&item) {
+            if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) {
+                T76_ASSERT(false, "Failed to take mutex in CircularArray::push");
+            }
+
+            _data[_head] = std::move(item);
+            _head = (_head + 1) % Size;
+
+            if (_count < Size) {
+                _count++;
+            }
+
+            xSemaphoreGive(_mutex);
+        }
+
         T pop() {
             if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) {
                 T76_ASSERT(false, "Failed to take mutex in CircularArray::pop");
@@ -59,7 +78,8 @@ namespace T76::DRPD::Util {
             }
 
             size_t tail = (_head + Size - _count) % Size;
-            T item = _data[tail];
+            // Move out of the buffer slot so callers can cheaply take ownership.
+            T item = std::move(_data[tail]);
 
             _count--;
 

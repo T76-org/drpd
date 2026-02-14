@@ -21,7 +21,8 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
     const Proto::PDHeader decodedHeader = message->decodedHeader();
 
-    if (decodedHeader.portPowerRole().value() != Proto::PDHeader::PortPowerRole::Source) {
+    const auto powerRole = decodedHeader.portPowerRole();
+    if (!powerRole.has_value() || powerRole.value() != Proto::PDHeader::PortPowerRole::Source) {
         return;
     }
 
@@ -47,18 +48,33 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
     const uint8_t receivedMessageId = static_cast<uint8_t>(decodedHeader.messageId() & 0x7);
 
-    if (_hasLastReceivedMessageId && receivedMessageId == _lastReceivedMessageId) {
+    if (_runtimeState._hasLastReceivedMessageId && receivedMessageId == _runtimeState._lastReceivedMessageId) {
         // Retransmission due to missing GoodCRC. Acknowledge but do not process twice.
         _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
         return;
     }
 
-    _hasLastReceivedMessageId = true;
-    _lastReceivedMessageId = receivedMessageId;
+    _runtimeState._hasLastReceivedMessageId = true;
+    _runtimeState._lastReceivedMessageId = receivedMessageId;
     _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
 
+    if (_messageQueue == nullptr) {
+        return;
+    }
+
     const T76::DRPD::PHY::BMCDecodedMessage* messagePtr = message;
-    xQueueSendToBack(_messageQueue, &messagePtr, portMAX_DELAY);
+
+#if defined(portCHECK_IF_IN_ISR)
+    if (portCHECK_IF_IN_ISR()) {
+        BaseType_t higherPriorityTaskWoken = pdFALSE;
+        (void)xQueueSendToBackFromISR(_messageQueue, &messagePtr, &higherPriorityTaskWoken);
+        portYIELD_FROM_ISR(higherPriorityTaskWoken);
+        return;
+    }
+#endif
+
+    // Never block the decoder callback path; drop if the queue is full.
+    (void)xQueueSendToBack(_messageQueue, &messagePtr, 0);
 }
 
 Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
@@ -95,13 +111,13 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         return ExtendedFragmentResult::Malformed;
     }
 
-    auto &reassembly = _extendedReassemblyStates[typeIndex];
+    auto &reassembly = _runtimeState._extendedReassemblyStates[typeIndex];
     const absolute_time_t now = get_absolute_time();
 
     if (reassembly.active) {
         const int64_t ageUs = absolute_time_diff_us(reassembly.lastChunkTimestamp, now);
         if (ageUs > LOGIC_SINK_EXTENDED_REASSEMBLY_TIMEOUT_US) {
-            reassembly = ExtendedReassemblyState{};
+            reassembly = SinkRuntimeState::ExtendedReassemblyState{};
         }
     }
 
@@ -114,8 +130,8 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
             rawBody.begin() + 2,
             rawBody.begin() + 2 + extHeader.dataSizeBytes()
         );
-        _completedExtendedPayloads[typeIndex] = std::move(payload);
-        reassembly = ExtendedReassemblyState{};
+        _runtimeState._completedExtendedPayloads[typeIndex] = std::move(payload);
+        reassembly = SinkRuntimeState::ExtendedReassemblyState{};
         completedType = extendedType;
         return ExtendedFragmentResult::Complete;
     }
@@ -136,12 +152,12 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         const uint8_t expectedChunkNumber =
             static_cast<uint8_t>(reassembly.lastAcceptedChunkNumber + 1);
         if (extHeader.chunkNumber() != expectedChunkNumber) {
-            reassembly = ExtendedReassemblyState{};
+            reassembly = SinkRuntimeState::ExtendedReassemblyState{};
             return ExtendedFragmentResult::Malformed;
         }
 
         if (extHeader.dataSizeBytes() != reassembly.expectedPayloadBytes) {
-            reassembly = ExtendedReassemblyState{};
+            reassembly = SinkRuntimeState::ExtendedReassemblyState{};
             return ExtendedFragmentResult::Malformed;
         }
 
@@ -164,7 +180,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     if (reassembly.contiguousPayloadBytes < reassembly.expectedPayloadBytes) {
         const uint8_t nextChunkNumber = static_cast<uint8_t>(extHeader.chunkNumber() + 1);
         if (nextChunkNumber > 0x0F) {
-            reassembly = ExtendedReassemblyState{};
+            reassembly = SinkRuntimeState::ExtendedReassemblyState{};
             return ExtendedFragmentResult::Malformed;
         }
 
@@ -176,22 +192,22 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         return ExtendedFragmentResult::InProgress;
     }
 
-    _completedExtendedPayloads[typeIndex] = std::move(reassembly.payload);
-    reassembly = ExtendedReassemblyState{};
+    _runtimeState._completedExtendedPayloads[typeIndex] = std::move(reassembly.payload);
+    reassembly = SinkRuntimeState::ExtendedReassemblyState{};
     completedType = extendedType;
     return ExtendedFragmentResult::Complete;
 }
 
 void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
-    if (state == SinkMessageSenderState::GoodCRCReceived && _currentStateHandler) {
-        _currentStateHandler->handleMessageSenderStateChange(state);
+    if (state == SinkMessageSenderState::GoodCRCReceived && _runtimeState._currentStateHandler) {
+        _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;
     }
 
     if (state == SinkMessageSenderState::GoodCRCTimeout &&
-        _state == SinkState::PE_SNK_EPR_Keepalive &&
-        _currentStateHandler) {
-        _currentStateHandler->handleMessageSenderStateChange(state);
+        _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive &&
+        _runtimeState._currentStateHandler) {
+        _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;
     }
 

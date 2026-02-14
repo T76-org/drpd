@@ -20,6 +20,9 @@ This project is a C++ implementation of a USB Power Delivery (USB-PD) controller
   - Write comments in English and ensure they are clear and concise.
   - Use Doxygen-style comments for documenting classes and functions.
   - Ensure that all functions and classes have appropriate comments explaining their purpose and usage.
+  - Every header file that declares a class must include a module-level file docblock (at the top of the file) that explains, in plain language, what the module/class is responsible for, how it fits in the architecture, and key behavior/developer expectations.
+  - For all class methods (public, protected, and private), Doxygen docblocks must include `@param` entries for every parameter and `@return` entries for non-`void` methods.
+  - Keep method docblocks synchronized with signatures; remove stale parameter descriptions when signatures change.
   - Avoid redundant comments that do not add value.
   - Add ///< comments for member variables to describe their purpose.
 
@@ -75,4 +78,3 @@ This project is a C++ implementation of a USB Power Delivery (USB-PD) controller
 # ExecPlans
 
 When writing complex features or significant refactors, use an ExecPlan (as described in `PLANS.md`) from design to implementation.
-

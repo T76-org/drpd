@@ -30,14 +30,15 @@ void SelectCapabilityStateHandler::_onResponseTimeout() {
 }
 
 
-bool SelectCapabilityStateHandler::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
+bool SelectCapabilityStateHandler::requestPDO(SinkContext& context, size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
+    _bindContext(context);
     // Request against the active capability view (SPR-only before EPR retrieval,
     // EPR capability set after retrieval).
-    if (pdoIndex >= _sink._totalPDOCount()) {
+    if (pdoIndex >= context.totalPDOCount()) {
         return false;
     }
 
-    const auto pdoOpt = _sink._pdoAtIndex(pdoIndex);
+    const auto pdoOpt = context.pdoAtIndex(pdoIndex);
     if (!pdoOpt.has_value()) {
         return false;
     }
@@ -70,16 +71,23 @@ bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
                                               uint32_t voltageMV,
                                               uint32_t currentMA,
                                               Proto::Request& request) {
-    const auto objectPosition = _sink._requestObjectPositionAtIndex(pdoIndex);
+    if (_context == nullptr) {
+        return false;
+    }
+
+    auto& context = *_context;
+    auto& state = context.runtimeState();
+
+    const auto objectPosition = context.requestObjectPositionAtIndex(pdoIndex);
     if (!objectPosition.has_value()) {
         return false;
     }
 
-    _sink._setState(SinkState::PE_SNK_Select_Capability);
+    context.transitionTo(SinkState::PE_SNK_Select_Capability);
 
-    _sink._pendingRequestedPDO = pdoVariant;
-    _sink._pendingVoltage = voltageMV;
-    _sink._pendingCurrent = currentMA;
+    state._pendingRequestedPDO = pdoVariant;
+    state._pendingVoltage = voltageMV;
+    state._pendingCurrent = currentMA;
 
     request.objectPosition(objectPosition.value());
     request.giveBackFlag(false);
@@ -88,8 +96,7 @@ bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
     request.noUsbSuspend(true);
     request.eprModeCapable(true);
 
-    const bool useEprRequestType =
-        _sink._eprModeActive && _sink._eprCapabilities.has_value();
+    const bool useEprRequestType = state._eprModeActive && state._eprCapabilities.has_value();
 
     if (useEprRequestType) {
         const auto requestRawBytes = request.raw();
@@ -113,7 +120,7 @@ bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
         requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
         requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-        _sink._messageSender.sendMessageAndAwaitGoodCRC(requestMessage);
+        context.sendMessageAndAwaitGoodCRC(requestMessage);
         return true;
     }
 
@@ -126,7 +133,7 @@ bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
     requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-    _sink._messageSender.sendMessageAndAwaitGoodCRC(requestMessage);
+    context.sendMessageAndAwaitGoodCRC(requestMessage);
 
     return true;
 }
@@ -231,6 +238,10 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
             sprAvs.maxVoltageMillivolts()
         );
 
+        if (requestedVoltageMillivolts == 0) {
+            return false;
+        }
+
         uint32_t requestedCurrentMA = currentMA <= 0
             ? sprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts
             : currentMA;
@@ -258,6 +269,10 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
             eprAvs.maxVoltageMillivolts()
         );
 
+        if (requestedVoltageMillivolts == 0) {
+            return false;
+        }
+
         uint32_t requestedCurrentMA = currentMA <= 0
             ? eprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts
             : currentMA;
@@ -274,7 +289,8 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
     return false;
 }
 
-void SelectCapabilityStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) {
+void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) {
+    _bindContext(context);
     // Cancel the response timeout timer
     if (_responseTimeoutAlarmId != -1) {
         cancel_alarm(_responseTimeoutAlarmId);
@@ -297,17 +313,25 @@ void SelectCapabilityStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecode
         if (controlMessageType.value() == Proto::ControlMessageType::Accept) {
             // If we have successfully received an Accept message for our requested PDO,
             // update the Sink's negotiated values and transition to Transition_Sink state.
-            _sink._setNegotiatedValues(
-                _sink._pendingRequestedPDO.value(),
-                _sink._pendingVoltage,
-                _sink._pendingCurrent
+            auto& state = context.runtimeState();
+            // Accept without an in-flight request indicates a sequencing race/out-of-order
+            // response, so reset protocol state instead of dereferencing an empty optional.
+            if (!state._pendingRequestedPDO.has_value()) {
+                context.performReset(SinkResetType::SoftReset);
+                return;
+            }
+
+            context.setNegotiatedValues(
+                state._pendingRequestedPDO.value(),
+                state._pendingVoltage,
+                state._pendingCurrent
             );
 
-            _sink._pendingRequestedPDO = std::nullopt;
-            _sink._pendingCurrent = 0.0f;
-            _sink._pendingVoltage = 0.0f;
+            state._pendingRequestedPDO = std::nullopt;
+            state._pendingCurrent = 0.0f;
+            state._pendingVoltage = 0.0f;
 
-            _sink._setState(SinkState::PE_SNK_Transition_Sink);
+            context.transitionTo(SinkState::PE_SNK_Transition_Sink);
             
             return;
         } 
@@ -320,14 +344,15 @@ void SelectCapabilityStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecode
             //
             // TODO: Need a mechanism to signal that the request was rejected to the higher-level application
 
-            _sink._pendingRequestedPDO = std::nullopt;
-            _sink._pendingCurrent = 0.0f;
-            _sink._pendingVoltage = 0.0f;
+            auto& state = context.runtimeState();
+            state._pendingRequestedPDO = std::nullopt;
+            state._pendingCurrent = 0.0f;
+            state._pendingVoltage = 0.0f;
 
-            if (_sink._negotiatedPDO.has_value()) {
-                _sink._setState(SinkState::PE_SNK_Ready);
+            if (state._negotiatedPDO.has_value()) {
+                context.transitionTo(SinkState::PE_SNK_Ready);
             } else {
-                _sink._setState(SinkState::PE_SNK_Wait_for_Capabilities);
+                context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
             }
 
             return;
@@ -339,20 +364,21 @@ void SelectCapabilityStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecode
             // - We have an explicit contract already, we transition to the PE_SNK_Ready state
             // - We don't have an explicit contract, we transition back to the PE_SNK_Wait_for_Capabilities state
 
-            if (_sink._negotiatedPDO.has_value()) {
-                _sink._setState(SinkState::PE_SNK_Ready);
+            if (context.runtimeState()._negotiatedPDO.has_value()) {
+                context.transitionTo(SinkState::PE_SNK_Ready);
             } else {
-                _sink._setState(SinkState::PE_SNK_Wait_for_Capabilities);
+                context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
             }
 
             return;
         }
         
-        _sink.reset(SinkResetType::SoftReset);
+        context.performReset(SinkResetType::SoftReset);
     }
 }
 
-void SelectCapabilityStateHandler::handleMessageSenderStateChange(SinkMessageSenderState state) {
+void SelectCapabilityStateHandler::handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) {
+    (void)context;
     if (state == SinkMessageSenderState::GoodCRCReceived) {
         // Start the response timeout timer when GoodCRC is received
         _responseTimeoutAlarmId = add_alarm_in_us(
@@ -365,24 +391,25 @@ void SelectCapabilityStateHandler::handleMessageSenderStateChange(SinkMessageSen
 }
 
 
-void SelectCapabilityStateHandler::enter() {
+void SelectCapabilityStateHandler::enter(SinkContext& context) {
+    _bindContext(context);
     // If there is a pending requested PDO, that means that we have landed here
     // because the source has sent us a Wait message in response to our last Request
     // and either the SinkRequestTimer or the SinkPPSPeriodicTimer has expired. 
     // In this case, we send a new request for the same PDO.
 
-    if (_sink._pendingRequestedPDO.has_value()) {
+    if (context.runtimeState()._pendingRequestedPDO.has_value()) {
         // First, find out if the pending requested PDO is still valid
 
         int pdoIndex = -1;
         const uint32_t pendingPdoRaw = std::visit(
             [](const auto& pdo) { return pdo.raw(); },
-            _sink._pendingRequestedPDO.value()
+            context.runtimeState()._pendingRequestedPDO.value()
         );
 
-        const size_t pdoCount = _sink._totalPDOCount();
+        const size_t pdoCount = context.totalPDOCount();
         for (size_t i = 0; i < pdoCount; ++i) {
-            const auto pdo = _sink._pdoAtIndex(i);
+            const auto pdo = context.pdoAtIndex(i);
             if (!pdo.has_value()) {
                 continue;
             }
@@ -401,21 +428,24 @@ void SelectCapabilityStateHandler::enter() {
         // If the PDO no longer exists, we cannot re-request it. We therefore default
         // to the first Fixed Supply PDO in the list.
         if (pdoIndex == -1) {
-            requestPDO(0, 0.0f, _sink._pendingCurrent);
+            requestPDO(context, 0, 0.0f, context.runtimeState()._pendingCurrent);
         } else {
             requestPDO(
+                context,
                 pdoIndex,
-                _sink._pendingVoltage,
-                _sink._pendingCurrent
+                context.runtimeState()._pendingVoltage,
+                context.runtimeState()._pendingCurrent
             );
         }
     }
 }
 
-void SelectCapabilityStateHandler::reset() {
+void SelectCapabilityStateHandler::reset(SinkContext& context) {
+    (void)context;
     // Cancel the response timeout timer
     if (_responseTimeoutAlarmId != -1) {
         cancel_alarm(_responseTimeoutAlarmId);
         _responseTimeoutAlarmId = -1;
     }
+    _unbindContext();
 }

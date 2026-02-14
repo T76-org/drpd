@@ -16,6 +16,10 @@
  * If the state receives an unsolicited Source_Capabilities message,
  * it will transition to the Select_Capability state to renegotiate
  * power.
+ *
+ * The Ready handler therefore acts as the steady-state policy loop:
+ * it maintains an established contract, schedules refresh/retry timers,
+ * and routes EPR-related extended traffic to the EPR keepalive path.
  * 
  */
 
@@ -35,24 +39,41 @@ namespace T76::DRPD::Logic {
      */
     class ReadySinkStateHandler : public SinkStateHandler {
     public:
-        /** 
-         * @brief Construct a new Ready Sink State Handler object
-         * 
-         * @param sink Reference to the Sink instance
+        /**
+         * @brief Construct a Ready sink state handler.
          */
-        ReadySinkStateHandler(Sink &sink) : SinkStateHandler(sink) {}
+        ReadySinkStateHandler() = default;
 
         /** 
          * @brief Destroy the Ready Sink State Handler object
          */
         ~ReadySinkStateHandler() override = default;
 
-        // Base class overrides
+        /**
+         * @brief Handle incoming message in Ready state.
+         * @param context Shared sink context.
+         * @param message Decoded incoming message.
+         */
+        void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
 
-        void handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) override;
-        void handleMessageSenderStateChange(SinkMessageSenderState state) override;
-        void enter() override;
-        void reset() override;
+        /**
+         * @brief Handle sender state changes in Ready state.
+         * @param context Shared sink context.
+         * @param state Sender state.
+         */
+        void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
+
+        /**
+         * @brief Enter Ready state.
+         * @param context Shared sink context.
+         */
+        void enter(SinkContext& context) override;
+
+        /**
+         * @brief Reset Ready state timers.
+         * @param context Shared sink context.
+         */
+        void reset(SinkContext& context) override;
 
     protected:
         alarm_id_t _sinkRequestTimerAlarmId = -1;  ///< Alarm ID for SinkRequestTimer

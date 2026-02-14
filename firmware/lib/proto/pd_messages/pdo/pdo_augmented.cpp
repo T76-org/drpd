@@ -132,6 +132,11 @@ SPRAVSAPDO::SPRAVSAPDO(uint32_t raw) : AugmentedPDO(raw) {
     uint32_t max_voltage = (_raw >> 17) & 0xFF;
     uint32_t min_voltage = (_raw >> 8) & 0xFF;
 
+    // Zero voltage range is invalid for AVS operation.
+    if (max_voltage == 0 || min_voltage == 0) {
+        _messageInvalid = true;
+    }
+
     // Maximum Voltage must be >= Minimum Voltage
     if (max_voltage < min_voltage) {
         _messageInvalid = true;
@@ -192,6 +197,11 @@ EPRAVSAPDO::EPRAVSAPDO(uint32_t raw) : AugmentedPDO(raw) {
     // Additional validation specific to EPR AVS
     uint32_t max_voltage = (_raw >> 17) & 0xFF;
     uint32_t min_voltage = (_raw >> 8) & 0xFF;
+
+    // Zero voltage range is invalid for AVS operation.
+    if (max_voltage == 0 || min_voltage == 0) {
+        _messageInvalid = true;
+    }
 
     // Maximum Voltage must be >= Minimum Voltage
     if (max_voltage < min_voltage) {

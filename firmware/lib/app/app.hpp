@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
+#include <array>
 #include <atomic>
 
 #include <t76/app.hpp>
@@ -31,6 +32,23 @@
 
 
 namespace T76::DRPD {
+
+    /**
+     * @brief Compact app-layer snapshot of a decoded CC message.
+     *
+     * We intentionally avoid storing PHY::BMCDecodedMessage by value in the app
+     * queue because that type contains large fixed-size arrays sized for worst
+     * case decoding. Keeping only the consumed fields here reduces copy size and
+     * makes queue storage scale with actual message size.
+     */
+    struct CapturedMessage {
+        uint64_t startTimestamp = 0;   ///< Message start timestamp in microseconds.
+        uint64_t endTimestamp = 0;     ///< Message end timestamp in microseconds.
+        PHY::BMCDecodedMessageResult decodingResult = PHY::BMCDecodedMessageResult::Incomplete; ///< Final decode result.
+        std::array<uint8_t, 4> sop = {0, 0, 0, 0};   ///< Raw SOP K-codes.
+        std::vector<uint16_t> pulseBuffer;   ///< Captured pulse widths (PIO cycles).
+        std::vector<uint8_t> data;   ///< Decoded message payload bytes.
+    };
 
     enum class DeviceStatusFlag : uint32_t {
         None                    = 0,        ///< No status bits set
@@ -143,7 +161,7 @@ namespace T76::DRPD {
         std::atomic<uint32_t> _deviceStatusRegister{0};
         bool _interruptPending = false;
 
-        Util::CircularArray<PHY::BMCDecodedMessage, 50> _receivedMessages;
+        Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
 
         PHY::AnalogMonitor _analogMonitor;
         PHY::BMCDecoder _bmcDecoder;

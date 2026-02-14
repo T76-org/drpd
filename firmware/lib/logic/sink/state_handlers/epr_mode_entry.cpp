@@ -19,11 +19,15 @@ int64_t EPRModeEntryStateHandler::_onEntryTimeoutCallback(alarm_id_t id, void *u
 }
 
 void EPRModeEntryStateHandler::_onEntryTimeout() {
-    _sink._setEPRModeActive(false);
-    _sink._setState(SinkState::PE_SNK_Ready);
+    if (_context != nullptr) {
+        _context->setEPRModeActive(false);
+        _context->transitionTo(SinkState::PE_SNK_Ready);
+    }
 }
 
-void EPRModeEntryStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) {
+void EPRModeEntryStateHandler::handleMessage(
+    SinkContext& context,
+    const T76::DRPD::PHY::BMCDecodedMessage *message) {
     const auto decodedHeader = message->decodedHeader();
 
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Data) {
@@ -31,7 +35,7 @@ void EPRModeEntryStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
 
         if (dataType.has_value() && dataType.value() == Proto::DataMessageType::EPR_Mode) {
             if (message->rawBody().size() < 4) {
-                _sink.reset(SinkResetType::SoftReset);
+                context.performReset(SinkResetType::SoftReset);
                 return;
             }
 
@@ -43,7 +47,7 @@ void EPRModeEntryStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
 
             const Proto::EPRMode response(rawEprMode);
             if (response.isMessageInvalid()) {
-                _sink.reset(SinkResetType::SoftReset);
+                context.performReset(SinkResetType::SoftReset);
                 return;
             }
 
@@ -53,15 +57,15 @@ void EPRModeEntryStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
             }
 
             if (response.action() == Proto::EPRMode::Action::EnterSucceeded) {
-                _sink._setEPRModeActive(true);
-                _sink._setState(SinkState::PE_SNK_EPR_Keepalive);
+                context.setEPRModeActive(true);
+                context.transitionTo(SinkState::PE_SNK_EPR_Keepalive);
                 return;
             }
 
             if (response.action() == Proto::EPRMode::Action::EnterFailed ||
                 response.action() == Proto::EPRMode::Action::Exit) {
-                _sink._setEPRModeActive(false);
-                _sink._setState(SinkState::PE_SNK_Ready);
+                context.setEPRModeActive(false);
+                context.transitionTo(SinkState::PE_SNK_Ready);
                 return;
             }
         }
@@ -74,16 +78,19 @@ void EPRModeEntryStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
             (controlType.value() == Proto::ControlMessageType::Reject ||
              controlType.value() == Proto::ControlMessageType::Not_Supported ||
              controlType.value() == Proto::ControlMessageType::Wait)) {
-            _sink._setEPRModeActive(false);
-            _sink._setState(SinkState::PE_SNK_Ready);
+            context.setEPRModeActive(false);
+            context.transitionTo(SinkState::PE_SNK_Ready);
             return;
         }
     }
 
-    _sink.reset(SinkResetType::SoftReset);
+    context.performReset(SinkResetType::SoftReset);
 }
 
-void EPRModeEntryStateHandler::handleMessageSenderStateChange(SinkMessageSenderState state) {
+void EPRModeEntryStateHandler::handleMessageSenderStateChange(
+    SinkContext& context,
+    SinkMessageSenderState state) {
+    (void)context;
     if (state == SinkMessageSenderState::GoodCRCReceived && _entryTimeoutAlarmId == -1) {
         _entryTimeoutAlarmId = add_alarm_in_us(
             LOGIC_SINK_EPR_MODE_ENTRY_RESPONSE_TIMEOUT_US,
@@ -94,18 +101,21 @@ void EPRModeEntryStateHandler::handleMessageSenderStateChange(SinkMessageSenderS
     }
 }
 
-void EPRModeEntryStateHandler::enter() {
+void EPRModeEntryStateHandler::enter(SinkContext& context) {
+    _bindContext(context);
     _enterAcknowledged = false;
 
     // 100 W operational PDP in 1 W units.
-    _sink._sendEPRMode(Proto::EPRMode::Action::Enter, 100);
+    context.sendEPRMode(Proto::EPRMode::Action::Enter, 100);
 }
 
-void EPRModeEntryStateHandler::reset() {
+void EPRModeEntryStateHandler::reset(SinkContext& context) {
+    (void)context;
     if (_entryTimeoutAlarmId != -1) {
         cancel_alarm(_entryTimeoutAlarmId);
         _entryTimeoutAlarmId = -1;
     }
 
     _enterAcknowledged = false;
+    _unbindContext();
 }

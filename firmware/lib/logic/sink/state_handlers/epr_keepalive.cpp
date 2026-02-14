@@ -28,10 +28,14 @@ int64_t EPRKeepaliveStateHandler::_onSourceWatchdogTimeoutCallback(alarm_id_t id
 }
 
 void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
+    if (_context == nullptr) {
+        return;
+    }
+
     _awaitingKeepaliveAck = true;
     // Keepalive is periodic best-effort; avoid rapid GoodCRC retry bursts.
-    _sink._sendExtendedControlMessage(
-        Sink::ExtendedControlType::EPR_KeepAlive,
+    _context->sendExtendedControlMessage(
+        static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive),
         false);
 
     _keepaliveIntervalAlarmId = add_alarm_in_us(
@@ -59,18 +63,24 @@ void EPRKeepaliveStateHandler::_onSourceWatchdogTimeout() {
 }
 
 void EPRKeepaliveStateHandler::_exitEPRMode() {
-    _sink._sendEPRMode(Proto::EPRMode::Action::Exit, 0);
-    _sink._setEPRModeActive(false);
-    _sink._clearEPRSourceCapabilities();
+    if (_context == nullptr) {
+        return;
+    }
 
-    if (_sink.negotiatedPDO().has_value()) {
-        _sink._setState(SinkState::PE_SNK_Ready);
+    _context->sendEPRMode(Proto::EPRMode::Action::Exit, 0);
+    _context->setEPRModeActive(false);
+    _context->clearEPRSourceCapabilities();
+
+    if (_context->runtimeState()._negotiatedPDO.has_value()) {
+        _context->transitionTo(SinkState::PE_SNK_Ready);
     } else {
-        _sink._setState(SinkState::PE_SNK_Wait_for_Capabilities);
+        _context->transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
     }
 }
 
-void EPRKeepaliveStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) {
+void EPRKeepaliveStateHandler::handleMessage(
+    SinkContext& context,
+    const T76::DRPD::PHY::BMCDecodedMessage *message) {
     const auto decodedHeader = message->decodedHeader();
 
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
@@ -78,7 +88,7 @@ void EPRKeepaliveStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
 
         if (type.has_value() &&
             type.value() == Proto::ExtendedMessageType::EPR_Source_Capabilities) {
-            const auto payload = _sink._takeCompletedExtendedPayload(type.value());
+            const auto payload = context.takeCompletedExtendedPayload(type.value());
 
             if (!payload.has_value()) {
                 return;
@@ -86,21 +96,21 @@ void EPRKeepaliveStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
 
             const Proto::EPRSourceCapabilities eprCapabilities(payload.value());
             if (eprCapabilities.isMessageInvalid()) {
-                _sink.reset(SinkResetType::SoftReset);
+                context.performReset(SinkResetType::SoftReset);
                 return;
             }
 
-            _sink._setEPRSourceCapabilities(eprCapabilities);
+            context.setEPRSourceCapabilities(eprCapabilities);
             // Per EPR flow, establish an explicit EPR contract before entering ready.
             // Start from EPR PDO #0 (commonly the 5V EPR entry contract).
-            if (!_sink._selectCapabilityStateHandler.requestPDO(0, 5000, 0)) {
-                _sink.reset(SinkResetType::SoftReset);
+            if (!context.requestPDO(0, 5000, 0)) {
+                context.performReset(SinkResetType::SoftReset);
             }
             return;
         }
 
         if (type.has_value() && type.value() == Proto::ExtendedMessageType::Extended_Control) {
-            const auto payload = _sink._takeCompletedExtendedPayload(type.value());
+            const auto payload = context.takeCompletedExtendedPayload(type.value());
 
             if (!payload.has_value() || payload->empty()) {
                 return;
@@ -114,8 +124,8 @@ void EPRKeepaliveStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
 
             if (isKeepalive) {
                 // Source keepalive must be acknowledged.
-                _sink._sendExtendedControlMessage(
-                    Sink::ExtendedControlType::EPR_KeepAlive_Ack,
+                context.sendExtendedControlMessage(
+                    static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive_Ack),
                     false);
             }
 
@@ -148,7 +158,7 @@ void EPRKeepaliveStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
 
         if (dataType.has_value() && dataType.value() == Proto::DataMessageType::EPR_Mode) {
             if (message->rawBody().size() < 4) {
-                _sink.reset(SinkResetType::SoftReset);
+                context.performReset(SinkResetType::SoftReset);
                 return;
             }
 
@@ -160,16 +170,16 @@ void EPRKeepaliveStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
             const Proto::EPRMode eprMode(rawEprMode);
 
             if (eprMode.action() == Proto::EPRMode::Action::Exit) {
-                _sink._setEPRModeActive(false);
-                _sink._clearEPRSourceCapabilities();
-                _sink._setState(SinkState::PE_SNK_Ready);
+                context.setEPRModeActive(false);
+                context.clearEPRSourceCapabilities();
+                context.transitionTo(SinkState::PE_SNK_Ready);
                 return;
             }
         }
 
         if (dataType.has_value() &&
             dataType.value() == Proto::DataMessageType::Source_Capabilities) {
-            _sink._setSourceCapabilities(Proto::SourceCapabilities(
+            context.setSourceCapabilities(Proto::SourceCapabilities(
                 message->rawBody(), decodedHeader.numDataObjects()));
             return;
         }
@@ -180,13 +190,16 @@ void EPRKeepaliveStateHandler::handleMessage(const T76::DRPD::PHY::BMCDecodedMes
 
         if (controlType.has_value() &&
             controlType.value() == Proto::ControlMessageType::Soft_Reset) {
-            _sink.reset(SinkResetType::SoftReset);
+            context.performReset(SinkResetType::SoftReset);
             return;
         }
     }
 }
 
-void EPRKeepaliveStateHandler::handleMessageSenderStateChange(SinkMessageSenderState state) {
+void EPRKeepaliveStateHandler::handleMessageSenderStateChange(
+    SinkContext& context,
+    SinkMessageSenderState state) {
+    (void)context;
     if (state == SinkMessageSenderState::GoodCRCTimeout) {
         _awaitingKeepaliveAck = false;
         _keepaliveFailureCount++;
@@ -196,12 +209,14 @@ void EPRKeepaliveStateHandler::handleMessageSenderStateChange(SinkMessageSenderS
     }
 }
 
-void EPRKeepaliveStateHandler::enter() {
+void EPRKeepaliveStateHandler::enter(SinkContext& context) {
+    _bindContext(context);
     _awaitingKeepaliveAck = false;
     _keepaliveFailureCount = 0;
 
-    if (!_sink._eprCapabilities.has_value()) {
-        _sink._sendExtendedControlMessage(Sink::ExtendedControlType::EPR_Get_Source_Cap);
+    if (!context.runtimeState()._eprCapabilities.has_value()) {
+        context.sendExtendedControlMessage(
+            static_cast<uint8_t>(Sink::ExtendedControlType::EPR_Get_Source_Cap));
     }
 
     _keepaliveIntervalAlarmId = add_alarm_in_us(
@@ -219,7 +234,8 @@ void EPRKeepaliveStateHandler::enter() {
     );
 }
 
-void EPRKeepaliveStateHandler::reset() {
+void EPRKeepaliveStateHandler::reset(SinkContext& context) {
+    (void)context;
     if (_keepaliveIntervalAlarmId != -1) {
         cancel_alarm(_keepaliveIntervalAlarmId);
         _keepaliveIntervalAlarmId = -1;
@@ -232,4 +248,5 @@ void EPRKeepaliveStateHandler::reset() {
 
     _awaitingKeepaliveAck = false;
     _keepaliveFailureCount = 0;
+    _unbindContext();
 }

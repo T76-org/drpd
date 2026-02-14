@@ -5,11 +5,8 @@
 
 #include "sink.hpp"
 
-#include <set>
 #include <utility>
 #include <vector>
-
-#include "state_handlers/select_capability.hpp"
 
 #include "../cc_bus_controller.hpp"
 
@@ -49,96 +46,40 @@ namespace {
 } // namespace
 
 void Sink::reset(SinkResetType resetType) {
-    _messageSender.reset();
-
-    if (resetType == SinkResetType::SoftReset) {
-        _messageSender.sendMessage(
-            PHY::BMCEncodedMessage::softResetMessage(
-                Proto::PDHeader::PortDataRole::UFP,
-                Proto::PDHeader::PortPowerRole::Sink
-            )
-        );
-    }
-
-    _sourceCapabilities.reset();
-    _eprCapabilities.reset();
-    _sourceSupportsEpr = false;
-
-    _hasExplicitContract = false;
-    _eprModeActive = false;
-    _eprEntryAttempted = false;
-
-    _hasLastReceivedMessageId = false;
-    _lastReceivedMessageId = 0;
-
-    _pendingRequestedPDO.reset();
-    _pendingVoltage = 0.0f;
-    _pendingCurrent = 0.0f;
-
-    _negotiatedPDO.reset();
-    _negotiatedVoltage = 0.0f;
-    _negotiatedCurrent = 0.0f;
-
-    for (auto &reassembly : _extendedReassemblyStates) {
-        reassembly = ExtendedReassemblyState{};
-    }
-
-    for (auto &payload : _completedExtendedPayloads) {
-        payload.reset();
-    }
-
-    if (_currentStateHandler) {
-        _currentStateHandler->reset();
-    }
-
-    if (_ccBusController.state() == CCBusState::Attached) {
-        _setState(SinkState::PE_SNK_Wait_for_Capabilities);
-    } else {
-        _setState(SinkState::Disconnected);
-    }
+    _context.performReset(resetType);
 }
 
 size_t Sink::pdoCount() const {
-    return _totalPDOCount();
+    return _context.totalPDOCount();
 }
 
 std::optional<Proto::PDOVariant> Sink::pdo(size_t index) const {
-    return _pdoAtIndex(index);
+    return _context.pdoAtIndex(index);
 }
 
 std::optional<Proto::PDOVariant> Sink::negotiatedPDO() const {
-    return _negotiatedPDO;
+    return _runtimeState._negotiatedPDO;
 }
 
 float Sink::negotiatedVoltage() const {
-    return _negotiatedVoltage;
+    return _runtimeState._negotiatedVoltage;
 }
 
 float Sink::negotiatedCurrent() const {
-    return _negotiatedCurrent;
+    return _runtimeState._negotiatedCurrent;
 }
 
 bool Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
-    static std::set<SinkState> validStates = {
-        SinkState::PE_SNK_Ready,
-        SinkState::PE_SNK_Wait_for_Capabilities,
-        SinkState::PE_SNK_Get_Source_Cap,
-        SinkState::PE_SNK_EPR_Keepalive,
-    };
-
-    if (validStates.find(state()) == validStates.end()) {
-        return false;
-    }
-
-    return _selectCapabilityStateHandler.requestPDO(pdoIndex, voltageMV, currentMA);
+    return _context.requestPDO(pdoIndex, voltageMV, currentMA);
 }
 
 bool Sink::sourceEPRCapable() const {
-    if (!_sourceCapabilities.has_value() || _sourceCapabilities->pdoCount() == 0) {
+    if (!_runtimeState._sourceCapabilities.has_value() ||
+        _runtimeState._sourceCapabilities->pdoCount() == 0) {
         return false;
     }
 
-    const auto& firstPDO = _sourceCapabilities->pdo(0);
+    const auto& firstPDO = _runtimeState._sourceCapabilities->pdo(0);
     if (std::holds_alternative<Proto::FixedSupplyPDO>(firstPDO)) {
         const auto& fixedPDO = std::get<Proto::FixedSupplyPDO>(firstPDO);
         return fixedPDO.eprModeCapable();
@@ -148,7 +89,7 @@ bool Sink::sourceEPRCapable() const {
 }
 
 SinkState Sink::state() const {
-    return _state;
+    return _runtimeState._state;
 }
 
 void Sink::sinkInfoChanged(std::function<void(SinkInfoChange)> callback) {
@@ -157,91 +98,6 @@ void Sink::sinkInfoChanged(std::function<void(SinkInfoChange)> callback) {
 
 std::function<void(SinkInfoChange)> Sink::sinkInfoChanged() const {
     return _sinkInfoChangedCallback;
-}
-
-std::optional<std::vector<uint8_t>> Sink::_takeCompletedExtendedPayload(
-    Proto::ExtendedMessageType type) {
-    const size_t typeIndex = static_cast<size_t>(type) & 0x1F;
-
-    if (!_completedExtendedPayloads[typeIndex].has_value()) {
-        return std::nullopt;
-    }
-
-    auto payload = std::move(_completedExtendedPayloads[typeIndex].value());
-    _completedExtendedPayloads[typeIndex].reset();
-    return payload;
-}
-
-void Sink::_sendNotSupportedMessage() {
-    _messageSender.sendMessageAndAwaitGoodCRC(
-        PHY::BMCEncodedMessage::notAcceptedMessage(
-            Proto::PDHeader::PortDataRole::UFP,
-            Proto::PDHeader::PortPowerRole::Sink
-        )
-    );
-}
-
-void Sink::_sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
-    const Proto::EPRMode eprMode(action, data);
-
-    PHY::BMCEncodedMessage message(
-        Proto::SOP::SOPType::SOP,
-        eprMode
-    );
-
-    auto &header = message.header();
-    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
-    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
-
-    _messageSender.sendMessageAndAwaitGoodCRC(message);
-}
-
-void Sink::_sendExtendedControlMessage(
-    ExtendedControlType controlType,
-    bool awaitGoodCRC) {
-    Proto::PDExtendedHeader extHeader(0);
-    // ECDB is always 2 bytes: Type + Data (set Data=0 when unused).
-    extHeader.dataSizeBytes(2);
-    extHeader.requestChunk(false);
-    extHeader.chunked(false);
-    extHeader.chunkNumber(0);
-
-    std::vector<uint8_t> rawBody = {
-        static_cast<uint8_t>(extHeader.raw() & 0xFF),
-        static_cast<uint8_t>((extHeader.raw() >> 8) & 0xFF),
-        static_cast<uint8_t>(controlType),
-        0
-    };
-
-    while ((rawBody.size() % 4) != 0) {
-        rawBody.push_back(0);
-    }
-
-    const uint32_t numDataObjects = static_cast<uint32_t>(rawBody.size() / 4);
-    const RawPDMessage rawMessage(
-        std::move(rawBody),
-        numDataObjects,
-        static_cast<uint32_t>(Proto::ExtendedMessageType::Extended_Control)
-    );
-
-    PHY::BMCEncodedMessage message(
-        Proto::SOP::SOPType::SOP,
-        rawMessage
-    );
-
-    auto &header = message.header();
-    header.extended(true);
-    header.extendedMessageType(Proto::ExtendedMessageType::Extended_Control);
-    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
-    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
-
-    if (awaitGoodCRC) {
-        _messageSender.sendMessageAndAwaitGoodCRC(message);
-    } else {
-        _messageSender.sendMessage(message);
-    }
 }
 
 void Sink::_sendExtendedChunkRequest(

@@ -8,6 +8,10 @@
  * The Sink class's requestPDO() method invokes this state handler's 
  * requestPDO() method to send a Request message to the Source for a 
  * specific PDO.
+ *
+ * This handler is responsible for request construction/validation across
+ * Fixed/Variable/Battery/Augmented PDO types and for handling Accept/Reject/
+ * Wait control responses that advance or roll back policy progression.
  * 
  */
 
@@ -32,26 +36,55 @@ namespace T76::DRPD::Logic {
      */
     class SelectCapabilityStateHandler : public SinkStateHandler {
     public:
-        /** 
-         * @brief Construct a new Select Capability State Handler object
-         * 
-         * @param sink Reference to the Sink instance
+        /**
+         * @brief Construct a Select Capability state handler.
          */
-        SelectCapabilityStateHandler(Sink &sink) : SinkStateHandler(sink) {}
+        SelectCapabilityStateHandler() = default;
 
         /** 
          * @brief Destroy the Select Capability State Handler object
          */
         ~SelectCapabilityStateHandler() override = default;
 
-        // Base class overrides
+        /**
+         * @brief Handle incoming message in Select_Capability state.
+         * @param context Shared sink context.
+         * @param message Decoded incoming message.
+         */
+        void handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) override;
 
-        void handleMessage(const T76::DRPD::PHY::BMCDecodedMessage *message) override;
-        void handleMessageSenderStateChange(SinkMessageSenderState state) override;
-        void enter() override;
-        void reset() override;
+        /**
+         * @brief Handle sender state changes in Select_Capability state.
+         * @param context Shared sink context.
+         * @param state Sender state.
+         */
+        void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
 
-        bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
+        /**
+         * @brief Enter Select_Capability state.
+         * @param context Shared sink context.
+         */
+        void enter(SinkContext& context) override;
+
+        /**
+         * @brief Reset Select_Capability timers.
+         * @param context Shared sink context.
+         */
+        void reset(SinkContext& context) override;
+
+        /**
+         * @brief Validate and request a PDO from the active source capability set.
+         * @param context Shared sink context.
+         * @param pdoIndex Zero-based PDO index.
+         * @param voltageMV Requested voltage in millivolts.
+         * @param currentMA Requested current in milliamps.
+         * @return True if request message was dispatched; otherwise false.
+         */
+        bool requestPDO(
+            SinkContext& context,
+            size_t pdoIndex,
+            uint32_t voltageMV,
+            uint32_t currentMA);
 
     protected:
         /**
