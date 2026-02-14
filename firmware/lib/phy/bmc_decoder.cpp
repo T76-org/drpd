@@ -34,9 +34,22 @@ BMCDecoder::BMCDecoder() :
     // of the RAM available to FreeRTOS at compile time.
 
     _messageBuffer = new BMCDecodedMessage[PHY_BMC_DECODER_MESSAGE_BUFFER_SIZE];
+
+    if (!_messageBuffer) {
+        while(true) {
+            printf("Failed to allocate message buffer!\n");
+            sleep_ms(1000);
+        }
+    }
     _currentMessage = &_messageBuffer[0];
 
     _circularBuffer = new uint32_t[PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE];
+    if (!_circularBuffer) {
+        while(true) {
+            printf("Failed to allocate circular buffer!\n");
+            sleep_ms(1000);
+        }
+    }
 }
 
 void BMCDecoder::initCore0() {
