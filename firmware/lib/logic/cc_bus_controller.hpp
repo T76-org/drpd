@@ -21,9 +21,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -119,8 +119,13 @@ namespace T76::DRPD::Logic {
             _sourcePort(CCBusPort::DUT),
             _sourceChannel(PHY::CCChannel::CC1),
             _sinkPort(CCBusPort::USDS),
-            _sinkChannel(PHY::CCChannel::CC1)
-        {}
+            _sinkChannel(PHY::CCChannel::CC1),
+            _sink(*this, _bmcDecoder, _bmcEncoder)
+        {
+            _sink.sinkInfoChanged(
+                std::bind(&CCBusController::_repeatSinkInfoChanged, this, std::placeholders::_1)
+            );
+        }
 
         /**
          * @brief Initialize the CC bus controller
@@ -184,7 +189,7 @@ namespace T76::DRPD::Logic {
          * 
          * @return Sink* Pointer to the Sink instance, or nullptr if not in Sink mode
          */
-        Sink* sink() const;
+        Sink* sink();
 
         /**
          * @brief Add a callback function to be called when the state changes
@@ -263,8 +268,9 @@ namespace T76::DRPD::Logic {
         ///< Registered role callbacks
 
         SinkInfoChangedCallback _sinkInfoChangedCallback;     ///< Callback for Sink info changes
+        std::atomic_flag _callbacksLock = ATOMIC_FLAG_INIT;   ///< Cross-core callback registry lock.
 
-        std::unique_ptr<Sink> _sink;            ///< Sink instance for managing sink state
+        Sink _sink;                             ///< Sink instance for managing sink state.
 
         /**
          * @brief Utility method to determine if a source is present based on voltage
@@ -347,4 +353,3 @@ namespace T76::DRPD::Logic {
     };
 
 } // namespace T76::DRPD::Logic
-

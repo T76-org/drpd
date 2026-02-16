@@ -52,18 +52,10 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     );
 
     reset();
-
-    // Register callbacks only after queue/task are initialized.
-    _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this, std::placeholders::_1));
-    _stateChangedCallbackId = _ccBusController.addStateChangedCallback(
-        std::bind(&Sink::_onCCBusStateChanged, this, std::placeholders::_1)
-    );
 }
 
 Sink::~Sink() {
-    // Unregister callbacks first so no new work is queued during teardown.
-    _bmcDecoder.messageReceivedCallbackCore1(nullptr);
-    _ccBusController.removeStateChangedCallback(_stateChangedCallbackId);
+    disable();
 
     reset();
 
@@ -78,6 +70,44 @@ Sink::~Sink() {
         vQueueDelete(_messageQueue);
         _messageQueue = nullptr;
     }
+}
+
+void Sink::enable() {
+    if (_enabled.load()) {
+        return;
+    }
+
+    reset();
+
+    // Register callbacks only after queue/task are initialized.
+    _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this,
+        std::placeholders::_1));
+    _stateChangedCallbackId = _ccBusController.addStateChangedCallback(
+        std::bind(&Sink::_onCCBusStateChanged, this, std::placeholders::_1)
+    );
+    _enabled.store(true);
+}
+
+void Sink::disable() {
+    if (!_enabled.load()) {
+        return;
+    }
+
+    // Unregister callbacks first so no new work is queued during teardown.
+    _bmcDecoder.messageReceivedCallbackCore1(nullptr);
+    _ccBusController.removeStateChangedCallback(_stateChangedCallbackId);
+    _stateChangedCallbackId = 0;
+    _enabled.store(false);
+
+    if (_messageQueue != nullptr) {
+        (void)xQueueReset(_messageQueue);
+    }
+
+    reset();
+}
+
+bool Sink::enabled() const {
+    return _enabled.load();
 }
 
 void Sink::_processTaskHandler() {
@@ -125,5 +155,10 @@ void Sink::_processTaskHandler() {
 
 void Sink::_onCCBusStateChanged(CCBusState newState) {
     (void)newState;
+
+    if (!_enabled.load()) {
+        return;
+    }
+
     reset();
 }

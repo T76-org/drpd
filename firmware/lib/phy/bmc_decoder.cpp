@@ -6,6 +6,8 @@
 
 #include "bmc_decoder.hpp"
 
+#include <utility>
+
 #include <FreeRTOS.h>
 #include <task.h>
 
@@ -27,6 +29,7 @@ BMCDecoder::BMCDecoder() :
     _enabled(false),
     _circularBuffer(nullptr),
     _messageBuffer(nullptr) {
+    critical_section_init(&_callbackCriticalSection);
     queue_init(&_messageQueue, sizeof(BMCDecodedMessage*), PHY_BMC_DECODER_QUEUE_LENGTH);
 
     // Allocate circular buffers for storing decoded data. We
@@ -182,27 +185,42 @@ void BMCDecoder::initCore1() {
 }
 
 void BMCDecoder::messageReceivedCallbackCore0(MessageReceivedCallback callback) {
-    _messageReceivedCallbackCore0 = callback;
+    critical_section_enter_blocking(&_callbackCriticalSection);
+    _messageReceivedCallbackCore0 = std::move(callback);
+    critical_section_exit(&_callbackCriticalSection);
 }
 
 BMCDecoder::MessageReceivedCallback BMCDecoder::messageReceivedCallbackCore0() {
-    return _messageReceivedCallbackCore0;
+    critical_section_enter_blocking(&_callbackCriticalSection);
+    auto callback = _messageReceivedCallbackCore0;
+    critical_section_exit(&_callbackCriticalSection);
+    return callback;
 }
 
 void BMCDecoder::messageReceivedCallbackCore1(MessageReceivedCallbackByPointer callback) {
-    _messageReceivedCallbackCore1 = callback;
+    critical_section_enter_blocking(&_callbackCriticalSection);
+    _messageReceivedCallbackCore1 = std::move(callback);
+    critical_section_exit(&_callbackCriticalSection);
 }
 
 BMCDecoder::MessageReceivedCallbackByPointer BMCDecoder::messageReceivedCallbackCore1() {
-    return _messageReceivedCallbackCore1;
+    critical_section_enter_blocking(&_callbackCriticalSection);
+    auto callback = _messageReceivedCallbackCore1;
+    critical_section_exit(&_callbackCriticalSection);
+    return callback;
 }
 
 void BMCDecoder::messageEventCallback(MessageEventCallback callback) {
-    _messageEventCallback = callback;
+    critical_section_enter_blocking(&_callbackCriticalSection);
+    _messageEventCallback = std::move(callback);
+    critical_section_exit(&_callbackCriticalSection);
 }
 
 BMCDecoder::MessageEventCallback BMCDecoder::messageEventCallback() {
-    return _messageEventCallback;
+    critical_section_enter_blocking(&_callbackCriticalSection);
+    auto callback = _messageEventCallback;
+    critical_section_exit(&_callbackCriticalSection);
+    return callback;
 }
 
 bool BMCDecoder::enabled() const {
@@ -245,15 +263,29 @@ bool BMCDecoder::_timerCallback(repeating_timer_t *rt) {
 
         BMCDecodedMessageEvent messageEvent = decoder->_currentMessage->feedPulse(pulseWidth);
 
-        if (messageEvent != BMCDecodedMessageEvent::None && decoder->_messageEventCallback) {
-            decoder->_messageEventCallback(messageEvent, *decoder->_currentMessage);
+        if (messageEvent != BMCDecodedMessageEvent::None) {
+            BMCDecoder::MessageEventCallback messageEventCallback = nullptr;
+            critical_section_enter_blocking(&decoder->_callbackCriticalSection);
+            messageEventCallback = decoder->_messageEventCallback;
+            critical_section_exit(&decoder->_callbackCriticalSection);
+
+            if (messageEventCallback) {
+                messageEventCallback(messageEvent, *decoder->_currentMessage);
+            }
         }
 
         if (BMC_DECODED_MESSAGE_EVENT_IS_COMPLETION(messageEvent)) {
             if (decoder->_currentMessage->data().size() > 0) {
-                if (decoder->_messageReceivedCallbackCore1 && 
-                    (messageEvent == BMCDecodedMessageEvent::MessageComplete || messageEvent == BMCDecodedMessageEvent::HardResetReceived)) {
-                    decoder->_messageReceivedCallbackCore1(decoder->_currentMessage);
+                if (messageEvent == BMCDecodedMessageEvent::MessageComplete ||
+                    messageEvent == BMCDecodedMessageEvent::HardResetReceived) {
+                    BMCDecoder::MessageReceivedCallbackByPointer messageReceivedCallback = nullptr;
+                    critical_section_enter_blocking(&decoder->_callbackCriticalSection);
+                    messageReceivedCallback = decoder->_messageReceivedCallbackCore1;
+                    critical_section_exit(&decoder->_callbackCriticalSection);
+
+                    if (messageReceivedCallback) {
+                        messageReceivedCallback(decoder->_currentMessage);
+                    }
                 }
     
                 // Enqueue the completed message for processing
@@ -288,9 +320,14 @@ void BMCDecoder::_processingTask() {
 
         queue_remove_blocking(&_messageQueue, &messagePtr);
 
+        MessageReceivedCallback messageReceivedCallback = nullptr;
+        critical_section_enter_blocking(&_callbackCriticalSection);
+        messageReceivedCallback = _messageReceivedCallbackCore0;
+        critical_section_exit(&_callbackCriticalSection);
+
         // If a callback is set, call it with the received message
-        if (_messageReceivedCallbackCore0) {
-            _messageReceivedCallbackCore0(*messagePtr);
+        if (messageReceivedCallback) {
+            messageReceivedCallback(*messagePtr);
         }
     }
 }
