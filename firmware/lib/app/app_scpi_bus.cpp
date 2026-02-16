@@ -211,9 +211,10 @@ void App::_setCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterVal
     std::transform(stateStr.begin(), stateStr.end(), stateStr.begin(), ::toupper);
 
     if (stateStr == "ON") {
+        _captureEnabled.store(true, std::memory_order_relaxed);
         _bmcDecoder.enabled(true);
     } else if (stateStr == "OFF") {
-        _bmcDecoder.enabled(false); 
+        _captureEnabled.store(false, std::memory_order_relaxed);
     } else {
         _interpreter.addError(-111, "Invalid state parameter for BUS:CC:CAPTURE:STATE command");
         return;
@@ -223,7 +224,7 @@ void App::_setCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterVal
 }
 
 void App::_queryCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterValue> &params) {
-    bool enabled = _bmcDecoder.enabled();
+    bool enabled = _captureEnabled.load(std::memory_order_relaxed);
     if (enabled) {
         _usbInterface.sendUSBTMCBulkData("ON", true);
     } else {
