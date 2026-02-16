@@ -87,6 +87,7 @@ void App::_initCore0() {
 
 void App::_startCore1() {
     _bmcDecoder.initCore1();
+    _bmcDecoder.enabled(true);
     _bmcEncoder.initCore1();
     _vbusManager.initCore1();
 
@@ -97,6 +98,10 @@ void App::_startCore1() {
 }
 
 void App::_messageReceivedCallback(const PHY::BMCDecodedMessage &message) {
+    if (!_captureEnabled.load(std::memory_order_relaxed)) {
+        return;
+    }
+
     CapturedMessage captured;
 
     captured.startTimestamp = message.startTimestamp();
