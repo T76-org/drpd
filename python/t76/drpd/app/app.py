@@ -7,7 +7,7 @@ The DRPDApp class is the main application class for the DRPD console app.
 from .logging import logging  # Ensure logging is configured before other imports
 
 from asyncio import sleep
-from typing import Optional
+from typing import List, Optional
 
 from textual.app import App
 from textual.binding import Binding
@@ -15,6 +15,9 @@ from textual.reactive import reactive
 
 from t76.drpd.device.device import Device
 from t76.drpd.device.discovery import find_drpd_devices
+from t76.drpd.device_reconciliation import (
+    choose_active_device as choose_active_device_from_discovery,
+)
 from t76.drpd.device.types import Mode, OnOffStatus
 
 from .config import config
@@ -25,6 +28,7 @@ from .main_screen import MainScreen
 CONFIG_APP_SECTION_KEY = "app"
 CONFIG_ENABLE_CAPTURE_KEY = "enable_capture"
 CONFIG_CC_BUS_MODE_KEY = "cc_bus_mode"
+DISCOVERY_INTERVAL_SECONDS = 1.0
 
 
 class DRPDApp(App):
@@ -56,39 +60,132 @@ class DRPDApp(App):
             DRPDApp.device).add_class("main-screen")
 
         self.push_screen("main")
+        self.set_interval(
+            DISCOVERY_INTERVAL_SECONDS,
+            self._refresh_devices,
+        )
+        await self._refresh_devices(allow_auto_connect_single=True)
+
+    async def on_unmount(self) -> None:
+        """Called when the app is shutting down."""
+        if self.device is None:
+            return
 
         try:
-            logging.info('Searching for devices...')
-            devices = find_drpd_devices()
+            await self.device.analog_monitor.stop_recurring_status_updates()
+        except RuntimeError as e:
+            logging.warning("Failed to stop analog monitor at shutdown: %s", e)
 
-            if len(devices) > 1:
-                self.push_screen("device_selection")
-            else:
-                logging.info('Found device %s', devices[0])
-                self.device = devices[0]
+        try:
+            await self.device.disconnect()
+        except (AssertionError, RuntimeError) as e:
+            logging.warning("Failed to disconnect device at shutdown: %s", e)
 
-        except (ConnectionError, RuntimeError) as e:  # Replace with specific exceptions
+    @staticmethod
+    def choose_active_device(
+            current_device: Optional[Device],
+            discovered_devices: List[Device],
+            allow_auto_connect_single: bool) -> Optional[Device]:
+        """Return the next active device based on discovery results."""
+        return choose_active_device_from_discovery(
+            current_device=current_device,
+            discovered_devices=discovered_devices,
+            allow_auto_connect_single=allow_auto_connect_single,
+        )
+
+    def _discover_devices(self) -> List[Device]:
+        """Discover available devices and return an empty list on error."""
+        try:
+            return find_drpd_devices()
+        except (ConnectionError, RuntimeError) as e:
             logging.error("Failed to find DRPD devices: %s", e)
+            return []
 
-    async def watch_device(self, old_device: Device, new_device: Device) -> None:
+    def _device_selection_visible(self) -> bool:
+        """Return true when the device selection screen is active."""
+        return isinstance(self.screen, DeviceSelectionScreen)
+
+    def _show_device_selection(self) -> None:
+        """Show the device selection screen if needed."""
+        if not self._device_selection_visible():
+            self.push_screen("device_selection")
+
+    def _hide_device_selection(self) -> None:
+        """Hide the device selection screen if it is currently active."""
+        if self._device_selection_visible():
+            self.pop_screen()
+
+    async def _refresh_devices(
+            self,
+            allow_auto_connect_single: bool = False) -> None:
+        """
+        Reconcile app state with the current set of connected devices.
+        """
+        discovered_devices = self._discover_devices()
+
+        next_device = self.choose_active_device(
+            current_device=self.device,
+            discovered_devices=discovered_devices,
+            allow_auto_connect_single=allow_auto_connect_single,
+        )
+
+        if self.device is not None and next_device is None:
+            logging.info(
+                "Active device disconnected; returning to selection screen.")
+
+        if next_device is not self.device:
+            self.device = next_device
+
+        if self.device is None:
+            self._show_device_selection()
+            return
+
+        self._hide_device_selection()
+
+    async def watch_device(
+            self,
+            old_device: Optional[Device],
+            new_device: Optional[Device]) -> None:
         """
         Watch for changes in the connected device.
         Connect to the new device and disconnect from the old device.
 
         Args:
-            old_device (Device): The previously connected device.
-            new_device (Device): The newly connected device.
+            old_device (Optional[Device]): The previously connected device.
+            new_device (Optional[Device]): The newly connected device.
         """
         if old_device is not None:
-            await old_device.analog_monitor.stop_recurring_status_updates()
-            await old_device.disconnect()
+            try:
+                await old_device.analog_monitor.stop_recurring_status_updates()
+            except RuntimeError as e:
+                logging.warning(
+                    "Failed to stop analog monitor updates for %s: %s",
+                    old_device,
+                    e,
+                )
+
+            try:
+                await old_device.disconnect()
+            except (AssertionError, RuntimeError) as e:
+                logging.warning(
+                    "Failed to disconnect old device %s: %s",
+                    old_device,
+                    e,
+                )
 
         if new_device is not None:
-            logging.info('Connecting to device %s', new_device)
-            await new_device.connect()
-            await new_device.capture.fetch_extant_captures()
-            await config.load(new_device)
-            await new_device.analog_monitor.start_recurring_status_updates(0.5)
+            try:
+                logging.info('Connecting to device %s', new_device)
+                await new_device.connect()
+                await new_device.capture.fetch_extant_captures()
+                await config.load(new_device)
+                await new_device.analog_monitor.start_recurring_status_updates(
+                    0.5)
+            except (AssertionError, RuntimeError) as e:
+                logging.error("Failed to connect to %s: %s", new_device, e)
+
+                if self.device is new_device:
+                    self.device = None
 
     async def action_cycle_connection(self) -> None:
         """
@@ -126,4 +223,4 @@ class DRPDApp(App):
     async def on_device_selected_message(self, message: DeviceSelectedMessage) -> None:
         """Handle the DeviceSelectedMessage event."""
         self.device = message.device
-        self.pop_screen()
+        self._hide_device_selection()

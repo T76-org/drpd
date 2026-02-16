@@ -36,6 +36,7 @@ class DeviceInternal:
         self.name = usb_device.product
         self.serial_number = usb_device.serial_number
         self.instrument: Optional[MessageBasedResource] = None
+        self._resource_manager: Optional[pyvisa.ResourceManager] = None
         self._lock: Lock
         self._interrupt_handler = interrupt_handler
         self.resource_string = f"USB0::{getattr(self.usb_device, 'idVendor')}::{getattr(self.usb_device, 'idProduct')}::{self.usb_device.serial_number}::4::INSTR"
@@ -246,7 +247,16 @@ class DeviceInternal:
         """
         Connect to the device using the underlying transport.
         """
-        self.instrument = pyvisa.ResourceManager().open_resource(
+        if self._resource_manager is not None:
+            logging.warning(
+                "Resource manager already exists for %s; closing stale "
+                "manager before reconnecting.",
+                self.resource_string,
+            )
+            await self.disconnect()
+
+        self._resource_manager = pyvisa.ResourceManager()
+        self.instrument = self._resource_manager.open_resource(
             self.resource_string)  # type: ignore
 
         if not isinstance(self.instrument, MessageBasedResource):
@@ -285,17 +295,29 @@ class DeviceInternal:
     async def disconnect(self) -> None:
         """
         Disconnect from the device.
-
-        :raises AssertionError: If the instrument is not initialized before disconnecting.
         """
-        assert self.instrument is not None, "Instrument must be initialized before disconnecting."
+        instrument = self.instrument
+        resource_manager = self._resource_manager
 
-        try:
-            self.instrument.close()
-        except pyvisa.errors.VisaIOError as e:
-            logging.error("Failed to close instrument: %s", e)
-        finally:
-            self.instrument = None
+        # Clear references first so repeated disconnects are idempotent
+        # and future reconnects start from a clean slate.
+        self.instrument = None
+        self._resource_manager = None
+
+        if instrument is not None:
+            try:
+                instrument.close()
+            except pyvisa.errors.VisaIOError as e:
+                logging.warning("Failed to close instrument cleanly: %s", e)
+
+        if resource_manager is not None:
+            try:
+                resource_manager.close()
+            except pyvisa.errors.VisaIOError as e:
+                logging.warning(
+                    "Failed to close resource manager cleanly: %s",
+                    e,
+                )
 
     @property
     def connected(self) -> bool:
