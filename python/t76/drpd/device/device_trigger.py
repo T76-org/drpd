@@ -5,8 +5,8 @@ The Device class enables communication with DRPD devices
 over USB using SCPI commands.
 """
 
-from attr import dataclass
-from t76.drpd import device
+from dataclasses import dataclass
+
 from t76.drpd.device.types import (
     OnOffStatus,
     TriggerStatus,

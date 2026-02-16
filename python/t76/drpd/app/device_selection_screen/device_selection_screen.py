@@ -53,6 +53,10 @@ class DeviceSelectionScreen(Screen):
                 device_list.clear_options()
                 device_list.add_options(
                     [device.name for device in self._devices])
+                device_list.highlighted = 0 if self._devices else None
+
+            if len(self._devices) > 0 and device_list.highlighted is None:
+                device_list.highlighted = 0
 
             if len(self._devices) > 0:
                 self.query_one('#device_selection_container').add_class(
