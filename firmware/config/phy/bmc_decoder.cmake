@@ -13,6 +13,9 @@ target_compile_definitions(drpd-firmware PUBLIC
     PHY_BMC_DECODER_PIO_CLOCK_HZ=200000000.0f                   # PIO clock frequency
     PHY_BMC_DECODER_DECODER_INTERRUPT_FREQUENCY_HZ=10000        # Decoder interrupt frequency in Hz
 
+    PHY_BMC_DECODER_CORE0_TASK_STACK_SIZE=4096                  # Stack size for the decoder task on core 0
+    PHY_BMC_DECODER_CORE0_TASK_PRIORITY=tskIDLE_PRIORITY+1      # Priority for the decoder task
+
     PHY_BMC_DECODER_RUNT_PULSE_WIDTH_NS=1000                    # Minimum pulse width in nanoseconds for a valid pulse
     PHY_BMC_DECODER_TIMEOUT_PULSE_WIDTH_NS=10000                # Pulse width in nanoseconds indicating a timeout
 

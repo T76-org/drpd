@@ -58,9 +58,9 @@ void BMCDecoder::initCore0() {
             static_cast<BMCDecoder *>(param)->_processingTask();
         },
         "BMCDProc",
-        1024,
+        PHY_BMC_DECODER_CORE0_TASK_STACK_SIZE,
         this,
-        tskIDLE_PRIORITY + 1,
+        PHY_BMC_DECODER_CORE0_TASK_PRIORITY,
         nullptr
     );
 }
