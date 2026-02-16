@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -100,6 +101,22 @@ namespace T76::DRPD::Logic {
          * @param resetType Reset behavior to perform.
          */
         void reset(SinkResetType resetType = SinkResetType::Internal);
+
+        /**
+         * @brief Enable Sink processing and subscribe runtime callbacks.
+         */
+        void enable();
+
+        /**
+         * @brief Disable Sink processing and unsubscribe runtime callbacks.
+         */
+        void disable();
+
+        /**
+         * @brief Get whether Sink processing is enabled.
+         * @return True when enabled; otherwise false.
+         */
+        [[nodiscard]] bool enabled() const;
 
         /**
          * @brief Get count of active PDO view entries.
@@ -197,6 +214,7 @@ namespace T76::DRPD::Logic {
         SinkRuntimeState _runtimeState;                          ///< Mutable sink runtime state.
         std::function<void(SinkInfoChange)> _sinkInfoChangedCallback; ///< Sink info change callback.
         SinkContext _context;                                    ///< Handler-facing context facade.
+        std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
 
         /**
          * @brief Handle CC bus state changes.

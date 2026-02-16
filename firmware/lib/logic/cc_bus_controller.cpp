@@ -13,6 +13,23 @@
 
 using namespace T76::DRPD::Logic;
 
+namespace {
+    class SpinLockGuard {
+    public:
+        explicit SpinLockGuard(std::atomic_flag &lock) : _lock(lock) {
+            while (_lock.test_and_set(std::memory_order_acquire)) {
+            }
+        }
+
+        ~SpinLockGuard() {
+            _lock.clear(std::memory_order_release);
+        }
+
+    private:
+        std::atomic_flag &_lock;
+    };
+} // namespace
+
 
 void CCBusController::init() {
     // Turn off the mux
@@ -40,9 +57,7 @@ void CCBusController::role(CCBusRole role) {
 
     switch(_role) {
         case CCBusRole::Observer:
-            if (_sink != nullptr) {
-                _sink = nullptr;
-            }
+            _sink.disable();
 
             _ccRoleManager.cc1Role(PHY::CCRole::Off);
             _ccRoleManager.cc2Role(PHY::CCRole::Off);
@@ -51,10 +66,7 @@ void CCBusController::role(CCBusRole role) {
             break;
 
         case CCBusRole::Sink:
-            if (_sink == nullptr) {
-                _sink = std::make_unique<Sink>(*this, _bmcDecoder, _bmcEncoder);
-                _sink->sinkInfoChanged(std::bind(&CCBusController::_repeatSinkInfoChanged, this, std::placeholders::_1));
-            }
+            _sink.enable();
 
             _ccRoleManager.cc1Role(PHY::CCRole::Sink);
             _ccRoleManager.cc2Role(PHY::CCRole::Sink);
@@ -63,9 +75,7 @@ void CCBusController::role(CCBusRole role) {
             break;
 
         default:
-            if (_sink != nullptr) {
-                _sink = nullptr;
-            }
+            _sink.disable();
 
             _ccRoleManager.cc1Role(PHY::CCRole::Off);
             _ccRoleManager.cc2Role(PHY::CCRole::Off);
@@ -98,8 +108,12 @@ T76::DRPD::PHY::CCChannel CCBusController::sinkChannel() const {
     return _sinkChannel;
 }
 
-Sink* CCBusController::sink() const {
-    return _sink.get();
+Sink* CCBusController::sink() {
+    if (_sink.enabled()) {
+        return &_sink;
+    }
+
+    return nullptr;
 }
 
 uint32_t CCBusController::addStateChangedCallback(StateChangedCallback callback) {
@@ -107,6 +121,7 @@ uint32_t CCBusController::addStateChangedCallback(StateChangedCallback callback)
         return 0;
     }
 
+    SpinLockGuard lock(_callbacksLock);
     uint32_t callbackId = _nextStateChangedCallbackId++;
     _stateChangedCallbacks.push_back({callbackId, std::move(callback)});
     return callbackId;
@@ -117,6 +132,7 @@ void CCBusController::removeStateChangedCallback(uint32_t callbackId) {
         return;
     }
 
+    SpinLockGuard lock(_callbacksLock);
     _stateChangedCallbacks.erase(
         std::remove_if(
             _stateChangedCallbacks.begin(),
@@ -134,6 +150,7 @@ uint32_t CCBusController::addRoleChangedCallback(RoleChangedCallback callback) {
         return 0;
     }
 
+    SpinLockGuard lock(_callbacksLock);
     uint32_t callbackId = _nextRoleChangedCallbackId++;
     _roleChangedCallbacks.push_back({callbackId, std::move(callback)});
     return callbackId;
@@ -144,6 +161,7 @@ void CCBusController::removeRoleChangedCallback(uint32_t callbackId) {
         return;
     }
 
+    SpinLockGuard lock(_callbacksLock);
     _roleChangedCallbacks.erase(
         std::remove_if(
             _roleChangedCallbacks.begin(),
@@ -157,12 +175,19 @@ void CCBusController::removeRoleChangedCallback(uint32_t callbackId) {
 }
 
 void CCBusController::sinkInfoChanged(SinkInfoChangedCallback callback) {
+    SpinLockGuard lock(_callbacksLock);
     _sinkInfoChangedCallback = std::move(callback);
 }
 
 void CCBusController::_repeatSinkInfoChanged(SinkInfoChange change) {
-    if (_sinkInfoChangedCallback) {
-        _sinkInfoChangedCallback(change);
+    SinkInfoChangedCallback callback = nullptr;
+    {
+        SpinLockGuard lock(_callbacksLock);
+        callback = _sinkInfoChangedCallback;
+    }
+
+    if (callback) {
+        callback(change);
     }
 }
 
@@ -398,7 +423,11 @@ void CCBusController::_updateState(CCBusState newState) {
 
     _state = newState;
 
-    auto callbacks = _stateChangedCallbacks;
+    std::vector<std::pair<uint32_t, StateChangedCallback>> callbacks;
+    {
+        SpinLockGuard lock(_callbacksLock);
+        callbacks = _stateChangedCallbacks;
+    }
 
     for (const auto &callbackEntry : callbacks) {
         if (callbackEntry.second) {
@@ -414,7 +443,11 @@ void CCBusController::_updateRole(CCBusRole newRole) {
 
     _role = newRole;
 
-    auto callbacks = _roleChangedCallbacks;
+    std::vector<std::pair<uint32_t, RoleChangedCallback>> callbacks;
+    {
+        SpinLockGuard lock(_callbacksLock);
+        callbacks = _roleChangedCallbacks;
+    }
 
     for (const auto &callbackEntry : callbacks) {
         if (callbackEntry.second) {
@@ -422,4 +455,3 @@ void CCBusController::_updateRole(CCBusRole newRole) {
         }
     }
 }
-

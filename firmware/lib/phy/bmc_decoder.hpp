@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 
+#include <pico/critical_section.h>
 #include <pico/time.h>
 #include <pico/util/queue.h>
 
@@ -184,6 +185,7 @@ namespace T76::DRPD::PHY {
         MessageReceivedCallback _messageReceivedCallbackCore0 = nullptr; ///< Callback function for received messages on core 0
         MessageReceivedCallbackByPointer _messageReceivedCallbackCore1 = nullptr; ///< Callback function for received messages on core 1
         MessageEventCallback _messageEventCallback = nullptr; ///< Callback function for message events
+        critical_section_t _callbackCriticalSection; ///< Cross-core callback registry lock.
 
         /** 
          * @brief Timer callback for processing the circular buffer

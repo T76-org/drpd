@@ -10,6 +10,10 @@ using namespace T76::DRPD::Logic;
 
 
 void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) {
+    if (!_enabled.load()) {
+        return;
+    }
+
     if (message->decodedSOP().type() == Proto::SOP::SOPType::HardReset) {
         reset();
         return;
@@ -199,6 +203,10 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
 }
 
 void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
+    if (!_enabled.load()) {
+        return;
+    }
+
     if (state == SinkMessageSenderState::GoodCRCReceived && _runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;
