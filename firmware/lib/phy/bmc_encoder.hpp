@@ -132,6 +132,17 @@ namespace T76::DRPD::PHY {
          */
         void sendNotAcceptedMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole);
 
+        /** 
+         * @brief Timer callback for managing message transmissions.
+         * 
+         * This static method is called by the repeating timer to
+         * check for and transmit messages from the queue. If there
+         * are no more messages to send, it stops the timer.
+         * 
+         */
+
+        void timerCallback();  
+
         // Safeable component overrides
 
         bool activate() override;
@@ -145,7 +156,6 @@ namespace T76::DRPD::PHY {
         int _dmaChannel;            ///< DMA channel used for data transfer
 
         std::array<BitPacker, PHY_BMC_ENCODER_QUEUE_LENGTH> _messageQueue = {}; ///< Ring buffer storage.
-        critical_section_t _messageQueueLock; ///< Protects ring buffer and in-progress slot.
         size_t _messageQueueHead = 0; ///< Ring buffer head index.
         size_t _messageQueueTail = 0; ///< Ring buffer tail index.
         size_t _messageQueueCount = 0; ///< Number of queued messages.
@@ -153,19 +163,6 @@ namespace T76::DRPD::PHY {
 
         BitPacker _messageInProgress;    ///< Currently transmitting message
         bool _hasMessageInProgress = false; ///< True when DMA transmission is active.
-
-        /** 
-         * @brief Timer callback for managing message transmissions.
-         * 
-         * This static method is called by the repeating timer to
-         * check for and transmit messages from the queue. If there
-         * are no more messages to send, it stops the timer.
-         * 
-         * @param rt Pointer to the repeating_timer_t structure.
-         * @return true if the timer should continue running, false to stop it.
-         */
-
-        static bool _timerCallback(repeating_timer_t *rt);  
 
         /**
          * @brief Enqueue a message into the static ring buffer.

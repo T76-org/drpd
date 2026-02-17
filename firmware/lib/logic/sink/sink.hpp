@@ -29,10 +29,10 @@
 #include <span>
 
 #include <FreeRTOS.h>
-#include <queue.h>
 #include <task.h>
 
 #include <pico/time.h>
+#include <pico/util/queue.h>
 
 #include "message_sender.hpp"
 #include "sink_context.hpp"
@@ -193,7 +193,7 @@ namespace T76::DRPD::Logic {
         };
 
         TaskHandle_t _messagingTaskHandle = nullptr;             ///< FreeRTOS sink message processing task.
-        QueueHandle_t _messageQueue = nullptr;                   ///< Queue of decoded message pointers.
+        queue_t _messageQueue;                                   ///< Queue of decoded message pointers.
 
         CCBusController& _ccBusController;                       ///< CC bus controller dependency.
         T76::DRPD::PHY::BMCDecoder& _bmcDecoder;                ///< Decoder for incoming PD messages.

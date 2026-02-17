@@ -91,6 +91,23 @@ void App::_startCore1() {
     _bmcEncoder.initCore1();
     _vbusManager.initCore1();
 
+    repeating_timer_t _timer;
+
+    // Add a threadsafe 32-bit counter
+    alarm_pool_add_repeating_timer_us(
+        alarm_pool_create_with_unused_hardware_alarm(8),
+        -1000000 / PHY_BMC_DECODER_DECODER_INTERRUPT_FREQUENCY_HZ,
+        [](repeating_timer_t *rt) {
+            App *app = static_cast<App *>(rt->user_data);
+            app->_bmcDecoder.timerCallback();
+            app->_bmcEncoder.timerCallback();
+
+            return true; // Return true to keep the timer running
+        },
+        this,
+        &_timer
+    );
+
     for(;;) {
         T76::Core::Safety::feedWatchdogFromCore1();
         sleep_ms(100);

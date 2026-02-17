@@ -38,7 +38,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _waitForCapabilitiesStateHandler,
         _sinkInfoChangedCallback) {
 
-    _messageQueue = xQueueCreate(LOGIC_SINK_MESSAGE_QUEUE_LENGTH, sizeof(const PHY::BMCDecodedMessage*));
+    queue_init(&_messageQueue, sizeof(const PHY::BMCDecodedMessage*), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
 
     xTaskCreate(
         [](void *param) {
@@ -66,10 +66,7 @@ Sink::~Sink() {
 
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    if (_messageQueue != nullptr) {
-        vQueueDelete(_messageQueue);
-        _messageQueue = nullptr;
-    }
+    queue_free(&_messageQueue);
 }
 
 void Sink::enable() {
@@ -99,8 +96,8 @@ void Sink::disable() {
     _stateChangedCallbackId = 0;
     _enabled.store(false);
 
-    if (_messageQueue != nullptr) {
-        (void)xQueueReset(_messageQueue);
+    const PHY::BMCDecodedMessage* dropped = nullptr;
+    while (queue_try_remove(&_messageQueue, &dropped)) {
     }
 
     reset();
@@ -114,41 +111,41 @@ void Sink::_processTaskHandler() {
     const PHY::BMCDecodedMessage* messagePtr = nullptr;
 
     while (true) {
-        if (_messageQueue && xQueueReceive(_messageQueue, &messagePtr, portMAX_DELAY) == pdTRUE) {
-            if (messagePtr == nullptr) {
+        queue_remove_blocking(&_messageQueue, &messagePtr);
+
+        if (messagePtr == nullptr) {
+            continue;
+        }
+
+        const auto decodedHeader = messagePtr->decodedHeader();
+
+        if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
+            const auto maybeType = decodedHeader.extendedMessageType();
+            if (!maybeType.has_value()) {
+                reset(SinkResetType::SoftReset);
                 continue;
             }
 
-            const auto decodedHeader = messagePtr->decodedHeader();
+            Proto::ExtendedMessageType completedType = maybeType.value();
+            const auto result = _handleExtendedMessageFragment(messagePtr, completedType);
 
-            if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
-                const auto maybeType = decodedHeader.extendedMessageType();
-                if (!maybeType.has_value()) {
-                    reset(SinkResetType::SoftReset);
-                    continue;
-                }
-
-                Proto::ExtendedMessageType completedType = maybeType.value();
-                const auto result = _handleExtendedMessageFragment(messagePtr, completedType);
-
-                if (result == ExtendedFragmentResult::Malformed) {
-                    reset(SinkResetType::SoftReset);
-                    continue;
-                }
-
-                if (result == ExtendedFragmentResult::UnsupportedType) {
-                    _context.sendNotSupportedMessage();
-                    continue;
-                }
-
-                if (result == ExtendedFragmentResult::InProgress) {
-                    continue;
-                }
+            if (result == ExtendedFragmentResult::Malformed) {
+                reset(SinkResetType::SoftReset);
+                continue;
             }
 
-            if (_runtimeState._currentStateHandler) {
-                _runtimeState._currentStateHandler->handleMessage(_context, messagePtr);
+            if (result == ExtendedFragmentResult::UnsupportedType) {
+                _context.sendNotSupportedMessage();
+                continue;
             }
+
+            if (result == ExtendedFragmentResult::InProgress) {
+                continue;
+            }
+        }
+
+        if (_runtimeState._currentStateHandler) {
+            _runtimeState._currentStateHandler->handleMessage(_context, messagePtr);
         }
     }
 }

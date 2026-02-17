@@ -64,23 +64,10 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
     _runtimeState._lastReceivedMessageId = receivedMessageId;
     _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
 
-    if (_messageQueue == nullptr) {
-        return;
-    }
-
     const T76::DRPD::PHY::BMCDecodedMessage* messagePtr = message;
 
-#if defined(portCHECK_IF_IN_ISR)
-    if (portCHECK_IF_IN_ISR()) {
-        BaseType_t higherPriorityTaskWoken = pdFALSE;
-        (void)xQueueSendToBackFromISR(_messageQueue, &messagePtr, &higherPriorityTaskWoken);
-        portYIELD_FROM_ISR(higherPriorityTaskWoken);
-        return;
-    }
-#endif
-
     // Never block the decoder callback path; drop if the queue is full.
-    (void)xQueueSendToBack(_messageQueue, &messagePtr, 0);
+    (void)queue_try_add(&_messageQueue, &messagePtr);
 }
 
 Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(

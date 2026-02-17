@@ -22,7 +22,7 @@ target_compile_definitions(drpd-firmware PUBLIC
     PHY_BMC_DECODER_MAX_MESSAGE_DATA_SIZE=262                   # Maximum data size in bytes for a decoded BMC message
     PHY_BMC_DECODER_MAX_MESSAGE_PULSE_BUFFER_SIZE=5600           # Maximum size of pulse buffer in uint16_t words for a decoded message
 
-    PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE=100                    # Circular buffer size in uint32_t words for pulse timings
+    PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE=4000                    # Circular buffer size in uint32_t words for pulse timings
     PHY_BMC_DECODER_MESSAGE_BUFFER_SIZE=10                      # Size of circular buffer for decoded messages
 
     PHY_BMC_DECODER_QUEUE_LENGTH=10                             # Queue length for decoded messages
