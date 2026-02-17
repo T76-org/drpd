@@ -38,14 +38,9 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _waitForCapabilitiesStateHandler,
         _sinkInfoChangedCallback) {
 
-    _messageQueue = xQueueCreateStatic(
-        LOGIC_SINK_MESSAGE_QUEUE_LENGTH,
-        sizeof(const PHY::BMCDecodedMessage*),
-        reinterpret_cast<uint8_t*>(_messageQueueStorage.data()),
-        &_messageQueueControlBlock
-    );
+    _messageQueue = xQueueCreate(LOGIC_SINK_MESSAGE_QUEUE_LENGTH, sizeof(const PHY::BMCDecodedMessage*));
 
-    _messagingTaskHandle = xTaskCreateStatic(
+    xTaskCreate(
         [](void *param) {
             static_cast<Sink*>(param)->_processTaskHandler();
         },
@@ -53,8 +48,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         LOGIC_SINK_MESSAGE_TASK_STACK_SIZE,
         this,
         LOGIC_SINK_MESSAGE_TASK_PRIORITY,
-        _messagingTaskStack.data(),
-        &_messagingTaskControlBlock
+        &_messagingTaskHandle
     );
 
     reset();
