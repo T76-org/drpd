@@ -93,10 +93,13 @@ void App::_startCore1() {
 
     repeating_timer_t _timer;
 
-    // Add a threadsafe 32-bit counter
+    // Spin up a repeating timer to handle core 1 tasks at the specified frequency
+    // We need to create a new alarm pool with an unused hardware alarm because
+    // the default pool runs on core 0.
+
     alarm_pool_add_repeating_timer_us(
         alarm_pool_create_with_unused_hardware_alarm(8),
-        -1000000 / PHY_BMC_DECODER_DECODER_INTERRUPT_FREQUENCY_HZ,
+        -1000000 / APP_CORE1_TIMER_FREQUENCY_HZ,
         [](repeating_timer_t *rt) {
             App *app = static_cast<App *>(rt->user_data);
             app->_bmcDecoder.timerCallback();
