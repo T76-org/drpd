@@ -18,6 +18,8 @@ target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US=375000                  # Periodic sink EPR keepalive interval
     LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US=2000000          # Watchdog for source keepalive/acknowledgement
     LOGIC_SINK_EXTENDED_REASSEMBLY_TIMEOUT_US=500000             # Timeout for abandoning incomplete extended chunks
+    LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES=512                    # Static max bytes for tracked extended payload buffers
+    LOGIC_SINK_RAW_PD_MESSAGE_MAX_BODY_BYTES=8                   # Static max bytes for sink-generated raw PD payload wrappers
     LOGIC_SINK_READY_SINK_REQUEST_TIMER_US=100000                # Timer for Ready_Sink state to request higher power (tSinkRequest 100ms)
     LOGIC_SINK_READY_PDO_PPS_REFRESH_TIMER_US=9000000            # Timer for PPS/AVS refresh in Ready state (tPPSRequest 9s)
 )

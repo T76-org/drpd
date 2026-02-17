@@ -94,7 +94,7 @@ void EPRKeepaliveStateHandler::handleMessage(
                 return;
             }
 
-            const Proto::EPRSourceCapabilities eprCapabilities(payload.value());
+            const Proto::EPRSourceCapabilities eprCapabilities(payload.value().span());
             if (eprCapabilities.isMessageInvalid()) {
                 context.performReset(SinkResetType::SoftReset);
                 return;
@@ -111,12 +111,15 @@ void EPRKeepaliveStateHandler::handleMessage(
 
         if (type.has_value() && type.value() == Proto::ExtendedMessageType::Extended_Control) {
             const auto payload = context.takeCompletedExtendedPayload(type.value());
+            const auto payloadSpan = payload.has_value()
+                ? payload.value().span()
+                : std::span<const uint8_t>{};
 
-            if (!payload.has_value() || payload->empty()) {
+            if (!payload.has_value() || payloadSpan.empty()) {
                 return;
             }
 
-            const uint8_t controlType = payload.value().front();
+            const uint8_t controlType = payloadSpan.front();
             const bool isKeepalive =
                 controlType == static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive);
             const bool isKeepaliveAck = controlType ==

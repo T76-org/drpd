@@ -41,7 +41,9 @@
 #include <hardware/dma.h>
 #include <hardware/pio.h>
 #include <pico/time.h>
-#include <pico/util/queue.h>
+#include <pico/sync.h>
+
+#include <array>
 
 #include <t76/safety.hpp>
 
@@ -142,10 +144,15 @@ namespace T76::DRPD::PHY {
         uint _programOffset;        ///< Offset of the BMC encoder program in PIO memory
         int _dmaChannel;            ///< DMA channel used for data transfer
 
-        queue_t _messageQueue;      ///< Queue for outgoing messages
+        std::array<BitPacker, PHY_BMC_ENCODER_QUEUE_LENGTH> _messageQueue = {}; ///< Ring buffer storage.
+        critical_section_t _messageQueueLock; ///< Protects ring buffer and in-progress slot.
+        size_t _messageQueueHead = 0; ///< Ring buffer head index.
+        size_t _messageQueueTail = 0; ///< Ring buffer tail index.
+        size_t _messageQueueCount = 0; ///< Number of queued messages.
         repeating_timer_t _transmissionTimer; ///< Repeating timer for managing transmissions
 
-        BitPacker *_messageInProgress = nullptr;    ///< Currently transmitting message
+        BitPacker _messageInProgress;    ///< Currently transmitting message
+        bool _hasMessageInProgress = false; ///< True when DMA transmission is active.
 
         /** 
          * @brief Timer callback for managing message transmissions.
@@ -159,6 +166,20 @@ namespace T76::DRPD::PHY {
          */
 
         static bool _timerCallback(repeating_timer_t *rt);  
+
+        /**
+         * @brief Enqueue a message into the static ring buffer.
+         * @param message Encoded bitstream to enqueue.
+         * @return True if queued; false when queue is full.
+         */
+        bool _enqueueMessage(const BitPacker& message);
+
+        /**
+         * @brief Try to dequeue the next message from the static ring buffer.
+         * @param out Next message if available.
+         * @return True when a message was dequeued; false otherwise.
+         */
+        bool _dequeueMessage(BitPacker& out);
     };
     
 } // namespace T76::DRPD::PHY

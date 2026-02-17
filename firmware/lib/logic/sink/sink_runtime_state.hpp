@@ -20,7 +20,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
-#include <vector>
+#include <span>
 
 #include <pico/time.h>
 
@@ -28,6 +28,7 @@
 
 #include "../../proto/pd_messages/epr_source_capabilities.hpp"
 #include "../../proto/pd_messages/source_capabilities.hpp"
+#include "../../proto/pd_message_types.hpp"
 
 
 namespace T76::DRPD::Logic {
@@ -37,6 +38,25 @@ namespace T76::DRPD::Logic {
     class SinkRuntimeState {
     public:
         /**
+         * @brief Static byte buffer used for extended payload storage.
+         */
+        struct ExtendedPayloadBuffer {
+            std::array<uint8_t, LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES> bytes = {};
+            size_t length = 0;
+
+            [[nodiscard]] std::span<const uint8_t> span() const;
+            void clear();
+        };
+
+        /**
+         * @brief Tracked extended message types for static reassembly storage.
+         */
+        enum class TrackedExtendedType : uint8_t {
+            EPRSourceCapabilities = 0,
+            ExtendedControl = 1
+        };
+
+        /**
          * @brief One in-flight reassembly tracker for a specific extended message type.
          */
         struct ExtendedReassemblyState {
@@ -45,7 +65,7 @@ namespace T76::DRPD::Logic {
             size_t contiguousPayloadBytes = 0;                  ///< Bytes assembled so far.
             uint8_t lastAcceptedChunkNumber = 0;                ///< Last accepted chunk number.
             absolute_time_t lastChunkTimestamp = {0};           ///< Last accepted chunk timestamp.
-            std::vector<uint8_t> payload;                       ///< Reassembly payload bytes.
+            ExtendedPayloadBuffer payload;                      ///< Reassembly payload bytes.
         };
 
         /**
@@ -57,6 +77,13 @@ namespace T76::DRPD::Logic {
          * @brief Reset all sink runtime fields to defaults.
          */
         void reset();
+
+        /**
+         * @brief Resolve tracked slot index for supported extended message type.
+         * @param type Extended message type to map.
+         * @return Slot index if tracked; otherwise std::nullopt.
+         */
+        [[nodiscard]] static std::optional<size_t> trackedTypeIndex(Proto::ExtendedMessageType type);
 
         SinkState _state;                                         ///< Current policy state.
         SinkStateHandler* _currentStateHandler;                   ///< Active state handler pointer.
@@ -80,8 +107,8 @@ namespace T76::DRPD::Logic {
         bool _hasLastReceivedMessageId = false;                   ///< Dedup state flag for message ID.
         uint8_t _lastReceivedMessageId = 0;                       ///< Last processed message ID.
 
-        std::array<ExtendedReassemblyState, 32> _extendedReassemblyStates; ///< Per-type reassembly.
-        std::array<std::optional<std::vector<uint8_t>>, 32> _completedExtendedPayloads; ///< Completed per-type payloads.
+        std::array<ExtendedReassemblyState, 2> _extendedReassemblyStates; ///< Per-type reassembly.
+        std::array<std::optional<ExtendedPayloadBuffer>, 2> _completedExtendedPayloads; ///< Completed payloads.
     };
 
 } // namespace T76::DRPD::Logic

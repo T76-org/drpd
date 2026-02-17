@@ -5,7 +5,7 @@
 
 #include "bmc_encoder.hpp"
 
-#include <memory>
+#include <pico/platform.h>
 
 #include "bmc_encoder.pio.h"
 
@@ -13,9 +13,7 @@
 using namespace T76::DRPD::PHY;
 
 void BMCEncoder::initCore1() {
-    // Init the internal message queue
-
-    queue_init(&_messageQueue, sizeof(BitPacker*), PHY_BMC_ENCODER_QUEUE_LENGTH);
+    critical_section_init(&_messageQueueLock);
 
     // Init the output pin and set it to input (high-Z) initially
 
@@ -60,10 +58,9 @@ void BMCEncoder::initCore1() {
     irq_set_exclusive_handler(irqNum, []() {
         pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, self->_stateMachine, false);
         pio_interrupt_clear(PHY_BMC_ENCODER_PIO, 0);
-        if (self->_messageInProgress != nullptr) {
-            delete self->_messageInProgress;
-            self->_messageInProgress = nullptr;
-        }
+        critical_section_enter_blocking(&self->_messageQueueLock);
+        self->_hasMessageInProgress = false;
+        critical_section_exit(&self->_messageQueueLock);
     });
 
     irq_set_enabled(irqNum, true);
@@ -114,9 +111,10 @@ void BMCEncoder::makeSafe() {
 }
 
 void BMCEncoder::encodeAndSendMessage(const BMCEncodedMessage& message) {
-    std::unique_ptr<BitPacker> bitPacker = message.encoded();
-    BitPacker *bitPackerPtr = bitPacker.release();
-    queue_add_blocking(&_messageQueue, &bitPackerPtr);
+    const BitPacker encoded = message.encoded();
+    while (!_enqueueMessage(encoded)) {
+        tight_loop_contents();
+    }
 }
 
 void BMCEncoder::sendGoodCRCForDecodedMessage(const BMCDecodedMessage& decodedMessage) {
@@ -132,13 +130,20 @@ void BMCEncoder::sendNotAcceptedMessage(Proto::PDHeader::PortDataRole portDataRo
 bool BMCEncoder::_timerCallback(repeating_timer_t *rt) {
     BMCEncoder *encoder = static_cast<BMCEncoder*>(rt->user_data);
 
-    if (encoder->_messageInProgress != nullptr) {
+    critical_section_enter_blocking(&encoder->_messageQueueLock);
+
+    if (encoder->_hasMessageInProgress) {
+        critical_section_exit(&encoder->_messageQueueLock);
         return true;
     }
-    
-    if (!queue_try_remove(&encoder->_messageQueue, &encoder->_messageInProgress)) {
+
+    if (!encoder->_dequeueMessage(encoder->_messageInProgress)) {
+        critical_section_exit(&encoder->_messageQueueLock);
         return true;
     }
+
+    encoder->_hasMessageInProgress = true;
+    critical_section_exit(&encoder->_messageQueueLock);
 
     pio_sm_init(
         PHY_BMC_ENCODER_PIO,
@@ -147,13 +152,14 @@ bool BMCEncoder::_timerCallback(repeating_timer_t *rt) {
         &encoder->_pioConfig
     );
 
-    pio_sm_put_blocking(PHY_BMC_ENCODER_PIO, encoder->_stateMachine, encoder->_messageInProgress->totalBitsWritten()); // Total bit count
+    pio_sm_put_blocking(PHY_BMC_ENCODER_PIO, encoder->_stateMachine, encoder->_messageInProgress.totalBitsWritten()); // Total bit count
     pio_sm_exec_wait_blocking(PHY_BMC_ENCODER_PIO, encoder->_stateMachine, pio_encode_out(pio_y, 32)); // Move bit count into Y
 
     // Set up the DMA transfer
 
-    dma_channel_set_read_addr(encoder->_dmaChannel, encoder->_messageInProgress->buffer().data(), false);
-    dma_channel_set_transfer_count(encoder->_dmaChannel, encoder->_messageInProgress->buffer().size(), true);
+    const std::span<const uint32_t> buffer = encoder->_messageInProgress.buffer();
+    dma_channel_set_read_addr(encoder->_dmaChannel, buffer.data(), false);
+    dma_channel_set_transfer_count(encoder->_dmaChannel, buffer.size(), true);
 
     // Clear interrupt and enable the state machine
 
@@ -161,4 +167,31 @@ bool BMCEncoder::_timerCallback(repeating_timer_t *rt) {
     pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, encoder->_stateMachine, true);
 
     return true; // Keep the timer running
+}
+
+bool BMCEncoder::_enqueueMessage(const BitPacker& message) {
+    critical_section_enter_blocking(&_messageQueueLock);
+
+    if (_messageQueueCount >= _messageQueue.size()) {
+        critical_section_exit(&_messageQueueLock);
+        return false;
+    }
+
+    _messageQueue[_messageQueueTail] = message;
+    _messageQueueTail = (_messageQueueTail + 1) % _messageQueue.size();
+    ++_messageQueueCount;
+
+    critical_section_exit(&_messageQueueLock);
+    return true;
+}
+
+bool BMCEncoder::_dequeueMessage(BitPacker& out) {
+    if (_messageQueueCount == 0) {
+        return false;
+    }
+
+    out = _messageQueue[_messageQueueHead];
+    _messageQueueHead = (_messageQueueHead + 1) % _messageQueue.size();
+    --_messageQueueCount;
+    return true;
 }

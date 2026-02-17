@@ -6,6 +6,8 @@
 
 #include "bmc_encoded_message.hpp"
 
+#include <algorithm>
+
 #include "../proto/pd_messages/control.hpp"
 
 #include "4b5b.hpp"
@@ -19,8 +21,14 @@ using namespace T76::DRPD;
 BMCEncodedMessage::BMCEncodedMessage(Proto::SOP::SOPType sopType, const Proto::PDMessage &message)
     : _sop(),
       _header(),
-      _rawBody(message.raw().begin(), message.raw().end()),
+      _rawBody(),
+      _rawBodyLength(0),
       _crc32(0) {
+    const auto rawBody = message.raw();
+    _rawBodyLength = std::min(rawBody.size(), _rawBody.size());
+    for (size_t i = 0; i < _rawBodyLength; ++i) {
+        _rawBody[i] = rawBody[i];
+    }
 
     _sop.type(sopType);
     _header.rawMessageType(message.rawMessageType());
@@ -130,16 +138,16 @@ Proto::PDHeader &BMCEncodedMessage::header() {
     return _header;
 }
 
-std::unique_ptr<BitPacker> BMCEncodedMessage::encoded() const {
-    std::unique_ptr<BitPacker> bitPacker = std::make_unique<BitPacker>();
+BitPacker BMCEncodedMessage::encoded() const {
+    BitPacker bitPacker;
 
-    bitPacker->addBits(0b1010'1010'1010'1010'1010'1010'1010'1010, 32); // 64 bits preamble
-    bitPacker->addBits(0b1010'1010'1010'1010'1010'1010'1010'1010, 32); // 64 bits preamble
+    bitPacker.addBits(0b1010'1010'1010'1010'1010'1010'1010'1010, 32); // 64 bits preamble
+    bitPacker.addBits(0b1010'1010'1010'1010'1010'1010'1010'1010, 32); // 64 bits preamble
 
     // Encode the SOP
 
     for (const auto& kCode : _sop.bytes()) {
-      bitPacker->addBits(kCode, 5);
+      bitPacker.addBits(kCode, 5);
     }
 
     // Encode the header
@@ -148,19 +156,20 @@ std::unique_ptr<BitPacker> BMCEncodedMessage::encoded() const {
 
     uint16_t rawHeader = _header.raw();
 
-    bitPacker->addBits(_fourToFiveBitLUT[rawHeader & 0x0F], 5);
-    bitPacker->addBits(_fourToFiveBitLUT[(rawHeader >> 4) & 0x0F], 5);
-    bitPacker->addBits(_fourToFiveBitLUT[(rawHeader >> 8) & 0x0F], 5);
-    bitPacker->addBits(_fourToFiveBitLUT[(rawHeader >> 12) & 0x0F], 5);
+    bitPacker.addBits(_fourToFiveBitLUT[rawHeader & 0x0F], 5);
+    bitPacker.addBits(_fourToFiveBitLUT[(rawHeader >> 4) & 0x0F], 5);
+    bitPacker.addBits(_fourToFiveBitLUT[(rawHeader >> 8) & 0x0F], 5);
+    bitPacker.addBits(_fourToFiveBitLUT[(rawHeader >> 12) & 0x0F], 5);
 
     _updateCRC(static_cast<uint8_t>(rawHeader & 0xFF));
     _updateCRC(static_cast<uint8_t>((rawHeader >> 8) & 0xFF));
 
     // Encode the body
 
-    for (const auto& byte : _rawBody) {
-        bitPacker->addBits(_fourToFiveBitLUT[byte & 0x0F], 5);
-        bitPacker->addBits(_fourToFiveBitLUT[(byte >> 4) & 0x0F], 5);
+    for (size_t i = 0; i < _rawBodyLength; ++i) {
+        const uint8_t byte = _rawBody[i];
+        bitPacker.addBits(_fourToFiveBitLUT[byte & 0x0F], 5);
+        bitPacker.addBits(_fourToFiveBitLUT[(byte >> 4) & 0x0F], 5);
         _updateCRC(byte);
     }
 
@@ -170,17 +179,17 @@ std::unique_ptr<BitPacker> BMCEncodedMessage::encoded() const {
 
     for (int i = 0; i < 4; ++i) {
       uint8_t byte = (crcFinal >> (i * 8)) & 0xFF;
-      bitPacker->addBits(_fourToFiveBitLUT[byte & 0x0F], 5);
-      bitPacker->addBits(_fourToFiveBitLUT[(byte >> 4) & 0x0F], 5);
+      bitPacker.addBits(_fourToFiveBitLUT[byte & 0x0F], 5);
+      bitPacker.addBits(_fourToFiveBitLUT[(byte >> 4) & 0x0F], 5);
     }
 
     // Encode EOP K-code
 
-    bitPacker->addBits(EOP_5B_VALUE, 5); // EOP K-code
+    bitPacker.addBits(EOP_5B_VALUE, 5); // EOP K-code
 
     // Finalize the bitstream and return it
 
-    bitPacker->flush();
+    bitPacker.flush();
 
     return bitPacker;
 }
@@ -196,4 +205,3 @@ void inline BMCEncodedMessage::_updateCRC(const uint8_t datum) const {
         }
     }
 }
-

@@ -27,7 +27,6 @@
 #include <functional>
 #include <optional>
 #include <span>
-#include <vector>
 
 #include <FreeRTOS.h>
 #include <queue.h>
@@ -195,6 +194,10 @@ namespace T76::DRPD::Logic {
 
         TaskHandle_t _messagingTaskHandle = nullptr;             ///< FreeRTOS sink message processing task.
         QueueHandle_t _messageQueue = nullptr;                   ///< Queue of decoded message pointers.
+        StaticTask_t _messagingTaskControlBlock = {};            ///< Static FreeRTOS task control block.
+        std::array<StackType_t, LOGIC_SINK_MESSAGE_TASK_STACK_SIZE> _messagingTaskStack = {}; ///< Static task stack.
+        StaticQueue_t _messageQueueControlBlock = {};            ///< Static FreeRTOS queue control block.
+        std::array<const PHY::BMCDecodedMessage*, LOGIC_SINK_MESSAGE_QUEUE_LENGTH> _messageQueueStorage = {}; ///< Static queue storage.
 
         CCBusController& _ccBusController;                       ///< CC bus controller dependency.
         T76::DRPD::PHY::BMCDecoder& _bmcDecoder;                ///< Decoder for incoming PD messages.

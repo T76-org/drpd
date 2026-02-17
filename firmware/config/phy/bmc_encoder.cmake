@@ -12,7 +12,8 @@ target_compile_definitions(drpd-firmware PUBLIC
     PHY_BMC_ENCODER_PIO_CLOCK_FREQUENCY_HZ=1800000.0f           # PIO clock frequency in Hz
     PHY_BMC_ENCODER_IRQ_PRIORITY=2                              # IRQ priority for the PIO used by the BMC encoder
     PHY_BMC_ENCODER_QUEUE_LENGTH=8                              # Length of the message queue
+    PHY_BMC_ENCODER_MAX_ENCODED_WORDS=96                        # Max 32-bit words in encoded transmit bitstream
+    PHY_BMC_ENCODED_MESSAGE_MAX_BODY_BYTES=262                  # Max raw body bytes accepted by encoded message wrapper
 
     PHY_BMC_ENCODER_TIMER_FREQUENCY_HZ=10000                    # Frequency of the transmission timer in Hz
 )
-

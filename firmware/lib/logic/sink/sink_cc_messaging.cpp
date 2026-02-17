@@ -5,6 +5,8 @@
 
 #include "sink.hpp"
 
+#include <algorithm>
+
 
 using namespace T76::DRPD::Logic;
 
@@ -93,10 +95,8 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     }
 
     const auto extendedType = maybeExtendedType.value();
-    const size_t typeIndex = static_cast<size_t>(extendedType) & 0x1F;
-
-    if (!(extendedType == Proto::ExtendedMessageType::EPR_Source_Capabilities ||
-          extendedType == Proto::ExtendedMessageType::Extended_Control)) {
+    const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
+    if (!typeIndex.has_value()) {
         return ExtendedFragmentResult::UnsupportedType;
     }
 
@@ -115,7 +115,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         return ExtendedFragmentResult::Malformed;
     }
 
-    auto &reassembly = _runtimeState._extendedReassemblyStates[typeIndex];
+    auto &reassembly = _runtimeState._extendedReassemblyStates[typeIndex.value()];
     const absolute_time_t now = get_absolute_time();
 
     if (reassembly.active) {
@@ -130,11 +130,16 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
             return ExtendedFragmentResult::Malformed;
         }
 
-        std::vector<uint8_t> payload(
-            rawBody.begin() + 2,
-            rawBody.begin() + 2 + extHeader.dataSizeBytes()
-        );
-        _runtimeState._completedExtendedPayloads[typeIndex] = std::move(payload);
+        if (extHeader.dataSizeBytes() > LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES) {
+            return ExtendedFragmentResult::Malformed;
+        }
+
+        SinkRuntimeState::ExtendedPayloadBuffer payload;
+        payload.length = extHeader.dataSizeBytes();
+        for (size_t i = 0; i < payload.length; ++i) {
+            payload.bytes[i] = rawBody[2 + i];
+        }
+        _runtimeState._completedExtendedPayloads[typeIndex.value()] = payload;
         reassembly = SinkRuntimeState::ExtendedReassemblyState{};
         completedType = extendedType;
         return ExtendedFragmentResult::Complete;
@@ -147,10 +152,13 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
 
         reassembly.active = true;
         reassembly.expectedPayloadBytes = extHeader.dataSizeBytes();
+        if (reassembly.expectedPayloadBytes > LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES) {
+            reassembly = SinkRuntimeState::ExtendedReassemblyState{};
+            return ExtendedFragmentResult::Malformed;
+        }
         reassembly.contiguousPayloadBytes = 0;
         reassembly.lastAcceptedChunkNumber = 0;
         reassembly.payload.clear();
-        reassembly.payload.reserve(extHeader.dataSizeBytes());
         reassembly.lastChunkTimestamp = now;
     } else {
         const uint8_t expectedChunkNumber =
@@ -173,11 +181,10 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         reassembly.expectedPayloadBytes - reassembly.contiguousPayloadBytes;
     const size_t bytesToCopy = std::min(remainingBytes, fragmentPayloadBytes);
 
-    reassembly.payload.insert(
-        reassembly.payload.end(),
-        rawBody.begin() + 2,
-        rawBody.begin() + 2 + bytesToCopy
-    );
+    for (size_t i = 0; i < bytesToCopy; ++i) {
+        reassembly.payload.bytes[reassembly.payload.length + i] = rawBody[2 + i];
+    }
+    reassembly.payload.length += bytesToCopy;
 
     reassembly.contiguousPayloadBytes += bytesToCopy;
 
@@ -196,7 +203,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         return ExtendedFragmentResult::InProgress;
     }
 
-    _runtimeState._completedExtendedPayloads[typeIndex] = std::move(reassembly.payload);
+    _runtimeState._completedExtendedPayloads[typeIndex.value()] = reassembly.payload;
     reassembly = SinkRuntimeState::ExtendedReassemblyState{};
     completedType = extendedType;
     return ExtendedFragmentResult::Complete;
