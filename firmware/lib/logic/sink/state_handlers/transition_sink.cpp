@@ -30,7 +30,7 @@ void TransitionSinkStateHandler::handleMessage(
     SinkContext& context,
     const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (_transitionTimeoutAlarmId != -1) {
-        cancel_alarm(_transitionTimeoutAlarmId);
+        context.cancelAlarm(_transitionTimeoutAlarmId);
         _transitionTimeoutAlarmId = -1;
     }
 
@@ -86,7 +86,7 @@ void TransitionSinkStateHandler::enter(SinkContext& context) {
         ? LOGIC_SINK_TRANSITION_SINK_TIMEOUT_EPR_US
         : LOGIC_SINK_TRANSITION_SINK_TIMEOUT_SPR_US;
 
-    _transitionTimeoutAlarmId = add_alarm_in_us(
+    _transitionTimeoutAlarmId = context.addAlarmInUs(
         timeoutUs,
         _onTransitionTimeoutCallback,
         this,
@@ -95,9 +95,8 @@ void TransitionSinkStateHandler::enter(SinkContext& context) {
 }
 
 void TransitionSinkStateHandler::reset(SinkContext& context) {
-    (void)context;
     if (_transitionTimeoutAlarmId != -1) {
-        cancel_alarm(_transitionTimeoutAlarmId);
+        context.cancelAlarm(_transitionTimeoutAlarmId);
         _transitionTimeoutAlarmId = -1;
     }
     _unbindContext();

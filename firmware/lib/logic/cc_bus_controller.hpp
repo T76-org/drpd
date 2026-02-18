@@ -136,6 +136,11 @@ namespace T76::DRPD::Logic {
         void init();
 
         /**
+         * @brief Initialize CC bus controller resources that must be created on Core 1.
+         */
+        void initCore1();
+
+        /**
          * @brief Set the role of the CC bus controller
          * 
          * @param role The role to set

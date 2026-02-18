@@ -53,7 +53,7 @@ void WaitForCapabilitiesStateHandler::handleMessage(
         if (dataMessageType.has_value() && dataMessageType.value() == Proto::DataMessageType::Source_Capabilities) {
             // Cancel the capabilities timeout timer
             if (_capabilitiesTimeoutAlarmId != -1) {
-                cancel_alarm(_capabilitiesTimeoutAlarmId);
+                context.cancelAlarm(_capabilitiesTimeoutAlarmId);
                 _capabilitiesTimeoutAlarmId = -1;
             }
 
@@ -83,7 +83,7 @@ void WaitForCapabilitiesStateHandler::handleMessageSenderStateChange(
 void WaitForCapabilitiesStateHandler::enter(SinkContext& context) {
     _bindContext(context);
     // Start the capabilities timeout timer
-    _capabilitiesTimeoutAlarmId = add_alarm_in_us(
+    _capabilitiesTimeoutAlarmId = context.addAlarmInUs(
         LOGIC_SINK_WAIT_FOR_CAPABILITIES_TIMEOUT_US,
         _onCapabilitiesTimeoutCallback,
         this,
@@ -92,10 +92,9 @@ void WaitForCapabilitiesStateHandler::enter(SinkContext& context) {
 }
 
 void WaitForCapabilitiesStateHandler::reset(SinkContext& context) {
-    (void)context;
     // Cancel the capabilities timeout timer
     if (_capabilitiesTimeoutAlarmId != -1) {
-        cancel_alarm(_capabilitiesTimeoutAlarmId);
+        context.cancelAlarm(_capabilitiesTimeoutAlarmId);
         _capabilitiesTimeoutAlarmId = -1;
     }
     _unbindContext();

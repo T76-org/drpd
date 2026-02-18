@@ -11,8 +11,10 @@ using namespace T76::DRPD::Logic;
 
 
 SinkMessageSender::SinkMessageSender(PHY::BMCEncoder& bmcEncoder,
+                                     SinkAlarmService& alarmService,
                                      StateChangeCallback stateChangeCallback)
     : _bmcEncoder(bmcEncoder),
+      _alarmService(alarmService),
       _stateChangeCallback(std::move(stateChangeCallback)) {}
 
 void SinkMessageSender::sendMessage(const PHY::BMCEncodedMessage& message) {
@@ -97,7 +99,7 @@ void SinkMessageSender::_resetGoodCRCTimer() {
     _cancelGoodCRCTimer();
 
     // Set up a one-shot timer for the GoodCRC timeout
-    _goodCRCTimeoutAlarmId = add_alarm_in_us(
+    _goodCRCTimeoutAlarmId = _alarmService.addAlarmInUs(
         LOGIC_SINK_GOODCRC_TIMEOUT_US,
         _onGoodCRCTimeout,
         this,
@@ -107,7 +109,7 @@ void SinkMessageSender::_resetGoodCRCTimer() {
 
 void SinkMessageSender::_cancelGoodCRCTimer() {
     if (_goodCRCTimeoutAlarmId != -1) {
-        cancel_alarm(_goodCRCTimeoutAlarmId);
+        _alarmService.cancelAlarm(_goodCRCTimeoutAlarmId);
         _goodCRCTimeoutAlarmId = -1;
     }
 }
@@ -117,4 +119,3 @@ void SinkMessageSender::_notifyStateChange(SinkMessageSenderState state) {
         _stateChangeCallback(state);
     }
 }
-

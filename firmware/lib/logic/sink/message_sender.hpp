@@ -30,6 +30,7 @@
 #include <utility>
 
 #include "../../phy/bmc_encoder.hpp"
+#include "sink_alarm_service.hpp"
 
 
 namespace T76::DRPD::Logic {
@@ -53,6 +54,7 @@ namespace T76::DRPD::Logic {
          * @param stateChangeCallback Callback function to notify on state changes
          */
         SinkMessageSender(PHY::BMCEncoder& bmcEncoder,
+                          SinkAlarmService& alarmService,
                           StateChangeCallback stateChangeCallback);
 
         ~SinkMessageSender() = default;
@@ -93,6 +95,7 @@ namespace T76::DRPD::Logic {
 
     protected:
         PHY::BMCEncoder& _bmcEncoder;                                               ///< Reference to the BMC encoder
+        SinkAlarmService& _alarmService;                                            ///< Sink-owned timer service.
         uint32_t _nextMessageId = 0;                                                ///< Next Message ID to use for outgoing messages
         std::optional<PHY::BMCEncodedMessage> _pendingMessage = std::nullopt;       ///< The message currently awaiting GoodCRC response
         uint32_t _goodCRCRetryCount = 0;                                            ///< Current retry count for GoodCRC

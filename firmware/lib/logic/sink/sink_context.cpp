@@ -60,6 +60,7 @@ namespace {
 
 SinkContext::SinkContext(
     SinkRuntimeState& runtimeState,
+    SinkAlarmService& alarmService,
     SinkMessageSender& messageSender,
     CCBusController& ccBusController,
     DisconnectedStateHandler& disconnectedStateHandler,
@@ -71,6 +72,7 @@ SinkContext::SinkContext(
     WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
     std::function<void(SinkInfoChange)>& sinkInfoChangedCallback) :
     _runtimeState(runtimeState),
+    _alarmService(alarmService),
     _messageSender(messageSender),
     _ccBusController(ccBusController),
     _disconnectedStateHandler(disconnectedStateHandler),
@@ -340,6 +342,18 @@ bool SinkContext::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t curre
     }
 
     return _selectCapabilityStateHandler.requestPDO(*this, pdoIndex, voltageMV, currentMA);
+}
+
+alarm_id_t SinkContext::addAlarmInUs(
+    int64_t delayUs,
+    alarm_callback_t callback,
+    void *userData,
+    bool fireIfPast) {
+    return _alarmService.addAlarmInUs(delayUs, callback, userData, fireIfPast);
+}
+
+bool SinkContext::cancelAlarm(alarm_id_t id) {
+    return _alarmService.cancelAlarm(id);
 }
 
 bool SinkContext::_sourceEPRCapable() const {

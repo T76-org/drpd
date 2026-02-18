@@ -35,6 +35,7 @@
 #include <pico/util/queue.h>
 
 #include "message_sender.hpp"
+#include "sink_alarm_service.hpp"
 #include "sink_context.hpp"
 #include "sink_runtime_state.hpp"
 #include "state_handler.hpp"
@@ -105,6 +106,11 @@ namespace T76::DRPD::Logic {
          * @brief Enable Sink processing and subscribe runtime callbacks.
          */
         void enable();
+
+        /**
+         * @brief Initialize Sink Core-1 owned resources.
+         */
+        void initCore1();
 
         /**
          * @brief Disable Sink processing and unsubscribe runtime callbacks.
@@ -209,6 +215,7 @@ namespace T76::DRPD::Logic {
         TransitionSinkStateHandler _transitionSinkStateHandler;  ///< Transition sink handler.
         WaitForCapabilitiesStateHandler _waitForCapabilitiesStateHandler; ///< Wait-for-capabilities handler.
 
+        SinkAlarmService _alarmService;                        ///< Core-1 owned Sink alarm pool wrapper.
         SinkMessageSender _messageSender;                        ///< Outbound message sender with GoodCRC tracking.
         SinkRuntimeState _runtimeState;                          ///< Mutable sink runtime state.
         std::function<void(SinkInfoChange)> _sinkInfoChangedCallback; ///< Sink info change callback.

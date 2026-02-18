@@ -52,6 +52,10 @@ void CCBusController::init() {
     xTimerStart(loopTimer, 0);
 }
 
+void CCBusController::initCore1() {
+    _sink.initCore1();
+}
+
 void CCBusController::role(CCBusRole role) {
     _updateRole(role);
 

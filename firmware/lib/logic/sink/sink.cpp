@@ -24,9 +24,14 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _selectCapabilityStateHandler(),
     _transitionSinkStateHandler(),
     _waitForCapabilitiesStateHandler(),
-    _messageSender(bmcEncoder, std::bind(&Sink::_onMessageSenderStateChanged, this, std::placeholders::_1)),
+    _alarmService(),
+    _messageSender(
+        bmcEncoder,
+        _alarmService,
+        std::bind(&Sink::_onMessageSenderStateChanged, this, std::placeholders::_1)),
     _context(
         _runtimeState,
+        _alarmService,
         _messageSender,
         _ccBusController,
         _disconnectedStateHandler,
@@ -52,6 +57,10 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     );
 
     reset();
+}
+
+void Sink::initCore1() {
+    _alarmService.initCore1();
 }
 
 Sink::~Sink() {

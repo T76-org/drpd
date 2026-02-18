@@ -86,6 +86,7 @@ void App::_initCore0() {
 }
 
 void App::_startCore1() {
+    _ccBusController.initCore1();
     _bmcDecoder.initCore1();
     _bmcDecoder.enabled(true);
     _bmcEncoder.initCore1();

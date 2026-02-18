@@ -90,9 +90,8 @@ void EPRModeEntryStateHandler::handleMessage(
 void EPRModeEntryStateHandler::handleMessageSenderStateChange(
     SinkContext& context,
     SinkMessageSenderState state) {
-    (void)context;
     if (state == SinkMessageSenderState::GoodCRCReceived && _entryTimeoutAlarmId == -1) {
-        _entryTimeoutAlarmId = add_alarm_in_us(
+        _entryTimeoutAlarmId = context.addAlarmInUs(
             LOGIC_SINK_EPR_MODE_ENTRY_RESPONSE_TIMEOUT_US,
             _onEntryTimeoutCallback,
             this,
@@ -110,9 +109,8 @@ void EPRModeEntryStateHandler::enter(SinkContext& context) {
 }
 
 void EPRModeEntryStateHandler::reset(SinkContext& context) {
-    (void)context;
     if (_entryTimeoutAlarmId != -1) {
-        cancel_alarm(_entryTimeoutAlarmId);
+        context.cancelAlarm(_entryTimeoutAlarmId);
         _entryTimeoutAlarmId = -1;
     }
 

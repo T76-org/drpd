@@ -293,7 +293,7 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
     _bindContext(context);
     // Cancel the response timeout timer
     if (_responseTimeoutAlarmId != -1) {
-        cancel_alarm(_responseTimeoutAlarmId);
+        context.cancelAlarm(_responseTimeoutAlarmId);
         _responseTimeoutAlarmId = -1;
     }
 
@@ -378,10 +378,9 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
 }
 
 void SelectCapabilityStateHandler::handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) {
-    (void)context;
     if (state == SinkMessageSenderState::GoodCRCReceived) {
         // Start the response timeout timer when GoodCRC is received
-        _responseTimeoutAlarmId = add_alarm_in_us(
+        _responseTimeoutAlarmId = context.addAlarmInUs(
             LOGIC_SINK_SELECT_CAPABILITY_RESPONSE_TIMEOUT_US,
             _onResponseTimeoutCallback,
             this,
@@ -441,10 +440,9 @@ void SelectCapabilityStateHandler::enter(SinkContext& context) {
 }
 
 void SelectCapabilityStateHandler::reset(SinkContext& context) {
-    (void)context;
     // Cancel the response timeout timer
     if (_responseTimeoutAlarmId != -1) {
-        cancel_alarm(_responseTimeoutAlarmId);
+        context.cancelAlarm(_responseTimeoutAlarmId);
         _responseTimeoutAlarmId = -1;
     }
     _unbindContext();

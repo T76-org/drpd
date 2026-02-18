@@ -51,11 +51,11 @@ void ReadySinkStateHandler::handleMessage(
     SinkContext& context,
     const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (_sinkRequestTimerAlarmId != -1) {
-        cancel_alarm(_sinkRequestTimerAlarmId);
+        context.cancelAlarm(_sinkRequestTimerAlarmId);
         _sinkRequestTimerAlarmId = -1;
     }
     if (_pdoRefreshTimerAlarmId != -1) {
-        cancel_alarm(_pdoRefreshTimerAlarmId);
+        context.cancelAlarm(_pdoRefreshTimerAlarmId);
         _pdoRefreshTimerAlarmId = -1;
     }
 
@@ -105,7 +105,7 @@ void ReadySinkStateHandler::enter(SinkContext& context) {
     auto& state = context.runtimeState();
 
     if (state._pendingRequestedPDO.has_value()) {
-        _sinkRequestTimerAlarmId = add_alarm_in_us(
+        _sinkRequestTimerAlarmId = context.addAlarmInUs(
             LOGIC_SINK_READY_SINK_REQUEST_TIMER_US,
             _onSinkRequestTimeoutCallback,
             this,
@@ -130,7 +130,7 @@ void ReadySinkStateHandler::enter(SinkContext& context) {
         }
 
         if (requiresRefresh) {
-            _pdoRefreshTimerAlarmId = add_alarm_in_us(
+            _pdoRefreshTimerAlarmId = context.addAlarmInUs(
                 LOGIC_SINK_READY_PDO_PPS_REFRESH_TIMER_US,
                 _onPDORefreshTimeoutCallback,
                 this,
@@ -141,13 +141,12 @@ void ReadySinkStateHandler::enter(SinkContext& context) {
 }
 
 void ReadySinkStateHandler::reset(SinkContext& context) {
-    (void)context;
     if (_sinkRequestTimerAlarmId != -1) {
-        cancel_alarm(_sinkRequestTimerAlarmId);
+        context.cancelAlarm(_sinkRequestTimerAlarmId);
         _sinkRequestTimerAlarmId = -1;
     }
     if (_pdoRefreshTimerAlarmId != -1) {
-        cancel_alarm(_pdoRefreshTimerAlarmId);
+        context.cancelAlarm(_pdoRefreshTimerAlarmId);
         _pdoRefreshTimerAlarmId = -1;
     }
     _unbindContext();

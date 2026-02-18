@@ -23,6 +23,9 @@
 #include <set>
 #include <span>
 
+#include <pico/time.h>
+
+#include "sink_alarm_service.hpp"
 #include "message_sender.hpp"
 #include "sink_runtime_state.hpp"
 #include "sink_types.hpp"
@@ -73,6 +76,7 @@ namespace T76::DRPD::Logic {
          */
         SinkContext(
             SinkRuntimeState& runtimeState,
+            SinkAlarmService& alarmService,
             SinkMessageSender& messageSender,
             CCBusController& ccBusController,
             DisconnectedStateHandler& disconnectedStateHandler,
@@ -201,8 +205,30 @@ namespace T76::DRPD::Logic {
          */
         bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
+        /**
+         * @brief Add one-shot timer in the Sink-owned alarm pool.
+         * @param delayUs Relative delay in microseconds.
+         * @param callback Pico alarm callback.
+         * @param userData Opaque callback user data.
+         * @param fireIfPast Fire immediately if target time already passed.
+         * @return Alarm ID on success, or -1 on failure.
+         */
+        alarm_id_t addAlarmInUs(
+            int64_t delayUs,
+            alarm_callback_t callback,
+            void *userData,
+            bool fireIfPast);
+
+        /**
+         * @brief Cancel timer from the Sink-owned alarm pool.
+         * @param id Alarm ID to cancel.
+         * @return True if canceled; false otherwise.
+         */
+        bool cancelAlarm(alarm_id_t id);
+
     protected:
         SinkRuntimeState& _runtimeState;                                 ///< Shared runtime state storage.
+        SinkAlarmService& _alarmService;                                 ///< Sink-owned timer service.
         SinkMessageSender& _messageSender;                               ///< PD message send transport helper.
         CCBusController& _ccBusController;                               ///< Bus attach/status source.
 

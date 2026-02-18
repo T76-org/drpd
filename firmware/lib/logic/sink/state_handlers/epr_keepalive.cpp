@@ -38,7 +38,7 @@ void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
         static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive),
         false);
 
-    _keepaliveIntervalAlarmId = add_alarm_in_us(
+    _keepaliveIntervalAlarmId = _context->addAlarmInUs(
         LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US,
         _onKeepaliveIntervalTimeoutCallback,
         this,
@@ -47,6 +47,10 @@ void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
 }
 
 void EPRKeepaliveStateHandler::_onSourceWatchdogTimeout() {
+    if (_context == nullptr) {
+        return;
+    }
+
     _keepaliveFailureCount++;
 
     if (_keepaliveFailureCount >= 3) {
@@ -54,7 +58,7 @@ void EPRKeepaliveStateHandler::_onSourceWatchdogTimeout() {
         return;
     }
 
-    _sourceWatchdogAlarmId = add_alarm_in_us(
+    _sourceWatchdogAlarmId = _context->addAlarmInUs(
         LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US,
         _onSourceWatchdogTimeoutCallback,
         this,
@@ -139,11 +143,11 @@ void EPRKeepaliveStateHandler::handleMessage(
                 _keepaliveFailureCount = 0;
 
                 if (_sourceWatchdogAlarmId != -1) {
-                    cancel_alarm(_sourceWatchdogAlarmId);
+                    context.cancelAlarm(_sourceWatchdogAlarmId);
                     _sourceWatchdogAlarmId = -1;
                 }
 
-                _sourceWatchdogAlarmId = add_alarm_in_us(
+                _sourceWatchdogAlarmId = context.addAlarmInUs(
                     LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US,
                     _onSourceWatchdogTimeoutCallback,
                     this,
@@ -222,14 +226,14 @@ void EPRKeepaliveStateHandler::enter(SinkContext& context) {
             static_cast<uint8_t>(Sink::ExtendedControlType::EPR_Get_Source_Cap));
     }
 
-    _keepaliveIntervalAlarmId = add_alarm_in_us(
+    _keepaliveIntervalAlarmId = context.addAlarmInUs(
         LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US,
         _onKeepaliveIntervalTimeoutCallback,
         this,
         true
     );
 
-    _sourceWatchdogAlarmId = add_alarm_in_us(
+    _sourceWatchdogAlarmId = context.addAlarmInUs(
         LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US,
         _onSourceWatchdogTimeoutCallback,
         this,
@@ -238,14 +242,13 @@ void EPRKeepaliveStateHandler::enter(SinkContext& context) {
 }
 
 void EPRKeepaliveStateHandler::reset(SinkContext& context) {
-    (void)context;
     if (_keepaliveIntervalAlarmId != -1) {
-        cancel_alarm(_keepaliveIntervalAlarmId);
+        context.cancelAlarm(_keepaliveIntervalAlarmId);
         _keepaliveIntervalAlarmId = -1;
     }
 
     if (_sourceWatchdogAlarmId != -1) {
-        cancel_alarm(_sourceWatchdogAlarmId);
+        context.cancelAlarm(_sourceWatchdogAlarmId);
         _sourceWatchdogAlarmId = -1;
     }
 
