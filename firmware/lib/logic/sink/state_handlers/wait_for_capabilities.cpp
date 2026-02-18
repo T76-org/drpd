@@ -15,10 +15,15 @@ using namespace T76::DRPD::Logic;
 int64_t WaitForCapabilitiesStateHandler::_onCapabilitiesTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     WaitForCapabilitiesStateHandler *handler =
         static_cast<WaitForCapabilitiesStateHandler *>(user_data);
     handler->_capabilitiesTimeoutAlarmId = -1;
-    handler->_onCapabilitiesTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::WaitForCapabilitiesTimeout}
+        );
+    }
     return 0;  // One-shot timer
 }
 
@@ -77,6 +82,15 @@ void WaitForCapabilitiesStateHandler::handleMessageSenderStateChange(
     (void)context;
     (void)state;
     // No specific handling needed in Wait_for_Capabilities state
+}
+
+void WaitForCapabilitiesStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::WaitForCapabilitiesTimeout) {
+        _onCapabilitiesTimeout();
+    }
 }
 
 

@@ -201,6 +201,16 @@ void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
         return;
     }
 
+    if (state == SinkMessageSenderState::GoodCRCTimeout) {
+        _enqueueTimeoutEvent(SinkTimeoutEvent{SinkTimeoutEventType::GoodCRCTimeout});
+        return;
+    }
+
+    _handleMessageSenderStateChangedTaskContext(state);
+}
+
+void Sink::_handleMessageSenderStateChangedTaskContext(SinkMessageSenderState state) {
+    // Task-context variant used by timeout-event dequeue to avoid re-enqueue recursion.
     if (state == SinkMessageSenderState::GoodCRCReceived && _runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;
@@ -213,5 +223,7 @@ void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
         return;
     }
 
-    reset(SinkResetType::SoftReset);
+    if (state == SinkMessageSenderState::GoodCRCTimeout) {
+        reset(SinkResetType::SoftReset);
+    }
 }

@@ -18,10 +18,15 @@ using namespace T76::DRPD::Logic;
 int64_t SelectCapabilityStateHandler::_onResponseTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     SelectCapabilityStateHandler *handler =
         static_cast<SelectCapabilityStateHandler *>(user_data);
     handler->_responseTimeoutAlarmId = -1;
-    handler->_onResponseTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::SelectCapabilityResponseTimeout}
+        );
+    }
     return 0;  // One-shot timer
 }
 
@@ -386,6 +391,15 @@ void SelectCapabilityStateHandler::handleMessageSenderStateChange(SinkContext& c
             this,
             true  // fire_if_past
         );
+    }
+}
+
+void SelectCapabilityStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::SelectCapabilityResponseTimeout) {
+        _onResponseTimeout();
     }
 }
 

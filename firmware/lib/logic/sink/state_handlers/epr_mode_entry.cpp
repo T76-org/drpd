@@ -12,9 +12,14 @@ using namespace T76::DRPD::Logic;
 
 
 int64_t EPRModeEntryStateHandler::_onEntryTimeoutCallback(alarm_id_t id, void *user_data) {
+    (void)id;
     auto *handler = static_cast<EPRModeEntryStateHandler *>(user_data);
     handler->_entryTimeoutAlarmId = -1;
-    handler->_onEntryTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::EprModeEntryTimeout}
+        );
+    }
     return 0;
 }
 
@@ -97,6 +102,15 @@ void EPRModeEntryStateHandler::handleMessageSenderStateChange(
             this,
             true
         );
+    }
+}
+
+void EPRModeEntryStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::EprModeEntryTimeout) {
+        _onEntryTimeout();
     }
 }
 

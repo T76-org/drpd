@@ -70,7 +70,8 @@ SinkContext::SinkContext(
     SelectCapabilityStateHandler& selectCapabilityStateHandler,
     TransitionSinkStateHandler& transitionSinkStateHandler,
     WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
-    std::function<void(SinkInfoChange)>& sinkInfoChangedCallback) :
+    std::function<void(SinkInfoChange)>& sinkInfoChangedCallback,
+    std::function<void(SinkTimeoutEvent)>& enqueueTimeoutEventCallback) :
     _runtimeState(runtimeState),
     _alarmService(alarmService),
     _messageSender(messageSender),
@@ -82,7 +83,8 @@ SinkContext::SinkContext(
     _selectCapabilityStateHandler(selectCapabilityStateHandler),
     _transitionSinkStateHandler(transitionSinkStateHandler),
     _waitForCapabilitiesStateHandler(waitForCapabilitiesStateHandler),
-    _sinkInfoChangedCallback(sinkInfoChangedCallback) {}
+    _sinkInfoChangedCallback(sinkInfoChangedCallback),
+    _enqueueTimeoutEventCallback(enqueueTimeoutEventCallback) {}
 
 SinkRuntimeState& SinkContext::runtimeState() {
     return _runtimeState;
@@ -354,6 +356,12 @@ alarm_id_t SinkContext::addAlarmInUs(
 
 bool SinkContext::cancelAlarm(alarm_id_t id) {
     return _alarmService.cancelAlarm(id);
+}
+
+void SinkContext::enqueueTimeoutEvent(SinkTimeoutEvent event) {
+    if (_enqueueTimeoutEventCallback) {
+        _enqueueTimeoutEventCallback(event);
+    }
 }
 
 bool SinkContext::_sourceEPRCapable() const {

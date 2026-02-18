@@ -14,9 +14,14 @@ using namespace T76::DRPD::Logic;
 int64_t TransitionSinkStateHandler::_onTransitionTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     auto *handler = static_cast<TransitionSinkStateHandler *>(user_data);
     handler->_transitionTimeoutAlarmId = -1;
-    handler->_onTransitionTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::TransitionSinkTimeout}
+        );
+    }
     return 0;
 }
 
@@ -70,6 +75,15 @@ void TransitionSinkStateHandler::handleMessageSenderStateChange(
     SinkMessageSenderState state) {
     (void)context;
     (void)state;
+}
+
+void TransitionSinkStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::TransitionSinkTimeout) {
+        _onTransitionTimeout();
+    }
 }
 
 void TransitionSinkStateHandler::enter(SinkContext& context) {

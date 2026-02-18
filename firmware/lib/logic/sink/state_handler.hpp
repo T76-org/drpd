@@ -55,6 +55,18 @@ namespace T76::DRPD::Logic {
             SinkMessageSenderState state) = 0;
 
         /**
+         * @brief Handle timer timeout event in task context.
+         * @param context Shared sink context.
+         * @param eventType Timeout event type.
+         */
+        virtual void handleTimeoutEvent(
+            SinkContext& context,
+            SinkTimeoutEventType eventType) {
+            (void)context;
+            (void)eventType;
+        }
+
+        /**
          * @brief Enter this policy state.
          * @param context Shared sink context.
          */

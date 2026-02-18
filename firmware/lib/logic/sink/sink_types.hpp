@@ -57,4 +57,26 @@ namespace T76::DRPD::Logic {
         SoftReset   ///< Protocol soft reset message.
     };
 
+    /**
+     * @brief Timeout events produced by Sink timer callbacks.
+     */
+    enum class SinkTimeoutEventType : uint32_t {
+        GoodCRCTimeout,
+        WaitForCapabilitiesTimeout,
+        SelectCapabilityResponseTimeout,
+        TransitionSinkTimeout,
+        ReadySinkRequestTimeout,
+        ReadyPdoRefreshTimeout,
+        EprModeEntryTimeout,
+        EprKeepaliveIntervalTimeout,
+        EprSourceWatchdogTimeout
+    };
+
+    /**
+     * @brief Envelope queued by timer callbacks for task-context handling.
+     */
+    struct SinkTimeoutEvent {
+        SinkTimeoutEventType type;
+    };
+
 } // namespace T76::DRPD::Logic

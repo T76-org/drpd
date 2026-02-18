@@ -29,6 +29,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         bmcEncoder,
         _alarmService,
         std::bind(&Sink::_onMessageSenderStateChanged, this, std::placeholders::_1)),
+    _timeoutEventCallback(std::bind(&Sink::_enqueueTimeoutEvent, this, std::placeholders::_1)),
     _context(
         _runtimeState,
         _alarmService,
@@ -41,9 +42,11 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _selectCapabilityStateHandler,
         _transitionSinkStateHandler,
         _waitForCapabilitiesStateHandler,
-        _sinkInfoChangedCallback) {
+        _sinkInfoChangedCallback,
+        _timeoutEventCallback) {
 
     queue_init(&_messageQueue, sizeof(const PHY::BMCDecodedMessage*), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
+    queue_init(&_timeoutEventQueue, sizeof(SinkTimeoutEvent), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
 
     xTaskCreate(
         [](void *param) {
@@ -76,6 +79,7 @@ Sink::~Sink() {
     vTaskDelay(pdMS_TO_TICKS(100));
 
     queue_free(&_messageQueue);
+    queue_free(&_timeoutEventQueue);
 }
 
 void Sink::enable() {
@@ -108,6 +112,9 @@ void Sink::disable() {
     const PHY::BMCDecodedMessage* dropped = nullptr;
     while (queue_try_remove(&_messageQueue, &dropped)) {
     }
+    SinkTimeoutEvent droppedEvent{};
+    while (queue_try_remove(&_timeoutEventQueue, &droppedEvent)) {
+    }
 
     reset();
 }
@@ -121,6 +128,7 @@ void Sink::_processTaskHandler() {
 
     while (true) {
         queue_remove_blocking(&_messageQueue, &messagePtr);
+        _processTimeoutEvents();
 
         if (messagePtr == nullptr) {
             continue;
@@ -156,6 +164,26 @@ void Sink::_processTaskHandler() {
         if (_runtimeState._currentStateHandler) {
             _runtimeState._currentStateHandler->handleMessage(_context, messagePtr);
         }
+
+        _processTimeoutEvents();
+    }
+}
+
+void Sink::_processTimeoutEvents() {
+    SinkTimeoutEvent event{};
+    while (queue_try_remove(&_timeoutEventQueue, &event)) {
+        if (!_enabled.load()) {
+            continue;
+        }
+
+        if (event.type == SinkTimeoutEventType::GoodCRCTimeout) {
+            _handleMessageSenderStateChangedTaskContext(SinkMessageSenderState::GoodCRCTimeout);
+            continue;
+        }
+
+        if (_runtimeState._currentStateHandler) {
+            _runtimeState._currentStateHandler->handleTimeoutEvent(_context, event.type);
+        }
     }
 }
 
@@ -167,4 +195,11 @@ void Sink::_onCCBusStateChanged(CCBusState newState) {
     }
 
     reset();
+}
+
+void Sink::_enqueueTimeoutEvent(SinkTimeoutEvent event) {
+    (void)queue_try_add(&_timeoutEventQueue, &event);
+
+    const PHY::BMCDecodedMessage* wakeMessage = nullptr;
+    (void)queue_try_add(&_messageQueue, &wakeMessage);
 }

@@ -45,6 +45,13 @@ namespace T76::DRPD::Logic {
         void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
 
         /**
+         * @brief Handle timeout events in EPR mode entry state.
+         * @param context Shared sink context.
+         * @param eventType Timeout event type.
+         */
+        void handleTimeoutEvent(SinkContext& context, SinkTimeoutEventType eventType) override;
+
+        /**
          * @brief Enter EPR mode entry state.
          * @param context Shared sink context.
          */

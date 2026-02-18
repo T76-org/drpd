@@ -16,18 +16,28 @@ using namespace T76::DRPD::Logic;
 int64_t ReadySinkStateHandler::_onSinkRequestTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     auto *handler = static_cast<ReadySinkStateHandler *>(user_data);
     handler->_sinkRequestTimerAlarmId = -1;
-    handler->_onSinkRequestTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::ReadySinkRequestTimeout}
+        );
+    }
     return 0;
 }
 
 int64_t ReadySinkStateHandler::_onPDORefreshTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     auto *handler = static_cast<ReadySinkStateHandler *>(user_data);
     handler->_pdoRefreshTimerAlarmId = -1;
-    handler->_onPDORefreshTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::ReadyPdoRefreshTimeout}
+        );
+    }
     return 0;
 }
 
@@ -98,6 +108,20 @@ void ReadySinkStateHandler::handleMessageSenderStateChange(
     SinkMessageSenderState state) {
     (void)context;
     (void)state;
+}
+
+void ReadySinkStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::ReadySinkRequestTimeout) {
+        _onSinkRequestTimeout();
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::ReadyPdoRefreshTimeout) {
+        _onPDORefreshTimeout();
+    }
 }
 
 void ReadySinkStateHandler::enter(SinkContext& context) {

@@ -57,6 +57,10 @@ namespace T76::DRPD::Logic {
      * This class owns policy-side operations and mutable runtime state access
      * needed by handlers, while keeping orchestration dependencies localized
      * to one object.
+     *
+     * Timer callbacks may run outside Sink task context; handlers therefore use
+     * `enqueueTimeoutEvent()` to hand work back to Sink via a callback instead
+     * of taking a direct dependency on Sink internals or queue storage.
      */
     class SinkContext {
     public:
@@ -73,6 +77,8 @@ namespace T76::DRPD::Logic {
          * @param transitionSinkStateHandler Handler instance for Transition Sink state.
          * @param waitForCapabilitiesStateHandler Handler instance for Wait for Capabilities state.
          * @param sinkInfoChangedCallback Callback used to notify host-visible sink info changes.
+         * @param enqueueTimeoutEventCallback Callback used to enqueue timeout
+         *        events to Sink task context.
          */
         SinkContext(
             SinkRuntimeState& runtimeState,
@@ -86,7 +92,8 @@ namespace T76::DRPD::Logic {
             SelectCapabilityStateHandler& selectCapabilityStateHandler,
             TransitionSinkStateHandler& transitionSinkStateHandler,
             WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
-            std::function<void(SinkInfoChange)>& sinkInfoChangedCallback);
+            std::function<void(SinkInfoChange)>& sinkInfoChangedCallback,
+            std::function<void(SinkTimeoutEvent)>& enqueueTimeoutEventCallback);
 
         /**
          * @brief Access mutable runtime state.
@@ -226,6 +233,12 @@ namespace T76::DRPD::Logic {
          */
         bool cancelAlarm(alarm_id_t id);
 
+        /**
+         * @brief Enqueue a timeout event for Sink task-context handling.
+         * @param event Timeout event to enqueue.
+         */
+        void enqueueTimeoutEvent(SinkTimeoutEvent event);
+
     protected:
         SinkRuntimeState& _runtimeState;                                 ///< Shared runtime state storage.
         SinkAlarmService& _alarmService;                                 ///< Sink-owned timer service.
@@ -241,6 +254,7 @@ namespace T76::DRPD::Logic {
         WaitForCapabilitiesStateHandler& _waitForCapabilitiesStateHandler; ///< Handler for Wait for Capabilities.
 
         std::function<void(SinkInfoChange)>& _sinkInfoChangedCallback;   ///< Host callback repeater.
+        std::function<void(SinkTimeoutEvent)>& _enqueueTimeoutEventCallback; ///< Timeout event callback.
 
         /**
          * @brief Determine if cached SPR source capabilities advertise EPR support.

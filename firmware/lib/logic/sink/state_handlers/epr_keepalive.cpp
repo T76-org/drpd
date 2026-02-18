@@ -14,16 +14,26 @@ using namespace T76::DRPD::Logic;
 int64_t EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     auto *handler = static_cast<EPRKeepaliveStateHandler *>(user_data);
     handler->_keepaliveIntervalAlarmId = -1;
-    handler->_onKeepaliveIntervalTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::EprKeepaliveIntervalTimeout}
+        );
+    }
     return 0;
 }
 
 int64_t EPRKeepaliveStateHandler::_onSourceWatchdogTimeoutCallback(alarm_id_t id, void *user_data) {
+    (void)id;
     auto *handler = static_cast<EPRKeepaliveStateHandler *>(user_data);
     handler->_sourceWatchdogAlarmId = -1;
-    handler->_onSourceWatchdogTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::EprSourceWatchdogTimeout}
+        );
+    }
     return 0;
 }
 
@@ -213,6 +223,20 @@ void EPRKeepaliveStateHandler::handleMessageSenderStateChange(
         if (_keepaliveFailureCount >= 3) {
             _exitEPRMode();
         }
+    }
+}
+
+void EPRKeepaliveStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::EprKeepaliveIntervalTimeout) {
+        _onKeepaliveIntervalTimeout();
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::EprSourceWatchdogTimeout) {
+        _onSourceWatchdogTimeout();
     }
 }
 

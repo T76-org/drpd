@@ -13,6 +13,22 @@
  * - `SinkContext` exposes the controlled API handlers use to read/mutate that
  *   state and perform protocol actions.
  * - State handlers implement focused policy logic for one PD policy state each.
+ * - Sink timers are created through `SinkAlarmService`, which owns a dedicated
+ *   alarm pool initialized from Core 1.
+ * - Timer callbacks do not directly execute policy transitions; they enqueue
+ *   `SinkTimeoutEvent` items that are consumed in Sink task context.
+ * - GoodCRC transmit when receiving a Source message is intentionally immediate
+ *   in the Core-1 receive path to satisfy protocol timing constraints.
+ *
+ * Core split in this module:
+ * - Core 1 (bare-metal path): receives decoded PD messages via
+ *   `Sink::_onMessageReceived(...)`, sends immediate GoodCRC acknowledgements,
+ *   and hosts the Sink-owned alarm pool used for timeout scheduling.
+ * - Core 0 (FreeRTOS path): runs `Sink::_processTaskHandler()`, executes state
+ *   handler policy transitions, and consumes queued timeout events.
+ * - Boundary rule: Core-1-facing callbacks should do minimal, timing-critical
+ *   work only; policy mutations and reset/transition decisions are handled from
+ *   Sink task context on Core 0.
  *
  * Public API in this class is intentionally host-facing and read-mostly
  * (`pdoCount`, `pdo`, negotiated values, request entrypoint). Internal policy
@@ -200,6 +216,7 @@ namespace T76::DRPD::Logic {
 
         TaskHandle_t _messagingTaskHandle = nullptr;             ///< FreeRTOS sink message processing task.
         queue_t _messageQueue;                                   ///< Queue of decoded message pointers.
+        queue_t _timeoutEventQueue;                              ///< Queue of timer timeout events.
 
         CCBusController& _ccBusController;                       ///< CC bus controller dependency.
         T76::DRPD::PHY::BMCDecoder& _bmcDecoder;                ///< Decoder for incoming PD messages.
@@ -219,6 +236,7 @@ namespace T76::DRPD::Logic {
         SinkMessageSender _messageSender;                        ///< Outbound message sender with GoodCRC tracking.
         SinkRuntimeState _runtimeState;                          ///< Mutable sink runtime state.
         std::function<void(SinkInfoChange)> _sinkInfoChangedCallback; ///< Sink info change callback.
+        std::function<void(SinkTimeoutEvent)> _timeoutEventCallback; ///< Timeout event callback.
         SinkContext _context;                                    ///< Handler-facing context facade.
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
 
@@ -261,10 +279,32 @@ namespace T76::DRPD::Logic {
         void _processTaskHandler();
 
         /**
+         * @brief Drain pending timeout events and dispatch in task context.
+         */
+        void _processTimeoutEvents();
+
+        /**
          * @brief Handle message sender state transitions.
          * @param state New sender state.
          */
         void _onMessageSenderStateChanged(SinkMessageSenderState state);
+
+        /**
+         * @brief Handle sender state transitions in Sink task context.
+         * @param state New sender state.
+         *
+         * This remains separate from `_onMessageSenderStateChanged()` because
+         * timeout states are first queued, then replayed from task context.
+         * Calling `_onMessageSenderStateChanged()` directly from timeout-event
+         * dequeue would re-enqueue the same timeout and create a loop.
+         */
+        void _handleMessageSenderStateChangedTaskContext(SinkMessageSenderState state);
+
+        /**
+         * @brief Enqueue timeout event from asynchronous callback context.
+         * @param event Timeout event to enqueue.
+         */
+        void _enqueueTimeoutEvent(SinkTimeoutEvent event);
     };
 
 } // namespace T76::DRPD::Logic
