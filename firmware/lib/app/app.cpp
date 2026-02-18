@@ -91,29 +91,11 @@ void App::_startCore1() {
     _bmcEncoder.initCore1();
     _vbusManager.initCore1();
 
-    repeating_timer_t _timer;
-
-    // Spin up a repeating timer to handle core 1 tasks at the specified frequency
-    // We need to create a new alarm pool with an unused hardware alarm because
-    // the default pool runs on core 0.
-
-    alarm_pool_add_repeating_timer_us(
-        alarm_pool_create_with_unused_hardware_alarm(8),
-        -1000000 / APP_CORE1_TIMER_FREQUENCY_HZ,
-        [](repeating_timer_t *rt) {
-            App *app = static_cast<App *>(rt->user_data);
-            app->_bmcDecoder.timerCallback();
-            app->_bmcEncoder.timerCallback();
-
-            return true; // Return true to keep the timer running
-        },
-        this,
-        &_timer
-    );
-
     for(;;) {
         T76::Core::Safety::feedWatchdogFromCore1();
-        sleep_ms(100);
+        _bmcDecoder.timerCallback();
+        _bmcEncoder.timerCallback();
+        sleep_us(100);
     }
 }
 
