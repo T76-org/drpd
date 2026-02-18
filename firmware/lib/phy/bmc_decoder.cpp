@@ -252,7 +252,9 @@ void BMCDecoder::timerCallback() {
                 }
     
                 // Enqueue the completed message for processing
-                queue_add_blocking(&_messageQueue, &_currentMessage);
+                if (!queue_try_add(&_messageQueue, &_currentMessage)) {
+                    //TODO: Handle queue full (e.g. drop message, signal error, etc.)
+                }
 
                 // Move to the next message buffer
                 _currentMessageIndex = (_currentMessageIndex + 1) % PHY_BMC_DECODER_MESSAGE_BUFFER_SIZE;

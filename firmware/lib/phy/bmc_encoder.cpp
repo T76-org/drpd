@@ -104,7 +104,10 @@ void BMCEncoder::makeSafe() {
 
 void BMCEncoder::encodeAndSendMessage(const BMCEncodedMessage& message) {
     const BitPacker encoded = message.encoded();
-    queue_add_blocking(&_messageQueue, &encoded);
+
+    if (!queue_try_add(&_messageQueue, &encoded)) {
+        //TODO: Handle queue full (e.g. drop message, signal error, etc.)
+    }
 }
 
 void BMCEncoder::sendGoodCRCForDecodedMessage(const BMCDecodedMessage& decodedMessage) {
