@@ -42,6 +42,7 @@
 #include <hardware/pio.h>
 #include <pico/time.h>
 #include <pico/sync.h>
+#include <pico/util/queue.h>
 
 #include <array>
 
@@ -90,6 +91,11 @@ namespace T76::DRPD::PHY {
      */
     class BMCEncoder : public T76::Core::Safety::SafeableComponent {
     public:
+        /**
+         * @brief Construct encoder and initialize thread-safe message queue.
+         */
+        BMCEncoder();
+
         /** 
          * @brief Initialize the BMC encoder on core 1.
          * 
@@ -155,28 +161,11 @@ namespace T76::DRPD::PHY {
         uint _programOffset;        ///< Offset of the BMC encoder program in PIO memory
         int _dmaChannel;            ///< DMA channel used for data transfer
 
-        std::array<BitPacker, PHY_BMC_ENCODER_QUEUE_LENGTH> _messageQueue = {}; ///< Ring buffer storage.
-        size_t _messageQueueHead = 0; ///< Ring buffer head index.
-        size_t _messageQueueTail = 0; ///< Ring buffer tail index.
-        size_t _messageQueueCount = 0; ///< Number of queued messages.
+        queue_t _messageQueue; ///< Thread-safe queue of outgoing encoded messages.
         repeating_timer_t _transmissionTimer; ///< Repeating timer for managing transmissions
 
         BitPacker _messageInProgress;    ///< Currently transmitting message
         bool _hasMessageInProgress = false; ///< True when DMA transmission is active.
-
-        /**
-         * @brief Enqueue a message into the static ring buffer.
-         * @param message Encoded bitstream to enqueue.
-         * @return True if queued; false when queue is full.
-         */
-        bool _enqueueMessage(const BitPacker& message);
-
-        /**
-         * @brief Try to dequeue the next message from the static ring buffer.
-         * @param out Next message if available.
-         * @return True when a message was dequeued; false otherwise.
-         */
-        bool _dequeueMessage(BitPacker& out);
     };
     
 } // namespace T76::DRPD::PHY

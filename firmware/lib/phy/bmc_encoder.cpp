@@ -12,6 +12,10 @@
 
 using namespace T76::DRPD::PHY;
 
+BMCEncoder::BMCEncoder() {
+    queue_init(&_messageQueue, sizeof(BitPacker), PHY_BMC_ENCODER_QUEUE_LENGTH);
+}
+
 void BMCEncoder::initCore1() {
 
     // Init the output pin and set it to input (high-Z) initially
@@ -100,9 +104,7 @@ void BMCEncoder::makeSafe() {
 
 void BMCEncoder::encodeAndSendMessage(const BMCEncodedMessage& message) {
     const BitPacker encoded = message.encoded();
-    while (!_enqueueMessage(encoded)) {
-        tight_loop_contents();
-    }
+    queue_add_blocking(&_messageQueue, &encoded);
 }
 
 void BMCEncoder::sendGoodCRCForDecodedMessage(const BMCDecodedMessage& decodedMessage) {
@@ -120,10 +122,12 @@ void BMCEncoder::timerCallback() {
         return;
     }
 
-    if (!_dequeueMessage(_messageInProgress)) {
+    BitPacker out;
+
+    if (!queue_try_remove(&_messageQueue, &_messageInProgress)) {
         return;
     }
-
+    
     _hasMessageInProgress = true;
 
     pio_sm_init(
@@ -146,27 +150,4 @@ void BMCEncoder::timerCallback() {
 
     pio_interrupt_clear(PHY_BMC_ENCODER_PIO, 0);
     pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, _stateMachine, true);
-}
-
-bool BMCEncoder::_enqueueMessage(const BitPacker& message) {
-    if (_messageQueueCount >= _messageQueue.size()) {
-        return false;
-    }
-
-    _messageQueue[_messageQueueTail] = message;
-    _messageQueueTail = (_messageQueueTail + 1) % _messageQueue.size();
-    ++_messageQueueCount;
-
-    return true;
-}
-
-bool BMCEncoder::_dequeueMessage(BitPacker& out) {
-    if (_messageQueueCount == 0) {
-        return false;
-    }
-
-    out = _messageQueue[_messageQueueHead];
-    _messageQueueHead = (_messageQueueHead + 1) % _messageQueue.size();
-    --_messageQueueCount;
-    return true;
 }
