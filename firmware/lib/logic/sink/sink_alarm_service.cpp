@@ -5,7 +5,7 @@
 
 #include "sink_alarm_service.hpp"
 
-#include <pico/multicore.h>
+#include <pico/platform.h>
 
 
 using namespace T76::DRPD::Logic;
@@ -13,16 +13,17 @@ using namespace T76::DRPD::Logic;
 
 void SinkAlarmService::initCore1() {
     if (get_core_num() != 1) {
-        return;
+        panic("SinkAlarmService::initCore1 must run on core 1");
     }
 
-    if (_pool.load(std::memory_order_acquire) != nullptr) {
-        return;
+    if (_alarmPool != nullptr) {
+        panic("SinkAlarmService::initCore1 called more than once");
     }
 
-    // Use an unused hardware alarm for Sink timers and keep the pool private to Sink.
-    alarm_pool_t *pool = alarm_pool_create_with_unused_hardware_alarm(16);
-    _pool.store(pool, std::memory_order_release);
+    _alarmPool = alarm_pool_create_with_unused_hardware_alarm(static_cast<uint>(MaxAlarms));
+    if (_alarmPool == nullptr) {
+        panic("SinkAlarmService failed to create alarm pool");
+    }
 }
 
 alarm_id_t SinkAlarmService::addAlarmInUs(
@@ -30,23 +31,36 @@ alarm_id_t SinkAlarmService::addAlarmInUs(
     alarm_callback_t callback,
     void *userData,
     bool fireIfPast) {
-    alarm_pool_t *pool = _pool.load(std::memory_order_acquire);
-    if (pool == nullptr) {
-        return -1;
+    if (_alarmPool == nullptr) {
+        panic("SinkAlarmService::addAlarmInUs called before initCore1");
     }
 
-    return alarm_pool_add_alarm_in_us(pool, delayUs, callback, userData, fireIfPast);
+    if (callback == nullptr) {
+        panic("SinkAlarmService::addAlarmInUs requires a non-null callback");
+    }
+
+    const alarm_id_t id = alarm_pool_add_alarm_in_us(
+        _alarmPool,
+        delayUs,
+        callback,
+        userData,
+        fireIfPast);
+
+    if (id <= 0) {
+        panic("SinkAlarmService failed to schedule alarm");
+    }
+
+    return id;
 }
 
 bool SinkAlarmService::cancelAlarm(alarm_id_t id) {
-    alarm_pool_t *pool = _pool.load(std::memory_order_acquire);
-    if (pool == nullptr || id == -1) {
+    if (_alarmPool == nullptr) {
+        panic("SinkAlarmService::cancelAlarm called before initCore1");
+    }
+
+    if (id <= 0) {
         return false;
     }
 
-    return alarm_pool_cancel_alarm(pool, id);
-}
-
-bool SinkAlarmService::initialized() const {
-    return _pool.load(std::memory_order_acquire) != nullptr;
+    return alarm_pool_cancel_alarm(_alarmPool, id);
 }

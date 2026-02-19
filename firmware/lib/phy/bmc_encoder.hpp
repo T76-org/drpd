@@ -138,16 +138,13 @@ namespace T76::DRPD::PHY {
          */
         void sendNotAcceptedMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole);
 
-        /** 
-         * @brief Timer callback for managing message transmissions.
-         * 
-         * This static method is called by the repeating timer to
-         * check for and transmit messages from the queue. If there
-         * are no more messages to send, it stops the timer.
-         * 
+        /**
+         * @brief Run one Core-1 transmission iteration.
+         *
+         * If no DMA transfer is active, this attempts to dequeue one pending
+         * encoded message and start a new transmit operation.
          */
-
-        void timerCallback();  
+        void loopCore1();
 
         // Safeable component overrides
 

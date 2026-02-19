@@ -5,15 +5,14 @@
  * This header defines the Sink-specific alarm service used by Sink policy
  * timers.
  *
- * The service owns one dedicated Pico SDK alarm pool. That pool is created
- * from Core 1 and then used by Sink timer call sites instead of global alarm
- * APIs. This keeps timer ownership explicit while preserving existing callback
- * behavior.
+ * The service is a thin wrapper around a dedicated Pico SDK alarm pool.
+ * The pool is created from Core 1 and all Sink timer call sites schedule
+ * and cancel alarms through this wrapper instead of global alarm APIs.
  */
 
 #pragma once
 
-#include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 #include <pico/time.h>
@@ -27,6 +26,11 @@ namespace T76::DRPD::Logic {
     class SinkAlarmService {
     public:
         /**
+         * @brief Maximum number of timers reserved in the Sink alarm pool.
+         */
+        static constexpr size_t MaxAlarms = 8;
+
+        /**
          * @brief Create the dedicated alarm pool from Core 1.
          */
         void initCore1();
@@ -37,7 +41,7 @@ namespace T76::DRPD::Logic {
          * @param callback Pico alarm callback.
          * @param userData Opaque callback user data.
          * @param fireIfPast Fire immediately if target time is already in past.
-         * @return Alarm ID on success, or -1 if service is not initialized.
+         * @return Alarm ID returned by the Pico SDK alarm pool.
          */
         alarm_id_t addAlarmInUs(
             int64_t delayUs,
@@ -52,14 +56,8 @@ namespace T76::DRPD::Logic {
          */
         bool cancelAlarm(alarm_id_t id);
 
-        /**
-         * @brief Check whether Core-1 pool initialization is complete.
-         * @return True when initialized; otherwise false.
-         */
-        bool initialized() const;
-
     protected:
-        std::atomic<alarm_pool_t *> _pool = nullptr; ///< Sink-owned alarm pool pointer.
+        alarm_pool_t *_alarmPool = nullptr; ///< Dedicated Sink alarm pool (Core 1 owned).
     };
 
 } // namespace T76::DRPD::Logic

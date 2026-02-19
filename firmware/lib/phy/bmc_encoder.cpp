@@ -120,7 +120,7 @@ void BMCEncoder::sendNotAcceptedMessage(Proto::PDHeader::PortDataRole portDataRo
     encodeAndSendMessage(notAcceptedMessage);
 }
 
-void BMCEncoder::timerCallback() {
+void BMCEncoder::loopCore1() {
     if (_hasMessageInProgress) {
         return;
     }

@@ -210,7 +210,9 @@ void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
 }
 
 void Sink::_handleMessageSenderStateChangedTaskContext(SinkMessageSenderState state) {
-    // Task-context variant used by timeout-event dequeue to avoid re-enqueue recursion.
+    // This method is only called from the core-1 policy loop.
+    // Keep GoodCRCTimeout handling here so timer callbacks can enqueue a timeout event
+    // without recursively calling back into the state machine from callback context.
     if (state == SinkMessageSenderState::GoodCRCReceived && _runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;

@@ -76,7 +76,12 @@ float Sink::negotiatedCurrent() const {
 }
 
 bool Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
-    return _context.requestPDO(pdoIndex, voltageMV, currentMA);
+    if (!_enabled.load()) {
+        return false;
+    }
+
+    const PendingPDORequest request{pdoIndex, voltageMV, currentMA};
+    return queue_try_add(&_pendingRequestQueue, &request);
 }
 
 bool Sink::sourceEPRCapable() const {

@@ -122,7 +122,7 @@ void BMCDecoder::initCore1() {
     // read address and transfer count registers when triggered.
 
     _controlDMAData[0] = reinterpret_cast<uint32_t>(_circularBuffer);
-    _controlDMAData[1] = PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE * sizeof(uint32_t);
+    _controlDMAData[1] = PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE;
 
     dma_channel_config_t controlDMAConfig = dma_channel_get_default_config(controlDMAChannel);
 
@@ -170,6 +170,10 @@ void BMCDecoder::initCore1() {
 
     pio_sm_set_enabled(PHY_BMC_DECODER_PIO, _stateMachine, false);
     _enabled = false;
+
+    // Initialize transfer count to 0
+
+    _transferCount = 0;
 }
 
 void BMCDecoder::messageReceivedCallbackCore0(MessageReceivedCallback callback) {
@@ -225,8 +229,8 @@ float BMCDecoder::ccThresholdVoltage() const {
     return _ccThresholdVoltage;
 }
 
-void BMCDecoder::timerCallback() {
-    uint32_t completedTransferCount = PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE - dma_hw->ch[_dataDMAChannel].transfer_count;
+void BMCDecoder::loopCore1() {
+    uint32_t completedTransferCount = (PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE - dma_hw->ch[_dataDMAChannel].transfer_count) % PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE;
 
     while (_transferCount != completedTransferCount) {
         uint32_t pulseWidth = _circularBuffer[_transferCount];

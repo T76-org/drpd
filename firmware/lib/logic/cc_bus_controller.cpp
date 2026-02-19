@@ -56,6 +56,10 @@ void CCBusController::initCore1() {
     _sink.initCore1();
 }
 
+void CCBusController::loopCore1() {
+    _sink.loopCore1();
+}
+
 void CCBusController::role(CCBusRole role) {
     _updateRole(role);
 

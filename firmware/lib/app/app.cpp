@@ -94,8 +94,9 @@ void App::_startCore1() {
 
     for(;;) {
         T76::Core::Safety::feedWatchdogFromCore1();
-        _bmcDecoder.timerCallback();
-        _bmcEncoder.timerCallback();
+        _bmcDecoder.loopCore1();
+        _bmcEncoder.loopCore1();
+        _ccBusController.loopCore1();
         sleep_us(100);
     }
 }

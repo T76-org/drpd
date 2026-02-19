@@ -47,17 +47,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
 
     queue_init(&_messageQueue, sizeof(const PHY::BMCDecodedMessage*), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
     queue_init(&_timeoutEventQueue, sizeof(SinkTimeoutEvent), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
-
-    xTaskCreate(
-        [](void *param) {
-            static_cast<Sink*>(param)->_processTaskHandler();
-        },
-        "SinkProcessTask",
-        LOGIC_SINK_MESSAGE_TASK_STACK_SIZE,
-        this,
-        LOGIC_SINK_MESSAGE_TASK_PRIORITY,
-        &_messagingTaskHandle
-    );
+    queue_init(&_pendingRequestQueue, sizeof(PendingPDORequest), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
 
     reset();
 }
@@ -66,74 +56,17 @@ void Sink::initCore1() {
     _alarmService.initCore1();
 }
 
-Sink::~Sink() {
-    disable();
+void Sink::loopCore1() {
+    _processPendingRequests();
 
-    reset();
-
-    if (_messagingTaskHandle != nullptr) {
-        vTaskDelete(_messagingTaskHandle);
-        _messagingTaskHandle = nullptr;
+    if (_ccBusResetPending.exchange(false, std::memory_order_acq_rel)) {
+        reset();
     }
 
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    queue_free(&_messageQueue);
-    queue_free(&_timeoutEventQueue);
-}
-
-void Sink::enable() {
-    if (_enabled.load()) {
-        return;
-    }
-
-    reset();
-
-    // Register callbacks only after queue/task are initialized.
-    _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this,
-        std::placeholders::_1));
-    _stateChangedCallbackId = _ccBusController.addStateChangedCallback(
-        std::bind(&Sink::_onCCBusStateChanged, this, std::placeholders::_1)
-    );
-    _enabled.store(true);
-}
-
-void Sink::disable() {
-    if (!_enabled.load()) {
-        return;
-    }
-
-    // Unregister callbacks first so no new work is queued during teardown.
-    _bmcDecoder.messageReceivedCallbackCore1(nullptr);
-    _ccBusController.removeStateChangedCallback(_stateChangedCallbackId);
-    _stateChangedCallbackId = 0;
-    _enabled.store(false);
-
-    const PHY::BMCDecodedMessage* dropped = nullptr;
-    while (queue_try_remove(&_messageQueue, &dropped)) {
-    }
-    SinkTimeoutEvent droppedEvent{};
-    while (queue_try_remove(&_timeoutEventQueue, &droppedEvent)) {
-    }
-
-    reset();
-}
-
-bool Sink::enabled() const {
-    return _enabled.load();
-}
-
-void Sink::_processTaskHandler() {
     const PHY::BMCDecodedMessage* messagePtr = nullptr;
+    _processTimeoutEvents();
 
-    while (true) {
-        queue_remove_blocking(&_messageQueue, &messagePtr);
-        _processTimeoutEvents();
-
-        if (messagePtr == nullptr) {
-            continue;
-        }
-
+    while (queue_try_remove(&_messageQueue, &messagePtr)) {
         const auto decodedHeader = messagePtr->decodedHeader();
 
         if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
@@ -169,6 +102,62 @@ void Sink::_processTaskHandler() {
     }
 }
 
+Sink::~Sink() {
+    disable();
+
+    reset();
+
+    queue_free(&_messageQueue);
+    queue_free(&_timeoutEventQueue);
+    queue_free(&_pendingRequestQueue);
+}
+
+void Sink::enable() {
+    if (_enabled.load()) {
+        return;
+    }
+
+    reset();
+    _ccBusResetPending.store(false, std::memory_order_release);
+
+    // Register callbacks only after queue initialization.
+    _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this,
+        std::placeholders::_1));
+    _stateChangedCallbackId = _ccBusController.addStateChangedCallback(
+        std::bind(&Sink::_onCCBusStateChanged, this, std::placeholders::_1)
+    );
+    _enabled.store(true);
+}
+
+void Sink::disable() {
+    if (!_enabled.load()) {
+        return;
+    }
+
+    // Unregister callbacks first so no new work is queued during teardown.
+    _bmcDecoder.messageReceivedCallbackCore1(nullptr);
+    _ccBusController.removeStateChangedCallback(_stateChangedCallbackId);
+    _stateChangedCallbackId = 0;
+    _enabled.store(false);
+
+    const PHY::BMCDecodedMessage* dropped = nullptr;
+    while (queue_try_remove(&_messageQueue, &dropped)) {
+    }
+    SinkTimeoutEvent droppedEvent{};
+    while (queue_try_remove(&_timeoutEventQueue, &droppedEvent)) {
+    }
+    PendingPDORequest droppedRequest{};
+    while (queue_try_remove(&_pendingRequestQueue, &droppedRequest)) {
+    }
+    _ccBusResetPending.store(false, std::memory_order_release);
+
+    reset();
+}
+
+bool Sink::enabled() const {
+    return _enabled.load();
+}
+
 void Sink::_processTimeoutEvents() {
     SinkTimeoutEvent event{};
     while (queue_try_remove(&_timeoutEventQueue, &event)) {
@@ -194,12 +183,20 @@ void Sink::_onCCBusStateChanged(CCBusState newState) {
         return;
     }
 
-    reset();
+    _ccBusResetPending.store(true, std::memory_order_release);
 }
 
 void Sink::_enqueueTimeoutEvent(SinkTimeoutEvent event) {
     (void)queue_try_add(&_timeoutEventQueue, &event);
+}
 
-    const PHY::BMCDecodedMessage* wakeMessage = nullptr;
-    (void)queue_try_add(&_messageQueue, &wakeMessage);
+void Sink::_processPendingRequests() {
+    PendingPDORequest request{};
+    while (queue_try_remove(&_pendingRequestQueue, &request)) {
+        if (!_enabled.load()) {
+            continue;
+        }
+
+        (void)_context.requestPDO(request.pdoIndex, request.voltageMV, request.currentMA);
+    }
 }
