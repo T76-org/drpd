@@ -20,7 +20,6 @@
 
 #include <functional>
 #include <optional>
-#include <set>
 #include <span>
 
 #include <pico/time.h>
@@ -58,7 +57,7 @@ namespace T76::DRPD::Logic {
      * needed by handlers, while keeping orchestration dependencies localized
      * to one object.
      *
-     * Timer callbacks may run outside Sink task context; handlers therefore use
+     * Timer callbacks may run outside the Sink policy loop; handlers therefore use
      * `enqueueTimeoutEvent()` to hand work back to Sink via a callback instead
      * of taking a direct dependency on Sink internals or queue storage.
      */
@@ -78,7 +77,7 @@ namespace T76::DRPD::Logic {
          * @param waitForCapabilitiesStateHandler Handler instance for Wait for Capabilities state.
          * @param sinkInfoChangedCallback Callback used to notify host-visible sink info changes.
          * @param enqueueTimeoutEventCallback Callback used to enqueue timeout
-         *        events to Sink task context.
+         *        events to the Sink policy loop context.
          */
         SinkContext(
             SinkRuntimeState& runtimeState,

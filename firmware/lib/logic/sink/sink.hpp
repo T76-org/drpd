@@ -90,7 +90,6 @@ namespace T76::DRPD::Logic {
          */
         enum class ExtendedControlType : uint8_t {
             EPR_Get_Source_Cap = 0x01,    ///< Request EPR source capabilities.
-            EPR_Get_Sink_Cap = 0x02,      ///< Request EPR sink capabilities.
             EPR_KeepAlive = 0x03,         ///< Send/receive keepalive.
             EPR_KeepAlive_Ack = 0x04      ///< Acknowledge keepalive.
         };
@@ -180,12 +179,6 @@ namespace T76::DRPD::Logic {
          * @return True if request was accepted for dispatch; otherwise false.
          */
         bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
-
-        /**
-         * @brief Check if source advertises EPR capability.
-         * @return True if EPR capable source is currently cached.
-         */
-        [[nodiscard]] bool sourceEPRCapable() const;
 
         /**
          * @brief Get current Sink policy state.
@@ -310,7 +303,7 @@ namespace T76::DRPD::Logic {
          * Calling `_onMessageSenderStateChanged()` directly from timeout-event
          * dequeue would re-enqueue the same timeout and create a loop.
          */
-        void _handleMessageSenderStateChangedTaskContext(SinkMessageSenderState state);
+        void _handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState state);
 
         /**
          * @brief Enqueue timeout event from asynchronous callback context.

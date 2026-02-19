@@ -4,8 +4,6 @@
 
 target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_SINK_MESSAGE_QUEUE_LENGTH=16                           # Queue size for the internal message receiving queue
-    LOGIC_SINK_MESSAGE_TASK_PRIORITY=tskIDLE_PRIORITY+1          # Priority of the FreeRTOS task that processes incoming messages
-    LOGIC_SINK_MESSAGE_TASK_STACK_SIZE=4096                      # Stack size of the task
 
     LOGIC_SINK_GOODCRC_TIMEOUT_US=10000                          # Timeout for GoodCRC response in microseconds
     LOGIC_SINK_GOODCRC_RETRIES=3                                 # Number of retries for sending messages awaiting GoodCRC

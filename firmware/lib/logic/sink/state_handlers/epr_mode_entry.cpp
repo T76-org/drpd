@@ -17,7 +17,7 @@ int64_t EPRModeEntryStateHandler::_onEntryTimeoutCallback(alarm_id_t id, void *u
     handler->_entryTimeoutAlarmId = -1;
     if (handler->_context != nullptr) {
         handler->_context->enqueueTimeoutEvent(
-            SinkTimeoutEvent{SinkTimeoutEventType::EprModeEntryTimeout}
+            SinkTimeoutEvent{SinkTimeoutEventType::EPRModeEntryTimeout}
         );
     }
     return 0;
@@ -57,7 +57,6 @@ void EPRModeEntryStateHandler::handleMessage(
             }
 
             if (response.action() == Proto::EPRMode::Action::EnterAcknowledged) {
-                _enterAcknowledged = true;
                 return;
             }
 
@@ -109,14 +108,13 @@ void EPRModeEntryStateHandler::handleTimeoutEvent(
     SinkContext& context,
     SinkTimeoutEventType eventType) {
     (void)context;
-    if (eventType == SinkTimeoutEventType::EprModeEntryTimeout) {
+    if (eventType == SinkTimeoutEventType::EPRModeEntryTimeout) {
         _onEntryTimeout();
     }
 }
 
 void EPRModeEntryStateHandler::enter(SinkContext& context) {
     _bindContext(context);
-    _enterAcknowledged = false;
 
     // 100 W operational PDP in 1 W units.
     context.sendEPRMode(Proto::EPRMode::Action::Enter, 100);
@@ -127,7 +125,5 @@ void EPRModeEntryStateHandler::reset(SinkContext& context) {
         context.cancelAlarm(_entryTimeoutAlarmId);
         _entryTimeoutAlarmId = -1;
     }
-
-    _enterAcknowledged = false;
     _unbindContext();
 }

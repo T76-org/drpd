@@ -43,7 +43,7 @@ namespace T76::DRPD::Logic {
         PE_SNK_Get_Source_Cap,              ///< Request source capabilities.
         PE_SNK_EPR_Keepalive,               ///< EPR keepalive maintenance.
         PE_SNK_Hard_Reset,                  ///< Hard reset processing.
-        PE_SNK_Transition_to_default,       ///< Transition to default state.
+        PE_SNK_Transition_To_Default,       ///< Transition to default state.
 
         Error,                              ///< Error/fault state.
     };
@@ -66,10 +66,10 @@ namespace T76::DRPD::Logic {
         SelectCapabilityResponseTimeout,
         TransitionSinkTimeout,
         ReadySinkRequestTimeout,
-        ReadyPdoRefreshTimeout,
-        EprModeEntryTimeout,
-        EprKeepaliveIntervalTimeout,
-        EprSourceWatchdogTimeout
+        ReadyPDORefreshTimeout,
+        EPRModeEntryTimeout,
+        EPRKeepaliveIntervalTimeout,
+        EPRSourceWatchdogTimeout
     };
 
     /**

@@ -35,7 +35,7 @@ int64_t ReadySinkStateHandler::_onPDORefreshTimeoutCallback(
     handler->_pdoRefreshTimerAlarmId = -1;
     if (handler->_context != nullptr) {
         handler->_context->enqueueTimeoutEvent(
-            SinkTimeoutEvent{SinkTimeoutEventType::ReadyPdoRefreshTimeout}
+            SinkTimeoutEvent{SinkTimeoutEventType::ReadyPDORefreshTimeout}
         );
     }
     return 0;
@@ -119,7 +119,7 @@ void ReadySinkStateHandler::handleTimeoutEvent(
         return;
     }
 
-    if (eventType == SinkTimeoutEventType::ReadyPdoRefreshTimeout) {
+    if (eventType == SinkTimeoutEventType::ReadyPDORefreshTimeout) {
         _onPDORefreshTimeout();
     }
 }

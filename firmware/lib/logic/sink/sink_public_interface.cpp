@@ -1,5 +1,5 @@
 /**
- * @file sink_interface.cpp
+ * @file sink_public_interface.cpp
  * @copyright Copyright (c) 2026 MTA, Inc.
  */
 
@@ -82,21 +82,6 @@ bool Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
 
     const PendingPDORequest request{pdoIndex, voltageMV, currentMA};
     return queue_try_add(&_pendingRequestQueue, &request);
-}
-
-bool Sink::sourceEPRCapable() const {
-    if (!_runtimeState._sourceCapabilities.has_value() ||
-        _runtimeState._sourceCapabilities->pdoCount() == 0) {
-        return false;
-    }
-
-    const auto& firstPDO = _runtimeState._sourceCapabilities->pdo(0);
-    if (std::holds_alternative<Proto::FixedSupplyPDO>(firstPDO)) {
-        const auto& fixedPDO = std::get<Proto::FixedSupplyPDO>(firstPDO);
-        return fixedPDO.eprModeCapable();
-    }
-
-    return false;
 }
 
 SinkState Sink::state() const {

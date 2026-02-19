@@ -69,7 +69,6 @@ namespace T76::DRPD::Logic {
     protected:
         alarm_id_t _keepaliveIntervalAlarmId = -1; ///< Sink keepalive interval timer
         alarm_id_t _sourceWatchdogAlarmId = -1;    ///< Source keepalive watchdog timer
-        bool _awaitingKeepaliveAck = false;        ///< True when a keepalive ack is pending
         uint8_t _keepaliveFailureCount = 0;        ///< Consecutive keepalive failures
 
         /**

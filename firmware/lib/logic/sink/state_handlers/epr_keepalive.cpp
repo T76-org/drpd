@@ -19,7 +19,7 @@ int64_t EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeoutCallback(
     handler->_keepaliveIntervalAlarmId = -1;
     if (handler->_context != nullptr) {
         handler->_context->enqueueTimeoutEvent(
-            SinkTimeoutEvent{SinkTimeoutEventType::EprKeepaliveIntervalTimeout}
+            SinkTimeoutEvent{SinkTimeoutEventType::EPRKeepaliveIntervalTimeout}
         );
     }
     return 0;
@@ -31,7 +31,7 @@ int64_t EPRKeepaliveStateHandler::_onSourceWatchdogTimeoutCallback(alarm_id_t id
     handler->_sourceWatchdogAlarmId = -1;
     if (handler->_context != nullptr) {
         handler->_context->enqueueTimeoutEvent(
-            SinkTimeoutEvent{SinkTimeoutEventType::EprSourceWatchdogTimeout}
+            SinkTimeoutEvent{SinkTimeoutEventType::EPRSourceWatchdogTimeout}
         );
     }
     return 0;
@@ -42,7 +42,6 @@ void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
         return;
     }
 
-    _awaitingKeepaliveAck = true;
     // Keepalive is periodic best-effort; avoid rapid GoodCRC retry bursts.
     _context->sendExtendedControlMessage(
         static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive),
@@ -147,9 +146,6 @@ void EPRKeepaliveStateHandler::handleMessage(
             }
 
             if (isKeepalive || isKeepaliveAck) {
-                if (isKeepaliveAck) {
-                    _awaitingKeepaliveAck = false;
-                }
                 _keepaliveFailureCount = 0;
 
                 if (_sourceWatchdogAlarmId != -1) {
@@ -218,7 +214,6 @@ void EPRKeepaliveStateHandler::handleMessageSenderStateChange(
     SinkMessageSenderState state) {
     (void)context;
     if (state == SinkMessageSenderState::GoodCRCTimeout) {
-        _awaitingKeepaliveAck = false;
         _keepaliveFailureCount++;
         if (_keepaliveFailureCount >= 3) {
             _exitEPRMode();
@@ -230,19 +225,18 @@ void EPRKeepaliveStateHandler::handleTimeoutEvent(
     SinkContext& context,
     SinkTimeoutEventType eventType) {
     (void)context;
-    if (eventType == SinkTimeoutEventType::EprKeepaliveIntervalTimeout) {
+    if (eventType == SinkTimeoutEventType::EPRKeepaliveIntervalTimeout) {
         _onKeepaliveIntervalTimeout();
         return;
     }
 
-    if (eventType == SinkTimeoutEventType::EprSourceWatchdogTimeout) {
+    if (eventType == SinkTimeoutEventType::EPRSourceWatchdogTimeout) {
         _onSourceWatchdogTimeout();
     }
 }
 
 void EPRKeepaliveStateHandler::enter(SinkContext& context) {
     _bindContext(context);
-    _awaitingKeepaliveAck = false;
     _keepaliveFailureCount = 0;
 
     if (!context.runtimeState()._eprCapabilities.has_value()) {
@@ -276,7 +270,6 @@ void EPRKeepaliveStateHandler::reset(SinkContext& context) {
         _sourceWatchdogAlarmId = -1;
     }
 
-    _awaitingKeepaliveAck = false;
     _keepaliveFailureCount = 0;
     _unbindContext();
 }

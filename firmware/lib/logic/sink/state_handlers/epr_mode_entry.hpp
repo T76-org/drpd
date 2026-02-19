@@ -65,7 +65,6 @@ namespace T76::DRPD::Logic {
 
     protected:
         alarm_id_t _entryTimeoutAlarmId = -1; ///< Response timeout while entering EPR mode
-        bool _enterAcknowledged = false;      ///< Tracks EnterAcknowledged phase
 
         /**
          * @brief Handle entry-timeout expiry.

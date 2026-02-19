@@ -166,7 +166,7 @@ void Sink::_processTimeoutEvents() {
         }
 
         if (event.type == SinkTimeoutEventType::GoodCRCTimeout) {
-            _handleMessageSenderStateChangedTaskContext(SinkMessageSenderState::GoodCRCTimeout);
+            _handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState::GoodCRCTimeout);
             continue;
         }
 

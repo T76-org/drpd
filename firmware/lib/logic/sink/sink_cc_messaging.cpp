@@ -1,5 +1,5 @@
 /**
- * @file message_dispatch.cpp
+ * @file sink_cc_messaging.cpp
  * @copyright Copyright (c) 2026 MTA, Inc.
  */
 
@@ -206,10 +206,10 @@ void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
         return;
     }
 
-    _handleMessageSenderStateChangedTaskContext(state);
+    _handleMessageSenderStateChangedPolicyContext(state);
 }
 
-void Sink::_handleMessageSenderStateChangedTaskContext(SinkMessageSenderState state) {
+void Sink::_handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState state) {
     // This method is only called from the core-1 policy loop.
     // Keep GoodCRCTimeout handling here so timer callbacks can enqueue a timeout event
     // without recursively calling back into the state machine from callback context.
