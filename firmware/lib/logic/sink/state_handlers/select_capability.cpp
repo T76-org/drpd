@@ -234,7 +234,7 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
         const Proto::SPRAVSAPDO& sprAvs = std::get<Proto::SPRAVSAPDO>(pdoVariant);
         
         uint32_t requestedVoltageMillivolts = voltageMV <= 0
-            ? sprAvs.minVoltageMillivolts()
+            ? 15000
             : voltageMV;
 
         requestedVoltageMillivolts = std::clamp(
@@ -247,11 +247,18 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
             return false;
         }
 
-        uint32_t requestedCurrentMA = currentMA <= 0
-            ? sprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts
-            : currentMA;
+        const bool use20VBand = requestedVoltageMillivolts > 15000;
+        const uint32_t maxBandCurrentMA = use20VBand
+            ? sprAvs.maxCurrent20VMilliamps()
+            : sprAvs.maxCurrent15VMilliamps();
+        if (maxBandCurrentMA == 0) {
+            return false;
+        }
+        const uint32_t requestedCurrentMA = currentMA <= 0
+            ? maxBandCurrentMA
+            : std::min(currentMA, maxBandCurrentMA);
 
-            Proto::AugmentedPPSRequest request(0);
+        Proto::AugmentedAVSRequest request(0);
 
         request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
