@@ -11,6 +11,7 @@ from typing import Optional
 from pyvisa import VisaIOError
 from textual.app import ComposeResult
 from textual.containers import VerticalGroup, HorizontalGroup
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -31,17 +32,19 @@ class InfoPanel(VerticalGroup):
 
     async def update(self) -> None:
         """Update the device information displayed in the panel."""
-        if self.device is None:
-            self.query_one("#serial-number-value", Static).update("ERR")
-            self.query_one("#firmware-value", Static).update("ERR")
-            self.query_one("#free-mem-value", Static).update("ERR")
-            self.query_one("#clock-value", Static).update("ERR")
-            self.query_one("#uptime-value", Static).update("ERR")
-            self.query_one("#version-value", Static).update("ERR")
-
+        if not self.is_mounted:
             return
 
         try:
+            if self.device is None:
+                self.query_one("#serial-number-value", Static).update("ERR")
+                self.query_one("#firmware-value", Static).update("ERR")
+                self.query_one("#free-mem-value", Static).update("ERR")
+                self.query_one("#clock-value", Static).update("ERR")
+                self.query_one("#uptime-value", Static).update("ERR")
+                self.query_one("#version-value", Static).update("ERR")
+                return
+
             device_info = await self.device.system.identify()
 
             self.query_one("#serial-number-value", Static).update(
@@ -65,15 +68,18 @@ class InfoPanel(VerticalGroup):
 
             self.query_one("#version-value", Static).update(
                 f"v{device_info.firmware_version}")
-        except (AttributeError, ValueError, RuntimeError, AssertionError, VisaIOError) as e:
+        except (AttributeError, ValueError, RuntimeError, AssertionError, VisaIOError, NoMatches) as e:
             logging.error("Failed to update statistics: %s", e)
 
-            self.query_one("#serial-number-value", Static).update("ERR")
-            self.query_one("#firmware-value", Static).update("ERR")
-            self.query_one("#free-mem-value", Static).update("ERR")
-            self.query_one("#clock-value", Static).update("ERR")
-            self.query_one("#uptime-value", Static).update("ERR")
-            self.query_one("#version-value", Static).update("ERR")
+            try:
+                self.query_one("#serial-number-value", Static).update("ERR")
+                self.query_one("#firmware-value", Static).update("ERR")
+                self.query_one("#free-mem-value", Static).update("ERR")
+                self.query_one("#clock-value", Static).update("ERR")
+                self.query_one("#uptime-value", Static).update("ERR")
+                self.query_one("#version-value", Static).update("ERR")
+            except NoMatches:
+                return
 
     async def on_mount(self) -> None:
         """Called when the panel is mounted."""

@@ -9,6 +9,7 @@ from typing import Optional
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import HorizontalGroup, VerticalGroup
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import TabPane, TabbedContent
 
@@ -111,29 +112,35 @@ class MainContainer(HorizontalGroup):
             old_device.unregister_event_observer(self._on_device_event)
 
         if new_device is None:
-            self.query_one("#message-tabs",
-                           TabbedContent).disable_tab("sink-tab")
+            try:
+                self.query_one("#message-tabs",
+                               TabbedContent).disable_tab("sink-tab")
+            except NoMatches:
+                return
         else:
             new_device.register_event_observer(self._on_device_event)
 
     async def _on_device_event(self, event: DeviceEvent) -> None:
         """Handle device events."""
-        if isinstance(event, DeviceConnected):
-            assert self.device is not None
+        try:
+            if isinstance(event, DeviceConnected):
+                assert self.device is not None
 
-            if await self.device.mode.get() == Mode.SINK:
-                self.query_one("#message-tabs",
-                               TabbedContent).enable_tab("sink-tab")
-            else:
-                self.query_one("#message-tabs",
-                               TabbedContent).disable_tab("sink-tab")
+                if await self.device.mode.get() == Mode.SINK:
+                    self.query_one("#message-tabs",
+                                   TabbedContent).enable_tab("sink-tab")
+                else:
+                    self.query_one("#message-tabs",
+                                   TabbedContent).disable_tab("sink-tab")
 
-        if isinstance(event, RoleChanged):
-            assert self.device is not None
+            if isinstance(event, RoleChanged):
+                assert self.device is not None
 
-            if event.new_role == Mode.SINK:
-                self.query_one("#message-tabs",
-                               TabbedContent).enable_tab("sink-tab")
-            else:
-                self.query_one("#message-tabs",
-                               TabbedContent).disable_tab("sink-tab")
+                if event.new_role == Mode.SINK:
+                    self.query_one("#message-tabs",
+                                   TabbedContent).enable_tab("sink-tab")
+                else:
+                    self.query_one("#message-tabs",
+                                   TabbedContent).disable_tab("sink-tab")
+        except (AssertionError, RuntimeError, NoMatches):
+            return

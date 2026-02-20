@@ -4,7 +4,7 @@ Unit tests for DeviceInternal transport cleanup.
 
 from types import SimpleNamespace
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pyvisa
 
@@ -32,9 +32,12 @@ class TestDeviceInternalDisconnect(unittest.IsolatedAsyncioTestCase):
         resource_manager = MagicMock()
         self.device_internal.instrument = instrument
         self.device_internal._resource_manager = resource_manager
+        self.device_internal._wrapped_interrupt_handler = MagicMock()
 
         await self.device_internal.disconnect()
 
+        instrument.disable_event.assert_called_once()
+        instrument.uninstall_handler.assert_called_once()
         instrument.close.assert_called_once()
         resource_manager.close.assert_called_once()
         self.assertIsNone(self.device_internal.instrument)
@@ -60,5 +63,32 @@ class TestDeviceInternalDisconnect(unittest.IsolatedAsyncioTestCase):
 
         await self.device_internal.disconnect()
 
+        self.assertIsNone(self.device_internal.instrument)
+        self.assertIsNone(self.device_internal._resource_manager)
+
+    async def test_write_ascii_times_out_when_lock_is_held(self) -> None:
+        instrument = MagicMock()
+        self.device_internal.instrument = instrument
+        self.device_internal._lock = MagicMock()
+        self.device_internal._lock.acquire.return_value = False
+
+        with self.assertRaises(TimeoutError):
+            await self.device_internal.write_ascii_and_check("SYST:ERR?")
+
+        instrument.write.assert_not_called()
+
+    async def test_connect_cleans_up_resources_when_initialization_fails(
+            self) -> None:
+        resource_manager = MagicMock()
+        invalid_instrument = MagicMock()
+        resource_manager.open_resource.return_value = invalid_instrument
+
+        with patch("t76.drpd.device.device_internal.pyvisa.ResourceManager",
+                   return_value=resource_manager):
+            with self.assertRaises(TypeError):
+                await self.device_internal.connect()
+
+        invalid_instrument.close.assert_called_once()
+        resource_manager.close.assert_called_once()
         self.assertIsNone(self.device_internal.instrument)
         self.assertIsNone(self.device_internal._resource_manager)

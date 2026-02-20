@@ -73,12 +73,12 @@ class DRPDApp(App):
 
         try:
             await self.device.analog_monitor.stop_recurring_status_updates()
-        except RuntimeError as e:
+        except Exception as e:
             logging.warning("Failed to stop analog monitor at shutdown: %s", e)
 
         try:
             await self.device.disconnect()
-        except (AssertionError, RuntimeError) as e:
+        except Exception as e:
             logging.warning("Failed to disconnect device at shutdown: %s", e)
 
     @staticmethod
@@ -157,7 +157,7 @@ class DRPDApp(App):
         if old_device is not None:
             try:
                 await old_device.analog_monitor.stop_recurring_status_updates()
-            except RuntimeError as e:
+            except Exception as e:
                 logging.warning(
                     "Failed to stop analog monitor updates for %s: %s",
                     old_device,
@@ -166,7 +166,7 @@ class DRPDApp(App):
 
             try:
                 await old_device.disconnect()
-            except (AssertionError, RuntimeError) as e:
+            except Exception as e:
                 logging.warning(
                     "Failed to disconnect old device %s: %s",
                     old_device,
@@ -181,7 +181,7 @@ class DRPDApp(App):
                 await config.load(new_device)
                 await new_device.analog_monitor.start_recurring_status_updates(
                     0.5)
-            except (AssertionError, RuntimeError) as e:
+            except Exception as e:
                 logging.error("Failed to connect to %s: %s", new_device, e)
 
                 if self.device is new_device:

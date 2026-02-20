@@ -12,6 +12,7 @@ from pyvisa import VisaIOError
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup, VerticalGroup
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import DataTable, Digits, Static
@@ -188,18 +189,24 @@ class SinkPanel(VerticalGroup):
 
     async def update_analog_measurements(self, channels: AnalogMonitorChannels) -> None:
         """Update VBUS voltage and current from the device."""
-        if self.device is None:
-            self.query_one("#vbus-digits", Digits).update("---")
-            self.query_one("#ibus-digits", Digits).update("---")
+        if not self.is_mounted:
             return
 
-        # Update displays
-        self.query_one("#vbus-digits", Digits).update(
-            f"{channels.vbus:.2f}"
-        )
-        self.query_one("#ibus-digits", Digits).update(
-            f"{channels.ibus:.2f}"
-        )
+        try:
+            if self.device is None:
+                self.query_one("#vbus-digits", Digits).update("---")
+                self.query_one("#ibus-digits", Digits).update("---")
+                return
+
+            # Update displays
+            self.query_one("#vbus-digits", Digits).update(
+                f"{channels.vbus:.2f}"
+            )
+            self.query_one("#ibus-digits", Digits).update(
+                f"{channels.ibus:.2f}"
+            )
+        except NoMatches:
+            return
 
     async def on_mount(self) -> None:
         """Called when the panel is mounted."""
@@ -219,39 +226,41 @@ class SinkPanel(VerticalGroup):
 
     async def _on_device_event(self, event: DeviceEvent) -> None:
         """Handle device events to update the panel."""
+        try:
+            if isinstance(event, DeviceConnected):
+                if self.device is not None:
+                    if await self.device.mode.get() != Mode.SINK:
+                        await self._clear_sink_info()
+                        return
 
-        if isinstance(event, DeviceConnected):
-            if self.device is not None:
-                if await self.device.mode.get() != Mode.SINK:
+                    sink_info = await self.device.sink.get_sink_info()
+                    await self._update_sink_info(sink_info)
+
+                    pdo_count = await self.device.sink.get_pdo_count()
+                    pdos = []
+                    for index in range(pdo_count):
+                        pdos.append(await self.device.sink.get_pdo_at_index(index))
+                    await self._update_pdo_list(pdos, sink_info.negotiated_pdo)
+                else:
                     await self._clear_sink_info()
-                    return
-
-                sink_info = await self.device.sink.get_sink_info()
-                await self._update_sink_info(sink_info)
-
-                pdo_count = await self.device.sink.get_pdo_count()
-                pdos = []
-                for index in range(pdo_count):
-                    pdos.append(await self.device.sink.get_pdo_at_index(index))
-                await self._update_pdo_list(pdos, sink_info.negotiated_pdo)
-            else:
+            elif isinstance(event, DeviceDisconnected):
                 await self._clear_sink_info()
-        elif isinstance(event, DeviceDisconnected):
-            await self._clear_sink_info()
-        elif isinstance(event, SinkPDOListChanged):
-            await self._update_pdo_list(event.new_pdos,
-                                        self.sink_info.negotiated_pdo
-                                        if self.sink_info else None)
-        elif isinstance(event, SinkInfoChanged):
-            await self._update_sink_info(event.new_info)
-        elif isinstance(event, RoleChanged):
-            if event.new_role != Mode.SINK:
-                await self._clear_sink_info()
-            else:
-                sink_info = await event.device.sink.get_sink_info()
-                await self._update_sink_info(sink_info)
-        elif isinstance(event, AnalogMonitorStatusChanged):
-            await self.update_analog_measurements(event.status)
+            elif isinstance(event, SinkPDOListChanged):
+                await self._update_pdo_list(event.new_pdos,
+                                            self.sink_info.negotiated_pdo
+                                            if self.sink_info else None)
+            elif isinstance(event, SinkInfoChanged):
+                await self._update_sink_info(event.new_info)
+            elif isinstance(event, RoleChanged):
+                if event.new_role != Mode.SINK:
+                    await self._clear_sink_info()
+                else:
+                    sink_info = await event.device.sink.get_sink_info()
+                    await self._update_sink_info(sink_info)
+            elif isinstance(event, AnalogMonitorStatusChanged):
+                await self.update_analog_measurements(event.status)
+        except (AssertionError, AttributeError, RuntimeError, VisaIOError, NoMatches) as e:
+            logging.warning("Failed to handle sink panel event: %s", e)
 
     async def on_pdo_table_pdo_selected(self, message: PdoTable.PdoSelected) -> None:
         """Handle PDO selection forwarded by the PDO table."""
@@ -281,6 +290,8 @@ class SinkPanel(VerticalGroup):
 
     async def _update_sink_info(self, sink_info) -> None:
         """Update the sink information display."""
+        if not self.is_mounted:
+            return
 
         self.sink_info = sink_info
 
@@ -297,20 +308,29 @@ class SinkPanel(VerticalGroup):
                 f"State: {sink_info.status.value}"
             )
         except (AssertionError, AttributeError, RuntimeError,
-                VisaIOError) as e:
+                VisaIOError, NoMatches) as e:
             logging.error("Failed to update sink panel: %s", e)
-            self.query_one("#pdo-voltage-value", Static).update("ERR")
-            self.query_one("#pdo-current-value", Static).update("ERR")
-            self.query_one("#sink-state-value", Static).update(
-                "State: ERR"
-            )
-            self.query_one("#pdo-table", PdoTable).clear_pdos()
+            try:
+                self.query_one("#pdo-voltage-value", Static).update("ERR")
+                self.query_one("#pdo-current-value", Static).update("ERR")
+                self.query_one("#sink-state-value", Static).update(
+                    "State: ERR"
+                )
+                self.query_one("#pdo-table", PdoTable).clear_pdos()
+            except NoMatches:
+                return
 
     async def _update_pdo_list(self, pdos: list[DeviceSinkPDO],
                                active_pdo: Optional[DeviceSinkPDO]) -> None:
         """Update the PDO list display."""
+        if not self.is_mounted:
+            return
+
         # Update PDO table
-        pdo_table = self.query_one("#pdo-table", PdoTable)
+        try:
+            pdo_table = self.query_one("#pdo-table", PdoTable)
+        except NoMatches:
+            return
         pdo_table.device = self.device
         pdo_table.clear_pdos()
 
@@ -320,12 +340,19 @@ class SinkPanel(VerticalGroup):
 
     async def _clear_sink_info(self) -> None:
         """Clear all sink information displays."""
-        self.query_one("#vbus-digits", Digits).update("---")
-        self.query_one("#pdo-voltage-value", Static).update("Set: ---")
-        self.query_one("#ibus-digits", Digits).update("---")
-        self.query_one("#pdo-current-value", Static).update("Set: ---")
-        self.query_one("#sink-state-value", Static).update("State: ---")
-        self.query_one("#pdo-table", PdoTable).clear_pdos()
+        if not self.is_mounted:
+            self.sink_info = None
+            return
+
+        try:
+            self.query_one("#vbus-digits", Digits).update("---")
+            self.query_one("#pdo-voltage-value", Static).update("Set: ---")
+            self.query_one("#ibus-digits", Digits).update("---")
+            self.query_one("#pdo-current-value", Static).update("Set: ---")
+            self.query_one("#sink-state-value", Static).update("State: ---")
+            self.query_one("#pdo-table", PdoTable).clear_pdos()
+        except NoMatches:
+            pass
         self.sink_info = None
 
     def compose(self) -> ComposeResult:
