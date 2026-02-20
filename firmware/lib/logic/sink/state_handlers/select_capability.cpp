@@ -258,7 +258,7 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
             ? maxBandCurrentMA
             : std::min(currentMA, maxBandCurrentMA);
 
-        Proto::AugmentedPPSRequest request(0);
+        Proto::AugmentedAVSRequest request(0);
 
         request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
