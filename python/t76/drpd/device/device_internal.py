@@ -24,6 +24,8 @@ class DeviceInternal:
     Internal class for handling low-level USB SCPI communication.
     """
 
+    LOCK_TIMEOUT_SECONDS = 2.0
+
     def __init__(self, usb_device: usb.core.Device, interrupt_handler: Callable[[Resource, Event, Any], None]):
         """Initialize the DeviceInternal instance.
 
@@ -37,8 +39,9 @@ class DeviceInternal:
         self.serial_number = usb_device.serial_number
         self.instrument: Optional[MessageBasedResource] = None
         self._resource_manager: Optional[pyvisa.ResourceManager] = None
-        self._lock: Lock
+        self._lock = Lock()
         self._interrupt_handler = interrupt_handler
+        self._wrapped_interrupt_handler: Any = None
         self.resource_string = f"USB0::{getattr(self.usb_device, 'idVendor')}::{getattr(self.usb_device, 'idProduct')}::{self.usb_device.serial_number}::4::INSTR"
 
     @classmethod
@@ -94,6 +97,13 @@ class DeviceInternal:
             raise RuntimeError(
                 "Failed to communicate with the instrument.") from e
 
+    def _acquire_lock(self, command: str) -> None:
+        """Acquire the internal transport lock with timeout protection."""
+        if not self._lock.acquire(timeout=self.LOCK_TIMEOUT_SECONDS):
+            raise TimeoutError(
+                f"Timed out waiting for device lock while handling command {command!r}."
+            )
+
     async def write_ascii_and_check(self, command: str) -> None:
         """
         Write a command to the instrument and check for errors.
@@ -110,8 +120,11 @@ class DeviceInternal:
 
         logging.debug("Writing command to instrument: %s", command)
 
+        lock_acquired = False
+
         try:
-            self._lock.acquire()
+            self._acquire_lock(command)
+            lock_acquired = True
             self.instrument.write(command)
             self.check_for_error(command)
         except pyvisa.errors.VisaIOError as e:
@@ -119,7 +132,8 @@ class DeviceInternal:
             raise RuntimeError(
                 "Failed to communicate with the instrument.") from e
         finally:
-            self._lock.release()
+            if lock_acquired:
+                self._lock.release()
 
     async def write_binary_and_check(self, command: str, data: Sequence[int | float], datatype: util.BINARY_DATATYPES = 'B') -> None:
         """
@@ -144,8 +158,11 @@ class DeviceInternal:
 
         logging.debug("Writing binary command to instrument: %s", command)
 
+        lock_acquired = False
+
         try:
-            self._lock.acquire()
+            self._acquire_lock(command)
+            lock_acquired = True
             self.instrument.write_binary_values(
                 command, data, datatype=datatype)
             self.check_for_error(command)
@@ -155,7 +172,8 @@ class DeviceInternal:
             raise RuntimeError(
                 "Failed to communicate with the instrument.") from e
         finally:
-            self._lock.release()
+            if lock_acquired:
+                self._lock.release()
 
     async def query_ascii_values_and_check(self, command: str, converter: util.ASCII_CONVERTER = "f") -> Sequence[Any]:
         """
@@ -180,8 +198,11 @@ class DeviceInternal:
             raise RuntimeError(
                 "Instrument is not initialized when sending command %s." % command)
 
+        lock_acquired = False
+
         try:
-            self._lock.acquire()
+            self._acquire_lock(command)
+            lock_acquired = True
             result = self.instrument.query_ascii_values(command, converter)
 
             return result
@@ -193,7 +214,8 @@ class DeviceInternal:
             self.check_for_error(command)
             return []
         finally:
-            self._lock.release()
+            if lock_acquired:
+                self._lock.release()
 
     async def query_binary_value_and_check(self, command: str, datatype: util.BINARY_DATATYPES = 'B', container: type = list) -> Sequence[int | float]:
         """
@@ -218,8 +240,11 @@ class DeviceInternal:
 
         data: Optional[Sequence[int | float]] = None
 
+        lock_acquired = False
+
         try:
-            self._lock.acquire()
+            self._acquire_lock(command)
+            lock_acquired = True
             data = self.instrument.query_binary_values(
                 command, datatype=datatype, container=container
             )
@@ -231,7 +256,8 @@ class DeviceInternal:
             raise RuntimeError(
                 "Failed to communicate with the instrument.") from e
         finally:
-            self._lock.release()
+            if lock_acquired:
+                self._lock.release()
 
         if not data:
             logging.error(
@@ -256,41 +282,47 @@ class DeviceInternal:
             await self.disconnect()
 
         self._resource_manager = pyvisa.ResourceManager()
-        self.instrument = self._resource_manager.open_resource(
-            self.resource_string)  # type: ignore
 
-        if not isinstance(self.instrument, MessageBasedResource):
-            raise TypeError("Instrument is not a MessageBasedResource.")
+        try:
+            self.instrument = self._resource_manager.open_resource(
+                self.resource_string)  # type: ignore
 
-        # Set the termination characters for writing and reading
-        # This is important for SCPI communication
-        # to ensure that commands and responses are properly formatted.
-        self.instrument.write_termination = ''
-        self.instrument.read_termination = '\n'
-        self.instrument.timeout = 100
-        self.instrument.install_handler(
-            EventType.service_request,
-            self.instrument.wrap_handler(self._interrupt_handler),
-            None
-        )
-        self.instrument.enable_event(
-            EventType.service_request, EventMechanism.handler)
+            if not isinstance(self.instrument, MessageBasedResource):
+                raise TypeError("Instrument is not a MessageBasedResource.")
 
-        # Drain the instrument's output buffer
-        logging.debug("Draining instrument's output buffer.")
+            # Set the termination characters for writing and reading
+            # This is important for SCPI communication
+            # to ensure that commands and responses are properly formatted.
+            self.instrument.write_termination = ''
+            self.instrument.read_termination = '\n'
+            self.instrument.timeout = 100
+            self._wrapped_interrupt_handler = self.instrument.wrap_handler(
+                self._interrupt_handler
+            )
+            self.instrument.install_handler(
+                EventType.service_request,
+                self._wrapped_interrupt_handler,
+                None
+            )
+            self.instrument.enable_event(
+                EventType.service_request, EventMechanism.handler)
 
-        drained = 0
+            # Drain the instrument's output buffer
+            logging.debug("Draining instrument's output buffer.")
 
-        while True:
-            try:
-                drained += len(self.instrument.read_raw(1024))
-            except pyvisa.errors.VisaIOError:
-                break
+            drained = 0
 
-        logging.debug(
-            "Drained %d bytes from instrument's output buffer.", drained)
+            while True:
+                try:
+                    drained += len(self.instrument.read_raw(1024))
+                except pyvisa.errors.VisaIOError:
+                    break
 
-        self._lock = Lock()
+            logging.debug(
+                "Drained %d bytes from instrument's output buffer.", drained)
+        except Exception:
+            await self.disconnect()
+            raise
 
     async def disconnect(self) -> None:
         """
@@ -306,9 +338,29 @@ class DeviceInternal:
 
         if instrument is not None:
             try:
+                try:
+                    instrument.disable_event(
+                        EventType.service_request,
+                        EventMechanism.handler,
+                    )
+                except pyvisa.errors.VisaIOError:
+                    pass
+
+                if self._wrapped_interrupt_handler is not None:
+                    try:
+                        instrument.uninstall_handler(
+                            EventType.service_request,
+                            self._wrapped_interrupt_handler,
+                            None,
+                        )
+                    except pyvisa.errors.VisaIOError:
+                        pass
+
                 instrument.close()
             except pyvisa.errors.VisaIOError as e:
                 logging.warning("Failed to close instrument cleanly: %s", e)
+            finally:
+                self._wrapped_interrupt_handler = None
 
         if resource_manager is not None:
             try:

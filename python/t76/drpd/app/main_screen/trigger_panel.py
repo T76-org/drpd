@@ -4,9 +4,12 @@ Copyright (c) 2025 MTA, Inc.
 StatusPanel displays status information for connected DRPD devices.
 """
 
+import logging
+
 from typing import Optional
 from textual.app import ComposeResult
 from textual.containers import VerticalGroup, HorizontalGroup
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -28,33 +31,39 @@ class TriggerPanel(VerticalGroup):
         super().__init__(*args, **kwargs)
 
     async def update(self, new_status: Optional[TriggerInfo] = None) -> None:
-        if new_status is None:
-            self.query_one("#type-value", Static).update("N/A")
-            self.query_one("#event-threshold-value", Static).update("N/A")
-            self.query_one("#autorepeat-value", Static).update("N/A")
-            self.query_one("#sync-mode-value", Static).update("N/A")
-            self.query_one("#pulse-length-value", Static).update("N/A")
-        else:
-            self.query_one(
-                "#type-value", Static).update(new_status.type.value)
+        if not self.is_mounted:
+            return
 
-            self.query_one("#event-threshold-value",
-                           Static).update(str(new_status.event_threshold))
+        try:
+            if new_status is None:
+                self.query_one("#type-value", Static).update("N/A")
+                self.query_one("#event-threshold-value", Static).update("N/A")
+                self.query_one("#autorepeat-value", Static).update("N/A")
+                self.query_one("#sync-mode-value", Static).update("N/A")
+                self.query_one("#pulse-length-value", Static).update("N/A")
+            else:
+                self.query_one(
+                    "#type-value", Static).update(new_status.type.value)
 
-            self.query_one(
-                "#autorepeat-value", Static).update("ON" if new_status.autorepeat.value else "OFF")
+                self.query_one("#event-threshold-value",
+                               Static).update(str(new_status.event_threshold))
 
-            self.query_one("#sync-mode-value",
-                           Static).update(new_status.sync_mode.value)
+                self.query_one(
+                    "#autorepeat-value", Static).update("ON" if new_status.autorepeat.value else "OFF")
 
-            self.query_one("#pulse-length-value",
-                           Static).update(f"{str(new_status.sync_pulse_length)}µs")
+                self.query_one("#sync-mode-value",
+                               Static).update(new_status.sync_mode.value)
 
-            self.query_one("#status-value",
-                           Static).update(new_status.status.value)
+                self.query_one("#pulse-length-value",
+                               Static).update(f"{str(new_status.sync_pulse_length)}µs")
 
-            self.query_one("#events-value",
-                           Static).update(str(new_status.event_count))
+                self.query_one("#status-value",
+                               Static).update(new_status.status.value)
+
+                self.query_one("#events-value",
+                               Static).update(str(new_status.event_count))
+        except NoMatches:
+            return
 
     async def on_mount(self) -> None:
         """Called when the panel is mounted."""
@@ -73,15 +82,17 @@ class TriggerPanel(VerticalGroup):
 
     async def _on_device_event(self, event: DeviceEvent) -> None:
         """Handle device events to update the panel."""
-
-        if isinstance(event, DeviceConnected):
-            if self.device is not None:
-                current_status = await self.device.trigger.get_trigger_info()
-                await self.update(current_status)
-        elif isinstance(event, DeviceDisconnected):
-            await self.update(None)
-        elif isinstance(event, TriggerStatusChanged):
-            await self.update(event.new_status)
+        try:
+            if isinstance(event, DeviceConnected):
+                if self.device is not None:
+                    current_status = await self.device.trigger.get_trigger_info()
+                    await self.update(current_status)
+            elif isinstance(event, DeviceDisconnected):
+                await self.update(None)
+            elif isinstance(event, TriggerStatusChanged):
+                await self.update(event.new_status)
+        except (AssertionError, RuntimeError, NoMatches) as e:
+            logging.warning("Failed to handle trigger panel event: %s", e)
 
     def compose(self) -> ComposeResult:
         """Compose the layout of the StatusPanel."""

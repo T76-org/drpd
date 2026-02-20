@@ -62,6 +62,7 @@ class Device:
     def __init__(self, usb_device: usb.core.Device):
         self.events = DeviceEvents()
         self._internal = DeviceInternal(usb_device, self._interrupt_handler)
+        self._disconnecting = False
 
         self.analog_monitor = DeviceAnalogMonitor(self._internal, self)
         self.mode = DeviceMode(self._internal)
@@ -76,6 +77,7 @@ class Device:
         """
         Connect to the device and set up event handling.
         """
+        self._disconnecting = False
         await self._internal.connect()
 
         await self.events.dispatch_event(DeviceConnected(self))
@@ -84,8 +86,17 @@ class Device:
         """
         Disconnect from the device and clean up event handling.
         """
-        await self.events.dispatch_event(DeviceDisconnected(self))
-        await self._internal.disconnect()
+        self._disconnecting = True
+        try:
+            await self.events.dispatch_event(DeviceDisconnected(self))
+        except Exception as e:
+            logging.warning(
+                "Ignoring observer error while dispatching disconnect for %s: %s",
+                self,
+                e,
+            )
+        finally:
+            await self._internal.disconnect()
 
     @property
     def name(self) -> Optional[str]:
@@ -98,6 +109,9 @@ class Device:
         return self._internal.name
 
     async def _process_interrupt(self) -> None:
+        if self._disconnecting or not self._internal.connected:
+            return
+
         # Fetch device status
         device_status = int((await self._internal.query_ascii_values_and_check("STAT:DEV?"))[0])
 
@@ -148,14 +162,36 @@ class Device:
                 logging.warning("Failed to get sink info: %s", ex)
 
         if device_status & DeviceStatusFlags.MESSAGE_RECEIVED.value:
-            await self.capture.fetch_extant_captures()
+            try:
+                await self.capture.fetch_extant_captures()
+            except RuntimeError as ex:
+                if self._disconnecting or not self._internal.connected:
+                    return
+                logging.warning("Failed to fetch capture data: %s", ex)
 
         ev = InterruptReceived(self)
 
         await self.events.dispatch_event(ev)
 
+    async def _safe_process_interrupt(self) -> None:
+        try:
+            await self._process_interrupt()
+        except (AssertionError, RuntimeError, ValueError, TimeoutError) as e:
+            if self._disconnecting or not self._internal.connected:
+                return
+            logging.warning("Ignoring interrupt handling error: %s", e)
+
     def _interrupt_handler(self, _: Resource, __: Event, ___: Any) -> None:
-        asyncio.run(self._process_interrupt())
+        if self._disconnecting or not self._internal.connected:
+            return
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self._safe_process_interrupt())
+            return
+
+        loop.create_task(self._safe_process_interrupt())
 
     def _capture_fetched_callback(self, capture: BMCSequence) -> None:
         # Advise observers of the interrupt event
