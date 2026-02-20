@@ -4,6 +4,7 @@
  */
 
 #include "pdo_augmented.hpp"
+#include <algorithm>
 #include <cstdio>
 #include <memory>
 
@@ -38,21 +39,6 @@ bool AugmentedPDO::validateCommonFields() {
         return false;
     }
 
-    // Validate that reserved bits (27:25) are 0
-    if ((_raw >> 25) & 0x7) {
-        return false;
-    }
-
-    // Validate that reserved bit (16) is 0
-    if ((_raw >> 16) & 0x1) {
-        return false;
-    }
-
-    // Validate that reserved bit (7) is 0
-    if ((_raw >> 7) & 0x1) {
-        return false;
-    }
-
     return true;
 }
 
@@ -67,6 +53,12 @@ AugmentedPDO::APDOType AugmentedPDO::getAPDOTypeField() const {
 // ============================================================================
 
 SPRPPSAPDO::SPRPPSAPDO(uint32_t raw) : AugmentedPDO(raw) {
+    // Reserved fields are specific to PPS encoding.
+    // B27 is PPS Power Limited (not reserved). Only B26..25 are reserved.
+    if (((_raw >> 25) & 0x3) != 0 || ((_raw >> 16) & 0x1) != 0 || ((_raw >> 7) & 0x1) != 0) {
+        _messageInvalid = true;
+    }
+
     // Additional validation specific to SPR PPS
     uint32_t max_voltage = (_raw >> 17) & 0xFF;
     uint32_t min_voltage = (_raw >> 8) & 0xFF;
@@ -124,21 +116,18 @@ std::string SPRPPSAPDO::toString() const {
 
 
 // ============================================================================
-// SPR AVS APDO Implementation (bits 29:28 = 01)
+// SPR AVS APDO Implementation (bits 29:28 = 10)
 // ============================================================================
 
 SPRAVSAPDO::SPRAVSAPDO(uint32_t raw) : AugmentedPDO(raw) {
-    // Additional validation specific to SPR AVS
-    uint32_t max_voltage = (_raw >> 17) & 0xFF;
-    uint32_t min_voltage = (_raw >> 8) & 0xFF;
-
-    // Zero voltage range is invalid for AVS operation.
-    if (max_voltage == 0 || min_voltage == 0) {
+    // B25..20 are reserved in SPR AVS.
+    if (((_raw >> 20) & 0x3F) != 0) {
         _messageInvalid = true;
     }
 
-    // Maximum Voltage must be >= Minimum Voltage
-    if (max_voltage < min_voltage) {
+    // B9..0 set to 0 means the 15-20V band is not supported.
+    // B19..10 must still advertise non-zero current capability for 9-15V band.
+    if (maxCurrent15VMilliamps() == 0) {
         _messageInvalid = true;
     }
 }
@@ -147,19 +136,32 @@ AugmentedPDO::APDOType SPRAVSAPDO::apdoType() const {
     return APDOType::SPR_AVS;
 }
 
-uint32_t SPRAVSAPDO::maxVoltageMillivolts() const {
-    uint32_t voltage_units = (_raw >> 17) & 0xFF;
-    return voltage_units * 20;  // Each unit is 20mV (SPR)
+uint32_t SPRAVSAPDO::peakCurrentCode() const {
+    return (_raw >> 26) & 0x3;
+}
+
+uint32_t SPRAVSAPDO::maxCurrent15VMilliamps() const {
+    uint32_t current_units = (_raw >> 10) & 0x3FF;
+    return current_units * 10;  // Each unit is 10mA
+}
+
+uint32_t SPRAVSAPDO::maxCurrent20VMilliamps() const {
+    uint32_t current_units = _raw & 0x3FF;
+    return current_units * 10;  // Each unit is 10mA
 }
 
 uint32_t SPRAVSAPDO::minVoltageMillivolts() const {
-    uint32_t voltage_units = (_raw >> 8) & 0xFF;
-    return voltage_units * 20;  // Each unit is 20mV (SPR)
+    return 9000;
+}
+
+uint32_t SPRAVSAPDO::maxVoltageMillivolts() const {
+    return maxCurrent20VMilliamps() > 0 ? 20000 : 15000;
 }
 
 uint32_t SPRAVSAPDO::maxPowerMilliwatts() const {
-    uint32_t power_units = _raw & 0x7F;
-    return power_units * 1000;  // Each unit is 1W
+    const uint32_t power15vMw = static_cast<uint32_t>((15000ULL * maxCurrent15VMilliamps()) / 1000ULL);
+    const uint32_t power20vMw = static_cast<uint32_t>((20000ULL * maxCurrent20VMilliamps()) / 1000ULL);
+    return std::max(power15vMw, power20vMw);
 }
 
 std::string SPRAVSAPDO::toString() const {
@@ -168,12 +170,17 @@ std::string SPRAVSAPDO::toString() const {
         buffer,
         sizeof(buffer),
         "    SPR AVS APDO (raw: 0x%08X)\n"
-        "      maxVoltage: %umV\n"
-        "      minVoltage: %umV\n"
+        "      peakCurrentCode: %u\n"
+        "      maxCurrent15V: %umA\n"
+        "      maxCurrent20V: %umA\n"
+        "      voltageRange: %u-%umV\n"
         "      maxPower: %umW\n",
         _raw,
-        maxVoltageMillivolts(),
+        peakCurrentCode(),
+        maxCurrent15VMilliamps(),
+        maxCurrent20VMilliamps(),
         minVoltageMillivolts(),
+        maxVoltageMillivolts(),
         maxPowerMilliwatts()
     );
 
@@ -190,13 +197,19 @@ std::string SPRAVSAPDO::toString() const {
 
 
 // ============================================================================
-// EPR AVS APDO Implementation (bits 29:28 = 10)
+// EPR AVS APDO Implementation (bits 29:28 = 01)
 // ============================================================================
 
 EPRAVSAPDO::EPRAVSAPDO(uint32_t raw) : AugmentedPDO(raw) {
     // Additional validation specific to EPR AVS
-    uint32_t max_voltage = (_raw >> 17) & 0xFF;
+    // EPR AVS uses a 9-bit maximum voltage field.
+    uint32_t max_voltage = (_raw >> 17) & 0x1FF;
     uint32_t min_voltage = (_raw >> 8) & 0xFF;
+
+    // Bit 16 is reserved for EPR AVS and shall be zero.
+    if (((_raw >> 16) & 0x1) != 0) {
+        _messageInvalid = true;
+    }
 
     // Zero voltage range is invalid for AVS operation.
     if (max_voltage == 0 || min_voltage == 0) {
@@ -214,7 +227,7 @@ AugmentedPDO::APDOType EPRAVSAPDO::apdoType() const {
 }
 
 uint32_t EPRAVSAPDO::maxVoltageMillivolts() const {
-    uint32_t voltage_units = (_raw >> 17) & 0xFF;
+    uint32_t voltage_units = (_raw >> 17) & 0x1FF;
     return voltage_units * 100;  // Each unit is 100mV (EPR)
 }
 
@@ -224,7 +237,7 @@ uint32_t EPRAVSAPDO::minVoltageMillivolts() const {
 }
 
 uint32_t EPRAVSAPDO::maxPowerMilliwatts() const {
-    uint32_t power_units = _raw & 0x7F;
+    uint32_t power_units = _raw & 0xFF;
     return power_units * 1000;  // Each unit is 1W
 }
 
