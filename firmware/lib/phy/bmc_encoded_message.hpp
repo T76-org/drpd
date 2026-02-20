@@ -20,9 +20,9 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
+#include <array>
 #include <cstdint>
+#include <span>
 
 #include "../proto/pd_header.hpp"
 #include "../proto/pd_sop.hpp"
@@ -113,14 +113,15 @@ namespace T76::DRPD::PHY {
          * The resulting BitPacker contains the entire bitstream
          * sequence for the message, including the 64-bit preamble.
          * 
-         * @return std::unique_ptr<BitPacker> 
+         * @return BitPacker
          */
-        std::unique_ptr<BitPacker> encoded() const;
+        BitPacker encoded() const;
 
     protected:
         Proto::SOP _sop; ///< The SOP object
         Proto::PDHeader _header; ///< The PDHeader object
-        std::vector<uint8_t> _rawBody; ///< Serialized message body bytes
+        std::array<uint8_t, PHY_BMC_ENCODED_MESSAGE_MAX_BODY_BYTES> _rawBody = {}; ///< Serialized message body bytes
+        size_t _rawBodyLength = 0; ///< Number of valid bytes in `_rawBody`
 
         mutable uint32_t _crc32; ///< Scratch space for CRC32 calculation while encoding
 

@@ -5,6 +5,9 @@
 
 #include "sink_context.hpp"
 
+#include <algorithm>
+#include <array>
+
 #include "../cc_bus_controller.hpp"
 #include "state_handlers/disconnected.hpp"
 #include "state_handlers/epr_keepalive.hpp"
@@ -22,15 +25,20 @@ namespace {
     class RawPDMessage : public T76::DRPD::Proto::PDMessage {
     public:
         RawPDMessage(
-            std::vector<uint8_t> rawBody,
+            std::span<const uint8_t> rawBody,
             uint32_t numDataObjects,
             uint32_t rawMessageType) :
-            _rawBody(std::move(rawBody)),
+            _rawBody(),
+            _rawBodyLength(std::min(rawBody.size(), _rawBody.size())),
             _numDataObjects(numDataObjects),
-            _rawMessageType(rawMessageType) {}
+            _rawMessageType(rawMessageType) {
+            for (size_t i = 0; i < _rawBodyLength; ++i) {
+                _rawBody[i] = rawBody[i];
+            }
+        }
 
         std::span<const uint8_t> raw() const override {
-            return _rawBody;
+            return std::span<const uint8_t>(_rawBody.data(), _rawBodyLength);
         }
 
         uint32_t numDataObjects() const override {
@@ -42,7 +50,8 @@ namespace {
         }
 
     protected:
-        std::vector<uint8_t> _rawBody;
+        std::array<uint8_t, LOGIC_SINK_RAW_PD_MESSAGE_MAX_BODY_BYTES> _rawBody;
+        size_t _rawBodyLength;
         uint32_t _numDataObjects;
         uint32_t _rawMessageType;
     };
@@ -238,16 +247,17 @@ std::optional<uint8_t> SinkContext::requestObjectPositionAtIndex(size_t index) c
     return std::nullopt;
 }
 
-std::optional<std::vector<uint8_t>> SinkContext::takeCompletedExtendedPayload(
+std::optional<SinkRuntimeState::ExtendedPayloadBuffer> SinkContext::takeCompletedExtendedPayload(
     Proto::ExtendedMessageType type) {
-    const size_t typeIndex = static_cast<size_t>(type) & 0x1F;
+    const auto typeIndex = SinkRuntimeState::trackedTypeIndex(type);
 
-    if (!_runtimeState._completedExtendedPayloads[typeIndex].has_value()) {
+    if (!typeIndex.has_value() ||
+        !_runtimeState._completedExtendedPayloads[typeIndex.value()].has_value()) {
         return std::nullopt;
     }
 
-    auto payload = std::move(_runtimeState._completedExtendedPayloads[typeIndex].value());
-    _runtimeState._completedExtendedPayloads[typeIndex].reset();
+    auto payload = _runtimeState._completedExtendedPayloads[typeIndex.value()].value();
+    _runtimeState._completedExtendedPayloads[typeIndex.value()].reset();
     return payload;
 }
 
@@ -282,20 +292,16 @@ void SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGood
     extHeader.chunked(false);
     extHeader.chunkNumber(0);
 
-    std::vector<uint8_t> rawBody = {
+    std::array<uint8_t, 4> rawBody = {
         static_cast<uint8_t>(extHeader.raw() & 0xFF),
         static_cast<uint8_t>((extHeader.raw() >> 8) & 0xFF),
         controlType,
         0
     };
 
-    while ((rawBody.size() % 4) != 0) {
-        rawBody.push_back(0);
-    }
-
-    const uint32_t numDataObjects = static_cast<uint32_t>(rawBody.size() / 4);
+    const uint32_t numDataObjects = 1;
     const RawPDMessage rawMessage(
-        std::move(rawBody),
+        std::span<const uint8_t>(rawBody.data(), rawBody.size()),
         numDataObjects,
         static_cast<uint32_t>(Proto::ExtendedMessageType::Extended_Control)
     );
@@ -324,14 +330,12 @@ void SinkContext::sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& messa
 }
 
 bool SinkContext::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
-    static std::set<SinkState> validStates = {
-        SinkState::PE_SNK_Ready,
-        SinkState::PE_SNK_Wait_for_Capabilities,
-        SinkState::PE_SNK_Get_Source_Cap,
-        SinkState::PE_SNK_EPR_Keepalive,
-    };
+    const bool isValidState = _runtimeState._state == SinkState::PE_SNK_Ready ||
+        _runtimeState._state == SinkState::PE_SNK_Wait_for_Capabilities ||
+        _runtimeState._state == SinkState::PE_SNK_Get_Source_Cap ||
+        _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive;
 
-    if (validStates.find(_runtimeState._state) == validStates.end()) {
+    if (!isValidState) {
         return false;
     }
 

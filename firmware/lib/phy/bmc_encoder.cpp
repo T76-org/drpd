@@ -5,7 +5,7 @@
 
 #include "bmc_encoder.hpp"
 
-#include <memory>
+#include <pico/platform.h>
 
 #include "bmc_encoder.pio.h"
 
@@ -13,9 +13,6 @@
 using namespace T76::DRPD::PHY;
 
 void BMCEncoder::initCore1() {
-    // Init the internal message queue
-
-    queue_init(&_messageQueue, sizeof(BitPacker*), PHY_BMC_ENCODER_QUEUE_LENGTH);
 
     // Init the output pin and set it to input (high-Z) initially
 
@@ -60,10 +57,7 @@ void BMCEncoder::initCore1() {
     irq_set_exclusive_handler(irqNum, []() {
         pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, self->_stateMachine, false);
         pio_interrupt_clear(PHY_BMC_ENCODER_PIO, 0);
-        if (self->_messageInProgress != nullptr) {
-            delete self->_messageInProgress;
-            self->_messageInProgress = nullptr;
-        }
+        self->_hasMessageInProgress = false;
     });
 
     irq_set_enabled(irqNum, true);
@@ -93,15 +87,6 @@ void BMCEncoder::initCore1() {
     );
 
     pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, _stateMachine, false);
-
-    // Init repeating timer for managing transmissions
-
-    add_repeating_timer_us(
-        -1000000 / PHY_BMC_ENCODER_TIMER_FREQUENCY_HZ, 
-        BMCEncoder::_timerCallback,
-        this,
-        &_transmissionTimer
-    );
 }
 
 bool BMCEncoder::activate() {
@@ -114,9 +99,10 @@ void BMCEncoder::makeSafe() {
 }
 
 void BMCEncoder::encodeAndSendMessage(const BMCEncodedMessage& message) {
-    std::unique_ptr<BitPacker> bitPacker = message.encoded();
-    BitPacker *bitPackerPtr = bitPacker.release();
-    queue_add_blocking(&_messageQueue, &bitPackerPtr);
+    const BitPacker encoded = message.encoded();
+    while (!_enqueueMessage(encoded)) {
+        tight_loop_contents();
+    }
 }
 
 void BMCEncoder::sendGoodCRCForDecodedMessage(const BMCDecodedMessage& decodedMessage) {
@@ -129,36 +115,58 @@ void BMCEncoder::sendNotAcceptedMessage(Proto::PDHeader::PortDataRole portDataRo
     encodeAndSendMessage(notAcceptedMessage);
 }
 
-bool BMCEncoder::_timerCallback(repeating_timer_t *rt) {
-    BMCEncoder *encoder = static_cast<BMCEncoder*>(rt->user_data);
+void BMCEncoder::timerCallback() {
+    if (_hasMessageInProgress) {
+        return;
+    }
 
-    if (encoder->_messageInProgress != nullptr) {
-        return true;
+    if (!_dequeueMessage(_messageInProgress)) {
+        return;
     }
-    
-    if (!queue_try_remove(&encoder->_messageQueue, &encoder->_messageInProgress)) {
-        return true;
-    }
+
+    _hasMessageInProgress = true;
 
     pio_sm_init(
         PHY_BMC_ENCODER_PIO,
-        encoder->_stateMachine,
-        encoder->_programOffset,
-        &encoder->_pioConfig
+        _stateMachine,
+        _programOffset,
+        &_pioConfig
     );
 
-    pio_sm_put_blocking(PHY_BMC_ENCODER_PIO, encoder->_stateMachine, encoder->_messageInProgress->totalBitsWritten()); // Total bit count
-    pio_sm_exec_wait_blocking(PHY_BMC_ENCODER_PIO, encoder->_stateMachine, pio_encode_out(pio_y, 32)); // Move bit count into Y
+    pio_sm_put_blocking(PHY_BMC_ENCODER_PIO, _stateMachine, _messageInProgress.totalBitsWritten()); // Total bit count
+    pio_sm_exec_wait_blocking(PHY_BMC_ENCODER_PIO, _stateMachine, pio_encode_out(pio_y, 32)); // Move bit count into Y
 
     // Set up the DMA transfer
 
-    dma_channel_set_read_addr(encoder->_dmaChannel, encoder->_messageInProgress->buffer().data(), false);
-    dma_channel_set_transfer_count(encoder->_dmaChannel, encoder->_messageInProgress->buffer().size(), true);
+    const std::span<const uint32_t> buffer = _messageInProgress.buffer();
+    dma_channel_set_read_addr(_dmaChannel, buffer.data(), false);
+    dma_channel_set_transfer_count(_dmaChannel, buffer.size(), true);
 
     // Clear interrupt and enable the state machine
 
     pio_interrupt_clear(PHY_BMC_ENCODER_PIO, 0);
-    pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, encoder->_stateMachine, true);
+    pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, _stateMachine, true);
+}
 
-    return true; // Keep the timer running
+bool BMCEncoder::_enqueueMessage(const BitPacker& message) {
+    if (_messageQueueCount >= _messageQueue.size()) {
+        return false;
+    }
+
+    _messageQueue[_messageQueueTail] = message;
+    _messageQueueTail = (_messageQueueTail + 1) % _messageQueue.size();
+    ++_messageQueueCount;
+
+    return true;
+}
+
+bool BMCEncoder::_dequeueMessage(BitPacker& out) {
+    if (_messageQueueCount == 0) {
+        return false;
+    }
+
+    out = _messageQueue[_messageQueueHead];
+    _messageQueueHead = (_messageQueueHead + 1) % _messageQueue.size();
+    --_messageQueueCount;
+    return true;
 }

@@ -5,8 +5,8 @@
 
 #include "sink.hpp"
 
-#include <utility>
-#include <vector>
+#include <algorithm>
+#include <array>
 
 #include "../cc_bus_controller.hpp"
 
@@ -18,15 +18,20 @@ namespace {
     class RawPDMessage : public T76::DRPD::Proto::PDMessage {
     public:
         RawPDMessage(
-            std::vector<uint8_t> rawBody,
+            std::span<const uint8_t> rawBody,
             uint32_t numDataObjects,
             uint32_t rawMessageType) :
-            _rawBody(std::move(rawBody)),
+            _rawBody(),
+            _rawBodyLength(std::min(rawBody.size(), _rawBody.size())),
             _numDataObjects(numDataObjects),
-            _rawMessageType(rawMessageType) {}
+            _rawMessageType(rawMessageType) {
+            for (size_t i = 0; i < _rawBodyLength; ++i) {
+                _rawBody[i] = rawBody[i];
+            }
+        }
 
         std::span<const uint8_t> raw() const override {
-            return _rawBody;
+            return std::span<const uint8_t>(_rawBody.data(), _rawBodyLength);
         }
 
         uint32_t numDataObjects() const override {
@@ -38,7 +43,8 @@ namespace {
         }
 
     protected:
-        std::vector<uint8_t> _rawBody;
+        std::array<uint8_t, LOGIC_SINK_RAW_PD_MESSAGE_MAX_BODY_BYTES> _rawBody;
+        size_t _rawBodyLength;
         uint32_t _numDataObjects;
         uint32_t _rawMessageType;
     };
@@ -110,7 +116,7 @@ void Sink::_sendExtendedChunkRequest(
     extHeader.chunked(true);
     extHeader.chunkNumber(chunkNumber & 0x0F);
 
-    std::vector<uint8_t> rawBody = {
+    std::array<uint8_t, 4> rawBody = {
         static_cast<uint8_t>(extHeader.raw() & 0xFF),
         static_cast<uint8_t>((extHeader.raw() >> 8) & 0xFF),
         0,
@@ -118,7 +124,7 @@ void Sink::_sendExtendedChunkRequest(
     };
 
     const RawPDMessage rawMessage(
-        std::move(rawBody),
+        std::span<const uint8_t>(rawBody.data(), rawBody.size()),
         1,
         static_cast<uint32_t>(type)
     );

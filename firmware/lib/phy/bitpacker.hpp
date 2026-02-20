@@ -8,8 +8,9 @@
 #pragma once
 
 #include <stdlib.h>
+#include <array>
 #include <cstdint>
-#include <vector>
+#include <span>
 
 
 namespace T76::DRPD::PHY {
@@ -64,7 +65,7 @@ namespace T76::DRPD::PHY {
         /**
          * @return const reference to the internal buffer of packed 32-bit words.
          */
-        const std::vector<uint32_t>& buffer() const;
+        std::span<const uint32_t> buffer() const;
 
         /**
          * Clear all state: drops existing buffer and resets counters.
@@ -77,11 +78,11 @@ namespace T76::DRPD::PHY {
         uint32_t totalBitsWritten() const;
 
     protected:
-        std::vector<uint32_t> _buffer;           ///< Fully-written 32-bit words
+        std::array<uint32_t, PHY_BMC_ENCODER_MAX_ENCODED_WORDS> _buffer = {}; ///< Fully-written words
+        size_t _wordCount = 0;                   ///< Number of valid words in `_buffer`
         uint32_t              _currentWord;      ///< Accumulates bits until a full 32‐bit word
         unsigned              _bitsInCurrentWord;///< How many bits are in `_currentWord` currently (0..31)
         uint32_t              _totalBitsWritten; ///< Running total of all bits ever added
     };
 
 }
-

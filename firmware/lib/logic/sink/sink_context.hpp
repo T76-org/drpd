@@ -22,7 +22,6 @@
 #include <optional>
 #include <set>
 #include <span>
-#include <vector>
 
 #include "message_sender.hpp"
 #include "sink_runtime_state.hpp"
@@ -165,7 +164,8 @@ namespace T76::DRPD::Logic {
          * @param type Extended message type to fetch.
          * @return Completed payload bytes if available; otherwise std::nullopt.
          */
-        std::optional<std::vector<uint8_t>> takeCompletedExtendedPayload(Proto::ExtendedMessageType type);
+        std::optional<SinkRuntimeState::ExtendedPayloadBuffer> takeCompletedExtendedPayload(
+            Proto::ExtendedMessageType type);
 
         /**
          * @brief Send a Not_Supported control response.

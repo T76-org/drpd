@@ -16,8 +16,10 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
     }
 
     const size_t pdoWords = payload.size() / 4;
-    _pdos.reserve(pdoWords);
-    _objectPositions.reserve(pdoWords);
+    if (pdoWords > MaxPDOCount) {
+        _messageInvalid = true;
+        return;
+    }
 
     for (size_t i = 0; i < pdoWords; ++i) {
         const size_t offset = i * 4;
@@ -30,16 +32,22 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
             continue;
         }
 
-        _pdos.push_back(_createPDO(raw));
-        _objectPositions.push_back(static_cast<uint8_t>(i + 1));
+        if (_pdoCount >= MaxPDOCount) {
+            _messageInvalid = true;
+            return;
+        }
+        _pdos[_pdoCount] = _createPDO(raw);
+        _objectPositions[_pdoCount] = static_cast<uint8_t>(i + 1);
+        ++_pdoCount;
     }
 
-    if (_pdos.empty()) {
+    if (_pdoCount == 0) {
         _messageInvalid = true;
         return;
     }
 
-    for (const auto &pdo : _pdos) {
+    for (size_t i = 0; i < _pdoCount; ++i) {
+        const auto &pdo = _pdos[i];
         if (std::visit([](const auto& typedPDO) { return typedPDO.isMessageInvalid(); }, pdo)) {
             _messageInvalid = true;
             return;
@@ -52,7 +60,7 @@ bool EPRSourceCapabilities::isMessageInvalid() const {
 }
 
 size_t EPRSourceCapabilities::pdoCount() const {
-    return _pdos.size();
+    return _pdoCount;
 }
 
 const PDOVariant &EPRSourceCapabilities::pdo(size_t index) const {

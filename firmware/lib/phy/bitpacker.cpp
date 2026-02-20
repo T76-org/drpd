@@ -37,7 +37,9 @@ void BitPacker::addBits(uint32_t data, unsigned nbits) {
 
         // If we've filled exactly 32 bits, push it to the buffer
         if (_bitsInCurrentWord == 32) {
-            _buffer.push_back(_currentWord);
+            if (_wordCount < _buffer.size()) {
+                _buffer[_wordCount++] = _currentWord;
+            }
             _currentWord       = 0;
             _bitsInCurrentWord = 0;
         }
@@ -46,18 +48,20 @@ void BitPacker::addBits(uint32_t data, unsigned nbits) {
 
 void BitPacker::flush() {
     if (_bitsInCurrentWord > 0) {
-        _buffer.push_back(_currentWord);
+        if (_wordCount < _buffer.size()) {
+            _buffer[_wordCount++] = _currentWord;
+        }
         _currentWord       = 0;
         _bitsInCurrentWord = 0;
     }
 }
 
-const std::vector<uint32_t>& BitPacker::buffer() const {
-    return _buffer;
+std::span<const uint32_t> BitPacker::buffer() const {
+    return std::span<const uint32_t>(_buffer.data(), _wordCount);
 }
 
 void BitPacker::clear() {
-    _buffer.clear();
+    _wordCount         = 0;
     _currentWord       = 0;
     _bitsInCurrentWord = 0;
     _totalBitsWritten  = 0;
@@ -66,4 +70,3 @@ void BitPacker::clear() {
 uint32_t BitPacker::totalBitsWritten() const {
     return _totalBitsWritten;
 }
-

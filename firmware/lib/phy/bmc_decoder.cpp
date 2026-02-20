@@ -29,7 +29,6 @@ BMCDecoder::BMCDecoder() :
     _enabled(false),
     _circularBuffer(nullptr),
     _messageBuffer(nullptr) {
-    critical_section_init(&_callbackCriticalSection);
     queue_init(&_messageQueue, sizeof(BMCDecodedMessage*), PHY_BMC_DECODER_QUEUE_LENGTH);
 
     // Allocate circular buffers for storing decoded data. We
@@ -167,17 +166,6 @@ void BMCDecoder::initCore1() {
     dma_channel_set_irq0_enabled(_dataDMAChannel, true); 
     dma_channel_start(controlDMAChannel);
 
-    // Set up a timer to monitor the circular buffer for new data and
-    // process it as needed.
-    // TODO: Use a hardware timer if we need better timing accuracy
-
-    add_repeating_timer_us(
-        -1000000 / PHY_BMC_DECODER_DECODER_INTERRUPT_FREQUENCY_HZ,
-        BMCDecoder::_timerCallback,
-        this,
-        &_timer
-    );
-
     // Keep the decoder disabled until explicitly enabled
 
     pio_sm_set_enabled(PHY_BMC_DECODER_PIO, _stateMachine, false);
@@ -185,42 +173,27 @@ void BMCDecoder::initCore1() {
 }
 
 void BMCDecoder::messageReceivedCallbackCore0(MessageReceivedCallback callback) {
-    critical_section_enter_blocking(&_callbackCriticalSection);
     _messageReceivedCallbackCore0 = std::move(callback);
-    critical_section_exit(&_callbackCriticalSection);
 }
 
 BMCDecoder::MessageReceivedCallback BMCDecoder::messageReceivedCallbackCore0() {
-    critical_section_enter_blocking(&_callbackCriticalSection);
-    auto callback = _messageReceivedCallbackCore0;
-    critical_section_exit(&_callbackCriticalSection);
-    return callback;
+    return _messageReceivedCallbackCore0;
 }
 
 void BMCDecoder::messageReceivedCallbackCore1(MessageReceivedCallbackByPointer callback) {
-    critical_section_enter_blocking(&_callbackCriticalSection);
     _messageReceivedCallbackCore1 = std::move(callback);
-    critical_section_exit(&_callbackCriticalSection);
 }
 
 BMCDecoder::MessageReceivedCallbackByPointer BMCDecoder::messageReceivedCallbackCore1() {
-    critical_section_enter_blocking(&_callbackCriticalSection);
-    auto callback = _messageReceivedCallbackCore1;
-    critical_section_exit(&_callbackCriticalSection);
-    return callback;
+    return _messageReceivedCallbackCore1;
 }
 
 void BMCDecoder::messageEventCallback(MessageEventCallback callback) {
-    critical_section_enter_blocking(&_callbackCriticalSection);
     _messageEventCallback = std::move(callback);
-    critical_section_exit(&_callbackCriticalSection);
 }
 
 BMCDecoder::MessageEventCallback BMCDecoder::messageEventCallback() {
-    critical_section_enter_blocking(&_callbackCriticalSection);
-    auto callback = _messageEventCallback;
-    critical_section_exit(&_callbackCriticalSection);
-    return callback;
+    return _messageEventCallback;
 }
 
 bool BMCDecoder::enabled() const {
@@ -252,60 +225,47 @@ float BMCDecoder::ccThresholdVoltage() const {
     return _ccThresholdVoltage;
 }
 
-bool BMCDecoder::_timerCallback(repeating_timer_t *rt) {
-    // Get the BMCDecoder instance from the timer's user_data
-    BMCDecoder* decoder = static_cast<BMCDecoder*>(rt->user_data);
+void BMCDecoder::timerCallback() {
+    uint32_t completedTransferCount = PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE - dma_hw->ch[_dataDMAChannel].transfer_count;
 
-    uint32_t completedTransferCount = PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE - dma_hw->ch[decoder->_dataDMAChannel].transfer_count;
+    while (_transferCount != completedTransferCount) {
+        uint32_t pulseWidth = _circularBuffer[_transferCount];
 
-    while (decoder->_transferCount != completedTransferCount) {
-        uint32_t pulseWidth = decoder->_circularBuffer[decoder->_transferCount];
-
-        BMCDecodedMessageEvent messageEvent = decoder->_currentMessage->feedPulse(pulseWidth);
+        BMCDecodedMessageEvent messageEvent = _currentMessage->feedPulse(pulseWidth);
 
         if (messageEvent != BMCDecodedMessageEvent::None) {
             BMCDecoder::MessageEventCallback messageEventCallback = nullptr;
-            critical_section_enter_blocking(&decoder->_callbackCriticalSection);
-            messageEventCallback = decoder->_messageEventCallback;
-            critical_section_exit(&decoder->_callbackCriticalSection);
 
-            if (messageEventCallback) {
-                messageEventCallback(messageEvent, *decoder->_currentMessage);
+            if (_messageEventCallback) {
+                _messageEventCallback(messageEvent, *_currentMessage);
             }
         }
 
         if (BMC_DECODED_MESSAGE_EVENT_IS_COMPLETION(messageEvent)) {
-            if (decoder->_currentMessage->data().size() > 0) {
+            if (_currentMessage->data().size() > 0) {
                 if (messageEvent == BMCDecodedMessageEvent::MessageComplete ||
                     messageEvent == BMCDecodedMessageEvent::HardResetReceived) {
                     BMCDecoder::MessageReceivedCallbackByPointer messageReceivedCallback = nullptr;
-                    critical_section_enter_blocking(&decoder->_callbackCriticalSection);
-                    messageReceivedCallback = decoder->_messageReceivedCallbackCore1;
-                    critical_section_exit(&decoder->_callbackCriticalSection);
-
-                    if (messageReceivedCallback) {
-                        messageReceivedCallback(decoder->_currentMessage);
+                    if (_messageReceivedCallbackCore1) {
+                        _messageReceivedCallbackCore1(_currentMessage);
                     }
                 }
     
                 // Enqueue the completed message for processing
-                queue_add_blocking(&decoder->_messageQueue, &decoder->_currentMessage);
+                queue_add_blocking(&_messageQueue, &_currentMessage);
 
                 // Move to the next message buffer
-                decoder->_currentMessageIndex = (decoder->_currentMessageIndex + 1) % PHY_BMC_DECODER_MESSAGE_BUFFER_SIZE;
-                decoder->_currentMessage = &decoder->_messageBuffer[decoder->_currentMessageIndex];
+                _currentMessageIndex = (_currentMessageIndex + 1) % PHY_BMC_DECODER_MESSAGE_BUFFER_SIZE;
+                _currentMessage = &_messageBuffer[_currentMessageIndex];
             }
 
             // Reset the current message. For timeouts, we reuse the same message.
-            decoder->_currentMessage->reset();
+            _currentMessage->reset();
         }
 
         // Advance the read pointer, wrapping around if necessary
-        decoder->_transferCount = (decoder->_transferCount + 1) % PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE;
+        _transferCount = (_transferCount + 1) % PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE;
     }
-    
-    // Return true to continue the timer
-    return true;
 }
 
 void BMCDecoder::_processingTask() {
@@ -320,14 +280,9 @@ void BMCDecoder::_processingTask() {
 
         queue_remove_blocking(&_messageQueue, &messagePtr);
 
-        MessageReceivedCallback messageReceivedCallback = nullptr;
-        critical_section_enter_blocking(&_callbackCriticalSection);
-        messageReceivedCallback = _messageReceivedCallbackCore0;
-        critical_section_exit(&_callbackCriticalSection);
-
         // If a callback is set, call it with the received message
-        if (messageReceivedCallback) {
-            messageReceivedCallback(*messagePtr);
+        if (_messageReceivedCallbackCore0) {
+            _messageReceivedCallbackCore0(*messagePtr);
         }
     }
 }

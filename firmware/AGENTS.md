@@ -51,6 +51,11 @@ This project is a C++ implementation of a USB Power Delivery (USB-PD) controller
     - Provide setter and getter methods to allow users to set and retrieve the callback.
     - Ensure that the callback is invoked safely, checking if it is set before calling it.
   - When defining a timer callback, use best practices for the Raspberry Pi Pico SDK, including proper alarm ID management and ensuring that the callback function signature matches the expected type.
+  - Core 1 execution context safety:
+    - Treat core 1 as FreeRTOS-independent unless the design explicitly starts a core-1 scheduler.
+    - Do not call `printf`/`stdio` from core 1 in normal runtime paths, because USB stdio can drive TinyUSB internals (`tud_task`) and indirectly execute USB interface code that expects core-0/FreeRTOS context.
+    - Do not call FreeRTOS APIs from core 1 (tasks/queues/semaphores/event groups/delays) unless there is explicit, reviewed support for it.
+    - For core-1-to-core-0 communication, prefer Pico SDK primitives (e.g., `queue_t`, multicore FIFO, spin locks) and hand work off to core 0 for FreeRTOS/USB interactions.
   - When creating getters and setters, use the following conventions:
     - Getters and setters should have the same name. For example, for a member variable `_value`, the getter and setter should be named `value()`.
     - The getter should be a `const` member function returning the value.
