@@ -64,6 +64,13 @@ namespace T76::DRPD::Logic {
         void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
 
         /**
+         * @brief Handle timeout events in Ready state.
+         * @param context Shared sink context.
+         * @param eventType Timeout event type.
+         */
+        void handleTimeoutEvent(SinkContext& context, SinkTimeoutEventType eventType) override;
+
+        /**
          * @brief Enter Ready state.
          * @param context Shared sink context.
          */

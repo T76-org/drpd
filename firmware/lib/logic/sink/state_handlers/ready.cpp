@@ -16,18 +16,28 @@ using namespace T76::DRPD::Logic;
 int64_t ReadySinkStateHandler::_onSinkRequestTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     auto *handler = static_cast<ReadySinkStateHandler *>(user_data);
     handler->_sinkRequestTimerAlarmId = -1;
-    handler->_onSinkRequestTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::ReadySinkRequestTimeout}
+        );
+    }
     return 0;
 }
 
 int64_t ReadySinkStateHandler::_onPDORefreshTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     auto *handler = static_cast<ReadySinkStateHandler *>(user_data);
     handler->_pdoRefreshTimerAlarmId = -1;
-    handler->_onPDORefreshTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::ReadyPDORefreshTimeout}
+        );
+    }
     return 0;
 }
 
@@ -51,11 +61,11 @@ void ReadySinkStateHandler::handleMessage(
     SinkContext& context,
     const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (_sinkRequestTimerAlarmId != -1) {
-        cancel_alarm(_sinkRequestTimerAlarmId);
+        context.cancelAlarm(_sinkRequestTimerAlarmId);
         _sinkRequestTimerAlarmId = -1;
     }
     if (_pdoRefreshTimerAlarmId != -1) {
-        cancel_alarm(_pdoRefreshTimerAlarmId);
+        context.cancelAlarm(_pdoRefreshTimerAlarmId);
         _pdoRefreshTimerAlarmId = -1;
     }
 
@@ -100,12 +110,26 @@ void ReadySinkStateHandler::handleMessageSenderStateChange(
     (void)state;
 }
 
+void ReadySinkStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::ReadySinkRequestTimeout) {
+        _onSinkRequestTimeout();
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::ReadyPDORefreshTimeout) {
+        _onPDORefreshTimeout();
+    }
+}
+
 void ReadySinkStateHandler::enter(SinkContext& context) {
     _bindContext(context);
     auto& state = context.runtimeState();
 
     if (state._pendingRequestedPDO.has_value()) {
-        _sinkRequestTimerAlarmId = add_alarm_in_us(
+        _sinkRequestTimerAlarmId = context.addAlarmInUs(
             LOGIC_SINK_READY_SINK_REQUEST_TIMER_US,
             _onSinkRequestTimeoutCallback,
             this,
@@ -130,7 +154,7 @@ void ReadySinkStateHandler::enter(SinkContext& context) {
         }
 
         if (requiresRefresh) {
-            _pdoRefreshTimerAlarmId = add_alarm_in_us(
+            _pdoRefreshTimerAlarmId = context.addAlarmInUs(
                 LOGIC_SINK_READY_PDO_PPS_REFRESH_TIMER_US,
                 _onPDORefreshTimeoutCallback,
                 this,
@@ -141,13 +165,12 @@ void ReadySinkStateHandler::enter(SinkContext& context) {
 }
 
 void ReadySinkStateHandler::reset(SinkContext& context) {
-    (void)context;
     if (_sinkRequestTimerAlarmId != -1) {
-        cancel_alarm(_sinkRequestTimerAlarmId);
+        context.cancelAlarm(_sinkRequestTimerAlarmId);
         _sinkRequestTimerAlarmId = -1;
     }
     if (_pdoRefreshTimerAlarmId != -1) {
-        cancel_alarm(_pdoRefreshTimerAlarmId);
+        context.cancelAlarm(_pdoRefreshTimerAlarmId);
         _pdoRefreshTimerAlarmId = -1;
     }
     _unbindContext();

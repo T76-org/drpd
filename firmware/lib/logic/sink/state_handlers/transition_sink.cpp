@@ -14,9 +14,14 @@ using namespace T76::DRPD::Logic;
 int64_t TransitionSinkStateHandler::_onTransitionTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     auto *handler = static_cast<TransitionSinkStateHandler *>(user_data);
     handler->_transitionTimeoutAlarmId = -1;
-    handler->_onTransitionTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::TransitionSinkTimeout}
+        );
+    }
     return 0;
 }
 
@@ -30,7 +35,7 @@ void TransitionSinkStateHandler::handleMessage(
     SinkContext& context,
     const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (_transitionTimeoutAlarmId != -1) {
-        cancel_alarm(_transitionTimeoutAlarmId);
+        context.cancelAlarm(_transitionTimeoutAlarmId);
         _transitionTimeoutAlarmId = -1;
     }
 
@@ -72,6 +77,15 @@ void TransitionSinkStateHandler::handleMessageSenderStateChange(
     (void)state;
 }
 
+void TransitionSinkStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::TransitionSinkTimeout) {
+        _onTransitionTimeout();
+    }
+}
+
 void TransitionSinkStateHandler::enter(SinkContext& context) {
     _bindContext(context);
     const auto& state = context.runtimeState();
@@ -86,7 +100,7 @@ void TransitionSinkStateHandler::enter(SinkContext& context) {
         ? LOGIC_SINK_TRANSITION_SINK_TIMEOUT_EPR_US
         : LOGIC_SINK_TRANSITION_SINK_TIMEOUT_SPR_US;
 
-    _transitionTimeoutAlarmId = add_alarm_in_us(
+    _transitionTimeoutAlarmId = context.addAlarmInUs(
         timeoutUs,
         _onTransitionTimeoutCallback,
         this,
@@ -95,9 +109,8 @@ void TransitionSinkStateHandler::enter(SinkContext& context) {
 }
 
 void TransitionSinkStateHandler::reset(SinkContext& context) {
-    (void)context;
     if (_transitionTimeoutAlarmId != -1) {
-        cancel_alarm(_transitionTimeoutAlarmId);
+        context.cancelAlarm(_transitionTimeoutAlarmId);
         _transitionTimeoutAlarmId = -1;
     }
     _unbindContext();

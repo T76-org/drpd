@@ -43,7 +43,7 @@ namespace T76::DRPD::Logic {
         PE_SNK_Get_Source_Cap,              ///< Request source capabilities.
         PE_SNK_EPR_Keepalive,               ///< EPR keepalive maintenance.
         PE_SNK_Hard_Reset,                  ///< Hard reset processing.
-        PE_SNK_Transition_to_default,       ///< Transition to default state.
+        PE_SNK_Transition_To_Default,       ///< Transition to default state.
 
         Error,                              ///< Error/fault state.
     };
@@ -55,6 +55,28 @@ namespace T76::DRPD::Logic {
         Internal,   ///< Internal software reset without protocol reset command.
         HardReset,  ///< Protocol hard reset sequence.
         SoftReset   ///< Protocol soft reset message.
+    };
+
+    /**
+     * @brief Timeout events produced by Sink timer callbacks.
+     */
+    enum class SinkTimeoutEventType : uint32_t {
+        GoodCRCTimeout,
+        WaitForCapabilitiesTimeout,
+        SelectCapabilityResponseTimeout,
+        TransitionSinkTimeout,
+        ReadySinkRequestTimeout,
+        ReadyPDORefreshTimeout,
+        EPRModeEntryTimeout,
+        EPRKeepaliveIntervalTimeout,
+        EPRSourceWatchdogTimeout
+    };
+
+    /**
+     * @brief Envelope queued by timer callbacks for task-context handling.
+     */
+    struct SinkTimeoutEvent {
+        SinkTimeoutEventType type;
     };
 
 } // namespace T76::DRPD::Logic

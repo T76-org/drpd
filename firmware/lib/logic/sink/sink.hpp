@@ -5,14 +5,30 @@
  * This header defines the top-level Sink policy engine orchestrator.
  *
  * Sink owns the protocol-facing runtime resources (decoder/encoder hooks,
- * FreeRTOS queue/task, sender state machine) and composes a set of per-state
- * handler classes implementing USB-PD Sink policy behavior.
+ * core-1 queues/pump loop, sender state machine) and composes a set of
+ * per-state handler classes implementing USB-PD Sink policy behavior.
  *
  * Core design points:
  * - `SinkRuntimeState` stores mutable protocol/session state.
  * - `SinkContext` exposes the controlled API handlers use to read/mutate that
  *   state and perform protocol actions.
  * - State handlers implement focused policy logic for one PD policy state each.
+ * - Sink timers are created through `SinkAlarmService`, which owns a dedicated
+ *   alarm pool initialized from Core 1.
+ * - Timer callbacks do not directly execute policy transitions; they enqueue
+ *   `SinkTimeoutEvent` items that are consumed during the core-1 pump.
+ * - GoodCRC transmit when receiving a Source message is intentionally immediate
+ *   in the Core-1 receive path to satisfy protocol timing constraints.
+ *
+ * Core split in this module:
+ * - Core 1 (bare-metal path): receives decoded PD messages via
+ *   `Sink::_onMessageReceived(...)`, sends immediate GoodCRC acknowledgements,
+ *   and hosts the Sink-owned alarm pool used for timeout scheduling.
+ * - Core 1 (policy path): runs `Sink::loopCore1()`, executes state handler
+ *   policy transitions, and consumes queued timeout events.
+ * - Boundary rule: Core-1-facing callbacks should do minimal, timing-critical
+ *   work only; policy mutations and reset/transition decisions are handled
+ *   from the core-1 pump.
  *
  * Public API in this class is intentionally host-facing and read-mostly
  * (`pdoCount`, `pdo`, negotiated values, request entrypoint). Internal policy
@@ -28,13 +44,11 @@
 #include <optional>
 #include <span>
 
-#include <FreeRTOS.h>
-#include <task.h>
-
 #include <pico/time.h>
 #include <pico/util/queue.h>
 
 #include "message_sender.hpp"
+#include "sink_alarm_service.hpp"
 #include "sink_context.hpp"
 #include "sink_runtime_state.hpp"
 #include "state_handler.hpp"
@@ -76,7 +90,6 @@ namespace T76::DRPD::Logic {
          */
         enum class ExtendedControlType : uint8_t {
             EPR_Get_Source_Cap = 0x01,    ///< Request EPR source capabilities.
-            EPR_Get_Sink_Cap = 0x02,      ///< Request EPR sink capabilities.
             EPR_KeepAlive = 0x03,         ///< Send/receive keepalive.
             EPR_KeepAlive_Ack = 0x04      ///< Acknowledge keepalive.
         };
@@ -91,7 +104,7 @@ namespace T76::DRPD::Logic {
              T76::DRPD::PHY::BMCEncoder& bmcEncoder);
 
         /**
-         * @brief Destroy Sink and release runtime resources/tasks.
+         * @brief Destroy Sink and release runtime resources.
          */
         ~Sink();
 
@@ -105,6 +118,16 @@ namespace T76::DRPD::Logic {
          * @brief Enable Sink processing and subscribe runtime callbacks.
          */
         void enable();
+
+        /**
+         * @brief Initialize Sink Core-1 owned resources.
+         */
+        void initCore1();
+
+        /**
+         * @brief Run one Sink policy iteration from the Core-1 loop.
+         */
+        void loopCore1();
 
         /**
          * @brief Disable Sink processing and unsubscribe runtime callbacks.
@@ -158,12 +181,6 @@ namespace T76::DRPD::Logic {
         bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
         /**
-         * @brief Check if source advertises EPR capability.
-         * @return True if EPR capable source is currently cached.
-         */
-        [[nodiscard]] bool sourceEPRCapable() const;
-
-        /**
          * @brief Get current Sink policy state.
          * @return Current SinkState enum.
          */
@@ -192,8 +209,18 @@ namespace T76::DRPD::Logic {
             Malformed           ///< Fragment/header invalid.
         };
 
-        TaskHandle_t _messagingTaskHandle = nullptr;             ///< FreeRTOS sink message processing task.
+        /**
+         * @brief Core-1-dispatched host PDO request envelope.
+         */
+        struct PendingPDORequest {
+            size_t pdoIndex = 0;
+            uint32_t voltageMV = 0;
+            uint32_t currentMA = 0;
+        };
+
         queue_t _messageQueue;                                   ///< Queue of decoded message pointers.
+        queue_t _timeoutEventQueue;                              ///< Queue of timer timeout events.
+        queue_t _pendingRequestQueue;                            ///< Queue of host PDO requests for core-1 dispatch.
 
         CCBusController& _ccBusController;                       ///< CC bus controller dependency.
         T76::DRPD::PHY::BMCDecoder& _bmcDecoder;                ///< Decoder for incoming PD messages.
@@ -209,11 +236,14 @@ namespace T76::DRPD::Logic {
         TransitionSinkStateHandler _transitionSinkStateHandler;  ///< Transition sink handler.
         WaitForCapabilitiesStateHandler _waitForCapabilitiesStateHandler; ///< Wait-for-capabilities handler.
 
+        SinkAlarmService _alarmService;                        ///< Core-1 owned Sink alarm pool wrapper.
         SinkMessageSender _messageSender;                        ///< Outbound message sender with GoodCRC tracking.
         SinkRuntimeState _runtimeState;                          ///< Mutable sink runtime state.
         std::function<void(SinkInfoChange)> _sinkInfoChangedCallback; ///< Sink info change callback.
+        std::function<void(SinkTimeoutEvent)> _timeoutEventCallback; ///< Timeout event callback.
         SinkContext _context;                                    ///< Handler-facing context facade.
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
+        std::atomic<bool> _ccBusResetPending = false;            ///< Core-0 state-change reset request latched for core 1.
 
         /**
          * @brief Handle CC bus state changes.
@@ -249,15 +279,37 @@ namespace T76::DRPD::Logic {
             uint8_t chunkNumber);
 
         /**
-         * @brief FreeRTOS task loop that dispatches queued messages to active handler.
+         * @brief Drain pending timeout events and dispatch in core-1 policy context.
          */
-        void _processTaskHandler();
+        void _processTimeoutEvents();
+
+        /**
+         * @brief Drain host PDO requests and dispatch in core-1 policy context.
+         */
+        void _processPendingRequests();
 
         /**
          * @brief Handle message sender state transitions.
          * @param state New sender state.
          */
         void _onMessageSenderStateChanged(SinkMessageSenderState state);
+
+        /**
+         * @brief Handle sender state transitions in Sink policy context.
+         * @param state New sender state.
+         *
+         * This remains separate from `_onMessageSenderStateChanged()` because
+         * timeout states are first queued, then replayed from policy context.
+         * Calling `_onMessageSenderStateChanged()` directly from timeout-event
+         * dequeue would re-enqueue the same timeout and create a loop.
+         */
+        void _handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState state);
+
+        /**
+         * @brief Enqueue timeout event from asynchronous callback context.
+         * @param event Timeout event to enqueue.
+         */
+        void _enqueueTimeoutEvent(SinkTimeoutEvent event);
     };
 
 } // namespace T76::DRPD::Logic

@@ -160,15 +160,13 @@ namespace T76::DRPD::PHY {
          */
         float ccThresholdVoltage() const;
 
-        /** 
-         * @brief Timer callback for processing the circular buffer
-         * 
-         * This static method is called by the repeating timer to process
-         * the data in the circular buffer. It feeds pulse timings to the
-         * current BMCDecodedMessage instance and handles completed messages.
-         * 
+        /**
+         * @brief Run one Core-1 decoding iteration.
+         *
+         * Processes unread pulse widths from the DMA circular buffer and
+         * advances message decode state for any completed transfers.
          */
-        void timerCallback();
+        void loopCore1();
 
     protected:
         float _ccThresholdVoltage = PHY_BMC_DECODER_CC_VREF_DEFAULT; ///< Carrier CC threshold voltage
@@ -183,7 +181,7 @@ namespace T76::DRPD::PHY {
         uint32_t *_circularBuffer; ///< Pointer to the circular buffer for storing decoded data
         repeating_timer_t _timer; ///< Repeating timer for processing the buffer
 
-        queue_t _messageQueue; ///< Queue for completed decoded messages TODO: This is temporary
+        queue_t _messageQueue; ///< Queue for completed decoded messages
         uint32_t _transferCount; ///< Number of transfers completed
 
         BMCDecodedMessage *_messageBuffer; ///< Buffer of decoded message instances

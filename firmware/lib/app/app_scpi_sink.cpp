@@ -191,7 +191,7 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
         case Logic::SinkState::PE_SNK_Hard_Reset:
             _usbInterface.sendUSBTMCBulkData("PE_SNK_HARD_RESET", true);
             break;
-        case Logic::SinkState::PE_SNK_Transition_to_default:
+        case Logic::SinkState::PE_SNK_Transition_To_Default:
             _usbInterface.sendUSBTMCBulkData("PE_SNK_TRANSITION_TO_DEFAULT", true);
             break;
         case Logic::SinkState::Error:

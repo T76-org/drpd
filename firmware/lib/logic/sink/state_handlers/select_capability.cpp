@@ -18,10 +18,15 @@ using namespace T76::DRPD::Logic;
 int64_t SelectCapabilityStateHandler::_onResponseTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     SelectCapabilityStateHandler *handler =
         static_cast<SelectCapabilityStateHandler *>(user_data);
     handler->_responseTimeoutAlarmId = -1;
-    handler->_onResponseTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::SelectCapabilityResponseTimeout}
+        );
+    }
     return 0;  // One-shot timer
 }
 
@@ -293,7 +298,7 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
     _bindContext(context);
     // Cancel the response timeout timer
     if (_responseTimeoutAlarmId != -1) {
-        cancel_alarm(_responseTimeoutAlarmId);
+        context.cancelAlarm(_responseTimeoutAlarmId);
         _responseTimeoutAlarmId = -1;
     }
 
@@ -378,15 +383,23 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
 }
 
 void SelectCapabilityStateHandler::handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) {
-    (void)context;
     if (state == SinkMessageSenderState::GoodCRCReceived) {
         // Start the response timeout timer when GoodCRC is received
-        _responseTimeoutAlarmId = add_alarm_in_us(
+        _responseTimeoutAlarmId = context.addAlarmInUs(
             LOGIC_SINK_SELECT_CAPABILITY_RESPONSE_TIMEOUT_US,
             _onResponseTimeoutCallback,
             this,
             true  // fire_if_past
         );
+    }
+}
+
+void SelectCapabilityStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::SelectCapabilityResponseTimeout) {
+        _onResponseTimeout();
     }
 }
 
@@ -441,10 +454,9 @@ void SelectCapabilityStateHandler::enter(SinkContext& context) {
 }
 
 void SelectCapabilityStateHandler::reset(SinkContext& context) {
-    (void)context;
     // Cancel the response timeout timer
     if (_responseTimeoutAlarmId != -1) {
-        cancel_alarm(_responseTimeoutAlarmId);
+        context.cancelAlarm(_responseTimeoutAlarmId);
         _responseTimeoutAlarmId = -1;
     }
     _unbindContext();

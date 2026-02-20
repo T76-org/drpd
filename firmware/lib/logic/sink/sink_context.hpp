@@ -20,9 +20,11 @@
 
 #include <functional>
 #include <optional>
-#include <set>
 #include <span>
 
+#include <pico/time.h>
+
+#include "sink_alarm_service.hpp"
 #include "message_sender.hpp"
 #include "sink_runtime_state.hpp"
 #include "sink_types.hpp"
@@ -54,6 +56,10 @@ namespace T76::DRPD::Logic {
      * This class owns policy-side operations and mutable runtime state access
      * needed by handlers, while keeping orchestration dependencies localized
      * to one object.
+     *
+     * Timer callbacks may run outside the Sink policy loop; handlers therefore use
+     * `enqueueTimeoutEvent()` to hand work back to Sink via a callback instead
+     * of taking a direct dependency on Sink internals or queue storage.
      */
     class SinkContext {
     public:
@@ -70,9 +76,12 @@ namespace T76::DRPD::Logic {
          * @param transitionSinkStateHandler Handler instance for Transition Sink state.
          * @param waitForCapabilitiesStateHandler Handler instance for Wait for Capabilities state.
          * @param sinkInfoChangedCallback Callback used to notify host-visible sink info changes.
+         * @param enqueueTimeoutEventCallback Callback used to enqueue timeout
+         *        events to the Sink policy loop context.
          */
         SinkContext(
             SinkRuntimeState& runtimeState,
+            SinkAlarmService& alarmService,
             SinkMessageSender& messageSender,
             CCBusController& ccBusController,
             DisconnectedStateHandler& disconnectedStateHandler,
@@ -82,7 +91,8 @@ namespace T76::DRPD::Logic {
             SelectCapabilityStateHandler& selectCapabilityStateHandler,
             TransitionSinkStateHandler& transitionSinkStateHandler,
             WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
-            std::function<void(SinkInfoChange)>& sinkInfoChangedCallback);
+            std::function<void(SinkInfoChange)>& sinkInfoChangedCallback,
+            std::function<void(SinkTimeoutEvent)>& enqueueTimeoutEventCallback);
 
         /**
          * @brief Access mutable runtime state.
@@ -201,8 +211,36 @@ namespace T76::DRPD::Logic {
          */
         bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
+        /**
+         * @brief Add one-shot timer in the Sink-owned alarm pool.
+         * @param delayUs Relative delay in microseconds.
+         * @param callback Pico alarm callback.
+         * @param userData Opaque callback user data.
+         * @param fireIfPast Fire immediately if target time already passed.
+         * @return Alarm ID on success, or -1 on failure.
+         */
+        alarm_id_t addAlarmInUs(
+            int64_t delayUs,
+            alarm_callback_t callback,
+            void *userData,
+            bool fireIfPast);
+
+        /**
+         * @brief Cancel timer from the Sink-owned alarm pool.
+         * @param id Alarm ID to cancel.
+         * @return True if canceled; false otherwise.
+         */
+        bool cancelAlarm(alarm_id_t id);
+
+        /**
+         * @brief Enqueue a timeout event for Sink task-context handling.
+         * @param event Timeout event to enqueue.
+         */
+        void enqueueTimeoutEvent(SinkTimeoutEvent event);
+
     protected:
         SinkRuntimeState& _runtimeState;                                 ///< Shared runtime state storage.
+        SinkAlarmService& _alarmService;                                 ///< Sink-owned timer service.
         SinkMessageSender& _messageSender;                               ///< PD message send transport helper.
         CCBusController& _ccBusController;                               ///< Bus attach/status source.
 
@@ -215,6 +253,7 @@ namespace T76::DRPD::Logic {
         WaitForCapabilitiesStateHandler& _waitForCapabilitiesStateHandler; ///< Handler for Wait for Capabilities.
 
         std::function<void(SinkInfoChange)>& _sinkInfoChangedCallback;   ///< Host callback repeater.
+        std::function<void(SinkTimeoutEvent)>& _enqueueTimeoutEventCallback; ///< Timeout event callback.
 
         /**
          * @brief Determine if cached SPR source capabilities advertise EPR support.

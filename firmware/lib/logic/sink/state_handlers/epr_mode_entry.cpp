@@ -12,9 +12,14 @@ using namespace T76::DRPD::Logic;
 
 
 int64_t EPRModeEntryStateHandler::_onEntryTimeoutCallback(alarm_id_t id, void *user_data) {
+    (void)id;
     auto *handler = static_cast<EPRModeEntryStateHandler *>(user_data);
     handler->_entryTimeoutAlarmId = -1;
-    handler->_onEntryTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::EPRModeEntryTimeout}
+        );
+    }
     return 0;
 }
 
@@ -52,7 +57,6 @@ void EPRModeEntryStateHandler::handleMessage(
             }
 
             if (response.action() == Proto::EPRMode::Action::EnterAcknowledged) {
-                _enterAcknowledged = true;
                 return;
             }
 
@@ -90,9 +94,8 @@ void EPRModeEntryStateHandler::handleMessage(
 void EPRModeEntryStateHandler::handleMessageSenderStateChange(
     SinkContext& context,
     SinkMessageSenderState state) {
-    (void)context;
     if (state == SinkMessageSenderState::GoodCRCReceived && _entryTimeoutAlarmId == -1) {
-        _entryTimeoutAlarmId = add_alarm_in_us(
+        _entryTimeoutAlarmId = context.addAlarmInUs(
             LOGIC_SINK_EPR_MODE_ENTRY_RESPONSE_TIMEOUT_US,
             _onEntryTimeoutCallback,
             this,
@@ -101,21 +104,26 @@ void EPRModeEntryStateHandler::handleMessageSenderStateChange(
     }
 }
 
+void EPRModeEntryStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::EPRModeEntryTimeout) {
+        _onEntryTimeout();
+    }
+}
+
 void EPRModeEntryStateHandler::enter(SinkContext& context) {
     _bindContext(context);
-    _enterAcknowledged = false;
 
     // 100 W operational PDP in 1 W units.
     context.sendEPRMode(Proto::EPRMode::Action::Enter, 100);
 }
 
 void EPRModeEntryStateHandler::reset(SinkContext& context) {
-    (void)context;
     if (_entryTimeoutAlarmId != -1) {
-        cancel_alarm(_entryTimeoutAlarmId);
+        context.cancelAlarm(_entryTimeoutAlarmId);
         _entryTimeoutAlarmId = -1;
     }
-
-    _enterAcknowledged = false;
     _unbindContext();
 }

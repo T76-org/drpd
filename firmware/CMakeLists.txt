@@ -65,6 +65,7 @@ add_executable(drpd-firmware
         lib/app/scpi_commands.cpp
         lib/logic/cc_bus_controller.cpp
         lib/logic/sink/message_sender.cpp
+        lib/logic/sink/sink_alarm_service.cpp
         lib/logic/sink/sink.cpp
         lib/logic/sink/sink_context.cpp
         lib/logic/sink/sink_cc_messaging.cpp

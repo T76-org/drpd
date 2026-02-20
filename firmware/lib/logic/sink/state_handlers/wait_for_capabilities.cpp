@@ -15,10 +15,15 @@ using namespace T76::DRPD::Logic;
 int64_t WaitForCapabilitiesStateHandler::_onCapabilitiesTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
+    (void)id;
     WaitForCapabilitiesStateHandler *handler =
         static_cast<WaitForCapabilitiesStateHandler *>(user_data);
     handler->_capabilitiesTimeoutAlarmId = -1;
-    handler->_onCapabilitiesTimeout();
+    if (handler->_context != nullptr) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::WaitForCapabilitiesTimeout}
+        );
+    }
     return 0;  // One-shot timer
 }
 
@@ -53,7 +58,7 @@ void WaitForCapabilitiesStateHandler::handleMessage(
         if (dataMessageType.has_value() && dataMessageType.value() == Proto::DataMessageType::Source_Capabilities) {
             // Cancel the capabilities timeout timer
             if (_capabilitiesTimeoutAlarmId != -1) {
-                cancel_alarm(_capabilitiesTimeoutAlarmId);
+                context.cancelAlarm(_capabilitiesTimeoutAlarmId);
                 _capabilitiesTimeoutAlarmId = -1;
             }
 
@@ -79,11 +84,20 @@ void WaitForCapabilitiesStateHandler::handleMessageSenderStateChange(
     // No specific handling needed in Wait_for_Capabilities state
 }
 
+void WaitForCapabilitiesStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    (void)context;
+    if (eventType == SinkTimeoutEventType::WaitForCapabilitiesTimeout) {
+        _onCapabilitiesTimeout();
+    }
+}
+
 
 void WaitForCapabilitiesStateHandler::enter(SinkContext& context) {
     _bindContext(context);
     // Start the capabilities timeout timer
-    _capabilitiesTimeoutAlarmId = add_alarm_in_us(
+    _capabilitiesTimeoutAlarmId = context.addAlarmInUs(
         LOGIC_SINK_WAIT_FOR_CAPABILITIES_TIMEOUT_US,
         _onCapabilitiesTimeoutCallback,
         this,
@@ -92,10 +106,9 @@ void WaitForCapabilitiesStateHandler::enter(SinkContext& context) {
 }
 
 void WaitForCapabilitiesStateHandler::reset(SinkContext& context) {
-    (void)context;
     // Cancel the capabilities timeout timer
     if (_capabilitiesTimeoutAlarmId != -1) {
-        cancel_alarm(_capabilitiesTimeoutAlarmId);
+        context.cancelAlarm(_capabilitiesTimeoutAlarmId);
         _capabilitiesTimeoutAlarmId = -1;
     }
     _unbindContext();

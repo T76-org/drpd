@@ -136,6 +136,20 @@ namespace T76::DRPD::Logic {
         void init();
 
         /**
+         * @brief Initialize CC bus controller resources that must be created on Core 1.
+         */
+        void initCore1();
+
+        /**
+         * @brief Run one Core-1 iteration for CC policy components.
+         *
+         * This is intentionally separate from the Core-0 FreeRTOS timer loop:
+         * it lets App drive Sink policy, alarm callbacks, and protocol state
+         * handling from the dedicated Core-1 polling loop.
+         */
+        void loopCore1();
+
+        /**
          * @brief Set the role of the CC bus controller
          * 
          * @param role The role to set

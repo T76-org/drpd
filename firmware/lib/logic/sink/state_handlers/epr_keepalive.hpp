@@ -48,6 +48,13 @@ namespace T76::DRPD::Logic {
         void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
 
         /**
+         * @brief Handle timeout events in EPR keepalive state.
+         * @param context Shared sink context.
+         * @param eventType Timeout event type.
+         */
+        void handleTimeoutEvent(SinkContext& context, SinkTimeoutEventType eventType) override;
+
+        /**
          * @brief Enter EPR keepalive state.
          * @param context Shared sink context.
          */
@@ -62,7 +69,6 @@ namespace T76::DRPD::Logic {
     protected:
         alarm_id_t _keepaliveIntervalAlarmId = -1; ///< Sink keepalive interval timer
         alarm_id_t _sourceWatchdogAlarmId = -1;    ///< Source keepalive watchdog timer
-        bool _awaitingKeepaliveAck = false;        ///< True when a keepalive ack is pending
         uint8_t _keepaliveFailureCount = 0;        ///< Consecutive keepalive failures
 
         /**
