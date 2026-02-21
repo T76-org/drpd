@@ -192,8 +192,16 @@ void EPRKeepaliveStateHandler::handleMessage(
 
         if (dataType.has_value() &&
             dataType.value() == Proto::DataMessageType::Source_Capabilities) {
-            context.setSourceCapabilities(Proto::SourceCapabilities(
-                message->rawBody(), decodedHeader.numDataObjects()));
+            // Receiving SPR Source_Capabilities while actively in EPR keepalive
+            // indicates the source restarted its policy engine (for example after
+            // a reset). Drop EPR runtime state and restart negotiation from the
+            // beginning using this newly advertised SPR capability set.
+            const Proto::SourceCapabilities sourceCapabilities(
+                message->rawBody(), decodedHeader.numDataObjects());
+
+            context.performReset(SinkResetType::Internal);
+            context.setSourceCapabilities(sourceCapabilities);
+            context.requestPDO(0, 0, 0);
             return;
         }
     }
