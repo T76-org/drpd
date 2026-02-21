@@ -243,14 +243,14 @@ class PpsRDO(RequestDO):
     """
     SPR PPS RDO (for SPR PPS APDO).
     Fields:
-      - Output Voltage: bits [19:9] in 20 mV units
+      - Output Voltage: bits [20:9] in 20 mV units
       - Operating Current: bits [6:0] in 50 mA units
     """
 
     @property
     def target_voltage(self) -> float:
         """Requested target voltage (V), 20 mV units."""
-        return _bits(self.raw, 19, 9) * 0.02
+        return _bits(self.raw, 20, 9) * 0.02
 
     @property
     def operating_current(self) -> float:
@@ -283,13 +283,15 @@ class PpsRDO(RequestDO):
 class AvsSprRDO(RequestDO):
     """
     SPR AVS RDO (for SPR AVS APDO).
-    Encoding matches PPS for voltage/current fields (20 mV voltage; 50 mA current).
+    Fields:
+      - Output Voltage: bits [20:9] in 25 mV units
+      - Operating Current: bits [6:0] in 50 mA units
     """
 
     @property
     def target_voltage(self) -> float:
-        """Requested target voltage (V), 20 mV units."""
-        return _bits(self.raw, 19, 9) * 0.02
+        """Requested target voltage (V), 25 mV units."""
+        return _bits(self.raw, 20, 9) * 0.025
 
     @property
     def operating_current(self) -> float:
@@ -327,14 +329,14 @@ class AvsEprRDO(RequestDO):
     """
     EPR AVS RDO (for EPR AVS APDO).
     Fields:
-      - Output Voltage: bits [20:9] in 100 mV units
+      - Output Voltage: bits [20:9] in 25 mV units
       - Operating Current: bits [6:0] in 50 mA units
     """
 
     @property
     def target_voltage(self) -> float:
-        """Requested target voltage (V), 100 mV units."""
-        return _bits(self.raw, 20, 9) * 0.1
+        """Requested target voltage (V), 25 mV units."""
+        return _bits(self.raw, 20, 9) * 0.025
 
     @property
     def operating_current(self) -> float:

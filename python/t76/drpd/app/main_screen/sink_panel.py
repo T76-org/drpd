@@ -39,6 +39,7 @@ from t76.drpd.device.events import (
 )
 from t76.drpd.device.types import AnalogMonitorChannels, Mode
 
+from .sink_avs_setup_modal import SinkAVSSetupModal
 from .sink_pps_setup_modal import SinkPPSSetupModal
 
 
@@ -285,6 +286,12 @@ class SinkPanel(VerticalGroup):
         # Handle PPS PDOs with modal
         if isinstance(pdo, SPR_PDOPPS):
             self.app.push_screen(SinkPPSSetupModal(
+                self.device, message.index, pdo))
+            return
+
+        # Handle AVS PDOs with modal
+        if isinstance(pdo, (SPR_PDOAVs, EPR_PDOAVs)):
+            self.app.push_screen(SinkAVSSetupModal(
                 self.device, message.index, pdo))
             return
 

@@ -5,6 +5,7 @@ import unittest
 from t76.drpd.message.data_objects import (
     ActiveCableVDO1,
     ActiveCableVDO2,
+    AvsEprRDO,
     IdHeaderVDO,
     PassiveCableVDO,
     ProductVDO,
@@ -207,14 +208,24 @@ class TestUsbPdSpecDecoding(unittest.TestCase):
         self.assertEqual(snk.renderable_properties["PDO Count"], "1")
 
     def test_epr_request_uses_rdo_decode(self) -> None:
-        # Fixed/Variable RDO-like raw value.
-        raw = 0x1182_80C8
-        msg = EPRRequestMessage(list(raw.to_bytes(4, "little")))
+        # Build an EPR AVS request and include requested PDO copy (DO2).
+        # RDO: ObjPos=9, OutputVoltage=2000 units, OperatingCurrent=20 units.
+        # AVS voltage units are 25mV -> 50.00V decoded value.
+        raw_rdo = (9 << 28) | (1 << 22) | (2000 << 9) | 20
+        raw_pdo_copy = 0xD0000000  # APDO type = EPR AVS
+        msg = EPRRequestMessage(
+            list(raw_rdo.to_bytes(4, "little")) +
+            list(raw_pdo_copy.to_bytes(4, "little"))
+        )
         props = msg.renderable_properties
 
-        self.assertEqual(msg.raw_rdo, raw)
+        self.assertEqual(msg.raw_rdo, raw_rdo)
+        self.assertEqual(msg.raw_requested_pdo_copy, raw_pdo_copy)
+        self.assertIsInstance(msg.rdo, AvsEprRDO)
         self.assertIn("RDO", props)
         self.assertIn("Object Position", props["RDO"])
+        self.assertIn("Augmented Power Data Object Kind", props["RDO"])
+        self.assertIn("EPR AVS", props["RDO"])
 
     def test_chunked_epr_source_capabilities_reassembly(self) -> None:
         header = Header.from_fields(

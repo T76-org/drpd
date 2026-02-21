@@ -321,7 +321,7 @@ namespace T76::DRPD::Proto {
     /**
      * @brief Augmented PPS Request (SPR - PPS)
      * 
-     * Voltage: 20mV units at bits 20:9 (11 bits)
+     * Voltage: 20mV units at bits 20:9 (12 bits)
      * Current: 50mA units at bits 6:0 (7 bits)
      */
     class AugmentedPPSRequest : public AugmentedRequestBase {
@@ -339,9 +339,10 @@ namespace T76::DRPD::Proto {
     };
 
     /**
-     * @brief Augmented AVS Request (EPR - AVS)
+     * @brief Augmented AVS Request (SPR/EPR - AVS)
      * 
-     * Voltage: 100mV units at bits 20:9 (11 bits)
+     * Voltage: 25mV units at bits 20:9 (12 bits),
+     *          with least-significant two bits set to zero (100mV effective step)
      * Current: 50mA units at bits 6:0 (7 bits)
      */
     class AugmentedAVSRequest : public AugmentedRequestBase {
