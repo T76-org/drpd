@@ -168,3 +168,14 @@
 #pps-modal-buttons Button {
     margin-left: 1;
 }
+
+#error-message {
+    min-height: 1;
+    padding: 0 1;
+}
+
+#error-message.error {
+    color: #ff4d4d;
+    background: #2b0000;
+    text-style: bold;
+}
