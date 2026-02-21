@@ -131,6 +131,17 @@ class TestDataObjectCompliance(unittest.TestCase):
             AvsEprRDO,
         )
 
+    def test_request_rdo_voltage_scaling(self) -> None:
+        # Output voltage field = 1000 units in bits [20:9].
+        raw = 0x10000000 | (1000 << 9)
+        pps = PpsRDO(raw)
+        spr_avs = AvsSprRDO(raw)
+        epr_avs = AvsEprRDO(raw)
+
+        self.assertAlmostEqual(pps.target_voltage, 20.0)
+        self.assertAlmostEqual(spr_avs.target_voltage, 25.0)
+        self.assertAlmostEqual(epr_avs.target_voltage, 25.0)
+
     def test_encode_and_to_dict_basics(self) -> None:
         source = SourcePDO.from_raw(0x12345678)
         sink = SinkPDO.from_raw(0x12345678)

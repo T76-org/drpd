@@ -316,14 +316,14 @@ std::string BatteryRequest::toString() const {
 AugmentedRequestBase::AugmentedRequestBase(uint32_t raw) : Request(raw) {}
 
 bool AugmentedRequestBase::eprModeCapable() const {
-    return ((_raw >> 23) & 0x1) != 0;
+    return ((_raw >> 22) & 0x1) != 0;
 }
 
 void AugmentedRequestBase::eprModeCapable(bool value) {
     if (value) {
-        _raw |= (1u << 23);
+        _raw |= (1u << 22);
     } else {
-        _raw &= ~(1u << 23);
+        _raw &= ~(1u << 22);
     }
 }
 
@@ -367,13 +367,13 @@ std::string AugmentedRequestBase::toString() const {
 AugmentedPPSRequest::AugmentedPPSRequest(uint32_t raw) : AugmentedRequestBase(raw) {}
 
 uint32_t AugmentedPPSRequest::outputVoltageMillivolts() const {
-    uint32_t units = (_raw >> 9) & 0x7FF;
+    uint32_t units = (_raw >> 9) & 0xFFF;
     return units * 20; // 20mV units
 }
 
 void AugmentedPPSRequest::outputVoltageMillivolts(uint32_t millivolts) {
     uint32_t units = millivolts / 20;
-    _raw = (_raw & ~(0x7FFu << 9)) | ((units & 0x7FFu) << 9);
+    _raw = (_raw & ~(0xFFFu << 9)) | ((units & 0xFFFu) << 9);
 }
 
 uint32_t AugmentedPPSRequest::operatingCurrentMilliamps() const {
@@ -395,13 +395,14 @@ const char* AugmentedPPSRequest::label() const {
 AugmentedAVSRequest::AugmentedAVSRequest(uint32_t raw) : AugmentedRequestBase(raw) {}
 
 uint32_t AugmentedAVSRequest::outputVoltageMillivolts() const {
-    uint32_t units = (_raw >> 9) & 0x7FF;
-    return units * 100; // 100mV units
+    uint32_t units = (_raw >> 9) & 0xFFF;
+    return units * 25; // 25mV units; valid requests use 100mV effective step
 }
 
 void AugmentedAVSRequest::outputVoltageMillivolts(uint32_t millivolts) {
-    uint32_t units = millivolts / 100;
-    _raw = (_raw & ~(0x7FFu << 9)) | ((units & 0x7FFu) << 9);
+    // AVS RDO encodes voltage in 25mV units, with the least-significant two bits reserved.
+    uint32_t units = (millivolts / 25) & ~0x3u;
+    _raw = (_raw & ~(0xFFFu << 9)) | ((units & 0xFFFu) << 9);
 }
 
 uint32_t AugmentedAVSRequest::operatingCurrentMilliamps() const {
