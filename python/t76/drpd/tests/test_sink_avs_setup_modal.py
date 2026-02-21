@@ -60,8 +60,8 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
         device.sink.set_pdo.assert_not_awaited()
         error_label.update.assert_called_with("Please enter a voltage value")
 
-    async def test_blank_current_defaults_to_zero(self) -> None:
-        """Modal should send 0 mA when current field is blank."""
+    async def test_blank_current_is_rejected(self) -> None:
+        """Modal should reject submission when current is blank."""
         modal, device, voltage_input, current_input, _error_label = (
             self._build_modal(
                 SPR_PDOAVs(
@@ -74,17 +74,53 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
         )
         voltage_input.value = "15.0"
         current_input.value = ""
-        mock_app = MagicMock()
 
-        with patch.object(
-            SinkAVSSetupModal, "app",
-            new_callable=PropertyMock,
-            return_value=mock_app,
-        ):
-            await modal.handle_ok()
+        await modal.handle_ok()
 
-        device.sink.set_pdo.assert_awaited_once_with(3, 15000, 0)
-        mock_app.pop_screen.assert_called_once()
+        device.sink.set_pdo.assert_not_awaited()
+        modal.error_label.update.assert_called_with("Please enter a current value")
+
+    async def test_voltage_step_is_enforced(self) -> None:
+        """Modal should reject AVS voltage that is not a 25mV step."""
+        modal, device, voltage_input, current_input, error_label = (
+            self._build_modal(
+                EPR_PDOAVs(
+                    min_voltage=15.0,
+                    max_voltage=48.0,
+                    max_power=240.0,
+                )
+            )
+        )
+        voltage_input.value = "20.030"
+        current_input.value = "3.0"
+
+        await modal.handle_ok()
+
+        device.sink.set_pdo.assert_not_awaited()
+        error_label.update.assert_called_with(
+            "Voltage must be in 0.025V increments for AVS"
+        )
+
+    async def test_current_step_is_enforced(self) -> None:
+        """Modal should reject AVS current that is not a 50mA step."""
+        modal, device, voltage_input, current_input, error_label = (
+            self._build_modal(
+                EPR_PDOAVs(
+                    min_voltage=15.0,
+                    max_voltage=48.0,
+                    max_power=240.0,
+                )
+            )
+        )
+        voltage_input.value = "20.0"
+        current_input.value = "3.025"
+
+        await modal.handle_ok()
+
+        device.sink.set_pdo.assert_not_awaited()
+        error_label.update.assert_called_with(
+            "Current must be in 0.050A increments"
+        )
 
     async def test_current_above_power_limit_is_rejected(self) -> None:
         """Modal should reject current that exceeds max AVS power."""
