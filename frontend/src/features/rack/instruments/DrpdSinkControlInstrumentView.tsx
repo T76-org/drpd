@@ -45,6 +45,11 @@ const formatPdoSummary = (pdo: SinkPdo): string => {
       return `BATTERY ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxPowerW.toFixed(2)}W`
     case 'AUGMENTED':
       return `AUGMENTED ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
+    case 'SPR_PPS':
+      return `SPR_PPS ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
+    case 'SPR_AVS':
+    case 'EPR_AVS':
+      return `${pdo.type} ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxPowerW.toFixed(2)}W`
     default:
       return 'Unknown'
   }
@@ -71,12 +76,15 @@ const buildDefaultForm = (
       }
     case 'VARIABLE':
     case 'AUGMENTED':
+    case 'SPR_PPS':
       return {
         voltageV: pdo.minVoltageV.toFixed(2),
         currentA: pdo.maxCurrentA.toFixed(2),
         powerW: '',
       }
     case 'BATTERY':
+    case 'SPR_AVS':
+    case 'EPR_AVS':
       return {
         voltageV: pdo.minVoltageV.toFixed(2),
         currentA: '',
@@ -138,7 +146,7 @@ const buildRequestArgs = ({
     }
   }
 
-  if (pdo.type === 'VARIABLE' || pdo.type === 'AUGMENTED') {
+  if (pdo.type === 'VARIABLE' || pdo.type === 'AUGMENTED' || pdo.type === 'SPR_PPS') {
     const parsedVoltage = parseField(voltageV)
     const parsedCurrent = parseField(currentA)
     if (parsedVoltage == null || parsedCurrent == null) {
@@ -158,7 +166,7 @@ const buildRequestArgs = ({
     }
   }
 
-  if (pdo.type === 'BATTERY') {
+  if (pdo.type === 'BATTERY' || pdo.type === 'SPR_AVS' || pdo.type === 'EPR_AVS') {
     const parsedVoltage = parseField(voltageV)
     const parsedPower = parseField(powerW)
     if (parsedVoltage == null || parsedPower == null) {
@@ -411,7 +419,9 @@ export const DrpdSinkControlInstrumentView = ({
                 </>
               ) : null}
 
-              {selectedPdo?.type === 'VARIABLE' || selectedPdo?.type === 'AUGMENTED' ? (
+              {selectedPdo?.type === 'VARIABLE' ||
+              selectedPdo?.type === 'AUGMENTED' ||
+              selectedPdo?.type === 'SPR_PPS' ? (
                 <>
                   <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
                     Voltage (V)
@@ -435,7 +445,9 @@ export const DrpdSinkControlInstrumentView = ({
                 </>
               ) : null}
 
-              {selectedPdo?.type === 'BATTERY' ? (
+              {selectedPdo?.type === 'BATTERY' ||
+              selectedPdo?.type === 'SPR_AVS' ||
+              selectedPdo?.type === 'EPR_AVS' ? (
                 <>
                   <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
                     Voltage (V)

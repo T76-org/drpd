@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readUint32LE } from './dataObjects'
+import { readUint32LE } from './DataObjects'
 
 describe('readUint32LE', () => {
   it('reads when exactly four bytes remain', () => {

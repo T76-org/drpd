@@ -9,6 +9,7 @@ import type { DRPDTransport } from './transport'
 import {
   buildSinkInfo,
   parseSingleInt,
+  parseSingleScaledMilliInt,
   parseSinkPdo,
   parseSinkStateResponse,
 } from './parsers'
@@ -88,7 +89,7 @@ export class DRPDSink {
    */
   public async getNegotiatedVoltageMv(): Promise<number> {
     const response = await this.transport.queryText('SINK:STATUS:VOLTAGE?')
-    return parseSingleInt(response, 'negotiated voltage')
+    return parseSingleScaledMilliInt(response, 'negotiated voltage', 100)
   }
 
   /**
@@ -98,7 +99,7 @@ export class DRPDSink {
    */
   public async getNegotiatedCurrentMa(): Promise<number> {
     const response = await this.transport.queryText('SINK:STATUS:CURRENT?')
-    return parseSingleInt(response, 'negotiated current')
+    return parseSingleScaledMilliInt(response, 'negotiated current', 20)
   }
 
   /**

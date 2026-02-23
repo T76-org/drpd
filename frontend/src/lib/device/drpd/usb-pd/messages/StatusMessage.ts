@@ -4,7 +4,7 @@ import {
   parseSOPStatusDataBlock,
   type ParsedSOPPrimeStatusDataBlock,
   type ParsedSOPStatusDataBlock,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Status extended message.

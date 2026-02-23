@@ -234,4 +234,43 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(requestSpy).not.toHaveBeenCalled()
     expect(screen.getByText(/voltage must be between 5\.00 and 12\.00 v\./i)).toBeInTheDocument()
   })
+
+  it('supports AVS PDOs using voltage and power inputs', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setSinkSnapshot(
+      CCBusRole.SINK,
+      null,
+      [{ type: 'EPR_AVS', minVoltageV: 15, maxVoltageV: 28, maxPowerW: 140 }],
+    )
+
+    const requestSpy = vi.spyOn(driver.sink, 'requestPdo').mockResolvedValue(undefined)
+    const refreshSpy = vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)
+
+    render(
+      <DrpdSinkControlInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sink Control"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByText(/selected: epr_avs/i)).toBeInTheDocument()
+
+    const voltageInput = screen.getByLabelText(/voltage \(v\)/i)
+    const powerInput = screen.getByLabelText(/power \(w\)/i)
+    await user.clear(voltageInput)
+    await user.type(voltageInput, '20')
+    await user.clear(powerInput)
+    await user.type(powerInput, '100')
+
+    await user.click(screen.getByRole('button', { name: /request pdo/i }))
+
+    await waitFor(() => {
+      expect(requestSpy).toHaveBeenCalledWith(0, 20000, 5000)
+    })
+    expect(refreshSpy).toHaveBeenCalled()
+  })
 })

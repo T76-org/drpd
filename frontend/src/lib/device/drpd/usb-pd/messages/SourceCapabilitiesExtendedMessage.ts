@@ -2,7 +2,7 @@ import { ExtendedMessage } from '../messageBase'
 import {
   parseSourceCapabilitiesExtendedDataBlock,
   type ParsedSourceCapabilitiesExtendedDataBlock,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Source_Capabilities_Extended extended message.

@@ -1,5 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
-import { parseCountryCodesDataBlock, type ParsedCountryCodesDataBlock } from '../dataObjects'
+import { parseCountryCodesDataBlock, type ParsedCountryCodesDataBlock } from '../DataObjects'
 
 /**
  * Country_Codes extended message.

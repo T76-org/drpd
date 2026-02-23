@@ -1,5 +1,5 @@
 import { DataMessage } from '../messageBase'
-import { parseBISTDataObject, readDataObjects, type ParsedBISTDataObject } from '../dataObjects'
+import { parseBISTDataObject, readDataObjects, type ParsedBISTDataObject } from '../DataObjects'
 
 /**
  * BIST data message.

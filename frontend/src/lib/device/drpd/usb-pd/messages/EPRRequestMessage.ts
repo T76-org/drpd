@@ -1,5 +1,5 @@
 import { DataMessage } from '../messageBase'
-import { parsePDO, parseRDO, readDataObjects, type ParsedPDO, type ParsedRDO } from '../dataObjects'
+import { parsePDO, parseRDO, readDataObjects, type ParsedPDO, type ParsedRDO } from '../DataObjects'
 
 /**
  * EPR_Request data message.

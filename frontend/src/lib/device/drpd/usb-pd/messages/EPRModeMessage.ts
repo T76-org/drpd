@@ -1,5 +1,5 @@
 import { DataMessage } from '../messageBase'
-import { parseEPRModeDataObject, readDataObjects, type ParsedEPRModeDataObject } from '../dataObjects'
+import { parseEPRModeDataObject, readDataObjects, type ParsedEPRModeDataObject } from '../DataObjects'
 
 /**
  * EPR_Mode data message.

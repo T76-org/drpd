@@ -3,7 +3,7 @@ import {
   parseBatteryStatusDataObject,
   readDataObjects,
   type ParsedBatteryStatusDataObject,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Battery_Status data message.

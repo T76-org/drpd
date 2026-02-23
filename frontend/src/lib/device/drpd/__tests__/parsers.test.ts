@@ -94,6 +94,22 @@ describe('drpd parsers', () => {
       maxVoltageV: 11.0,
       maxCurrentA: 2.5,
     })
+
+    const sprPps = parseSinkPdo(['SPR_PPS,3.3,11.0,2.5'])
+    expect(sprPps).toEqual({
+      type: 'SPR_PPS',
+      minVoltageV: 3.3,
+      maxVoltageV: 11.0,
+      maxCurrentA: 2.5,
+    })
+
+    const eprAvs = parseSinkPdo(['EPR_AVS,15.0,28.0,140.0'])
+    expect(eprAvs).toEqual({
+      type: 'EPR_AVS',
+      minVoltageV: 15.0,
+      maxVoltageV: 28.0,
+      maxPowerW: 140.0,
+    })
   })
 
   it('parses capture payloads', () => {

@@ -2,7 +2,7 @@ import { ExtendedMessage } from '../messageBase'
 import {
   parseManufacturerInfoDataBlock,
   type ParsedManufacturerInfoDataBlock,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Manufacturer_Info extended message.

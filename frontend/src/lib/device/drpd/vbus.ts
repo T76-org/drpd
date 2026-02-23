@@ -8,7 +8,7 @@
 import type { DRPDTransport } from './transport'
 import {
   buildVBusInfo,
-  parseSingleInt,
+  parseSingleScaledMilliInt,
   parseVBusStatusResponse,
 } from './parsers'
 import type { VBusInfo, VBusStatus } from './types'
@@ -51,7 +51,7 @@ export class DRPDVBus {
    * @param thresholdMv - Threshold in millivolts.
    */
   public async setOvpThresholdMv(thresholdMv: number): Promise<void> {
-    await this.transport.sendCommand('BUS:VBUS:OVPThreshold', thresholdMv)
+    await this.transport.sendCommand('BUS:VBUS:OVPThreshold', thresholdMv / 1000)
   }
 
   /**
@@ -61,7 +61,7 @@ export class DRPDVBus {
    */
   public async getOvpThresholdMv(): Promise<number> {
     const response = await this.transport.queryText('BUS:VBUS:OVPThreshold?')
-    return parseSingleInt(response, 'OVP threshold')
+    return parseSingleScaledMilliInt(response, 'OVP threshold', 100)
   }
 
   /**
@@ -70,7 +70,7 @@ export class DRPDVBus {
    * @param thresholdMa - Threshold in milliamps.
    */
   public async setOcpThresholdMa(thresholdMa: number): Promise<void> {
-    await this.transport.sendCommand('BUS:VBUS:OCPThreshold', thresholdMa)
+    await this.transport.sendCommand('BUS:VBUS:OCPThreshold', thresholdMa / 1000)
   }
 
   /**
@@ -80,7 +80,7 @@ export class DRPDVBus {
    */
   public async getOcpThresholdMa(): Promise<number> {
     const response = await this.transport.queryText('BUS:VBUS:OCPThreshold?')
-    return parseSingleInt(response, 'OCP threshold')
+    return parseSingleScaledMilliInt(response, 'OCP threshold', 10)
   }
 
   /**
