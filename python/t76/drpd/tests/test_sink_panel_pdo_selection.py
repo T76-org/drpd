@@ -2,12 +2,11 @@
 Unit tests for sink PDO selection handling.
 """
 
-from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 from t76.drpd.app.main_screen.sink_avs_setup_modal import SinkAVSSetupModal
-from t76.drpd.app.main_screen.sink_panel import SinkPanel
+from t76.drpd.app.main_screen.sink_panel import PdoTable, SinkPanel
 from t76.drpd.app.main_screen.sink_pps_setup_modal import SinkPPSSetupModal
 from t76.drpd.device.device_sink_pdos import (
     EPR_PDOAVs,
@@ -23,6 +22,9 @@ class TestSinkPanelPDOSelection(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         """Set up test fixtures."""
         self.panel = SinkPanel()
+        # Avoid scheduling Textual async reactive watchers in a unit test
+        # that does not run the widget inside a mounted app.
+        self.panel.watch_device = MagicMock()
         self.device = MagicMock()
         self.device.sink = MagicMock()
         self.device.sink.set_pdo = AsyncMock()
@@ -30,7 +32,7 @@ class TestSinkPanelPDOSelection(unittest.IsolatedAsyncioTestCase):
 
     async def test_fixed_pdo_selection_requests_immediately(self) -> None:
         """Selecting a fixed PDO should submit request directly."""
-        message = SimpleNamespace(index=2, pdo=FixedPDO(5.0, 3.0))
+        message = PdoTable.PdoSelected(index=2, pdo=FixedPDO(5.0, 3.0))
         mock_app = MagicMock()
 
         with patch.object(
@@ -43,7 +45,7 @@ class TestSinkPanelPDOSelection(unittest.IsolatedAsyncioTestCase):
 
     async def test_spr_pps_selection_opens_pps_modal(self) -> None:
         """Selecting SPR PPS should open PPS setup modal."""
-        message = SimpleNamespace(
+        message = PdoTable.PdoSelected(
             index=1,
             pdo=SPR_PDOPPS(
                 min_voltage=5.0,
@@ -65,7 +67,7 @@ class TestSinkPanelPDOSelection(unittest.IsolatedAsyncioTestCase):
 
     async def test_spr_avs_selection_opens_avs_modal(self) -> None:
         """Selecting SPR AVS should open AVS setup modal."""
-        message = SimpleNamespace(
+        message = PdoTable.PdoSelected(
             index=3,
             pdo=SPR_PDOAVs(
                 min_voltage=9.0,
@@ -87,7 +89,7 @@ class TestSinkPanelPDOSelection(unittest.IsolatedAsyncioTestCase):
 
     async def test_epr_avs_selection_opens_avs_modal(self) -> None:
         """Selecting EPR AVS should open AVS setup modal."""
-        message = SimpleNamespace(
+        message = PdoTable.PdoSelected(
             index=4,
             pdo=EPR_PDOAVs(
                 min_voltage=15.0,

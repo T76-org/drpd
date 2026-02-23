@@ -294,6 +294,3 @@ class TestUsbPdSpecDecoding(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    @staticmethod
-    def _default_sop() -> SOP:
-        return SOP.from_kcodes([0x18, 0x18, 0x18, 0x11])

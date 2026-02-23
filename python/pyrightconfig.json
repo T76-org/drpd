@@ -1,0 +1,6 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["t76/drpd/tests"],
+  "exclude": [".venv", "build", "dist"]
+}

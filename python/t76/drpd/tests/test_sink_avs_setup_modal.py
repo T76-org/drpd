@@ -5,10 +5,15 @@ Unit tests for AVS setup modal.
 import unittest
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
-from textual.widgets import Input
-
 from t76.drpd.app.main_screen.sink_avs_setup_modal import SinkAVSSetupModal
 from t76.drpd.device.device_sink_pdos import EPR_PDOAVs, SPR_PDOAVs
+
+
+class _FakeInput:
+    """Minimal stand-in for Textual Input used by validation tests."""
+
+    def __init__(self, value: str = "") -> None:
+        self.value = value
 
 
 class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
@@ -18,7 +23,7 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
         self,
         pdo: SPR_PDOAVs | EPR_PDOAVs,
         pdo_index: int = 1,
-    ) -> tuple[SinkAVSSetupModal, MagicMock, Input, Input, MagicMock]:
+    ) -> tuple[SinkAVSSetupModal, MagicMock, _FakeInput, _FakeInput, MagicMock]:
         """Create modal with mocked dependencies and inputs."""
         device = MagicMock()
         device.sink = MagicMock()
@@ -26,8 +31,8 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
         device.sink.get_negotiated_voltage = AsyncMock(return_value=9000)
 
         modal = SinkAVSSetupModal(device=device, pdo_index=pdo_index, pdo=pdo)
-        voltage_input = Input(id="voltage-input")
-        current_input = Input(id="current-input")
+        voltage_input = _FakeInput()
+        current_input = _FakeInput()
         error_label = MagicMock()
         modal.error_label = error_label
 
@@ -62,7 +67,7 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
 
     async def test_blank_current_is_rejected(self) -> None:
         """Modal should reject submission when current is blank."""
-        modal, device, voltage_input, current_input, _error_label = (
+        modal, device, voltage_input, current_input, error_label = (
             self._build_modal(
                 SPR_PDOAVs(
                     min_voltage=9.0,
@@ -78,7 +83,7 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
         await modal.handle_ok()
 
         device.sink.set_pdo.assert_not_awaited()
-        modal.error_label.update.assert_called_with("Please enter a current value")
+        error_label.update.assert_called_with("Please enter a current value")
 
     async def test_voltage_step_is_enforced(self) -> None:
         """Modal should reject AVS voltage that is not a 25mV step."""

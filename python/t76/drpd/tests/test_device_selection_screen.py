@@ -3,6 +3,7 @@ Unit tests for DeviceSelectionScreen behavior.
 """
 
 from types import SimpleNamespace
+from typing import cast
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -53,7 +54,7 @@ class TestDeviceSelectionScreen(unittest.TestCase):
             raise ValueError(f"Unexpected selector {selector}")
 
         screen.query_one = query_one  # type: ignore[method-assign]
-        screen._devices = [SimpleNamespace(name="Device A")]
+        screen._devices = cast(list, [SimpleNamespace(name="Device A")])
 
         with patch(
             "t76.drpd.app.device_selection_screen.device_selection_screen.find_drpd_devices",

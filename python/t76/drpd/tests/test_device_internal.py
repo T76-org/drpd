@@ -3,10 +3,12 @@ Unit tests for DeviceInternal transport cleanup.
 """
 
 from types import SimpleNamespace
+from typing import cast
 import unittest
 from unittest.mock import MagicMock, patch
 
 import pyvisa
+from usb.core import Device as USBDevice
 
 from t76.drpd.device.device_internal import DeviceInternal
 
@@ -22,7 +24,7 @@ class TestDeviceInternalDisconnect(unittest.IsolatedAsyncioTestCase):
             idProduct=0x000A,
         )
         self.device_internal = DeviceInternal(
-            usb_device=usb_device,
+            usb_device=cast(USBDevice, usb_device),
             interrupt_handler=MagicMock(),
         )
 

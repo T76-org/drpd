@@ -5,7 +5,10 @@ Unit tests for Device.disconnect() robustness.
 import asyncio
 import unittest
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, PropertyMock, patch
+
+from usb.core import Device as USBDevice
 
 from t76.drpd.device.device import Device
 
@@ -21,7 +24,7 @@ class TestDeviceDisconnect(unittest.IsolatedAsyncioTestCase):
             idVendor=0x2E8A,
             idProduct=0x000A,
         )
-        device = Device(usb_device)
+        device = Device(cast(USBDevice, usb_device))
         device._internal.disconnect = AsyncMock()  # type: ignore[attr-defined]
 
         async def failing_observer(_event) -> None:
@@ -41,7 +44,7 @@ class TestDeviceDisconnect(unittest.IsolatedAsyncioTestCase):
             idVendor=0x2E8A,
             idProduct=0x000A,
         )
-        device = Device(usb_device)
+        device = Device(cast(USBDevice, usb_device))
         device._disconnecting = True  # type: ignore[attr-defined]
 
         with patch.object(device, "_process_interrupt",
@@ -58,7 +61,7 @@ class TestDeviceDisconnect(unittest.IsolatedAsyncioTestCase):
             idVendor=0x2E8A,
             idProduct=0x000A,
         )
-        device = Device(usb_device)
+        device = Device(cast(USBDevice, usb_device))
 
         with patch.object(
             type(device._internal),

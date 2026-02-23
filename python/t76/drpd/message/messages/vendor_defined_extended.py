@@ -17,4 +17,3 @@ class VendorDefinedExtendedMessage(ExtendedMessage):
         props = super().renderable_properties
         props.update(self.renderable_extended)
         return props
-

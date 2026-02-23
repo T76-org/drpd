@@ -162,34 +162,30 @@ class TestDataObjectCompliance(unittest.TestCase):
         self.assertIsInstance(bdo.to_dict(), dict)
 
     def test_vendor_vdo_family_basics(self) -> None:
-        vdo_classes = [
-            VDO,
-            UvdmHeaderVDO,
-            SvdmHeaderVDO,
-            GenericPayloadVDO,
-            UnknownVDO,
-            IdHeaderVDO,
-            CertStatVDO,
-            ProductVDO,
-            ProductTypeUfpVDO,
-            ProductTypeDfpVDO,
-            PassiveCableVDO,
-            ActiveCableVDO1,
-            ActiveCableVDO2,
-            ActiveCableVDO3,
-            AmaVDO,
-            VpdVDO,
-            SvidsVDO,
-            ModesVDO,
-            ExitModePayloadVDO,
-            EnterModePayloadVDO,
-            AttentionVDO,
+        vdo_objects = [
+            VDO(0x12345678),
+            UvdmHeaderVDO(0x12345678),
+            SvdmHeaderVDO(0x12345678),
+            GenericPayloadVDO(0x12345678, 0),
+            UnknownVDO(0x12345678, 0),
+            IdHeaderVDO(0x12345678),
+            CertStatVDO(0x12345678),
+            ProductVDO(0x12345678),
+            ProductTypeUfpVDO(0x12345678),
+            ProductTypeDfpVDO(0x12345678),
+            PassiveCableVDO(0x12345678),
+            ActiveCableVDO1(0x12345678),
+            ActiveCableVDO2(0x12345678),
+            ActiveCableVDO3(0x12345678),
+            AmaVDO(0x12345678),
+            VpdVDO(0x12345678),
+            SvidsVDO(0x12345678),
+            ModesVDO(0x12345678),
+            ExitModePayloadVDO(0x12345678),
+            EnterModePayloadVDO(0x12345678),
+            AttentionVDO(0x12345678),
         ]
-        for klass in vdo_classes:
-            if klass in {GenericPayloadVDO, UnknownVDO}:
-                obj = klass(0x12345678, 0)
-            else:
-                obj = klass(0x12345678)
+        for obj in vdo_objects:
             self.assertEqual(len(obj.encode()), 4)
             self.assertIsInstance(obj.to_dict(), dict)
 

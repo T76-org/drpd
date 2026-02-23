@@ -1,7 +1,7 @@
 """
 Copyright (c) 2025 MTA, Inc.
 
-The Device class enables communication with DRPD devices 
+The Device class enables communication with DRPD devices
 over USB using SCPI commands.
 """
 

@@ -5,10 +5,15 @@ Unit tests for PPS setup modal.
 import unittest
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
-from textual.widgets import Input
-
 from t76.drpd.app.main_screen.sink_pps_setup_modal import SinkPPSSetupModal
 from t76.drpd.device.device_sink_pdos import SPR_PDOPPS
+
+
+class _FakeInput:
+    """Minimal stand-in for Textual Input used by validation tests."""
+
+    def __init__(self, value: str = "") -> None:
+        self.value = value
 
 
 class TestSinkPPSSetupModal(unittest.IsolatedAsyncioTestCase):
@@ -18,7 +23,7 @@ class TestSinkPPSSetupModal(unittest.IsolatedAsyncioTestCase):
         self,
         pdo: SPR_PDOPPS,
         pdo_index: int = 1,
-    ) -> tuple[SinkPPSSetupModal, MagicMock, Input, Input, MagicMock]:
+    ) -> tuple[SinkPPSSetupModal, MagicMock, _FakeInput, _FakeInput, MagicMock]:
         """Create modal with mocked dependencies and inputs."""
         device = MagicMock()
         device.sink = MagicMock()
@@ -27,8 +32,8 @@ class TestSinkPPSSetupModal(unittest.IsolatedAsyncioTestCase):
         device.sink.get_negotiated_current = AsyncMock(return_value=3000)
 
         modal = SinkPPSSetupModal(device=device, pdo_index=pdo_index, pdo=pdo)
-        voltage_input = Input(id="voltage-input")
-        current_input = Input(id="current-input")
+        voltage_input = _FakeInput()
+        current_input = _FakeInput()
         error_label = MagicMock()
         modal.error_label = error_label
 

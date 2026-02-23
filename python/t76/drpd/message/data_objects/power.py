@@ -365,7 +365,7 @@ class SPRPpsApdo(SourcePDO):
 
     Fields (per Table 6.13):
       - PPS Power Limited: bit [27], indicates power limitation
-      - Maximum Voltage: bits [24:17], 100 mV units  
+      - Maximum Voltage: bits [24:17], 100 mV units
       - Minimum Voltage: bits [15:8], 100 mV units
       - Maximum Current: bits [6:0], 50 mA units
       - Reserved bits [31:28]=0b0010, [26:25]=0b00, [16]=0b0, [7]=0b0
