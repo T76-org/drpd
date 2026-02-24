@@ -1,6 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
-import type { DRPDDevice } from '../../lib/device'
-import type USBTMCTransport from '../../lib/transport/usbtmc'
+import type { DRPDDriverRuntime } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import type { RackDefinition, RackDeviceRecord, RackInstrument } from '../../lib/rack/types'
 import { MAX_ROW_WIDTH_UNITS } from './layout'
@@ -329,9 +328,9 @@ export interface RackDeviceState {
   ///< Optional connection error text.
   error?: string
   ///< Active DRPD driver instance, if available.
-  drpdDriver?: DRPDDevice
-  ///< Active USBTMC transport instance, if available.
-  transport?: USBTMCTransport
+  drpdDriver?: DRPDDriverRuntime
+  ///< Active transport-like runtime, if available.
+  transport?: { close(): Promise<void> }
 }
 
 /**

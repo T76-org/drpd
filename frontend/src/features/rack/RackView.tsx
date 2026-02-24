@@ -3,12 +3,11 @@ import type { Device } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
   DRPDDeviceDefinition,
-  type DRPDDevice,
+  type DRPDDriverRuntime,
   buildUSBFilters,
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
-import USBTMCTransport from '../../lib/transport/usbtmc'
 import { loadRackDocument, saveRackDocument } from '../../lib/rack/loadRack'
 import type {
   RackDefinition,
@@ -66,9 +65,9 @@ interface DropTarget {
  */
 interface DeviceRuntime {
   ///< Active DRPD driver instance, if available.
-  drpdDriver?: DRPDDevice
-  ///< Active USBTMC transport, if available.
-  transport?: USBTMCTransport
+  drpdDriver?: DRPDDriverRuntime
+  ///< Active transport-like runtime, if available.
+  transport?: { close(): Promise<void> }
 }
 
 
@@ -946,18 +945,11 @@ const connectDeviceRuntime = async (
   device: USBDevice,
 ): Promise<DeviceRuntime | null> => {
   if (definition instanceof DRPDDeviceDefinition) {
-    const transport = new USBTMCTransport(device)
     try {
-      await transport.open()
-      const driver = definition.createDriver(transport)
+      const runtime = await definition.createConnectedRuntime(device)
       await definition.connectDevice(device)
-      return { drpdDriver: driver, transport }
+      return { drpdDriver: runtime.driver, transport: runtime.transport }
     } catch (error) {
-      try {
-        await transport.close()
-      } catch {
-        // Ignore close errors when connection fails.
-      }
       throw error
     }
   }

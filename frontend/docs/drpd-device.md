@@ -2,6 +2,8 @@
 
 This document explains how the Dr. PD (DRPD) device driver is structured in this repo, how to connect to it, and how to observe its internal state. It is written for someone with no prior context. USB-PD message decoding is documented separately in `docs/drpd-message-decoding.md` and is not repeated here.
 
+Runtime architecture (definition vs driver, worker ownership, WebUSB in worker, logging in worker, and worker watchdog behavior) is documented separately in `docs/drpd-worker-runtime.md`.
+
 ## Overview
 
 The DRPD device driver is implemented as a set of command groups that wrap SCPI over USBTMC. The driver exposes strongly typed methods for each SCPI command and keeps an internal state snapshot that observers can subscribe to via `EventTarget` events. The driver is instantiated with a `DRPDTransport`, which can be backed by `USBTMCTransport` for real hardware or by test doubles.
@@ -29,6 +31,13 @@ The DRPD device driver is implemented as a set of command groups that wrap SCPI 
 
 ## Creating a driver instance
 
+There are two ways to create a DRPD runtime:
+
+- Preferred app path: `DRPDDeviceDefinition.createConnectedRuntime(device)` (used by frontend features; hides worker-backed vs direct implementation details)
+- Low-level/manual path: `DRPDDeviceDefinition.createDriver(transport)` (useful for tests and direct transport experiments)
+
+The examples below show the low-level/manual path because it is easier to illustrate end-to-end. For production/frontend usage in this repo, prefer `createConnectedRuntime(device)` and let the definition choose the runtime mechanism.
+
 Use `DRPDDeviceDefinition.createDriver(transport)` to build a driver for an already-open transport. For example:
 
     import USBTMCTransport from '../lib/transport/usbtmc'
@@ -52,6 +61,22 @@ Use `DRPDDeviceDefinition.createDriver(transport)` to build a driver for an alre
     await definition.connectDevice(device)
 
 When you are finished, call `definition.disconnectDevice()` and `transport.close()`.
+
+### Preferred frontend connection path (worker-backed in browser runtimes)
+
+The frontend should use the definition runtime factory and avoid manual transport management:
+
+    const definition = new DRPDDeviceDefinition()
+    const selected = await navigator.usb.requestDevice({ filters: buildUSBFilters([definition]) })
+    const runtime = await definition.createConnectedRuntime(selected)
+    const driver = runtime.driver
+
+    await definition.connectDevice(selected)
+
+    // ... use driver ...
+
+    definition.disconnectDevice()
+    await runtime.transport.close()
 
 ## Command groups
 
