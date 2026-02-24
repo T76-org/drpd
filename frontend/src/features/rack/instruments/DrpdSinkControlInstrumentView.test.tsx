@@ -110,7 +110,7 @@ describe('DrpdSinkControlInstrumentView', () => {
     driver.setSinkSnapshot(
       CCBusRole.SINK,
       {
-        status: SinkState.CONNECTED,
+        status: SinkState.PE_SNK_READY,
         negotiatedPdo: { type: 'FIXED', voltageV: 9, maxCurrentA: 3 },
         negotiatedVoltageMv: 9000,
         negotiatedCurrentMa: 2000,
@@ -134,9 +134,9 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(screen.getAllByText('9.00 V')).toHaveLength(2)
     expect(screen.getByText('ISET')).toBeInTheDocument()
     expect(screen.getByText('2.00 A')).toBeInTheDocument()
-    expect(screen.getByText(/#1 fixed/i, { selector: 'span' })).toBeInTheDocument()
-    expect(screen.getByText('Voltage Range')).toBeInTheDocument()
-    expect(screen.getByText('Current Range')).toBeInTheDocument()
+    expect(screen.getByText(/^Fixed$/, { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('VRANGE')).toBeInTheDocument()
+    expect(screen.getByText('IRANGE')).toBeInTheDocument()
     expect(screen.getByText(/0\.00-3\.00 a/i)).toBeInTheDocument()
   })
 
@@ -273,7 +273,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    expect(screen.getByText(/#1 epr_avs/i, { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText(/^EPR AVS$/, { selector: 'span' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /change/i }))
     const voltageInput = screen.getByLabelText(/voltage \(v\)/i)

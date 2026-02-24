@@ -6,8 +6,9 @@ import {
   parseDeviceIdentity,
   parseDeviceStatus,
   parseSinkPdo,
+  parseSinkStateResponse,
 } from '../parsers'
-import { AnalogMonitorCCChannelStatus, CaptureDecodeResult } from '../types'
+import { AnalogMonitorCCChannelStatus, CaptureDecodeResult, SinkState } from '../types'
 import { parseUSBPDMessage } from '../usb-pd/parser'
 import { PSRDYMessage } from '../usb-pd/message'
 
@@ -90,9 +91,9 @@ describe('drpd parsers', () => {
     const fixedSpaceSeparated = parseSinkPdo(['FIXED 5.000000 3.000000'])
     expect(fixedSpaceSeparated).toEqual({ type: 'FIXED', voltageV: 5.0, maxCurrentA: 3.0 })
 
-    const augmented = parseSinkPdo(['AUGMENTED,3.3,11.0,2.5'])
-    expect(augmented).toEqual({
-      type: 'AUGMENTED',
+    const augmentedAlias = parseSinkPdo(['AUGMENTED,3.3,11.0,2.5'])
+    expect(augmentedAlias).toEqual({
+      type: 'SPR_PPS',
       minVoltageV: 3.3,
       maxVoltageV: 11.0,
       maxCurrentA: 2.5,
@@ -113,6 +114,13 @@ describe('drpd parsers', () => {
       maxVoltageV: 28.0,
       maxPowerW: 140.0,
     })
+  })
+
+  it('parses sink status responses using raw device state tokens', () => {
+    expect(parseSinkStateResponse(['PE_SNK_READY'])).toBe(SinkState.PE_SNK_READY)
+    expect(parseSinkStateResponse(['PE_SNK_TRANSITION_SINK'])).toBe(
+      SinkState.PE_SNK_TRANSITION_SINK,
+    )
   })
 
   it('parses capture payloads', () => {

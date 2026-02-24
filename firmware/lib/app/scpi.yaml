@@ -269,10 +269,20 @@ commands:
                       - max_voltage: Maximum voltage in volts (float)
                       - max_power: Maximum power in watts (float)
                     
-                    - Augmented PDO (PPS): "AUGMENTED,<min_voltage>,<max_voltage>,<max_current>"
+                    - SPR PPS APDO: "SPR_PPS,<min_voltage>,<max_voltage>,<max_current>"
                       - min_voltage: Minimum voltage in volts (float)
                       - max_voltage: Maximum voltage in volts (float)
                       - max_current: Maximum current in amps (float)
+
+                    - SPR AVS APDO: "SPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_power: Maximum power in watts (float)
+
+                    - EPR AVS APDO: "EPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_power: Maximum power in watts (float)
     parameters:
       - name:        index
         type:        number
@@ -301,9 +311,19 @@ commands:
                     Query the current state of the sink state machine.
                     Returns one of:
                     - DISCONNECTED: No source detected
-                    - NEGOTIATING: Power negotiation in progress
-                    - AWAITING_PS_READY: Waiting for PS_RDY message from source
-                    - CONNECTED: Successfully negotiated and receiving power
+                    - PE_SNK_STARTUP
+                    - PE_SNK_DISCOVERY
+                    - PE_SNK_WAIT_FOR_CAPABILITIES
+                    - PE_SNK_EVALUATE_CAPABILITY
+                    - PE_SNK_SELECT_CAPABILITY
+                    - PE_SNK_TRANSITION_SINK
+                    - PE_SNK_READY
+                    - PE_SNK_EPR_MODE_ENTRY
+                    - PE_SNK_GIVE_SINK_CAP
+                    - PE_SNK_GET_SOURCE_CAP
+                    - PE_SNK_EPR_KEEPALIVE
+                    - PE_SNK_HARD_RESET
+                    - PE_SNK_TRANSITION_TO_DEFAULT
                     - ERROR: An error occurred during negotiation
     handler:      _querySinkStatus
 
@@ -326,25 +346,35 @@ commands:
                       - max_voltage: Maximum voltage in volts (float)
                       - max_power: Maximum power in watts (float)
                     
-                    - Augmented PDO (PPS): "AUGMENTED,<min_voltage>,<max_voltage>,<max_current>"
+                    - SPR PPS APDO: "SPR_PPS,<min_voltage>,<max_voltage>,<max_current>"
                       - min_voltage: Minimum voltage in volts (float)
                       - max_voltage: Maximum voltage in volts (float)
                       - max_current: Maximum current in amps (float)
+
+                    - SPR AVS APDO: "SPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_power: Maximum power in watts (float)
+
+                    - EPR AVS APDO: "EPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
+                      - min_voltage: Minimum voltage in volts (float)
+                      - max_voltage: Maximum voltage in volts (float)
+                      - max_power: Maximum power in watts (float)
                     
-                    Returns error if no PDO has been negotiated yet.
+                    Returns "NONE" if no PDO has been negotiated yet.
     handler:      _querySinkNegotiatedPDO
 
   - syntax:       "SINK:STATUS:VOLTAGE?"
     description:  |
                     Query the negotiated voltage.
-                    Returns a single int value in millivolts.
+                    Returns a single float value in millivolts.
                     Returns 0 if no voltage has been negotiated.
     handler:      _querySinkNegotiatedVoltage
 
   - syntax:       "SINK:STATUS:CURRENT?"
     description:  |
                     Query the negotiated current.
-                    Returns a single int value in milliamps.
+                    Returns a single float value in milliamps.
                     Returns 0 if no current has been negotiated.
     handler:      _querySinkNegotiatedCurrent
 

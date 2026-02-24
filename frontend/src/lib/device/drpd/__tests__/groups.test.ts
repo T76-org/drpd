@@ -118,7 +118,7 @@ describe('DRPD command groups', () => {
     transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
     const group = new DRPDSink(transport)
     const info = await group.getSinkInfo()
-    expect(info.status).toBe('CONNECTED')
+    expect(info.status).toBe('PE_SNK_READY')
     expect(info.negotiatedVoltageMv).toBe(5000)
     expect(info.negotiatedCurrentMa).toBe(1500)
     expect(info.negotiatedPdo).toEqual({

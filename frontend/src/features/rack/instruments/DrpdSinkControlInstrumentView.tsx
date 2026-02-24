@@ -6,6 +6,7 @@ import {
   type SinkInfo,
   type SinkPdo,
   SinkPdoType,
+  SinkState,
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
@@ -45,8 +46,6 @@ const formatPdoSummary = (pdo: SinkPdo): string => {
       return `Variable ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
     case SinkPdoType.BATTERY:
       return `Battery ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxPowerW.toFixed(2)}W`
-    case SinkPdoType.AUGMENTED:
-      return `Augmented ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
     case SinkPdoType.SPR_PPS:
       return `SPR PPS ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
     case SinkPdoType.SPR_AVS:
@@ -54,6 +53,33 @@ const formatPdoSummary = (pdo: SinkPdo): string => {
       return `${pdo.type.replace('_', ' ')} ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxPowerW.toFixed(2)}W`
     default:
       return 'Unknown'
+  }
+}
+
+/**
+ * Format the detailed sink state into a concise UI label.
+ *
+ * @param state - Sink state token from the device.
+ * @returns Human-readable sink state label.
+ */
+const formatSinkStateLabel = (state: SinkInfo['status'] | null | undefined): string => {
+  if (!state) {
+    return '--'
+  }
+
+  switch (state) {
+    case SinkState.DISCONNECTED:
+      return 'Disconnected'
+    case SinkState.PE_SNK_TRANSITION_SINK:
+      return 'Awaiting PS_RDY'
+    case SinkState.PE_SNK_READY:
+      return 'Connected'
+    case SinkState.PE_SNK_EPR_KEEPALIVE:
+      return 'EPR Keepalive'
+    case SinkState.ERROR:
+      return 'Error'
+    default:
+      return state.replaceAll('_', ' ')
   }
 }
 
@@ -90,11 +116,6 @@ const areSinkPdosEqual = (
         left.minVoltageV === right.minVoltageV &&
         left.maxVoltageV === right.maxVoltageV &&
         left.maxPowerW === right.maxPowerW
-    case SinkPdoType.AUGMENTED:
-      return right.type === SinkPdoType.AUGMENTED &&
-        left.minVoltageV === right.minVoltageV &&
-        left.maxVoltageV === right.maxVoltageV &&
-        left.maxCurrentA === right.maxCurrentA
     case SinkPdoType.SPR_PPS:
       return right.type === SinkPdoType.SPR_PPS &&
         left.minVoltageV === right.minVoltageV &&
@@ -163,12 +184,6 @@ const getSelectedPdoDetails = (
         voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
         currentRange: `0.00-${pdo.maxCurrentA.toFixed(2)} A`,
       }
-    case SinkPdoType.AUGMENTED:
-      return {
-        title: 'Augmented',
-        voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-        currentRange: `0.00-${pdo.maxCurrentA.toFixed(2)} A`,
-      }
     case SinkPdoType.SPR_PPS:
       return {
         title: 'SPR PPS',
@@ -234,7 +249,6 @@ const buildDefaultForm = (
         powerW: '',
       }
     case SinkPdoType.VARIABLE:
-    case SinkPdoType.AUGMENTED:
     case SinkPdoType.SPR_PPS:
       return {
         voltageV: pdo.minVoltageV.toFixed(2),
@@ -307,7 +321,6 @@ const buildRequestArgs = ({
 
   if (
     pdo.type === SinkPdoType.VARIABLE ||
-    pdo.type === SinkPdoType.AUGMENTED ||
     pdo.type === SinkPdoType.SPR_PPS
   ) {
     const parsedVoltage = parseField(voltageV)
@@ -565,7 +578,7 @@ export const DrpdSinkControlInstrumentView = ({
     selectedPdo != null &&
     role === CCBusRole.SINK &&
     requestStatus !== 'sending'
-  const sinkStateLabel = sinkInfo?.status ?? '--'
+  const sinkStateLabel = formatSinkStateLabel(sinkInfo?.status)
   const vsetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedVoltageMv / 1000 : null)} V`
   const isetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedCurrentMa / 1000 : null)} A`
   const requestStateMessage =
@@ -609,7 +622,7 @@ export const DrpdSinkControlInstrumentView = ({
           <div className={styles.row}>
             <span className={styles.rowLabel}>State</span>
             <span className={styles.rowValue}>
-              {sinkStateLabel.charAt(0).toUpperCase() + sinkStateLabel.slice(1).toLowerCase()}
+              {sinkStateLabel}
               {sinkInfo?.error ? ' (Error)' : ''}
             </span>
           </div>
@@ -753,7 +766,6 @@ export const DrpdSinkControlInstrumentView = ({
                 ) : null}
 
                 {selectedPdo?.type === SinkPdoType.VARIABLE ||
-                selectedPdo?.type === SinkPdoType.AUGMENTED ||
                 selectedPdo?.type === SinkPdoType.SPR_PPS ? (
                   <>
                     <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>

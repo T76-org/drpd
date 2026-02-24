@@ -402,6 +402,7 @@ export class USBTMCTransport extends EventTarget {
   async sendCommand(command: string, ...params: SCPIParam[]): Promise<void> {
     await this._withLock(async () => {
       const line = this._formatSCPI(command, params)
+      console.debug(`Command: ${line}`)
       await this._withTimeout(
         this._write(`${line}\n`),
         this.options.writeTimeoutMs,
@@ -734,7 +735,7 @@ export class USBTMCTransport extends EventTarget {
       return command
     }
 
-    const formatted = params.map((param) => this._formatSCPIParam(param)).join(', ')
+    const formatted = params.map((param) => this._formatSCPIParam(param)).join(' ')
     return `${command} ${formatted}`
   }
 
