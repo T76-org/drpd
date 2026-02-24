@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseUSBPDMessage } from '../parser'
-import type { FixedSupplyPDO, ParsedPDO } from '../dataObjects'
+import type { FixedSupplyPDO, ParsedPDO } from '../DataObjects'
 import {
   buildMessage,
   makeExtendedHeader,

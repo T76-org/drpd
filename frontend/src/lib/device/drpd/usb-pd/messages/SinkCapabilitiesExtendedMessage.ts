@@ -2,7 +2,7 @@ import { ExtendedMessage } from '../messageBase'
 import {
   parseSinkCapabilitiesExtendedDataBlock,
   type ParsedSinkCapabilitiesExtendedDataBlock,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Sink_Capabilities_Extended extended message.

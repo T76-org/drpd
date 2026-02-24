@@ -1,5 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
-import { parsePPSStatusDataBlock, type ParsedPPSStatusDataBlock } from '../dataObjects'
+import { parsePPSStatusDataBlock, type ParsedPPSStatusDataBlock } from '../DataObjects'
 
 /**
  * PPS_Status extended message.

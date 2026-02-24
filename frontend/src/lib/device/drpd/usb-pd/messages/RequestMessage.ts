@@ -1,5 +1,5 @@
 import { DataMessage } from '../messageBase'
-import { parseRDO, readDataObjects, type ParsedRDO } from '../dataObjects'
+import { parseRDO, readDataObjects, type ParsedRDO } from '../DataObjects'
 
 /**
  * Request data message.

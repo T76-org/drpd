@@ -3,7 +3,7 @@ import {
   parseCountryCodeDataObject,
   readDataObjects,
   type ParsedCountryCodeDataObject,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Get_Country_Info data message.

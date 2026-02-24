@@ -2,7 +2,7 @@ import { ExtendedMessage } from '../messageBase'
 import {
   parseExtendedControlDataBlock,
   type ParsedExtendedControlDataBlock,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Extended_Control extended message.

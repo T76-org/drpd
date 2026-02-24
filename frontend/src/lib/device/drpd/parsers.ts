@@ -103,6 +103,29 @@ export const parseSingleInt = (values: string[], label: string): number => {
 }
 
 /**
+ * Parse a response value that may be returned in base units (V/A) or milli-units.
+ *
+ * @param values - Parsed SCPI response values.
+ * @param label - Value label for error messages.
+ * @param baseUnitThreshold - Maximum value that is treated as base units.
+ * @returns Integer value in milli-units.
+ */
+export const parseSingleScaledMilliInt = (
+  values: string[],
+  label: string,
+  baseUnitThreshold: number,
+): number => {
+  if (!values.length) {
+    throw new Error(`Missing ${label} response`)
+  }
+  const parsed = parseNumber(values[0], label)
+  if (Math.abs(parsed) <= baseUnitThreshold) {
+    return Math.round(parsed * 1000)
+  }
+  return Math.round(parsed)
+}
+
+/**
  * Parse a response expected to contain a single bigint value.
  *
  * @param values - Parsed SCPI response values.
@@ -246,6 +269,7 @@ export const parseTriggerEventType = (value: string): TriggerEventType => {
     [TriggerEventType.HEADER_START]: TriggerEventType.HEADER_START,
     [TriggerEventType.DATA_START]: TriggerEventType.DATA_START,
     [TriggerEventType.MESSAGE_COMPLETE]: TriggerEventType.MESSAGE_COMPLETE,
+    [TriggerEventType.HARD_RESET_RECEIVED]: TriggerEventType.HARD_RESET_RECEIVED,
     [TriggerEventType.INVALID_KCODE]: TriggerEventType.INVALID_KCODE,
     [TriggerEventType.CRC_ERROR]: TriggerEventType.CRC_ERROR,
     [TriggerEventType.TIMEOUT_ERROR]: TriggerEventType.TIMEOUT_ERROR,
@@ -300,6 +324,24 @@ export const parseSinkState = (value: string): SinkState => {
       return SinkState.CONNECTED
     case SinkState.ERROR:
       return SinkState.ERROR
+    // Firmware currently reports detailed PE state names; map them to the
+    // frontend's higher-level sink state model for UI stability.
+    case 'PE_SNK_STARTUP':
+    case 'PE_SNK_DISCOVERY':
+    case 'PE_SNK_WAIT_FOR_CAPABILITIES':
+    case 'PE_SNK_EVALUATE_CAPABILITY':
+    case 'PE_SNK_SELECT_CAPABILITY':
+    case 'PE_SNK_EPR_MODE_ENTRY':
+    case 'PE_SNK_GIVE_SINK_CAP':
+    case 'PE_SNK_GET_SOURCE_CAP':
+    case 'PE_SNK_HARD_RESET':
+    case 'PE_SNK_TRANSITION_TO_DEFAULT':
+      return SinkState.NEGOTIATING
+    case 'PE_SNK_TRANSITION_SINK':
+      return SinkState.AWAITING_PS_READY
+    case 'PE_SNK_READY':
+    case 'PE_SNK_EPR_KEEPALIVE':
+      return SinkState.CONNECTED
     default:
       throw new Error(`Invalid sink state: ${value}`)
   }
@@ -516,6 +558,28 @@ export const parseSinkPdo = (values: string[]): SinkPdo => {
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
+    }
+  }
+  if (type === 'SPR_PPS') {
+    if (parts.length !== 4) {
+      throw new Error(`Invalid SPR_PPS PDO response: ${parts.join(',')}`)
+    }
+    return {
+      type: 'SPR_PPS',
+      minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
+      maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
+      maxCurrentA: parseNumber(parts[3], 'PDO max current'),
+    }
+  }
+  if (type === 'SPR_AVS' || type === 'EPR_AVS') {
+    if (parts.length !== 4) {
+      throw new Error(`Invalid ${type} PDO response: ${parts.join(',')}`)
+    }
+    return {
+      type,
+      minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
+      maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
+      maxPowerW: parseNumber(parts[3], 'PDO max power'),
     }
   }
   throw new Error(`Unknown PDO type: ${parts[0]}`)

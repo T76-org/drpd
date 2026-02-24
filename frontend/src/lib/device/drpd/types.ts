@@ -98,6 +98,7 @@ export const TriggerEventType = {
   HEADER_START: 'HEADER_START',
   DATA_START: 'DATA_START',
   MESSAGE_COMPLETE: 'MESSAGE_COMPLETE',
+  HARD_RESET_RECEIVED: 'HARD_RESET_RECEIVED',
   INVALID_KCODE: 'INVALID_KCODE',
   CRC_ERROR: 'CRC_ERROR',
   TIMEOUT_ERROR: 'TIMEOUT_ERROR',
@@ -367,9 +368,44 @@ export interface AugmentedSinkPdo {
 }
 
 /**
+ * SPR PPS augmented sink PDO.
+ */
+export interface SprPpsSinkPdo {
+  ///< PDO type tag.
+  type: 'SPR_PPS'
+  ///< Minimum voltage in volts.
+  minVoltageV: number
+  ///< Maximum voltage in volts.
+  maxVoltageV: number
+  ///< Maximum current in amps.
+  maxCurrentA: number
+}
+
+/**
+ * SPR AVS or EPR AVS sink PDO.
+ */
+export interface AvsSinkPdo {
+  ///< PDO type tag.
+  type: 'SPR_AVS' | 'EPR_AVS'
+  ///< Minimum voltage in volts.
+  minVoltageV: number
+  ///< Maximum voltage in volts.
+  maxVoltageV: number
+  ///< Maximum power in watts.
+  maxPowerW: number
+}
+
+/**
  * Sink PDO union type.
  */
-export type SinkPdo = FixedSinkPdo | VariableSinkPdo | BatterySinkPdo | AugmentedSinkPdo | null
+export type SinkPdo =
+  | FixedSinkPdo
+  | VariableSinkPdo
+  | BatterySinkPdo
+  | AugmentedSinkPdo
+  | SprPpsSinkPdo
+  | AvsSinkPdo
+  | null
 
 /**
  * Sink system information.

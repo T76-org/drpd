@@ -56,6 +56,7 @@ const createUSBConfiguration = (
   protocolCode: number,
 ): USBConfiguration => {
   return {
+    configurationName: 'mock',
     configurationValue: 1,
     interfaces: [
       {
@@ -70,7 +71,7 @@ const createUSBConfiguration = (
         ],
       },
     ],
-  } as USBConfiguration
+  } as unknown as USBConfiguration
 }
 
 /**
@@ -93,6 +94,12 @@ const buildDefinition = (
         displayName: identifier,
         usbSearch,
       })
+    }
+
+    public loadConfig(_config: unknown): void {}
+
+    public saveConfig(): unknown {
+      return undefined
     }
   }
 
@@ -162,6 +169,12 @@ describe('device registry helpers', () => {
           usbSearch: [{ vendorId: 5 }],
         })
       }
+
+      public loadConfig(_config: unknown): void {}
+
+      public saveConfig(): unknown {
+        return undefined
+      }
     }
 
     class RejectsDevice extends Device {
@@ -173,6 +186,12 @@ describe('device registry helpers', () => {
           displayName: 'Rejects',
           usbSearch: [{ vendorId: 5 }],
         })
+      }
+
+      public loadConfig(_config: unknown): void {}
+
+      public saveConfig(): unknown {
+        return undefined
       }
     }
 

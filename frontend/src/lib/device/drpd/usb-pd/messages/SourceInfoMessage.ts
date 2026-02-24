@@ -3,7 +3,7 @@ import {
   parseSourceInfoDataObject,
   readDataObjects,
   type ParsedSourceInfoDataObject,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Source_Info data message.

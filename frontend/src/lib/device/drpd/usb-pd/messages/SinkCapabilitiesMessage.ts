@@ -1,5 +1,5 @@
 import { DataMessage } from '../messageBase'
-import { parsePDO, readDataObjects, type ParsedPDO } from '../dataObjects'
+import { parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
 
 /**
  * Sink_Capabilities data message.

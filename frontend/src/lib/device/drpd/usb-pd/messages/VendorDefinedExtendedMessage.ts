@@ -1,5 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
-import { parseVDMHeader, readUint32LE, type ParsedVDMHeader } from '../dataObjects'
+import { parseVDMHeader, readUint32LE, type ParsedVDMHeader } from '../DataObjects'
 
 /**
  * Vendor_Defined_Extended extended message.

@@ -12,6 +12,23 @@ import { DRPDDevice } from './drpd/device'
 import type { DRPDTransport } from './drpd/transport'
 import { buildDefaultLoggingConfig, normalizeLoggingConfig } from './drpd/logging'
 import type { DRPDDeviceConfig, DRPDLoggingConfig } from './drpd/types'
+import {
+  DRPDWorkerDeviceProxy,
+  DRPDWorkerLogStoreProxy,
+} from './drpd/worker'
+
+/**
+ * DRPD driver runtime exposed to the frontend.
+ */
+export type DRPDDriverRuntime = DRPDDevice | DRPDWorkerDeviceProxy
+
+/**
+ * Connected DRPD runtime resources returned by the definition factory.
+ */
+export interface DRPDConnectedRuntime {
+  driver: DRPDDriverRuntime ///< DRPD driver runtime instance.
+  transport: { close(): Promise<void> } ///< Closable transport/runtime resource.
+}
 
 /**
  * DRPD device definition.
@@ -65,12 +82,38 @@ export class DRPDDeviceDefinition extends Device {
    * @returns DRPD device driver.
    */
   public createDriver(transport: DRPDTransport): DRPDDevice {
-    this.driver = new DRPDDevice(transport)
+    this.driver = new DRPDDevice(transport, {
+      createLogStore: (config) => new DRPDWorkerLogStoreProxy(config),
+    })
     this.driver.setDebugLoggingEnabled(false)
     const config = this.getStoredConfig()
     const loggingConfig = this.extractLoggingConfig(config)
     void this.driver.configureLogging(loggingConfig)
     return this.driver
+  }
+
+  /**
+   * Create a DRPD driver runtime for a selected USB device.
+   *
+   * @param device - Selected WebUSB device.
+   * @returns DRPD driver runtime.
+   */
+  public async createConnectedRuntime(device: USBDevice): Promise<DRPDConnectedRuntime> {
+    if (typeof Worker !== 'undefined') {
+      const driver = await DRPDWorkerDeviceProxy.create(device)
+      driver.setDebugLoggingEnabled(false)
+      const config = this.getStoredConfig()
+      const loggingConfig = this.extractLoggingConfig(config)
+      await driver.configureLogging(loggingConfig)
+      this.driver = driver
+      return { driver, transport: driver }
+    }
+
+    // Capability fallback for test/non-browser environments without Worker.
+    const transport = new USBTMCTransport(device)
+    await transport.open()
+    const driver = this.createDriver(transport)
+    return { driver, transport }
   }
 
   /**
@@ -128,7 +171,7 @@ export class DRPDDeviceDefinition extends Device {
     return normalizeLoggingConfig(value.logging)
   }
 
-  protected driver?: DRPDDevice ///< Cached driver instance.
+  protected driver?: DRPDDriverRuntime ///< Cached driver instance.
 }
 
 export * from './drpd/index'

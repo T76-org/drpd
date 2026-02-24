@@ -1,5 +1,5 @@
 import { DataMessage } from '../messageBase'
-import { readDataObjects } from '../dataObjects'
+import { readDataObjects } from '../DataObjects'
 
 /**
  * Reserved data message.

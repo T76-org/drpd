@@ -5,7 +5,7 @@ import {
   readDataObjects,
   type ParsedDiscoverIdentity,
   type ParsedVDMHeader,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Vendor_Defined data message.

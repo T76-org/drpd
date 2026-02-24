@@ -3,7 +3,7 @@ import {
   parseEnterUSBDataObject,
   readDataObjects,
   type ParsedEnterUSBDataObject,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Enter_USB data message.

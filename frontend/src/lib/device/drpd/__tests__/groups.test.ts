@@ -111,16 +111,22 @@ describe('DRPD command groups', () => {
 
   it('parses sink status and negotiated values', async () => {
     const transport = new MockTransport()
-    transport.textResponses.set('SINK:STATUS?', ['CONNECTED'])
-    transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.0,3.0'])
-    transport.textResponses.set('SINK:STATUS:VOLTAGE?', ['5000'])
-    transport.textResponses.set('SINK:STATUS:CURRENT?', ['1500'])
+    transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
+    transport.textResponses.set('SINK:STATUS:PDO?', ['SPR_PPS,3.3,11.0,2.5'])
+    transport.textResponses.set('SINK:STATUS:VOLTAGE?', ['5.000000'])
+    transport.textResponses.set('SINK:STATUS:CURRENT?', ['1.500000'])
     transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
     const group = new DRPDSink(transport)
     const info = await group.getSinkInfo()
     expect(info.status).toBe('CONNECTED')
     expect(info.negotiatedVoltageMv).toBe(5000)
     expect(info.negotiatedCurrentMa).toBe(1500)
+    expect(info.negotiatedPdo).toEqual({
+      type: 'SPR_PPS',
+      minVoltageV: 3.3,
+      maxVoltageV: 11,
+      maxCurrentA: 2.5,
+    })
   })
 
   it('sets trigger configuration using raw enum tokens', async () => {
@@ -138,15 +144,26 @@ describe('DRPD command groups', () => {
     })
   })
 
-  it('queries VBUS thresholds', async () => {
+  it('queries VBUS thresholds from firmware float V/A responses', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
-    transport.textResponses.set('BUS:VBUS:OVPThreshold?', ['12000'])
-    transport.textResponses.set('BUS:VBUS:OCPThreshold?', ['3000'])
+    transport.textResponses.set('BUS:VBUS:OVPThreshold?', ['12.000000'])
+    transport.textResponses.set('BUS:VBUS:OCPThreshold?', ['3.000000'])
     const group = new DRPDVBus(transport)
     const info = await group.getInfo()
     expect(info.status).toBe('ENABLED')
     expect(info.ovpThresholdMv).toBe(12000)
     expect(info.ocpThresholdMa).toBe(3000)
+  })
+
+  it('sends VBUS thresholds in firmware V/A units while keeping frontend mV/mA API', async () => {
+    const transport = new MockTransport()
+    const group = new DRPDVBus(transport)
+    await group.setOvpThresholdMv(12000)
+    await group.setOcpThresholdMa(3000)
+    expect(transport.commands).toEqual([
+      { command: 'BUS:VBUS:OVPThreshold', params: [12] },
+      { command: 'BUS:VBUS:OCPThreshold', params: [3] },
+    ])
   })
 })

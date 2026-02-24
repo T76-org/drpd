@@ -2,7 +2,7 @@ import { ExtendedMessage } from '../messageBase'
 import {
   parseBatteryCapabilitiesDataBlock,
   type ParsedBatteryCapabilitiesDataBlock,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Battery_Capabilities extended message.

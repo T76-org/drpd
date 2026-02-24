@@ -1,5 +1,5 @@
 import { DataMessage } from '../messageBase'
-import { parseAlertDataObject, readDataObjects, type ParsedAlertDataObject } from '../dataObjects'
+import { parseAlertDataObject, readDataObjects, type ParsedAlertDataObject } from '../DataObjects'
 
 /**
  * Alert data message.

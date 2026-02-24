@@ -3,7 +3,7 @@ import {
   parseRevisionDataObject,
   readDataObjects,
   type ParsedRevisionDataObject,
-} from '../dataObjects'
+} from '../DataObjects'
 
 /**
  * Revision data message.
