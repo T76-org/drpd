@@ -49,7 +49,7 @@ export class DrpdSinkControlInstrument extends Instrument {
       displayName: 'Sink Control',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'fixed', units: 4 },
-      defaultUnits: 2
+      defaultUnits: 1
     })
   }
 }

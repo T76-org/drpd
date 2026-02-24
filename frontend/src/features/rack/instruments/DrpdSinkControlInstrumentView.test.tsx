@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -128,11 +128,16 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    expect(screen.getByText(/state: connected/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/fixed 9\.00v \/ 3\.00a/i, { selector: 'div' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/18\.00 w/i)).toBeInTheDocument()
+    expect(screen.getByText('State')).toBeInTheDocument()
+    expect(screen.getByText(/connected/i)).toBeInTheDocument()
+    expect(screen.getByText('VSET')).toBeInTheDocument()
+    expect(screen.getAllByText('9.00 V')).toHaveLength(2)
+    expect(screen.getByText('ISET')).toBeInTheDocument()
+    expect(screen.getByText('2.00 A')).toBeInTheDocument()
+    expect(screen.getByText(/#1 fixed/i, { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText('Voltage Range')).toBeInTheDocument()
+    expect(screen.getByText('Current Range')).toBeInTheDocument()
+    expect(screen.getByText(/0\.00-3\.00 a/i)).toBeInTheDocument()
   })
 
   it('lists available PDOs in the selector', async () => {
@@ -156,6 +161,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
+    await userEvent.setup().click(screen.getByRole('button', { name: /change/i }))
     const select = screen.getByLabelText(/available pdos/i)
     expect(select).toBeInTheDocument()
     expect(await screen.findByRole('option', { name: /#1 fixed 5\.00v \/ 3\.00a/i })).toBeInTheDocument()
@@ -187,6 +193,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
+    await user.click(screen.getByRole('button', { name: /change/i }))
     await user.selectOptions(screen.getByLabelText(/available pdos/i), '1')
     expect(screen.queryByLabelText(/current \(a\)/i)).not.toBeInTheDocument()
     const voltageInput = screen.getByLabelText(/voltage \(v\)/i)
@@ -202,7 +209,11 @@ describe('DrpdSinkControlInstrumentView', () => {
       expect(requestSpy).toHaveBeenCalledWith(1, 12000, 2000)
     })
     expect(refreshSpy).toHaveBeenCalled()
-    expect(screen.getByText(/request sent\./i)).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByText(
+        /request sent\./i,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('shows validation error and blocks invalid request', async () => {
@@ -226,13 +237,18 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
+    await user.click(screen.getByRole('button', { name: /change/i }))
     const voltageInput = screen.getByLabelText(/voltage \(v\)/i)
     await user.clear(voltageInput)
     await user.type(voltageInput, '2')
     await user.click(screen.getByRole('button', { name: /request pdo/i }))
 
     expect(requestSpy).not.toHaveBeenCalled()
-    expect(screen.getByText(/voltage must be between 5\.00 and 12\.00 v\./i)).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByText(
+        /voltage must be between 5\.00 and 12\.00 v\./i,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('supports AVS PDOs using voltage and power inputs', async () => {
@@ -257,8 +273,9 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    expect(screen.getByText(/selected: epr_avs/i)).toBeInTheDocument()
+    expect(screen.getByText(/#1 epr_avs/i, { selector: 'span' })).toBeInTheDocument()
 
+    await user.click(screen.getByRole('button', { name: /change/i }))
     const voltageInput = screen.getByLabelText(/voltage \(v\)/i)
     const powerInput = screen.getByLabelText(/power \(w\)/i)
     await user.clear(voltageInput)

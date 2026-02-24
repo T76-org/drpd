@@ -87,6 +87,9 @@ describe('drpd parsers', () => {
     const fixed = parseSinkPdo(['FIXED,5.0,3.0'])
     expect(fixed).toEqual({ type: 'FIXED', voltageV: 5.0, maxCurrentA: 3.0 })
 
+    const fixedSpaceSeparated = parseSinkPdo(['FIXED 5.000000 3.000000'])
+    expect(fixedSpaceSeparated).toEqual({ type: 'FIXED', voltageV: 5.0, maxCurrentA: 3.0 })
+
     const augmented = parseSinkPdo(['AUGMENTED,3.3,11.0,2.5'])
     expect(augmented).toEqual({
       type: 'AUGMENTED',

@@ -60,6 +60,24 @@ export const CCBusRoleStatus = {
 export type CCBusRoleStatus = (typeof CCBusRoleStatus)[keyof typeof CCBusRoleStatus]
 
 /**
+ * Sink PDO type discriminator.
+ */
+export const SinkPdoType = {
+  FIXED: 'FIXED',
+  VARIABLE: 'VARIABLE',
+  BATTERY: 'BATTERY',
+  AUGMENTED: 'AUGMENTED',
+  SPR_PPS: 'SPR_PPS',
+  SPR_AVS: 'SPR_AVS',
+  EPR_AVS: 'EPR_AVS',
+} as const
+
+/**
+ * Sink PDO type discriminator value.
+ */
+export type SinkPdoType = (typeof SinkPdoType)[keyof typeof SinkPdoType]
+
+/**
  * VBUS controller status.
  */
 export const VBusStatus = {
@@ -318,7 +336,7 @@ export interface TriggerInfo {
  */
 export interface FixedSinkPdo {
   ///< PDO type tag.
-  type: 'FIXED'
+  type: typeof SinkPdoType.FIXED
   ///< Voltage in volts.
   voltageV: number
   ///< Maximum current in amps.
@@ -330,7 +348,7 @@ export interface FixedSinkPdo {
  */
 export interface VariableSinkPdo {
   ///< PDO type tag.
-  type: 'VARIABLE'
+  type: typeof SinkPdoType.VARIABLE
   ///< Minimum voltage in volts.
   minVoltageV: number
   ///< Maximum voltage in volts.
@@ -344,7 +362,7 @@ export interface VariableSinkPdo {
  */
 export interface BatterySinkPdo {
   ///< PDO type tag.
-  type: 'BATTERY'
+  type: typeof SinkPdoType.BATTERY
   ///< Minimum voltage in volts.
   minVoltageV: number
   ///< Maximum voltage in volts.
@@ -358,7 +376,7 @@ export interface BatterySinkPdo {
  */
 export interface AugmentedSinkPdo {
   ///< PDO type tag.
-  type: 'AUGMENTED'
+  type: typeof SinkPdoType.AUGMENTED
   ///< Minimum voltage in volts.
   minVoltageV: number
   ///< Maximum voltage in volts.
@@ -372,7 +390,7 @@ export interface AugmentedSinkPdo {
  */
 export interface SprPpsSinkPdo {
   ///< PDO type tag.
-  type: 'SPR_PPS'
+  type: typeof SinkPdoType.SPR_PPS
   ///< Minimum voltage in volts.
   minVoltageV: number
   ///< Maximum voltage in volts.
@@ -386,7 +404,7 @@ export interface SprPpsSinkPdo {
  */
 export interface AvsSinkPdo {
   ///< PDO type tag.
-  type: 'SPR_AVS' | 'EPR_AVS'
+  type: typeof SinkPdoType.SPR_AVS | typeof SinkPdoType.EPR_AVS
   ///< Minimum voltage in volts.
   minVoltageV: number
   ///< Maximum voltage in volts.

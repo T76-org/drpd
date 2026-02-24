@@ -12,6 +12,7 @@ import {
   CCBusRoleStatus,
   CcChannel,
   OnOffState,
+  SinkPdoType,
   SinkState,
   TestCcRole,
   TriggerEventType,
@@ -509,7 +510,11 @@ export const analogMonitorCCStatusFromVoltage = (
  * @returns Parsed sink PDO structure.
  */
 export const parseSinkPdo = (values: string[]): SinkPdo => {
-  const parts = parseCommaSeparated(values)
+  const commaParts = parseCommaSeparated(values)
+  const parts =
+    commaParts.length === 1 && /\s/.test(commaParts[0])
+      ? commaParts[0].trim().split(/\s+/)
+      : commaParts
   if (!parts.length) {
     return null
   }
@@ -517,61 +522,61 @@ export const parseSinkPdo = (values: string[]): SinkPdo => {
   if (type === 'NONE') {
     return null
   }
-  if (type === 'FIXED') {
+  if (type === SinkPdoType.FIXED) {
     if (parts.length !== 3) {
       throw new Error(`Invalid FIXED PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'FIXED',
+      type: SinkPdoType.FIXED,
       voltageV: parseNumber(parts[1], 'PDO voltage'),
       maxCurrentA: parseNumber(parts[2], 'PDO max current'),
     }
   }
-  if (type === 'VARIABLE') {
+  if (type === SinkPdoType.VARIABLE) {
     if (parts.length !== 4) {
       throw new Error(`Invalid VARIABLE PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'VARIABLE',
+      type: SinkPdoType.VARIABLE,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
     }
   }
-  if (type === 'BATTERY') {
+  if (type === SinkPdoType.BATTERY) {
     if (parts.length !== 4) {
       throw new Error(`Invalid BATTERY PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'BATTERY',
+      type: SinkPdoType.BATTERY,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxPowerW: parseNumber(parts[3], 'PDO max power'),
     }
   }
-  if (type === 'AUGMENTED') {
+  if (type === SinkPdoType.AUGMENTED) {
     if (parts.length !== 4) {
       throw new Error(`Invalid AUGMENTED PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'AUGMENTED',
+      type: SinkPdoType.AUGMENTED,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
     }
   }
-  if (type === 'SPR_PPS') {
+  if (type === SinkPdoType.SPR_PPS) {
     if (parts.length !== 4) {
       throw new Error(`Invalid SPR_PPS PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'SPR_PPS',
+      type: SinkPdoType.SPR_PPS,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
     }
   }
-  if (type === 'SPR_AVS' || type === 'EPR_AVS') {
+  if (type === SinkPdoType.SPR_AVS || type === SinkPdoType.EPR_AVS) {
     if (parts.length !== 4) {
       throw new Error(`Invalid ${type} PDO response: ${parts.join(',')}`)
     }
