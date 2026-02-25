@@ -455,11 +455,11 @@ describe('RackView', () => {
     )
     expect(await screen.findByTestId('rack-instrument-inst-cc')).toHaveAttribute(
       'data-width-units',
-      '4',
+      '2',
     )
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
       'data-width-units',
-      '6',
+      '8',
     )
   })
 
@@ -522,6 +522,65 @@ describe('RackView', () => {
     expect(
       screen.getByTestId('rack-row-row-2').querySelector('[data-testid="rack-instrument-inst-a"]'),
     ).toBeFalsy()
+  })
+
+  it('allows dropping next to legacy VBUS identifiers in edit mode', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-vbus-legacy',
+                    instrumentIdentifier: 'com.mta.drpd.device-status'
+                  }
+                ]
+              },
+              {
+                id: 'row-2',
+                instruments: [
+                  {
+                    id: 'inst-move',
+                    instrumentIdentifier: 'com.mta.drpd.device-status-panel'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const instrument = await screen.findByTestId('rack-instrument-inst-move')
+    const targetRow = await screen.findByTestId('rack-row-row-1')
+    const dataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: 'move'
+    }
+
+    fireEvent.dragStart(instrument, { dataTransfer })
+    fireEvent.dragOver(targetRow, { clientX: 10, clientY: 10 })
+    fireEvent.drop(targetRow, { clientX: 10, clientY: 10 })
+    fireEvent.dragEnd(instrument)
+
+    const rows = screen.getAllByTestId(/rack-row-row-/)
+    expect(rows).toHaveLength(1)
+    expect(screen.getByTestId('rack-row-row-1')).toContainElement(
+      screen.getByTestId('rack-instrument-inst-vbus-legacy'),
+    )
+    expect(screen.getByTestId('rack-row-row-1')).toContainElement(
+      screen.getByTestId('rack-instrument-inst-move'),
+    )
   })
 
   it('shows the full-screen overlay when an instrument requests it', async () => {

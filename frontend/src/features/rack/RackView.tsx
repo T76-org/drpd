@@ -95,13 +95,20 @@ export const RackView = () => {
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
   const instrumentDefinitions = useMemo(() => getSupportedInstruments(), [])
   const instrumentDefinitionMap = useMemo(
-    () =>
-      new Map(
+    () => {
+      const map = new Map(
         instrumentDefinitions.map((instrument) => [
           instrument.identifier,
           instrument
         ]),
-      ),
+      )
+      const drpdVbusInstrument = map.get('com.mta.drpd.vbus')
+      if (drpdVbusInstrument && !map.has('com.mta.drpd.device-status')) {
+        // Legacy identifier support for pre-rename saved rack documents.
+        map.set('com.mta.drpd.device-status', drpdVbusInstrument)
+      }
+      return map
+    },
     [instrumentDefinitions],
   )
 
