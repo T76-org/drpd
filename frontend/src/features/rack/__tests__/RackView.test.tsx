@@ -384,11 +384,11 @@ describe('RackView', () => {
                   },
                   {
                     id: 'inst-flex-1',
-                    instrumentIdentifier: 'com.mta.drpd.device-status'
+                    instrumentIdentifier: 'com.mta.drpd.vbus'
                   },
                   {
                     id: 'inst-flex-2',
-                    instrumentIdentifier: 'com.mta.drpd.device-status'
+                    instrumentIdentifier: 'com.mta.drpd.vbus'
                   }
                 ]
               }
@@ -411,6 +411,55 @@ describe('RackView', () => {
     expect(await screen.findByTestId('rack-instrument-inst-flex-2')).toHaveAttribute(
       'data-width-units',
       '3',
+    )
+  })
+
+  it('keeps device status fixed-width while VBUS uses remaining row width', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-fixed',
+                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                  },
+                  {
+                    id: 'inst-status',
+                    instrumentIdentifier: 'com.mta.drpd.device-status-panel'
+                  },
+                  {
+                    id: 'inst-vbus',
+                    instrumentIdentifier: 'com.mta.drpd.vbus'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByTestId('rack-instrument-inst-fixed')).toHaveAttribute(
+      'data-width-units',
+      '6',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-status')).toHaveAttribute(
+      'data-width-units',
+      '4',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
+      'data-width-units',
+      '2',
     )
   })
 
@@ -668,7 +717,7 @@ describe('RackView', () => {
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists the device status instrument for compatible devices', async () => {
+  it('lists VBUS and Device Status instruments for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -699,6 +748,9 @@ describe('RackView', () => {
       name: /add instrument/i
     })
     await userEvent.click(addButton)
+    expect(
+      await screen.findByRole('button', { name: /vbus/i }),
+    ).toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: /device status/i }),
     ).toBeInTheDocument()

@@ -8,8 +8,9 @@ import {
 } from './layout'
 import type { RackDeviceState, RackInstrumentDragPayload } from './RackRenderer'
 import { InstrumentBase } from './InstrumentBase'
-import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
 import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusInstrumentView'
+import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
+import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
 import { DrpdPlaceholderInstrumentView } from './instruments/DrpdPlaceholderInstrumentView'
 import styles from './RowRenderer.module.css'
 
@@ -47,9 +48,12 @@ export const RowRenderer = ({
   onInstrumentDrop?: (payload: RackInstrumentDragPayload) => void
   onInstrumentDragEnd?: () => void
 }) => {
-  const instrumentMap = new Map(
-    instruments.map((instrument) => [instrument.identifier, instrument]),
-  )
+  const instrumentMap = new Map(instruments.map((instrument) => [instrument.identifier, instrument]))
+  const drpdVbusInstrument = instrumentMap.get('com.mta.drpd.vbus')
+  if (drpdVbusInstrument && !instrumentMap.has('com.mta.drpd.device-status')) {
+    // Legacy identifier support for saved rack documents created before the rename.
+    instrumentMap.set('com.mta.drpd.device-status', drpdVbusInstrument)
+  }
   const deviceMap = new Map(rackDevices.map((device) => [device.id, device]))
   const deviceStateMap = new Map(
     deviceStates.map((state) => [state.record.id, state]),
@@ -260,7 +264,19 @@ const renderInstrument = ({
           onRemove={onRemove}
         />
       )
+    case 'com.mta.drpd.vbus':
     case 'com.mta.drpd.device-status':
+      return (
+        <DrpdVbusInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          deviceRecord={deviceRecord}
+          deviceState={deviceState}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
+        />
+      )
+    case 'com.mta.drpd.device-status-panel':
       return (
         <DrpdDeviceStatusInstrumentView
           instrument={instrument}

@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { AnalogMonitorChannels } from '../../../lib/device'
-import { DRPDDevice } from '../../../lib/device'
+import { CCBusRole, CCBusRoleStatus, DRPDDevice, OnOffState } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
@@ -11,27 +10,14 @@ import { DrpdDeviceStatusInstrumentView } from './DrpdDeviceStatusInstrumentView
  * Minimal DRPD transport stub for tests.
  */
 class TestTransport implements DRPDTransport {
-  /**
-   * Stub SCPI send method.
-   */
   public async sendCommand(): Promise<void> {
     return undefined
   }
 
-  /**
-   * Stub SCPI text query.
-   *
-   * @returns Empty response list.
-   */
   public async queryText(): Promise<string[]> {
     return []
   }
 
-  /**
-   * Stub SCPI binary query.
-   *
-   * @returns Empty payload.
-   */
   public async queryBinary(): Promise<Uint8Array> {
     return new Uint8Array()
   }
@@ -42,30 +28,27 @@ class TestTransport implements DRPDTransport {
  */
 class TestDRPDDevice extends DRPDDevice {
   /**
-   * Update the analog monitor state for tests.
-   *
-   * @param analogMonitor - Analog monitor snapshot.
+   * Update role/capture-related state for tests.
    */
-  public setAnalogMonitor(analogMonitor: AnalogMonitorChannels | null): void {
-    this.state = { ...this.state, analogMonitor }
+  public setStatusState(
+    role: CCBusRole,
+    roleStatus: CCBusRoleStatus,
+    captureEnabled: OnOffState,
+  ): void {
+    this.state = {
+      ...this.state,
+      role,
+      ccBusRoleStatus: roleStatus,
+      captureEnabled
+    }
   }
 }
 
-/**
- * Build a minimal rack instrument definition.
- *
- * @returns Rack instrument.
- */
 const buildInstrument = (): RackInstrument => ({
   id: 'inst-1',
-  instrumentIdentifier: 'com.mta.drpd.device-status'
+  instrumentIdentifier: 'com.mta.drpd.device-status-panel'
 })
 
-/**
- * Build a minimal rack device record.
- *
- * @returns Rack device record.
- */
 const buildDeviceRecord = (): RackDeviceRecord => ({
   id: 'device-1',
   identifier: 'com.mta.drpd',
@@ -75,21 +58,14 @@ const buildDeviceRecord = (): RackDeviceRecord => ({
 })
 
 describe('DrpdDeviceStatusInstrumentView', () => {
-  it('renders derived power from voltage and current', () => {
+  it('renders role, capture, and status controls', () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    driver.setAnalogMonitor({
-      captureTimestampUs: 1000n,
-      vbus: 12.34,
-      ibus: 1.5,
-      dutCc1: 0,
-      dutCc2: 0,
-      usdsCc1: 0,
-      usdsCc2: 0,
-      adcVref: 0,
-      groundRef: 0,
-      currentVref: 0
-    })
+    driver.setStatusState(
+      CCBusRole.SINK,
+      CCBusRoleStatus.ATTACHED,
+      OnOffState.ON,
+    )
 
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -106,10 +82,13 @@ describe('DrpdDeviceStatusInstrumentView', () => {
       />
     )
 
-    expect(screen.queryByText('POWER')).toBeNull()
-    const powerValue = screen.getByText('18.51')
-    const powerBlock = powerValue.closest('div')
-    expect(powerBlock).not.toBeNull()
-    expect(powerBlock).toHaveTextContent('W')
+    expect(screen.getByText('Role')).toBeInTheDocument()
+    expect(screen.getByText('Capture')).toBeInTheDocument()
+    expect(screen.getByText('Status')).toBeInTheDocument()
+    expect(screen.getByText('Sink')).toBeInTheDocument()
+    expect(screen.getByText('Attached')).toBeInTheDocument()
+    expect(screen.getByText('On')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Set' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Toggle' })).toBeInTheDocument()
   })
 })
