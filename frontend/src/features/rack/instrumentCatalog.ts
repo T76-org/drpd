@@ -55,6 +55,24 @@ export class DrpdDeviceStatusInstrument extends Instrument {
 }
 
 /**
+ * CC line instrument for Dr. PD DUT/USDS CC telemetry.
+ */
+export class DrpdCcLinesInstrument extends Instrument {
+  /**
+   * Create a CC Lines instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.cc-lines',
+      displayName: 'CC Lines',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'fixed', units: 2 },
+      defaultUnits: 1
+    })
+  }
+}
+
+/**
  * Sink control instrument for Dr. PD power negotiation controls.
  */
 export class DrpdSinkControlInstrument extends Instrument {
@@ -78,6 +96,7 @@ export class DrpdSinkControlInstrument extends Instrument {
 export const getSupportedInstruments = (): Instrument[] => {
   return [
     new DrpdVbusInstrument(),
+    new DrpdCcLinesInstrument(),
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),
     new DrpdPlaceholderInstrument()

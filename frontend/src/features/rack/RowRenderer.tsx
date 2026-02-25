@@ -8,6 +8,7 @@ import {
 } from './layout'
 import type { RackDeviceState, RackInstrumentDragPayload } from './RackRenderer'
 import { InstrumentBase } from './InstrumentBase'
+import { DrpdCcLinesInstrumentView } from './instruments/DrpdCcLinesInstrumentView'
 import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusInstrumentView'
 import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
 import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
@@ -279,6 +280,17 @@ const renderInstrument = ({
     case 'com.mta.drpd.device-status-panel':
       return (
         <DrpdDeviceStatusInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          deviceRecord={deviceRecord}
+          deviceState={deviceState}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
+        />
+      )
+    case 'com.mta.drpd.cc-lines':
+      return (
+        <DrpdCcLinesInstrumentView
           instrument={instrument}
           displayName={definition?.displayName ?? 'Instrument'}
           deviceRecord={deviceRecord}

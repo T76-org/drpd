@@ -5,67 +5,33 @@ import { DRPDDevice } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
-import { DrpdVbusInstrumentView } from './DrpdVbusInstrumentView'
+import { DrpdCcLinesInstrumentView } from './DrpdCcLinesInstrumentView'
 
-/**
- * Minimal DRPD transport stub for tests.
- */
 class TestTransport implements DRPDTransport {
-  /**
-   * Stub SCPI send method.
-   */
   public async sendCommand(): Promise<void> {
     return undefined
   }
 
-  /**
-   * Stub SCPI text query.
-   *
-   * @returns Empty response list.
-   */
   public async queryText(): Promise<string[]> {
     return []
   }
 
-  /**
-   * Stub SCPI binary query.
-   *
-   * @returns Empty payload.
-   */
   public async queryBinary(): Promise<Uint8Array> {
     return new Uint8Array()
   }
 }
 
-/**
- * Testable DRPD device with mutable state.
- */
 class TestDRPDDevice extends DRPDDevice {
-  /**
-   * Update the analog monitor state for tests.
-   *
-   * @param analogMonitor - Analog monitor snapshot.
-   */
   public setAnalogMonitor(analogMonitor: AnalogMonitorChannels | null): void {
     this.state = { ...this.state, analogMonitor }
   }
 }
 
-/**
- * Build a minimal rack instrument definition.
- *
- * @returns Rack instrument.
- */
 const buildInstrument = (): RackInstrument => ({
   id: 'inst-1',
-  instrumentIdentifier: 'com.mta.drpd.vbus'
+  instrumentIdentifier: 'com.mta.drpd.cc-lines'
 })
 
-/**
- * Build a minimal rack device record.
- *
- * @returns Rack device record.
- */
 const buildDeviceRecord = (): RackDeviceRecord => ({
   id: 'device-1',
   identifier: 'com.mta.drpd',
@@ -74,18 +40,18 @@ const buildDeviceRecord = (): RackDeviceRecord => ({
   productId: 0x000a
 })
 
-describe('DrpdVbusInstrumentView', () => {
-  it('renders derived power from voltage and current', () => {
+describe('DrpdCcLinesInstrumentView', () => {
+  it('renders DUT and US/DS CC line telemetry', () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
     driver.setAnalogMonitor({
       captureTimestampUs: 1000n,
-      vbus: 12.34,
-      ibus: 1.5,
-      dutCc1: 0,
-      dutCc2: 0,
+      vbus: 5,
+      ibus: 1,
+      dutCc1: 0.33,
+      dutCc2: 1.23,
       usdsCc1: 0,
-      usdsCc2: 0,
+      usdsCc2: 2.2,
       adcVref: 0,
       groundRef: 0,
       currentVref: 0
@@ -98,23 +64,20 @@ describe('DrpdVbusInstrumentView', () => {
     }
 
     render(
-      <DrpdVbusInstrumentView
+      <DrpdCcLinesInstrumentView
         instrument={buildInstrument()}
-        displayName="VBUS"
+        displayName="CC Lines"
         deviceState={deviceState}
         isEditMode={false}
       />
     )
 
-    expect(screen.queryByText('POWER')).toBeNull()
-    expect(screen.queryByText('Role')).toBeNull()
-    expect(screen.queryByText('Capture')).toBeNull()
-    expect(screen.queryByText('Status')).toBeNull()
-    expect(screen.queryByText('DUT')).toBeNull()
-    expect(screen.queryByText('US/DS')).toBeNull()
-    const powerValue = screen.getByText('18.51')
-    const powerBlock = powerValue.closest('div')
-    expect(powerBlock).not.toBeNull()
-    expect(powerBlock).toHaveTextContent('W')
+    expect(screen.getByText('DUT')).toBeInTheDocument()
+    expect(screen.getByText('US/DS')).toBeInTheDocument()
+    expect(screen.getAllByText('CC1')).toHaveLength(2)
+    expect(screen.getAllByText('CC2')).toHaveLength(2)
+    expect(screen.getByText('0.33 V')).toBeInTheDocument()
+    expect(screen.getByText('1.23 V')).toBeInTheDocument()
+    expect(screen.getByText('2.20 V')).toBeInTheDocument()
   })
 })

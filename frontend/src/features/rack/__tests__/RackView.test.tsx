@@ -414,7 +414,7 @@ describe('RackView', () => {
     )
   })
 
-  it('keeps device status fixed-width while VBUS uses remaining row width', async () => {
+  it('keeps CC Lines and Device Status fixed-width while VBUS uses remaining row width', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -428,12 +428,12 @@ describe('RackView', () => {
                 id: 'row-1',
                 instruments: [
                   {
-                    id: 'inst-fixed',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder'
-                  },
-                  {
                     id: 'inst-status',
                     instrumentIdentifier: 'com.mta.drpd.device-status-panel'
+                  },
+                  {
+                    id: 'inst-cc',
+                    instrumentIdentifier: 'com.mta.drpd.cc-lines'
                   },
                   {
                     id: 'inst-vbus',
@@ -449,17 +449,17 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findByTestId('rack-instrument-inst-fixed')).toHaveAttribute(
-      'data-width-units',
-      '6',
-    )
     expect(await screen.findByTestId('rack-instrument-inst-status')).toHaveAttribute(
+      'data-width-units',
+      '2',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-cc')).toHaveAttribute(
       'data-width-units',
       '4',
     )
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
       'data-width-units',
-      '2',
+      '6',
     )
   })
 
@@ -717,7 +717,7 @@ describe('RackView', () => {
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists VBUS and Device Status instruments for compatible devices', async () => {
+  it('lists VBUS, CC Lines, and Device Status instruments for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -750,6 +750,9 @@ describe('RackView', () => {
     await userEvent.click(addButton)
     expect(
       await screen.findByRole('button', { name: /vbus/i }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /cc lines/i }),
     ).toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: /device status/i }),
