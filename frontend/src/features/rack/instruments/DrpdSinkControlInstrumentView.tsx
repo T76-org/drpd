@@ -409,7 +409,6 @@ export const DrpdSinkControlInstrumentView = ({
   const [currentA, setCurrentA] = useState('')
   const [powerW, setPowerW] = useState('')
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
-  const [requestMessage, setRequestMessage] = useState('')
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const [isRefreshingSinkData, setIsRefreshingSinkData] = useState(false)
 
@@ -498,11 +497,10 @@ export const DrpdSinkControlInstrumentView = ({
       setSinkInfo(info)
       setSinkPdoList(pdoList)
       setRequestStatus((status) => (status === 'error' ? 'idle' : status))
-      setRequestMessage('')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setRequestStatus('error')
-      setRequestMessage(message)
+      console.warn('Failed to request PDO:', message)
     } finally {
       isRefreshingRef.current = false
       setIsRefreshingSinkData(false)
@@ -545,7 +543,6 @@ export const DrpdSinkControlInstrumentView = ({
     setCurrentA(defaults.currentA)
     setPowerW(defaults.powerW)
     setRequestStatus('idle')
-    setRequestMessage('')
   }, [selectedPdo])
 
   /**
@@ -558,22 +555,20 @@ export const DrpdSinkControlInstrumentView = ({
     const parsed = buildRequestArgs({ pdo: selectedPdo, voltageV, currentA, powerW })
     if (parsed.error || parsed.voltageMv == null || parsed.currentMa == null) {
       setRequestStatus('error')
-      setRequestMessage(parsed.error ?? 'Invalid request input.')
+      console.warn('Invalid request parameters:', parsed.error)
       return
     }
 
     setRequestStatus('sending')
-    setRequestMessage('Sending request...')
     try {
       await driver.sink.requestPdo(selectedIndex, parsed.voltageMv, parsed.currentMa)
       await driver.refreshState()
       await loadSinkData()
       setRequestStatus('success')
-      setRequestMessage('Request sent.')
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setRequestStatus('error')
-      setRequestMessage(message)
+      console.warn('Failed to request PDO:', message)
     }
   }
 
@@ -585,8 +580,6 @@ export const DrpdSinkControlInstrumentView = ({
   const sinkStateLabel = formatSinkStateLabel(sinkInfo?.status)
   const vsetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedVoltageMv / 1000 : null)} V`
   const isetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedCurrentMa / 1000 : null)} A`
-  const requestStateMessage =
-    requestMessage || (role !== CCBusRole.SINK ? 'Role is not SINK.' : 'Ready.')
 
   /**
    * Open/close the advanced change dialog and load sink data when needed.
