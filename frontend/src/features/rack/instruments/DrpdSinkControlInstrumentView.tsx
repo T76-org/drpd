@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CCBusRole,
   DRPDDevice,
@@ -413,6 +413,8 @@ export const DrpdSinkControlInstrumentView = ({
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
   const [isRefreshingSinkData, setIsRefreshingSinkData] = useState(false)
 
+  const isRefreshingRef = useRef(false)
+
   const selectedPdo = sinkPdoList[selectedIndex] ?? null
   const negotiatedPdo = sinkInfo?.negotiatedPdo ?? null
   const negotiatedPdoIndex = findSinkPdoIndex(sinkPdoList, negotiatedPdo)
@@ -470,11 +472,12 @@ export const DrpdSinkControlInstrumentView = ({
   /**
    * Load sink role/info/PDOs directly from the device runtime.
    */
-  const loadSinkData = async (): Promise<void> => {
-    if (!driver || isRefreshingSinkData) {
+  const loadSinkData = useCallback(async (): Promise<void> => {
+    if (!driver || isRefreshingRef.current) {
       return
     }
 
+    isRefreshingRef.current = true
     setIsRefreshingSinkData(true)
     try {
       const currentRole = await driver.ccBus.getRole()
@@ -501,9 +504,10 @@ export const DrpdSinkControlInstrumentView = ({
       setRequestStatus('error')
       setRequestMessage(message)
     } finally {
+      isRefreshingRef.current = false
       setIsRefreshingSinkData(false)
     }
-  }
+  }, [driver])
 
   useEffect(() => {
     if (!driver) {
@@ -514,7 +518,7 @@ export const DrpdSinkControlInstrumentView = ({
       return
     }
     void loadSinkData()
-  }, [driver])
+  }, [driver, loadSinkData])
 
   useEffect(() => {
     if (sinkPdoList.length === 0) {
