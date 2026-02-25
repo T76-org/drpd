@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CCBusRole,
   DRPDDevice,
+  type DRPDDeviceState as DrpdDeviceSnapshot,
   type SinkInfo,
   type SinkPdo,
+  SinkPdoType,
+  SinkState,
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
@@ -11,6 +14,7 @@ import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdSinkControlInstrumentView.module.css'
 
 type RequestStatus = 'idle' | 'sending' | 'success' | 'error'
+type NonNullSinkPdo = Exclude<SinkPdo, null>
 
 /**
  * Format a number using fixed precision.
@@ -27,31 +31,327 @@ const formatNumber = (value: number | null | undefined, digits = 2): string => {
 }
 
 /**
- * Build a readable label for a PDO entry.
+ * Build a human-readable PDO type label.
  *
  * @param pdo - PDO value.
- * @returns Short PDO summary.
+ * @returns PDO type display label.
  */
-const formatPdoSummary = (pdo: SinkPdo): string => {
+const getPdoTypeLabel = (pdo: SinkPdo | null | undefined): string => {
   if (!pdo) {
     return 'None'
   }
   switch (pdo.type) {
-    case 'FIXED':
-      return `FIXED ${pdo.voltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
-    case 'VARIABLE':
-      return `VARIABLE ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
-    case 'BATTERY':
-      return `BATTERY ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxPowerW.toFixed(2)}W`
-    case 'AUGMENTED':
-      return `AUGMENTED ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
-    case 'SPR_PPS':
-      return `SPR_PPS ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxCurrentA.toFixed(2)}A`
-    case 'SPR_AVS':
-    case 'EPR_AVS':
-      return `${pdo.type} ${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)}V / ${pdo.maxPowerW.toFixed(2)}W`
+    case SinkPdoType.FIXED:
+      return 'Fixed'
+    case SinkPdoType.VARIABLE:
+      return 'Variable'
+    case SinkPdoType.BATTERY:
+      return 'Battery'
+    case SinkPdoType.AUGMENTED:
+      return 'Augmented'
+    case SinkPdoType.SPR_PPS:
+      return 'SPR PPS'
+    case SinkPdoType.SPR_AVS:
+      return 'SPR AVS'
+    case SinkPdoType.EPR_AVS:
+      return 'EPR AVS'
     default:
       return 'Unknown'
+  }
+}
+
+/**
+ * Return true when a PDO is power-limited (Battery/AVS).
+ *
+ * @param pdo - PDO value.
+ * @returns True when current limit depends on voltage and max power.
+ */
+const isPowerLimitedPdo = (pdo: SinkPdo | null | undefined): boolean => (
+  pdo?.type === SinkPdoType.BATTERY ||
+  pdo?.type === SinkPdoType.SPR_AVS ||
+  pdo?.type === SinkPdoType.EPR_AVS
+)
+
+/**
+ * Build the secondary line shown in the PDO list.
+ *
+ * @param pdo - PDO value.
+ * @returns Two-line list subtitle content.
+ */
+const getPdoListSecondaryLine = (pdo: NonNullSinkPdo): string => {
+  switch (pdo.type) {
+    case SinkPdoType.FIXED:
+      return `${pdo.voltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
+    case SinkPdoType.VARIABLE:
+      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
+    case SinkPdoType.AUGMENTED:
+      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
+    case SinkPdoType.SPR_PPS:
+      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
+    case SinkPdoType.BATTERY:
+    case SinkPdoType.SPR_AVS:
+    case SinkPdoType.EPR_AVS:
+      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxPowerW.toFixed(2)} W max`
+    default:
+      return '--'
+  }
+}
+
+/**
+ * Get whether voltage is user-editable for a PDO.
+ *
+ * @param pdo - PDO value.
+ * @returns True when voltage can be edited.
+ */
+const isVoltageEditable = (pdo: SinkPdo | null | undefined): boolean => (
+  pdo?.type === SinkPdoType.VARIABLE ||
+  pdo?.type === SinkPdoType.AUGMENTED ||
+  pdo?.type === SinkPdoType.SPR_PPS ||
+  pdo?.type === SinkPdoType.BATTERY ||
+  pdo?.type === SinkPdoType.SPR_AVS ||
+  pdo?.type === SinkPdoType.EPR_AVS
+)
+
+/**
+ * Compute voltage bounds for a PDO.
+ *
+ * @param pdo - PDO value.
+ * @returns Voltage bounds and editability metadata.
+ */
+const getVoltageConstraints = (
+  pdo: SinkPdo | null | undefined,
+): { editable: boolean; fixedV?: number; minV?: number; maxV?: number } => {
+  if (!pdo) {
+    return { editable: false }
+  }
+  if (pdo.type === SinkPdoType.FIXED) {
+    return { editable: false, fixedV: pdo.voltageV }
+  }
+  return {
+    editable: true,
+    minV: pdo.minVoltageV,
+    maxV: pdo.maxVoltageV,
+  }
+}
+
+/**
+ * Compute current limit range for a PDO at a requested voltage.
+ *
+ * For power-limited PDOs the maximum current is derived from `maxPowerW / voltageV`.
+ *
+ * @param pdo - PDO value.
+ * @param requestedVoltageV - Requested voltage.
+ * @returns Current bounds and optional validation error.
+ */
+const getCurrentConstraints = (
+  pdo: SinkPdo | null | undefined,
+  requestedVoltageV: number | null,
+): { minA: number; maxA?: number; error?: string } => {
+  if (!pdo) {
+    return { minA: 0, error: 'Select a PDO before requesting power.' }
+  }
+
+  if (pdo.type === SinkPdoType.FIXED) {
+    return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+
+  if (
+    pdo.type === SinkPdoType.VARIABLE ||
+    pdo.type === SinkPdoType.AUGMENTED ||
+    pdo.type === SinkPdoType.SPR_PPS
+  ) {
+    return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+
+  if (isPowerLimitedPdo(pdo)) {
+    if (requestedVoltageV == null || !Number.isFinite(requestedVoltageV)) {
+      return { minA: 0, error: 'Enter a valid voltage to compute the current range.' }
+    }
+    if (requestedVoltageV <= 0) {
+      return { minA: 0, error: 'Voltage must be greater than 0 V.' }
+    }
+    if ('maxPowerW' in pdo) {
+      return {
+        minA: 0,
+        maxA: pdo.maxPowerW / requestedVoltageV,
+      }
+    }
+    return { minA: 0, error: 'Unsupported augmented PDO current limit format.' }
+  }
+
+  return { minA: 0, error: 'Unsupported PDO type.' }
+}
+
+/**
+ * Format the detailed sink state into a concise UI label.
+ *
+ * @param state - Sink state token from the device.
+ * @returns Human-readable sink state label.
+ */
+const formatSinkStateLabel = (state: SinkInfo['status'] | null | undefined): string => {
+  if (!state) {
+    return '--'
+  }
+
+  switch (state) {
+    case SinkState.DISCONNECTED:
+      return 'Disconnected'
+    case SinkState.PE_SNK_TRANSITION_SINK:
+      return 'Awaiting PS_RDY'
+    case SinkState.PE_SNK_READY:
+      return 'Connected'
+    case SinkState.PE_SNK_EPR_KEEPALIVE:
+      return 'EPR Keepalive'
+    case SinkState.ERROR:
+      return 'Error'
+    default:
+      return state.replaceAll('_', ' ')
+  }
+}
+
+/**
+ * Compare two sink PDO values for structural equality.
+ *
+ * @param left - First PDO.
+ * @param right - Second PDO.
+ * @returns True when both PDOs represent the same capability.
+ */
+const areSinkPdosEqual = (
+  left: SinkPdo | null | undefined,
+  right: SinkPdo | null | undefined,
+): boolean => {
+  if (left == null && right == null) {
+    return true
+  }
+  if (left == null || right == null || left.type !== right.type) {
+    return false
+  }
+
+  switch (left.type) {
+    case SinkPdoType.FIXED:
+      return right.type === SinkPdoType.FIXED &&
+        left.voltageV === right.voltageV &&
+        left.maxCurrentA === right.maxCurrentA
+    case SinkPdoType.VARIABLE:
+      return right.type === SinkPdoType.VARIABLE &&
+        left.minVoltageV === right.minVoltageV &&
+        left.maxVoltageV === right.maxVoltageV &&
+        left.maxCurrentA === right.maxCurrentA
+    case SinkPdoType.BATTERY:
+      return right.type === SinkPdoType.BATTERY &&
+        left.minVoltageV === right.minVoltageV &&
+        left.maxVoltageV === right.maxVoltageV &&
+        left.maxPowerW === right.maxPowerW
+    case SinkPdoType.SPR_PPS:
+      return right.type === SinkPdoType.SPR_PPS &&
+        left.minVoltageV === right.minVoltageV &&
+        left.maxVoltageV === right.maxVoltageV &&
+        left.maxCurrentA === right.maxCurrentA
+    case SinkPdoType.SPR_AVS:
+    case SinkPdoType.EPR_AVS:
+      return (right.type === SinkPdoType.SPR_AVS || right.type === SinkPdoType.EPR_AVS) &&
+        left.type === right.type &&
+        left.minVoltageV === right.minVoltageV &&
+        left.maxVoltageV === right.maxVoltageV &&
+        left.maxPowerW === right.maxPowerW
+    default:
+      return false
+  }
+}
+
+/**
+ * Find the index of a PDO in the advertised sink PDO list.
+ *
+ * @param pdoList - Advertised PDOs.
+ * @param target - Target PDO value.
+ * @returns 0-based index or null when not found.
+ */
+const findSinkPdoIndex = (
+  pdoList: SinkPdo[],
+  target: SinkPdo | null | undefined,
+): number | null => {
+  if (target == null) {
+    return null
+  }
+  const index = pdoList.findIndex((pdo) => areSinkPdosEqual(pdo, target))
+  return index >= 0 ? index : null
+}
+
+/**
+ * Build compact title and detail rows for the selected PDO.
+ *
+ * @param pdo - Selected PDO value.
+ * @param index - Selected PDO index.
+ * @returns Title and two detail lines for the header layout.
+ */
+const getSelectedPdoDetails = (
+  pdo: SinkPdo | null | undefined,
+  index: number | null,
+): { title: string; voltageRange: string; currentRange: string } => {
+  if (!pdo) {
+    return {
+      title: 'None',
+      voltageRange: '--',
+      currentRange: '--',
+    }
+  }
+
+  const prefix = index == null ? pdo.type : `#${index + 1} ${pdo.type}`
+  switch (pdo.type) {
+    case SinkPdoType.FIXED:
+      return {
+        title: 'Fixed',
+        voltageRange: `${pdo.voltageV.toFixed(2)} V`,
+        currentRange: `0.00-${pdo.maxCurrentA.toFixed(2)} A`,
+      }
+    case SinkPdoType.VARIABLE:
+      return {
+        title: 'Variable',
+        voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
+        currentRange: `0.00-${pdo.maxCurrentA.toFixed(2)} A`,
+      }
+    case SinkPdoType.SPR_PPS:
+      return {
+        title: 'SPR PPS',
+        voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
+        currentRange: `0.00-${pdo.maxCurrentA.toFixed(2)} A`,
+      }
+    case SinkPdoType.BATTERY:
+      {
+        const lowCurrentA = pdo.maxPowerW / pdo.maxVoltageV
+        const highCurrentA = pdo.maxPowerW / pdo.minVoltageV
+        return {
+          title: 'Battery',
+          voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
+          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+        }
+      }
+    case SinkPdoType.SPR_AVS:
+        {
+          const lowCurrentA = pdo.maxPowerW / pdo.maxVoltageV
+          const highCurrentA = pdo.maxPowerW / pdo.minVoltageV
+          return {
+            title: 'SPR AVS',
+            voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
+            currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+          }
+        }
+    case SinkPdoType.EPR_AVS:
+      {
+        const lowCurrentA = pdo.maxPowerW / pdo.maxVoltageV
+        const highCurrentA = pdo.maxPowerW / pdo.minVoltageV
+        return {
+          title: 'EPR AVS',
+          voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
+          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+        }
+      }
+    default:
+      return {
+        title: prefix,
+        voltageRange: '--',
+        currentRange: '--',
+      }
   }
 }
 
@@ -63,35 +363,32 @@ const formatPdoSummary = (pdo: SinkPdo): string => {
  */
 const buildDefaultForm = (
   pdo: SinkPdo | null | undefined,
-): { voltageV: string; currentA: string; powerW: string } => {
+): { voltageV: string; currentA: string } => {
   if (!pdo) {
-    return { voltageV: '', currentA: '', powerW: '' }
+    return { voltageV: '', currentA: '' }
   }
   switch (pdo.type) {
-    case 'FIXED':
+    case SinkPdoType.FIXED:
       return {
         voltageV: pdo.voltageV.toFixed(2),
         currentA: pdo.maxCurrentA.toFixed(2),
-        powerW: '',
       }
-    case 'VARIABLE':
-    case 'AUGMENTED':
-    case 'SPR_PPS':
+    case SinkPdoType.VARIABLE:
+    case SinkPdoType.AUGMENTED:
+    case SinkPdoType.SPR_PPS:
       return {
         voltageV: pdo.minVoltageV.toFixed(2),
         currentA: pdo.maxCurrentA.toFixed(2),
-        powerW: '',
       }
-    case 'BATTERY':
-    case 'SPR_AVS':
-    case 'EPR_AVS':
+    case SinkPdoType.BATTERY:
+    case SinkPdoType.SPR_AVS:
+    case SinkPdoType.EPR_AVS:
       return {
         voltageV: pdo.minVoltageV.toFixed(2),
-        currentA: '',
-        powerW: pdo.maxPowerW.toFixed(2),
+        currentA: (pdo.maxPowerW / pdo.minVoltageV).toFixed(2),
       }
     default:
-      return { voltageV: '', currentA: '', powerW: '' }
+      return { voltageV: '', currentA: '' }
   }
 }
 
@@ -115,24 +412,21 @@ const parseField = (value: string): number | null => {
  * @param pdo - Selected PDO.
  * @param voltageV - Requested voltage.
  * @param currentA - Requested current.
- * @param powerW - Requested battery power.
  * @returns Validation result and converted units.
  */
 const buildRequestArgs = ({
   pdo,
   voltageV,
   currentA,
-  powerW,
 }: {
-  pdo: SinkPdo
+  pdo: NonNullSinkPdo
   voltageV: string
   currentA: string
-  powerW: string
 }): { voltageMv?: number; currentMa?: number; error?: string } => {
   if (!pdo) {
     return { error: 'Select a PDO before requesting power.' }
   }
-  if (pdo.type === 'FIXED') {
+  if (pdo.type === SinkPdoType.FIXED) {
     const parsedCurrent = parseField(currentA)
     if (parsedCurrent == null) {
       return { error: 'Enter a valid current.' }
@@ -146,7 +440,11 @@ const buildRequestArgs = ({
     }
   }
 
-  if (pdo.type === 'VARIABLE' || pdo.type === 'AUGMENTED' || pdo.type === 'SPR_PPS') {
+  if (
+    pdo.type === SinkPdoType.VARIABLE ||
+    pdo.type === SinkPdoType.AUGMENTED ||
+    pdo.type === SinkPdoType.SPR_PPS
+  ) {
     const parsedVoltage = parseField(voltageV)
     const parsedCurrent = parseField(currentA)
     if (parsedVoltage == null || parsedCurrent == null) {
@@ -166,30 +464,33 @@ const buildRequestArgs = ({
     }
   }
 
-  if (pdo.type === 'BATTERY' || pdo.type === 'SPR_AVS' || pdo.type === 'EPR_AVS') {
+  if (
+    pdo.type === SinkPdoType.BATTERY ||
+    pdo.type === SinkPdoType.SPR_AVS ||
+    pdo.type === SinkPdoType.EPR_AVS
+  ) {
     const parsedVoltage = parseField(voltageV)
-    const parsedPower = parseField(powerW)
-    if (parsedVoltage == null || parsedPower == null) {
-      return { error: 'Enter valid voltage and power values.' }
+    const parsedCurrent = parseField(currentA)
+    if (parsedVoltage == null || parsedCurrent == null) {
+      return { error: 'Enter valid voltage and current values.' }
     }
     if (parsedVoltage < pdo.minVoltageV || parsedVoltage > pdo.maxVoltageV) {
       return {
         error: `Voltage must be between ${pdo.minVoltageV.toFixed(2)} and ${pdo.maxVoltageV.toFixed(2)} V.`,
       }
     }
-    if (parsedPower <= 0 || parsedPower > pdo.maxPowerW) {
-      return { error: `Power must be between 0 and ${pdo.maxPowerW.toFixed(2)} W.` }
+    const currentConstraints = getCurrentConstraints(pdo, parsedVoltage)
+    if (currentConstraints.error || currentConstraints.maxA == null) {
+      return { error: currentConstraints.error ?? 'Current range is unavailable.' }
     }
-    if (parsedVoltage <= 0) {
-      return { error: 'Voltage must be greater than 0 V for power conversion.' }
-    }
-    const derivedCurrentA = parsedPower / parsedVoltage
-    if (!Number.isFinite(derivedCurrentA) || derivedCurrentA <= 0) {
-      return { error: 'Derived current is invalid.' }
+    if (parsedCurrent < currentConstraints.minA || parsedCurrent > currentConstraints.maxA) {
+      return {
+        error: `Current must be between ${currentConstraints.minA.toFixed(2)} and ${currentConstraints.maxA.toFixed(2)} A.`,
+      }
     }
     return {
       voltageMv: Math.round(parsedVoltage * 1000),
-      currentMa: Math.round(derivedCurrentA * 1000),
+      currentMa: Math.round(parsedCurrent * 1000),
     }
   }
 
@@ -221,24 +522,33 @@ export const DrpdSinkControlInstrumentView = ({
   const [sinkPdoList, setSinkPdoList] = useState<SinkPdo[]>(
     driver ? driver.getState().sinkPdoList ?? [] : [],
   )
-  const [role, setRole] = useState<string | null>(
+  const [role, setRole] = useState<CCBusRole | null>(
     driver ? driver.getState().role ?? null : null,
   )
   const [selectedIndex, setSelectedIndex] = useState<number>(0)
   const [voltageV, setVoltageV] = useState('')
   const [currentA, setCurrentA] = useState('')
-  const [powerW, setPowerW] = useState('')
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
-  const [requestMessage, setRequestMessage] = useState('')
+  const [requestErrorMessage, setRequestErrorMessage] = useState<string | null>(null)
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+  const [isRefreshingSinkData, setIsRefreshingSinkData] = useState(false)
+
+  const isRefreshingRef = useRef(false)
 
   const selectedPdo = sinkPdoList[selectedIndex] ?? null
-  const selectedSummary = useMemo(() => formatPdoSummary(selectedPdo), [selectedPdo])
-  const negotiatedPowerW = useMemo(() => {
-    if (!sinkInfo) {
-      return null
-    }
-    return (sinkInfo.negotiatedVoltageMv / 1000) * (sinkInfo.negotiatedCurrentMa / 1000)
-  }, [sinkInfo])
+  const negotiatedPdo = sinkInfo?.negotiatedPdo ?? null
+  const negotiatedPdoIndex = findSinkPdoIndex(sinkPdoList, negotiatedPdo)
+  const summaryPdo = negotiatedPdo ?? selectedPdo
+  const summaryPdoIndex = negotiatedPdoIndex ?? (summaryPdo ? selectedIndex : null)
+  const selectedPdoDetails = getSelectedPdoDetails(summaryPdo, summaryPdoIndex)
+  const parsedVoltageForRange = parseField(
+    selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV,
+  )
+  const currentConstraints = getCurrentConstraints(selectedPdo, parsedVoltageForRange)
+  const voltageConstraints = getVoltageConstraints(selectedPdo)
+  const requestPreview = selectedPdo
+    ? buildRequestArgs({ pdo: selectedPdo, voltageV, currentA })
+    : { error: 'Select a PDO before requesting power.' }
 
   useEffect(() => {
     if (!driver) {
@@ -265,7 +575,7 @@ export const DrpdSinkControlInstrumentView = ({
      */
     const handleStateUpdate = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      const changed = detail?.changed as string[] | undefined
+      const changed = detail?.changed as Array<keyof DrpdDeviceSnapshot> | undefined
       if (!changed) {
         syncFromDriver()
         return
@@ -287,6 +597,58 @@ export const DrpdSinkControlInstrumentView = ({
     }
   }, [driver])
 
+  /**
+   * Load sink role/info/PDOs directly from the device runtime.
+   */
+  const loadSinkData = useCallback(async (): Promise<void> => {
+    if (!driver || isRefreshingRef.current) {
+      return
+    }
+
+    isRefreshingRef.current = true
+    setIsRefreshingSinkData(true)
+    try {
+      const currentRole = await driver.ccBus.getRole()
+      setRole(currentRole)
+      if (currentRole !== CCBusRole.SINK) {
+        setSinkInfo(null)
+        setSinkPdoList([])
+        return
+      }
+
+      const [info, pdoCount] = await Promise.all([
+        driver.sink.getSinkInfo(),
+        driver.sink.getAvailablePdoCount(),
+      ])
+      const pdoList = await Promise.all(
+        Array.from({ length: pdoCount }, (_, index) => driver.sink.getPdoAtIndex(index)),
+      )
+      setSinkInfo(info)
+      setSinkPdoList(pdoList)
+      setRequestStatus((status) => (status === 'error' ? 'idle' : status))
+      setRequestErrorMessage(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setRequestStatus('error')
+      setRequestErrorMessage(message)
+      console.warn('Failed to request PDO:', message)
+    } finally {
+      isRefreshingRef.current = false
+      setIsRefreshingSinkData(false)
+    }
+  }, [driver])
+
+  useEffect(() => {
+    if (!driver) {
+      return
+    }
+    const snapshot = driver.getState()
+    if (snapshot.sinkInfo != null || snapshot.sinkPdoList != null) {
+      return
+    }
+    void loadSinkData()
+  }, [driver, loadSinkData])
+
   useEffect(() => {
     if (sinkPdoList.length === 0) {
       setSelectedIndex(0)
@@ -298,13 +660,45 @@ export const DrpdSinkControlInstrumentView = ({
   }, [selectedIndex, sinkPdoList])
 
   useEffect(() => {
+    if (isAdvancedOpen) {
+      return
+    }
+    if (negotiatedPdoIndex != null && negotiatedPdoIndex !== selectedIndex) {
+      setSelectedIndex(negotiatedPdoIndex)
+    }
+  }, [isAdvancedOpen, negotiatedPdoIndex, selectedIndex])
+
+  useEffect(() => {
     const defaults = buildDefaultForm(selectedPdo)
     setVoltageV(defaults.voltageV)
     setCurrentA(defaults.currentA)
-    setPowerW(defaults.powerW)
     setRequestStatus('idle')
-    setRequestMessage('')
+    setRequestErrorMessage(null)
   }, [selectedPdo])
+
+  useEffect(() => {
+    if (!isAdvancedOpen) {
+      return undefined
+    }
+
+    /**
+     * Close the request popup when Escape is pressed.
+     *
+     * @param event - Keyboard event.
+     */
+    const handleAdvancedKeydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+      event.preventDefault()
+      setIsAdvancedOpen(false)
+    }
+
+    window.addEventListener('keydown', handleAdvancedKeydown)
+    return () => {
+      window.removeEventListener('keydown', handleAdvancedKeydown)
+    }
+  }, [isAdvancedOpen])
 
   /**
    * Send a sink PDO request using current form values.
@@ -313,24 +707,27 @@ export const DrpdSinkControlInstrumentView = ({
     if (!driver || !selectedPdo) {
       return
     }
-    const parsed = buildRequestArgs({ pdo: selectedPdo, voltageV, currentA, powerW })
+    const parsed = buildRequestArgs({ pdo: selectedPdo, voltageV, currentA })
     if (parsed.error || parsed.voltageMv == null || parsed.currentMa == null) {
       setRequestStatus('error')
-      setRequestMessage(parsed.error ?? 'Invalid request input.')
+      setRequestErrorMessage(parsed.error ?? 'Invalid request parameters.')
+      console.warn('Invalid request parameters:', parsed.error)
       return
     }
 
     setRequestStatus('sending')
-    setRequestMessage('Sending request...')
+    setRequestErrorMessage(null)
     try {
       await driver.sink.requestPdo(selectedIndex, parsed.voltageMv, parsed.currentMa)
       await driver.refreshState()
+      await loadSinkData()
       setRequestStatus('success')
-      setRequestMessage('Request sent.')
+      setIsAdvancedOpen(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setRequestStatus('error')
-      setRequestMessage(message)
+      setRequestErrorMessage(message)
+      console.warn('Failed to request PDO:', message)
     }
   }
 
@@ -338,7 +735,43 @@ export const DrpdSinkControlInstrumentView = ({
     !!driver &&
     selectedPdo != null &&
     role === CCBusRole.SINK &&
-    requestStatus !== 'sending'
+    requestStatus !== 'sending' &&
+    !requestPreview.error
+  const validationMessage = isAdvancedOpen ? requestPreview.error ?? null : null
+  const currentRangeLabel = currentConstraints.maxA == null
+    ? '--'
+    : `0.00-${currentConstraints.maxA.toFixed(2)} A`
+  const voltageHint = !selectedPdo
+    ? '--'
+    : voltageConstraints.editable
+      ? `${voltageConstraints.minV?.toFixed(2)}-${voltageConstraints.maxV?.toFixed(2)} V`
+      : ''
+  const sinkStateLabel = formatSinkStateLabel(sinkInfo?.status)
+  const vsetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedVoltageMv / 1000 : null)} V`
+  const isetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedCurrentMa / 1000 : null)} A`
+
+  /**
+   * Open/close the advanced change dialog and load sink data when needed.
+   */
+  const handleToggleAdvanced = () => {
+    if (isAdvancedOpen) {
+      setIsAdvancedOpen(false)
+      setRequestErrorMessage(null)
+      return
+    }
+
+    if (negotiatedPdoIndex != null) {
+      setSelectedIndex(negotiatedPdoIndex)
+    }
+    setRequestErrorMessage(null)
+    setRequestStatus('idle')
+    setIsAdvancedOpen(true)
+
+    if (!driver || isRefreshingSinkData || sinkPdoList.length > 0) {
+      return
+    }
+    void loadSinkData()
+  }
 
   return (
     <InstrumentBase
@@ -354,150 +787,182 @@ export const DrpdSinkControlInstrumentView = ({
       }
     >
       <div className={styles.wrapper}>
-        <section className={styles.currentSection}>
-          <div className={styles.sectionLabel}>Current PDO</div>
-          <div className={styles.primaryValue}>{formatPdoSummary(sinkInfo?.negotiatedPdo ?? null)}</div>
-          <div className={styles.statusRow}>
-            <span>State: {sinkInfo?.status ?? '--'}</span>
-            <span>Error: {sinkInfo?.error ? 'Yes' : 'No'}</span>
+        <section className={`${styles.panel} ${styles.leftPanel}`}>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>State</span>
+            <span className={styles.rowValue}>
+              {sinkStateLabel}
+              {sinkInfo?.error ? ' (Error)' : ''}
+            </span>
           </div>
-          <div className={styles.statusRow}>
-            <span>{formatNumber(sinkInfo ? sinkInfo.negotiatedVoltageMv / 1000 : null)} V</span>
-            <span>{formatNumber(sinkInfo ? sinkInfo.negotiatedCurrentMa / 1000 : null)} A</span>
-            <span>{formatNumber(negotiatedPowerW)} W</span>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>VSET</span>
+            <span className={`${styles.rowValue} ${styles.metricValue}`}>{vsetLabel}</span>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>ISET</span>
+            <span className={`${styles.rowValue} ${styles.metricValue}`}>{isetLabel}</span>
           </div>
         </section>
 
-        <section className={styles.controlSection}>
-          <label className={styles.fieldLabel} htmlFor={`${instrument.id}-pdo-select`}>
-            Available PDOs
-          </label>
-          <select
-            id={`${instrument.id}-pdo-select`}
-            className={styles.control}
-            value={String(selectedIndex)}
-            onChange={(event) => {
-              setSelectedIndex(Number(event.target.value))
-            }}
-            disabled={sinkPdoList.length === 0}
-          >
-            {sinkPdoList.length === 0 ? (
-              <option value="0">No PDOs available</option>
-            ) : (
-              sinkPdoList.map((pdo, index) => (
-                <option key={`pdo-${index}`} value={String(index)}>
-                  #{index + 1} {formatPdoSummary(pdo)}
-                </option>
-              ))
-            )}
-          </select>
+        <section className={`${styles.panel} ${styles.rightPanel}`}>
+          <div className={`${styles.row} ${styles.rowWithAction}`}>
+            <span className={styles.rowLabel}>PDO TYPE</span>
+            <span className={`${styles.rowValue} ${styles.pdoTitle}`}>
+              {selectedPdoDetails.title}
+            </span>
+            <span className={`${styles.rowState} ${styles.pdoTitle}`}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={handleToggleAdvanced}
+                disabled={!driver}
+                aria-expanded={isAdvancedOpen}
+                aria-controls={`${instrument.id}-advanced-tune`}
+              >
+                {isRefreshingSinkData && sinkPdoList.length === 0 ? 'Loading...' : 'Change'}
+              </button>
 
-          <div className={styles.requestPanel}>
-            <div className={styles.requestTitle}>Request Parameters</div>
-            <div className={styles.requestBody}>
-              {selectedPdo?.type === 'FIXED' ? (
-                <>
-                  <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
-                    Voltage (V)
-                  </label>
-                  <input
-                    id={`${instrument.id}-voltage`}
-                    className={styles.control}
-                    value={selectedPdo.voltageV.toFixed(2)}
-                    readOnly
-                  />
+              {isAdvancedOpen ? (
+                <div
+                  id={`${instrument.id}-advanced-tune`}
+                  className={styles.advancedPanel}
+                  role="dialog"
+                  aria-label="Sink request tuning"
+                >
+                  <div className={styles.advancedLayout}>
+                    <div className={styles.pdoListPane}>
+                      {isRefreshingSinkData && sinkPdoList.length === 0 ? (
+                        <div className={styles.message}>Loading sink PDO list from device...</div>
+                      ) : null}
+                      <div
+                        className={styles.pdoList}
+                        role="listbox"
+                        aria-label="Available PDOs"
+                        data-testid="pdo-list"
+                      >
+                        {sinkPdoList.length === 0 ? (
+                          <div className={styles.emptyList}>No PDOs available</div>
+                        ) : (
+                          sinkPdoList.map((pdo, index) => (
+                            <button
+                              key={`pdo-${index}`}
+                              type="button"
+                              role="option"
+                              aria-selected={selectedIndex === index}
+                              className={`${styles.pdoListItem} ${selectedIndex === index ? styles.pdoListItemSelected : ''}`}
+                              onClick={() => {
+                                setSelectedIndex(index)
+                                setRequestErrorMessage(null)
+                                setRequestStatus('idle')
+                              }}
+                            >
+                              <span className={styles.pdoListItemTitle}>
+                                #{index + 1} {getPdoTypeLabel(pdo)}
+                              </span>
+                              <span className={styles.pdoListItemDetail}>
+                                {pdo ? getPdoListSecondaryLine(pdo) : '--'}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
 
-                  <label className={styles.fieldLabel} htmlFor={`${instrument.id}-current`}>
-                    Current (A)
-                  </label>
-                  <input
-                    id={`${instrument.id}-current`}
-                    className={styles.control}
-                    value={currentA}
-                    onChange={(event) => setCurrentA(event.target.value)}
-                  />
-                </>
+                    <div className={styles.requestPane}>
+                      <div className={styles.requestBody}>
+                        <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
+                          Voltage
+                        </label>
+                        <input
+                          id={`${instrument.id}-voltage`}
+                          className={styles.control}
+                          value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
+                          onChange={(event) => {
+                            setVoltageV(event.target.value)
+                            setRequestErrorMessage(null)
+                            setRequestStatus('idle')
+                          }}
+                          readOnly={!isVoltageEditable(selectedPdo)}
+                          aria-readonly={!isVoltageEditable(selectedPdo)}
+                          disabled={!selectedPdo}
+                        />
+
+                        <div className={styles.fieldMeta} />
+                        <div className={styles.fieldHint}>{voltageHint}</div>
+
+                        <label className={styles.fieldLabel} htmlFor={`${instrument.id}-current`}>
+                          Current
+                        </label>
+                        <input
+                          id={`${instrument.id}-current`}
+                          className={styles.control}
+                          value={currentA}
+                          onChange={(event) => {
+                            setCurrentA(event.target.value)
+                            setRequestErrorMessage(null)
+                            setRequestStatus('idle')
+                          }}
+                          disabled={!selectedPdo}
+                        />
+
+                        <div className={styles.fieldMeta} />
+                        <div className={styles.fieldHint}>
+                          {currentRangeLabel}
+                        </div>
+                      </div>
+
+                      <div
+                        className={`${styles.message} ${
+                          validationMessage || requestErrorMessage ? styles.messageError : ''
+                        }`}
+                        aria-live="polite"
+                      >
+                        {validationMessage ?? requestErrorMessage ?? ''}
+                      </div>
+
+                      <div className={styles.requestActions}>
+                        <button
+                          type="button"
+                          className={styles.secondaryButton}
+                          onClick={() => {
+                            setIsAdvancedOpen(false)
+                            setRequestErrorMessage(null)
+                            setRequestStatus('idle')
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.requestButton}
+                          onClick={() => {
+                            void handleRequest()
+                          }}
+                          disabled={!canSubmit}
+                        >
+                          {requestStatus === 'sending' ? 'Setting...' : 'Set PDO'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : null}
-
-              {selectedPdo?.type === 'VARIABLE' ||
-              selectedPdo?.type === 'AUGMENTED' ||
-              selectedPdo?.type === 'SPR_PPS' ? (
-                <>
-                  <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
-                    Voltage (V)
-                  </label>
-                  <input
-                    id={`${instrument.id}-voltage`}
-                    className={styles.control}
-                    value={voltageV}
-                    onChange={(event) => setVoltageV(event.target.value)}
-                  />
-
-                  <label className={styles.fieldLabel} htmlFor={`${instrument.id}-current`}>
-                    Current (A)
-                  </label>
-                  <input
-                    id={`${instrument.id}-current`}
-                    className={styles.control}
-                    value={currentA}
-                    onChange={(event) => setCurrentA(event.target.value)}
-                  />
-                </>
-              ) : null}
-
-              {selectedPdo?.type === 'BATTERY' ||
-              selectedPdo?.type === 'SPR_AVS' ||
-              selectedPdo?.type === 'EPR_AVS' ? (
-                <>
-                  <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
-                    Voltage (V)
-                  </label>
-                  <input
-                    id={`${instrument.id}-voltage`}
-                    className={styles.control}
-                    value={voltageV}
-                    onChange={(event) => setVoltageV(event.target.value)}
-                  />
-
-                  <label className={styles.fieldLabel} htmlFor={`${instrument.id}-power`}>
-                    Power (W)
-                  </label>
-                  <input
-                    id={`${instrument.id}-power`}
-                    className={styles.control}
-                    value={powerW}
-                    onChange={(event) => setPowerW(event.target.value)}
-                  />
-                </>
-              ) : null}
-            </div>
+            </span>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>VRANGE</span>
+            <span className={`${styles.rowValue} ${styles.pdoDetail}`}>
+              {selectedPdoDetails.voltageRange}
+            </span>
+          </div>
+          <div className={styles.row}>
+            <span className={styles.rowLabel}>IRANGE</span>
+            <span className={`${styles.rowValue} ${styles.pdoDetail}`}>
+              {selectedPdoDetails.currentRange}
+            </span>
           </div>
 
-          <div className={styles.footer}>
-            <span className={styles.footerNote}>Selected: {selectedSummary}</span>
-            <button
-              type="button"
-              className={styles.requestButton}
-              onClick={() => {
-                void handleRequest()
-              }}
-              disabled={!canSubmit}
-            >
-              {requestStatus === 'sending' ? 'Requesting...' : 'Request PDO'}
-            </button>
-          </div>
-
-          <div
-            className={`${styles.message} ${
-              requestStatus === 'error'
-                ? styles.messageError
-                : requestStatus === 'success'
-                  ? styles.messageSuccess
-                  : ''
-            }`}
-          >
-            {requestMessage || (role !== CCBusRole.SINK ? 'Role is not SINK.' : 'Ready.')}
-          </div>
         </section>
       </div>
       {deviceRecord ? null : <div className={styles.unassigned}>Device: Unassigned</div>}

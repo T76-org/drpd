@@ -12,6 +12,7 @@ import {
   CCBusRoleStatus,
   CcChannel,
   OnOffState,
+  SinkPdoType,
   SinkState,
   TestCcRole,
   TriggerEventType,
@@ -316,32 +317,34 @@ export const parseSinkState = (value: string): SinkState => {
   switch (normalized) {
     case SinkState.DISCONNECTED:
       return SinkState.DISCONNECTED
-    case SinkState.NEGOTIATING:
-      return SinkState.NEGOTIATING
-    case SinkState.AWAITING_PS_READY:
-      return SinkState.AWAITING_PS_READY
-    case SinkState.CONNECTED:
-      return SinkState.CONNECTED
+    case SinkState.PE_SNK_STARTUP:
+      return SinkState.PE_SNK_STARTUP
+    case SinkState.PE_SNK_DISCOVERY:
+      return SinkState.PE_SNK_DISCOVERY
+    case SinkState.PE_SNK_WAIT_FOR_CAPABILITIES:
+      return SinkState.PE_SNK_WAIT_FOR_CAPABILITIES
+    case SinkState.PE_SNK_EVALUATE_CAPABILITY:
+      return SinkState.PE_SNK_EVALUATE_CAPABILITY
+    case SinkState.PE_SNK_SELECT_CAPABILITY:
+      return SinkState.PE_SNK_SELECT_CAPABILITY
+    case SinkState.PE_SNK_TRANSITION_SINK:
+      return SinkState.PE_SNK_TRANSITION_SINK
+    case SinkState.PE_SNK_READY:
+      return SinkState.PE_SNK_READY
+    case SinkState.PE_SNK_EPR_MODE_ENTRY:
+      return SinkState.PE_SNK_EPR_MODE_ENTRY
+    case SinkState.PE_SNK_GIVE_SINK_CAP:
+      return SinkState.PE_SNK_GIVE_SINK_CAP
+    case SinkState.PE_SNK_GET_SOURCE_CAP:
+      return SinkState.PE_SNK_GET_SOURCE_CAP
+    case SinkState.PE_SNK_EPR_KEEPALIVE:
+      return SinkState.PE_SNK_EPR_KEEPALIVE
+    case SinkState.PE_SNK_HARD_RESET:
+      return SinkState.PE_SNK_HARD_RESET
+    case SinkState.PE_SNK_TRANSITION_TO_DEFAULT:
+      return SinkState.PE_SNK_TRANSITION_TO_DEFAULT
     case SinkState.ERROR:
       return SinkState.ERROR
-    // Firmware currently reports detailed PE state names; map them to the
-    // frontend's higher-level sink state model for UI stability.
-    case 'PE_SNK_STARTUP':
-    case 'PE_SNK_DISCOVERY':
-    case 'PE_SNK_WAIT_FOR_CAPABILITIES':
-    case 'PE_SNK_EVALUATE_CAPABILITY':
-    case 'PE_SNK_SELECT_CAPABILITY':
-    case 'PE_SNK_EPR_MODE_ENTRY':
-    case 'PE_SNK_GIVE_SINK_CAP':
-    case 'PE_SNK_GET_SOURCE_CAP':
-    case 'PE_SNK_HARD_RESET':
-    case 'PE_SNK_TRANSITION_TO_DEFAULT':
-      return SinkState.NEGOTIATING
-    case 'PE_SNK_TRANSITION_SINK':
-      return SinkState.AWAITING_PS_READY
-    case 'PE_SNK_READY':
-    case 'PE_SNK_EPR_KEEPALIVE':
-      return SinkState.CONNECTED
     default:
       throw new Error(`Invalid sink state: ${value}`)
   }
@@ -509,7 +512,11 @@ export const analogMonitorCCStatusFromVoltage = (
  * @returns Parsed sink PDO structure.
  */
 export const parseSinkPdo = (values: string[]): SinkPdo => {
-  const parts = parseCommaSeparated(values)
+  const commaParts = parseCommaSeparated(values)
+  const parts =
+    commaParts.length === 1 && /\s/.test(commaParts[0])
+      ? commaParts[0].trim().split(/\s+/)
+      : commaParts
   if (!parts.length) {
     return null
   }
@@ -517,61 +524,63 @@ export const parseSinkPdo = (values: string[]): SinkPdo => {
   if (type === 'NONE') {
     return null
   }
-  if (type === 'FIXED') {
+  if (type === SinkPdoType.FIXED) {
     if (parts.length !== 3) {
       throw new Error(`Invalid FIXED PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'FIXED',
+      type: SinkPdoType.FIXED,
       voltageV: parseNumber(parts[1], 'PDO voltage'),
       maxCurrentA: parseNumber(parts[2], 'PDO max current'),
     }
   }
-  if (type === 'VARIABLE') {
+  if (type === SinkPdoType.VARIABLE) {
     if (parts.length !== 4) {
       throw new Error(`Invalid VARIABLE PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'VARIABLE',
+      type: SinkPdoType.VARIABLE,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
     }
   }
-  if (type === 'BATTERY') {
+  if (type === SinkPdoType.BATTERY) {
     if (parts.length !== 4) {
       throw new Error(`Invalid BATTERY PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'BATTERY',
+      type: SinkPdoType.BATTERY,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxPowerW: parseNumber(parts[3], 'PDO max power'),
     }
   }
-  if (type === 'AUGMENTED') {
+  if (type === SinkPdoType.AUGMENTED) {
     if (parts.length !== 4) {
       throw new Error(`Invalid AUGMENTED PDO response: ${parts.join(',')}`)
     }
+    // Older firmware reported PPS APDOs as "AUGMENTED". Normalize to the
+    // current firmware token so downstream UI logic matches documented values.
     return {
-      type: 'AUGMENTED',
+      type: SinkPdoType.SPR_PPS,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
     }
   }
-  if (type === 'SPR_PPS') {
+  if (type === SinkPdoType.SPR_PPS) {
     if (parts.length !== 4) {
       throw new Error(`Invalid SPR_PPS PDO response: ${parts.join(',')}`)
     }
     return {
-      type: 'SPR_PPS',
+      type: SinkPdoType.SPR_PPS,
       minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
       maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
     }
   }
-  if (type === 'SPR_AVS' || type === 'EPR_AVS') {
+  if (type === SinkPdoType.SPR_AVS || type === SinkPdoType.EPR_AVS) {
     if (parts.length !== 4) {
       throw new Error(`Invalid ${type} PDO response: ${parts.join(',')}`)
     }

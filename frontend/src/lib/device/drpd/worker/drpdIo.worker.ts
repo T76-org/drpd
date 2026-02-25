@@ -489,6 +489,9 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         throw new Error(`Unsupported analogMonitor method: ${method}`)
       }
       if (target === 'ccBus') {
+        if (method === 'getRole') {
+          return await session.device.ccBus.getRole()
+        }
         if (method === 'setRole') {
           await session.device.ccBus.setRole(args[0] as never)
           return null
@@ -503,6 +506,15 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         throw new Error(`Unsupported capture method: ${method}`)
       }
       if (target === 'sink') {
+        if (method === 'getAvailablePdoCount') {
+          return await session.device.sink.getAvailablePdoCount()
+        }
+        if (method === 'getPdoAtIndex') {
+          return await session.device.sink.getPdoAtIndex(args[0] as number)
+        }
+        if (method === 'getSinkInfo') {
+          return await session.device.sink.getSinkInfo()
+        }
         if (method === 'requestPdo') {
           await session.device.sink.requestPdo(args[0] as number, args[1] as number, args[2] as number)
           return null

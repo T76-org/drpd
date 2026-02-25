@@ -19,6 +19,8 @@ import type {
   LoggedAnalogSample,
   LoggedCapturedMessage,
   OnOffState,
+  SinkInfo,
+  SinkPdo,
 } from '../types'
 import { DRPDDevice } from '../device'
 import type { WorkerUSBDeviceSelection } from './protocol'
@@ -32,9 +34,14 @@ let workerDeviceSessionCounter = 1 ///< Monotonic worker DRPD session id counter
  */
 export class DRPDWorkerDeviceProxy extends EventTarget {
   public readonly analogMonitor: { getStatus: () => Promise<AnalogMonitorChannels> } ///< Analog monitor command-group proxy.
-  public readonly ccBus: { setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
+  public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
   public readonly capture: { setCaptureEnabled: (enabled: OnOffState) => Promise<void> } ///< Capture command-group proxy.
-  public readonly sink: { requestPdo: (index: number, voltageMv: number, currentMa: number) => Promise<void> } ///< Sink command-group proxy.
+  public readonly sink: {
+    getAvailablePdoCount: () => Promise<number>
+    getPdoAtIndex: (index: number) => Promise<SinkPdo>
+    getSinkInfo: () => Promise<SinkInfo>
+    requestPdo: (index: number, voltageMv: number, currentMa: number) => Promise<void>
+  } ///< Sink command-group proxy.
 
   protected readonly client: DRPDWorkerServiceClient ///< Shared worker client.
   protected readonly sessionId: string ///< Worker DRPD session id.
@@ -102,6 +109,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       getStatus: async () => (await this.callGroup('analogMonitor', 'getStatus')) as AnalogMonitorChannels,
     }
     this.ccBus = {
+      getRole: async () => (await this.callGroup('ccBus', 'getRole')) as CCBusRole,
       setRole: async (role) => {
         await this.callGroup('ccBus', 'setRole', role)
       },
@@ -112,6 +120,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       },
     }
     this.sink = {
+      getAvailablePdoCount: async () => (await this.callGroup('sink', 'getAvailablePdoCount')) as number,
+      getPdoAtIndex: async (index) => (await this.callGroup('sink', 'getPdoAtIndex', index)) as SinkPdo,
+      getSinkInfo: async () => (await this.callGroup('sink', 'getSinkInfo')) as SinkInfo,
       requestPdo: async (index, voltageMv, currentMa) => {
         await this.callGroup('sink', 'requestPdo', index, voltageMv, currentMa)
       },
