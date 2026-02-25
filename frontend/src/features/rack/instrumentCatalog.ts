@@ -19,7 +19,25 @@ export class DrpdPlaceholderInstrument extends Instrument {
 }
 
 /**
- * Device status instrument for Dr. PD analog telemetry.
+ * VBUS instrument for Dr. PD analog telemetry.
+ */
+export class DrpdVbusInstrument extends Instrument {
+  /**
+   * Create a VBUS instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.vbus',
+      displayName: 'VBUS',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'flex' },
+      defaultUnits: 1
+    })
+  }
+}
+
+/**
+ * Device status instrument for Dr. PD role/capture controls and status.
  */
 export class DrpdDeviceStatusInstrument extends Instrument {
   /**
@@ -27,10 +45,28 @@ export class DrpdDeviceStatusInstrument extends Instrument {
    */
   public constructor() {
     super({
-      identifier: 'com.mta.drpd.device-status',
+      identifier: 'com.mta.drpd.device-status-panel',
       displayName: 'Device Status',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'flex' },
+      defaultWidth: { mode: 'fixed', units: 2 },
+      defaultUnits: 1
+    })
+  }
+}
+
+/**
+ * CC line instrument for Dr. PD DUT/USDS CC telemetry.
+ */
+export class DrpdCcLinesInstrument extends Instrument {
+  /**
+   * Create a CC Lines instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.cc-lines',
+      displayName: 'CC Lines',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'fixed', units: 2 },
       defaultUnits: 1
     })
   }
@@ -59,6 +95,8 @@ export class DrpdSinkControlInstrument extends Instrument {
  */
 export const getSupportedInstruments = (): Instrument[] => {
   return [
+    new DrpdVbusInstrument(),
+    new DrpdCcLinesInstrument(),
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),
     new DrpdPlaceholderInstrument()
