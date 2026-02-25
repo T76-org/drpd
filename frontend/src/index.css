@@ -17,6 +17,7 @@
   --font-family-mono: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
 
+  --font-size-3xs: 0.4rem;
   --font-size-2xs: 0.5rem;
   --font-size-xs: 0.5625rem;
   --font-size-sm: 0.625rem;
@@ -149,6 +150,20 @@
 
 * {
   box-sizing: border-box;
+}
+
+button {
+  border-radius: var(--radius-none);
+}
+
+button:focus {
+  outline: none;
+}
+
+button:focus-visible {
+  outline: var(--border-thin) solid color-mix(in srgb, var(--color-status-info) 55%, transparent);
+  outline-offset: 0;
+  box-shadow: none;
 }
 
 body {

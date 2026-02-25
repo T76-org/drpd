@@ -140,7 +140,7 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(screen.getByText(/0\.00-3\.00 a/i)).toBeInTheDocument()
   })
 
-  it('lists available PDOs in the selector', async () => {
+  it('lists available PDOs in the popup list and supports selection', async () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
     driver.setSinkSnapshot(
@@ -162,13 +162,21 @@ describe('DrpdSinkControlInstrumentView', () => {
     )
 
     await userEvent.setup().click(screen.getByRole('button', { name: /change/i }))
-    const select = screen.getByLabelText(/available pdos/i)
-    expect(select).toBeInTheDocument()
-    expect(await screen.findByRole('option', { name: /#1 fixed 5\.00v \/ 3\.00a/i })).toBeInTheDocument()
-    expect(await screen.findByRole('option', { name: /#2 battery 9\.00-15\.00v \/ 27\.00w/i })).toBeInTheDocument()
+    const list = screen.getByRole('listbox', { name: /available pdos/i })
+    expect(list).toBeInTheDocument()
+    expect(screen.getByTestId('pdo-list')).toBeInTheDocument()
+    const fixedOption = await screen.findByRole('option', {
+      name: /#1 fixed 5\.00 v \/ 3\.00 a/i
+    })
+    const batteryOption = await screen.findByRole('option', {
+      name: /#2 battery 9\.00-15\.00 v \/ 27\.00 w max/i
+    })
+    expect(fixedOption).toHaveAttribute('aria-selected', 'true')
+    await userEvent.setup().click(batteryOption)
+    expect(batteryOption).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('converts battery power request into voltage/current arguments', async () => {
+  it('converts battery voltage/current request into SCPI arguments and auto-closes', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
@@ -194,29 +202,26 @@ describe('DrpdSinkControlInstrumentView', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /change/i }))
-    await user.selectOptions(screen.getByLabelText(/available pdos/i), '1')
-    expect(screen.queryByLabelText(/current \(a\)/i)).not.toBeInTheDocument()
-    const voltageInput = screen.getByLabelText(/voltage \(v\)/i)
-    const powerInput = screen.getByLabelText(/power \(w\)/i)
+    await user.click(screen.getByRole('option', { name: /#2 battery/i }))
+    const voltageInput = screen.getByLabelText(/^voltage$/i)
+    const currentInput = screen.getByLabelText(/^current$/i)
     await user.clear(voltageInput)
     await user.type(voltageInput, '12')
-    await user.clear(powerInput)
-    await user.type(powerInput, '24')
+    await user.clear(currentInput)
+    await user.type(currentInput, '2')
 
-    await user.click(screen.getByRole('button', { name: /request pdo/i }))
+    await user.click(screen.getByRole('button', { name: /set pdo/i }))
 
     await waitFor(() => {
       expect(requestSpy).toHaveBeenCalledWith(1, 12000, 2000)
     })
     expect(refreshSpy).toHaveBeenCalled()
-    expect(
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByText(
-        /request sent\./i,
-      ),
-    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
+    })
   })
 
-  it('shows validation error and blocks invalid request', async () => {
+  it('shows validation error immediately and blocks invalid request', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
@@ -238,20 +243,19 @@ describe('DrpdSinkControlInstrumentView', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /change/i }))
-    const voltageInput = screen.getByLabelText(/voltage \(v\)/i)
+    const voltageInput = screen.getByLabelText(/^voltage$/i)
     await user.clear(voltageInput)
     await user.type(voltageInput, '2')
-    await user.click(screen.getByRole('button', { name: /request pdo/i }))
 
+    const dialog = screen.getByRole('dialog', { name: /sink request tuning/i })
+    expect(within(dialog).getByText(/voltage must be between 5\.00 and 12\.00 v\./i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /set pdo/i })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: /set pdo/i }))
     expect(requestSpy).not.toHaveBeenCalled()
-    expect(
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByText(
-        /voltage must be between 5\.00 and 12\.00 v\./i,
-      ),
-    ).toBeInTheDocument()
   })
 
-  it('supports AVS PDOs using voltage and power inputs', async () => {
+  it('supports AVS PDOs using voltage and current inputs', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
@@ -276,18 +280,108 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(screen.getByText(/^EPR AVS$/, { selector: 'span' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /change/i }))
-    const voltageInput = screen.getByLabelText(/voltage \(v\)/i)
-    const powerInput = screen.getByLabelText(/power \(w\)/i)
+    const voltageInput = screen.getByLabelText(/^voltage$/i)
+    const currentInput = screen.getByLabelText(/^current$/i)
     await user.clear(voltageInput)
     await user.type(voltageInput, '20')
-    await user.clear(powerInput)
-    await user.type(powerInput, '100')
+    await user.clear(currentInput)
+    await user.type(currentInput, '5')
 
-    await user.click(screen.getByRole('button', { name: /request pdo/i }))
+    await user.click(screen.getByRole('button', { name: /set pdo/i }))
 
     await waitFor(() => {
       expect(requestSpy).toHaveBeenCalledWith(0, 20000, 5000)
     })
     expect(refreshSpy).toHaveBeenCalled()
+  })
+
+  it('revalidates AVS current when voltage changes', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setSinkSnapshot(
+      CCBusRole.SINK,
+      null,
+      [{ type: 'EPR_AVS', minVoltageV: 15, maxVoltageV: 28, maxPowerW: 140 }],
+    )
+
+    render(
+      <DrpdSinkControlInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sink Control"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /change/i }))
+    const voltageInput = screen.getByLabelText(/^voltage$/i)
+    const currentInput = screen.getByLabelText(/^current$/i)
+    await user.clear(currentInput)
+    await user.type(currentInput, '6')
+    expect(screen.getByRole('button', { name: /set pdo/i })).toBeEnabled()
+
+    await user.clear(voltageInput)
+    await user.type(voltageInput, '28')
+
+    expect(
+      screen.getByText(/current must be between 0\.00 and 5\.00 a\./i),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /set pdo/i })).toBeDisabled()
+  })
+
+  it('closes the popup on cancel and Escape', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setSinkSnapshot(
+      CCBusRole.SINK,
+      null,
+      [{ type: 'FIXED', voltageV: 5, maxCurrentA: 3 }],
+    )
+
+    render(
+      <DrpdSinkControlInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sink Control"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /change/i }))
+    expect(screen.getByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /change/i }))
+    expect(screen.getByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
+  })
+
+  it('shows fixed voltage as read-only', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setSinkSnapshot(
+      CCBusRole.SINK,
+      null,
+      [{ type: 'FIXED', voltageV: 9, maxCurrentA: 3 }],
+    )
+
+    render(
+      <DrpdSinkControlInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sink Control"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /change/i }))
+    const voltageInput = screen.getByLabelText(/^voltage$/i)
+    expect(voltageInput).toHaveAttribute('readonly')
+    expect(voltageInput).toHaveValue('9.00')
   })
 })

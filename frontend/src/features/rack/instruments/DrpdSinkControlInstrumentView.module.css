@@ -39,6 +39,17 @@
   padding-left: var(--space-6);
 }
 
+.rowWithAction {
+  grid-template-columns: var(--right-col-label) var(--right-col-value) minmax(0, 1fr);
+}
+
+.rowState {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 .row {
   display: grid;
   align-items: center;
@@ -123,6 +134,11 @@
   min-width: 0;
 }
 
+.control[readonly] {
+  opacity: 0.85;
+  cursor: default;
+}
+
 .selectControl {
   width: 100%;
   min-width: 0;
@@ -155,30 +171,18 @@
 
 .advancedPanel {
   position: absolute;
-  top: calc(100% + var(--space-6));
+  top: calc(100% + var(--space-2));
   right: 0;
   z-index: 10;
-  width: min(420px, 64vw);
+  width: 250px;
+  max-width: calc(100vw - 24px);
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
-  padding: var(--space-10);
+  padding: var(--space-6);
   box-shadow: var(--shadow-strong);
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-}
-
-.advancedHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
-}
-
-.advancedHeaderActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .advancedTitle {
@@ -188,17 +192,146 @@
   color: var(--color-text-muted);
 }
 
+.advancedLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-12);
+  align-items: stretch;
+}
+
+.pdoListPane {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.pdoList {
+  --pdo-list-row-height: 26px;
+
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
+  display: grid;
+  align-content: start;
+  overflow-y: auto;
+  max-height: calc(5 * var(--pdo-list-row-height));
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.pdoList::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.emptyList {
+  padding: var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.pdoListItem {
+  appearance: none;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: var(--border-thin) solid var(--color-border-panel);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--pdo-list-row-height);
+  cursor: pointer;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.pdoListItem:last-child {
+  border-bottom: 0;
+}
+
+.pdoListItem:hover {
+  background: color-mix(in srgb, var(--color-surface-instrument) 72%, var(--color-status-info) 28%);
+}
+
+.pdoListItem:focus-visible {
+  outline: var(--border-thin) solid var(--color-status-info);
+  outline-offset: calc(var(--border-thin) * -1);
+}
+
+.pdoListItemSelected,
+.pdoListItem[aria-selected='true'] {
+  background: color-mix(in srgb, var(--color-surface-instrument) 55%, var(--color-status-info) 45%);
+  box-shadow: inset 2px 0 0 var(--color-status-info);
+}
+
+.pdoListItemTitle {
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.pdoListItemDetail {
+  font-size: var(--font-size-3xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--line-height-tight);
+}
+
+.requestPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+.requestPaneHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.requestPdoType {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-status-warning);
+}
+
 .requestBody {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: var(--space-3) var(--space-5);
+  gap: var(--space-2) var(--space-3);
+}
+
+.fieldMeta {
+  min-height: var(--space-12);
+}
+
+.fieldHint {
+  font-size: var(--font-size-3xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: calc(var(--space-2) * -1);
+  white-space: normal;
+  line-height: var(--line-height-tight);
+}
+
+.requestActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: auto;
 }
 
 .message {
-  min-height: 1.4em;
+  min-height: 1.1em;
   font-size: var(--font-size-2xs);
   color: var(--color-text-muted);
+  line-height: var(--line-height-tight);
 }
 
 .messageError {
