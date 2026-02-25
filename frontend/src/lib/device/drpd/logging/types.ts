@@ -156,6 +156,34 @@ export interface LogClearResult {
 }
 
 /**
+ * Logging backend diagnostics for debug/console inspection.
+ */
+export interface DRPDLoggingDiagnostics {
+  ///< True when the device logging subsystem has started.
+  loggingStarted: boolean
+  ///< True when logging is configured enabled.
+  loggingConfigured: boolean
+  ///< Backend identifier.
+  backend: 'none' | 'sqlite-opfs' | 'sqlite-memory' | 'memory-fallback'
+  ///< True when rows persist across page reloads.
+  persistent: boolean
+  ///< True when the SQLite engine is active (vs fallback arrays).
+  sqlite: boolean
+  ///< True when SQLite is using OPFS.
+  opfs: boolean
+}
+
+/**
+ * Row counts for DRPD log tables.
+ */
+export interface DRPDLogCounts {
+  ///< Number of analog rows.
+  analog: number
+  ///< Number of captured message rows.
+  messages: number
+}
+
+/**
  * DRPD logging store contract.
  */
 export interface DRPDLogStore {
@@ -219,4 +247,14 @@ export interface DRPDLogStore {
    * Enforce configured retention limits.
    */
   enforceRetention(): Promise<void>
+
+  /**
+   * Return backend diagnostics for debug tooling.
+   */
+  getDiagnostics?(): DRPDLoggingDiagnostics
+
+  /**
+   * Return current row counts for log tables.
+   */
+  getCounts?(): Promise<DRPDLogCounts>
 }

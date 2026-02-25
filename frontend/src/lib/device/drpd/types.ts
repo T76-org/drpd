@@ -8,6 +8,8 @@
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
+  DRPDLogCounts,
+  DRPDLoggingDiagnostics,
   DRPDLoggingConfig,
   LogClearResult,
   LogClearScope,
@@ -510,6 +512,8 @@ export interface DRPDDeviceConfig {
 export type {
   AnalogSampleQuery,
   CapturedMessageQuery,
+  DRPDLogCounts,
+  DRPDLoggingDiagnostics,
   DRPDLoggingConfig,
   LogClearResult,
   LogClearScope,
