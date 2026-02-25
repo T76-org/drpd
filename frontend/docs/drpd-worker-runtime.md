@@ -1,6 +1,6 @@
 # Dr. PD Worker Runtime Architecture
 
-This document explains how the Dr. PD (DRPD) device is connected and driven in the frontend after the worker refactor. It focuses on the runtime architecture (definition vs driver, worker ownership, WebUSB access, logging, and failure handling). For command groups and DRPD state/event details, see `docs/drpd-device.md`.
+This document explains how the Dr. PD (DRPD) device is connected and driven in the frontend after the worker refactor. It focuses on the runtime architecture (definition vs driver, worker ownership, WebUSB access, logging, and failure handling). For command groups and DRPD state/event details, see `docs/drpd-device.md`. For logging backend/persistence details and DevTools debug helpers, see `docs/drpd-logging.md`.
 
 ## Why this exists
 
@@ -106,8 +106,11 @@ The DRPD device driver supports logging through `DRPDLogStore`. In the worker-ba
 - The worker-owned `DRPDDevice` creates and uses the log store.
 - Log writes happen in the worker as part of polling/capture paths.
 - Query/export/clear requests from the UI are proxied to the worker-owned driver.
+- The backend is opened on connect so logs remain queryable even before capture/logging writes are enabled.
 
 This keeps logging work off the main thread and preserves ordering relative to captured messages and state updates.
+
+Implementation and storage details (SQLite-WASM, OPFS, fallback modes, diagnostics) are documented in `docs/drpd-logging.md`.
 
 ## Worker stall detection and automatic page refresh
 

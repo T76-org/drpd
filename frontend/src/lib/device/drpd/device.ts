@@ -23,8 +23,10 @@ import type {
   LogExportResult,
   LoggedAnalogSample,
   LoggedCapturedMessage,
+  OnOffState,
 } from './types'
-import type { DRPDLogStore } from './logging'
+import { OnOffState as OnOffStateValues } from './types'
+import type { DRPDLogStore, DRPDLoggingDiagnostics, DRPDLogCounts } from './logging'
 import { DRPDAnalogMonitor } from './analogMonitor'
 import { DRPDCCBus } from './ccBus'
 import { DRPDCapture } from './capture'
@@ -196,12 +198,14 @@ export class DRPDDevice extends EventTarget {
       return
     }
     try {
-      this.logStore = this.createLogStore(this.loggingConfig)
-      await this.logStore.init()
+      await this.ensureLogStoreOpen()
+      if (!this.logStore) {
+        return
+      }
       this.loggingStarted = true
       this.logDebug('logging: started')
     } catch (error) {
-      this.logStore = undefined
+      await this.closeLogStore()
       this.loggingStarted = false
       this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
       this.logDebug(`logging: start error=${String(error)}`)
@@ -215,13 +219,8 @@ export class DRPDDevice extends EventTarget {
     if (!this.loggingStarted) {
       return
     }
-    try {
-      await this.logStore?.close()
-    } finally {
-      this.logStore = undefined
-      this.loggingStarted = false
-      this.logDebug('logging: stopped')
-    }
+    this.loggingStarted = false
+    this.logDebug('logging: stopped')
   }
 
   /**
@@ -231,6 +230,69 @@ export class DRPDDevice extends EventTarget {
    */
   public isLoggingEnabled(): boolean {
     return this.loggingStarted
+  }
+
+  /**
+   * Return logging backend diagnostics for debug/console tooling.
+   *
+   * @returns Backend diagnostics snapshot.
+   */
+  public getLoggingDiagnostics(): DRPDLoggingDiagnostics {
+    const storeDiagnostics = this.logStore?.getDiagnostics?.()
+    return (
+      storeDiagnostics ?? {
+        loggingStarted: this.loggingStarted,
+        loggingConfigured: this.loggingConfig.enabled,
+        backend: 'none',
+        persistent: false,
+        sqlite: false,
+        opfs: false,
+      }
+    )
+  }
+
+  /**
+   * Return current log row counts for debug/console tooling.
+   *
+   * @returns Log row counts.
+   */
+  public async getLogCounts(): Promise<DRPDLogCounts> {
+    if (!this.logStore) {
+      return { analog: 0, messages: 0 }
+    }
+    if (typeof this.logStore.getCounts === 'function') {
+      return await this.logStore.getCounts()
+    }
+    return {
+      analog: (await this.queryAnalogSamples({
+        startTimestampUs: 0n,
+        endTimestampUs: BigInt('9223372036854775807'),
+      })).length,
+      messages: (await this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: BigInt('9223372036854775807'),
+      })).length,
+    }
+  }
+
+  /**
+   * Enable or disable capture, auto-enabling logging when capture is turned on.
+   *
+   * @param enabled - Desired capture state.
+   */
+  public async setCaptureEnabled(enabled: OnOffState): Promise<void> {
+    if (enabled === OnOffStateValues.ON) {
+      if (!this.loggingConfig.enabled) {
+        await this.configureLogging({ ...this.loggingConfig, enabled: true })
+      }
+      if (!this.loggingStarted) {
+        await this.startLogging()
+      }
+    }
+    await this.capture.setCaptureEnabled(enabled)
+    if (enabled === OnOffStateValues.OFF) {
+      await this.stopLogging()
+    }
   }
 
   /**
@@ -388,7 +450,7 @@ export class DRPDDevice extends EventTarget {
     this.isConnected = false
     this.stopAnalogMonitorPolling()
     this.stopCaptureDrainPolling()
-    void this.stopLogging()
+    void this.stopLogging().finally(() => this.closeLogStore())
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -1022,6 +1084,7 @@ export class DRPDDevice extends EventTarget {
    */
   protected async runConnectTasks(): Promise<void> {
     this.logDebug('runConnectTasks: start')
+    await this.ensureLogStoreOpen()
     if (this.loggingConfig.enabled && this.loggingConfig.autoStartOnConnect) {
       await this.startLogging()
     }
@@ -1127,6 +1190,32 @@ export class DRPDDevice extends EventTarget {
     } catch (error) {
       this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
       this.logDebug(`logging message insert error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Ensure a log store exists and is initialized for this device session.
+   */
+  protected async ensureLogStoreOpen(): Promise<void> {
+    if (this.logStore) {
+      return
+    }
+    const store = this.createLogStore(this.loggingConfig)
+    await store.init()
+    this.logStore = store
+  }
+
+  /**
+   * Close and clear the current log store, if any.
+   */
+  protected async closeLogStore(): Promise<void> {
+    if (!this.logStore) {
+      return
+    }
+    try {
+      await this.logStore.close()
+    } finally {
+      this.logStore = undefined
     }
   }
 

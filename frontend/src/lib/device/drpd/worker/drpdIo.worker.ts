@@ -458,6 +458,13 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           case 'configureLogging':
             await session.device.configureLogging(args[0] as never)
             return null
+          case 'getLoggingDiagnostics':
+            return session.device.getLoggingDiagnostics()
+          case 'getLogCounts':
+            return await session.device.getLogCounts()
+          case 'setCaptureEnabled':
+            await session.device.setCaptureEnabled(args[0] as never)
+            return null
           case 'handleConnect':
             session.device.handleConnect()
             return null
@@ -500,7 +507,7 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
       }
       if (target === 'capture') {
         if (method === 'setCaptureEnabled') {
-          await session.device.capture.setCaptureEnabled(args[0] as never)
+          await session.device.setCaptureEnabled(args[0] as never)
           return null
         }
         throw new Error(`Unsupported capture method: ${method}`)

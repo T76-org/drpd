@@ -3,6 +3,7 @@
 This document explains how the Dr. PD (DRPD) device driver is structured in this repo, how to connect to it, and how to observe its internal state. It is written for someone with no prior context. USB-PD message decoding is documented separately in `docs/drpd-message-decoding.md` and is not repeated here.
 
 Runtime architecture (definition vs driver, worker ownership, WebUSB in worker, logging in worker, and worker watchdog behavior) is documented separately in `docs/drpd-worker-runtime.md`.
+Logging backend details (SQLite/OPFS persistence, capture/logging coupling, and DevTools debug helpers such as `window.__drpdLogs`) are documented separately in `docs/drpd-logging.md`.
 
 ## Overview
 
@@ -149,6 +150,15 @@ Analog monitor values are polled on a timer. By default, polling starts automati
 On connect, the driver queries the captured message count. If the count is greater than zero, it repeatedly calls `BUS:CC:CAPture:DATA?` until the device reports an error (new captures can arrive while draining). The same drain logic runs when the message-received interrupt bit is set. Each fetched message emits `messagecaptured`. Fetch errors are retried once before emitting `stateerror`.
 
 Polling emits `analogmonitorchanged` and `stateupdated` only when the values differ from the last sample.
+
+### Capture and logging behavior
+
+In the current frontend runtime, capture toggling also controls whether log writes are active:
+
+- Turning capture ON auto-enables logging writes.
+- Turning capture OFF stops logging writes.
+
+The logging backend itself is opened on connect (so historical logs can be queried immediately) and closed on disconnect. See `docs/drpd-logging.md` for backend and persistence details.
 
 ## Recommended usage pattern
 

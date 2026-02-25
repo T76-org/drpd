@@ -31,6 +31,34 @@ import styles from './RackView.module.css'
 type ThemeMode = 'system' | 'light' | 'dark'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
+const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
+
+interface DRPDLogsConsoleHelper {
+  devices(): Array<{ id: string; name: string; status: string }>
+  driver(deviceId?: string): DRPDDriverRuntime
+  diagnostics(deviceId?: string): Promise<unknown>
+  count(kind?: 'analog' | 'messages' | 'all', deviceId?: string): Promise<unknown>
+  queryAnalog(
+    query?: { last?: number; startTimestampUs?: bigint; endTimestampUs?: bigint },
+    deviceId?: string,
+  ): Promise<unknown>
+  queryMessage(
+    query?: { last?: number; startTimestampUs?: bigint; endTimestampUs?: bigint },
+    deviceId?: string,
+  ): Promise<unknown>
+  queryMessages(
+    query?: { last?: number; startTimestampUs?: bigint; endTimestampUs?: bigint },
+    deviceId?: string,
+  ): Promise<unknown>
+  export(request: unknown, deviceId?: string): Promise<unknown>
+  clear(scope: unknown, deviceId?: string): Promise<unknown>
+  help(): string
+}
+
+type RackConsoleWindow = Window &
+  typeof globalThis & {
+    __drpdLogs?: DRPDLogsConsoleHelper
+  }
 
 /**
  * Describes a drag interaction while editing the rack layout.
@@ -220,6 +248,128 @@ export const RackView = () => {
   useEffect(() => {
     deviceStatesRef.current = deviceStates
   }, [deviceStates])
+
+  useEffect(() => {
+    const consoleWindow = window as RackConsoleWindow
+    const normalizeWindowQuery = (query?: {
+      last?: number
+      startTimestampUs?: bigint
+      endTimestampUs?: bigint
+    }) => {
+      const last = Math.max(1, Math.floor(query?.last ?? 20))
+      return {
+        last,
+        startTimestampUs: query?.startTimestampUs ?? 0n,
+        endTimestampUs: query?.endTimestampUs ?? CONSOLE_LOG_END_TS_US,
+      }
+    }
+    const resolveDriver = (deviceId?: string): DRPDDriverRuntime => {
+      const connected = deviceStatesRef.current.filter(
+        (state) => state.status === 'connected' && state.drpdDriver,
+      )
+      if (connected.length === 0) {
+        throw new Error('No connected DRPD devices.')
+      }
+      if (deviceId) {
+        const match = connected.find((state) => state.record.id === deviceId)
+        if (!match?.drpdDriver) {
+          throw new Error(`Connected DRPD device not found: ${deviceId}`)
+        }
+        return match.drpdDriver
+      }
+      if (connected.length > 1) {
+        const ids = connected.map((state) => state.record.id).join(', ')
+        throw new Error(`Multiple connected DRPD devices. Pass a deviceId. Available: ${ids}`)
+      }
+      return connected[0].drpdDriver as DRPDDriverRuntime
+    }
+
+    const helper: DRPDLogsConsoleHelper = {
+      devices: () =>
+        deviceStatesRef.current
+          .filter((state) => state.drpdDriver)
+          .map((state) => ({
+            id: state.record.id,
+            name: state.record.displayName,
+            status: state.status,
+          })),
+      driver: (deviceId) => resolveDriver(deviceId),
+      diagnostics: async (deviceId) => {
+        const driver = resolveDriver(deviceId)
+        if (!('getLoggingDiagnostics' in driver) || typeof driver.getLoggingDiagnostics !== 'function') {
+          return {
+            backend: 'unknown',
+            persistent: false,
+            sqlite: false,
+            opfs: false,
+            loggingStarted: false,
+            loggingConfigured: false,
+          }
+        }
+        return await driver.getLoggingDiagnostics()
+      },
+      count: async (kind = 'all', deviceId) => {
+        const driver = resolveDriver(deviceId)
+        if (!('getLogCounts' in driver) || typeof driver.getLogCounts !== 'function') {
+          return { analog: 0, messages: 0 }
+        }
+        const counts = await driver.getLogCounts()
+        if (kind === 'analog') {
+          return counts.analog
+        }
+        if (kind === 'messages') {
+          return counts.messages
+        }
+        return counts
+      },
+      queryAnalog: async (query, deviceId) => {
+        const driver = resolveDriver(deviceId)
+        const normalized = normalizeWindowQuery(query)
+        const rows = await driver.queryAnalogSamples({
+          startTimestampUs: normalized.startTimestampUs,
+          endTimestampUs: normalized.endTimestampUs,
+        })
+        return rows.slice(-normalized.last)
+      },
+      queryMessage: async (query, deviceId) => {
+        const driver = resolveDriver(deviceId)
+        const normalized = normalizeWindowQuery(query)
+        const rows = await driver.queryCapturedMessages({
+          startTimestampUs: normalized.startTimestampUs,
+          endTimestampUs: normalized.endTimestampUs,
+        })
+        return rows.slice(-normalized.last)
+      },
+      queryMessages: async (query, deviceId) => helper.queryMessage(query, deviceId),
+      export: async (request, deviceId) => {
+        const driver = resolveDriver(deviceId)
+        return await driver.exportLogs(request as never)
+      },
+      clear: async (scope, deviceId) => {
+        const driver = resolveDriver(deviceId)
+        return await driver.clearLogs(scope as never)
+      },
+      help: () =>
+        [
+          'window.__drpdLogs.devices()',
+          'window.__drpdLogs.driver(deviceId?)',
+          'await window.__drpdLogs.diagnostics(deviceId?)',
+          'await window.__drpdLogs.count(kind?, deviceId?) // kind: \"analog\" | \"messages\" | \"all\" (default)',
+          'await window.__drpdLogs.queryAnalog({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
+          'await window.__drpdLogs.queryMessage({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
+          'await window.__drpdLogs.queryMessages({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?) // alias',
+          'await window.__drpdLogs.export(request, deviceId?)',
+          'await window.__drpdLogs.clear(scope, deviceId?)',
+        ].join('\n'),
+    }
+
+    consoleWindow.__drpdLogs = helper
+    return () => {
+      if (consoleWindow.__drpdLogs === helper) {
+        delete consoleWindow.__drpdLogs
+      }
+    }
+  }, [])
 
   useEffect(() => {
     return () => {

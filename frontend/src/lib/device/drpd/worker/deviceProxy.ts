@@ -14,6 +14,8 @@ import type {
   DRPDLoggingConfig,
   LogClearResult,
   LogClearScope,
+  DRPDLogCounts,
+  DRPDLoggingDiagnostics,
   LogExportRequest,
   LogExportResult,
   LoggedAnalogSample,
@@ -116,7 +118,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     }
     this.capture = {
       setCaptureEnabled: async (enabled) => {
-        await this.callGroup('capture', 'setCaptureEnabled', enabled)
+        await this.setCaptureEnabled(enabled)
       },
     }
     this.sink = {
@@ -154,6 +156,35 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   public async configureLogging(config: DRPDLoggingConfig): Promise<void> {
     await this.callDevice('configureLogging', config)
+  }
+
+  /**
+   * Return worker-side logging backend diagnostics.
+   *
+   * @returns Backend diagnostics snapshot.
+   */
+  public async getLoggingDiagnostics(): Promise<DRPDLoggingDiagnostics> {
+    return (await this.callDevice('getLoggingDiagnostics')) as DRPDLoggingDiagnostics
+  }
+
+  /**
+   * Return worker-side log row counts.
+   *
+   * @returns Log row counts.
+   */
+  public async getLogCounts(): Promise<DRPDLogCounts> {
+    return (await this.callDevice('getLogCounts')) as DRPDLogCounts
+  }
+
+  /**
+   * Enable or disable capture on the worker-side device.
+   *
+   * Turning capture on also ensures logging is enabled/started on the worker device.
+   *
+   * @param enabled - Desired capture state.
+   */
+  public async setCaptureEnabled(enabled: OnOffState): Promise<void> {
+    await this.callDevice('setCaptureEnabled', enabled)
   }
 
   /**

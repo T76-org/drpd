@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DRPDDevice } from '../device'
-import { CaptureDecodeResult } from '../types'
+import { CaptureDecodeResult, OnOffState } from '../types'
 import type { DRPDSCPIParam, DRPDTransport } from '../transport'
 import { SQLiteWasmStore } from '../logging'
 
@@ -66,6 +66,61 @@ const setConnected = (device: DRPDDevice): void => {
 }
 
 describe('DRPD logging integration', () => {
+  it('auto-enables logging when capture is turned on and logs analog plus messages', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('MEAS:ALL?', [
+      '1000',
+      '5.0',
+      '0.2',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+    ])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+      ),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    expect(device.isLoggingEnabled()).toBe(true)
+
+    await (device as unknown as { pollAnalogMonitor: () => Promise<void> }).pollAnalogMonitor()
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+
+    const analog = await device.queryAnalogSamples({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+    })
+    const messages = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+    })
+
+    expect(analog).toHaveLength(1)
+    expect(analog[0].vbusV).toBe(5.0)
+    expect(analog[0].ibusA).toBe(0.2)
+    expect(messages).toHaveLength(1)
+  })
+
   it('ingests analog polling samples and captured messages through device paths', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('MEAS:ALL?', [
@@ -169,5 +224,56 @@ describe('DRPD logging integration', () => {
       endTimestampUs: 10_000n,
     })
     expect(analog.length).toBe(0)
+  })
+
+  it('stops analog logging when capture is turned off', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('MEAS:ALL?', [
+      '1000',
+      '5.0',
+      '0.2',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 10,
+      maxCapturedMessages: 10,
+      retentionTrimBatchSize: 5,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (device as unknown as { pollAnalogMonitor: () => Promise<void> }).pollAnalogMonitor()
+
+    transport.textResponses.set('MEAS:ALL?', [
+      '2000',
+      '5.1',
+      '0.3',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+    ])
+    await device.setCaptureEnabled(OnOffState.OFF)
+    await (device as unknown as { pollAnalogMonitor: () => Promise<void> }).pollAnalogMonitor()
+
+    const analog = await device.queryAnalogSamples({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+    })
+    expect(analog).toHaveLength(1)
+    expect(analog[0].timestampUs).toBe(1000n)
   })
 })

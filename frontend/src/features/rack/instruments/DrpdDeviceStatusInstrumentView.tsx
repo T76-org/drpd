@@ -201,7 +201,7 @@ export const DrpdDeviceStatusInstrumentView = ({
       captureEnabled === OnOffState.ON ? OnOffState.OFF : OnOffState.ON
     setIsCaptureUpdating(true)
     try {
-      await driver.capture.setCaptureEnabled(nextState)
+      await driver.setCaptureEnabled(nextState)
       setCaptureEnabled(nextState)
     } finally {
       setIsCaptureUpdating(false)

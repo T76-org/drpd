@@ -10,7 +10,7 @@ import USBTMCTransport from '../transport/usbtmc'
 import { parseDeviceIdentity } from './drpd/parsers'
 import { DRPDDevice } from './drpd/device'
 import type { DRPDTransport } from './drpd/transport'
-import { buildDefaultLoggingConfig, normalizeLoggingConfig } from './drpd/logging'
+import { buildDefaultLoggingConfig, normalizeLoggingConfig, SQLiteWasmStore } from './drpd/logging'
 import type { DRPDDeviceConfig, DRPDLoggingConfig } from './drpd/types'
 import {
   DRPDWorkerDeviceProxy,
@@ -83,7 +83,10 @@ export class DRPDDeviceDefinition extends Device {
    */
   public createDriver(transport: DRPDTransport): DRPDDevice {
     this.driver = new DRPDDevice(transport, {
-      createLogStore: (config) => new DRPDWorkerLogStoreProxy(config),
+      createLogStore: (config) =>
+        typeof Worker !== 'undefined'
+          ? new DRPDWorkerLogStoreProxy(config)
+          : new SQLiteWasmStore(config),
     })
     this.driver.setDebugLoggingEnabled(false)
     const config = this.getStoredConfig()
