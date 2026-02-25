@@ -214,14 +214,26 @@
   align-content: start;
   overflow-y: auto;
   max-height: calc(5 * var(--pdo-list-row-height));
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
 .pdoList::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
+  width: 5px;
+  height: 5px;
+}
+
+.pdoList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pdoList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 0;
+}
+
+.pdoList::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .emptyList {
