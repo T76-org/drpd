@@ -672,19 +672,6 @@ export const DrpdSinkControlInstrumentView = ({
             </span>
           </div>
 
-          <div
-            className={`${styles.srOnly} ${
-              requestStatus === 'error'
-                ? styles.messageError
-                : requestStatus === 'success'
-                  ? styles.messageSuccess
-                  : ''
-            }`}
-            aria-live="polite"
-          >
-            {requestStateMessage}
-          </div>
-
           {isAdvancedOpen ? (
             <div
               id={`${instrument.id}-advanced-tune`}
@@ -693,8 +680,27 @@ export const DrpdSinkControlInstrumentView = ({
               aria-label="Sink request tuning"
             >
               <div className={styles.advancedHeader}>
-                <span className={styles.advancedTitle}>Request Parameters</span>
                 <div className={styles.advancedHeaderActions}>
+                  <select
+                    id={`${instrument.id}-pdo-select`}
+                    className={`${styles.control} ${styles.selectControl}`}
+                    value={String(selectedIndex)}
+                    onChange={(event) => {
+                      setSelectedIndex(Number(event.target.value))
+                    }}
+                    disabled={sinkPdoList.length === 0}
+                  >
+                    {sinkPdoList.length === 0 ? (
+                      <option value="0">No PDOs available</option>
+                    ) : (
+                      sinkPdoList.map((pdo, index) => (
+                        <option key={`pdo-${index}`} value={String(index)}>
+                          #{index + 1} {formatPdoSummary(pdo)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+
                   <button
                     type="button"
                     className={styles.requestButton}
@@ -705,40 +711,9 @@ export const DrpdSinkControlInstrumentView = ({
                   >
                     {requestStatus === 'sending' ? 'Requesting...' : 'Request PDO'}
                   </button>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={() => {
-                      setIsAdvancedOpen(false)
-                    }}
-                  >
-                    Close
-                  </button>
+
                 </div>
               </div>
-
-              <label className={styles.fieldLabel} htmlFor={`${instrument.id}-pdo-select`}>
-                Available PDOs
-              </label>
-              <select
-                id={`${instrument.id}-pdo-select`}
-                className={`${styles.control} ${styles.selectControl}`}
-                value={String(selectedIndex)}
-                onChange={(event) => {
-                  setSelectedIndex(Number(event.target.value))
-                }}
-                disabled={sinkPdoList.length === 0}
-              >
-                {sinkPdoList.length === 0 ? (
-                  <option value="0">No PDOs available</option>
-                ) : (
-                  sinkPdoList.map((pdo, index) => (
-                    <option key={`pdo-${index}`} value={String(index)}>
-                      #{index + 1} {formatPdoSummary(pdo)}
-                    </option>
-                  ))
-                )}
-              </select>
 
               {isRefreshingSinkData && sinkPdoList.length === 0 ? (
                 <div className={styles.message}>Loading sink PDO list from device...</div>
@@ -821,17 +796,6 @@ export const DrpdSinkControlInstrumentView = ({
                 ) : null}
               </div>
 
-              <div
-                className={`${styles.message} ${
-                  requestStatus === 'error'
-                    ? styles.messageError
-                    : requestStatus === 'success'
-                      ? styles.messageSuccess
-                      : ''
-                }`}
-              >
-                {requestStateMessage}
-              </div>
             </div>
           ) : null}
         </section>
