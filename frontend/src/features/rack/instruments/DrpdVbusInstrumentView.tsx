@@ -44,7 +44,6 @@ export const DrpdVbusInstrumentView = ({
 
   useEffect(() => {
     if (!driver) {
-      setAnalogMonitor(null)
       return
     }
 
@@ -65,6 +64,7 @@ export const DrpdVbusInstrumentView = ({
 
     return () => {
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+      setAnalogMonitor(null)
     }
   }, [driver])
 
