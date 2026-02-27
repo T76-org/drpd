@@ -66,7 +66,11 @@ export const RowRenderer = ({
       return definition?.defaultUnits ?? 1
     }),
   )
-  const rowHeightPx = maxUnits * unitHeightPx
+  const rowMinHeightPx = maxUnits * unitHeightPx
+  const hasVerticalFlexInstrument = row.instruments.some((instrument) => {
+    const definition = instrumentMap.get(instrument.instrumentIdentifier)
+    return definition?.defaultHeightMode === 'flex'
+  })
   const widthAllocations = allocateRowInstrumentWidths(
     row,
     instrumentMap,
@@ -78,13 +82,25 @@ export const RowRenderer = ({
     ),
   )
   const unitWidthPx = rackWidthPx / maxRowWidthUnits
+  const rowStyle = hasVerticalFlexInstrument
+    ? {
+        minHeight: rowMinHeightPx,
+        flex: '1 1 0' as const,
+        alignItems: 'flex-start' as const
+      }
+    : {
+        minHeight: rowMinHeightPx,
+        height: rowMinHeightPx,
+        flex: '0 0 auto' as const,
+        alignItems: 'flex-end' as const
+      }
 
   return (
     <div
       className={styles.row}
-      style={{ height: rowHeightPx }}
+      style={rowStyle}
       data-testid={`rack-row-${row.id}`}
-      data-row-height={rowHeightPx}
+      data-row-height={rowMinHeightPx}
       onDragOver={(event) => {
         if (!isEditMode) {
           return
@@ -135,12 +151,16 @@ export const RowRenderer = ({
         const allocatedHeightUnits = definition?.defaultUnits ?? 1
         const allocatedWidthPx = allocatedWidthUnits * unitWidthPx
         const allocatedHeightPx = allocatedHeightUnits * unitHeightPx
+        const isVerticalFlex = definition?.defaultHeightMode === 'flex'
 
         return (
           <div
             key={instrument.id}
             className={styles.instrumentSlot}
-            style={{ width: allocatedWidthPx, height: allocatedHeightPx }}
+            style={{
+              width: allocatedWidthPx,
+              height: isVerticalFlex ? '100%' : allocatedHeightPx
+            }}
             data-testid={`rack-instrument-${instrument.id}`}
             data-rack-instrument-slot="true"
             data-width-units={allocatedWidthUnits}

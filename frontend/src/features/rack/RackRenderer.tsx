@@ -48,8 +48,11 @@ export const RackRenderer = ({
   const rackWidthPx = rackHeightPx * RACK_ASPECT_RATIO
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState(1)
+  const [viewportHeightPx, setViewportHeightPx] = useState(rackHeightPx)
   const [isScaleVisible, setIsScaleVisible] = useState(false)
   const revealTimeoutRef = useRef<number | null>(null)
+  const visibleRackHeightPx =
+    scale > 0 ? Math.min(rackHeightPx, viewportHeightPx / scale) : rackHeightPx
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -66,23 +69,30 @@ export const RackRenderer = ({
       const { width, height } = viewport.getBoundingClientRect()
       if (width === 0 || height === 0) {
         setScale(1)
+        setViewportHeightPx(rackHeightPx)
         setIsScaleVisible(true)
         return
       }
       const widthScale = width / rackWidthPx
-      const heightScale = height / rackHeightPx
-      const fitScale = Math.min(widthScale, heightScale)
       const retinaBoost = getRetinaBoost(window.devicePixelRatio ?? 1)
-      const boostedScale = fitScale * retinaBoost
-      const nextScale = Math.min(boostedScale, widthScale)
+      const nextScale = widthScale * retinaBoost
       if (!Number.isFinite(nextScale) || nextScale <= 0) {
         return
       }
+      const scaledHeightPx = rackHeightPx * nextScale
+      const nextViewportHeightPx = Math.min(scaledHeightPx, height)
+
       setScale((current) => {
         if (Math.abs(current - nextScale) < 0.0001) {
           return current
         }
         return nextScale
+      })
+      setViewportHeightPx((current) => {
+        if (Math.abs(current - nextViewportHeightPx) < 0.5) {
+          return current
+        }
+        return nextViewportHeightPx
       })
       setIsScaleVisible(false)
       if (revealTimeoutRef.current !== null) {
@@ -109,84 +119,90 @@ export const RackRenderer = ({
 
   return (
     <div className={styles.rackWrapper}>
-      <div className={styles.rackViewport} ref={viewportRef}>
-        <div
-          className={styles.rackScroll}
-          style={{
-            width: rackWidthPx * scale,
-            height: rackHeightPx * scale,
-            visibility: isScaleVisible ? 'visible' : 'hidden'
-          }}
-        >
+      <div className={styles.rackBounds} ref={viewportRef}>
+        <div className={styles.rackViewport} style={{ height: viewportHeightPx }}>
           <div
-            className={styles.rackCanvas}
+            className={styles.rackScroll}
             style={{
-              width: rackWidthPx,
-              height: rackHeightPx,
-              transform: `scale(${scale})`
+              width: rackWidthPx * scale,
+              height: rackHeightPx * scale,
+              visibility: isScaleVisible ? 'visible' : 'hidden'
             }}
-            data-rack-width={Math.round(rackWidthPx)}
-            data-rack-height={rackHeightPx}
           >
-            {fullScreenInstrument ? (
-              <div className={styles.fullScreenOverlay} data-testid="rack-fullscreen">
-                <div className={styles.fullScreenFrame}>
-                  <InstrumentBase
-                    instrument={fullScreenInstrument}
-                    displayName={
-                      instrumentMap.get(fullScreenInstrument.instrumentIdentifier)
-                        ?.displayName ?? 'Instrument'
-                    }
-                  >
-                    <div className={styles.fullScreenContent}>
-                      Full-screen:{' '}
-                      {instrumentMap.get(fullScreenInstrument.instrumentIdentifier)
-                        ?.displayName ?? 'Instrument'}
-                    </div>
-                  </InstrumentBase>
+            <div
+              className={styles.rackCanvas}
+              style={{
+                width: rackWidthPx,
+                height: rackHeightPx,
+                transform: `scale(${scale})`
+              }}
+              data-rack-width={Math.round(rackWidthPx)}
+              data-rack-height={rackHeightPx}
+            >
+              {fullScreenInstrument ? (
+                <div className={styles.fullScreenOverlay} data-testid="rack-fullscreen">
+                  <div className={styles.fullScreenFrame}>
+                    <InstrumentBase
+                      instrument={fullScreenInstrument}
+                      displayName={
+                        instrumentMap.get(fullScreenInstrument.instrumentIdentifier)
+                          ?.displayName ?? 'Instrument'
+                      }
+                    >
+                      <div className={styles.fullScreenContent}>
+                        Full-screen:{' '}
+                        {instrumentMap.get(fullScreenInstrument.instrumentIdentifier)
+                          ?.displayName ?? 'Instrument'}
+                      </div>
+                    </InstrumentBase>
+                  </div>
                 </div>
-              </div>
-            ) : null}
-            {!fullScreenInstrument ? (
-              <div className={styles.rows} data-testid="rack-rows">
-                {isEditMode ? (
-                  <RowInsertionZone
-                    rowIndex={0}
-                    label="Drop to insert row"
-                    onInstrumentDragOver={onInstrumentDragOver}
-                    onInstrumentDrop={onInstrumentDrop}
-                  />
-                ) : null}
-                {rack.rows.map((row, rowIndex) => (
-                  <Fragment key={row.id}>
-                    <RowRenderer
-                      row={row}
-                      rowIndex={rowIndex}
-                      rackWidthPx={rackWidthPx}
-                      unitHeightPx={UNIT_HEIGHT_PX}
-                      maxRowWidthUnits={MAX_ROW_WIDTH_UNITS}
-                      instruments={instruments}
-                      deviceStates={deviceStates}
-                      rackDevices={rack.devices ?? []}
-                      isEditMode={isEditMode}
-                      onRemoveInstrument={onRemoveInstrument}
-                      onInstrumentDragStart={onInstrumentDragStart}
+              ) : null}
+              {!fullScreenInstrument ? (
+                <div
+                  className={styles.rows}
+                  style={{ height: visibleRackHeightPx }}
+                  data-testid="rack-rows"
+                >
+                  {isEditMode ? (
+                    <RowInsertionZone
+                      rowIndex={0}
+                      label="Drop to insert row"
                       onInstrumentDragOver={onInstrumentDragOver}
                       onInstrumentDrop={onInstrumentDrop}
-                      onInstrumentDragEnd={onInstrumentDragEnd}
                     />
-                    {isEditMode ? (
-                      <RowInsertionZone
-                        rowIndex={rowIndex + 1}
-                        label="Drop to insert row"
+                  ) : null}
+                  {rack.rows.map((row, rowIndex) => (
+                    <Fragment key={row.id}>
+                      <RowRenderer
+                        row={row}
+                        rowIndex={rowIndex}
+                        rackWidthPx={rackWidthPx}
+                        unitHeightPx={UNIT_HEIGHT_PX}
+                        maxRowWidthUnits={MAX_ROW_WIDTH_UNITS}
+                        instruments={instruments}
+                        deviceStates={deviceStates}
+                        rackDevices={rack.devices ?? []}
+                        isEditMode={isEditMode}
+                        onRemoveInstrument={onRemoveInstrument}
+                        onInstrumentDragStart={onInstrumentDragStart}
                         onInstrumentDragOver={onInstrumentDragOver}
                         onInstrumentDrop={onInstrumentDrop}
+                        onInstrumentDragEnd={onInstrumentDragEnd}
                       />
-                    ) : null}
-                  </Fragment>
-                ))}
-              </div>
-            ) : null}
+                      {isEditMode ? (
+                        <RowInsertionZone
+                          rowIndex={rowIndex + 1}
+                          label="Drop to insert row"
+                          onInstrumentDragOver={onInstrumentDragOver}
+                          onInstrumentDrop={onInstrumentDrop}
+                        />
+                      ) : null}
+                    </Fragment>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

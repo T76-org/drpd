@@ -152,6 +152,10 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+}
+
 button {
   border-radius: var(--radius-none);
 }
@@ -169,10 +173,12 @@ button:focus-visible {
 body {
   margin: var(--space-0);
   min-width: 320px;
-  min-height: 100vh;
+  height: 100dvh;
   font-family: var(--font-family-base);
+  overflow: hidden;
 }
 
 #root {
-  min-height: 100vh;
+  height: 100%;
+  max-height: 100dvh;
 }

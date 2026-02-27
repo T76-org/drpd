@@ -1,13 +1,16 @@
 .page {
-  min-height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--color-page-bg);
   color: var(--color-text-primary);
+  overflow: hidden;
 }
 
 .header {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-12) var(--space-20);
@@ -47,8 +50,11 @@
 }
 
 .content {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   padding: var(--space-0);
 }
 

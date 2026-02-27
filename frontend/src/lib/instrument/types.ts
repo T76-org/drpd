@@ -22,6 +22,11 @@ export type InstrumentWidth =
       ///< Fixed horizontal width in row units.
       units: number
     }
+
+/**
+ * Supported vertical sizing modes for instruments.
+ */
+export type InstrumentHeightMode = 'fixed' | 'flex'
   | {
       ///< Expand to fill remaining row space.
       mode: 'flex'
@@ -41,6 +46,8 @@ export interface InstrumentInit {
   defaultWidth: InstrumentWidth
   ///< Default height in units.
   defaultUnits: number
+  ///< Default vertical sizing mode.
+  defaultHeightMode?: InstrumentHeightMode
 }
 
 /**
@@ -71,6 +78,7 @@ export abstract class Instrument {
   public readonly supportedDeviceIdentifiers: DeviceIdentifier[] ///< Supported device ids.
   public readonly defaultWidth: InstrumentWidth ///< Default width behavior.
   public readonly defaultUnits: number ///< Default units height.
+  public readonly defaultHeightMode: InstrumentHeightMode ///< Default vertical sizing mode.
 
   /**
    * Create an Instrument definition with default sizing details.
@@ -86,6 +94,7 @@ export abstract class Instrument {
     this.supportedDeviceIdentifiers = init.supportedDeviceIdentifiers
     this.defaultWidth = init.defaultWidth
     this.defaultUnits = init.defaultUnits
+    this.defaultHeightMode = init.defaultHeightMode ?? 'fixed'
     if (
       this.defaultWidth.mode === 'fixed' &&
       (!Number.isFinite(this.defaultWidth.units) ||
