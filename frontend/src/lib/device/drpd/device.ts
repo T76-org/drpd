@@ -59,6 +59,8 @@ export class DRPDDevice extends EventTarget {
   public static readonly SINK_INFO_CHANGED_EVENT = 'sinkinfochanged' ///< Sink info event.
   public static readonly SINK_PDO_LIST_CHANGED_EVENT = 'sinkpdolistchanged' ///< Sink PDO list event.
   public static readonly MESSAGE_CAPTURED_EVENT = 'messagecaptured' ///< Captured message event.
+  public static readonly LOG_ENTRY_ADDED_EVENT = 'logentryadded' ///< Logged entry added event.
+  public static readonly LOG_ENTRY_DELETED_EVENT = 'logentrydeleted' ///< Logged entry deleted event.
   public static readonly STATE_ERROR_EVENT = 'stateerror' ///< State error event.
 
   public readonly system: DRPDSystem ///< System command group.
@@ -351,7 +353,20 @@ export class DRPDDevice extends EventTarget {
     if (!this.logStore) {
       return { analogDeleted: 0, messagesDeleted: 0 }
     }
-    return this.logStore.clear(scope)
+    const result = await this.logStore.clear(scope)
+    if (result.analogDeleted > 0 || result.messagesDeleted > 0) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_DELETED_EVENT, {
+          detail: {
+            scope,
+            analogDeleted: result.analogDeleted,
+            messagesDeleted: result.messagesDeleted,
+            reason: 'clear',
+          },
+        }),
+      )
+    }
+    return result
   }
 
   /**
@@ -1163,13 +1178,19 @@ export class DRPDDevice extends EventTarget {
       return
     }
     try {
-      await this.logStore.insertAnalogSample({
+      const row: LoggedAnalogSample = {
         timestampUs: sample.captureTimestampUs,
         vbusV: sample.vbus,
         ibusA: sample.ibus,
         role: this.state.role,
         createdAtMs: Date.now(),
-      })
+      }
+      await this.logStore.insertAnalogSample(row)
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'analog', row },
+        }),
+      )
     } catch (error) {
       this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
       this.logDebug(`logging analog insert error=${String(error)}`)
@@ -1186,7 +1207,13 @@ export class DRPDDevice extends EventTarget {
       return
     }
     try {
-      await this.logStore.insertCapturedMessage(this.toLoggedCapturedMessage(message))
+      const row = this.toLoggedCapturedMessage(message)
+      await this.logStore.insertCapturedMessage(row)
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'message', row },
+        }),
+      )
     } catch (error) {
       this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
       this.logDebug(`logging message insert error=${String(error)}`)

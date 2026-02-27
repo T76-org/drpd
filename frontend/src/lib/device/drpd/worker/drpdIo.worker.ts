@@ -139,6 +139,8 @@ const DRPD_EVENT_NAMES = [
   DRPDDevice.SINK_INFO_CHANGED_EVENT,
   DRPDDevice.SINK_PDO_LIST_CHANGED_EVENT,
   DRPDDevice.MESSAGE_CAPTURED_EVENT,
+  DRPDDevice.LOG_ENTRY_ADDED_EVENT,
+  DRPDDevice.LOG_ENTRY_DELETED_EVENT,
   DRPDDevice.STATE_ERROR_EVENT,
 ] as const ///< DRPD event names forwarded from worker to main thread.
 

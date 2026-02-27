@@ -121,6 +121,64 @@ describe('DRPD logging integration', () => {
     expect(messages).toHaveLength(1)
   })
 
+  it('emits log change events when entries are added and cleared', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('MEAS:ALL?', [
+      '1000',
+      '5.0',
+      '0.2',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+    ])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+      ),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    const addedKinds: string[] = []
+    const deletedEvents: Array<{ analogDeleted: number; messagesDeleted: number }> = []
+    device.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, (event) => {
+      const detail = (event as CustomEvent<{ kind: string }>).detail
+      addedKinds.push(detail.kind)
+    })
+    device.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, (event) => {
+      const detail = (event as CustomEvent<{ analogDeleted: number; messagesDeleted: number }>).detail
+      deletedEvents.push({
+        analogDeleted: detail.analogDeleted,
+        messagesDeleted: detail.messagesDeleted,
+      })
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (device as unknown as { pollAnalogMonitor: () => Promise<void> }).pollAnalogMonitor()
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+
+    const clearResult = await device.clearLogs('all')
+
+    expect(addedKinds).toEqual(['analog', 'message'])
+    expect(deletedEvents).toEqual([{ analogDeleted: 1, messagesDeleted: 1 }])
+    expect(clearResult).toEqual({ analogDeleted: 1, messagesDeleted: 1 })
+  })
+
   it('ingests analog polling samples and captured messages through device paths', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('MEAS:ALL?', [
