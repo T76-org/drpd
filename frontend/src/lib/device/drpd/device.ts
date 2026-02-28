@@ -37,6 +37,8 @@ import { DRPDTest } from './test'
 import { DRPDTrigger } from './trigger'
 import { DRPDVBus } from './vbus'
 
+const LEGACY_CAPTURE_RETENTION = 50
+
 /**
  * Optional DRPD device constructor overrides.
  */
@@ -183,7 +185,7 @@ export class DRPDDevice extends EventTarget {
    * @param config - Logging configuration values.
    */
   public async configureLogging(config: DRPDLoggingConfig): Promise<void> {
-    this.loggingConfig = { ...config }
+    this.loggingConfig = this.normalizeLoggingConfig(config)
     if (this.loggingStarted) {
       await this.stopLogging()
       if (this.loggingConfig.enabled) {
@@ -259,6 +261,7 @@ export class DRPDDevice extends EventTarget {
    * @returns Log row counts.
    */
   public async getLogCounts(): Promise<DRPDLogCounts> {
+    await this.ensureLogStoreAvailableForRead()
     if (!this.logStore) {
       return { analog: 0, messages: 0 }
     }
@@ -304,6 +307,7 @@ export class DRPDDevice extends EventTarget {
    * @returns Matching rows.
    */
   public async queryAnalogSamples(query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
+    await this.ensureLogStoreAvailableForRead()
     if (!this.logStore) {
       return []
     }
@@ -319,6 +323,7 @@ export class DRPDDevice extends EventTarget {
   public async queryCapturedMessages(
     query: CapturedMessageQuery,
   ): Promise<LoggedCapturedMessage[]> {
+    await this.ensureLogStoreAvailableForRead()
     if (!this.logStore) {
       return []
     }
@@ -1230,6 +1235,31 @@ export class DRPDDevice extends EventTarget {
     const store = this.createLogStore(this.loggingConfig)
     await store.init()
     this.logStore = store
+  }
+
+  /**
+   * Normalize logging config for runtime compatibility.
+   */
+  protected normalizeLoggingConfig(config: DRPDLoggingConfig): DRPDLoggingConfig {
+    const normalized: DRPDLoggingConfig = { ...config }
+    if (normalized.maxCapturedMessages <= LEGACY_CAPTURE_RETENTION) {
+      normalized.maxCapturedMessages = buildDefaultLoggingConfig().maxCapturedMessages
+    }
+    return normalized
+  }
+
+  /**
+   * Best-effort open of the log store for read/query operations.
+   */
+  protected async ensureLogStoreAvailableForRead(): Promise<void> {
+    if (this.logStore) {
+      return
+    }
+    try {
+      await this.ensureLogStoreOpen()
+    } catch (error) {
+      this.logDebug(`logging: read-open error=${String(error)}`)
+    }
   }
 
   /**

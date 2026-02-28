@@ -84,6 +84,42 @@ describe('SQLiteWasmStore', () => {
     expect(filtered.every((row) => row.sopKind === 'SOP')).toBe(true)
   })
 
+  it('supports captured message sort and pagination windows', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    for (let index = 0; index < 10; index += 1) {
+      await store.insertCapturedMessage(buildMessage(index))
+    }
+
+    const ascWindow = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+      offset: 3,
+      limit: 4,
+    })
+    expect(ascWindow.map((row) => row.startTimestampUs)).toEqual([
+      1003n,
+      1004n,
+      1005n,
+      1006n,
+    ])
+
+    const descWindow = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'desc',
+      offset: 2,
+      limit: 3,
+    })
+    expect(descWindow.map((row) => row.startTimestampUs)).toEqual([
+      1007n,
+      1006n,
+      1005n,
+    ])
+  })
+
   it('exports deterministic JSON and CSV payloads and clears scoped tables', async () => {
     const store = new SQLiteWasmStore()
     await store.init()

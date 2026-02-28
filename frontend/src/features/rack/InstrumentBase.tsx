@@ -10,12 +10,14 @@ export const InstrumentBase = ({
   displayName,
   isEditMode = false,
   onClose,
+  contentClassName,
   children
 }: {
   instrument: RackInstrument
   displayName: string
   isEditMode?: boolean
   onClose?: () => void
+  contentClassName?: string
   children?: ReactNode
 }) => {
   return (
@@ -45,7 +47,7 @@ export const InstrumentBase = ({
           ) : null}
         </div>
       </div>
-      <div className={styles.content}>
+      <div className={`${styles.content} ${contentClassName ?? ''}`}>
         {children ?? (
           <div className={styles.placeholder}>Instrument content</div>
         )}

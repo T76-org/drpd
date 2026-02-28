@@ -3,6 +3,13 @@ import { DRPDDevice } from '../device'
 import { CaptureDecodeResult, OnOffState } from '../types'
 import type { DRPDSCPIParam, DRPDTransport } from '../transport'
 import { SQLiteWasmStore } from '../logging'
+import type {
+  AnalogSampleQuery,
+  CapturedMessageQuery,
+  DRPDLogStore,
+  LoggedAnalogSample,
+  LoggedCapturedMessage,
+} from '../logging'
 
 /**
  * Build a capture payload from SOP and decoded bytes.
@@ -66,6 +73,98 @@ const setConnected = (device: DRPDDevice): void => {
 }
 
 describe('DRPD logging integration', () => {
+  it('can query existing log rows even when logging has not been started', async () => {
+    const transport = new MockTransport()
+    const expectedRow: LoggedCapturedMessage = {
+      startTimestampUs: 1234n,
+      endTimestampUs: 1240n,
+      decodeResult: 0,
+      sopKind: 'SOP',
+      messageKind: 'CONTROL',
+      messageType: 1,
+      messageId: 2,
+      senderPowerRole: 'SOURCE',
+      senderDataRole: 'DFP',
+      pulseCount: 1,
+      rawPulseWidths: Uint16Array.from([1]),
+      rawSop: Uint8Array.from([0x11]),
+      rawDecodedData: Uint8Array.from([0x22]),
+      parseError: null,
+      createdAtMs: 42,
+    }
+
+    class ReadableLogStore implements DRPDLogStore {
+      public initialized = false
+
+      public async init(): Promise<void> {
+        this.initialized = true
+      }
+      public async close(): Promise<void> {}
+      public async insertAnalogSample(): Promise<void> {}
+      public async insertCapturedMessage(): Promise<void> {}
+      public async queryAnalogSamples(_query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
+        return []
+      }
+      public async queryCapturedMessages(_query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
+        return [expectedRow]
+      }
+      public async exportData(): Promise<{
+        mimeType: string
+        payload: string
+        analogCount: number
+        messageCount: number
+      }> {
+        return { mimeType: 'application/json', payload: '{}', analogCount: 0, messageCount: 0 }
+      }
+      public async clear(): Promise<{ analogDeleted: number; messagesDeleted: number }> {
+        return { analogDeleted: 0, messagesDeleted: 0 }
+      }
+      public async enforceRetention(): Promise<void> {}
+      public async getCounts(): Promise<{ analog: number; messages: number }> {
+        return { analog: 0, messages: 1 }
+      }
+    }
+
+    const store = new ReadableLogStore()
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 99999n,
+    })
+
+    expect(store.initialized).toBe(true)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].startTimestampUs).toBe(1234n)
+  })
+
+  it('upgrades legacy capture retention cap before creating the log store', async () => {
+    const transport = new MockTransport()
+    let createdConfigMaxCaptured = -1
+
+    const store = new SQLiteWasmStore()
+    const device = new DRPDDevice(transport, {
+      createLogStore: (config) => {
+        createdConfigMaxCaptured = config.maxCapturedMessages
+        return store
+      },
+    })
+    setConnected(device)
+
+    await device.configureLogging({
+      enabled: true,
+      autoStartOnConnect: false,
+      maxAnalogSamples: 1_000_000,
+      maxCapturedMessages: 50,
+      retentionTrimBatchSize: 2_000,
+    })
+    await device.setCaptureEnabled(OnOffState.ON)
+
+    expect(createdConfigMaxCaptured).toBe(1_000_000)
+  })
+
   it('auto-enables logging when capture is turned on and logs analog plus messages', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('MEAS:ALL?', [

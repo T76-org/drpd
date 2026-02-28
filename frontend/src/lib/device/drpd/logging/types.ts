@@ -93,6 +93,8 @@ export interface CapturedMessageQuery {
   startTimestampUs: bigint
   ///< Inclusive end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Sort order by start timestamp.
+  sortOrder?: 'asc' | 'desc'
   ///< Optional message kind filter.
   messageKinds?: string[]
   ///< Optional sender power role filter.
@@ -101,6 +103,8 @@ export interface CapturedMessageQuery {
   senderDataRoles?: string[]
   ///< Optional SOP kind filter.
   sopKinds?: string[]
+  ///< Optional row offset from the ordered result set.
+  offset?: number
   ///< Optional row limit.
   limit?: number
 }

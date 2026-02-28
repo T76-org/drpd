@@ -458,6 +458,15 @@ export class SQLiteWasmStore implements DRPDLogStore {
     query: CapturedMessageQuery,
   ): Promise<LoggedCapturedMessage[]> {
     this.ensureInitialized()
+    const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    const offset =
+      query.offset != null && Number.isFinite(query.offset) && query.offset > 0
+        ? Math.floor(query.offset)
+        : 0
+    const limit =
+      query.limit != null && Number.isFinite(query.limit) && query.limit > 0
+        ? Math.floor(query.limit)
+        : null
     if (this.memoryFallback) {
       const hasMessageKinds = Boolean(query.messageKinds?.length)
       const hasSenderPowerRoles = Boolean(query.senderPowerRoles?.length)
@@ -495,29 +504,54 @@ export class SQLiteWasmStore implements DRPDLogStore {
               ? 1
               : 0,
         )
-      if (!query.limit || query.limit <= 0) {
-        return rows
+      const sortedRows = sortOrder === 'desc' ? rows.reverse() : rows
+      const pagedRows = offset > 0 ? sortedRows.slice(offset) : sortedRows
+      if (limit === null) {
+        return pagedRows
       }
-      return rows.slice(0, query.limit)
+      return pagedRows.slice(0, limit)
     }
 
-    const sql = [
+    const clauses = ['start_timestamp_us >= ?', 'start_timestamp_us <= ?']
+    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
+    if (query.messageKinds?.length) {
+      clauses.push(`message_kind IN (${query.messageKinds.map(() => '?').join(', ')})`)
+      bind.push(...query.messageKinds)
+    }
+    if (query.senderPowerRoles?.length) {
+      clauses.push(`sender_power_role IN (${query.senderPowerRoles.map(() => '?').join(', ')})`)
+      bind.push(...query.senderPowerRoles)
+    }
+    if (query.senderDataRoles?.length) {
+      clauses.push(`sender_data_role IN (${query.senderDataRoles.map(() => '?').join(', ')})`)
+      bind.push(...query.senderDataRoles)
+    }
+    if (query.sopKinds?.length) {
+      clauses.push(`sop_kind IN (${query.sopKinds.map(() => '?').join(', ')})`)
+      bind.push(...query.sopKinds)
+    }
+
+    const sqlParts = [
       'SELECT start_timestamp_us, end_timestamp_us, decode_result, sop_kind, message_kind,',
       'message_type, message_id, sender_power_role, sender_data_role, pulse_count,',
       'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
       'FROM captured_messages',
-      'WHERE start_timestamp_us >= ? AND start_timestamp_us <= ?',
-      'ORDER BY start_timestamp_us ASC, id ASC',
-      query.limit && query.limit > 0 ? 'LIMIT ?' : '',
+      `WHERE ${clauses.join(' AND ')}`,
+      `ORDER BY start_timestamp_us ${sortOrder.toUpperCase()}, id ${sortOrder.toUpperCase()}`,
     ]
-      .filter(Boolean)
-      .join(' ')
-    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
-    if (query.limit && query.limit > 0) {
-      bind.push(Math.floor(query.limit))
+    if (limit !== null) {
+      sqlParts.push('LIMIT ?')
+      bind.push(limit)
+    } else if (offset > 0) {
+      sqlParts.push('LIMIT -1')
     }
+    if (offset > 0) {
+      sqlParts.push('OFFSET ?')
+      bind.push(offset)
+    }
+    const sql = sqlParts.join(' ')
 
-    let rows = this.requireDb().selectObjects(sql, bind).map((record) => ({
+    return this.requireDb().selectObjects(sql, bind).map((record) => ({
       startTimestampUs: toBigIntValue(record.start_timestamp_us as SqlValue, 'message.start_timestamp_us'),
       endTimestampUs: toBigIntValue(record.end_timestamp_us as SqlValue, 'message.end_timestamp_us'),
       decodeResult: toNumberValue(record.decode_result as SqlValue, 'message.decode_result'),
@@ -540,27 +574,6 @@ export class SQLiteWasmStore implements DRPDLogStore {
       parseError: (record.parse_error ?? null) as string | null,
       createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'message.created_at_ms'),
     }))
-
-    if (query.messageKinds?.length) {
-      rows = rows.filter((row) => row.messageKind !== null && query.messageKinds?.includes(row.messageKind))
-    }
-    if (query.senderPowerRoles?.length) {
-      rows = rows.filter(
-        (row) => row.senderPowerRole !== null && query.senderPowerRoles?.includes(row.senderPowerRole),
-      )
-    }
-    if (query.senderDataRoles?.length) {
-      rows = rows.filter(
-        (row) => row.senderDataRole !== null && query.senderDataRoles?.includes(row.senderDataRole),
-      )
-    }
-    if (query.sopKinds?.length) {
-      rows = rows.filter((row) => row.sopKind !== null && query.sopKinds?.includes(row.sopKind))
-    }
-    if (!query.limit || query.limit <= 0) {
-      return rows
-    }
-    return rows.slice(0, query.limit)
   }
 
   /**
