@@ -82,13 +82,23 @@ const resolveSenderReceiver = (
       return { sender: 'Sink', receiver: 'Source' }
     }
   }
-  if (row.sopKind === 'SOP_PRIME' || row.sopKind === 'SOP_DEBUG_PRIME') {
-    return { sender: 'Cable', receiver: 'Source' }
+
+  if (
+    row.sopKind === 'SOP_PRIME' ||
+    row.sopKind === 'SOP_DOUBLE_PRIME' ||
+    row.sopKind === 'SOP_DEBUG_PRIME' ||
+    row.sopKind === 'SOP_DEBUG_DOUBLE_PRIME'
+  ) {
+    if (row.senderDataRole === 'CABLE_PLUG_VPD') {
+      return { sender: 'Cable', receiver: 'Source' }
+    }
+    if (row.senderDataRole === 'UFP_DFP') {
+      return { sender: 'Source', receiver: 'Cable' }
+    }
+    return { sender: 'Unknown', receiver: 'Unknown' }
   }
-  if (row.sopKind === 'SOP_DOUBLE_PRIME' || row.sopKind === 'SOP_DEBUG_DOUBLE_PRIME') {
-    return { sender: 'Cable', receiver: 'Sink' }
-  }
-  return { sender: 'Cable', receiver: 'Cable' }
+
+  return { sender: 'Unknown', receiver: 'Unknown' }
 }
 
 const toDisplayRows = (

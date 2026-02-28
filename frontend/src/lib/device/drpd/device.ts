@@ -1304,8 +1304,22 @@ export class DRPDDevice extends EventTarget {
       messageKind = header.messageKind
       messageType = header.messageTypeNumber
       messageId = header.messageId
-      senderPowerRole = header.powerRole
-      senderDataRole = header.dataRole
+      if (sopKind === 'SOP') {
+        senderPowerRole = header.powerRole
+        senderDataRole = header.dataRole
+      } else if (
+        sopKind === 'SOP_PRIME' ||
+        sopKind === 'SOP_DOUBLE_PRIME' ||
+        sopKind === 'SOP_DEBUG_PRIME' ||
+        sopKind === 'SOP_DEBUG_DOUBLE_PRIME'
+      ) {
+        // For SOP'/SOP'', persist local power-role snapshot and cable-plug origin bit
+        // so sender/receiver can be resolved correctly in the log UI.
+        senderPowerRole = this.state.role === 'SOURCE' || this.state.role === 'SINK'
+          ? this.state.role
+          : null
+        senderDataRole = header.cablePlug
+      }
     } catch (error) {
       parseError = error instanceof Error ? error.message : String(error)
     }

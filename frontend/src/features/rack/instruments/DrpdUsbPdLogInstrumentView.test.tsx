@@ -178,4 +178,45 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       expect(screen.getByText('PS RDY')).toBeInTheDocument()
     })
   })
+
+  it('maps SOP prime sender and receiver using cable-plug origin metadata', async () => {
+    const cableToPort = {
+      ...buildMessage(0, 1),
+      sopKind: 'SOP_PRIME',
+      senderPowerRole: 'SOURCE',
+      senderDataRole: 'CABLE_PLUG_VPD',
+    } satisfies LoggedCapturedMessage
+    const portToCable = {
+      ...buildMessage(1, 1),
+      sopKind: 'SOP_PRIME',
+      senderPowerRole: 'SOURCE',
+      senderDataRole: 'UFP_DFP',
+    } satisfies LoggedCapturedMessage
+
+    const driver = new TestLogDriver([cableToPort, portToCable])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByText("SOP'").length).toBeGreaterThanOrEqual(2)
+    })
+
+    const rowTexts = Array.from(container.querySelectorAll('[class*="dataRow"]')).map(
+      (row) => row.textContent ?? '',
+    )
+    expect(rowTexts.some((text) => text.includes('CableSource'))).toBe(true)
+    expect(rowTexts.some((text) => text.includes('SourceCable'))).toBe(true)
+  })
 })

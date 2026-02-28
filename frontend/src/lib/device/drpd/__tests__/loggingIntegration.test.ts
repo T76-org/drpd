@@ -18,12 +18,17 @@ import type {
  * @param decodedData - Decoded data bytes.
  * @returns Binary capture payload.
  */
-const buildCapturePayload = (sop: number[], decodedData: number[]): Uint8Array => {
+const buildCapturePayload = (
+  sop: number[],
+  decodedData: number[],
+  startTimestampUs = 5_000n,
+  endTimestampUs = 6_000n,
+): Uint8Array => {
   const pulseWidths = [0x100, 0x101, 0x102]
   const buffer = new Uint8Array(8 + 8 + 4 + 4 + 4 + pulseWidths.length * 2 + 4 + decodedData.length)
   const view = new DataView(buffer.buffer)
-  view.setBigUint64(0, 5_000n, true)
-  view.setBigUint64(8, 6_000n, true)
+  view.setBigUint64(0, startTimestampUs, true)
+  view.setBigUint64(8, endTimestampUs, true)
   view.setUint32(16, CaptureDecodeResult.SUCCESS, true)
   buffer.set(sop, 20)
   view.setUint32(24, pulseWidths.length, true)
@@ -70,6 +75,28 @@ class MockTransport implements DRPDTransport {
  */
 const setConnected = (device: DRPDDevice): void => {
   ;(device as unknown as { isConnected: boolean }).isConnected = true
+}
+
+/**
+ * Force an in-memory role snapshot in tests.
+ *
+ * @param device - Device to update.
+ * @param role - Role to set.
+ */
+const setRoleSnapshot = (device: DRPDDevice, role: 'SOURCE' | 'SINK'): void => {
+  const asAny = device as unknown as {
+    state: {
+      role: 'SOURCE' | 'SINK' | null
+      ccBusRoleStatus: unknown
+      analogMonitor: unknown
+      vbusInfo: unknown
+      captureEnabled: unknown
+      triggerInfo: unknown
+      sinkInfo: unknown
+      sinkPdoList: unknown
+    }
+  }
+  asAny.state = { ...asAny.state, role }
 }
 
 describe('DRPD logging integration', () => {
@@ -218,6 +245,57 @@ describe('DRPD logging integration', () => {
     expect(analog[0].vbusV).toBe(5.0)
     expect(analog[0].ibusA).toBe(0.2)
     expect(messages).toHaveLength(1)
+  })
+
+  it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['2', '0'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      // SOP' with Cable Plug bit set (message originated from cable/VPD).
+      buildCapturePayload(
+        [0x18, 0x18, 0x06, 0x06],
+        [0x01, 0x01, 0x28, 0x13, 0xc5, 0x2f],
+        5_000n,
+        6_000n,
+      ),
+      // SOP' with Cable Plug bit clear (message originated from DFP/UFP port).
+      buildCapturePayload(
+        [0x18, 0x18, 0x06, 0x06],
+        [0x01, 0x00, 0x28, 0x13, 0xc5, 0x2f],
+        7_000n,
+        8_000n,
+      ),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+    setRoleSnapshot(device, 'SOURCE')
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+
+    const messages = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+    })
+
+    expect(messages).toHaveLength(2)
+    expect(messages[0].sopKind).toBe('SOP_PRIME')
+    expect(messages[0].senderPowerRole).toBe('SOURCE')
+    expect(messages[0].senderDataRole).toBe('CABLE_PLUG_VPD')
+    expect(messages[1].sopKind).toBe('SOP_PRIME')
+    expect(messages[1].senderPowerRole).toBe('SOURCE')
+    expect(messages[1].senderDataRole).toBe('UFP_DFP')
   })
 
   it('emits log change events when entries are added and cleared', async () => {

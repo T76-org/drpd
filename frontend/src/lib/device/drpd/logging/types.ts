@@ -55,9 +55,9 @@ export interface LoggedCapturedMessage {
   messageType: number | null
   ///< Message id from the header.
   messageId: number | null
-  ///< Sender power role (SOURCE/SINK) when present.
+  ///< Sender power role (SOURCE/SINK) for SOP, or local power-role snapshot for SOP'/SOP''.
   senderPowerRole: string | null
-  ///< Sender data role (DFP/UFP) when present.
+  ///< Sender data role (DFP/UFP) for SOP, or SOP'/SOP'' Cable Plug origin marker.
   senderDataRole: string | null
   ///< Number of captured pulses.
   pulseCount: number
