@@ -1,12 +1,13 @@
 .wrapper {
-  --metric-number-width: 4.3ch;
+  --vbus-number-width: 5.2ch;
+  --metric-number-width: 5.8ch;
   --separator-opacity: 0.8;
 
   height: 100%;
   width: 100%;
   display: grid;
-  grid-template-columns: max-content max-content;
-  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
   align-items: stretch;
   color: var(--color-text-primary);
   margin: calc(var(--space-10) * -1) calc(var(--space-12) * -1);
@@ -19,23 +20,27 @@
   flex-direction: column;
   justify-content: center;
   padding: var(--space-0);
+  min-width: 0;
 }
 
 .vbusSection {
   border-right: var(--border-thin) solid var(--color-border-panel);
-  padding-right: var(--space-6);
+  margin-left: var(--space-3);
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: var(--space-0);
 }
 
 .powerSection {
   border-right: var(--border-thin) solid var(--color-border-panel);
   padding-right: var(--space-0);
-  gap: var(--space-1);
+  gap: var(--space-0);
   justify-content: flex-start;
   align-items: flex-start;
 }
 
 .vbusValue {
-  font-size: var(--font-size-4xl);
+  font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-status-info);
   line-height: var(--line-height-snug);
@@ -47,14 +52,18 @@
 
 .vbusNumber {
   display: inline-block;
-  min-width: var(--metric-number-width);
+  min-width: var(--vbus-number-width);
   text-align: right;
+}
+
+.vbusCurrentLeftValue {
+  color: var(--vbus-current-color, var(--color-status-ok));
 }
 
 .metricBlock {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-0);
   flex: 1;
   min-height: 0;
   align-self: stretch;
@@ -70,13 +79,13 @@
 }
 
 .metricBlock:first-child {
-  padding-top: var(--space-1);
+  padding-top: var(--space-0);
 }
 
 .metricBlock + .metricBlock {
   position: relative;
-  padding-top: var(--space-1);
-  margin-top: var(--space-1);
+  padding-top: var(--space-0);
+  margin-top: var(--space-0);
 }
 
 .metricBlock + .metricBlock::before {
@@ -92,29 +101,34 @@
 }
 
 .metricValue {
-  font-size: var(--font-size-3xl);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-status-ok);
+  color: var(--vbus-current-color, var(--color-status-ok));
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
-  display: inline-grid;
-  grid-template-columns: var(--metric-number-width) 1.2ch;
-  column-gap: var(--space-0);
+  display: grid;
+  grid-template-columns: minmax(0, var(--metric-number-width)) auto;
+  column-gap: var(--space-1);
   align-items: baseline;
+  width: 100%;
 }
 
 .currentValue {
-  color: var(--color-status-ok);
+  color: var(--vbus-current-color, var(--color-status-ok));
 }
 
 .powerValue {
-  color: var(--color-status-warning);
+  color: var(--vbus-power-color, var(--color-status-warning));
+}
+
+.chargeValue {
+  color: var(--vbus-charge-color, var(--color-status-charge));
 }
 
 .unit {
-  font-size: var(--font-size-md);
-  margin-left: var(--space-3);
+  font-size: var(--font-size-xs);
   color: inherit;
+  white-space: nowrap;
 }
 
 .unassigned {
@@ -126,4 +140,8 @@
 .metricNumber {
   display: inline-block;
   text-align: right;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
 }

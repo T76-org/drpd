@@ -30,7 +30,7 @@ export class DrpdVbusInstrument extends Instrument {
       identifier: 'com.mta.drpd.vbus',
       displayName: 'VBUS',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 3 },
+      defaultWidth: { mode: 'fixed', units: 2 },
       defaultUnits: 1
     })
   }

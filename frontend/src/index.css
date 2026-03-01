@@ -94,6 +94,7 @@
   --color-status-ok: #33c2a0;
   --color-status-muted: #a5a7b0;
   --color-status-highlight: #d2a24c;
+  --color-status-charge: #c86bff;
 
   --color-edit-glow: #4cc7ff;
   --color-edit-glow-strong: #6fd6ff;
@@ -135,6 +136,7 @@
   --color-surface-header: linear-gradient(120deg, #ffffff, #e9edf6);
   --color-edit-glow: #1a73e8;
   --color-edit-glow-strong: #2f86f2;
+  --color-status-charge: #a239cf;
 
   --shadow-strong: 0 10px 24px rgba(28, 31, 42, 0.18);
   --shadow-elevated: 0 18px 35px rgba(28, 31, 42, 0.2);
