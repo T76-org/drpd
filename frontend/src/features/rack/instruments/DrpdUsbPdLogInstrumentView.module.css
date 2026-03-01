@@ -205,13 +205,15 @@
 
 .headerPopupButton {
   border: var(--border-thin) solid var(--color-border-panel);
-  background: var(--color-surface-panel-accent);
+  background: var(--color-surface-panel);
   color: var(--color-text-primary);
-  font-size: var(--font-size-2xs);
+  font-size: 0.33rem;
   text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-md);
-  padding: var(--space-2) var(--space-8);
+  letter-spacing: var(--letter-spacing-sm);
+  padding: var(--space-1) var(--space-4);
   cursor: pointer;
+  line-height: var(--line-height-tight);
+  min-width: 40px;
 }
 
 .headerPopupButton:disabled {
