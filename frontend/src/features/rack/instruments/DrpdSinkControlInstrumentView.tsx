@@ -337,7 +337,7 @@ const getSelectedPdoDetails = (
         return {
           title: 'Battery',
           voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A`,
         }
       }
     case SinkPdoType.SPR_AVS:
@@ -347,7 +347,7 @@ const getSelectedPdoDetails = (
           return {
             title: 'SPR AVS',
             voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-            currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+            currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A`,
           }
         }
     case SinkPdoType.EPR_AVS:
@@ -357,7 +357,7 @@ const getSelectedPdoDetails = (
         return {
           title: 'EPR AVS',
           voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A`,
         }
       }
     default:

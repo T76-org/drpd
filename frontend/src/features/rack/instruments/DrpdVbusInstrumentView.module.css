@@ -1,12 +1,12 @@
 .wrapper {
-  --vbus-number-width: 5.2ch;
+  --vbus-number-width: 4.2ch;
   --metric-number-width: 5.8ch;
   --separator-opacity: 0.8;
 
   height: 100%;
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: var(--space-4);
   align-items: stretch;
   color: var(--color-text-primary);
@@ -40,14 +40,13 @@
 }
 
 .vbusValue {
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-status-info);
   line-height: var(--line-height-snug);
   font-variant-numeric: tabular-nums;
   display: inline-flex;
   align-items: baseline;
-  gap: var(--space-4);
 }
 
 .vbusNumber {
@@ -57,7 +56,7 @@
 }
 
 .vbusCurrentLeftValue {
-  color: var(--vbus-current-color, var(--color-status-ok));
+  color: var(--color-status-ok);
 }
 
 .metricBlock {
@@ -103,7 +102,7 @@
 .metricValue {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--vbus-current-color, var(--color-status-ok));
+  color: var(--color-status-ok);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
   display: grid;
@@ -113,16 +112,14 @@
   width: 100%;
 }
 
-.currentValue {
-  color: var(--vbus-current-color, var(--color-status-ok));
-}
-
 .powerValue {
-  color: var(--vbus-power-color, var(--color-status-warning));
+  color: var(--color-status-warning);
+  font-size: var(--font-size-lg);
 }
 
 .chargeValue {
-  color: var(--vbus-charge-color, var(--color-status-charge));
+  color: var(--color-status-charge);
+  font-size: var(--font-size-lg);
 }
 
 .unit {

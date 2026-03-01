@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DRPDDevice, type AnalogMonitorChannels } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
@@ -7,12 +7,6 @@ import styles from './DrpdVbusInstrumentView.module.css'
 
 const VBUS_AH_STORAGE_PREFIX = 'drpd:vbus:ah:'
 const MICROSECONDS_PER_HOUR = 3_600_000_000
-
-type VbusInstrumentConfig = {
-  currentColor?: string
-  powerColor?: string
-  chargeColor?: string
-}
 
 /**
  * Format a numeric value using fixed decimals.
@@ -86,7 +80,6 @@ export const DrpdVbusInstrumentView = ({
     const scopeId = deviceRecord?.id ?? `instrument:${instrument.id}`
     return `${VBUS_AH_STORAGE_PREFIX}${scopeId}`
   }, [deviceRecord?.id, instrument.id])
-  const instrumentConfig = (instrument.config ?? {}) as VbusInstrumentConfig
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null
   )
@@ -102,12 +95,6 @@ export const DrpdVbusInstrumentView = ({
       ? accumulatedAhState.value
       : loadPersistedAh(storageKey)
   const lastSampleTimestampRef = useRef<bigint | null>(analogMonitor?.captureTimestampUs ?? null)
-
-  const metricColors = {
-    '--vbus-current-color': instrumentConfig.currentColor ?? 'var(--color-status-ok)',
-    '--vbus-power-color': instrumentConfig.powerColor ?? 'var(--color-status-warning)',
-    '--vbus-charge-color': instrumentConfig.chargeColor ?? 'var(--color-status-charge)',
-  } as CSSProperties
 
   useEffect(() => {
     if (!driver) {
@@ -204,7 +191,7 @@ export const DrpdVbusInstrumentView = ({
           : undefined
       }
     >
-      <div className={styles.wrapper} style={metricColors}>
+      <div className={styles.wrapper}>
         <section className={`${styles.section} ${styles.vbusSection}`}>
           <div className={styles.metricBlock}>
             <div className={styles.vbusValue}>
@@ -222,14 +209,6 @@ export const DrpdVbusInstrumentView = ({
 
         <section className={`${styles.section} ${styles.powerSection}`}>
           <div className={styles.metricBlock}>
-            <div className={`${styles.metricValue} ${styles.currentValue}`}>
-              <span className={styles.metricNumber}>
-                {formatNumber(vbusCurrent, 2)}
-              </span>
-              <span className={styles.unit}>A</span>
-            </div>
-          </div>
-          <div className={styles.metricBlock}>
             <div className={`${styles.metricValue} ${styles.powerValue}`}>
               <span className={styles.metricNumber}>
                 {formatNumber(powerValue, 2)}
@@ -245,6 +224,7 @@ export const DrpdVbusInstrumentView = ({
               <span className={styles.unit}>Ah</span>
             </div>
           </div>
+          <div className={styles.metricBlock} aria-hidden="true" />
         </section>
 
       </div>
