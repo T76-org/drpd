@@ -61,8 +61,13 @@ const buildMessage = (
   index: number,
   messageType = 1,
 ): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
   startTimestampUs: BigInt(1000 + index * 10),
   endTimestampUs: BigInt(1005 + index * 10),
+  displayTimestampUs: BigInt(index * 10),
   decodeResult: 0,
   sopKind: 'SOP',
   messageKind: 'CONTROL',
@@ -76,6 +81,33 @@ const buildMessage = (
   rawDecodedData: Uint8Array.from([0xaa, 0xbb]),
   parseError: null,
   createdAtMs: 1_700_000_000_000 + index,
+})
+
+const buildEvent = (
+  index: number,
+  text: string,
+  eventType: LoggedCapturedMessage['eventType'] = 'capture_changed',
+): LoggedCapturedMessage => ({
+  entryKind: 'event',
+  eventType,
+  eventText: text,
+  eventWallClockMs: 1_700_000_100_000 + index,
+  startTimestampUs: BigInt(2000 + index),
+  endTimestampUs: BigInt(2000 + index),
+  displayTimestampUs: null,
+  decodeResult: 0,
+  sopKind: null,
+  messageKind: null,
+  messageType: null,
+  messageId: null,
+  senderPowerRole: null,
+  senderDataRole: null,
+  pulseCount: 0,
+  rawPulseWidths: new Uint16Array(),
+  rawSop: new Uint8Array(),
+  rawDecodedData: new Uint8Array(),
+  parseError: null,
+  createdAtMs: 1_700_000_100_000 + index,
 })
 
 afterEach(() => {
@@ -218,5 +250,48 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     )
     expect(rowTexts.some((text) => text.includes('CableSource'))).toBe(true)
     expect(rowTexts.some((text) => text.includes('SourceCable'))).toBe(true)
+  })
+
+  it('renders full-width event rows and applies per-event-type colors', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
+      buildEvent(2, 'CC role changed to SOURCE at 2026-02-28 10:00:01', 'cc_role_changed'),
+      buildEvent(3, 'Device status changed to ATTACHED at 2026-02-28 10:00:02', 'cc_status_changed'),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={{
+          ...buildInstrument(),
+          config: {
+            captureChangedEventTextColor: 'rgb(255, 170, 0)',
+            ccRoleChangedEventTextColor: 'rgb(0, 180, 255)',
+            ccStatusChangedEventTextColor: 'rgb(50, 220, 120)',
+          },
+        }}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(
+      await screen.findByText('Capture turned off at 2026-02-28 10:00:00'),
+    ).toBeInTheDocument()
+    const eventRow = container.querySelector('[class*="eventRowCapture"]')
+    expect(eventRow).not.toBeNull()
+    const eventLabel = container.querySelector('[class*="eventLabel"]')
+    expect(eventLabel).not.toBeNull()
+    expect(screen.getByTestId('drpd-usbpd-log')).toHaveStyle({
+      '--event-color-capture': 'rgb(255, 170, 0)',
+      '--event-color-role': 'rgb(0, 180, 255)',
+      '--event-color-status': 'rgb(50, 220, 120)',
+    })
   })
 })

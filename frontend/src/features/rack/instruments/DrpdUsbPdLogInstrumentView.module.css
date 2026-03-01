@@ -132,3 +132,28 @@
 .dataRow > .center {
   justify-self: center;
 }
+
+.eventRow {
+  font-weight: 600;
+}
+
+.eventRowCapture {
+  color: var(--event-color-capture);
+  background: var(--event-bg-capture);
+}
+
+.eventRowRole {
+  color: var(--event-color-role);
+  background: var(--event-bg-role);
+}
+
+.eventRowStatus {
+  color: var(--event-color-status);
+  background: var(--event-bg-status);
+}
+
+.eventLabel {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  text-align: left;
+}

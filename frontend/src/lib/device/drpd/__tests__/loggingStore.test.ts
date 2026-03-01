@@ -9,8 +9,13 @@ import type { LoggedCapturedMessage } from '../logging'
  * @returns Captured message row.
  */
 const buildMessage = (index: number): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
   startTimestampUs: BigInt(1_000 + index),
   endTimestampUs: BigInt(1_010 + index),
+  displayTimestampUs: BigInt(index),
   decodeResult: 0,
   sopKind: index % 2 === 0 ? 'SOP' : 'SOP_PRIME',
   messageKind: index % 2 === 0 ? 'CONTROL' : 'DATA',
@@ -26,6 +31,35 @@ const buildMessage = (index: number): LoggedCapturedMessage => ({
   createdAtMs: 1_700_000_000_000 + index,
 })
 
+/**
+ * Build a synthetic significant-event row.
+ *
+ * @param index - Row index.
+ * @returns Event row.
+ */
+const buildEvent = (index: number): LoggedCapturedMessage => ({
+  entryKind: 'event',
+  eventType: 'capture_changed',
+  eventText: `Capture changed at ${index}`,
+  eventWallClockMs: 1_700_000_100_000 + index,
+  startTimestampUs: BigInt(1_500 + index),
+  endTimestampUs: BigInt(1_500 + index),
+  displayTimestampUs: null,
+  decodeResult: 0,
+  sopKind: null,
+  messageKind: null,
+  messageType: null,
+  messageId: null,
+  senderPowerRole: null,
+  senderDataRole: null,
+  pulseCount: 0,
+  rawPulseWidths: new Uint16Array(),
+  rawSop: new Uint8Array(),
+  rawDecodedData: new Uint8Array(),
+  parseError: null,
+  createdAtMs: 1_700_000_100_000 + index,
+})
+
 describe('SQLiteWasmStore', () => {
   it('enforces retention on analog and captured message tables', async () => {
     const store = new SQLiteWasmStore({
@@ -38,6 +72,7 @@ describe('SQLiteWasmStore', () => {
     for (let index = 0; index < 10; index += 1) {
       await store.insertAnalogSample({
         timestampUs: BigInt(index),
+        displayTimestampUs: BigInt(index),
         vbusV: 5 + index * 0.01,
         ibusA: 0.5 + index * 0.001,
         role: 'SINK',
@@ -120,12 +155,36 @@ describe('SQLiteWasmStore', () => {
     ])
   })
 
+  it('stores and exports mixed message and event rows in one stream', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    await store.insertCapturedMessage(buildMessage(1))
+    await store.insertCapturedMessage(buildEvent(2))
+
+    const rows = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+    })
+    expect(rows.map((row) => row.entryKind)).toEqual(['message', 'event'])
+
+    const exportData = await store.exportData({
+      format: 'csv',
+      includeAnalog: false,
+      includeMessages: true,
+    })
+    expect(exportData.payload).toContain('entry_kind,event_type,event_text,event_wall_clock_ms')
+    expect(exportData.payload).toContain('event,capture_changed')
+  })
+
   it('exports deterministic JSON and CSV payloads and clears scoped tables', async () => {
     const store = new SQLiteWasmStore()
     await store.init()
 
     await store.insertAnalogSample({
       timestampUs: 123n,
+      displayTimestampUs: 3n,
       vbusV: 5.02,
       ibusA: 0.7,
       role: 'SOURCE',

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { DRPDDevice } from '../../../lib/device'
 import type { LoggedCapturedMessage } from '../../../lib/device'
 import {
@@ -19,6 +19,8 @@ const COUNT_SYNC_INTERVAL_MS = 1200
 
 type DisplayRow = {
   key: string
+  kind: 'message' | 'event'
+  eventType: LoggedCapturedMessage['eventType']
   startTimestampUs: bigint
   endTimestampUs: bigint
   timestamp: string
@@ -30,6 +32,17 @@ type DisplayRow = {
   receiver: string
   sopType: string
   valid: string
+}
+
+type UsbPdLogInstrumentConfig = {
+  eventTextColor?: string
+  eventBackgroundColor?: string
+  captureChangedEventTextColor?: string
+  captureChangedEventBackgroundColor?: string
+  ccRoleChangedEventTextColor?: string
+  ccRoleChangedEventBackgroundColor?: string
+  ccStatusChangedEventTextColor?: string
+  ccStatusChangedEventBackgroundColor?: string
 }
 
 const formatMicroseconds = (value: bigint | null): string => {
@@ -107,6 +120,25 @@ const toDisplayRows = (
 ): DisplayRow[] => {
   let previousEnd = previousEndTimestampUs
   return pageRows.map((row) => {
+    if (row.entryKind === 'event') {
+      return {
+        key: `${row.startTimestampUs.toString()}-${row.createdAtMs}-event`,
+        kind: 'event',
+        eventType: row.eventType,
+        startTimestampUs: row.startTimestampUs,
+        endTimestampUs: row.endTimestampUs,
+        timestamp: '',
+        duration: '',
+        delta: '',
+        messageId: '',
+        messageType: row.eventText ?? 'Event',
+        sender: '',
+        receiver: '',
+        sopType: '',
+        valid: '',
+      }
+    }
+
     const durationUs = row.endTimestampUs - row.startTimestampUs
     const deltaUs = previousEnd === null ? null : row.startTimestampUs - previousEnd
     previousEnd = row.endTimestampUs
@@ -114,10 +146,12 @@ const toDisplayRows = (
     const isValid = row.decodeResult === 0 && !row.parseError
 
     return {
+      kind: 'message',
+      eventType: null,
       key: `${row.startTimestampUs.toString()}-${row.endTimestampUs.toString()}-${row.createdAtMs}`,
       startTimestampUs: row.startTimestampUs,
       endTimestampUs: row.endTimestampUs,
-      timestamp: formatMicroseconds(row.startTimestampUs),
+      timestamp: formatMicroseconds(row.displayTimestampUs),
       duration: formatMicroseconds(durationUs),
       delta: formatMicroseconds(deltaUs),
       messageId: row.messageId == null ? '--' : row.messageId.toString(),
@@ -148,6 +182,35 @@ export const DrpdUsbPdLogInstrumentView = ({
   void _deviceRecord
 
   const driver = deviceState?.drpdDriver
+  const instrumentConfig = (instrument.config ?? {}) as UsbPdLogInstrumentConfig
+  const fallbackEventTextColor = instrumentConfig.eventTextColor
+  const fallbackEventBackgroundColor = instrumentConfig.eventBackgroundColor
+  const eventRowStyle = {
+    '--event-color-capture':
+      instrumentConfig.captureChangedEventTextColor ??
+      fallbackEventTextColor ??
+      'var(--color-status-warning)',
+    '--event-color-role':
+      instrumentConfig.ccRoleChangedEventTextColor ??
+      fallbackEventTextColor ??
+      'var(--color-status-info)',
+    '--event-color-status':
+      instrumentConfig.ccStatusChangedEventTextColor ??
+      fallbackEventTextColor ??
+      'var(--color-status-success)',
+    '--event-bg-capture':
+      instrumentConfig.captureChangedEventBackgroundColor ??
+      fallbackEventBackgroundColor ??
+      'color-mix(in srgb, var(--event-color-capture) 18%, transparent)',
+    '--event-bg-role':
+      instrumentConfig.ccRoleChangedEventBackgroundColor ??
+      fallbackEventBackgroundColor ??
+      'color-mix(in srgb, var(--event-color-role) 18%, transparent)',
+    '--event-bg-status':
+      instrumentConfig.ccStatusChangedEventBackgroundColor ??
+      fallbackEventBackgroundColor ??
+      'color-mix(in srgb, var(--event-color-status) 18%, transparent)',
+  } as CSSProperties
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -244,7 +307,7 @@ export const DrpdUsbPdLogInstrumentView = ({
 
     const handleAdded = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (detail?.kind !== 'message') {
+      if (detail?.kind !== 'message' && detail?.kind !== 'event') {
         return
       }
 
@@ -439,7 +502,7 @@ export const DrpdUsbPdLogInstrumentView = ({
           : undefined
       }
     >
-      <div className={styles.wrapper} data-testid="drpd-usbpd-log">
+      <div className={styles.wrapper} style={eventRowStyle} data-testid="drpd-usbpd-log">
         <div className={styles.headerRow}>
           <span>Timestamp</span>
           <span>Duration</span>
@@ -470,18 +533,32 @@ export const DrpdUsbPdLogInstrumentView = ({
             {visibleRows.map(({ index, row }) => (
               <div
                 key={row?.key ?? `placeholder-${index}`}
-                className={styles.dataRow}
+                className={[
+                  styles.dataRow,
+                  row?.kind === 'event' ? styles.eventRow : '',
+                  row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
+                  row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
+                  row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
                 style={{ transform: `translateY(${index * ROW_HEIGHT_PX}px)` }}
               >
-                <span className={styles.right}>{row?.timestamp ?? ''}</span>
-                <span className={styles.right}>{row?.duration ?? ''}</span>
-                <span className={styles.right}>{row?.delta ?? ''}</span>
-                <span className={styles.center}>{row?.messageId ?? ''}</span>
-                <span>{row?.messageType ?? ''}</span>
-                <span>{row?.sender ?? ''}</span>
-                <span>{row?.receiver ?? ''}</span>
-                <span className={styles.center}>{row?.sopType ?? ''}</span>
-                <span className={styles.center}>{row?.valid ?? ''}</span>
+                {row?.kind === 'event' ? (
+                  <span className={styles.eventLabel}>{row.messageType}</span>
+                ) : (
+                  <>
+                    <span className={styles.right}>{row?.timestamp ?? ''}</span>
+                    <span className={styles.right}>{row?.duration ?? ''}</span>
+                    <span className={styles.right}>{row?.delta ?? ''}</span>
+                    <span className={styles.center}>{row?.messageId ?? ''}</span>
+                    <span>{row?.messageType ?? ''}</span>
+                    <span>{row?.sender ?? ''}</span>
+                    <span>{row?.receiver ?? ''}</span>
+                    <span className={styles.center}>{row?.sopType ?? ''}</span>
+                    <span className={styles.center}>{row?.valid ?? ''}</span>
+                  </>
+                )}
               </div>
             ))}
           </div>

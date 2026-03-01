@@ -14,6 +14,7 @@ describe('DRPD logging scale', () => {
     for (let index = 0; index < 1_000_000; index += 1) {
       await store.insertAnalogSample({
         timestampUs: BigInt(index),
+        displayTimestampUs: BigInt(index),
         vbusV: 5 + (index % 100) * 0.001,
         ibusA: 1 + (index % 100) * 0.0001,
         role: 'SINK',

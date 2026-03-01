@@ -99,12 +99,42 @@ const setRoleSnapshot = (device: DRPDDevice, role: 'SOURCE' | 'SINK'): void => {
   asAny.state = { ...asAny.state, role }
 }
 
+/**
+ * Force an in-memory role-status snapshot in tests.
+ *
+ * @param device - Device to update.
+ * @param roleStatus - Role status to set.
+ */
+const setRoleStatusSnapshot = (
+  device: DRPDDevice,
+  roleStatus: 'UNATTACHED' | 'SOURCE_FOUND' | 'ATTACHED',
+): void => {
+  const asAny = device as unknown as {
+    state: {
+      role: 'SOURCE' | 'SINK' | null
+      ccBusRoleStatus: 'UNATTACHED' | 'SOURCE_FOUND' | 'ATTACHED' | null
+      analogMonitor: unknown
+      vbusInfo: unknown
+      captureEnabled: unknown
+      triggerInfo: unknown
+      sinkInfo: unknown
+      sinkPdoList: unknown
+    }
+  }
+  asAny.state = { ...asAny.state, ccBusRoleStatus: roleStatus }
+}
+
 describe('DRPD logging integration', () => {
   it('can query existing log rows even when logging has not been started', async () => {
     const transport = new MockTransport()
     const expectedRow: LoggedCapturedMessage = {
+      entryKind: 'message',
+      eventType: null,
+      eventText: null,
+      eventWallClockMs: null,
       startTimestampUs: 1234n,
       endTimestampUs: 1240n,
+      displayTimestampUs: 0n,
       decodeResult: 0,
       sopKind: 'SOP',
       messageKind: 'CONTROL',
@@ -276,7 +306,7 @@ describe('DRPD logging integration', () => {
       createLogStore: () => store,
     })
     setConnected(device)
-    setRoleSnapshot(device, 'SOURCE')
+    setRoleSnapshot(device, 'SINK')
 
     await device.setCaptureEnabled(OnOffState.ON)
     await (
@@ -510,5 +540,69 @@ describe('DRPD logging integration', () => {
     })
     expect(analog).toHaveLength(1)
     expect(analog[0].timestampUs).toBe(1000n)
+  })
+
+  it('logs significant events and resets display epoch on next message', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
+    transport.textResponses.set('MEAS:ALL?', [
+      '10020',
+      '5.0',
+      '0.2',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+    ])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+        10_000n,
+        10_010n,
+      ),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+    setRoleStatusSnapshot(device, 'UNATTACHED')
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshRoleStatusFromDevice: () => Promise<void> }
+    ).refreshRoleStatusFromDevice()
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+    await (device as unknown as { pollAnalogMonitor: () => Promise<void> }).pollAnalogMonitor()
+
+    const messages = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 20_000n,
+      sortOrder: 'asc',
+    })
+    const analog = await device.queryAnalogSamples({
+      startTimestampUs: 0n,
+      endTimestampUs: 20_000n,
+    })
+
+    expect(messages).toHaveLength(2)
+    expect(messages[0].entryKind).toBe('event')
+    expect(messages[0].eventType).toBe('cc_status_changed')
+    expect(messages[1].entryKind).toBe('message')
+    expect(messages[1].displayTimestampUs).toBe(0n)
+    expect(analog).toHaveLength(1)
+    expect(analog[0].displayTimestampUs).toBe(20n)
   })
 })

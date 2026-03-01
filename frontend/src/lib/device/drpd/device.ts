@@ -95,6 +95,9 @@ export class DRPDDevice extends EventTarget {
   protected logStore?: DRPDLogStore ///< Active log store instance.
   protected loggingStarted: boolean ///< True when logging is started.
   protected readonly createLogStore: (config: DRPDLoggingConfig) => DRPDLogStore ///< Log store factory.
+  protected activeDisplayEpochStartUs: bigint | null ///< Active display-timestamp epoch anchor.
+  protected pendingDisplayEpochReset: boolean ///< True when next message should reset display epoch.
+  protected lastKnownDeviceTimestampUs: bigint | null ///< Last observed/synthesized stream timestamp.
 
   /**
    * Create a DRPD device driver.
@@ -134,6 +137,9 @@ export class DRPDDevice extends EventTarget {
     this.loggingConfig = buildDefaultLoggingConfig()
     this.loggingStarted = false
     this.createLogStore = options?.createLogStore ?? ((config) => new SQLiteWasmStore(config))
+    this.activeDisplayEpochStartUs = null
+    this.pendingDisplayEpochReset = false
+    this.lastKnownDeviceTimestampUs = null
     this.interruptHandler = () => {
       if (this.interruptInFlight) {
         return
@@ -224,6 +230,9 @@ export class DRPDDevice extends EventTarget {
       return
     }
     this.loggingStarted = false
+    this.activeDisplayEpochStartUs = null
+    this.pendingDisplayEpochReset = false
+    this.lastKnownDeviceTimestampUs = null
     this.logDebug('logging: stopped')
   }
 
@@ -294,7 +303,27 @@ export class DRPDDevice extends EventTarget {
         await this.startLogging()
       }
     }
+    const previousCaptureEnabled = this.state.captureEnabled
     await this.capture.setCaptureEnabled(enabled)
+    if (previousCaptureEnabled !== enabled) {
+      this.state = { ...this.state, captureEnabled: enabled }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, {
+          detail: { previous: previousCaptureEnabled, current: enabled },
+        }),
+      )
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['captureEnabled'] },
+        }),
+      )
+      if (previousCaptureEnabled !== null) {
+        await this.logSignificantEvent(
+          'capture_changed',
+          `Capture turned ${enabled === OnOffStateValues.ON ? 'on' : 'off'}`,
+        )
+      }
+    }
     if (enabled === OnOffStateValues.OFF) {
       await this.stopLogging()
     }
@@ -359,6 +388,11 @@ export class DRPDDevice extends EventTarget {
       return { analogDeleted: 0, messagesDeleted: 0 }
     }
     const result = await this.logStore.clear(scope)
+    if (scope === 'messages' || scope === 'all') {
+      this.activeDisplayEpochStartUs = null
+      this.pendingDisplayEpochReset = false
+      this.lastKnownDeviceTimestampUs = null
+    }
     if (result.analogDeleted > 0 || result.messagesDeleted > 0) {
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.LOG_ENTRY_DELETED_EVENT, {
@@ -471,6 +505,9 @@ export class DRPDDevice extends EventTarget {
     this.stopAnalogMonitorPolling()
     this.stopCaptureDrainPolling()
     void this.stopLogging().finally(() => this.closeLogStore())
+    this.activeDisplayEpochStartUs = null
+    this.pendingDisplayEpochReset = false
+    this.lastKnownDeviceTimestampUs = null
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -679,6 +716,9 @@ export class DRPDDevice extends EventTarget {
           detail: { role: updated.role, previousRole },
         }),
       )
+      if (updated.role && previousRole !== null) {
+        void this.logSignificantEvent('cc_role_changed', `CC role changed to ${updated.role}`)
+      }
     }
 
     if (changed.includes('ccBusRoleStatus')) {
@@ -687,6 +727,12 @@ export class DRPDDevice extends EventTarget {
           detail: { roleStatus: updated.ccBusRoleStatus, previousRoleStatus },
         }),
       )
+      if (updated.ccBusRoleStatus && previousRoleStatus !== null) {
+        void this.logSignificantEvent(
+          'cc_status_changed',
+          `Device status changed to ${updated.ccBusRoleStatus}`,
+        )
+      }
     }
 
     if (changed.includes('analogMonitor')) {
@@ -711,6 +757,12 @@ export class DRPDDevice extends EventTarget {
           detail: { previous: previousCaptureEnabled, current: updated.captureEnabled },
         }),
       )
+      if (updated.captureEnabled && previousCaptureEnabled !== null) {
+        void this.logSignificantEvent(
+          'capture_changed',
+          `Capture turned ${updated.captureEnabled === OnOffStateValues.ON ? 'on' : 'off'}`,
+        )
+      }
     }
 
 
@@ -790,10 +842,10 @@ export class DRPDDevice extends EventTarget {
       if (statusFlags.sinkPdoListChanged) {
         tasks.push(this.refreshSinkPdoListFromDevice())
       }
-      if (statusFlags.messageReceived) {
-        tasks.push(this.refreshAndDrainCapturedMessagesFromDevice())
-      }
       await Promise.all(tasks)
+      if (statusFlags.messageReceived) {
+        await this.refreshAndDrainCapturedMessagesFromDevice()
+      }
       this.logDebug('interrupt: done')
     } catch (error) {
       this.dispatchEvent(
@@ -827,6 +879,9 @@ export class DRPDDevice extends EventTarget {
         detail: { role, previousRole },
       }),
     )
+    if (previousRole !== null) {
+      void this.logSignificantEvent('cc_role_changed', `CC role changed to ${role}`)
+    }
     if (shouldClearSink && (previousSinkInfo || previousSinkPdoList)) {
       if (previousSinkInfo) {
         this.dispatchEvent(
@@ -878,7 +933,8 @@ export class DRPDDevice extends EventTarget {
   protected async refreshRoleStatusFromDevice(): Promise<void> {
     try {
       const roleStatus = await this.ccBus.getRoleStatus()
-      if (this.state.ccBusRoleStatus === roleStatus) {
+      const previousRoleStatus = this.state.ccBusRoleStatus
+      if (previousRoleStatus === roleStatus) {
         return
       }
       this.state = { ...this.state, ccBusRoleStatus: roleStatus }
@@ -887,6 +943,12 @@ export class DRPDDevice extends EventTarget {
           detail: { roleStatus },
         }),
       )
+      if (previousRoleStatus !== null) {
+        void this.logSignificantEvent(
+          'cc_status_changed',
+          `Device status changed to ${roleStatus}`,
+        )
+      }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
           detail: { state: this.getState(), changed: ['ccBusRoleStatus'] },
@@ -936,7 +998,8 @@ export class DRPDDevice extends EventTarget {
   protected async refreshCaptureEnabledFromDevice(): Promise<void> {
     try {
       const captureEnabled = await this.capture.getCaptureEnabled()
-      if (this.state.captureEnabled === captureEnabled) {
+      const previousCaptureEnabled = this.state.captureEnabled
+      if (previousCaptureEnabled === captureEnabled) {
         return
       }
       this.state = { ...this.state, captureEnabled }
@@ -945,6 +1008,12 @@ export class DRPDDevice extends EventTarget {
           detail: { captureEnabled },
         }),
       )
+      if (previousCaptureEnabled !== null) {
+        void this.logSignificantEvent(
+          'capture_changed',
+          `Capture turned ${captureEnabled === OnOffStateValues.ON ? 'on' : 'off'}`,
+        )
+      }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
           detail: { state: this.getState(), changed: ['captureEnabled'] },
@@ -1183,8 +1252,13 @@ export class DRPDDevice extends EventTarget {
       return
     }
     try {
+      this.lastKnownDeviceTimestampUs = sample.captureTimestampUs
       const row: LoggedAnalogSample = {
         timestampUs: sample.captureTimestampUs,
+        displayTimestampUs:
+          this.activeDisplayEpochStartUs === null
+            ? null
+            : sample.captureTimestampUs - this.activeDisplayEpochStartUs,
         vbusV: sample.vbus,
         ibusA: sample.ibus,
         role: this.state.role,
@@ -1223,6 +1297,69 @@ export class DRPDDevice extends EventTarget {
       this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
       this.logDebug(`logging message insert error=${String(error)}`)
     }
+  }
+
+  /**
+   * Insert one significant event into the captured-message stream.
+   *
+   * @param eventType - Significant event type.
+   * @param eventSummary - Human-readable summary text.
+   */
+  protected async logSignificantEvent(
+    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed',
+    eventSummary: string,
+  ): Promise<void> {
+    if (!this.loggingStarted || !this.logStore) {
+      return
+    }
+    try {
+      const nowMs = Date.now()
+      const eventText = `${eventSummary} at ${new Date(nowMs).toLocaleString()}`
+      const syntheticTimestampUs = this.nextSyntheticStreamTimestampUs()
+      const row: LoggedCapturedMessage = {
+        entryKind: 'event',
+        eventType,
+        eventText,
+        eventWallClockMs: nowMs,
+        startTimestampUs: syntheticTimestampUs,
+        endTimestampUs: syntheticTimestampUs,
+        displayTimestampUs: null,
+        decodeResult: 0,
+        sopKind: null,
+        messageKind: null,
+        messageType: null,
+        messageId: null,
+        senderPowerRole: null,
+        senderDataRole: null,
+        pulseCount: 0,
+        rawPulseWidths: new Uint16Array(),
+        rawSop: new Uint8Array(),
+        rawDecodedData: new Uint8Array(),
+        parseError: null,
+        createdAtMs: nowMs,
+      }
+      await this.logStore.insertCapturedMessage(row)
+      this.pendingDisplayEpochReset = true
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'event', row },
+        }),
+      )
+    } catch (error) {
+      this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
+      this.logDebug(`logging event insert error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Build a synthetic monotonic stream timestamp used for event rows.
+   *
+   * @returns Synthetic timestamp in microseconds.
+   */
+  protected nextSyntheticStreamTimestampUs(): bigint {
+    const next = (this.lastKnownDeviceTimestampUs ?? 0n) + 1n
+    this.lastKnownDeviceTimestampUs = next
+    return next
   }
 
   /**
@@ -1313,20 +1450,29 @@ export class DRPDDevice extends EventTarget {
         sopKind === 'SOP_DEBUG_PRIME' ||
         sopKind === 'SOP_DEBUG_DOUBLE_PRIME'
       ) {
-        // For SOP'/SOP'', persist local power-role snapshot and cable-plug origin bit
-        // so sender/receiver can be resolved correctly in the log UI.
-        senderPowerRole = this.state.role === 'SOURCE' || this.state.role === 'SINK'
-          ? this.state.role
-          : null
+        // SOP'/SOP'' is communication between Source (VCONN source) and Cable Plug/VPD.
+        // Normalize port endpoint as SOURCE so sinks are never rendered as SOP'/SOP'' endpoints.
+        senderPowerRole = 'SOURCE'
         senderDataRole = header.cablePlug
       }
     } catch (error) {
       parseError = error instanceof Error ? error.message : String(error)
     }
 
+    if (this.activeDisplayEpochStartUs === null || this.pendingDisplayEpochReset) {
+      this.activeDisplayEpochStartUs = message.startTimestampUs
+      this.pendingDisplayEpochReset = false
+    }
+    this.lastKnownDeviceTimestampUs = message.endTimestampUs
+
     return {
+      entryKind: 'message',
+      eventType: null,
+      eventText: null,
+      eventWallClockMs: null,
       startTimestampUs: message.startTimestampUs,
       endTimestampUs: message.endTimestampUs,
+      displayTimestampUs: message.startTimestampUs - this.activeDisplayEpochStartUs,
       decodeResult: message.decodeResult,
       sopKind,
       messageKind,

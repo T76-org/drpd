@@ -29,6 +29,8 @@ export interface RackInstrument {
   fullScreen?: boolean
   ///< Resizable configuration for future UI.
   resizable?: InstrumentResizableConfig
+  ///< Optional instrument-specific persisted configuration.
+  config?: Record<string, unknown>
 }
 
 /**
