@@ -33,7 +33,8 @@ export const RowRenderer = ({
   onInstrumentDragStart,
   onInstrumentDragOver,
   onInstrumentDrop,
-  onInstrumentDragEnd
+  onInstrumentDragEnd,
+  onUpdateDeviceConfig
 }: {
   row: RackRow
   rowIndex: number
@@ -49,6 +50,10 @@ export const RowRenderer = ({
   onInstrumentDragOver?: (payload: RackInstrumentDragPayload) => void
   onInstrumentDrop?: (payload: RackInstrumentDragPayload) => void
   onInstrumentDragEnd?: () => void
+  onUpdateDeviceConfig?: (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => Promise<void> | void
 }) => {
   const instrumentMap = new Map(instruments.map((instrument) => [instrument.identifier, instrument]))
   const drpdVbusInstrument = instrumentMap.get('com.mta.drpd.vbus')
@@ -191,7 +196,8 @@ export const RowRenderer = ({
               allocatedWidthPx,
               allocatedHeightPx,
               allocatedWidthUnits,
-              allocatedHeightUnits
+              allocatedHeightUnits,
+              onUpdateDeviceConfig
             })}
           </div>
         )
@@ -261,7 +267,8 @@ const renderInstrument = ({
   allocatedWidthPx,
   allocatedHeightPx,
   allocatedWidthUnits,
-  allocatedHeightUnits
+  allocatedHeightUnits,
+  onUpdateDeviceConfig
 }: {
   instrument: RackInstrument
   definition?: Instrument
@@ -273,6 +280,10 @@ const renderInstrument = ({
   allocatedHeightPx: number
   allocatedWidthUnits: number
   allocatedHeightUnits: number
+  onUpdateDeviceConfig?: (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => Promise<void> | void
 }): ReactNode => {
   switch (instrument.instrumentIdentifier) {
     case 'com.mta.drpd.sink-control':
@@ -295,6 +306,7 @@ const renderInstrument = ({
           deviceState={deviceState}
           isEditMode={isEditMode}
           onRemove={onRemove}
+          onUpdateDeviceConfig={onUpdateDeviceConfig}
         />
       )
     case 'com.mta.drpd.vbus':

@@ -51,6 +51,8 @@ export interface RackDeviceRecord {
   serialNumber?: string
   ///< Optional USB product name.
   productName?: string
+  ///< Optional device-specific persisted configuration.
+  config?: Record<string, unknown>
 }
 
 /**

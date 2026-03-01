@@ -60,6 +60,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-6);
+  position: relative;
 }
 
 .closeButton {
@@ -75,6 +76,39 @@
   line-height: var(--line-height-tight);
   cursor: pointer;
   padding: var(--space-0);
+}
+
+.headerControl {
+  position: relative;
+}
+
+.headerControlButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-md);
+  padding: var(--space-1) var(--space-6);
+  cursor: pointer;
+}
+
+.headerControlButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.headerControlPopover {
+  position: absolute;
+  top: calc(100% + var(--space-4));
+  right: 0;
+  min-width: 250px;
+  max-width: min(420px, calc(100vw - var(--space-16)));
+  background: var(--color-surface-panel);
+  border: var(--border-thin) solid var(--color-border-panel);
+  box-shadow: var(--shadow-strong);
+  padding: var(--space-10);
+  z-index: 20;
 }
 
 .content {

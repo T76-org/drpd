@@ -282,6 +282,71 @@ describe('RackView', () => {
     expect(screen.getByText('Dr. PD Placeholder')).toBeInTheDocument()
   })
 
+  it('opens and switches instrument header popovers', async () => {
+    const user = userEvent.setup()
+    render(
+      <InstrumentBase
+        instrument={{
+          id: 'inst-1',
+          instrumentIdentifier: 'com.mta.drpd.placeholder'
+        }}
+        displayName="Dr. PD Placeholder"
+        headerControls={[
+          {
+            id: 'first',
+            label: 'First',
+            renderPopover: () => <div>First popup</div>,
+          },
+          {
+            id: 'second',
+            label: 'Second',
+            renderPopover: () => <div>Second popup</div>,
+          },
+        ]}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'First' }))
+    expect(screen.getByText('First popup')).toBeInTheDocument()
+    expect(screen.queryByText('Second popup')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Second' }))
+    expect(screen.queryByText('First popup')).not.toBeInTheDocument()
+    expect(screen.getByText('Second popup')).toBeInTheDocument()
+  })
+
+  it('closes instrument header popover on outside click and escape', async () => {
+    const user = userEvent.setup()
+    render(
+      <InstrumentBase
+        instrument={{
+          id: 'inst-1',
+          instrumentIdentifier: 'com.mta.drpd.placeholder'
+        }}
+        displayName="Dr. PD Placeholder"
+        headerControls={[
+          {
+            id: 'only',
+            label: 'Only',
+            renderPopover: () => <div>Only popup</div>,
+          },
+        ]}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Only' }))
+    expect(screen.getByText('Only popup')).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByText('Only popup')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Only' }))
+    expect(screen.getByText('Only popup')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByText('Only popup')).not.toBeInTheDocument()
+  })
+
   it('renders a concrete instrument size readout', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
@@ -414,7 +479,7 @@ describe('RackView', () => {
     )
   })
 
-  it('keeps CC Lines and Device Status fixed-width while VBUS uses remaining row width', async () => {
+  it('keeps CC Lines, Device Status, and VBUS fixed-width allocations', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -459,7 +524,7 @@ describe('RackView', () => {
     )
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
       'data-width-units',
-      '8',
+      '3',
     )
   })
 

@@ -158,3 +158,68 @@
   justify-self: stretch;
   text-align: left;
 }
+
+.headerPopup {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.headerPopupText {
+  margin: var(--space-0);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
+.headerPopupLabel {
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.headerPopupInput {
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: var(--color-surface-instrument);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  padding: var(--space-4) var(--space-6);
+}
+
+.headerPopupHint {
+  margin: var(--space-0);
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-muted);
+}
+
+.headerPopupError {
+  margin: var(--space-0);
+  font-size: var(--font-size-2xs);
+  color: var(--color-status-error);
+}
+
+.headerPopupActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-6);
+}
+
+.headerPopupButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: var(--color-surface-panel-accent);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-md);
+  padding: var(--space-2) var(--space-8);
+  cursor: pointer;
+}
+
+.headerPopupButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.headerPopupButtonDanger {
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}

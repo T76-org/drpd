@@ -3,6 +3,9 @@ import type { Device } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
   DRPDDeviceDefinition,
+  buildDefaultLoggingConfig,
+  normalizeLoggingConfig,
+  type DRPDLoggingConfig,
   type DRPDDriverRuntime,
   buildUSBFilters,
   findMatchingDevices,
@@ -96,6 +99,25 @@ interface DeviceRuntime {
   drpdDriver?: DRPDDriverRuntime
   ///< Active transport-like runtime, if available.
   transport?: { close(): Promise<void> }
+}
+
+const resolveDeviceLoggingConfig = (record: RackDeviceRecord): DRPDLoggingConfig => {
+  const source = record.config
+  if (!source || typeof source !== 'object') {
+    return buildDefaultLoggingConfig()
+  }
+  const probe = source as { logging?: Partial<DRPDLoggingConfig> }
+  return normalizeLoggingConfig(probe.logging)
+}
+
+const applyRecordConfigToRuntime = async (
+  record: RackDeviceRecord,
+  runtime: DeviceRuntime | null | undefined,
+): Promise<void> => {
+  if (!runtime?.drpdDriver) {
+    return
+  }
+  await runtime.drpdDriver.configureLogging(resolveDeviceLoggingConfig(record))
 }
 
 
@@ -427,6 +449,7 @@ export const RackView = () => {
 
       const runtime = await connectDeviceRuntime(deviceDefinition, selected)
       const record = buildRackDeviceRecord(deviceDefinition, selected)
+      await applyRecordConfigToRuntime(record, runtime)
       setDeviceStates((states) =>
         upsertDeviceState(states, buildRackDeviceState(record, runtime)),
       )
@@ -544,6 +567,7 @@ export const RackView = () => {
       }
 
       const runtime = await connectDeviceRuntime(definition, matchedDevice)
+      await applyRecordConfigToRuntime(record, runtime)
       setDeviceStates((states) =>
         upsertDeviceState(states, buildRackDeviceState(record, runtime)),
       )
@@ -572,6 +596,66 @@ export const RackView = () => {
     setRackDocument(nextDocument)
     setActiveRack(nextRack)
     saveRackDocument(nextDocument)
+  }
+
+  const handleUpdateDeviceConfig = async (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => {
+    if (!activeRack || !rackDocument) {
+      return
+    }
+
+    let updatedRecord: RackDeviceRecord | null = null
+    const nextDevices = (activeRack.devices ?? []).map((device) => {
+      if (device.id !== deviceRecordId) {
+        return device
+      }
+      updatedRecord = {
+        ...device,
+        config: updater(device.config),
+      }
+      return updatedRecord
+    })
+    if (!updatedRecord) {
+      return
+    }
+
+    const nextRack = { ...activeRack, devices: nextDevices }
+    const nextDocument = replaceRack(rackDocument, nextRack)
+    setRackDocument(nextDocument)
+    setActiveRack(nextRack)
+    if (draftRack) {
+      setDraftRack({
+        ...draftRack,
+        devices: (draftRack.devices ?? []).map((device) =>
+          device.id === deviceRecordId ? updatedRecord as RackDeviceRecord : device,
+        ),
+      })
+    }
+    saveRackDocument(nextDocument)
+
+    setDeviceStates((states) =>
+      states.map((state) =>
+        state.record.id === deviceRecordId
+          ? { ...state, record: updatedRecord as RackDeviceRecord }
+          : state,
+      ),
+    )
+
+    const connectedState = deviceStatesRef.current.find(
+      (state) => state.record.id === deviceRecordId && state.status === 'connected' && state.drpdDriver,
+    )
+    if (!connectedState?.drpdDriver) {
+      return
+    }
+
+    try {
+      await connectedState.drpdDriver.configureLogging(resolveDeviceLoggingConfig(updatedRecord))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setDeviceError(message)
+    }
   }
 
   /** Add a compatible instrument to the rack. */
@@ -944,6 +1028,7 @@ export const RackView = () => {
             onInstrumentDragOver={handleInstrumentDragOver}
             onInstrumentDrop={handleInstrumentDrop}
             onInstrumentDragEnd={handleInstrumentDragEnd}
+            onUpdateDeviceConfig={handleUpdateDeviceConfig}
           />
         ) : null}
         {!isLoading && !error && rackDocument && !activeRack ? (
@@ -1229,6 +1314,7 @@ const autoConnectDevices = async ({
 
       try {
         const runtime = await connectDeviceRuntime(target, matchedDevice)
+        await applyRecordConfigToRuntime(record, runtime)
         nextStates.push(buildRackDeviceState(record, runtime))
       } catch (connectError) {
         const message =

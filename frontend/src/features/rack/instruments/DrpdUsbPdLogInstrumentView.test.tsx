@@ -1,4 +1,5 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DRPDDevice } from '../../../lib/device'
 import type { LoggedCapturedMessage } from '../../../lib/device'
@@ -8,10 +9,12 @@ import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
 
 class TestLogDriver extends EventTarget {
   public rows: LoggedCapturedMessage[]
+  public clearScopes: string[]
 
   public constructor(rows: LoggedCapturedMessage[]) {
     super()
     this.rows = rows
+    this.clearScopes = []
   }
 
   public getState() {
@@ -41,6 +44,11 @@ class TestLogDriver extends EventTarget {
     const offset = query.offset ?? 0
     const limit = query.limit ?? sorted.length
     return sorted.slice(offset, offset + limit)
+  }
+
+  public async clearLogs(scope: string): Promise<void> {
+    this.clearScopes.push(scope)
+    this.rows = []
   }
 }
 
@@ -367,5 +375,104 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
     const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
     expect(rows[2]?.textContent ?? '').toContain('--')
+  })
+
+  it('shows clear confirmation popup and clears all logs when confirmed', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceRecord={buildDeviceRecord()}
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Clear' }))
+    expect(
+      screen.getByText(/permanently delete all entries in the log/i),
+    ).toBeInTheDocument()
+
+    const clearDialog = screen.getByRole('dialog')
+    await userEvent.click(within(clearDialog).getByRole('button', { name: /^Clear$/ }))
+    await waitFor(() => {
+      expect(driver.clearScopes).toEqual(['all'])
+    })
+  })
+
+  it('validates and applies configured max message buffer', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceRecord: RackDeviceRecord = {
+      ...buildDeviceRecord(),
+      config: {
+        logging: {
+          maxCapturedMessages: 1000,
+        },
+      },
+    }
+    const updateDeviceConfig = vi.fn(async () => undefined)
+    const deviceState: RackDeviceState = {
+      record: deviceRecord,
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceRecord={deviceRecord}
+        deviceState={deviceState}
+        isEditMode={false}
+        onUpdateDeviceConfig={updateDeviceConfig}
+      />,
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Configure' }))
+    const input = screen.getByLabelText(/max message buffer/i)
+    expect(input).toHaveValue(1000)
+
+    await userEvent.clear(input)
+    await userEvent.type(input, '50')
+    const configureDialog = screen.getByRole('dialog')
+    await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
+    expect(
+      screen.getByText(/enter an integer value of at least 51/i),
+    ).toBeInTheDocument()
+    expect(updateDeviceConfig).not.toHaveBeenCalled()
+
+    await userEvent.clear(input)
+    await userEvent.type(input, '777')
+    await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
+    await waitFor(() => {
+      expect(updateDeviceConfig).toHaveBeenCalledTimes(1)
+    })
+    const updater = updateDeviceConfig.mock.calls[0]?.[1] as
+      | ((current: Record<string, unknown> | undefined) => Record<string, unknown>)
+      | undefined
+    expect(updateDeviceConfig.mock.calls[0]?.[0]).toBe(deviceRecord.id)
+    expect(updater).toBeTypeOf('function')
+    const next = updater?.({
+      logging: {
+        enabled: true,
+        autoStartOnConnect: false,
+        maxAnalogSamples: 123,
+        retentionTrimBatchSize: 10,
+      },
+    })
+    expect(next?.logging).toMatchObject({
+      enabled: true,
+      autoStartOnConnect: false,
+      maxAnalogSamples: 123,
+      retentionTrimBatchSize: 10,
+      maxCapturedMessages: 777,
+    })
   })
 })

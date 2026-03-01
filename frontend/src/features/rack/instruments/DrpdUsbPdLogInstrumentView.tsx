@@ -1,13 +1,18 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
 import { DRPDDevice } from '../../../lib/device'
-import type { LoggedCapturedMessage } from '../../../lib/device'
+import {
+  buildDefaultLoggingConfig,
+  normalizeLoggingConfig,
+  type DRPDLoggingConfig,
+  type LoggedCapturedMessage,
+} from '../../../lib/device'
 import {
   CONTROL_MESSAGE_TYPES,
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../lib/device/drpd/usb-pd/message'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
-import { InstrumentBase } from '../InstrumentBase'
+import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 
@@ -16,6 +21,7 @@ const ROW_HEIGHT_PX = 14
 const PAGE_SIZE = 200
 const OVERSCAN_ROWS = 18
 const COUNT_SYNC_INTERVAL_MS = 1200
+const MIN_CAPTURED_MESSAGE_BUFFER = 51
 
 type DisplayRow = {
   key: string
@@ -168,10 +174,11 @@ const toDisplayRows = (
 export const DrpdUsbPdLogInstrumentView = ({
   instrument,
   displayName,
-  deviceRecord: _deviceRecord,
+  deviceRecord,
   deviceState,
   isEditMode,
   onRemove,
+  onUpdateDeviceConfig,
 }: {
   instrument: RackInstrument
   displayName: string
@@ -179,10 +186,32 @@ export const DrpdUsbPdLogInstrumentView = ({
   deviceState?: RackDeviceState
   isEditMode: boolean
   onRemove?: (instrumentId: string) => void
+  onUpdateDeviceConfig?: (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => Promise<void> | void
 }) => {
-  void _deviceRecord
-
   const driver = deviceState?.drpdDriver
+  const configuredMaxCapturedMessages = useMemo(() => {
+    const fallback = buildDefaultLoggingConfig().maxCapturedMessages
+    const source = deviceRecord?.config
+    if (!source || typeof source !== 'object') {
+      return fallback
+    }
+    const probe = source as { logging?: Partial<DRPDLoggingConfig> }
+    const value = probe.logging?.maxCapturedMessages
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return fallback
+    }
+    return Math.max(MIN_CAPTURED_MESSAGE_BUFFER, Math.floor(value))
+  }, [deviceRecord?.config])
+  const [bufferInput, setBufferInput] = useState(() =>
+    configuredMaxCapturedMessages.toString(),
+  )
+  const [bufferError, setBufferError] = useState<string | null>(null)
+  const [isApplyingBuffer, setIsApplyingBuffer] = useState(false)
+  const [isClearing, setIsClearing] = useState(false)
+  const [clearError, setClearError] = useState<string | null>(null)
   const instrumentConfig = (instrument.config ?? {}) as UsbPdLogInstrumentConfig
   const fallbackEventTextColor = instrumentConfig.eventTextColor
   const fallbackEventBackgroundColor = instrumentConfig.eventBackgroundColor
@@ -241,10 +270,29 @@ export const DrpdUsbPdLogInstrumentView = ({
     return rows
   }, [firstVisibleRow, lastVisibleRow, pages, totalRows])
 
+  const parseBufferInput = (): number | null => {
+    if (!/^\d+$/.test(bufferInput)) {
+      return null
+    }
+    const parsed = Number(bufferInput)
+    if (!Number.isFinite(parsed)) {
+      return null
+    }
+    const normalized = Math.floor(parsed)
+    if (normalized < MIN_CAPTURED_MESSAGE_BUFFER) {
+      return null
+    }
+    return normalized
+  }
 
   useEffect(() => {
     totalRowsRef.current = totalRows
   }, [totalRows])
+
+  useEffect(() => {
+    setBufferInput(configuredMaxCapturedMessages.toString())
+    setBufferError(null)
+  }, [configuredMaxCapturedMessages])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -500,11 +548,177 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }, [driver, firstVisibleRow, lastVisibleRow, pages, totalRows])
 
+  const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
+    const clearControl: InstrumentHeaderControl = {
+      id: 'clear-log',
+      label: 'Clear',
+      disabled: !driver || isEditMode || isClearing,
+      renderPopover: ({ closePopover }) => (
+        <div className={styles.headerPopup}>
+          <p className={styles.headerPopupText}>
+            This will permanently delete all entries in the log. Are you sure?
+          </p>
+          {clearError ? (
+            <p className={styles.headerPopupError}>{clearError}</p>
+          ) : null}
+          <div className={styles.headerPopupActions}>
+            <button
+              type="button"
+              className={styles.headerPopupButton}
+              onClick={() => {
+                setClearError(null)
+                closePopover()
+              }}
+              disabled={isClearing}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={`${styles.headerPopupButton} ${styles.headerPopupButtonDanger}`}
+              onClick={() => {
+                if (!driver) {
+                  return
+                }
+                setIsClearing(true)
+                setClearError(null)
+                void driver
+                  .clearLogs('all')
+                  .then(() => {
+                    closePopover()
+                  })
+                  .catch((error) => {
+                    const message =
+                      error instanceof Error ? error.message : String(error)
+                    setClearError(message)
+                  })
+                  .finally(() => {
+                    setIsClearing(false)
+                  })
+              }}
+              disabled={isClearing}
+            >
+              {isClearing ? 'Clearing...' : 'Clear'}
+            </button>
+          </div>
+        </div>
+      ),
+    }
+
+    const configureControl: InstrumentHeaderControl = {
+      id: 'configure-log',
+      label: 'Configure',
+      disabled: !deviceRecord || !onUpdateDeviceConfig || isEditMode || isApplyingBuffer,
+      renderPopover: ({ closePopover }) => (
+        <div className={styles.headerPopup}>
+          <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-max-buffer`}>
+            Max message buffer
+          </label>
+          <input
+            id={`${instrument.id}-max-buffer`}
+            className={styles.headerPopupInput}
+            type="number"
+            min={MIN_CAPTURED_MESSAGE_BUFFER}
+            step={1}
+            value={bufferInput}
+            onChange={(event) => {
+              setBufferInput(event.currentTarget.value)
+              setBufferError(null)
+            }}
+            disabled={isApplyingBuffer}
+          />
+          <p className={styles.headerPopupHint}>
+            Minimum: {MIN_CAPTURED_MESSAGE_BUFFER}
+          </p>
+          {bufferError ? (
+            <p className={styles.headerPopupError}>{bufferError}</p>
+          ) : null}
+          <div className={styles.headerPopupActions}>
+            <button
+              type="button"
+              className={styles.headerPopupButton}
+              onClick={() => {
+                setBufferError(null)
+                closePopover()
+              }}
+              disabled={isApplyingBuffer}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={styles.headerPopupButton}
+              onClick={() => {
+                if (!deviceRecord || !onUpdateDeviceConfig) {
+                  return
+                }
+                const parsed = parseBufferInput()
+                if (parsed === null) {
+                  setBufferError(
+                    `Enter an integer value of at least ${MIN_CAPTURED_MESSAGE_BUFFER}.`,
+                  )
+                  return
+                }
+                setIsApplyingBuffer(true)
+                setBufferError(null)
+                void Promise.resolve(
+                  onUpdateDeviceConfig(deviceRecord.id, (current) => {
+                    const source =
+                      current && typeof current === 'object'
+                        ? (current as { logging?: Partial<DRPDLoggingConfig> })
+                        : {}
+                    const logging = normalizeLoggingConfig({
+                      ...source.logging,
+                      maxCapturedMessages: parsed,
+                    })
+                    return {
+                      ...source,
+                      logging,
+                    }
+                  }),
+                )
+                  .then(() => {
+                    closePopover()
+                  })
+                  .catch((error) => {
+                    const message =
+                      error instanceof Error ? error.message : String(error)
+                    setBufferError(message)
+                  })
+                  .finally(() => {
+                    setIsApplyingBuffer(false)
+                  })
+              }}
+              disabled={isApplyingBuffer}
+            >
+              {isApplyingBuffer ? 'Applying...' : 'Apply'}
+            </button>
+          </div>
+        </div>
+      ),
+    }
+
+    return [clearControl, configureControl]
+  }, [
+    bufferInput,
+    clearError,
+    deviceRecord,
+    driver,
+    instrument.id,
+    isApplyingBuffer,
+    isClearing,
+    isEditMode,
+    onUpdateDeviceConfig,
+    parseBufferInput,
+    bufferError,
+  ])
+
   return (
     <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
+      headerControls={headerControls}
       contentClassName={styles.contentFill}
       onClose={
         onRemove
