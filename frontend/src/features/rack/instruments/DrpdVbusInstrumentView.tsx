@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DRPDDevice, type AnalogMonitorChannels } from '../../../lib/device'
+import { DRPDDevice, VBusStatus, type AnalogMonitorChannels, type VBusInfo } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -20,6 +20,45 @@ const formatNumber = (value: number | null | undefined, decimals: number): strin
     return '--'
   }
   return value.toFixed(decimals)
+}
+
+/**
+ * Format a protection threshold value with engineering units.
+ *
+ * @param value - Raw threshold value.
+ * @param scale - Divisor used to convert raw value to display units.
+ * @param unit - Unit suffix.
+ * @returns Human-readable threshold token.
+ */
+const formatProtectionThreshold = (
+  value: number | null | undefined,
+  scale: number,
+  unit: string,
+): string => {
+  if (value == null || !Number.isFinite(value)) {
+    return '----'
+  }
+  return `${(value / scale).toFixed(2)}${unit}`
+}
+
+type ProtectionDisplayStatus = 'on' | 'off' | 'triggered'
+
+/**
+ * Convert VBUS status into protection display state.
+ *
+ * @param status - VBUS status from device state.
+ * @returns Protection visual state token.
+ */
+const resolveProtectionDisplayStatus = (
+  status: VBusInfo['status'] | null | undefined,
+): ProtectionDisplayStatus => {
+  if (status === VBusStatus.OVP || status === VBusStatus.OCP) {
+    return 'triggered'
+  }
+  if (status === VBusStatus.ENABLED) {
+    return 'on'
+  }
+  return 'off'
 }
 
 /**
@@ -83,6 +122,9 @@ export const DrpdVbusInstrumentView = ({
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null
   )
+  const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
+    driver ? driver.getState().vbusInfo ?? null : null
+  )
   const [accumulatedAhState, setAccumulatedAhState] = useState<{
     storageKey: string
     value: number
@@ -108,10 +150,15 @@ export const DrpdVbusInstrumentView = ({
      */
     const handleStateUpdated = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (detail?.changed && !detail.changed.includes('analogMonitor')) {
+      if (
+        detail?.changed &&
+        !detail.changed.includes('analogMonitor') &&
+        !detail.changed.includes('vbusInfo')
+      ) {
         return
       }
       setAnalogMonitor(driver.getState().analogMonitor ?? null)
+      setVbusInfo(driver.getState().vbusInfo ?? null)
     }
 
     driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
@@ -119,6 +166,7 @@ export const DrpdVbusInstrumentView = ({
     return () => {
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
       setAnalogMonitor(null)
+      setVbusInfo(null)
     }
   }, [driver])
 
@@ -177,6 +225,9 @@ export const DrpdVbusInstrumentView = ({
     vbusVoltage != null && vbusCurrent != null
       ? vbusVoltage * vbusCurrent
       : null
+  const protectionState = resolveProtectionDisplayStatus(vbusInfo?.status)
+  const ovpValueText = formatProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
+  const ocpValueText = formatProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
 
   return (
     <InstrumentBase
@@ -224,7 +275,28 @@ export const DrpdVbusInstrumentView = ({
               <span className={styles.unit}>Ah</span>
             </div>
           </div>
-          <div className={styles.metricBlock} aria-hidden="true" />
+          <div className={styles.metricBlock}>
+            <div
+              className={`${styles.protectionValue} ${
+                protectionState === 'on'
+                  ? styles.protectionOn
+                  : protectionState === 'triggered'
+                    ? styles.protectionTriggered
+                    : styles.protectionOff
+              }`}
+              data-testid="vbus-protection"
+              data-protection-state={protectionState}
+            >
+              <div className={styles.protectionLine}>
+                <span className={styles.protectionLabel}>OVP</span>
+                <span className={styles.protectionThreshold}>{ovpValueText}</span>
+              </div>
+              <div className={styles.protectionLine}>
+                <span className={styles.protectionLabel}>OCP</span>
+                <span className={styles.protectionThreshold}>{ocpValueText}</span>
+              </div>
+            </div>
+          </div>
         </section>
 
       </div>

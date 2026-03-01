@@ -1,7 +1,7 @@
 .wrapper {
   --cc-grid-width: 3.6ch;
-  --cc-status-width: 9ch;
-  --metric-number-width: 4.1ch;
+  --cc-status-width: 5ch;
+  --metric-number-width: 0ch;
   --separator-opacity: 0.8;
 
   height: 100%;

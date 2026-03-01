@@ -2,6 +2,9 @@
   --vbus-number-width: 4.2ch;
   --metric-number-width: 5.8ch;
   --separator-opacity: 0.8;
+  --protection-color-on: var(--color-status-success);
+  --protection-color-off: var(--color-status-muted);
+  --protection-color-triggered: var(--color-status-error);
 
   height: 100%;
   width: 100%;
@@ -120,6 +123,65 @@
 .chargeValue {
   color: var(--color-status-charge);
   font-size: var(--font-size-lg);
+}
+
+.protectionValue {
+  font-size: var(--font-size-3xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.protectionLine {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-2);
+  width: 100%;
+}
+
+.protectionLabel {
+  text-align: left;
+  white-space: nowrap;
+  padding-left: var(--space-3)
+}
+
+.protectionThreshold {
+  text-align: right;
+  white-space: nowrap;
+  padding-right: var(--space-7);
+}
+
+.protectionOn {
+  color: var(--protection-color-on);
+}
+
+.protectionOff {
+  color: var(--protection-color-off);
+}
+
+.protectionTriggered {
+  color: var(--protection-color-triggered);
+  animation: protection-alert-flash 0.25s steps(1, end) infinite;
+}
+
+@keyframes protection-alert-flash {
+  0% {
+    color: var(--protection-color-triggered);
+  }
+  50.01% {
+    color: var(--protection-color-off);
+  }
+  100% {
+    color: var(--protection-color-off);
+  }
 }
 
 .unit {

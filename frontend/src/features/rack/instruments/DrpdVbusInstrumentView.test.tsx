@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AnalogMonitorChannels } from '../../../lib/device'
-import { DRPDDevice } from '../../../lib/device'
+import type { AnalogMonitorChannels, VBusInfo } from '../../../lib/device'
+import { DRPDDevice, VBusStatus } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
@@ -48,6 +48,15 @@ class TestDRPDDevice extends DRPDDevice {
    */
   public setAnalogMonitor(analogMonitor: AnalogMonitorChannels | null): void {
     this.state = { ...this.state, analogMonitor }
+  }
+
+  /**
+   * Update the VBUS info state for tests.
+   *
+   * @param vbusInfo - VBUS info snapshot.
+   */
+  public setVBusInfo(vbusInfo: VBusInfo | null): void {
+    this.state = { ...this.state, vbusInfo }
   }
 }
 
@@ -147,6 +156,9 @@ describe('DrpdVbusInstrumentView', () => {
     const ahBlock = ahValue.closest('div')
     expect(ahBlock).not.toBeNull()
     expect(ahBlock).toHaveTextContent('Ah')
+    expect(screen.getByText('OVP')).toBeInTheDocument()
+    expect(screen.getByText('OCP')).toBeInTheDocument()
+    expect(screen.getAllByText('----')).toHaveLength(2)
   })
 
   it('accumulates and persists Ah from sampled current over time', async () => {
@@ -242,5 +254,69 @@ describe('DrpdVbusInstrumentView', () => {
     const ahBlock = ahValue.closest('div')
     expect(ahBlock).not.toBeNull()
     expect(ahBlock).toHaveTextContent('Ah')
+  })
+
+  it('loads protection thresholds from startup state and tracks vbusInfo events', async () => {
+    window.localStorage.setItem(AH_STORAGE_KEY, '0')
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setAnalogMonitor({
+      captureTimestampUs: 100n,
+      vbus: 12,
+      ibus: 1,
+      dutCc1: 0,
+      dutCc2: 0,
+      usdsCc1: 0,
+      usdsCc2: 0,
+      adcVref: 0,
+      groundRef: 0,
+      currentVref: 0
+    })
+    driver.setVBusInfo({
+      status: VBusStatus.ENABLED,
+      ovpThresholdMv: 15000,
+      ocpThresholdMa: 3000
+    })
+
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver
+    }
+
+    render(
+      <DrpdVbusInstrumentView
+        instrument={buildInstrument()}
+        displayName="VBUS"
+        deviceState={deviceState}
+        isEditMode={false}
+      />
+    )
+
+    const startupProtection = screen.getByTestId('vbus-protection')
+    expect(startupProtection).not.toBeNull()
+    expect(startupProtection).toHaveAttribute('data-protection-state', 'on')
+    expect(screen.getByText('15.00V')).toBeInTheDocument()
+    expect(screen.getByText('3.00A')).toBeInTheDocument()
+
+    act(() => {
+      driver.setVBusInfo({
+        status: VBusStatus.OVP,
+        ovpThresholdMv: 15000,
+        ocpThresholdMa: 3000
+      })
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { changed: ['vbusInfo'] }
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('vbus-protection')).toHaveAttribute(
+        'data-protection-state',
+        'triggered',
+      )
+    })
   })
 })
