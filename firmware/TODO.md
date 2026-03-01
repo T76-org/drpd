@@ -22,3 +22,6 @@
 
 - [ ] **Bugs**
     - [ ] Fix timestamp tracking in message receiver (this needs to be done by tracking the timing of each pulse)
+    - [ ] Check sync reaction times
+
+    
