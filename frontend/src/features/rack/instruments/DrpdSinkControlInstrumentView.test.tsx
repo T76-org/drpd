@@ -161,7 +161,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    await userEvent.setup().click(screen.getByRole('button', { name: /change/i }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /^set pdo$/i }))
     const list = screen.getByRole('listbox', { name: /available pdos/i })
     expect(list).toBeInTheDocument()
     expect(screen.getByTestId('pdo-list')).toBeInTheDocument()
@@ -201,7 +201,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: /change/i }))
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     await user.click(screen.getByRole('option', { name: /#2 battery/i }))
     const voltageInput = screen.getByLabelText(/^voltage$/i)
     const currentInput = screen.getByLabelText(/^current$/i)
@@ -210,7 +210,11 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.clear(currentInput)
     await user.type(currentInput, '2')
 
-    await user.click(screen.getByRole('button', { name: /set pdo/i }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+        name: /^set pdo$/i,
+      }),
+    )
 
     await waitFor(() => {
       expect(requestSpy).toHaveBeenCalledWith(1, 12000, 2000)
@@ -242,16 +246,24 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: /change/i }))
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     const voltageInput = screen.getByLabelText(/^voltage$/i)
     await user.clear(voltageInput)
     await user.type(voltageInput, '2')
 
     const dialog = screen.getByRole('dialog', { name: /sink request tuning/i })
     expect(within(dialog).getByText(/voltage must be between 5\.00 and 12\.00 v\./i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /set pdo/i })).toBeDisabled()
+    expect(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+        name: /^set pdo$/i,
+      }),
+    ).toBeDisabled()
 
-    await user.click(screen.getByRole('button', { name: /set pdo/i }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+        name: /^set pdo$/i,
+      }),
+    )
     expect(requestSpy).not.toHaveBeenCalled()
   })
 
@@ -279,7 +291,7 @@ describe('DrpdSinkControlInstrumentView', () => {
 
     expect(screen.getByText(/^EPR AVS$/, { selector: 'span' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /change/i }))
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     const voltageInput = screen.getByLabelText(/^voltage$/i)
     const currentInput = screen.getByLabelText(/^current$/i)
     await user.clear(voltageInput)
@@ -287,7 +299,11 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.clear(currentInput)
     await user.type(currentInput, '5')
 
-    await user.click(screen.getByRole('button', { name: /set pdo/i }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+        name: /^set pdo$/i,
+      }),
+    )
 
     await waitFor(() => {
       expect(requestSpy).toHaveBeenCalledWith(0, 20000, 5000)
@@ -314,12 +330,16 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: /change/i }))
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     const voltageInput = screen.getByLabelText(/^voltage$/i)
     const currentInput = screen.getByLabelText(/^current$/i)
     await user.clear(currentInput)
     await user.type(currentInput, '6')
-    expect(screen.getByRole('button', { name: /set pdo/i })).toBeEnabled()
+    expect(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+        name: /^set pdo$/i,
+      }),
+    ).toBeEnabled()
 
     await user.clear(voltageInput)
     await user.type(voltageInput, '28')
@@ -327,7 +347,11 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(
       screen.getByText(/current must be between 0\.00 and 5\.00 a\./i),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /set pdo/i })).toBeDisabled()
+    expect(
+      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+        name: /^set pdo$/i,
+      }),
+    ).toBeDisabled()
   })
 
   it('closes the popup on cancel and Escape', async () => {
@@ -349,12 +373,12 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: /change/i }))
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     expect(screen.getByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /cancel/i }))
     expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /change/i }))
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     expect(screen.getByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
@@ -379,7 +403,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: /change/i }))
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     const voltageInput = screen.getByLabelText(/^voltage$/i)
     expect(voltageInput).toHaveAttribute('readonly')
     expect(voltageInput).toHaveValue('9.00')

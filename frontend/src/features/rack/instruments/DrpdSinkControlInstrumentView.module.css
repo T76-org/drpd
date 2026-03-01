@@ -170,10 +170,7 @@
 }
 
 .advancedPanel {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  z-index: 10;
+  position: static;
   width: 250px;
   max-width: calc(100vw - 24px);
   border: var(--border-thin) solid var(--color-border-panel);
