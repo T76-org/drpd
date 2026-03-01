@@ -81,6 +81,23 @@ describe('DRPDDeviceDefinition', () => {
     })
   })
 
+  it('migrates legacy maxCapturedMessages=50 to the modern default cap', async () => {
+    const device = new DRPDDeviceDefinition()
+    await device.loadConfig({
+      logging: {
+        enabled: true,
+        maxCapturedMessages: 50,
+      },
+    })
+    const saved = await device.saveConfig()
+    expect(saved).toEqual({
+      logging: {
+        ...buildDefaultLoggingConfig(),
+        enabled: true,
+      },
+    })
+  })
+
   it('emits connect and disconnect events', async () => {
     const device = new DRPDDeviceDefinition()
     const usbDevice = createUsbDevice()

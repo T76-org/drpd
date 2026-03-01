@@ -30,6 +30,8 @@ export interface DRPDConnectedRuntime {
   transport: { close(): Promise<void> } ///< Closable transport/runtime resource.
 }
 
+const LEGACY_CAPTURE_LIMIT = 50
+
 /**
  * DRPD device definition.
  */
@@ -171,7 +173,16 @@ export class DRPDDeviceDefinition extends Device {
       return buildDefaultLoggingConfig()
     }
     const value = config as { logging?: Partial<DRPDLoggingConfig> }
-    return normalizeLoggingConfig(value.logging)
+    const normalized = normalizeLoggingConfig(value.logging)
+    // Migrate legacy persisted cap (50 rows) that causes early rollover and
+    // makes the USB-PD table appear to stop updating after a short period.
+    if (value.logging?.maxCapturedMessages === LEGACY_CAPTURE_LIMIT) {
+      return {
+        ...normalized,
+        maxCapturedMessages: buildDefaultLoggingConfig().maxCapturedMessages,
+      }
+    }
+    return normalized
   }
 
   protected driver?: DRPDDriverRuntime ///< Cached driver instance.

@@ -461,15 +461,9 @@ export class USBTMCTransport extends EventTarget {
       console.debug(`Binary Query: ${this._formatSCPI(command, params)}`)
       const line = this._formatSCPI(command, params)
       const data = this._normalizePayload(`${line}\n`)
-      const responseLength = 1024
       try {
         await this._withTimeout(this._write(data), this.options.writeTimeoutMs, 'write', line)
-        const response = await this._withTimeout(
-          this._readUSBTMCIn(responseLength),
-          this.options.readTimeoutMs,
-          'read',
-          line,
-        )
+        const response = await this._readARBBlockResponse(line)
         return this._parseARBData(response)
       } catch (error) {
         if (error instanceof USBTMCTimeoutError) {
@@ -963,6 +957,51 @@ export class USBTMCTransport extends EventTarget {
   }
 
   /**
+   * Read and accumulate a SCPI arbitrary block until the full block is available.
+   *
+   * @param command - Command associated with the read.
+   * @returns Raw response bytes that include a complete ARB block.
+   * @throws USBTMCTimeoutError when a full block is not received before timeout.
+   */
+  protected async _readARBBlockResponse(command?: string): Promise<Uint8Array> {
+    const deadline = Date.now() + this.options.readTimeoutMs
+    const responseLength = 1024
+    const chunks: Uint8Array[] = []
+    let totalLength = 0
+
+    while (Date.now() < deadline) {
+      const remaining = deadline - Date.now()
+      const chunk = await this._withTimeout(
+        this._readUSBTMCIn(responseLength),
+        remaining,
+        'read',
+        command,
+      )
+
+      if (chunk.length === 0) {
+        continue
+      }
+
+      chunks.push(chunk)
+      totalLength += chunk.length
+
+      const merged = new Uint8Array(totalLength)
+      let offset = 0
+      for (const part of chunks) {
+        merged.set(part, offset)
+        offset += part.length
+      }
+
+      const completion = this._findARBBlockCompletionOffset(merged)
+      if (completion != null) {
+        return merged.subarray(0, completion)
+      }
+    }
+
+    throw new USBTMCTimeoutError('read', this.options.readTimeoutMs, command)
+  }
+
+  /**
    * Run a promise with a timeout.
    *
    * @param promise - Promise to execute.
@@ -1274,6 +1313,70 @@ export class USBTMCTransport extends EventTarget {
     }
 
     return response.subarray(offset, offset + length)
+  }
+
+  /**
+   * Locate the byte offset where a SCPI arbitrary block is complete.
+   *
+   * @param response - Raw response bytes that may contain a partial block.
+   * @returns End offset (exclusive) when complete, otherwise null.
+   * @throws Error when the block framing is invalid.
+   */
+  protected _findARBBlockCompletionOffset(response: Uint8Array): number | null {
+    let offset = 0
+    while (offset < response.length && this._isWhitespaceByte(response[offset])) {
+      offset += 1
+    }
+
+    if (offset >= response.length) {
+      return null
+    }
+
+    if (response[offset] !== 0x23) {
+      throw new Error('USBTMC response does not start with a SCPI block')
+    }
+
+    const digitFieldOffset = offset + 1
+    if (digitFieldOffset >= response.length) {
+      return null
+    }
+
+    const digitCount = response[digitFieldOffset] - 0x30
+    if (digitCount < 0 || digitCount > 9) {
+      throw new Error('USBTMC SCPI block header has an invalid length field')
+    }
+
+    const lengthFieldOffset = digitFieldOffset + 1
+
+    if (digitCount === 0) {
+      for (let i = lengthFieldOffset; i < response.length; i += 1) {
+        if (response[i] === 0x0a) {
+          return i + 1
+        }
+      }
+      return null
+    }
+
+    const payloadOffset = lengthFieldOffset + digitCount
+    if (payloadOffset > response.length) {
+      return null
+    }
+
+    let payloadLength = 0
+    for (let i = 0; i < digitCount; i += 1) {
+      const value = response[lengthFieldOffset + i] - 0x30
+      if (value < 0 || value > 9) {
+        throw new Error('USBTMC SCPI block header has invalid digits')
+      }
+      payloadLength = payloadLength * 10 + value
+    }
+
+    const payloadEnd = payloadOffset + payloadLength
+    if (payloadEnd > response.length) {
+      return null
+    }
+
+    return payloadEnd
   }
 
   /**

@@ -1,0 +1,371 @@
+import { act, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { DRPDDevice } from '../../../lib/device'
+import type { LoggedCapturedMessage } from '../../../lib/device'
+import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
+import type { RackDeviceState } from '../RackRenderer'
+import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
+
+class TestLogDriver extends EventTarget {
+  public rows: LoggedCapturedMessage[]
+
+  public constructor(rows: LoggedCapturedMessage[]) {
+    super()
+    this.rows = rows
+  }
+
+  public getState() {
+    return {
+      role: null,
+      ccBusRoleStatus: null,
+      analogMonitor: null,
+      vbusInfo: null,
+      captureEnabled: null,
+      triggerInfo: null,
+      sinkInfo: null,
+      sinkPdoList: null,
+    }
+  }
+
+  public async getLogCounts(): Promise<{ analog: number; messages: number }> {
+    return { analog: 0, messages: this.rows.length }
+  }
+
+  public async queryCapturedMessages(query: {
+    sortOrder?: 'asc' | 'desc'
+    offset?: number
+    limit?: number
+  }): Promise<LoggedCapturedMessage[]> {
+    const sorted =
+      query.sortOrder === 'desc' ? [...this.rows].reverse() : [...this.rows]
+    const offset = query.offset ?? 0
+    const limit = query.limit ?? sorted.length
+    return sorted.slice(offset, offset + limit)
+  }
+}
+
+const buildInstrument = (): RackInstrument => ({
+  id: 'inst-log',
+  instrumentIdentifier: 'com.mta.drpd.usbpd-log',
+})
+
+const buildDeviceRecord = (): RackDeviceRecord => ({
+  id: 'device-1',
+  identifier: 'com.mta.drpd',
+  displayName: 'Dr. PD',
+  vendorId: 0x2e8a,
+  productId: 0x000a,
+})
+
+const buildMessage = (
+  index: number,
+  messageType = 1,
+): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
+  startTimestampUs: BigInt(1000 + index * 10),
+  endTimestampUs: BigInt(1005 + index * 10),
+  displayTimestampUs: BigInt(index * 10),
+  decodeResult: 0,
+  sopKind: 'SOP',
+  messageKind: 'CONTROL',
+  messageType,
+  messageId: index,
+  senderPowerRole: index % 2 === 0 ? 'SOURCE' : 'SINK',
+  senderDataRole: index % 2 === 0 ? 'DFP' : 'UFP',
+  pulseCount: 3,
+  rawPulseWidths: Uint16Array.from([1, 2, 3]),
+  rawSop: Uint8Array.from([0x12, 0x34, 0x56, 0x78]),
+  rawDecodedData: Uint8Array.from([0xaa, 0xbb]),
+  parseError: null,
+  createdAtMs: 1_700_000_000_000 + index,
+})
+
+const buildEvent = (
+  index: number,
+  text: string,
+  eventType: LoggedCapturedMessage['eventType'] = 'capture_changed',
+): LoggedCapturedMessage => ({
+  entryKind: 'event',
+  eventType,
+  eventText: text,
+  eventWallClockMs: 1_700_000_100_000 + index,
+  startTimestampUs: BigInt(2000 + index),
+  endTimestampUs: BigInt(2000 + index),
+  displayTimestampUs: null,
+  decodeResult: 0,
+  sopKind: null,
+  messageKind: null,
+  messageType: null,
+  messageId: null,
+  senderPowerRole: null,
+  senderDataRole: null,
+  pulseCount: 0,
+  rawPulseWidths: new Uint16Array(),
+  rawSop: new Uint8Array(),
+  rawDecodedData: new Uint8Array(),
+  parseError: null,
+  createdAtMs: 1_700_000_100_000 + index,
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('DrpdUsbPdLogInstrumentView', () => {
+  it('loads existing logged rows on mount without waiting for add events', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1), // GoodCRC
+      buildMessage(1, 3), // Accept
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      const canvas = screen.getByTestId('drpd-usbpd-log-canvas')
+      expect(canvas).toHaveStyle({ height: '28px' })
+    })
+    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
+    expect(await screen.findByText('Accept')).toBeInTheDocument()
+  })
+
+  it('recovers from missed add events by reconciling counts and fetching new rows', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
+
+    // Simulate missed worker/device events: rows exist in store, but no LOG_ENTRY_ADDED_EVENT dispatched.
+    driver.rows = [buildMessage(0, 1), buildMessage(1, 3), buildMessage(2, 4)] // GoodCRC, Accept, Reject
+
+    await waitFor(() => {
+      expect(screen.getByText('Reject')).toBeInTheDocument()
+    }, { timeout: 3500 })
+  })
+
+  it('continues rendering appended rows across multiple add events', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
+
+    const appendAndEmit = (nextRow: LoggedCapturedMessage) => {
+      driver.rows = [...driver.rows, nextRow]
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'message', row: nextRow },
+        }),
+      )
+    }
+
+    await act(async () => {
+      appendAndEmit(buildMessage(1, 3)) // Accept
+      appendAndEmit(buildMessage(2, 4)) // Reject
+      appendAndEmit(buildMessage(3, 6)) // PS_RDY
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Accept')).toBeInTheDocument()
+      expect(screen.getByText('Reject')).toBeInTheDocument()
+      expect(screen.getByText('PS RDY')).toBeInTheDocument()
+    })
+  })
+
+  it('maps SOP prime sender and receiver using cable-plug origin metadata', async () => {
+    const cableToPort = {
+      ...buildMessage(0, 1),
+      sopKind: 'SOP_PRIME',
+      senderPowerRole: 'SOURCE',
+      senderDataRole: 'CABLE_PLUG_VPD',
+    } satisfies LoggedCapturedMessage
+    const portToCable = {
+      ...buildMessage(1, 1),
+      sopKind: 'SOP_PRIME',
+      senderPowerRole: 'SOURCE',
+      senderDataRole: 'UFP_DFP',
+    } satisfies LoggedCapturedMessage
+
+    const driver = new TestLogDriver([cableToPort, portToCable])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByText("SOP'").length).toBeGreaterThanOrEqual(2)
+    })
+
+    const rowTexts = Array.from(container.querySelectorAll('[class*="dataRow"]')).map(
+      (row) => row.textContent ?? '',
+    )
+    expect(rowTexts.some((text) => text.includes('CableSource'))).toBe(true)
+    expect(rowTexts.some((text) => text.includes('SourceCable'))).toBe(true)
+  })
+
+  it('renders full-width event rows and applies per-event-type colors', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
+      buildEvent(2, 'CC role changed to SOURCE at 2026-02-28 10:00:01', 'cc_role_changed'),
+      buildEvent(3, 'Device status changed to ATTACHED at 2026-02-28 10:00:02', 'cc_status_changed'),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={{
+          ...buildInstrument(),
+          config: {
+            captureChangedEventTextColor: 'rgb(255, 170, 0)',
+            ccRoleChangedEventTextColor: 'rgb(0, 180, 255)',
+            ccStatusChangedEventTextColor: 'rgb(50, 220, 120)',
+          },
+        }}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(
+      await screen.findByText('Capture turned off at 2026-02-28 10:00:00'),
+    ).toBeInTheDocument()
+    const eventRow = container.querySelector('[class*="eventRowCapture"]')
+    expect(eventRow).not.toBeNull()
+    const eventLabel = container.querySelector('[class*="eventLabel"]')
+    expect(eventLabel).not.toBeNull()
+    expect(screen.getByTestId('drpd-usbpd-log')).toHaveStyle({
+      '--event-color-capture': 'rgb(255, 170, 0)',
+      '--event-color-role': 'rgb(0, 180, 255)',
+      '--event-color-status': 'rgb(50, 220, 120)',
+    })
+  })
+
+  it('resets delta display after an event row', async () => {
+    const afterEventMessage = {
+      ...buildMessage(2, 4),
+      startTimestampUs: 3000n,
+      endTimestampUs: 3005n,
+      displayTimestampUs: 0n,
+    } satisfies LoggedCapturedMessage
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
+      afterEventMessage,
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('Reject')).toBeInTheDocument()
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    expect(rows.length).toBeGreaterThanOrEqual(3)
+    expect(rows[2]?.textContent ?? '').toContain('--')
+  })
+
+  it('resets delta display to -- for messages appended after an event row', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildEvent(1, 'CC role changed to SINK')])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('CC role changed to SINK')).toBeInTheDocument()
+
+    const appended = {
+      ...buildMessage(2, 4),
+      startTimestampUs: 5000n,
+      endTimestampUs: 5005n,
+      displayTimestampUs: 0n,
+    } satisfies LoggedCapturedMessage
+    await act(async () => {
+      driver.rows = [...driver.rows, appended]
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'message', row: appended },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Reject')).toBeInTheDocument()
+    })
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    expect(rows[2]?.textContent ?? '').toContain('--')
+  })
+})

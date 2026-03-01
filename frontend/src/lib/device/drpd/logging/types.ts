@@ -27,6 +27,8 @@ export interface DRPDLoggingConfig {
 export interface LoggedAnalogSample {
   ///< Capture timestamp in microseconds.
   timestampUs: bigint
+  ///< Display timestamp in microseconds relative to the active logging epoch.
+  displayTimestampUs: bigint | null
   ///< VBUS voltage in volts.
   vbusV: number
   ///< IBUS current in amps.
@@ -38,13 +40,36 @@ export interface LoggedAnalogSample {
 }
 
 /**
+ * Logged entry kind stored in the captured message stream.
+ */
+export type LoggedCapturedEntryKind = 'message' | 'event'
+
+/**
+ * Significant event type stored in the captured message stream.
+ */
+export type LoggedCapturedEventType =
+  | 'capture_changed'
+  | 'cc_role_changed'
+  | 'cc_status_changed'
+
+/**
  * Logged captured USB-PD message row.
  */
 export interface LoggedCapturedMessage {
+  ///< Row kind discriminator.
+  entryKind: LoggedCapturedEntryKind
+  ///< Optional event type for event rows.
+  eventType: LoggedCapturedEventType | null
+  ///< Optional event text for event rows.
+  eventText: string | null
+  ///< Optional event wall-clock timestamp in milliseconds.
+  eventWallClockMs: number | null
   ///< Capture start timestamp in microseconds.
   startTimestampUs: bigint
   ///< Capture end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Display timestamp in microseconds relative to the active logging epoch.
+  displayTimestampUs: bigint | null
   ///< Raw decode result code.
   decodeResult: number
   ///< SOP kind derived from decoded payload.
@@ -55,9 +80,9 @@ export interface LoggedCapturedMessage {
   messageType: number | null
   ///< Message id from the header.
   messageId: number | null
-  ///< Sender power role (SOURCE/SINK) when present.
+  ///< Sender power role (SOURCE/SINK) for SOP, or normalized SOURCE endpoint for SOP'/SOP''.
   senderPowerRole: string | null
-  ///< Sender data role (DFP/UFP) when present.
+  ///< Sender data role (DFP/UFP) for SOP, or SOP'/SOP'' Cable Plug origin marker.
   senderDataRole: string | null
   ///< Number of captured pulses.
   pulseCount: number
@@ -93,6 +118,8 @@ export interface CapturedMessageQuery {
   startTimestampUs: bigint
   ///< Inclusive end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Sort order by start timestamp.
+  sortOrder?: 'asc' | 'desc'
   ///< Optional message kind filter.
   messageKinds?: string[]
   ///< Optional sender power role filter.
@@ -101,6 +128,8 @@ export interface CapturedMessageQuery {
   senderDataRoles?: string[]
   ///< Optional SOP kind filter.
   sopKinds?: string[]
+  ///< Optional row offset from the ordered result set.
+  offset?: number
   ///< Optional row limit.
   limit?: number
 }

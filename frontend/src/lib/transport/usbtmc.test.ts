@@ -300,6 +300,21 @@ describe('USBTMCTransport', () => {
     expect(response).toEqual(new Uint8Array([1, 2, 3, 4]))
   })
 
+  it('queryBinary reads ARB response across multiple chunks', async () => {
+    const device = createMockDevice()
+    const chunk1 = new Uint8Array([0x23, 0x31])
+    const chunk2 = new Uint8Array([0x38, 1, 2, 3, 4, 5, 6])
+    const chunk3 = new Uint8Array([7, 8])
+    device.__setPayloads([chunk1, chunk2, chunk3])
+
+    const transport = new TestTransport(device)
+    await transport.open()
+
+    const response = await transport.queryBinary('DATA:READ?')
+    expect(response).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))
+    expect(device.transferIn).toHaveBeenCalledTimes(3)
+  })
+
   it('checkError throws when device reports an error', async () => {
     const device = createMockDevice()
     device.__setPayloads([encoder.encode('5,"Oops"\n')])

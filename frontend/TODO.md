@@ -6,3 +6,4 @@
 ## Improvements
 
 - [ ] Add support for detecting connections/disconnection of the device
+- [ ] Make sure that the logging database is versioned and can be migrated when the log format changes

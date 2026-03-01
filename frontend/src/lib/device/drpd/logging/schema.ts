@@ -12,6 +12,7 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS analog_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp_us INTEGER NOT NULL,
+    display_timestamp_us INTEGER,
     vbus_v REAL NOT NULL,
     ibus_a REAL NOT NULL,
     role TEXT,
@@ -19,8 +20,13 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
   );`,
   `CREATE TABLE IF NOT EXISTS captured_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_kind TEXT NOT NULL DEFAULT 'message',
+    event_type TEXT,
+    event_text TEXT,
+    event_wall_clock_ms INTEGER,
     start_timestamp_us INTEGER NOT NULL,
     end_timestamp_us INTEGER NOT NULL,
+    display_timestamp_us INTEGER,
     decode_result INTEGER NOT NULL,
     sop_kind TEXT,
     message_kind TEXT,
@@ -49,4 +55,4 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
 /**
  * Schema version used by the logging store.
  */
-export const LOG_SCHEMA_VERSION = 1
+export const LOG_SCHEMA_VERSION = 2

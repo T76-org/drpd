@@ -16,6 +16,8 @@ import type {
   LogExportRequest,
   LogExportResult,
   LoggedAnalogSample,
+  LoggedCapturedEntryKind,
+  LoggedCapturedEventType,
   LoggedCapturedMessage,
 } from './logging/types'
 
@@ -520,5 +522,7 @@ export type {
   LogExportRequest,
   LogExportResult,
   LoggedAnalogSample,
+  LoggedCapturedEntryKind,
+  LoggedCapturedEventType,
   LoggedCapturedMessage,
 }

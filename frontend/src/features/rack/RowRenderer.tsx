@@ -11,6 +11,7 @@ import { InstrumentBase } from './InstrumentBase'
 import { DrpdCcLinesInstrumentView } from './instruments/DrpdCcLinesInstrumentView'
 import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusInstrumentView'
 import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
+import { DrpdUsbPdLogInstrumentView } from './instruments/DrpdUsbPdLogInstrumentView'
 import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
 import { DrpdPlaceholderInstrumentView } from './instruments/DrpdPlaceholderInstrumentView'
 import styles from './RowRenderer.module.css'
@@ -277,6 +278,17 @@ const renderInstrument = ({
     case 'com.mta.drpd.sink-control':
       return (
         <DrpdSinkControlInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          deviceRecord={deviceRecord}
+          deviceState={deviceState}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
+        />
+      )
+    case 'com.mta.drpd.usbpd-log':
+      return (
+        <DrpdUsbPdLogInstrumentView
           instrument={instrument}
           displayName={definition?.displayName ?? 'Instrument'}
           deviceRecord={deviceRecord}

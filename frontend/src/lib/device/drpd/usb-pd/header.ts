@@ -66,7 +66,12 @@ export class Header {
     if (sop.kind === 'SOP') {
       powerRole = roleBit === 1 ? 'SOURCE' : 'SINK'
       dataRole = dataRoleBit === 1 ? 'DFP' : 'UFP'
-    } else if (sop.kind === 'SOP_PRIME' || sop.kind === 'SOP_DOUBLE_PRIME') {
+    } else if (
+      sop.kind === 'SOP_PRIME' ||
+      sop.kind === 'SOP_DOUBLE_PRIME' ||
+      sop.kind === 'SOP_DEBUG_PRIME' ||
+      sop.kind === 'SOP_DEBUG_DOUBLE_PRIME'
+    ) {
       cablePlug = roleBit === 1 ? 'CABLE_PLUG_VPD' : 'UFP_DFP'
     }
 

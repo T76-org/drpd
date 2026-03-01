@@ -91,6 +91,25 @@ export class DrpdSinkControlInstrument extends Instrument {
 }
 
 /**
+ * USB-PD message log instrument for Dr. PD capture logs.
+ */
+export class DrpdUsbPdLogInstrument extends Instrument {
+  /**
+   * Create a USB-PD log instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.usbpd-log',
+      displayName: 'Message Log',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'fixed', units: 5 },
+      defaultUnits: 1,
+      defaultHeightMode: 'flex'
+    })
+  }
+}
+
+/**
  * Build the list of supported instrument definitions.
  */
 export const getSupportedInstruments = (): Instrument[] => {
@@ -99,6 +118,7 @@ export const getSupportedInstruments = (): Instrument[] => {
     new DrpdCcLinesInstrument(),
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),
+    new DrpdUsbPdLogInstrument(),
     new DrpdPlaceholderInstrument()
   ]
 }

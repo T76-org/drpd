@@ -206,6 +206,7 @@ const toBlobValue = (value: SqlValue | undefined, label: string): Uint8Array => 
 const toSerializableAnalog = (row: LoggedAnalogSample): Record<string, unknown> => {
   return {
     timestampUs: row.timestampUs.toString(),
+    displayTimestampUs: row.displayTimestampUs?.toString() ?? null,
     vbusV: row.vbusV,
     ibusA: row.ibusA,
     role: row.role,
@@ -221,8 +222,13 @@ const toSerializableAnalog = (row: LoggedAnalogSample): Record<string, unknown> 
  */
 const toSerializableMessage = (row: LoggedCapturedMessage): Record<string, unknown> => {
   return {
+    entryKind: row.entryKind,
+    eventType: row.eventType,
+    eventText: row.eventText,
+    eventWallClockMs: row.eventWallClockMs,
     startTimestampUs: row.startTimestampUs.toString(),
     endTimestampUs: row.endTimestampUs.toString(),
+    displayTimestampUs: row.displayTimestampUs?.toString() ?? null,
     decodeResult: row.decodeResult,
     sopKind: row.sopKind,
     messageKind: row.messageKind,
@@ -291,6 +297,16 @@ export class SQLiteWasmStore implements DRPDLogStore {
       for (const statement of LOG_SCHEMA_STATEMENTS) {
         this.db.exec(statement)
       }
+      this.ensureColumnExists('analog_samples', 'display_timestamp_us', 'INTEGER')
+      this.ensureColumnExists(
+        'captured_messages',
+        'entry_kind',
+        "TEXT NOT NULL DEFAULT 'message'",
+      )
+      this.ensureColumnExists('captured_messages', 'event_type', 'TEXT')
+      this.ensureColumnExists('captured_messages', 'event_text', 'TEXT')
+      this.ensureColumnExists('captured_messages', 'event_wall_clock_ms', 'INTEGER')
+      this.ensureColumnExists('captured_messages', 'display_timestamp_us', 'INTEGER')
       this.db.exec(
         'INSERT OR REPLACE INTO logging_metadata(key, value) VALUES(?, ?)',
         { bind: ['schema_version', String(LOG_SCHEMA_VERSION)] },
@@ -339,11 +355,12 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
     const db = this.requireDb()
     const stmt = db.prepare(
-      'INSERT INTO analog_samples(timestamp_us, vbus_v, ibus_a, role, created_at_ms) VALUES(?, ?, ?, ?, ?)',
+      'INSERT INTO analog_samples(timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms) VALUES(?, ?, ?, ?, ?, ?)',
     )
     try {
       stmt.bind([
         sample.timestampUs,
+        sample.displayTimestampUs,
         sample.vbusV,
         sample.ibusA,
         sample.role,
@@ -372,15 +389,20 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const stmt = db.prepare(
       [
         'INSERT INTO captured_messages(',
-        'start_timestamp_us,end_timestamp_us,decode_result,sop_kind,message_kind,message_type,message_id,',
+        'entry_kind,event_type,event_text,event_wall_clock_ms,start_timestamp_us,end_timestamp_us,display_timestamp_us,decode_result,sop_kind,message_kind,message_type,message_id,',
         'sender_power_role,sender_data_role,pulse_count,raw_pulse_widths,raw_sop,raw_decoded_data,parse_error,created_at_ms',
-        ') VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        ') VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ],
     )
     try {
       stmt.bind([
+        message.entryKind,
+        message.eventType,
+        message.eventText,
+        message.eventWallClockMs,
         message.startTimestampUs,
         message.endTimestampUs,
+        message.displayTimestampUs,
         message.decodeResult,
         message.sopKind,
         message.messageKind,
@@ -425,7 +447,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
 
     const sql = [
-      'SELECT timestamp_us, vbus_v, ibus_a, role, created_at_ms',
+      'SELECT timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms',
       'FROM analog_samples',
       'WHERE timestamp_us >= ? AND timestamp_us <= ?',
       'ORDER BY timestamp_us ASC, id ASC',
@@ -441,6 +463,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const records = this.requireDb().selectObjects(sql, bind)
     return records.map((record) => ({
       timestampUs: toBigIntValue(record.timestamp_us as SqlValue, 'analog.timestamp_us'),
+      displayTimestampUs:
+        record.display_timestamp_us === null || record.display_timestamp_us === undefined
+          ? null
+          : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
       vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
       ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
       role: (record.role ?? null) as string | null,
@@ -458,6 +484,15 @@ export class SQLiteWasmStore implements DRPDLogStore {
     query: CapturedMessageQuery,
   ): Promise<LoggedCapturedMessage[]> {
     this.ensureInitialized()
+    const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    const offset =
+      query.offset != null && Number.isFinite(query.offset) && query.offset > 0
+        ? Math.floor(query.offset)
+        : 0
+    const limit =
+      query.limit != null && Number.isFinite(query.limit) && query.limit > 0
+        ? Math.floor(query.limit)
+        : null
     if (this.memoryFallback) {
       const hasMessageKinds = Boolean(query.messageKinds?.length)
       const hasSenderPowerRoles = Boolean(query.senderPowerRoles?.length)
@@ -495,31 +530,67 @@ export class SQLiteWasmStore implements DRPDLogStore {
               ? 1
               : 0,
         )
-      if (!query.limit || query.limit <= 0) {
-        return rows
+      const sortedRows = sortOrder === 'desc' ? rows.reverse() : rows
+      const pagedRows = offset > 0 ? sortedRows.slice(offset) : sortedRows
+      if (limit === null) {
+        return pagedRows
       }
-      return rows.slice(0, query.limit)
+      return pagedRows.slice(0, limit)
     }
 
-    const sql = [
-      'SELECT start_timestamp_us, end_timestamp_us, decode_result, sop_kind, message_kind,',
+    const clauses = ['start_timestamp_us >= ?', 'start_timestamp_us <= ?']
+    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
+    if (query.messageKinds?.length) {
+      clauses.push(`message_kind IN (${query.messageKinds.map(() => '?').join(', ')})`)
+      bind.push(...query.messageKinds)
+    }
+    if (query.senderPowerRoles?.length) {
+      clauses.push(`sender_power_role IN (${query.senderPowerRoles.map(() => '?').join(', ')})`)
+      bind.push(...query.senderPowerRoles)
+    }
+    if (query.senderDataRoles?.length) {
+      clauses.push(`sender_data_role IN (${query.senderDataRoles.map(() => '?').join(', ')})`)
+      bind.push(...query.senderDataRoles)
+    }
+    if (query.sopKinds?.length) {
+      clauses.push(`sop_kind IN (${query.sopKinds.map(() => '?').join(', ')})`)
+      bind.push(...query.sopKinds)
+    }
+
+    const sqlParts = [
+      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
       'message_type, message_id, sender_power_role, sender_data_role, pulse_count,',
       'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
       'FROM captured_messages',
-      'WHERE start_timestamp_us >= ? AND start_timestamp_us <= ?',
-      'ORDER BY start_timestamp_us ASC, id ASC',
-      query.limit && query.limit > 0 ? 'LIMIT ?' : '',
+      `WHERE ${clauses.join(' AND ')}`,
+      `ORDER BY start_timestamp_us ${sortOrder.toUpperCase()}, id ${sortOrder.toUpperCase()}`,
     ]
-      .filter(Boolean)
-      .join(' ')
-    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
-    if (query.limit && query.limit > 0) {
-      bind.push(Math.floor(query.limit))
+    if (limit !== null) {
+      sqlParts.push('LIMIT ?')
+      bind.push(limit)
+    } else if (offset > 0) {
+      sqlParts.push('LIMIT -1')
     }
+    if (offset > 0) {
+      sqlParts.push('OFFSET ?')
+      bind.push(offset)
+    }
+    const sql = sqlParts.join(' ')
 
-    let rows = this.requireDb().selectObjects(sql, bind).map((record) => ({
+    return this.requireDb().selectObjects(sql, bind).map((record) => ({
+      entryKind: ((record.entry_kind as string | null) ?? 'message') as LoggedCapturedMessage['entryKind'],
+      eventType: (record.event_type ?? null) as LoggedCapturedMessage['eventType'],
+      eventText: (record.event_text ?? null) as string | null,
+      eventWallClockMs:
+        record.event_wall_clock_ms === null || record.event_wall_clock_ms === undefined
+          ? null
+          : toNumberValue(record.event_wall_clock_ms as SqlValue, 'message.event_wall_clock_ms'),
       startTimestampUs: toBigIntValue(record.start_timestamp_us as SqlValue, 'message.start_timestamp_us'),
       endTimestampUs: toBigIntValue(record.end_timestamp_us as SqlValue, 'message.end_timestamp_us'),
+      displayTimestampUs:
+        record.display_timestamp_us === null || record.display_timestamp_us === undefined
+          ? null
+          : toBigIntValue(record.display_timestamp_us as SqlValue, 'message.display_timestamp_us'),
       decodeResult: toNumberValue(record.decode_result as SqlValue, 'message.decode_result'),
       sopKind: (record.sop_kind ?? null) as string | null,
       messageKind: (record.message_kind ?? null) as string | null,
@@ -540,27 +611,6 @@ export class SQLiteWasmStore implements DRPDLogStore {
       parseError: (record.parse_error ?? null) as string | null,
       createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'message.created_at_ms'),
     }))
-
-    if (query.messageKinds?.length) {
-      rows = rows.filter((row) => row.messageKind !== null && query.messageKinds?.includes(row.messageKind))
-    }
-    if (query.senderPowerRoles?.length) {
-      rows = rows.filter(
-        (row) => row.senderPowerRole !== null && query.senderPowerRoles?.includes(row.senderPowerRole),
-      )
-    }
-    if (query.senderDataRoles?.length) {
-      rows = rows.filter(
-        (row) => row.senderDataRole !== null && query.senderDataRoles?.includes(row.senderDataRole),
-      )
-    }
-    if (query.sopKinds?.length) {
-      rows = rows.filter((row) => row.sopKind !== null && query.sopKinds?.includes(row.sopKind))
-    }
-    if (!query.limit || query.limit <= 0) {
-      return rows
-    }
-    return rows.slice(0, query.limit)
   }
 
   /**
@@ -606,11 +656,12 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const lines: string[] = []
     if (request.includeAnalog) {
       lines.push('analog_samples')
-      lines.push('timestamp_us,vbus_v,ibus_a,role,created_at_ms')
+      lines.push('timestamp_us,display_timestamp_us,vbus_v,ibus_a,role,created_at_ms')
       for (const row of analog) {
         lines.push(
           [
             row.timestampUs.toString(),
+            row.displayTimestampUs?.toString() ?? '',
             row.vbusV.toString(),
             row.ibusA.toString(),
             toCSVField(row.role ?? ''),
@@ -627,8 +678,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       lines.push('captured_messages')
       lines.push(
         [
+          'entry_kind',
+          'event_type',
+          'event_text',
+          'event_wall_clock_ms',
           'start_timestamp_us',
           'end_timestamp_us',
+          'display_timestamp_us',
           'decode_result',
           'sop_kind',
           'message_kind',
@@ -647,8 +703,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       for (const row of messages) {
         lines.push(
           [
+            row.entryKind,
+            toCSVField(row.eventType ?? ''),
+            toCSVField(row.eventText ?? ''),
+            row.eventWallClockMs?.toString() ?? '',
             row.startTimestampUs.toString(),
             row.endTimestampUs.toString(),
+            row.displayTimestampUs?.toString() ?? '',
             row.decodeResult.toString(),
             toCSVField(row.sopKind ?? ''),
             toCSVField(row.messageKind ?? ''),
@@ -819,6 +880,28 @@ export class SQLiteWasmStore implements DRPDLogStore {
       throw new Error('DRPD SQLite database is not open')
     }
     return this.db
+  }
+
+  /**
+   * Ensure a table has a required column, adding it when missing.
+   *
+   * @param tableName - Table name.
+   * @param columnName - Column name to enforce.
+   * @param columnDefinition - SQLite column definition.
+   */
+  protected ensureColumnExists(
+    tableName: string,
+    columnName: string,
+    columnDefinition: string,
+  ): void {
+    const db = this.requireDb()
+    const columns = db.selectObjects(
+      `PRAGMA table_info(${tableName})`,
+    ) as Array<{ name?: string }>
+    if (columns.some((column) => column.name === columnName)) {
+      return
+    }
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`)
   }
 
   /**
