@@ -38,19 +38,13 @@
     var(--column-width-sop-type)
     var(--column-width-valid);
   padding: var(--space-0) var(--space-8);
-  border-top: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 80%, black 20%);
-  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 55%, white 45%);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-surface-panel-accent) 72%, black 28%) 0%,
-      color-mix(in srgb, var(--color-surface-panel-accent) 58%, black 42%) 100%
-    );
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-border-panel) 60%, white 40%);
+  border-top: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 95%, transparent);
+  background: color-mix(in srgb, var(--color-surface-panel-accent) 88%, var(--color-surface-instrument) 12%);
   font-size: var(--font-size-3xs);
   letter-spacing: var(--letter-spacing-sm);
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text-muted) 80%, white 20%);
+  color: color-mix(in srgb, var(--color-text-muted) 92%, var(--color-text-primary) 8%);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
