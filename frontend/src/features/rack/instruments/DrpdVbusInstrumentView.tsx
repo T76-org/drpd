@@ -90,9 +90,18 @@ export const DrpdVbusInstrumentView = ({
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null
   )
-  const [accumulatedAh, setAccumulatedAh] = useState<number>(() => loadPersistedAh(storageKey))
+  const [accumulatedAhState, setAccumulatedAhState] = useState<{
+    storageKey: string
+    value: number
+  }>(() => ({
+    storageKey,
+    value: loadPersistedAh(storageKey)
+  }))
+  const accumulatedAh =
+    accumulatedAhState.storageKey === storageKey
+      ? accumulatedAhState.value
+      : loadPersistedAh(storageKey)
   const lastSampleTimestampRef = useRef<bigint | null>(analogMonitor?.captureTimestampUs ?? null)
-  const accumulatedAhRef = useRef<number>(accumulatedAh)
 
   const metricColors = {
     '--vbus-current-color': instrumentConfig.currentColor ?? 'var(--color-status-ok)',
@@ -127,14 +136,10 @@ export const DrpdVbusInstrumentView = ({
   }, [driver])
 
   useEffect(() => {
-    const persistedAh = loadPersistedAh(storageKey)
-    accumulatedAhRef.current = persistedAh
-    setAccumulatedAh(persistedAh)
     lastSampleTimestampRef.current = null
   }, [storageKey])
 
   useEffect(() => {
-    accumulatedAhRef.current = accumulatedAh
     const storage = getVbusStorage()
     if (!storage) {
       return
@@ -166,12 +171,18 @@ export const DrpdVbusInstrumentView = ({
     if (!Number.isFinite(deltaAh)) {
       return
     }
-    setAccumulatedAh((previousAh) => {
-      const nextAh = previousAh + deltaAh
-      accumulatedAhRef.current = nextAh
-      return nextAh
+    setAccumulatedAhState((previousState) => {
+      const baseAh =
+        previousState.storageKey === storageKey
+          ? previousState.value
+          : loadPersistedAh(storageKey)
+      const nextAh = baseAh + deltaAh
+      return {
+        storageKey,
+        value: nextAh
+      }
     })
-  }, [analogMonitor])
+  }, [analogMonitor, storageKey])
 
   const vbusVoltage = analogMonitor?.vbus
   const vbusCurrent = analogMonitor?.ibus
