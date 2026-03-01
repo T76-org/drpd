@@ -517,7 +517,7 @@ export const DrpdUsbPdLogInstrumentView = ({
       <div className={styles.wrapper} style={eventRowStyle} data-testid="drpd-usbpd-log">
         <div className={styles.headerRow}>
           <span>Timestamp</span>
-          <span>Duration</span>
+          <span>Length</span>
           <span>Δt</span>
           <span>ID</span>
           <span>Message type</span>
