@@ -232,7 +232,6 @@ export class DRPDDevice extends EventTarget {
     this.loggingStarted = false
     this.activeDisplayEpochStartUs = null
     this.pendingDisplayEpochReset = false
-    this.lastKnownDeviceTimestampUs = null
     this.logDebug('logging: stopped')
   }
 

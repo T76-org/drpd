@@ -121,6 +121,7 @@ const toDisplayRows = (
   let previousEnd = previousEndTimestampUs
   return pageRows.map((row) => {
     if (row.entryKind === 'event') {
+      previousEnd = null
       return {
         key: `${row.startTimestampUs.toString()}-${row.createdAtMs}-event`,
         kind: 'event',
@@ -332,13 +333,21 @@ export const DrpdUsbPdLogInstrumentView = ({
 
         if (targetIndex === 0) {
           const previousPage = next.get(targetPageIndex - 1)
-          const previousEnd = previousPage?.[previousPage.length - 1]?.endTimestampUs ?? null
+          const previousTail = previousPage?.[previousPage.length - 1] ?? null
+          const previousEnd =
+            previousTail && previousTail.kind === 'event'
+              ? null
+              : previousTail?.endTimestampUs ?? null
           next.set(targetPageIndex, toDisplayRows([addedRow], previousEnd))
           return next
         }
 
         if (targetPage.length === targetIndex) {
-          const previousEnd = targetPage[targetPage.length - 1]?.endTimestampUs ?? null
+          const previousTail = targetPage[targetPage.length - 1] ?? null
+          const previousEnd =
+            previousTail && previousTail.kind === 'event'
+              ? null
+              : previousTail?.endTimestampUs ?? null
           const appended = toDisplayRows([addedRow], previousEnd)[0]
           next.set(targetPageIndex, [...targetPage, appended])
           return next
@@ -475,7 +484,10 @@ export const DrpdUsbPdLogInstrumentView = ({
         .then((rows) => {
           const previousRow = pageStart === 0 ? null : (rows[0] ?? null)
           const pageRows = pageStart === 0 ? rows : rows.slice(1)
-          const nextRows = toDisplayRows(pageRows, previousRow?.endTimestampUs ?? null)
+          const nextRows = toDisplayRows(
+            pageRows,
+            previousRow?.entryKind === 'event' ? null : previousRow?.endTimestampUs ?? null,
+          )
           setPages((previous) => {
             const next = new Map(previous)
             next.set(pageIndex, nextRows)

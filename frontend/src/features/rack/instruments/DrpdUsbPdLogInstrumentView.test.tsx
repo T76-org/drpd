@@ -294,4 +294,78 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       '--event-color-status': 'rgb(50, 220, 120)',
     })
   })
+
+  it('resets delta display after an event row', async () => {
+    const afterEventMessage = {
+      ...buildMessage(2, 4),
+      startTimestampUs: 3000n,
+      endTimestampUs: 3005n,
+      displayTimestampUs: 0n,
+    } satisfies LoggedCapturedMessage
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
+      afterEventMessage,
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('Reject')).toBeInTheDocument()
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    expect(rows.length).toBeGreaterThanOrEqual(3)
+    expect(rows[2]?.textContent ?? '').toContain('--')
+  })
+
+  it('resets delta display to -- for messages appended after an event row', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildEvent(1, 'CC role changed to SINK')])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('CC role changed to SINK')).toBeInTheDocument()
+
+    const appended = {
+      ...buildMessage(2, 4),
+      startTimestampUs: 5000n,
+      endTimestampUs: 5005n,
+      displayTimestampUs: 0n,
+    } satisfies LoggedCapturedMessage
+    await act(async () => {
+      driver.rows = [...driver.rows, appended]
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'message', row: appended },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Reject')).toBeInTheDocument()
+    })
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    expect(rows[2]?.textContent ?? '').toContain('--')
+  })
 })

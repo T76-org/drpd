@@ -605,4 +605,49 @@ describe('DRPD logging integration', () => {
     expect(analog).toHaveLength(1)
     expect(analog[0].displayTimestampUs).toBe(20n)
   })
+
+  it('keeps logging role/status events after capture is toggled off then on', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+        15_000n,
+        15_020n,
+      ),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+    setRoleStatusSnapshot(device, 'UNATTACHED')
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+    await device.setCaptureEnabled(OnOffState.OFF)
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshRoleStatusFromDevice: () => Promise<void> }
+    ).refreshRoleStatusFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 30_000n,
+      sortOrder: 'asc',
+    })
+    const statusEvent = rows.find((row) => row.entryKind === 'event' && row.eventType === 'cc_status_changed')
+
+    expect(statusEvent).toBeDefined()
+    expect(statusEvent!.startTimestampUs).toBeGreaterThanOrEqual(15_020n)
+  })
 })
