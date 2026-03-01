@@ -21,3 +21,4 @@
     - [ ] Allow modifying most internal device settings (e.g.: thresholds, timings, etc.) via SCPI commands
 
 - [ ] **Bugs**
+    - [ ] Fix timestamp tracking in message receiver (this needs to be done by tracking the timing of each pulse)
