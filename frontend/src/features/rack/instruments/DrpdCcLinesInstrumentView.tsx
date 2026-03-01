@@ -11,20 +11,6 @@ import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdCcLinesInstrumentView.module.css'
 
 /**
- * Format a numeric value using fixed decimals.
- *
- * @param value - Numeric input value.
- * @param decimals - Decimal places to show.
- * @returns Formatted value or placeholder.
- */
-const formatNumber = (value: number | null | undefined, decimals: number): string => {
-  if (value == null || !Number.isFinite(value)) {
-    return '--'
-  }
-  return value.toFixed(decimals)
-}
-
-/**
  * Resolve the CC channel status label and style for a voltage.
  *
  * @param voltage - CC channel voltage.
@@ -143,16 +129,10 @@ export const DrpdCcLinesInstrumentView = ({
             <div className={styles.ccLines}>
               <div className={styles.ccRow}>
                 <span className={styles.ccLabel}>CC1</span>
-                <span className={styles.ccValue}>
-                  {formatNumber(analogMonitor?.dutCc1, 2)} V
-                </span>
                 {renderCCStatusBadge(analogMonitor?.dutCc1)}
               </div>
               <div className={styles.ccRow}>
                 <span className={styles.ccLabel}>CC2</span>
-                <span className={styles.ccValue}>
-                  {formatNumber(analogMonitor?.dutCc2, 2)} V
-                </span>
                 {renderCCStatusBadge(analogMonitor?.dutCc2)}
               </div>
             </div>
@@ -162,16 +142,10 @@ export const DrpdCcLinesInstrumentView = ({
             <div className={styles.ccLines}>
               <div className={styles.ccRow}>
                 <span className={styles.ccLabel}>CC1</span>
-                <span className={styles.ccValue}>
-                  {formatNumber(analogMonitor?.usdsCc1, 2)} V
-                </span>
                 {renderCCStatusBadge(analogMonitor?.usdsCc1)}
               </div>
               <div className={styles.ccRow}>
                 <span className={styles.ccLabel}>CC2</span>
-                <span className={styles.ccValue}>
-                  {formatNumber(analogMonitor?.usdsCc2, 2)} V
-                </span>
                 {renderCCStatusBadge(analogMonitor?.usdsCc2)}
               </div>
             </div>
