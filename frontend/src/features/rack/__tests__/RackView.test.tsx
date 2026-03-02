@@ -430,7 +430,7 @@ describe('RackView', () => {
     ).toBeTruthy()
   })
 
-  it('allocates leftover width equally to flex instruments', async () => {
+  it('keeps fixed-width allocations for placeholder and VBUS instruments', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -467,15 +467,15 @@ describe('RackView', () => {
 
     expect(await screen.findByTestId('rack-instrument-inst-fixed')).toHaveAttribute(
       'data-width-units',
-      '6',
+      '30',
     )
     expect(await screen.findByTestId('rack-instrument-inst-flex-1')).toHaveAttribute(
       'data-width-units',
-      '3',
+      '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-flex-2')).toHaveAttribute(
       'data-width-units',
-      '3',
+      '10',
     )
   })
 
@@ -516,15 +516,15 @@ describe('RackView', () => {
 
     expect(await screen.findByTestId('rack-instrument-inst-status')).toHaveAttribute(
       'data-width-units',
-      '2',
+      '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-cc')).toHaveAttribute(
       'data-width-units',
-      '2',
+      '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
       'data-width-units',
-      '3',
+      '10',
     )
   })
 

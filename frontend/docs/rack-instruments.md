@@ -15,7 +15,7 @@ The Rack JSON is the source of truth for layout, devices, and instruments. It is
 - `src/lib/device/base/types.ts`: Device base class and identifiers.
 - `src/lib/instrument/types.ts`: Instrument base class and identifiers.
 - `src/features/rack/RackView.tsx`: UI that loads the Rack, manages devices, and adds instruments.
-- `src/features/rack/RackRenderer.tsx`: 16:10 rack canvas and layout.
+- `src/features/rack/RackRenderer.tsx`: rack canvas scaling and layout.
 - `src/features/rack/RowRenderer.tsx`: per-row layout and instrument rendering.
 - `src/features/rack/instrumentCatalog.ts`: supported instrument definitions (registry).
 - `src/features/rack/instruments/*.tsx`: concrete instrument views.
@@ -28,6 +28,7 @@ The Rack document is stored in localStorage under `drpd:rack:document` via `load
 - `name`: displayed in the header.
 - `hideHeader`: optional, hides the header when true.
 - `totalUnits`: vertical height in units (1 unit = 100 px).
+- Horizontal width units are derived by instrument definitions (1 width unit = 20 px).
 - `devices`: list of device records associated with the rack.
 - `rows`: list of rows, each row holding instruments.
 
@@ -42,7 +43,7 @@ Each Instrument definition exposes:
 - `defaultWidth`: either fixed width (`{ mode: 'fixed', units: <n> }`) or flex width (`{ mode: 'flex' }`).
 - `defaultUnits`: default height in units.
 
-Rows use a maximum width budget (`MAX_ROW_WIDTH_UNITS`, currently 12). Fixed-width instruments consume their configured width first. Flex-width instruments split any remaining space equally. If a row has no remaining width, flex instruments cannot be inserted into that row.
+Rows use a maximum width budget (`MAX_ROW_WIDTH_UNITS`, currently 60). Fixed-width instruments consume their configured width first. Flex-width instruments split any remaining space equally. If a row has no remaining width, flex instruments cannot be inserted into that row.
 
 The Rack UI gathers the rack’s device identifiers and filters the instrument catalog to only those that list compatible device identifiers. If a Rack has no devices, the Add Instrument button is hidden.
 
