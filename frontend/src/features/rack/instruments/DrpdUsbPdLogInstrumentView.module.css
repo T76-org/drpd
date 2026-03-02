@@ -166,12 +166,12 @@
 
 .headerPopupText {
   margin: var(--space-0);
-  font-size: 0.95rem;
+  font-size: var(--font-size-header-popup-text);
   color: var(--color-text-primary);
 }
 
 .headerPopupLabel {
-  font-size: 0.95rem;
+  font-size: var(--font-size-header-popup-label);
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
   color: var(--color-text-muted);
@@ -181,20 +181,20 @@
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
-  font-size: 1rem;
+  font-size: var(--font-size-header-popup-input);
   padding: var(--space-8) var(--space-10);
   min-height: 38px;
 }
 
 .headerPopupHint {
   margin: var(--space-0);
-  font-size: 0.95rem;
+  font-size: var(--font-size-header-popup-hint);
   color: var(--color-text-muted);
 }
 
 .headerPopupError {
   margin: var(--space-0);
-  font-size: 0.95rem;
+  font-size: var(--font-size-header-popup-hint);
   color: var(--color-status-error);
 }
 
@@ -208,7 +208,7 @@
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-panel);
   color: var(--color-text-primary);
-  font-size: 1rem;
+  font-size: var(--font-size-header-popup-button);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-sm);
   padding: var(--space-8) var(--space-16);

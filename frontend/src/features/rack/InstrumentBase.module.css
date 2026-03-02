@@ -111,7 +111,7 @@
   padding: var(--space-16);
   z-index: 40;
   overflow: auto;
-  font-size: 0.85rem;
+  font-size: var(--font-size-header-popup-base);
 }
 
 .content {

@@ -48,6 +48,14 @@ Starter guidance for contributors and AI agents working in this repo.
 - Ensure components are accessible (e.g., proper ARIA attributes, keyboard navigation).
 - Use CSS modules or styled-components for scoped styling.
 - Follow responsive design principles for mobile compatibility.
+- Header popover typography must use shared tokens from `src/index.css`:
+  - `--font-size-header-popup-base`
+  - `--font-size-header-popup-text`
+  - `--font-size-header-popup-label`
+  - `--font-size-header-popup-input`
+  - `--font-size-header-popup-hint`
+  - `--font-size-header-popup-button`
+  Do not hardcode popup font sizes in instrument CSS modules.
 
 ## Testing
 - Unit tests live near sources (e.g. `src/**/__tests__` or `*.test.ts/tsx`).
@@ -60,4 +68,3 @@ Starter guidance for contributors and AI agents working in this repo.
 # ExecPlans
 
 When writing complex features or significant refactors, use an ExecPlan (as described in `PLANS.md`) from design to implementation.
-

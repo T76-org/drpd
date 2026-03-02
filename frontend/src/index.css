@@ -28,6 +28,14 @@
   --font-size-3xl: 1.75rem;
   --font-size-4xl: 2.51rem;
 
+  /* Shared typography scale for header popovers across rack instruments. */
+  --font-size-header-popup-base: 0.85rem;
+  --font-size-header-popup-text: 0.95rem;
+  --font-size-header-popup-label: 0.95rem;
+  --font-size-header-popup-input: 1rem;
+  --font-size-header-popup-hint: 0.95rem;
+  --font-size-header-popup-button: 1rem;
+
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
