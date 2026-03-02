@@ -63,6 +63,34 @@ const resolveProtectionDisplayStatus = (
   return 'off'
 }
 
+const PopoverLifecycle = ({
+  onMount,
+  onUnmount
+}: {
+  onMount: () => void
+  onUnmount: () => void
+}) => {
+  const onMountRef = useRef(onMount)
+  const onUnmountRef = useRef(onUnmount)
+
+  useEffect(() => {
+    onMountRef.current = onMount
+  }, [onMount])
+
+  useEffect(() => {
+    onUnmountRef.current = onUnmount
+  }, [onUnmount])
+
+  useEffect(() => {
+    onMountRef.current()
+    return () => {
+      onUnmountRef.current()
+    }
+  }, [])
+
+  return null
+}
+
 /**
  * Resolve a safe localStorage instance when available.
  *
@@ -127,9 +155,6 @@ export const DrpdVbusInstrumentView = ({
   const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
     driver ? driver.getState().vbusInfo ?? null : null
   )
-  const [protectionEnabledInput, setProtectionEnabledInput] = useState<boolean>(
-    () => (driver?.getState().vbusInfo?.status ?? VBusStatus.DISABLED) !== VBusStatus.DISABLED,
-  )
   const [ovpThresholdInput, setOvpThresholdInput] = useState<string>(() => {
     const thresholdMv = driver?.getState().vbusInfo?.ovpThresholdMv
     if (thresholdMv == null || !Number.isFinite(thresholdMv)) {
@@ -146,6 +171,7 @@ export const DrpdVbusInstrumentView = ({
   })
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
+  const [isResettingProtection, setIsResettingProtection] = useState(false)
   const [accumulatedAhState, setAccumulatedAhState] = useState<{
     storageKey: string
     value: number
@@ -171,43 +197,29 @@ export const DrpdVbusInstrumentView = ({
      */
     const handleStateUpdated = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (
-        detail?.changed &&
-        !detail.changed.includes('analogMonitor') &&
-        !detail.changed.includes('vbusInfo')
-      ) {
+      const changed = Array.isArray(detail?.changed) ? detail.changed as string[] : null
+      if (changed && !changed.includes('analogMonitor') && !changed.includes('vbusInfo')) {
         return
       }
-      setAnalogMonitor(driver.getState().analogMonitor ?? null)
-      setVbusInfo(driver.getState().vbusInfo ?? null)
+      const state = driver.getState()
+      if (!changed || changed.includes('analogMonitor')) {
+        setAnalogMonitor(state.analogMonitor ?? null)
+      }
+      if (!changed || changed.includes('vbusInfo')) {
+        setVbusInfo(state.vbusInfo ?? null)
+      }
     }
 
     driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
 
     return () => {
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
-      setAnalogMonitor(null)
-      setVbusInfo(null)
     }
   }, [driver])
 
   useEffect(() => {
     lastSampleTimestampRef.current = null
   }, [storageKey])
-
-  useEffect(() => {
-    setProtectionEnabledInput((vbusInfo?.status ?? VBusStatus.DISABLED) !== VBusStatus.DISABLED)
-    setOvpThresholdInput(
-      vbusInfo && Number.isFinite(vbusInfo.ovpThresholdMv)
-        ? (vbusInfo.ovpThresholdMv / 1000).toFixed(2)
-        : '',
-    )
-    setOcpThresholdInput(
-      vbusInfo && Number.isFinite(vbusInfo.ocpThresholdMa)
-        ? (vbusInfo.ocpThresholdMa / 1000).toFixed(2)
-        : '',
-    )
-  }, [vbusInfo])
 
   useEffect(() => {
     const storage = getVbusStorage()
@@ -263,42 +275,81 @@ export const DrpdVbusInstrumentView = ({
   const protectionState = resolveProtectionDisplayStatus(vbusInfo?.status)
   const ovpValueText = formatProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
   const ocpValueText = formatProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
+  const isProtectionTriggered =
+    vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
+    const resetControl: InstrumentHeaderControl = {
+      id: 'reset-vbus',
+      label: 'RESET',
+      disabled: !driver || isEditMode || isResettingProtection,
+      renderPopover: ({ closePopover }) => (
+        <div className={`${styles.headerPopup} ${styles.headerResetPopup}`}>
+          <button
+            type="button"
+            className={styles.headerPopupButton}
+            onClick={() => {
+              if (!driver || !isProtectionTriggered) {
+                return
+              }
+              setIsResettingProtection(true)
+              setConfigureError(null)
+              void driver.vbus
+                .resetFault()
+                .then(async () => {
+                  await driver.refreshState()
+                  closePopover()
+                })
+                .catch((error) => {
+                  const message = error instanceof Error ? error.message : String(error)
+                  setConfigureError(message)
+                })
+                .finally(() => {
+                  setIsResettingProtection(false)
+                })
+            }}
+            disabled={!isProtectionTriggered || isResettingProtection}
+          >
+            {isResettingProtection ? 'Resetting Protection...' : 'Reset Protection'}
+          </button>
+          <button
+            type="button"
+            className={styles.headerPopupButton}
+            onClick={() => {
+              setAccumulatedAhState({ storageKey, value: 0 })
+              closePopover()
+            }}
+          >
+            Reset Charge/Power Tracker
+          </button>
+        </div>
+      )
+    }
+
     const configureControl: InstrumentHeaderControl = {
       id: 'configure-vbus',
       label: 'CONFIGURE',
       disabled: !driver || isEditMode || isApplyingConfig,
       renderPopover: ({ closePopover }) => (
         <div className={styles.headerPopup}>
-          <button
-            type="button"
-            className={`${styles.headerPopupButton} ${styles.headerPopupButtonDanger}`}
-            onClick={() => {
-              setAccumulatedAhState({ storageKey, value: 0 })
+          <PopoverLifecycle
+            onMount={() => {
+              setConfigureError(null)
+              setOvpThresholdInput(
+                vbusInfo && Number.isFinite(vbusInfo.ovpThresholdMv)
+                  ? (vbusInfo.ovpThresholdMv / 1000).toFixed(2)
+                  : '',
+              )
+              setOcpThresholdInput(
+                vbusInfo && Number.isFinite(vbusInfo.ocpThresholdMa)
+                  ? (vbusInfo.ocpThresholdMa / 1000).toFixed(2)
+                  : '',
+              )
             }}
-            disabled={isApplyingConfig}
-          >
-            Reset Charge Counter
-          </button>
-          <div className={styles.headerPopupField}>
-            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-protection-enabled`}>
-              Protection
-            </label>
-            <select
-              id={`${instrument.id}-protection-enabled`}
-              className={styles.headerPopupInput}
-              value={protectionEnabledInput ? 'on' : 'off'}
-              onChange={(event) => {
-                setProtectionEnabledInput(event.currentTarget.value === 'on')
-                setConfigureError(null)
-              }}
-              disabled={isApplyingConfig}
-            >
-              <option value="on">On</option>
-              <option value="off">Off</option>
-            </select>
-          </div>
+            onUnmount={() => {
+              // No cleanup needed
+            }}
+          />
           <div className={styles.headerPopupRow}>
             <div className={styles.headerPopupField}>
               <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-ovp`}>
@@ -340,7 +391,7 @@ export const DrpdVbusInstrumentView = ({
             </div>
           </div>
           <p className={styles.headerPopupHint}>
-            OVP range: 0-{OVP_MAX_V}V · OCP range: 0-{OCP_MAX_A}A (Off applies max thresholds)
+            OVP range: 0-{OVP_MAX_V}V · OCP range: 0-{OCP_MAX_A}A
           </p>
           {configureError ? (
             <p className={styles.headerPopupError}>{configureError}</p>
@@ -377,18 +428,13 @@ export const DrpdVbusInstrumentView = ({
 
                 setIsApplyingConfig(true)
                 setConfigureError(null)
-                const nextOvpV = protectionEnabledInput ? parsedOvpV : OVP_MAX_V
-                const nextOcpA = protectionEnabledInput ? parsedOcpA : OCP_MAX_A
                 void Promise.resolve()
                   .then(async () => {
-                    if (
-                      protectionEnabledInput &&
-                      (vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP)
-                    ) {
+                    if (vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP) {
                       await driver.vbus.resetFault()
                     }
-                    await driver.vbus.setOvpThresholdMv(Math.round(nextOvpV * 1000))
-                    await driver.vbus.setOcpThresholdMa(Math.round(nextOcpA * 1000))
+                    await driver.vbus.setOvpThresholdMv(Math.round(parsedOvpV * 1000))
+                    await driver.vbus.setOcpThresholdMa(Math.round(parsedOcpA * 1000))
                     await driver.refreshState()
                     closePopover()
                   })
@@ -409,17 +455,18 @@ export const DrpdVbusInstrumentView = ({
       )
     }
 
-    return [configureControl]
+    return [resetControl, configureControl]
   }, [
     configureError,
     driver,
     instrument.id,
     isApplyingConfig,
+    isProtectionTriggered,
     isEditMode,
     ocpThresholdInput,
     ovpThresholdInput,
-    protectionEnabledInput,
-    vbusInfo?.status,
+    isResettingProtection,
+    vbusInfo,
     storageKey,
   ])
 

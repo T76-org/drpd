@@ -212,6 +212,10 @@
   min-width: 360px;
 }
 
+.headerResetPopup {
+  min-width: 200px;
+}
+
 .headerPopupRow {
   display: grid;
   grid-template-columns: 1fr 1fr;

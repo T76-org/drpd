@@ -104,7 +104,6 @@
   position: fixed;
   top: 0;
   left: 0;
-  min-width: 380px;
   max-width: min(620px, calc(100vw - var(--space-16)));
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
