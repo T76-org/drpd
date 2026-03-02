@@ -117,8 +117,8 @@
 }
 
 .fieldLabel {
-  font-size: var(--font-size-2xs);
-  letter-spacing: var(--letter-spacing-md);
+  font-size: var(--font-size-xl);
+  letter-spacing: var(--letter-spacing-xl);
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
@@ -127,11 +127,12 @@
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--font-size-xs);
+  padding: var(--space-6) var(--space-8);
+  font-size: var(--font-size-xl);
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
   min-width: 0;
+  min-height: 34px;
 }
 
 .control[readonly] {
@@ -149,13 +150,13 @@
   border: var(--border-thin) solid var(--color-border-panel);
   background: transparent;
   color: var(--color-text-primary);
-  padding: var(--space-1) var(--space-4);
-  font-size: var(--font-size-2xs);
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--font-size-md);
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
   cursor: pointer;
   white-space: nowrap;
-  min-width: 56px;
+  min-width: 96px;
 }
 
 .requestButton {
@@ -171,15 +172,16 @@
 
 .advancedPanel {
   position: static;
-  width: 250px;
+  width: 420px;
+  min-width: 0;
   max-width: calc(100vw - 24px);
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
-  padding: var(--space-6);
+  padding: var(--space-8);
   box-shadow: var(--shadow-strong);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-6);
 }
 
 .advancedTitle {
@@ -191,7 +193,7 @@
 
 .advancedLayout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
   gap: var(--space-12);
   align-items: stretch;
 }
@@ -203,7 +205,7 @@
 }
 
 .pdoList {
-  --pdo-list-row-height: 26px;
+  --pdo-list-row-height: 46px;
 
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
@@ -234,8 +236,8 @@
 }
 
 .emptyList {
-  padding: var(--space-4);
-  font-size: var(--font-size-xs);
+  padding: var(--space-8);
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -247,12 +249,12 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-6) var(--space-8);
   min-height: var(--pdo-list-row-height);
   cursor: pointer;
   display: grid;
   align-content: center;
-  gap: 2px;
+  gap: var(--space-3);
 }
 
 .pdoListItem:last-child {
@@ -275,14 +277,14 @@
 }
 
 .pdoListItemTitle {
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   line-height: var(--line-height-tight);
 }
 
 .pdoListItemDetail {
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-md);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
@@ -291,7 +293,7 @@
 .requestPane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-6);
   min-width: 0;
   min-height: 0;
 }
@@ -303,25 +305,19 @@
   gap: var(--space-4);
 }
 
-.requestPdoType {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-status-warning);
-}
-
 .requestBody {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-6) var(--space-8);
 }
 
 .fieldMeta {
-  min-height: var(--space-12);
+  min-height: var(--space-16);
 }
 
 .fieldHint {
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-lg);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   margin-top: calc(var(--space-2) * -1);
@@ -332,13 +328,13 @@
 .requestActions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-6);
   margin-top: auto;
 }
 
 .message {
   min-height: 1.1em;
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-xl);
   color: var(--color-text-muted);
   line-height: var(--line-height-tight);
 }

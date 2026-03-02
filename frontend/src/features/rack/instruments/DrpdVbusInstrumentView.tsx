@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DRPDDevice, VBusStatus, type AnalogMonitorChannels, type VBusInfo } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
-import { InstrumentBase } from '../InstrumentBase'
+import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdVbusInstrumentView.module.css'
 
 const VBUS_AH_STORAGE_PREFIX = 'drpd:vbus:ah:'
 const MICROSECONDS_PER_HOUR = 3_600_000_000
+const OVP_MAX_V = 50
+const OCP_MAX_A = 6
 
 /**
  * Format a numeric value using fixed decimals.
@@ -125,6 +127,25 @@ export const DrpdVbusInstrumentView = ({
   const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
     driver ? driver.getState().vbusInfo ?? null : null
   )
+  const [protectionEnabledInput, setProtectionEnabledInput] = useState<boolean>(
+    () => (driver?.getState().vbusInfo?.status ?? VBusStatus.DISABLED) !== VBusStatus.DISABLED,
+  )
+  const [ovpThresholdInput, setOvpThresholdInput] = useState<string>(() => {
+    const thresholdMv = driver?.getState().vbusInfo?.ovpThresholdMv
+    if (thresholdMv == null || !Number.isFinite(thresholdMv)) {
+      return ''
+    }
+    return (thresholdMv / 1000).toFixed(2)
+  })
+  const [ocpThresholdInput, setOcpThresholdInput] = useState<string>(() => {
+    const thresholdMa = driver?.getState().vbusInfo?.ocpThresholdMa
+    if (thresholdMa == null || !Number.isFinite(thresholdMa)) {
+      return ''
+    }
+    return (thresholdMa / 1000).toFixed(2)
+  })
+  const [configureError, setConfigureError] = useState<string | null>(null)
+  const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [accumulatedAhState, setAccumulatedAhState] = useState<{
     storageKey: string
     value: number
@@ -173,6 +194,20 @@ export const DrpdVbusInstrumentView = ({
   useEffect(() => {
     lastSampleTimestampRef.current = null
   }, [storageKey])
+
+  useEffect(() => {
+    setProtectionEnabledInput((vbusInfo?.status ?? VBusStatus.DISABLED) !== VBusStatus.DISABLED)
+    setOvpThresholdInput(
+      vbusInfo && Number.isFinite(vbusInfo.ovpThresholdMv)
+        ? (vbusInfo.ovpThresholdMv / 1000).toFixed(2)
+        : '',
+    )
+    setOcpThresholdInput(
+      vbusInfo && Number.isFinite(vbusInfo.ocpThresholdMa)
+        ? (vbusInfo.ocpThresholdMa / 1000).toFixed(2)
+        : '',
+    )
+  }, [vbusInfo])
 
   useEffect(() => {
     const storage = getVbusStorage()
@@ -229,11 +264,171 @@ export const DrpdVbusInstrumentView = ({
   const ovpValueText = formatProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
   const ocpValueText = formatProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
 
+  const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
+    const configureControl: InstrumentHeaderControl = {
+      id: 'configure-vbus',
+      label: 'CONFIGURE',
+      disabled: !driver || isEditMode || isApplyingConfig,
+      renderPopover: ({ closePopover }) => (
+        <div className={styles.headerPopup}>
+          <button
+            type="button"
+            className={`${styles.headerPopupButton} ${styles.headerPopupButtonDanger}`}
+            onClick={() => {
+              setAccumulatedAhState({ storageKey, value: 0 })
+            }}
+            disabled={isApplyingConfig}
+          >
+            Reset Charge Counter
+          </button>
+          <div className={styles.headerPopupField}>
+            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-protection-enabled`}>
+              Protection
+            </label>
+            <select
+              id={`${instrument.id}-protection-enabled`}
+              className={styles.headerPopupInput}
+              value={protectionEnabledInput ? 'on' : 'off'}
+              onChange={(event) => {
+                setProtectionEnabledInput(event.currentTarget.value === 'on')
+                setConfigureError(null)
+              }}
+              disabled={isApplyingConfig}
+            >
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div className={styles.headerPopupRow}>
+            <div className={styles.headerPopupField}>
+              <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-ovp`}>
+                OVP (V)
+              </label>
+              <input
+                id={`${instrument.id}-ovp`}
+                className={styles.headerPopupInput}
+                type="number"
+                min={0}
+                max={OVP_MAX_V}
+                step={0.01}
+                value={ovpThresholdInput}
+                onChange={(event) => {
+                  setOvpThresholdInput(event.currentTarget.value)
+                  setConfigureError(null)
+                }}
+                disabled={isApplyingConfig}
+              />
+            </div>
+            <div className={styles.headerPopupField}>
+              <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-ocp`}>
+                OCP (A)
+              </label>
+              <input
+                id={`${instrument.id}-ocp`}
+                className={styles.headerPopupInput}
+                type="number"
+                min={0}
+                max={OCP_MAX_A}
+                step={0.01}
+                value={ocpThresholdInput}
+                onChange={(event) => {
+                  setOcpThresholdInput(event.currentTarget.value)
+                  setConfigureError(null)
+                }}
+                disabled={isApplyingConfig}
+              />
+            </div>
+          </div>
+          <p className={styles.headerPopupHint}>
+            OVP range: 0-{OVP_MAX_V}V · OCP range: 0-{OCP_MAX_A}A (Off applies max thresholds)
+          </p>
+          {configureError ? (
+            <p className={styles.headerPopupError}>{configureError}</p>
+          ) : null}
+          <div className={styles.headerPopupActions}>
+            <button
+              type="button"
+              className={styles.headerPopupButton}
+              onClick={() => {
+                setConfigureError(null)
+                closePopover()
+              }}
+              disabled={isApplyingConfig}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={styles.headerPopupButton}
+              onClick={() => {
+                if (!driver) {
+                  return
+                }
+                const parsedOvpV = Number(ovpThresholdInput)
+                const parsedOcpA = Number(ocpThresholdInput)
+                if (!Number.isFinite(parsedOvpV) || parsedOvpV < 0 || parsedOvpV > OVP_MAX_V) {
+                  setConfigureError(`OVP must be between 0 and ${OVP_MAX_V} V.`)
+                  return
+                }
+                if (!Number.isFinite(parsedOcpA) || parsedOcpA < 0 || parsedOcpA > OCP_MAX_A) {
+                  setConfigureError(`OCP must be between 0 and ${OCP_MAX_A} A.`)
+                  return
+                }
+
+                setIsApplyingConfig(true)
+                setConfigureError(null)
+                const nextOvpV = protectionEnabledInput ? parsedOvpV : OVP_MAX_V
+                const nextOcpA = protectionEnabledInput ? parsedOcpA : OCP_MAX_A
+                void Promise.resolve()
+                  .then(async () => {
+                    if (
+                      protectionEnabledInput &&
+                      (vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP)
+                    ) {
+                      await driver.vbus.resetFault()
+                    }
+                    await driver.vbus.setOvpThresholdMv(Math.round(nextOvpV * 1000))
+                    await driver.vbus.setOcpThresholdMa(Math.round(nextOcpA * 1000))
+                    await driver.refreshState()
+                    closePopover()
+                  })
+                  .catch((error) => {
+                    const message = error instanceof Error ? error.message : String(error)
+                    setConfigureError(message)
+                  })
+                  .finally(() => {
+                    setIsApplyingConfig(false)
+                  })
+              }}
+              disabled={isApplyingConfig}
+            >
+              {isApplyingConfig ? 'Applying...' : 'Apply'}
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return [configureControl]
+  }, [
+    configureError,
+    driver,
+    instrument.id,
+    isApplyingConfig,
+    isEditMode,
+    ocpThresholdInput,
+    ovpThresholdInput,
+    protectionEnabledInput,
+    vbusInfo?.status,
+    storageKey,
+  ])
+
   return (
     <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
+      headerControls={headerControls}
       onClose={
         onRemove
           ? () => {

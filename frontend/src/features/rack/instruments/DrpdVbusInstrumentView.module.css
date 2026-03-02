@@ -204,3 +204,77 @@
   overflow: hidden;
   text-overflow: clip;
 }
+
+.headerPopup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  min-width: 360px;
+}
+
+.headerPopupRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-10);
+}
+
+.headerPopupField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.headerPopupLabel {
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+}
+
+.headerPopupInput {
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-none);
+  background: var(--color-surface-instrument);
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  padding: var(--space-8) var(--space-10);
+  min-height: 38px;
+}
+
+.headerPopupHint {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+}
+
+.headerPopupError {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-status-error);
+}
+
+.headerPopupActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-6);
+}
+
+.headerPopupButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-none);
+  background: var(--color-surface-instrument);
+  color: var(--color-text-primary);
+  font-size: 1rem;
+  padding: var(--space-8) var(--space-16);
+  cursor: pointer;
+}
+
+.headerPopupButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.headerPopupButtonDanger {
+  border-color: color-mix(in srgb, var(--color-status-error) 50%, var(--color-border-panel));
+  color: var(--color-status-error);
+}

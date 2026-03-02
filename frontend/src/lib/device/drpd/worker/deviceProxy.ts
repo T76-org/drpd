@@ -44,6 +44,11 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getSinkInfo: () => Promise<SinkInfo>
     requestPdo: (index: number, voltageMv: number, currentMa: number) => Promise<void>
   } ///< Sink command-group proxy.
+  public readonly vbus: {
+    resetFault: () => Promise<void>
+    setOvpThresholdMv: (thresholdMv: number) => Promise<void>
+    setOcpThresholdMa: (thresholdMa: number) => Promise<void>
+  } ///< VBUS command-group proxy.
 
   protected readonly client: DRPDWorkerServiceClient ///< Shared worker client.
   protected readonly sessionId: string ///< Worker DRPD session id.
@@ -127,6 +132,17 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       getSinkInfo: async () => (await this.callGroup('sink', 'getSinkInfo')) as SinkInfo,
       requestPdo: async (index, voltageMv, currentMa) => {
         await this.callGroup('sink', 'requestPdo', index, voltageMv, currentMa)
+      },
+    }
+    this.vbus = {
+      resetFault: async () => {
+        await this.callGroup('vbus', 'resetFault')
+      },
+      setOvpThresholdMv: async (thresholdMv: number) => {
+        await this.callGroup('vbus', 'setOvpThresholdMv', thresholdMv)
+      },
+      setOcpThresholdMa: async (thresholdMa: number) => {
+        await this.callGroup('vbus', 'setOcpThresholdMa', thresholdMa)
       },
     }
   }
@@ -348,7 +364,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    * @param args - Method args.
    * @returns RPC result.
    */
-  protected async callGroup(target: 'analogMonitor' | 'ccBus' | 'capture' | 'sink', method: string, ...args: unknown[]): Promise<unknown> {
+  protected async callGroup(target: 'analogMonitor' | 'ccBus' | 'capture' | 'sink' | 'vbus', method: string, ...args: unknown[]): Promise<unknown> {
     this.ensureOpen()
     return await this.client.callWorker('drpdSession.call', {
       sessionId: this.sessionId,

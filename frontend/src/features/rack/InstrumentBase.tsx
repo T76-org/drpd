@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { RackInstrument } from '../../lib/rack/types'
 import styles from './InstrumentBase.module.css'
 
@@ -35,11 +36,64 @@ export const InstrumentBase = ({
   children?: ReactNode
 }) => {
   const [openControlId, setOpenControlId] = useState<string | null>(null)
+  const [popoverInlineStyle, setPopoverInlineStyle] = useState<CSSProperties | undefined>(
+    undefined,
+  )
   const controlsRef = useRef<HTMLDivElement | null>(null)
+  const controlButtonRefMap = useRef(new Map<string, HTMLButtonElement>())
+  const popoverRef = useRef<HTMLDivElement | null>(null)
 
   const closePopover = useCallback(() => {
     setOpenControlId(null)
+    setPopoverInlineStyle(undefined)
   }, [])
+
+  const updatePopoverLayout = useCallback(() => {
+    if (openControlId === null) {
+      return
+    }
+    const button = controlButtonRefMap.current.get(openControlId)
+    const popover = popoverRef.current
+    if (!button || !popover) {
+      return
+    }
+
+    const viewportInsetPx = 8
+    const popoverGapPx = 4
+    const buttonRect = button.getBoundingClientRect()
+    const popoverRect = popover.getBoundingClientRect()
+
+    const width = popoverRect.width
+    const height = popoverRect.height
+
+    let left = buttonRect.left
+    left = Math.max(
+      viewportInsetPx,
+      Math.min(left, window.innerWidth - width - viewportInsetPx),
+    )
+
+    const belowTop = buttonRect.bottom + popoverGapPx
+    const belowSpace = window.innerHeight - belowTop - viewportInsetPx
+    const aboveSpace = buttonRect.top - popoverGapPx - viewportInsetPx
+    const shouldOpenAbove = belowSpace < height && aboveSpace > belowSpace
+    const maxHeight = Math.max(120, Math.floor(shouldOpenAbove ? aboveSpace : belowSpace))
+
+    let top = belowTop
+    if (shouldOpenAbove) {
+      top = Math.max(
+        viewportInsetPx,
+        buttonRect.top - popoverGapPx - Math.min(height, maxHeight),
+      )
+    } else {
+      top = Math.min(top, window.innerHeight - viewportInsetPx - Math.min(height, maxHeight))
+    }
+
+    setPopoverInlineStyle({
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+      maxHeight: `${Math.round(maxHeight)}px`,
+    })
+  }, [openControlId])
 
   useEffect(() => {
     const controlsElement = controlsRef.current
@@ -53,6 +107,10 @@ export const InstrumentBase = ({
         return
       }
       if (controlsElement.contains(target)) {
+        return
+      }
+      const popoverElement = popoverRef.current
+      if (popoverElement && popoverElement.contains(target)) {
         return
       }
       closePopover()
@@ -73,6 +131,22 @@ export const InstrumentBase = ({
     }
   }, [closePopover, openControlId])
 
+  useEffect(() => {
+    if (openControlId === null) {
+      return undefined
+    }
+    const runLayout = () => {
+      updatePopoverLayout()
+    }
+    runLayout()
+    window.addEventListener('resize', runLayout)
+    window.addEventListener('scroll', runLayout, true)
+    return () => {
+      window.removeEventListener('resize', runLayout)
+      window.removeEventListener('scroll', runLayout, true)
+    }
+  }, [openControlId, updatePopoverLayout])
+
   return (
     <div
       className={`${styles.instrument} ${isEditMode ? styles.editMode : ''}`}
@@ -90,6 +164,13 @@ export const InstrumentBase = ({
                 <button
                   type="button"
                   className={styles.headerControlButton}
+                  ref={(element) => {
+                    if (element) {
+                      controlButtonRefMap.current.set(control.id, element)
+                    } else {
+                      controlButtonRefMap.current.delete(control.id)
+                    }
+                  }}
                   disabled={control.disabled}
                   aria-haspopup={hasPopover ? 'dialog' : undefined}
                   aria-expanded={hasPopover ? isOpen : undefined}
@@ -108,9 +189,19 @@ export const InstrumentBase = ({
                   {control.label}
                 </button>
                 {hasPopover && isOpen ? (
-                  <div className={styles.headerControlPopover} role="dialog">
-                    {control.renderPopover?.({ closePopover })}
-                  </div>
+                  typeof document !== 'undefined'
+                    ? createPortal(
+                        <div
+                          className={styles.headerControlPopover}
+                          role="dialog"
+                          ref={popoverRef}
+                          style={popoverInlineStyle}
+                        >
+                          {control.renderPopover?.({ closePopover })}
+                        </div>,
+                        document.body,
+                      )
+                    : null
                 ) : null}
               </div>
             )
