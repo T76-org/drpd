@@ -9,12 +9,26 @@ import {
   SinkState,
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
-import { InstrumentBase } from '../InstrumentBase'
+import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdSinkControlInstrumentView.module.css'
 
 type RequestStatus = 'idle' | 'sending' | 'success' | 'error'
 type NonNullSinkPdo = Exclude<SinkPdo, null>
+
+const PopoverLifecycle = ({
+  onMount,
+  onUnmount,
+}: {
+  onMount: () => void
+  onUnmount: () => void
+}) => {
+  useEffect(() => {
+    onMount()
+    return onUnmount
+  }, [onMount, onUnmount])
+  return null
+}
 
 /**
  * Format a number using fixed precision.
@@ -323,7 +337,7 @@ const getSelectedPdoDetails = (
         return {
           title: 'Battery',
           voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A`,
         }
       }
     case SinkPdoType.SPR_AVS:
@@ -333,7 +347,7 @@ const getSelectedPdoDetails = (
           return {
             title: 'SPR AVS',
             voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-            currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+            currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A`,
           }
         }
     case SinkPdoType.EPR_AVS:
@@ -343,7 +357,7 @@ const getSelectedPdoDetails = (
         return {
           title: 'EPR AVS',
           voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A (power-limited)`,
+          currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A`,
         }
       }
     default:
@@ -676,34 +690,7 @@ export const DrpdSinkControlInstrumentView = ({
     setRequestErrorMessage(null)
   }, [selectedPdo])
 
-  useEffect(() => {
-    if (!isAdvancedOpen) {
-      return undefined
-    }
-
-    /**
-     * Close the request popup when Escape is pressed.
-     *
-     * @param event - Keyboard event.
-     */
-    const handleAdvancedKeydown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') {
-        return
-      }
-      event.preventDefault()
-      setIsAdvancedOpen(false)
-    }
-
-    window.addEventListener('keydown', handleAdvancedKeydown)
-    return () => {
-      window.removeEventListener('keydown', handleAdvancedKeydown)
-    }
-  }, [isAdvancedOpen])
-
-  /**
-   * Send a sink PDO request using current form values.
-   */
-  const handleRequest = async () => {
+  const handleRequest = async (onSuccess?: () => void) => {
     if (!driver || !selectedPdo) {
       return
     }
@@ -722,7 +709,7 @@ export const DrpdSinkControlInstrumentView = ({
       await driver.refreshState()
       await loadSinkData()
       setRequestStatus('success')
-      setIsAdvancedOpen(false)
+      onSuccess?.()
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       setRequestStatus('error')
@@ -737,7 +724,7 @@ export const DrpdSinkControlInstrumentView = ({
     role === CCBusRole.SINK &&
     requestStatus !== 'sending' &&
     !requestPreview.error
-  const validationMessage = isAdvancedOpen ? requestPreview.error ?? null : null
+  const validationMessage = requestPreview.error ?? null
   const currentRangeLabel = currentConstraints.maxA == null
     ? '--'
     : `0.00-${currentConstraints.maxA.toFixed(2)} A`
@@ -750,22 +737,12 @@ export const DrpdSinkControlInstrumentView = ({
   const vsetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedVoltageMv / 1000 : null)} V`
   const isetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedCurrentMa / 1000 : null)} A`
 
-  /**
-   * Open/close the advanced change dialog and load sink data when needed.
-   */
-  const handleToggleAdvanced = () => {
-    if (isAdvancedOpen) {
-      setIsAdvancedOpen(false)
-      setRequestErrorMessage(null)
-      return
-    }
-
+  const prepareAdvancedPopover = () => {
     if (negotiatedPdoIndex != null) {
       setSelectedIndex(negotiatedPdoIndex)
     }
     setRequestErrorMessage(null)
     setRequestStatus('idle')
-    setIsAdvancedOpen(true)
 
     if (!driver || isRefreshingSinkData || sinkPdoList.length > 0) {
       return
@@ -773,11 +750,152 @@ export const DrpdSinkControlInstrumentView = ({
     void loadSinkData()
   }
 
+  const headerControls: InstrumentHeaderControl[] = [
+    {
+      id: 'set-pdo',
+      label: 'Set PDO',
+      disabled: !driver || isEditMode,
+      onClick: () => {
+        prepareAdvancedPopover()
+      },
+      renderPopover: ({ closePopover }) => (
+        <div
+          id={`${instrument.id}-advanced-tune`}
+          className={styles.advancedPanel}
+          role="dialog"
+          aria-label="Sink request tuning"
+        >
+          <PopoverLifecycle
+            onMount={() => setIsAdvancedOpen(true)}
+            onUnmount={() => setIsAdvancedOpen(false)}
+          />
+          <div className={styles.advancedLayout}>
+            <div className={styles.pdoListPane}>
+              {isRefreshingSinkData && sinkPdoList.length === 0 ? (
+                <div className={styles.message}>Loading sink PDO list from device...</div>
+              ) : null}
+              <div
+                className={styles.pdoList}
+                role="listbox"
+                aria-label="Available PDOs"
+                data-testid="pdo-list"
+              >
+                {sinkPdoList.length === 0 ? (
+                  <div className={styles.emptyList}>No PDOs available</div>
+                ) : (
+                  sinkPdoList.map((pdo, index) => (
+                    <button
+                      key={`pdo-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={selectedIndex === index}
+                      className={`${styles.pdoListItem} ${selectedIndex === index ? styles.pdoListItemSelected : ''}`}
+                      onClick={() => {
+                        setSelectedIndex(index)
+                        setRequestErrorMessage(null)
+                        setRequestStatus('idle')
+                      }}
+                    >
+                      <span className={styles.pdoListItemTitle}>
+                        #{index + 1} {getPdoTypeLabel(pdo)}
+                      </span>
+                      <span className={styles.pdoListItemDetail}>
+                        {pdo ? getPdoListSecondaryLine(pdo) : '--'}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className={styles.requestPane}>
+              <div className={styles.requestBody}>
+                <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
+                  Voltage
+                </label>
+                <input
+                  id={`${instrument.id}-voltage`}
+                  className={styles.control}
+                  value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
+                  onChange={(event) => {
+                    setVoltageV(event.target.value)
+                    setRequestErrorMessage(null)
+                    setRequestStatus('idle')
+                  }}
+                  readOnly={!isVoltageEditable(selectedPdo)}
+                  aria-readonly={!isVoltageEditable(selectedPdo)}
+                  disabled={!selectedPdo}
+                />
+
+                <div className={styles.fieldMeta} />
+                <div className={styles.fieldHint}>{voltageHint}</div>
+
+                <label className={styles.fieldLabel} htmlFor={`${instrument.id}-current`}>
+                  Current
+                </label>
+                <input
+                  id={`${instrument.id}-current`}
+                  className={styles.control}
+                  value={currentA}
+                  onChange={(event) => {
+                    setCurrentA(event.target.value)
+                    setRequestErrorMessage(null)
+                    setRequestStatus('idle')
+                  }}
+                  disabled={!selectedPdo}
+                />
+
+                <div className={styles.fieldMeta} />
+                <div className={styles.fieldHint}>
+                  {currentRangeLabel}
+                </div>
+              </div>
+
+              <div
+                className={`${styles.message} ${
+                  validationMessage || requestErrorMessage ? styles.messageError : ''
+                }`}
+                aria-live="polite"
+              >
+                {validationMessage ?? requestErrorMessage ?? ''}
+              </div>
+
+              <div className={styles.requestActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={() => {
+                    closePopover()
+                    setRequestErrorMessage(null)
+                    setRequestStatus('idle')
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.requestButton}
+                  onClick={() => {
+                    void handleRequest(closePopover)
+                  }}
+                  disabled={!canSubmit}
+                >
+                  {requestStatus === 'sending' ? 'Setting...' : 'Set PDO'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
+      headerControls={headerControls}
       onClose={
         onRemove
           ? () => {
@@ -811,144 +929,7 @@ export const DrpdSinkControlInstrumentView = ({
             <span className={`${styles.rowValue} ${styles.pdoTitle}`}>
               {selectedPdoDetails.title}
             </span>
-            <span className={`${styles.rowState} ${styles.pdoTitle}`}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={handleToggleAdvanced}
-                disabled={!driver}
-                aria-expanded={isAdvancedOpen}
-                aria-controls={`${instrument.id}-advanced-tune`}
-              >
-                {isRefreshingSinkData && sinkPdoList.length === 0 ? 'Loading...' : 'Change'}
-              </button>
-
-              {isAdvancedOpen ? (
-                <div
-                  id={`${instrument.id}-advanced-tune`}
-                  className={styles.advancedPanel}
-                  role="dialog"
-                  aria-label="Sink request tuning"
-                >
-                  <div className={styles.advancedLayout}>
-                    <div className={styles.pdoListPane}>
-                      {isRefreshingSinkData && sinkPdoList.length === 0 ? (
-                        <div className={styles.message}>Loading sink PDO list from device...</div>
-                      ) : null}
-                      <div
-                        className={styles.pdoList}
-                        role="listbox"
-                        aria-label="Available PDOs"
-                        data-testid="pdo-list"
-                      >
-                        {sinkPdoList.length === 0 ? (
-                          <div className={styles.emptyList}>No PDOs available</div>
-                        ) : (
-                          sinkPdoList.map((pdo, index) => (
-                            <button
-                              key={`pdo-${index}`}
-                              type="button"
-                              role="option"
-                              aria-selected={selectedIndex === index}
-                              className={`${styles.pdoListItem} ${selectedIndex === index ? styles.pdoListItemSelected : ''}`}
-                              onClick={() => {
-                                setSelectedIndex(index)
-                                setRequestErrorMessage(null)
-                                setRequestStatus('idle')
-                              }}
-                            >
-                              <span className={styles.pdoListItemTitle}>
-                                #{index + 1} {getPdoTypeLabel(pdo)}
-                              </span>
-                              <span className={styles.pdoListItemDetail}>
-                                {pdo ? getPdoListSecondaryLine(pdo) : '--'}
-                              </span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </div>
-
-                    <div className={styles.requestPane}>
-                      <div className={styles.requestBody}>
-                        <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
-                          Voltage
-                        </label>
-                        <input
-                          id={`${instrument.id}-voltage`}
-                          className={styles.control}
-                          value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
-                          onChange={(event) => {
-                            setVoltageV(event.target.value)
-                            setRequestErrorMessage(null)
-                            setRequestStatus('idle')
-                          }}
-                          readOnly={!isVoltageEditable(selectedPdo)}
-                          aria-readonly={!isVoltageEditable(selectedPdo)}
-                          disabled={!selectedPdo}
-                        />
-
-                        <div className={styles.fieldMeta} />
-                        <div className={styles.fieldHint}>{voltageHint}</div>
-
-                        <label className={styles.fieldLabel} htmlFor={`${instrument.id}-current`}>
-                          Current
-                        </label>
-                        <input
-                          id={`${instrument.id}-current`}
-                          className={styles.control}
-                          value={currentA}
-                          onChange={(event) => {
-                            setCurrentA(event.target.value)
-                            setRequestErrorMessage(null)
-                            setRequestStatus('idle')
-                          }}
-                          disabled={!selectedPdo}
-                        />
-
-                        <div className={styles.fieldMeta} />
-                        <div className={styles.fieldHint}>
-                          {currentRangeLabel}
-                        </div>
-                      </div>
-
-                      <div
-                        className={`${styles.message} ${
-                          validationMessage || requestErrorMessage ? styles.messageError : ''
-                        }`}
-                        aria-live="polite"
-                      >
-                        {validationMessage ?? requestErrorMessage ?? ''}
-                      </div>
-
-                      <div className={styles.requestActions}>
-                        <button
-                          type="button"
-                          className={styles.secondaryButton}
-                          onClick={() => {
-                            setIsAdvancedOpen(false)
-                            setRequestErrorMessage(null)
-                            setRequestStatus('idle')
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.requestButton}
-                          onClick={() => {
-                            void handleRequest()
-                          }}
-                          disabled={!canSubmit}
-                        >
-                          {requestStatus === 'sending' ? 'Setting...' : 'Set PDO'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </span>
+            <span className={styles.rowState} />
           </div>
           <div className={styles.row}>
             <span className={styles.rowLabel}>VRANGE</span>

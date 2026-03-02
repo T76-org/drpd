@@ -60,6 +60,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-6);
+  position: relative;
 }
 
 .closeButton {
@@ -75,6 +76,42 @@
   line-height: var(--line-height-tight);
   cursor: pointer;
   padding: var(--space-0);
+}
+
+.headerControl {
+  position: relative;
+}
+
+.headerControlButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+  font-size: 0.33rem;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-sm);
+  padding: var(--space-1) var(--space-4);
+  cursor: pointer;
+  line-height: var(--line-height-tight);
+  min-width: 40px;
+}
+
+.headerControlButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.headerControlPopover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  max-width: min(620px, calc(100vw - var(--space-16)));
+  background: var(--color-surface-panel);
+  border: var(--border-thin) solid var(--color-border-panel);
+  box-shadow: var(--shadow-strong);
+  padding: var(--space-16);
+  z-index: 40;
+  overflow: auto;
+  font-size: var(--font-size-header-popup-base);
 }
 
 .content {

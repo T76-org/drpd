@@ -530,6 +530,21 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         }
         throw new Error(`Unsupported sink method: ${method}`)
       }
+      if (target === 'vbus') {
+        if (method === 'resetFault') {
+          await session.device.vbus.resetFault()
+          return null
+        }
+        if (method === 'setOvpThresholdMv') {
+          await session.device.vbus.setOvpThresholdMv(args[0] as number)
+          return null
+        }
+        if (method === 'setOcpThresholdMa') {
+          await session.device.vbus.setOcpThresholdMa(args[0] as number)
+          return null
+        }
+        throw new Error(`Unsupported vbus method: ${method}`)
+      }
       throw new Error(`Unsupported DRPD session target: ${String(target)}`)
     }
   }

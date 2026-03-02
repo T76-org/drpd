@@ -156,3 +156,16 @@ Edit mode is transactional: Cancel discards all layout edits made during the ses
 - If an instrument does not appear in the Add Instrument list, check that its `supportedDeviceIdentifiers` includes a device identifier present in the rack’s `devices` list.
 - If changes do not persist, ensure `saveRackDocument` is called after modifications.
 - If the UI shows “No compatible instruments,” confirm that at least one device has been added to the rack.
+
+## Header popup typography
+
+Header button popovers (for example `CONFIGURE`, `RESET`, `SET PDO`, and log popups) must use the shared typography tokens defined in `src/index.css`:
+
+- `--font-size-header-popup-base`
+- `--font-size-header-popup-text`
+- `--font-size-header-popup-label`
+- `--font-size-header-popup-input`
+- `--font-size-header-popup-hint`
+- `--font-size-header-popup-button`
+
+Use these tokens in instrument CSS modules instead of hardcoded `rem` values so popup typography remains consistent and centrally configurable.

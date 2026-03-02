@@ -1,12 +1,16 @@
 .wrapper {
-  --metric-number-width: 4.3ch;
+  --vbus-number-width: 4.2ch;
+  --metric-number-width: 5.8ch;
   --separator-opacity: 0.8;
+  --protection-color-on: var(--color-status-success);
+  --protection-color-off: var(--color-status-muted);
+  --protection-color-triggered: var(--color-status-error);
 
   height: 100%;
   width: 100%;
   display: grid;
-  grid-template-columns: max-content max-content;
-  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-4);
   align-items: stretch;
   color: var(--color-text-primary);
   margin: calc(var(--space-10) * -1) calc(var(--space-12) * -1);
@@ -19,42 +23,49 @@
   flex-direction: column;
   justify-content: center;
   padding: var(--space-0);
+  min-width: 0;
 }
 
 .vbusSection {
   border-right: var(--border-thin) solid var(--color-border-panel);
-  padding-right: var(--space-6);
+  margin-left: var(--space-3);
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: var(--space-0);
 }
 
 .powerSection {
   border-right: var(--border-thin) solid var(--color-border-panel);
   padding-right: var(--space-0);
-  gap: var(--space-1);
+  gap: var(--space-0);
   justify-content: flex-start;
   align-items: flex-start;
 }
 
 .vbusValue {
-  font-size: var(--font-size-4xl);
+  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-status-info);
   line-height: var(--line-height-snug);
   font-variant-numeric: tabular-nums;
   display: inline-flex;
   align-items: baseline;
-  gap: var(--space-4);
 }
 
 .vbusNumber {
   display: inline-block;
-  min-width: var(--metric-number-width);
+  min-width: var(--vbus-number-width);
   text-align: right;
+}
+
+.vbusCurrentLeftValue {
+  color: var(--color-status-ok);
 }
 
 .metricBlock {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-0);
   flex: 1;
   min-height: 0;
   align-self: stretch;
@@ -70,13 +81,13 @@
 }
 
 .metricBlock:first-child {
-  padding-top: var(--space-1);
+  padding-top: var(--space-0);
 }
 
 .metricBlock + .metricBlock {
   position: relative;
-  padding-top: var(--space-1);
-  margin-top: var(--space-1);
+  padding-top: var(--space-0);
+  margin-top: var(--space-0);
 }
 
 .metricBlock + .metricBlock::before {
@@ -92,29 +103,91 @@
 }
 
 .metricValue {
-  font-size: var(--font-size-3xl);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-status-ok);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
-  display: inline-grid;
-  grid-template-columns: var(--metric-number-width) 1.2ch;
-  column-gap: var(--space-0);
+  display: grid;
+  grid-template-columns: minmax(0, var(--metric-number-width)) auto;
+  column-gap: var(--space-1);
   align-items: baseline;
-}
-
-.currentValue {
-  color: var(--color-status-ok);
+  width: 100%;
 }
 
 .powerValue {
   color: var(--color-status-warning);
+  font-size: var(--font-size-lg);
+}
+
+.chargeValue {
+  color: var(--color-status-charge);
+  font-size: var(--font-size-lg);
+}
+
+.protectionValue {
+  font-size: var(--font-size-3xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.protectionLine {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-2);
+  width: 100%;
+}
+
+.protectionLabel {
+  text-align: left;
+  white-space: nowrap;
+  padding-left: var(--space-3)
+}
+
+.protectionThreshold {
+  text-align: right;
+  white-space: nowrap;
+  padding-right: var(--space-7);
+}
+
+.protectionOn {
+  color: var(--protection-color-on);
+}
+
+.protectionOff {
+  color: var(--protection-color-off);
+}
+
+.protectionTriggered {
+  color: var(--protection-color-triggered);
+  animation: protection-alert-flash 0.25s steps(1, end) infinite;
+}
+
+@keyframes protection-alert-flash {
+  0% {
+    color: var(--protection-color-triggered);
+  }
+  50.01% {
+    color: var(--protection-color-off);
+  }
+  100% {
+    color: var(--protection-color-off);
+  }
 }
 
 .unit {
-  font-size: var(--font-size-md);
-  margin-left: var(--space-3);
+  font-size: var(--font-size-xs);
   color: inherit;
+  white-space: nowrap;
 }
 
 .unassigned {
@@ -126,4 +199,86 @@
 .metricNumber {
   display: inline-block;
   text-align: right;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.headerPopup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  min-width: 360px;
+}
+
+.headerResetPopup {
+  min-width: 200px;
+}
+
+.headerPopupRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-10);
+}
+
+.headerPopupField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.headerPopupLabel {
+  font-size: var(--font-size-header-popup-label);
+  color: var(--color-text-muted);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+}
+
+.headerPopupInput {
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-none);
+  background: var(--color-surface-instrument);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-input);
+  padding: var(--space-8) var(--space-10);
+  min-height: 38px;
+}
+
+.headerPopupHint {
+  margin: 0;
+  font-size: var(--font-size-header-popup-hint);
+  color: var(--color-text-muted);
+}
+
+.headerPopupError {
+  margin: 0;
+  font-size: var(--font-size-header-popup-hint);
+  color: var(--color-status-error);
+}
+
+.headerPopupActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-6);
+}
+
+.headerPopupButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-none);
+  background: var(--color-surface-instrument);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-button);
+  padding: var(--space-8) var(--space-16);
+  cursor: pointer;
+}
+
+.headerPopupButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.headerPopupButtonDanger {
+  border-color: color-mix(in srgb, var(--color-status-error) 50%, var(--color-border-panel));
+  color: var(--color-status-error);
 }

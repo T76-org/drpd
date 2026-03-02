@@ -30,7 +30,7 @@ export class DrpdVbusInstrument extends Instrument {
       identifier: 'com.mta.drpd.vbus',
       displayName: 'VBUS',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 3 },
+      defaultWidth: { mode: 'fixed', units: 2 },
       defaultUnits: 1
     })
   }
@@ -84,7 +84,7 @@ export class DrpdSinkControlInstrument extends Instrument {
       identifier: 'com.mta.drpd.sink-control',
       displayName: 'Sink Control',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 4 },
+      defaultWidth: { mode: 'fixed', units: 3 },
       defaultUnits: 1
     })
   }

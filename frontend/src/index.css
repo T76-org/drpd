@@ -28,6 +28,14 @@
   --font-size-3xl: 1.75rem;
   --font-size-4xl: 2.51rem;
 
+  /* Shared typography scale for header popovers across rack instruments. */
+  --font-size-header-popup-base: 0.85rem;
+  --font-size-header-popup-text: 0.95rem;
+  --font-size-header-popup-label: 0.95rem;
+  --font-size-header-popup-input: 1rem;
+  --font-size-header-popup-hint: 0.95rem;
+  --font-size-header-popup-button: 1rem;
+
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -47,6 +55,7 @@
   --space-3: 3px;
   --space-4: 4px;
   --space-6: 6px;
+  --space-7: 6px;
   --space-8: 8px;
   --space-10: 10px;
   --space-12: 12px;
@@ -94,6 +103,7 @@
   --color-status-ok: #33c2a0;
   --color-status-muted: #a5a7b0;
   --color-status-highlight: #d2a24c;
+  --color-status-charge: #c86bff;
 
   --color-edit-glow: #4cc7ff;
   --color-edit-glow-strong: #6fd6ff;
@@ -135,6 +145,7 @@
   --color-surface-header: linear-gradient(120deg, #ffffff, #e9edf6);
   --color-edit-glow: #1a73e8;
   --color-edit-glow-strong: #2f86f2;
+  --color-status-charge: #a239cf;
 
   --shadow-strong: 0 10px 24px rgba(28, 31, 42, 0.18);
   --shadow-elevated: 0 18px 35px rgba(28, 31, 42, 0.2);

@@ -28,7 +28,8 @@ export const RackRenderer = ({
   onInstrumentDragStart,
   onInstrumentDragOver,
   onInstrumentDrop,
-  onInstrumentDragEnd
+  onInstrumentDragEnd,
+  onUpdateDeviceConfig
 }: {
   rack: RackDefinition
   instruments: Instrument[]
@@ -39,6 +40,10 @@ export const RackRenderer = ({
   onInstrumentDragOver?: (payload: RackInstrumentDragPayload) => void
   onInstrumentDrop?: (payload: RackInstrumentDragPayload) => void
   onInstrumentDragEnd?: () => void
+  onUpdateDeviceConfig?: (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => Promise<void> | void
 }) => {
   const instrumentMap = new Map(
     instruments.map((instrument) => [instrument.identifier, instrument]),
@@ -189,6 +194,7 @@ export const RackRenderer = ({
                         onInstrumentDragOver={onInstrumentDragOver}
                         onInstrumentDrop={onInstrumentDrop}
                         onInstrumentDragEnd={onInstrumentDragEnd}
+                        onUpdateDeviceConfig={onUpdateDeviceConfig}
                       />
                       {isEditMode ? (
                         <RowInsertionZone
