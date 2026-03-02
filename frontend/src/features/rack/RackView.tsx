@@ -129,7 +129,7 @@ export const RackView = () => {
   const [activeRack, setActiveRack] = useState<RackDefinition | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [theme, setTheme] = useState<ThemeMode>('system')
+  const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
@@ -247,25 +247,30 @@ export const RackView = () => {
   useEffect(() => {
     /** Apply the current theme to the document. */
     const root = document.documentElement
-    if (theme === 'system') {
-      root.removeAttribute('data-theme')
-    } else {
+    if (theme !== 'system') {
       root.setAttribute('data-theme', theme)
+    } else {
+      const mediaQuery = getSystemThemeMediaQuery()
+      if (!mediaQuery) {
+        root.removeAttribute('data-theme')
+      } else {
+        const applySystemTheme = () => {
+          root.setAttribute('data-theme', mediaQuery.matches ? 'dark' : 'light')
+        }
+        applySystemTheme()
+        const cleanup = listenToMediaQueryChange(mediaQuery, applySystemTheme)
+        const storage = getThemeStorage()
+        if (storage) {
+          storage.setItem(THEME_STORAGE_KEY, theme)
+        }
+        return cleanup
+      }
     }
     const storage = getThemeStorage()
     if (storage) {
       storage.setItem(THEME_STORAGE_KEY, theme)
     }
   }, [theme])
-
-  useEffect(() => {
-    /** Load saved theme preference if present. */
-    const storage = getThemeStorage()
-    const storedTheme = storage?.getItem(THEME_STORAGE_KEY) as ThemeMode | null
-    if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
-      setTheme(storedTheme)
-    }
-  }, [])
 
   useEffect(() => {
     deviceStatesRef.current = deviceStates
@@ -1049,6 +1054,58 @@ const getThemeStorage = (): Storage | null => {
     return null
   }
   return storage
+}
+
+/** Read the saved theme preference, defaulting to system mode. */
+const getStoredTheme = (): ThemeMode => {
+  const storage = getThemeStorage()
+  const storedTheme = storage?.getItem(THEME_STORAGE_KEY)
+  if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
+    return storedTheme
+  }
+  return 'system'
+}
+
+/** Resolve the system dark-mode media query when available. */
+const getSystemThemeMediaQuery = (): MediaQueryList | null => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return null
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)')
+}
+
+/**
+ * Subscribe to media query changes with broad browser compatibility.
+ *
+ * @param mediaQuery - Media query list to observe.
+ * @param listener - Callback fired when the query match changes.
+ * @returns Cleanup function that removes the listener.
+ */
+const listenToMediaQueryChange = (
+  mediaQuery: MediaQueryList,
+  listener: () => void,
+): (() => void) => {
+  if (typeof mediaQuery.addEventListener === 'function') {
+    const handler = () => listener()
+    mediaQuery.addEventListener('change', handler)
+    return () => {
+      mediaQuery.removeEventListener('change', handler)
+    }
+  }
+  const legacyMediaQuery = mediaQuery as MediaQueryList & {
+    addListener?: (callback: () => void) => void
+    removeListener?: (callback: () => void) => void
+  }
+  if (
+    typeof legacyMediaQuery.addListener === 'function' &&
+    typeof legacyMediaQuery.removeListener === 'function'
+  ) {
+    legacyMediaQuery.addListener(listener)
+    return () => {
+      legacyMediaQuery.removeListener?.(listener)
+    }
+  }
+  return () => {}
 }
 
 /**

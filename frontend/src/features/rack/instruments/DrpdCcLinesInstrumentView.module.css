@@ -1,6 +1,6 @@
 .wrapper {
-  --cc-grid-width: 3.6ch;
-  --cc-status-width: 5ch;
+  --cc-grid-width: 3.3ch;
+  --cc-status-width: 0ch;
   --metric-number-width: 0ch;
   --separator-opacity: 0.8;
 
@@ -31,8 +31,8 @@
   column-gap: var(--space-0);
   align-items: center;
   flex: 1;
-  padding-right: var(--space-8);
   box-sizing: border-box;
+  width: 100%;
 }
 
 .ccGroup + .ccGroup {
@@ -46,7 +46,6 @@
   position: absolute;
   left: var(--space-0);
   right: var(--space-0);
-  margin: var(--space-0) var(--space-8) var(--space-8) var(--space-0);
   top: var(--space-0);
   height: var(--border-thin);
   background: var(--color-border-panel);

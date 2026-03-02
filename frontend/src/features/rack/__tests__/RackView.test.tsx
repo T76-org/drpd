@@ -195,6 +195,26 @@ const mockUSB = (devices: USBDevice[]) => {
   return { requestDevice, getDevices }
 }
 
+/**
+ * Stub window.matchMedia to emulate system theme preference.
+ */
+const mockMatchMedia = (matchesDark: boolean) => {
+  const addEventListener = vi.fn()
+  const removeEventListener = vi.fn()
+  const query: MediaQueryList = {
+    matches: matchesDark,
+    media: '(prefers-color-scheme: dark)',
+    onchange: null,
+    addEventListener,
+    removeEventListener,
+    addListener: undefined,
+    removeListener: undefined,
+    dispatchEvent: vi.fn(() => true),
+  }
+  vi.stubGlobal('matchMedia', vi.fn(() => query))
+  return { addEventListener, removeEventListener }
+}
+
 let originalVerifier: typeof DRPDDeviceDefinition.verifyConnectedDevice
 
 beforeEach(() => {
@@ -234,6 +254,34 @@ describe('RackView', () => {
 
     await userEvent.click(button)
     expect(button).toHaveTextContent('Light')
+  })
+
+  it('resolves system theme from matchMedia', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    mockMatchMedia(false)
+    render(<RackView />)
+
+    await screen.findByText('Bench Rack A')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+  })
+
+  it('restores persisted theme on reload', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    mockMatchMedia(false)
+    window.localStorage.setItem('drpd:theme', 'dark')
+
+    const { unmount } = render(<RackView />)
+    const button = await screen.findByRole('button', { name: /theme/i })
+    expect(button).toHaveTextContent('Dark')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+
+    unmount()
+    render(<RackView />)
+    const buttonAfterReload = await screen.findByRole('button', { name: /theme/i })
+    expect(buttonAfterReload).toHaveTextContent('Dark')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
   it('hides the header when configured on the rack', async () => {
@@ -430,7 +478,7 @@ describe('RackView', () => {
     ).toBeTruthy()
   })
 
-  it('allocates leftover width equally to flex instruments', async () => {
+  it('keeps fixed-width allocations for placeholder and VBUS instruments', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -467,15 +515,15 @@ describe('RackView', () => {
 
     expect(await screen.findByTestId('rack-instrument-inst-fixed')).toHaveAttribute(
       'data-width-units',
-      '6',
+      '30',
     )
     expect(await screen.findByTestId('rack-instrument-inst-flex-1')).toHaveAttribute(
       'data-width-units',
-      '3',
+      '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-flex-2')).toHaveAttribute(
       'data-width-units',
-      '3',
+      '10',
     )
   })
 
@@ -516,15 +564,15 @@ describe('RackView', () => {
 
     expect(await screen.findByTestId('rack-instrument-inst-status')).toHaveAttribute(
       'data-width-units',
-      '2',
+      '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-cc')).toHaveAttribute(
       'data-width-units',
-      '2',
+      '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
       'data-width-units',
-      '3',
+      '10',
     )
   })
 

@@ -12,7 +12,7 @@ export class DrpdPlaceholderInstrument extends Instrument {
       identifier: 'com.mta.drpd.placeholder',
       displayName: 'Dr. PD Placeholder',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 6 },
+      defaultWidth: { mode: 'fixed', units: 30 },
       defaultUnits: 2
     })
   }
@@ -30,7 +30,7 @@ export class DrpdVbusInstrument extends Instrument {
       identifier: 'com.mta.drpd.vbus',
       displayName: 'VBUS',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 2 },
+      defaultWidth: { mode: 'fixed', units: 10 },
       defaultUnits: 1
     })
   }
@@ -48,7 +48,7 @@ export class DrpdDeviceStatusInstrument extends Instrument {
       identifier: 'com.mta.drpd.device-status-panel',
       displayName: 'Device Status',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 2 },
+      defaultWidth: { mode: 'fixed', units: 10 },
       defaultUnits: 1
     })
   }
@@ -66,7 +66,7 @@ export class DrpdCcLinesInstrument extends Instrument {
       identifier: 'com.mta.drpd.cc-lines',
       displayName: 'CC Lines',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 2 },
+      defaultWidth: { mode: 'fixed', units: 7 },
       defaultUnits: 1
     })
   }
@@ -84,7 +84,7 @@ export class DrpdSinkControlInstrument extends Instrument {
       identifier: 'com.mta.drpd.sink-control',
       displayName: 'Sink Control',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 3 },
+      defaultWidth: { mode: 'fixed', units: 15 },
       defaultUnits: 1
     })
   }
@@ -102,7 +102,7 @@ export class DrpdUsbPdLogInstrument extends Instrument {
       identifier: 'com.mta.drpd.usbpd-log',
       displayName: 'Message Log',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 5 },
+      defaultWidth: { mode: 'fixed', units: 25 },
       defaultUnits: 1,
       defaultHeightMode: 'flex'
     })

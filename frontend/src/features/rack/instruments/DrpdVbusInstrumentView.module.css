@@ -35,7 +35,6 @@
 }
 
 .powerSection {
-  border-right: var(--border-thin) solid var(--color-border-panel);
   padding-right: var(--space-0);
   gap: var(--space-0);
   justify-content: flex-start;

@@ -60,12 +60,12 @@ const buildRow = (instruments: RackInstrument[]): RackRow => {
 describe('layout width allocation', () => {
   it('splits remaining width equally among flex instruments', () => {
     const instrumentMap = new Map<string, Instrument>([
-      ['fixed-6', buildInstrumentDefinition('fixed-6', { mode: 'fixed', units: 6 })],
+      ['fixed-30', buildInstrumentDefinition('fixed-30', { mode: 'fixed', units: 30 })],
       ['flex-a', buildInstrumentDefinition('flex-a', { mode: 'flex' })],
       ['flex-b', buildInstrumentDefinition('flex-b', { mode: 'flex' })]
     ])
     const row = buildRow([
-      buildRackInstrument('inst-fixed', 'fixed-6'),
+      buildRackInstrument('inst-fixed', 'fixed-30'),
       buildRackInstrument('inst-flex-a', 'flex-a'),
       buildRackInstrument('inst-flex-b', 'flex-b')
     ])
@@ -73,20 +73,20 @@ describe('layout width allocation', () => {
     const allocations = allocateRowInstrumentWidths(row, instrumentMap, MAX_ROW_WIDTH_UNITS)
 
     expect(allocations).toEqual([
-      { instrumentId: 'inst-fixed', widthUnits: 6 },
-      { instrumentId: 'inst-flex-a', widthUnits: 3 },
-      { instrumentId: 'inst-flex-b', widthUnits: 3 }
+      { instrumentId: 'inst-fixed', widthUnits: 30 },
+      { instrumentId: 'inst-flex-a', widthUnits: 15 },
+      { instrumentId: 'inst-flex-b', widthUnits: 15 }
     ])
   })
 
   it('rejects rows where fixed widths exceed max row capacity', () => {
     const instrumentMap = new Map<string, Instrument>([
-      ['fixed-8', buildInstrumentDefinition('fixed-8', { mode: 'fixed', units: 8 })],
-      ['fixed-5', buildInstrumentDefinition('fixed-5', { mode: 'fixed', units: 5 })]
+      ['fixed-40', buildInstrumentDefinition('fixed-40', { mode: 'fixed', units: 40 })],
+      ['fixed-25', buildInstrumentDefinition('fixed-25', { mode: 'fixed', units: 25 })]
     ])
     const row = buildRow([
-      buildRackInstrument('inst-a', 'fixed-8'),
-      buildRackInstrument('inst-b', 'fixed-5')
+      buildRackInstrument('inst-a', 'fixed-40'),
+      buildRackInstrument('inst-b', 'fixed-25')
     ])
 
     const allocations = allocateRowInstrumentWidths(row, instrumentMap, MAX_ROW_WIDTH_UNITS)
@@ -96,13 +96,13 @@ describe('layout width allocation', () => {
 
   it('blocks insertion when row width would overflow', () => {
     const instrumentMap = new Map<string, Instrument>([
-      ['fixed-6', buildInstrumentDefinition('fixed-6', { mode: 'fixed', units: 6 })]
+      ['fixed-30', buildInstrumentDefinition('fixed-30', { mode: 'fixed', units: 30 })]
     ])
     const targetRow = buildRow([
-      buildRackInstrument('inst-a', 'fixed-6'),
-      buildRackInstrument('inst-b', 'fixed-6')
+      buildRackInstrument('inst-a', 'fixed-30'),
+      buildRackInstrument('inst-b', 'fixed-30')
     ])
-    const candidate = buildRackInstrument('inst-c', 'fixed-6')
+    const candidate = buildRackInstrument('inst-c', 'fixed-30')
 
     const canInsert = canInsertInstrumentIntoRow(
       targetRow,
