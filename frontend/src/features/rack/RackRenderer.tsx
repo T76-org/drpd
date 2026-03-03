@@ -80,7 +80,7 @@ export const RackRenderer = ({
       }
       const widthScale = width / rackWidthPx
       const retinaBoost = getRetinaBoost(window.devicePixelRatio ?? 1)
-      const nextScale = widthScale * retinaBoost
+      const nextScale = Math.min(widthScale * retinaBoost, widthScale)
       if (!Number.isFinite(nextScale) || nextScale <= 0) {
         return
       }

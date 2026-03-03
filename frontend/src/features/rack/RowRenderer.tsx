@@ -10,6 +10,7 @@ import type { RackDeviceState, RackInstrumentDragPayload } from './RackRenderer'
 import { InstrumentBase } from './InstrumentBase'
 import { DrpdCcLinesInstrumentView } from './instruments/DrpdCcLinesInstrumentView'
 import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusInstrumentView'
+import { DrpdMessageDetailInstrumentView } from './instruments/DrpdMessageDetailInstrumentView'
 import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
 import { DrpdUsbPdLogInstrumentView } from './instruments/DrpdUsbPdLogInstrumentView'
 import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
@@ -307,6 +308,15 @@ const renderInstrument = ({
           isEditMode={isEditMode}
           onRemove={onRemove}
           onUpdateDeviceConfig={onUpdateDeviceConfig}
+        />
+      )
+    case 'com.mta.drpd.message-detail':
+      return (
+        <DrpdMessageDetailInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
         />
       )
     case 'com.mta.drpd.vbus':

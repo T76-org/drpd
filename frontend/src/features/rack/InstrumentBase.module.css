@@ -3,6 +3,7 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
+  min-width: 0;
   border: var(--border-thin) solid var(--color-border-instrument);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
@@ -37,6 +38,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
   padding: var(--space-4) var(--space-8);
   background: var(--color-surface-panel-accent);
   border-bottom: var(--border-thin) solid var(--color-border-panel);
@@ -47,6 +49,10 @@
 
 .name {
   font-weight: var(--font-weight-semibold);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .badge {
@@ -61,6 +67,7 @@
   align-items: center;
   gap: var(--space-6);
   position: relative;
+  flex: 0 0 auto;
 }
 
 .closeButton {

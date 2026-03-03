@@ -889,7 +889,7 @@ describe('RackView', () => {
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists VBUS, CC Lines, and Device Status instruments for compatible devices', async () => {
+  it('lists VBUS, CC Lines, Device Status, and MESSAGE DETAIL instruments for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -932,6 +932,45 @@ describe('RackView', () => {
     expect(
       await screen.findByRole('button', { name: /sink control/i }),
     ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /message detail/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('allocates MESSAGE DETAIL as horizontally and vertically flexible', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-message-detail',
+                    instrumentIdentifier: 'com.mta.drpd.message-detail'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByTestId('rack-instrument-inst-message-detail')).toHaveAttribute(
+      'data-width-units',
+      '60',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-message-detail')).toHaveStyle({
+      height: '100%'
+    })
   })
 
   it('adds an instrument for compatible devices', async () => {

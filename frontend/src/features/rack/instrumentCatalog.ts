@@ -110,6 +110,25 @@ export class DrpdUsbPdLogInstrument extends Instrument {
 }
 
 /**
+ * Message detail instrument for focused message inspection.
+ */
+export class DrpdMessageDetailInstrument extends Instrument {
+  /**
+   * Create a message detail instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.message-detail',
+      displayName: 'MESSAGE DETAIL',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'flex' },
+      defaultUnits: 1,
+      defaultHeightMode: 'flex'
+    })
+  }
+}
+
+/**
  * Build the list of supported instrument definitions.
  */
 export const getSupportedInstruments = (): Instrument[] => {
@@ -119,6 +138,7 @@ export const getSupportedInstruments = (): Instrument[] => {
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),
     new DrpdUsbPdLogInstrument(),
+    new DrpdMessageDetailInstrument(),
     new DrpdPlaceholderInstrument()
   ]
 }
