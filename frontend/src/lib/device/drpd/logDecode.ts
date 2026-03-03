@@ -53,11 +53,10 @@ export const decodeLoggedCapturedMessage = (
   payload.set(row.rawSop, 0)
   payload.set(row.rawDecodedData, row.rawSop.length)
   try {
-    const message = parseUSBPDMessage(payload)
+    const message = parseUSBPDMessage(payload, row.rawPulseWidths)
     return { kind: 'message', row, message }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     return { kind: 'invalid', row, reason }
   }
 }
-

@@ -20,7 +20,7 @@ const buildMessageRow = (
   senderPowerRole: 'SOURCE',
   senderDataRole: 'DFP',
   pulseCount: 4,
-  rawPulseWidths: Uint16Array.from([1, 2, 3, 4]),
+  rawPulseWidths: Float64Array.from([1, 2, 3, 4]),
   rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
   rawDecodedData: Uint8Array.from([0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d]),
   parseError: null,
@@ -38,6 +38,8 @@ describe('decodeLoggedCapturedMessage', () => {
     }
     expect(decoded.message.messageTypeName).toBe('Accept')
     expect(decoded.message.kind).toBe('CONTROL')
+    expect(Array.from(decoded.message.pulseWidthsNs)).toEqual([1, 2, 3, 4])
+    expect(decoded.message.pulseWidthsNs).not.toBe(row.rawPulseWidths)
   })
 
   it('returns event rows without decode attempt', () => {
@@ -72,4 +74,3 @@ describe('decodeLoggedCapturedMessage', () => {
     expect(decoded.reason).toContain('CRC mismatch')
   })
 })
-

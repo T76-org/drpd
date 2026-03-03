@@ -86,8 +86,8 @@ export interface LoggedCapturedMessage {
   senderDataRole: string | null
   ///< Number of captured pulses.
   pulseCount: number
-  ///< Raw pulse widths as uint16 values.
-  rawPulseWidths: Uint16Array
+  ///< Pulse widths converted to nanoseconds (float values).
+  rawPulseWidths: Float64Array
   ///< Raw SOP bytes.
   rawSop: Uint8Array
   ///< Raw decoded USB-PD data bytes.

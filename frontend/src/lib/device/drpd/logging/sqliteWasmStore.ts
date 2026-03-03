@@ -105,36 +105,46 @@ const toHex = (data: Uint8Array): string => {
 }
 
 /**
- * Convert a uint16 array into little-endian bytes.
+ * Convert pulse widths (nanoseconds) into little-endian float64 bytes.
  *
- * @param values - Uint16 values.
+ * @param values - Pulse widths in nanoseconds.
  * @returns Byte array.
  */
-const encodePulseWidthsLE = (values: Uint16Array): Uint8Array => {
-  const bytes = new Uint8Array(values.length * 2)
+const encodePulseWidthsLE = (values: Float64Array): Uint8Array => {
+  const bytes = new Uint8Array(values.length * 8)
   const view = new DataView(bytes.buffer)
   for (let index = 0; index < values.length; index += 1) {
-    view.setUint16(index * 2, values[index], true)
+    view.setFloat64(index * 8, values[index], true)
   }
   return bytes
 }
 
 /**
- * Decode little-endian uint16 values from a byte array.
+ * Decode pulse widths from little-endian bytes.
  *
- * @param bytes - Byte array containing uint16 values.
- * @returns Decoded uint16 array.
+ * Reads modern float64 encoding first, then falls back to legacy uint16 rows.
+ *
+ * @param bytes - Byte array containing pulse widths.
+ * @returns Decoded pulse widths in nanoseconds.
  */
-const decodePulseWidthsLE = (bytes: Uint8Array): Uint16Array => {
-  if (bytes.length % 2 !== 0) {
-    return new Uint16Array()
+const decodePulseWidthsLE = (bytes: Uint8Array): Float64Array => {
+  if (bytes.length % 8 === 0) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const values = new Float64Array(bytes.byteLength / 8)
+    for (let index = 0; index < values.length; index += 1) {
+      values[index] = view.getFloat64(index * 8, true)
+    }
+    return values
   }
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  const values = new Uint16Array(bytes.byteLength / 2)
-  for (let index = 0; index < values.length; index += 1) {
-    values[index] = view.getUint16(index * 2, true)
+  if (bytes.length % 2 === 0) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const values = new Float64Array(bytes.byteLength / 2)
+    for (let index = 0; index < values.length; index += 1) {
+      values[index] = view.getUint16(index * 2, true)
+    }
+    return values
   }
-  return values
+  return new Float64Array()
 }
 
 /**

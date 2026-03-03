@@ -99,6 +99,7 @@ export class DRPDDevice extends EventTarget {
   protected activeDisplayEpochStartUs: bigint | null ///< Active display-timestamp epoch anchor.
   protected pendingDisplayEpochReset: boolean ///< True when next message should reset display epoch.
   protected lastKnownDeviceTimestampUs: bigint | null ///< Last observed/synthesized stream timestamp.
+  protected captureCycleTimeNs: number | null ///< Capture cycle duration in nanoseconds.
 
   /**
    * Create a DRPD device driver.
@@ -146,6 +147,7 @@ export class DRPDDevice extends EventTarget {
     this.activeDisplayEpochStartUs = null
     this.pendingDisplayEpochReset = false
     this.lastKnownDeviceTimestampUs = null
+    this.captureCycleTimeNs = null
     this.interruptHandler = () => {
       if (this.interruptInFlight) {
         return
@@ -586,6 +588,7 @@ export class DRPDDevice extends EventTarget {
     this.activeDisplayEpochStartUs = null
     this.pendingDisplayEpochReset = false
     this.lastKnownDeviceTimestampUs = null
+    this.captureCycleTimeNs = null
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -1211,6 +1214,17 @@ export class DRPDDevice extends EventTarget {
    */
   protected async refreshAndDrainCapturedMessagesFromDevice(): Promise<void> {
     this.logDebug('refreshAndDrainCapturedMessages: start')
+    if (this.captureCycleTimeNs === null) {
+      try {
+        this.captureCycleTimeNs = await this.capture.getCycleTimeNs()
+        this.logDebug(`refreshAndDrainCapturedMessages: captureCycleTimeNs=${this.captureCycleTimeNs}`)
+      } catch (error) {
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+        )
+        this.logDebug(`refreshAndDrainCapturedMessages: cycle time error=${String(error)}`)
+      }
+    }
     while (true) {
       let captureCount: number
       try {
@@ -1259,6 +1273,16 @@ export class DRPDDevice extends EventTarget {
     await this.ensureLogStoreOpen()
     if (this.loggingConfig.enabled && this.loggingConfig.autoStartOnConnect) {
       await this.startLogging()
+    }
+    try {
+      this.captureCycleTimeNs = await this.capture.getCycleTimeNs()
+      this.logDebug(`runConnectTasks: captureCycleTimeNs=${this.captureCycleTimeNs}`)
+    } catch (error) {
+      this.captureCycleTimeNs = null
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`runConnectTasks: cycle time error=${String(error)}`)
     }
     await this.refreshState()
     await this.refreshAndDrainCapturedMessagesFromDevice()
@@ -1415,7 +1439,7 @@ export class DRPDDevice extends EventTarget {
         senderPowerRole: null,
         senderDataRole: null,
         pulseCount: 0,
-        rawPulseWidths: new Uint16Array(),
+        rawPulseWidths: new Float64Array(),
         rawSop: new Uint8Array(),
         rawDecodedData: new Uint8Array(),
         parseError: null,
@@ -1538,7 +1562,8 @@ export class DRPDDevice extends EventTarget {
   protected toLoggedCapturedMessage(message: CapturedMessage): LoggedCapturedMessage {
     const rawSop = Uint8Array.from(message.sop)
     const rawDecodedData = Uint8Array.from(message.decodedData)
-    const rawPulseWidths = Uint16Array.from(message.pulseWidths)
+    const cycleTimeNs = this.captureCycleTimeNs ?? 1
+    const rawPulseWidths = Float64Array.from(message.pulseWidths, (value) => value * cycleTimeNs)
     let sopKind: string | null = null
     let messageKind: string | null = null
     let messageType: number | null = null
@@ -1551,7 +1576,7 @@ export class DRPDDevice extends EventTarget {
       const usbPayload = new Uint8Array(rawSop.length + rawDecodedData.length)
       usbPayload.set(rawSop, 0)
       usbPayload.set(rawDecodedData, rawSop.length)
-      const parsedMessage = parseUSBPDMessage(usbPayload)
+      const parsedMessage = parseUSBPDMessage(usbPayload, rawPulseWidths)
       const header = parsedMessage.header.messageHeader
       sopKind = parsedMessage.sop.kind
       messageKind = header.messageKind

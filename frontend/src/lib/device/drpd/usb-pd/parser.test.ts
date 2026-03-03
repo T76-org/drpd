@@ -24,6 +24,7 @@ describe('usb-pd parser', () => {
     expect(message.header.messageHeader.messageKind).toBe('CONTROL')
     expect(message.header.messageHeader.messageTypeNumber).toBe(0x01)
     expect(message.messageTypeName).toBe('GoodCRC')
+    expect(message.pulseWidthsNs).toEqual(new Float64Array())
     expect(message.header.messageHeader.numberOfDataObjects).toBe(0)
   })
 
@@ -36,6 +37,7 @@ describe('usb-pd parser', () => {
     expect(message.header.messageHeader.messageTypeNumber).toBe(0x02)
     expect(message.messageTypeName).toBe('Request')
     expect(message.header.messageHeader.numberOfDataObjects).toBe(1)
+    expect(message.pulseWidthsNs).toEqual(new Float64Array())
     expect(message.header.messageHeader.powerRole).toBe('SINK')
     expect(message.header.messageHeader.dataRole).toBe('UFP')
   })
@@ -48,6 +50,7 @@ describe('usb-pd parser', () => {
     expect(message.header.messageHeader.messageKind).toBe('CONTROL')
     expect(message.header.messageHeader.messageTypeNumber).toBe(0x03)
     expect(message.messageTypeName).toBe('Accept')
+    expect(message.pulseWidthsNs).toEqual(new Float64Array())
     expect(message.header.messageHeader.messageId).toBe(1)
     expect(message.header.messageHeader.powerRole).toBe('SOURCE')
     expect(message.header.messageHeader.dataRole).toBe('DFP')
@@ -64,5 +67,12 @@ describe('usb-pd parser', () => {
     expect(message.header.extendedHeader?.chunkNumber).toBe(3)
     expect(message.header.extendedHeader?.requestChunk).toBe(true)
     expect(message.header.extendedHeader?.dataSize).toBe(0x12)
+  })
+
+  it('copies pulse widths into parsed messages', () => {
+    const pulseWidthsNs = Float64Array.from([120, 340, 560])
+    const message = parseUSBPDMessage(sampleAccept, pulseWidthsNs)
+    pulseWidthsNs[0] = 999
+    expect(Array.from(message.pulseWidthsNs)).toEqual([120, 340, 560])
   })
 })
