@@ -3,10 +3,13 @@ import type { Device } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
   DRPDDeviceDefinition,
+  buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
+  decodeLoggedCapturedMessage,
   normalizeLoggingConfig,
   type DRPDLoggingConfig,
   type DRPDDriverRuntime,
+  type LoggedCapturedMessage,
   buildUSBFilters,
   findMatchingDevices,
   verifyMatchingDevices
@@ -53,6 +56,10 @@ interface DRPDLogsConsoleHelper {
     query?: { last?: number; startTimestampUs?: bigint; endTimestampUs?: bigint },
     deviceId?: string,
   ): Promise<unknown>
+  selection(deviceId?: string): Promise<unknown>
+  selectedMessages(deviceId?: string): Promise<unknown>
+  decodeMessage(entry: unknown, deviceId?: string): Promise<unknown>
+  decodeSelectedMessages(deviceId?: string): Promise<unknown>
   export(request: unknown, deviceId?: string): Promise<unknown>
   clear(scope: unknown, deviceId?: string): Promise<unknown>
   help(): string
@@ -118,6 +125,21 @@ const applyRecordConfigToRuntime = async (
     return
   }
   await runtime.drpdDriver.configureLogging(resolveDeviceLoggingConfig(record))
+}
+
+const isLoggedCapturedMessageLike = (value: unknown): value is LoggedCapturedMessage => {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  const probe = value as Partial<LoggedCapturedMessage>
+  return (
+    (probe.entryKind === 'message' || probe.entryKind === 'event') &&
+    typeof probe.startTimestampUs === 'bigint' &&
+    typeof probe.endTimestampUs === 'bigint' &&
+    typeof probe.createdAtMs === 'number' &&
+    probe.rawSop instanceof Uint8Array &&
+    probe.rawDecodedData instanceof Uint8Array
+  )
 }
 
 
@@ -368,6 +390,69 @@ export const RackView = () => {
         return rows.slice(-normalized.last)
       },
       queryMessages: async (query, deviceId) => helper.queryMessage(query, deviceId),
+      selection: async (deviceId) => {
+        const driver = resolveDriver(deviceId)
+        if (
+          'getLogSelectionState' in driver &&
+          typeof driver.getLogSelectionState === 'function'
+        ) {
+          return await Promise.resolve(driver.getLogSelectionState())
+        }
+        const state = driver.getState()
+        return state.logSelection ?? {
+          selectedKeys: [],
+          anchorIndex: null,
+          activeIndex: null,
+        }
+      },
+      selectedMessages: async (deviceId) => {
+        const driver = resolveDriver(deviceId)
+        const selection = await helper.selection(deviceId)
+        const selectedKeys = Array.isArray((selection as { selectedKeys?: unknown[] }).selectedKeys)
+          ? ((selection as { selectedKeys: unknown[] }).selectedKeys.filter(
+              (value): value is string => typeof value === 'string',
+            ))
+          : []
+        if (selectedKeys.length === 0) {
+          return []
+        }
+        const rows = await driver.queryCapturedMessages({
+          startTimestampUs: 0n,
+          endTimestampUs: CONSOLE_LOG_END_TS_US,
+          sortOrder: 'asc',
+        })
+        const selected = new Set(selectedKeys)
+        return rows.filter((row) => selected.has(buildCapturedLogSelectionKey(row)))
+      },
+      decodeMessage: async (entry, deviceId) => {
+        const driver = resolveDriver(deviceId)
+        let row: LoggedCapturedMessage | undefined
+        if (typeof entry === 'string') {
+          const rows = await driver.queryCapturedMessages({
+            startTimestampUs: 0n,
+            endTimestampUs: CONSOLE_LOG_END_TS_US,
+            sortOrder: 'asc',
+          })
+          row = rows.find((candidate) => buildCapturedLogSelectionKey(candidate) === entry)
+          if (!row) {
+            throw new Error(`Log entry key not found: ${entry}`)
+          }
+        } else if (isLoggedCapturedMessageLike(entry)) {
+          row = entry
+        } else {
+          throw new Error('decodeMessage(entry): entry must be a row key string or a LoggedCapturedMessage object')
+        }
+        return decodeLoggedCapturedMessage(row)
+      },
+      decodeSelectedMessages: async (deviceId) => {
+        const rows = await helper.selectedMessages(deviceId)
+        if (!Array.isArray(rows)) {
+          return []
+        }
+        return rows
+          .filter((row): row is LoggedCapturedMessage => isLoggedCapturedMessageLike(row))
+          .map((row) => decodeLoggedCapturedMessage(row))
+      },
       export: async (request, deviceId) => {
         const driver = resolveDriver(deviceId)
         return await driver.exportLogs(request as never)
@@ -385,6 +470,10 @@ export const RackView = () => {
           'await window.__drpdLogs.queryAnalog({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessage({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessages({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?) // alias',
+          'await window.__drpdLogs.selection(deviceId?)',
+          'await window.__drpdLogs.selectedMessages(deviceId?)',
+          'await window.__drpdLogs.decodeMessage(entryOrKey, deviceId?)',
+          'await window.__drpdLogs.decodeSelectedMessages(deviceId?)',
           'await window.__drpdLogs.export(request, deviceId?)',
           'await window.__drpdLogs.clear(scope, deviceId?)',
         ].join('\n'),

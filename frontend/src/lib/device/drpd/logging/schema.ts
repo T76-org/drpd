@@ -55,4 +55,4 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
 /**
  * Schema version used by the logging store.
  */
-export const LOG_SCHEMA_VERSION = 2
+export const LOG_SCHEMA_VERSION = 3

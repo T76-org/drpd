@@ -143,7 +143,7 @@ describe('DRPD logging integration', () => {
       senderPowerRole: 'SOURCE',
       senderDataRole: 'DFP',
       pulseCount: 1,
-      rawPulseWidths: Uint16Array.from([1]),
+      rawPulseWidths: Float64Array.from([1]),
       rawSop: Uint8Array.from([0x11]),
       rawDecodedData: Uint8Array.from([0x22]),
       parseError: null,
@@ -237,6 +237,7 @@ describe('DRPD logging integration', () => {
       '0.6',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       buildCapturePayload(
         [0x18, 0x18, 0x18, 0x11],
@@ -275,11 +276,13 @@ describe('DRPD logging integration', () => {
     expect(analog[0].vbusV).toBe(5.0)
     expect(analog[0].ibusA).toBe(0.2)
     expect(messages).toHaveLength(1)
+    expect(Array.from(messages[0].rawPulseWidths)).toEqual([2560, 2570, 2580])
   })
 
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['2', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       // SOP' with Cable Plug bit set (message originated from cable/VPD).
       buildCapturePayload(
@@ -343,6 +346,7 @@ describe('DRPD logging integration', () => {
       '0.6',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       buildCapturePayload(
         [0x18, 0x18, 0x18, 0x11],
@@ -401,6 +405,7 @@ describe('DRPD logging integration', () => {
       '0.6',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       buildCapturePayload(
         [0x18, 0x18, 0x18, 0x11],
@@ -558,6 +563,7 @@ describe('DRPD logging integration', () => {
       '0.6',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       buildCapturePayload(
         [0x18, 0x18, 0x18, 0x11],
@@ -610,6 +616,7 @@ describe('DRPD logging integration', () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       buildCapturePayload(
         [0x18, 0x18, 0x18, 0x11],

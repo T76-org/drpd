@@ -149,6 +149,10 @@ export type WorkerRpcRequest =
               | 'refreshState'
               | 'queryAnalogSamples'
               | 'queryCapturedMessages'
+              | 'getLogSelectionState'
+              | 'setLogSelectionState'
+              | 'clearLogSelection'
+              | 'resolveLogSelectionKeysForIndexRange'
               | 'exportLogs'
               | 'clearLogs'
             args: unknown[]

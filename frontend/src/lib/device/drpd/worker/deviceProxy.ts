@@ -11,6 +11,7 @@ import type {
   CapturedMessageQuery,
   CCBusRole,
   DRPDDeviceState,
+  DRPDLogSelectionState,
   DRPDLoggingConfig,
   LogClearResult,
   LogClearScope,
@@ -109,6 +110,11 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       triggerInfo: null,
       sinkInfo: null,
       sinkPdoList: null,
+      logSelection: {
+        selectedKeys: [],
+        anchorIndex: null,
+        activeIndex: null,
+      },
     }
     this.closed = false
 
@@ -153,7 +159,14 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    * @returns Device state snapshot.
    */
   public getState(): DRPDDeviceState {
-    return { ...this.state }
+    return {
+      ...this.state,
+      logSelection: {
+        selectedKeys: [...this.state.logSelection.selectedKeys],
+        anchorIndex: this.state.logSelection.anchorIndex,
+        activeIndex: this.state.logSelection.activeIndex,
+      },
+    }
   }
 
   /**
@@ -249,6 +262,49 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   public async queryCapturedMessages(query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
     return (await this.callDevice('queryCapturedMessages', query)) as LoggedCapturedMessage[]
+  }
+
+  /**
+   * Read worker-side message-log selection state.
+   *
+   * @returns Selection snapshot.
+   */
+  public async getLogSelectionState(): Promise<DRPDLogSelectionState> {
+    return (await this.callDevice('getLogSelectionState')) as DRPDLogSelectionState
+  }
+
+  /**
+   * Write worker-side message-log selection state.
+   *
+   * @param next - Next selection state.
+   */
+  public async setLogSelectionState(next: DRPDLogSelectionState): Promise<void> {
+    await this.callDevice('setLogSelectionState', next)
+  }
+
+  /**
+   * Clear worker-side message-log selection state.
+   */
+  public async clearLogSelection(): Promise<void> {
+    await this.callDevice('clearLogSelection')
+  }
+
+  /**
+   * Resolve message-log row keys for an index range.
+   *
+   * @param startIndex - Start row index.
+   * @param endIndex - End row index.
+   * @returns Stable row keys.
+   */
+  public async resolveLogSelectionKeysForIndexRange(
+    startIndex: number,
+    endIndex: number,
+  ): Promise<string[]> {
+    return (await this.callDevice(
+      'resolveLogSelectionKeysForIndexRange',
+      startIndex,
+      endIndex,
+    )) as string[]
   }
 
   /**

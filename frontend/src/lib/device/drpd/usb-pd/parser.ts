@@ -41,9 +41,13 @@ export const resolveMessageType = (
  * Parse a USB-PD payload into a message instance.
  *
  * @param decodedData - Raw decoded payload (SOP bytes + headers + payload + CRC).
+ * @param pulseWidthsNs - Optional pulse widths in nanoseconds.
  * @returns Parsed USB-PD message.
  */
-export const parseUSBPDMessage = (decodedData: Uint8Array): Message => {
+export const parseUSBPDMessage = (
+  decodedData: Uint8Array,
+  pulseWidthsNs?: Float64Array,
+): Message => {
   if (decodedData.length < SOP_LENGTH + 2) {
     throw new Error(`USB-PD payload too short: ${decodedData.length}`)
   }
@@ -59,7 +63,9 @@ export const parseUSBPDMessage = (decodedData: Uint8Array): Message => {
       messageTypeNumber,
       ReservedControlMessage,
     )
-    return new messageClass(sop, header, decodedData, name)
+    const message = new messageClass(sop, header, decodedData, name)
+    message.setPulseWidthsNs(pulseWidthsNs)
+    return message
   }
 
   if (messageKind === 'DATA') {
@@ -68,7 +74,9 @@ export const parseUSBPDMessage = (decodedData: Uint8Array): Message => {
       messageTypeNumber,
       ReservedDataMessage,
     )
-    return new messageClass(sop, header, decodedData, name)
+    const message = new messageClass(sop, header, decodedData, name)
+    message.setPulseWidthsNs(pulseWidthsNs)
+    return message
   }
 
   const { name, messageClass } = resolveMessageType(
@@ -76,5 +84,7 @@ export const parseUSBPDMessage = (decodedData: Uint8Array): Message => {
     messageTypeNumber,
     ReservedExtendedMessage,
   )
-  return new messageClass(sop, header, decodedData, name)
+  const message = new messageClass(sop, header, decodedData, name)
+  message.setPulseWidthsNs(pulseWidthsNs)
+  return message
 }

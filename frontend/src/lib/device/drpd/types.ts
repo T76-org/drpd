@@ -482,6 +482,33 @@ export interface CapturedMessage {
 }
 
 /**
+ * USB-PD message-log row selection tracked in the driver.
+ */
+export interface DRPDLogSelectionState {
+  ///< Selected message-log row keys.
+  selectedKeys: string[]
+  ///< Anchor row index used for shift-range selection.
+  anchorIndex: number | null
+  ///< Active row index used for keyboard navigation.
+  activeIndex: number | null
+}
+
+/**
+ * Build a stable key for a logged captured-message row.
+ *
+ * @param row - Logged row.
+ * @returns Stable row key.
+ */
+export const buildCapturedLogSelectionKey = (
+  row: Pick<LoggedCapturedMessage, 'entryKind' | 'startTimestampUs' | 'endTimestampUs' | 'createdAtMs' | 'eventType'>,
+): string => {
+  if (row.entryKind === 'event') {
+    return `event:${row.startTimestampUs.toString()}:${row.createdAtMs}:${row.eventType ?? 'unknown'}`
+  }
+  return `message:${row.startTimestampUs.toString()}:${row.endTimestampUs.toString()}:${row.createdAtMs}`
+}
+
+/**
  * DRPD device state snapshot.
  */
 export interface DRPDDeviceState {
@@ -501,6 +528,8 @@ export interface DRPDDeviceState {
   sinkInfo: SinkInfo | null
   ///< Sink PDO list snapshot, or null if unknown.
   sinkPdoList: SinkPdo[] | null
+  ///< Current message-log selection state.
+  logSelection: DRPDLogSelectionState
 }
 
 /**

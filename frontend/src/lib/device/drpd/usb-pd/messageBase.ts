@@ -34,6 +34,8 @@ export class Message {
   public readonly messageTypeNumber: number
   ///< Human-readable message type name.
   public readonly messageTypeName: string
+  ///< Pulse widths in nanoseconds.
+  public pulseWidthsNs: Float64Array
 
   /**
    * Create a USB-PD message wrapper.
@@ -43,7 +45,12 @@ export class Message {
    * @param payload - Raw payload bytes including SOP and headers.
    * @param messageTypeName - Human-readable message type name.
    */
-  public constructor(sop: SOP, header: Header, payload: Uint8Array, messageTypeName: string) {
+  public constructor(
+    sop: SOP,
+    header: Header,
+    payload: Uint8Array,
+    messageTypeName: string,
+  ) {
     this.sop = sop
     this.header = header
     this.payload = payload
@@ -54,6 +61,16 @@ export class Message {
     this.kind = header.messageHeader.messageKind
     this.messageTypeNumber = header.messageHeader.messageTypeNumber
     this.messageTypeName = messageTypeName
+    this.pulseWidthsNs = new Float64Array()
+  }
+
+  /**
+   * Copy pulse widths into this decoded message.
+   *
+   * @param pulseWidthsNs - Optional pulse widths in nanoseconds.
+   */
+  public setPulseWidthsNs(pulseWidthsNs?: Float64Array): void {
+    this.pulseWidthsNs = pulseWidthsNs ? Float64Array.from(pulseWidthsNs) : new Float64Array()
   }
 }
 
