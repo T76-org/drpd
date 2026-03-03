@@ -20,6 +20,7 @@
   justify-content: stretch;
   flex: 0 0 auto;
   height: 100%;
+  min-width: 0;
 }
 
 .instrumentSlot + .instrumentSlot {
