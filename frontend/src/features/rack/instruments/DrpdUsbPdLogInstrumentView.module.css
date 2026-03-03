@@ -23,6 +23,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .headerRow {
@@ -117,6 +119,7 @@
   font-size: var(--font-size-3xs);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
+  cursor: default;
 }
 
 .dataRow > span {
@@ -151,6 +154,11 @@
 .eventRowStatus {
   color: var(--event-color-status);
   background: var(--event-bg-status);
+}
+
+.selectedRow {
+  background: color-mix(in srgb, var(--color-status-info) 30%, transparent);
+  box-shadow: inset 0 0 0 var(--border-thin) color-mix(in srgb, var(--color-status-info) 80%, white 20%);
 }
 
 .eventLabel {

@@ -9,6 +9,7 @@ import USBTMCTransport from '../../transport/usbtmc'
 import type { DRPDTransport } from './transport'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
+import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './types'
 import type {
   AnalogMonitorChannels,
   AnalogSampleQuery,
@@ -16,6 +17,7 @@ import type {
   CapturedMessageQuery,
   CCBusRole,
   DRPDDeviceState,
+  DRPDLogSelectionState,
   DRPDLoggingConfig,
   LogClearResult,
   LogClearScope,
@@ -25,7 +27,6 @@ import type {
   LoggedCapturedMessage,
   OnOffState,
 } from './types'
-import { OnOffState as OnOffStateValues } from './types'
 import type { DRPDLogStore, DRPDLoggingDiagnostics, DRPDLogCounts } from './logging'
 import { DRPDAnalogMonitor } from './analogMonitor'
 import { DRPDCCBus } from './ccBus'
@@ -124,7 +125,12 @@ export class DRPDDevice extends EventTarget {
       captureEnabled: null,
       triggerInfo: null,
       sinkInfo: null,
-      sinkPdoList: null
+      sinkPdoList: null,
+      logSelection: {
+        selectedKeys: [],
+        anchorIndex: null,
+        activeIndex: null,
+      },
     }
     this.analogMonitorIntervalMs = 250
     this.analogMonitorPollingActive = false
@@ -173,7 +179,14 @@ export class DRPDDevice extends EventTarget {
    * @returns Device state snapshot.
    */
   public getState(): DRPDDeviceState {
-    return { ...this.state }
+    return {
+      ...this.state,
+      logSelection: {
+        selectedKeys: [...this.state.logSelection.selectedKeys],
+        anchorIndex: this.state.logSelection.anchorIndex,
+        activeIndex: this.state.logSelection.activeIndex,
+      },
+    }
   }
 
   /**
@@ -359,6 +372,69 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
+   * Return the current message-log selection state.
+   *
+   * @returns Selection snapshot.
+   */
+  public getLogSelectionState(): DRPDLogSelectionState {
+    return {
+      selectedKeys: [...this.state.logSelection.selectedKeys],
+      anchorIndex: this.state.logSelection.anchorIndex,
+      activeIndex: this.state.logSelection.activeIndex,
+    }
+  }
+
+  /**
+   * Replace message-log selection state.
+   *
+   * @param next - Next selection state.
+   */
+  public setLogSelectionState(next: DRPDLogSelectionState): void {
+    this.updateLogSelectionState(next)
+  }
+
+  /**
+   * Clear all message-log selection state.
+   */
+  public clearLogSelection(): void {
+    this.updateLogSelectionState({
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    })
+  }
+
+  /**
+   * Resolve row keys for a message index range (inclusive).
+   *
+   * @param startIndex - Start row index.
+   * @param endIndex - End row index.
+   * @returns Stable row keys within the range.
+   */
+  public async resolveLogSelectionKeysForIndexRange(
+    startIndex: number,
+    endIndex: number,
+  ): Promise<string[]> {
+    if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex)) {
+      return []
+    }
+    const normalizedStart = Math.max(0, Math.floor(Math.min(startIndex, endIndex)))
+    const normalizedEnd = Math.max(0, Math.floor(Math.max(startIndex, endIndex)))
+    const limit = normalizedEnd - normalizedStart + 1
+    if (limit <= 0) {
+      return []
+    }
+    const rows = await this.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: BigInt('9223372036854775807'),
+      sortOrder: 'asc',
+      offset: normalizedStart,
+      limit,
+    })
+    return rows.map((row) => buildCapturedLogSelectionKey(row))
+  }
+
+  /**
    * Export selected logged data.
    *
    * @param request - Export request.
@@ -391,6 +467,9 @@ export class DRPDDevice extends EventTarget {
       this.activeDisplayEpochStartUs = null
       this.pendingDisplayEpochReset = false
       this.lastKnownDeviceTimestampUs = null
+      if (this.state.logSelection.selectedKeys.length > 0) {
+        this.clearLogSelection()
+      }
     }
     if (result.analogDeleted > 0 || result.messagesDeleted > 0) {
       this.dispatchEvent(
@@ -533,7 +612,12 @@ export class DRPDDevice extends EventTarget {
       captureEnabled: null,
       triggerInfo: null,
       sinkInfo: null,
-      sinkPdoList: null
+      sinkPdoList: null,
+      logSelection: {
+        selectedKeys: [],
+        anchorIndex: null,
+        activeIndex: null,
+      },
     }
       const changed: string[] = []
       if (hadRole) {
@@ -1410,6 +1494,39 @@ export class DRPDDevice extends EventTarget {
     } finally {
       this.logStore = undefined
     }
+  }
+
+  /**
+   * Apply a new message-log selection state and emit a state update when changed.
+   *
+   * @param next - Candidate selection state.
+   */
+  protected updateLogSelectionState(next: DRPDLogSelectionState): void {
+    const normalized: DRPDLogSelectionState = {
+      selectedKeys: Array.from(new Set(next.selectedKeys)),
+      anchorIndex:
+        next.anchorIndex === null ? null : Math.max(0, Math.floor(next.anchorIndex)),
+      activeIndex:
+        next.activeIndex === null ? null : Math.max(0, Math.floor(next.activeIndex)),
+    }
+    const current = this.state.logSelection
+    const isSame =
+      current.anchorIndex === normalized.anchorIndex &&
+      current.activeIndex === normalized.activeIndex &&
+      current.selectedKeys.length === normalized.selectedKeys.length &&
+      current.selectedKeys.every((value, index) => value === normalized.selectedKeys[index])
+    if (isSame) {
+      return
+    }
+    this.state = {
+      ...this.state,
+      logSelection: normalized,
+    }
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { state: this.getState(), changed: ['logSelection'] },
+      }),
+    )
   }
 
   /**

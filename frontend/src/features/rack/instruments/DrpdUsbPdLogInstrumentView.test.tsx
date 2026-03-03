@@ -1,8 +1,12 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DRPDDevice } from '../../../lib/device'
-import type { LoggedCapturedMessage } from '../../../lib/device'
+import {
+  buildCapturedLogSelectionKey,
+  type DRPDLogSelectionState,
+  type LoggedCapturedMessage,
+} from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
@@ -10,11 +14,17 @@ import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
 class TestLogDriver extends EventTarget {
   public rows: LoggedCapturedMessage[]
   public clearScopes: string[]
+  public logSelection: DRPDLogSelectionState
 
   public constructor(rows: LoggedCapturedMessage[]) {
     super()
     this.rows = rows
     this.clearScopes = []
+    this.logSelection = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
   }
 
   public getState() {
@@ -27,7 +37,43 @@ class TestLogDriver extends EventTarget {
       triggerInfo: null,
       sinkInfo: null,
       sinkPdoList: null,
+      logSelection: this.logSelection,
     }
+  }
+
+  public getLogSelectionState(): DRPDLogSelectionState {
+    return this.logSelection
+  }
+
+  public async setLogSelectionState(next: DRPDLogSelectionState): Promise<void> {
+    this.logSelection = next
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { state: this.getState(), changed: ['logSelection'] },
+      }),
+    )
+  }
+
+  public async clearLogSelection(): Promise<void> {
+    await this.setLogSelectionState({
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    })
+  }
+
+  public async resolveLogSelectionKeysForIndexRange(
+    startIndex: number,
+    endIndex: number,
+  ): Promise<string[]> {
+    const start = Math.max(0, Math.min(startIndex, endIndex))
+    const end = Math.min(this.rows.length - 1, Math.max(startIndex, endIndex))
+    if (end < start) {
+      return []
+    }
+    return this.rows
+      .slice(start, end + 1)
+      .map((row) => buildCapturedLogSelectionKey(row))
   }
 
   public async getLogCounts(): Promise<{ analog: number; messages: number }> {
@@ -49,6 +95,11 @@ class TestLogDriver extends EventTarget {
   public async clearLogs(scope: string): Promise<void> {
     this.clearScopes.push(scope)
     this.rows = []
+    this.logSelection = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
   }
 }
 
@@ -474,5 +525,110 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       retentionTrimBatchSize: 10,
       maxCapturedMessages: 777,
     })
+  })
+
+  it('supports click unselect and ctrl/cmd multi-select', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3), buildMessage(2, 4)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+    await screen.findByText('Reject')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    expect(rows.length).toBeGreaterThanOrEqual(3)
+
+    await userEvent.click(rows[0] as HTMLElement)
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(1)
+    })
+
+    await userEvent.click(rows[0] as HTMLElement)
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(0)
+    })
+
+    fireEvent.click(rows[0] as HTMLElement, { ctrlKey: true })
+    fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(2)
+    })
+  })
+
+  it('supports shift-click range selection', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildMessage(1, 3),
+      buildMessage(2, 4),
+      buildMessage(3, 6),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+    await screen.findByText('PS RDY')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+
+    await userEvent.click(rows[0] as HTMLElement)
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(1)
+    })
+    fireEvent.click(rows[3] as HTMLElement, { shiftKey: true })
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(4)
+      expect(driver.logSelection.anchorIndex).toBe(0)
+      expect(driver.logSelection.activeIndex).toBe(3)
+    })
+  })
+
+  it('supports arrow navigation and shift-arrow range selection', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildMessage(1, 3),
+      buildMessage(2, 4),
+      buildMessage(3, 6),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+    await screen.findByText('PS RDY')
+    const viewport = screen.getByTestId('drpd-usbpd-log-viewport')
+
+    await userEvent.click(viewport)
+    await userEvent.keyboard('{ArrowDown}')
+    expect(driver.logSelection.selectedKeys).toHaveLength(1)
+    expect(driver.logSelection.activeIndex).toBe(0)
+
+    await userEvent.keyboard('{Shift>}{ArrowDown}{/Shift}')
+    expect(driver.logSelection.selectedKeys).toHaveLength(2)
+    expect(driver.logSelection.anchorIndex).toBe(0)
+    expect(driver.logSelection.activeIndex).toBe(1)
   })
 })

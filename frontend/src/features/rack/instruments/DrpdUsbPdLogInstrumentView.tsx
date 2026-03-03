@@ -1,8 +1,18 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { DRPDDevice } from '../../../lib/device'
 import {
   buildDefaultLoggingConfig,
+  buildCapturedLogSelectionKey,
   normalizeLoggingConfig,
+  type DRPDLogSelectionState,
   type DRPDLoggingConfig,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
@@ -22,9 +32,15 @@ const PAGE_SIZE = 200
 const OVERSCAN_ROWS = 18
 const COUNT_SYNC_INTERVAL_MS = 1200
 const MIN_CAPTURED_MESSAGE_BUFFER = 51
+const EMPTY_SELECTION: DRPDLogSelectionState = {
+  selectedKeys: [],
+  anchorIndex: null,
+  activeIndex: null,
+}
 
 type DisplayRow = {
   key: string
+  selectionKey: string
   kind: 'message' | 'event'
   eventType: LoggedCapturedMessage['eventType']
   startTimestampUs: bigint
@@ -130,6 +146,7 @@ const toDisplayRows = (
       previousEnd = null
       return {
         key: `${row.startTimestampUs.toString()}-${row.createdAtMs}-event`,
+        selectionKey: buildCapturedLogSelectionKey(row),
         kind: 'event',
         eventType: row.eventType,
         startTimestampUs: row.startTimestampUs,
@@ -156,6 +173,7 @@ const toDisplayRows = (
       kind: 'message',
       eventType: null,
       key: `${row.startTimestampUs.toString()}-${row.endTimestampUs.toString()}-${row.createdAtMs}`,
+      selectionKey: buildCapturedLogSelectionKey(row),
       startTimestampUs: row.startTimestampUs,
       endTimestampUs: row.endTimestampUs,
       timestamp: formatMicroseconds(row.displayTimestampUs),
@@ -191,6 +209,26 @@ export const DrpdUsbPdLogInstrumentView = ({
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
   ) => Promise<void> | void
 }) => {
+  const normalizeSelectionState = (value: unknown): DRPDLogSelectionState => {
+    if (!value || typeof value !== 'object') {
+      return EMPTY_SELECTION
+    }
+    const probe = value as Partial<DRPDLogSelectionState>
+    return {
+      selectedKeys: Array.isArray(probe.selectedKeys)
+        ? probe.selectedKeys.filter((entry): entry is string => typeof entry === 'string')
+        : [],
+      anchorIndex:
+        typeof probe.anchorIndex === 'number' && Number.isFinite(probe.anchorIndex)
+          ? Math.max(0, Math.floor(probe.anchorIndex))
+          : null,
+      activeIndex:
+        typeof probe.activeIndex === 'number' && Number.isFinite(probe.activeIndex)
+          ? Math.max(0, Math.floor(probe.activeIndex))
+          : null,
+    }
+  }
+
   const driver = deviceState?.drpdDriver
   const configuredMaxCapturedMessages = useMemo(() => {
     const fallback = buildDefaultLoggingConfig().maxCapturedMessages
@@ -245,10 +283,16 @@ export const DrpdUsbPdLogInstrumentView = ({
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
   const loadingPagesRef = useRef(new Set<number>())
+  const selectionTaskRef = useRef<Promise<void>>(Promise.resolve())
   const [totalRows, setTotalRows] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
+  const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
+  const selectedKeySet = useMemo(
+    () => new Set(selection.selectedKeys),
+    [selection.selectedKeys],
+  )
 
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT_PX) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / ROW_HEIGHT_PX) + OVERSCAN_ROWS * 2
@@ -269,6 +313,101 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
     return rows
   }, [firstVisibleRow, lastVisibleRow, pages, totalRows])
+
+  const getRowKeyAtIndex = async (index: number): Promise<string | null> => {
+    if (!driver || index < 0 || index >= totalRows) {
+      return null
+    }
+    const pageIndex = Math.floor(index / PAGE_SIZE)
+    const rowInPageIndex = index % PAGE_SIZE
+    const cached = pages.get(pageIndex)?.[rowInPageIndex]
+    if (cached) {
+      return cached.selectionKey
+    }
+    const keys = await driver.resolveLogSelectionKeysForIndexRange(index, index)
+    return keys[0] ?? null
+  }
+
+  const persistSelection = async (next: DRPDLogSelectionState): Promise<void> => {
+    const normalized = normalizeSelectionState(next)
+    if (!driver) {
+      setSelection(normalized)
+      return
+    }
+    await driver.setLogSelectionState(normalized)
+    setSelection(normalized)
+  }
+
+  const readSelectionFromDriver = async (): Promise<DRPDLogSelectionState> => {
+    if (!driver) {
+      return EMPTY_SELECTION
+    }
+    const maybeSelection = driver.getLogSelectionState()
+    return normalizeSelectionState(await Promise.resolve(maybeSelection))
+  }
+
+  const enqueueSelectionTask = (task: () => Promise<void>): void => {
+    selectionTaskRef.current = selectionTaskRef.current
+      .then(async () => {
+        await task()
+      })
+      .catch(() => undefined)
+  }
+
+  const applySingleSelectionAtIndex = async (index: number): Promise<void> => {
+    const rowKey = await getRowKeyAtIndex(index)
+    if (!rowKey) {
+      return
+    }
+    const nextSelection: DRPDLogSelectionState = {
+      selectedKeys: [rowKey],
+      anchorIndex: index,
+      activeIndex: index,
+    }
+    await persistSelection(nextSelection)
+  }
+
+  const applyRangeSelection = async (
+    anchorIndex: number,
+    activeIndex: number,
+    additive: boolean,
+    baseSelectedKeys?: string[],
+  ): Promise<void> => {
+    if (!driver || totalRows <= 0) {
+      return
+    }
+    const normalizedAnchor = Math.max(0, Math.min(anchorIndex, totalRows - 1))
+    const normalizedActive = Math.max(0, Math.min(activeIndex, totalRows - 1))
+    const rangeKeys = await driver.resolveLogSelectionKeysForIndexRange(
+      normalizedAnchor,
+      normalizedActive,
+    )
+    const selectedKeys = additive
+      ? Array.from(new Set([...(baseSelectedKeys ?? selection.selectedKeys), ...rangeKeys]))
+      : rangeKeys
+    await persistSelection({
+      selectedKeys,
+      anchorIndex: normalizedAnchor,
+      activeIndex: normalizedActive,
+    })
+  }
+
+  const scrollRowIntoView = (index: number): void => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      return
+    }
+    const rowTop = index * ROW_HEIGHT_PX
+    const rowBottom = rowTop + ROW_HEIGHT_PX
+    if (rowTop < viewport.scrollTop) {
+      viewport.scrollTop = rowTop
+      return
+    }
+    const viewportBottom = viewport.scrollTop + viewport.clientHeight
+    if (rowBottom > viewportBottom) {
+      viewport.scrollTop = rowBottom - viewport.clientHeight
+    }
+  }
 
   const parseBufferInput = (): number | null => {
     if (!/^\d+$/.test(bufferInput)) {
@@ -293,6 +432,39 @@ export const DrpdUsbPdLogInstrumentView = ({
     setBufferInput(configuredMaxCapturedMessages.toString())
     setBufferError(null)
   }, [configuredMaxCapturedMessages])
+
+  useEffect(() => {
+    if (!driver) {
+      setSelection(EMPTY_SELECTION)
+      return
+    }
+
+    let cancelled = false
+    void readSelectionFromDriver().then((next) => {
+      if (!cancelled) {
+        setSelection(next)
+      }
+    })
+
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed : []
+      if (!changed.includes('logSelection')) {
+        return
+      }
+      void readSelectionFromDriver().then((next) => {
+        if (!cancelled) {
+          setSelection(next)
+        }
+      })
+    }
+
+    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    return () => {
+      cancelled = true
+      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [driver])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -432,6 +604,11 @@ export const DrpdUsbPdLogInstrumentView = ({
         setPages(new Map())
         setTotalRows(0)
         totalRowsRef.current = 0
+        setSelection({
+          selectedKeys: [],
+          anchorIndex: null,
+          activeIndex: null,
+        })
         return
       }
 
@@ -713,6 +890,80 @@ export const DrpdUsbPdLogInstrumentView = ({
     bufferError,
   ])
 
+  const handleRowClick = (
+    event: ReactMouseEvent<HTMLDivElement>,
+    index: number,
+    row: DisplayRow | null,
+  ) => {
+    if (!row || !driver || index < 0 || index >= totalRows || isEditMode) {
+      return
+    }
+    viewportRef.current?.focus()
+    const isToggleMulti = event.metaKey || event.ctrlKey
+    const isRange = event.shiftKey
+
+    enqueueSelectionTask(async () => {
+      const current = await readSelectionFromDriver()
+
+      if (isRange) {
+        const anchorIndex = current.anchorIndex ?? current.activeIndex ?? index
+        await applyRangeSelection(anchorIndex, index, isToggleMulti, current.selectedKeys)
+        return
+      }
+
+      if (isToggleMulti) {
+        const nextKeys = new Set(current.selectedKeys)
+        const alreadySelected = nextKeys.has(row.selectionKey)
+        if (alreadySelected) {
+          nextKeys.delete(row.selectionKey)
+        } else {
+          nextKeys.add(row.selectionKey)
+        }
+        await persistSelection({
+          selectedKeys: Array.from(nextKeys),
+          anchorIndex: index,
+          activeIndex: alreadySelected ? current.activeIndex : index,
+        })
+        return
+      }
+
+      if (current.selectedKeys.length === 1 && current.selectedKeys[0] === row.selectionKey) {
+        await persistSelection(EMPTY_SELECTION)
+        return
+      }
+
+      await applySingleSelectionAtIndex(index)
+    })
+  }
+
+  const handleViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!driver || isEditMode || totalRows <= 0) {
+      return
+    }
+    const key = event.key
+    if (key !== 'ArrowDown' && key !== 'ArrowUp') {
+      return
+    }
+    event.preventDefault()
+
+    enqueueSelectionTask(async () => {
+      const current = await readSelectionFromDriver()
+      const direction = key === 'ArrowDown' ? 1 : -1
+      const baseIndex =
+        current.activeIndex ??
+        current.anchorIndex ??
+        (direction > 0 ? -1 : totalRows)
+      const nextIndex = Math.max(0, Math.min(totalRows - 1, baseIndex + direction))
+      scrollRowIntoView(nextIndex)
+      if (event.shiftKey) {
+        const anchorIndex = current.anchorIndex ?? baseIndex
+        await applyRangeSelection(anchorIndex, nextIndex, false, current.selectedKeys)
+        return
+      }
+      await applySingleSelectionAtIndex(nextIndex)
+    })
+  }
+
   return (
     <InstrumentBase
       instrument={instrument}
@@ -743,6 +994,8 @@ export const DrpdUsbPdLogInstrumentView = ({
         <div
           ref={viewportRef}
           className={styles.viewport}
+          tabIndex={isEditMode ? -1 : 0}
+          onKeyDown={handleViewportKeyDown}
           onScroll={(event) => {
             const element = event.currentTarget
             setScrollTop(element.scrollTop)
@@ -761,6 +1014,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                 key={row?.key ?? `placeholder-${index}`}
                 className={[
                   styles.dataRow,
+                  row && selectedKeySet.has(row.selectionKey) ? styles.selectedRow : '',
                   row?.kind === 'event' ? styles.eventRow : '',
                   row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
                   row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
@@ -769,6 +1023,9 @@ export const DrpdUsbPdLogInstrumentView = ({
                   .filter(Boolean)
                   .join(' ')}
                 style={{ transform: `translateY(${index * ROW_HEIGHT_PX}px)` }}
+                onClick={(event) => {
+                  handleRowClick(event, index, row)
+                }}
               >
                 {row?.kind === 'event' ? (
                   <span className={styles.eventLabel}>{row.messageType}</span>

@@ -483,6 +483,19 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             return await session.device.queryAnalogSamples(args[0] as never)
           case 'queryCapturedMessages':
             return await session.device.queryCapturedMessages(args[0] as never)
+          case 'getLogSelectionState':
+            return session.device.getLogSelectionState()
+          case 'setLogSelectionState':
+            session.device.setLogSelectionState(args[0] as never)
+            return null
+          case 'clearLogSelection':
+            session.device.clearLogSelection()
+            return null
+          case 'resolveLogSelectionKeysForIndexRange':
+            return await session.device.resolveLogSelectionKeysForIndexRange(
+              args[0] as number,
+              args[1] as number,
+            )
           case 'exportLogs':
             return await session.device.exportLogs(args[0] as never)
           case 'clearLogs':
