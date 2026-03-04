@@ -26,6 +26,10 @@ describe('usb-pd parser', () => {
     expect(message.messageTypeName).toBe('GoodCRC')
     expect(message.pulseWidthsNs).toEqual(new Float64Array())
     expect(message.header.messageHeader.numberOfDataObjects).toBe(0)
+    expect(message.humanReadableMetadata.type).toBe('OrderedDictionary')
+    expect(Array.from(message.humanReadableMetadata.keys())).toEqual(['messageType'])
+    expect(message.humanReadableMetadata.getEntry('messageType')?.type).toBe('String')
+    expect(message.humanReadableMetadata.getEntry('messageType')?.value).toBe('GoodCRC')
   })
 
   it('parses SOP Request data messages', () => {

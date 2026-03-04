@@ -1,6 +1,7 @@
 import type { MessageKind } from './types'
 import { Header } from './header'
 import { SOP } from './sop'
+import { HumanReadableField } from './humanReadableField'
 
 const SOP_LENGTH = 4
 const MESSAGE_HEADER_LENGTH = 2
@@ -71,6 +72,17 @@ export class Message {
    */
   public setPulseWidthsNs(pulseWidthsNs?: Float64Array): void {
     this.pulseWidthsNs = pulseWidthsNs ? Float64Array.from(pulseWidthsNs) : new Float64Array()
+  }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * The root metadata node is always an ordered dictionary.
+   */
+  public get humanReadableMetadata(): HumanReadableField<'OrderedDictionary'> {
+    const metadata = HumanReadableField.orderedDictionary()
+    metadata.insertEntryAt(0, 'messageType', HumanReadableField.string(this.messageTypeName))
+    return metadata
   }
 }
 
