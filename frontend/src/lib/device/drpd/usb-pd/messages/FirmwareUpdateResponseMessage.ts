@@ -61,7 +61,7 @@ export class FirmwareUpdateResponseMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Firmware_Update_Response is an extended message that acknowledges or returns status for firmware update transactions so update state can progress reliably between partners.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Firmware_Update_Response is an extended message that acknowledges or returns status for firmware update transactions so update state can progress reliably between partners.'))
     return metadata
   }
 

@@ -64,7 +64,7 @@ export class ExtendedControlMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Extended_Control is an extended message used for short control subcommands, including EPR control operations, so partners can perform lightweight protocol management actions.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Extended_Control is an extended message used for short control subcommands, including EPR control operations, so partners can perform lightweight protocol management actions.'))
     return metadata
   }
 

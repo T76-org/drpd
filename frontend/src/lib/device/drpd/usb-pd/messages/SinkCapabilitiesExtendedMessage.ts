@@ -64,7 +64,7 @@ export class SinkCapabilitiesExtendedMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Sink_Capabilities_Extended is an extended message that reports detailed sink capability metrics so a source can make better policy and power allocation decisions.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Sink_Capabilities_Extended is an extended message that reports detailed sink capability metrics so a source can make better policy and power allocation decisions.'))
     return metadata
   }
 

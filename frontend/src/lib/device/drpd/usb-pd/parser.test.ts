@@ -26,15 +26,25 @@ describe('usb-pd parser', () => {
     expect(message.messageTypeName).toBe('GoodCRC')
     expect(message.pulseWidthsNs).toEqual(new Float64Array())
     expect(message.header.messageHeader.numberOfDataObjects).toBe(0)
-    expect(message.humanReadableMetadata.type).toBe('OrderedDictionary')
-    expect(Array.from(message.humanReadableMetadata.keys())).toEqual([
+    expect(message.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
+    expect(message.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+    expect(message.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
+    expect(Array.from(message.humanReadableMetadata.baseInformation.keys())).toEqual([
       'messageType',
       'messageDescription',
     ])
-    expect(message.humanReadableMetadata.getEntry('messageType')?.type).toBe('String')
-    expect(message.humanReadableMetadata.getEntry('messageType')?.value).toBe('GoodCRC')
-    expect(message.humanReadableMetadata.getEntry('messageDescription')?.type).toBe('String')
-    expect(message.humanReadableMetadata.getEntry('messageDescription')?.value).toMatch(/GoodCRC/)
+    expect(message.humanReadableMetadata.baseInformation.getEntry('messageType')?.type).toBe(
+      'String',
+    )
+    expect(message.humanReadableMetadata.baseInformation.getEntry('messageType')?.value).toBe(
+      'GoodCRC',
+    )
+    expect(
+      message.humanReadableMetadata.baseInformation.getEntry('messageDescription')?.type,
+    ).toBe('String')
+    expect(
+      message.humanReadableMetadata.baseInformation.getEntry('messageDescription')?.value,
+    ).toMatch(/GoodCRC/)
   })
 
   it('parses SOP Request data messages', () => {

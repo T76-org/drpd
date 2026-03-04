@@ -61,7 +61,7 @@ export class CountryCodesMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Codes is an extended message that provides supported country code entries so a partner can discover which country-specific data can be requested.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Codes is an extended message that provides supported country code entries so a partner can discover which country-specific data can be requested.'))
     return metadata
   }
 

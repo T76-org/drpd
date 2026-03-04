@@ -54,7 +54,7 @@ export class GetCountryInfoMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Country_Info is a data message request that specifies a country code so the partner can return corresponding country-specific information.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Country_Info is a data message request that specifies a country code so the partner can return corresponding country-specific information.'))
     return metadata
   }
 

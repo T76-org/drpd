@@ -54,7 +54,7 @@ export class SourceInfoMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Info is a data message that provides source status and capability indicators so the sink can understand source-side constraints and operating context.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Info is a data message that provides source status and capability indicators so the sink can understand source-side constraints and operating context.'))
     return metadata
   }
 

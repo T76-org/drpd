@@ -1,7 +1,7 @@
 import type { MessageKind } from './types'
 import { Header } from './header'
 import { SOP } from './sop'
-import { HumanReadableField } from './humanReadableField'
+import { HumanReadableField, type HumanReadableMetadataRoot } from './humanReadableField'
 
 const SOP_LENGTH = 4
 const MESSAGE_HEADER_LENGTH = 2
@@ -77,12 +77,16 @@ export class Message {
   /**
    * Human-readable metadata for this message.
    *
-   * The root metadata node is always an ordered dictionary.
+   * The root metadata object always contains the standard container fields.
    */
-  public get humanReadableMetadata(): HumanReadableField<'OrderedDictionary'> {
-    const metadata = HumanReadableField.orderedDictionary()
-    metadata.insertEntryAt(0, 'messageType', HumanReadableField.string(this.messageTypeName))
-    return metadata
+  public get humanReadableMetadata(): HumanReadableMetadataRoot {
+    const baseInformation = HumanReadableField.orderedDictionary()
+    baseInformation.insertEntryAt(0, 'messageType', HumanReadableField.string(this.messageTypeName))
+    return {
+      baseInformation,
+      technicalData: HumanReadableField.orderedDictionary(),
+      messageSpecificData: HumanReadableField.orderedDictionary(),
+    }
   }
 }
 

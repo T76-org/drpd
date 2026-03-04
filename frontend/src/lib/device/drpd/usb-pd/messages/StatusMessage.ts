@@ -74,7 +74,7 @@ export class StatusMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Status is an extended message that reports current port and power status information so the partner can evaluate health, fault, and state conditions during operation.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Status is an extended message that reports current port and power status information so the partner can evaluate health, fault, and state conditions during operation.'))
     return metadata
   }
 

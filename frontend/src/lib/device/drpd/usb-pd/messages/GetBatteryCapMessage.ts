@@ -59,7 +59,7 @@ export class GetBatteryCapMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Cap is an extended message request that asks for battery capability information so a partner can retrieve detailed battery limits and characteristics.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Cap is an extended message request that asks for battery capability information so a partner can retrieve detailed battery limits and characteristics.'))
     return metadata
   }
 

@@ -59,7 +59,7 @@ export class GetBatteryStatusMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Status is an extended message request that asks for current battery status information so policy logic can query live battery condition when needed.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Status is an extended message request that asks for current battery status information so policy logic can query live battery condition when needed.'))
     return metadata
   }
 

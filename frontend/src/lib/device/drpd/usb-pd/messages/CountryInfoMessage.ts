@@ -60,7 +60,7 @@ export class CountryInfoMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Info is an extended message that returns country-specific regulatory or compliance information so products can apply region-specific behavior when required.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Info is an extended message that returns country-specific regulatory or compliance information so products can apply region-specific behavior when required.'))
     return metadata
   }
 

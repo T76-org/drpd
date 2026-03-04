@@ -59,7 +59,7 @@ export class EPRRequestMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Request is a data message that requests an Extended Power Range power contract so a sink can ask for higher-power operating points in EPR mode.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Request is a data message that requests an Extended Power Range power contract so a sink can ask for higher-power operating points in EPR mode.'))
     return metadata
   }
 

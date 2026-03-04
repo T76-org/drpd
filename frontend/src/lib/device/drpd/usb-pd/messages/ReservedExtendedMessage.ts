@@ -55,7 +55,7 @@ export class ReservedExtendedMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Reserved is an extended message wrapper for undefined or reserved extended message type values so decoding can safely preserve payloads for unsupported or future message IDs.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Reserved is an extended message wrapper for undefined or reserved extended message type values so decoding can safely preserve payloads for unsupported or future message IDs.'))
     return metadata
   }
 

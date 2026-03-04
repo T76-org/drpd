@@ -46,6 +46,18 @@ export interface HumanReadableFieldValueMap {
 }
 
 /**
+ * Top-level metadata container shape for decoded messages.
+ */
+export interface HumanReadableMetadataRoot {
+  ///< Base message-level metadata fields.
+  baseInformation: HumanReadableField<'OrderedDictionary'>
+  ///< Generic technical metadata container.
+  technicalData: HumanReadableField<'OrderedDictionary'>
+  ///< Message-specific decoded fields container.
+  messageSpecificData: HumanReadableField<'OrderedDictionary'>
+}
+
+/**
  * Recursive field used to describe human-readable metadata.
  */
 export class HumanReadableField<T extends HumanReadableFieldType = HumanReadableFieldType> {

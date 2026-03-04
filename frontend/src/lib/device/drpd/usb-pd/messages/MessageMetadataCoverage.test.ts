@@ -66,10 +66,16 @@ describe('USB-PD message metadata coverage', () => {
     Object.keys(CONTROL_MESSAGE_TYPES).forEach((type) => {
       const messageTypeNumber = Number.parseInt(type, 10)
       const parsed = parseUSBPDMessage(buildControlPayload(messageTypeNumber))
-      const keys = Array.from(parsed.humanReadableMetadata.keys())
-      expect(keys[0]).toBe('messageType')
-      expect(keys[1]).toBe('messageDescription')
-      const description = parsed.humanReadableMetadata.getEntry('messageDescription')
+      expect(parsed.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
+      expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
+        'messageType',
+        'messageDescription',
+      ])
+      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
       expect(description?.type).toBe('String')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
@@ -80,10 +86,16 @@ describe('USB-PD message metadata coverage', () => {
     Object.keys(DATA_MESSAGE_TYPES).forEach((type) => {
       const messageTypeNumber = Number.parseInt(type, 10)
       const parsed = parseUSBPDMessage(buildDataPayload(messageTypeNumber))
-      const keys = Array.from(parsed.humanReadableMetadata.keys())
-      expect(keys[0]).toBe('messageType')
-      expect(keys[1]).toBe('messageDescription')
-      const description = parsed.humanReadableMetadata.getEntry('messageDescription')
+      expect(parsed.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
+      expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
+        'messageType',
+        'messageDescription',
+      ])
+      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
       expect(description?.type).toBe('String')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
@@ -94,10 +106,16 @@ describe('USB-PD message metadata coverage', () => {
     Object.keys(EXTENDED_MESSAGE_TYPES).forEach((type) => {
       const messageTypeNumber = Number.parseInt(type, 10)
       const parsed = parseUSBPDMessage(buildExtendedPayload(messageTypeNumber))
-      const keys = Array.from(parsed.humanReadableMetadata.keys())
-      expect(keys[0]).toBe('messageType')
-      expect(keys[1]).toBe('messageDescription')
-      const description = parsed.humanReadableMetadata.getEntry('messageDescription')
+      expect(parsed.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
+      expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
+        'messageType',
+        'messageDescription',
+      ])
+      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
       expect(description?.type).toBe('String')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)

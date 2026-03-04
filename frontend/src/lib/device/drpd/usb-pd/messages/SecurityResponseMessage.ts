@@ -58,7 +58,7 @@ export class SecurityResponseMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Security_Response is an extended message that returns security-related authentication payload data so the requesting partner can validate identity or policy requirements.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Security_Response is an extended message that returns security-related authentication payload data so the requesting partner can validate identity or policy requirements.'))
     return metadata
   }
 

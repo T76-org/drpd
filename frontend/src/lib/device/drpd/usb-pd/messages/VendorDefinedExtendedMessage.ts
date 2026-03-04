@@ -69,7 +69,7 @@ export class VendorDefinedExtendedMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined_Extended is an extended message carrying vendor-specific payload content so implementations can exchange proprietary data beyond standard USB-PD fields.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined_Extended is an extended message carrying vendor-specific payload content so implementations can exchange proprietary data beyond standard USB-PD fields.'))
     return metadata
   }
 

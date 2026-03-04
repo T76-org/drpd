@@ -64,7 +64,7 @@ export class BatteryCapabilitiesMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Battery_Capabilities is an extended message that reports detailed battery design and capability information so policy logic can evaluate battery limits and make informed power decisions.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Battery_Capabilities is an extended message that reports detailed battery design and capability information so policy logic can evaluate battery limits and make informed power decisions.'))
     return metadata
   }
 
