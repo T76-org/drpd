@@ -1,4 +1,5 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
   parseBatteryStatusDataObject,
   readDataObjects,
@@ -45,4 +46,16 @@ export class BatteryStatusMessage extends DataMessage {
     this.rawBatteryStatusDataObject = readDataObjects(payload, this.payloadOffset, 1)[0]
     this.batteryStatusDataObject = parseBatteryStatusDataObject(this.rawBatteryStatusDataObject)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Battery_Status is a data message that communicates current battery presence and status information so a partner can track battery health and charging-related state.'))
+    return metadata
+  }
+
 }

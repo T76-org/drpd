@@ -1,4 +1,5 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import { parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
 
 /**
@@ -42,4 +43,16 @@ export class SourceCapabilitiesMessage extends DataMessage {
     this.rawDataObjects = readDataObjects(payload, this.payloadOffset, count)
     this.decodedPDOs = this.rawDataObjects.map((raw) => parsePDO(raw, 'source'))
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Capabilities is a data message that advertises source power data objects so sinks can select and request a suitable power contract.'))
+    return metadata
+  }
+
 }

@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import { parseCountryCodesDataBlock, type ParsedCountryCodesDataBlock } from '../DataObjects'
 
 /**
@@ -52,4 +53,16 @@ export class CountryCodesMessage extends ExtendedMessage {
     this.countryCodesDataBlock =
       dataBlock.length >= 4 ? parseCountryCodesDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Codes is an extended message that provides supported country code entries so a partner can discover which country-specific data can be requested.'))
+    return metadata
+  }
+
 }

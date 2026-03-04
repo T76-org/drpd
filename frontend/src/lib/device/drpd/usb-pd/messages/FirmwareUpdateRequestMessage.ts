@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 
 /**
  * Firmware_Update_Request extended message.
@@ -52,4 +53,16 @@ export class FirmwareUpdateRequestMessage extends ExtendedMessage {
       Math.min(dataEnd, payload.length),
     )
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Firmware_Update_Request is an extended message used to initiate or advance firmware update transactions so partners can perform standardized in-band firmware update procedures.'))
+    return metadata
+  }
+
 }

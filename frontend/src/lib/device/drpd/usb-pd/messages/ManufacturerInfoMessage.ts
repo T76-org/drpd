@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
   parseManufacturerInfoDataBlock,
   type ParsedManufacturerInfoDataBlock,
@@ -55,4 +56,16 @@ export class ManufacturerInfoMessage extends ExtendedMessage {
     this.manufacturerInfo =
       dataBlock.length >= 5 ? parseManufacturerInfoDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Manufacturer_Info is an extended message that provides manufacturer identification details so the other partner can display or process product/vendor identity information.'))
+    return metadata
+  }
+
 }

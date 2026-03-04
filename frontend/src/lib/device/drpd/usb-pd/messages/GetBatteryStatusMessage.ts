@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 
 /**
  * Get_Battery_Status extended message.
@@ -50,4 +51,16 @@ export class GetBatteryStatusMessage extends ExtendedMessage {
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
     this.batteryStatusRef = dataBlock.length >= 1 ? dataBlock[0] : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Status is an extended message request that asks for current battery status information so policy logic can query live battery condition when needed.'))
+    return metadata
+  }
+
 }

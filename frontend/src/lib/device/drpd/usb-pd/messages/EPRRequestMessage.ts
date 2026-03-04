@@ -1,4 +1,5 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import { parsePDO, parseRDO, readDataObjects, type ParsedPDO, type ParsedRDO } from '../DataObjects'
 
 /**
@@ -50,4 +51,16 @@ export class EPRRequestMessage extends DataMessage {
     this.rawPDOCopy = objects[1]
     this.requestedPDOCopy = parsePDO(objects[1], 'source')
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Request is a data message that requests an Extended Power Range power contract so a sink can ask for higher-power operating points in EPR mode.'))
+    return metadata
+  }
+
 }

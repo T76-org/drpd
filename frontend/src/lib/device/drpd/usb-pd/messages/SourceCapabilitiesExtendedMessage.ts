@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
   parseSourceCapabilitiesExtendedDataBlock,
   type ParsedSourceCapabilitiesExtendedDataBlock,
@@ -55,4 +56,16 @@ export class SourceCapabilitiesExtendedMessage extends ExtendedMessage {
     this.sourceCapabilitiesExtended =
       dataBlock.length >= 25 ? parseSourceCapabilitiesExtendedDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Capabilities_Extended is an extended message that reports detailed source capability attributes so sinks can evaluate advanced source characteristics beyond basic PDOs.'))
+    return metadata
+  }
+
 }

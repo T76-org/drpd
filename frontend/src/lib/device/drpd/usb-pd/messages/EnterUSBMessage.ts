@@ -1,4 +1,5 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
   parseEnterUSBDataObject,
   readDataObjects,
@@ -45,4 +46,16 @@ export class EnterUSBMessage extends DataMessage {
     this.rawEnterUsbDataObject = readDataObjects(payload, this.payloadOffset, 1)[0]
     this.enterUsbDataObject = parseEnterUSBDataObject(this.rawEnterUsbDataObject)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Enter_USB is a data message that carries USB mode entry parameters so partners can transition from USB-PD negotiation into a selected USB data mode with agreed constraints.'))
+    return metadata
+  }
+
 }

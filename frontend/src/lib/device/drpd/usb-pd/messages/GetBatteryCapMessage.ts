@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 
 /**
  * Get_Battery_Cap extended message.
@@ -50,4 +51,16 @@ export class GetBatteryCapMessage extends ExtendedMessage {
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
     this.batteryCapRef = dataBlock.length >= 1 ? dataBlock[0] : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Cap is an extended message request that asks for battery capability information so a partner can retrieve detailed battery limits and characteristics.'))
+    return metadata
+  }
+
 }

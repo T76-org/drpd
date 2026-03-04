@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import { parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
 
 /**
@@ -59,4 +60,16 @@ export class EPRSourceCapabilitiesMessage extends ExtendedMessage {
     this.sprPDOs = decoded.slice(0, 7)
     this.eprPDOs = decoded.slice(7)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Source_Capabilities is an extended message that advertises source EPR capability data so a sink can request valid high-power EPR operating points.'))
+    return metadata
+  }
+
 }

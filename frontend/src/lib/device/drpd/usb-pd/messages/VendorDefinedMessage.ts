@@ -1,4 +1,5 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
   parseDiscoverIdentityVDOs,
   parseVDMHeader,
@@ -87,4 +88,16 @@ export class VendorDefinedMessage extends DataMessage {
       }
     }
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined is a data message carrying structured or unstructured vendor-defined objects so partners can perform alternate mode discovery and proprietary feature exchange.'))
+    return metadata
+  }
+
 }

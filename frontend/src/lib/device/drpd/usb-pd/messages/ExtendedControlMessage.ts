@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
   parseExtendedControlDataBlock,
   type ParsedExtendedControlDataBlock,
@@ -55,4 +56,16 @@ export class ExtendedControlMessage extends ExtendedMessage {
     this.extendedControlDataBlock =
       dataBlock.length >= 2 ? parseExtendedControlDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Extended_Control is an extended message used for short control subcommands, including EPR control operations, so partners can perform lightweight protocol management actions.'))
+    return metadata
+  }
+
 }

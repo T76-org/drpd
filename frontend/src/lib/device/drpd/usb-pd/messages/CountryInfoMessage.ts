@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import { parseCountryInfoDataBlock, type ParsedCountryInfoDataBlock } from '../DataObjects'
 
 /**
@@ -51,4 +52,16 @@ export class CountryInfoMessage extends ExtendedMessage {
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
     this.countryInfoDataBlock = dataBlock.length >= 4 ? parseCountryInfoDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Info is an extended message that returns country-specific regulatory or compliance information so products can apply region-specific behavior when required.'))
+    return metadata
+  }
+
 }

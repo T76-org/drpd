@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 
 /**
  * Security_Response extended message.
@@ -49,4 +50,16 @@ export class SecurityResponseMessage extends ExtendedMessage {
     }
     this.securityResponseDataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Security_Response is an extended message that returns security-related authentication payload data so the requesting partner can validate identity or policy requirements.'))
+    return metadata
+  }
+
 }

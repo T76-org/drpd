@@ -1,4 +1,5 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import { parseAlertDataObject, readDataObjects, type ParsedAlertDataObject } from '../DataObjects'
 
 /**
@@ -41,4 +42,16 @@ export class AlertMessage extends DataMessage {
     this.rawAlertDataObject = readDataObjects(payload, this.payloadOffset, 1)[0]
     this.alertDataObject = parseAlertDataObject(this.rawAlertDataObject)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Alert is a data message that signals specific alert events from a port partner so the receiver can quickly detect and handle urgent power or status conditions.'))
+    return metadata
+  }
+
 }

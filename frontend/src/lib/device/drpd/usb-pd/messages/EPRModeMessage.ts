@@ -1,4 +1,5 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import { parseEPRModeDataObject, readDataObjects, type ParsedEPRModeDataObject } from '../DataObjects'
 
 /**
@@ -41,4 +42,16 @@ export class EPRModeMessage extends DataMessage {
     this.rawEprModeDataObject = readDataObjects(payload, this.payloadOffset, 1)[0]
     this.eprModeDataObject = parseEPRModeDataObject(this.rawEprModeDataObject)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Mode is a data message used to coordinate entering, exiting, or acknowledging Extended Power Range operation so both partners stay synchronized on EPR state transitions.'))
+    return metadata
+  }
+
 }
