@@ -96,7 +96,7 @@ export class VendorDefinedMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined is a data message carrying structured or unstructured vendor-defined objects so partners can perform alternate mode discovery and proprietary feature exchange.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Vendor_Defined is a data message carrying structured or unstructured vendor-defined objects so partners can perform alternate mode discovery and proprietary feature exchange.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

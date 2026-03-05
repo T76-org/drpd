@@ -51,7 +51,7 @@ export class SinkCapabilitiesMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Sink_Capabilities is a data message that advertises sink power data objects so a source can choose compatible supply options for negotiation.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Sink_Capabilities is a data message that advertises sink power data objects so a source can choose compatible supply options for negotiation.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

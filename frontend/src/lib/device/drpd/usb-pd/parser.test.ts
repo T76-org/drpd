@@ -26,24 +26,31 @@ describe('usb-pd parser', () => {
     expect(message.messageTypeName).toBe('GoodCRC')
     expect(message.pulseWidthsNs).toEqual(new Float64Array())
     expect(message.header.messageHeader.numberOfDataObjects).toBe(0)
+    expect(Object.keys(message.humanReadableMetadata)).toEqual([
+      'baseInformation',
+      'technicalData',
+      'headerData',
+      'messageSpecificData',
+    ])
     expect(message.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
     expect(message.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+    expect(message.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
     expect(message.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
     expect(Array.from(message.humanReadableMetadata.baseInformation.keys())).toEqual([
-      'messageType',
-      'messageDescription',
+      'Message Type',
+      'Message Description',
     ])
-    expect(message.humanReadableMetadata.baseInformation.getEntry('messageType')?.type).toBe(
+    expect(message.humanReadableMetadata.baseInformation.getEntry('Message Type')?.type).toBe(
       'String',
     )
-    expect(message.humanReadableMetadata.baseInformation.getEntry('messageType')?.value).toBe(
+    expect(message.humanReadableMetadata.baseInformation.getEntry('Message Type')?.value).toBe(
       'GoodCRC',
     )
     expect(
-      message.humanReadableMetadata.baseInformation.getEntry('messageDescription')?.type,
+      message.humanReadableMetadata.baseInformation.getEntry('Message Description')?.type,
     ).toBe('String')
     expect(
-      message.humanReadableMetadata.baseInformation.getEntry('messageDescription')?.value,
+      message.humanReadableMetadata.baseInformation.getEntry('Message Description')?.value,
     ).toMatch(/GoodCRC/)
   })
 

@@ -60,7 +60,7 @@ export class PPSStatusMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('PPS_Status is an extended message that reports programmable power supply status values so the source and sink can monitor PPS output behavior and status.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('PPS_Status is an extended message that reports programmable power supply status values so the source and sink can monitor PPS output behavior and status.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

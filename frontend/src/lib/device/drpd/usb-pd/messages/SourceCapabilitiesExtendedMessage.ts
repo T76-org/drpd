@@ -64,7 +64,7 @@ export class SourceCapabilitiesExtendedMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Capabilities_Extended is an extended message that reports detailed source capability attributes so sinks can evaluate advanced source characteristics beyond basic PDOs.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Source_Capabilities_Extended is an extended message that reports detailed source capability attributes so sinks can evaluate advanced source characteristics beyond basic PDOs.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

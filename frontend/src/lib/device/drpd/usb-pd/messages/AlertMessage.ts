@@ -50,7 +50,7 @@ export class AlertMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Alert is a data message that signals specific alert events from a port partner so the receiver can quickly detect and handle urgent power or status conditions.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Alert is a data message that signals specific alert events from a port partner so the receiver can quickly detect and handle urgent power or status conditions.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

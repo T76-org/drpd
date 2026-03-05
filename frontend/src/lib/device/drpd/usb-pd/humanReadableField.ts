@@ -53,6 +53,8 @@ export interface HumanReadableMetadataRoot {
   baseInformation: HumanReadableField<'OrderedDictionary'>
   ///< Generic technical metadata container.
   technicalData: HumanReadableField<'OrderedDictionary'>
+  ///< Parsed header metadata container.
+  headerData: HumanReadableField<'OrderedDictionary'>
   ///< Message-specific decoded fields container.
   messageSpecificData: HumanReadableField<'OrderedDictionary'>
 }
@@ -65,36 +67,48 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
   public readonly type: T
   ///< Backing value for the field type.
   public readonly value: HumanReadableFieldValueMap[T]
+  ///< Human-readable explanation of the field meaning.
+  public readonly explanation: string
 
   /**
    * Create a field with the provided type and value.
    *
    * @param type - Field type.
    * @param value - Value for the type.
+   * @param explanation - Human-readable explanation for this field.
    */
-  public constructor(type: T, value: HumanReadableFieldValueMap[T]) {
+  public constructor(type: T, value: HumanReadableFieldValueMap[T], explanation: string) {
+    if (typeof explanation !== 'string' || !explanation.trim()) {
+      throw new Error('HumanReadableField explanation must be a non-empty string')
+    }
     this.type = type
     this.value = value
+    this.explanation = explanation
   }
 
   /**
    * Create a scalar/string field.
    *
    * @param value - Display value.
+   * @param explanation - Human-readable explanation for this field.
    * @returns String field.
    */
-  public static string(value: string): HumanReadableField<'String'> {
-    return new HumanReadableField('String', value)
+  public static string(value: string, explanation: string): HumanReadableField<'String'> {
+    return new HumanReadableField('String', value, explanation)
   }
 
   /**
    * Create a table field.
    *
+   * @param explanation - Human-readable explanation for this field.
    * @param cells - Optional initial cells.
    * @returns Table field.
    */
-  public static table(cells: HumanReadableTableCell[] = []): HumanReadableField<'Table'> {
-    return new HumanReadableField('Table', [...cells])
+  public static table(
+    explanation: string,
+    cells: HumanReadableTableCell[] = [],
+  ): HumanReadableField<'Table'> {
+    return new HumanReadableField('Table', [...cells], explanation)
   }
 
   /**
@@ -103,12 +117,14 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
    * @param data - Raw byte buffer.
    * @param byteWidth - Element width in bits.
    * @param signed - Signedness of each element.
+   * @param explanation - Human-readable explanation for this field.
    * @returns ByteData field.
    */
   public static byteData(
     data: Uint8Array,
     byteWidth: HumanReadableByteWidth,
     signed: boolean,
+    explanation: string,
   ): HumanReadableField<'ByteData'> {
     if (byteWidth !== 8 && byteWidth !== 16 && byteWidth !== 32) {
       throw new Error(`Unsupported byte width: ${byteWidth}`)
@@ -116,23 +132,29 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
     if (typeof signed !== 'boolean') {
       throw new Error('ByteData signed must be specified as a boolean')
     }
-    return new HumanReadableField('ByteData', {
-      data: Uint8Array.from(data),
-      byteWidth,
-      signed,
-    })
+    return new HumanReadableField(
+      'ByteData',
+      {
+        data: Uint8Array.from(data),
+        byteWidth,
+        signed,
+      },
+      explanation,
+    )
   }
 
   /**
    * Create an ordered dictionary field.
    *
+   * @param explanation - Human-readable explanation for this field.
    * @param entries - Optional initial entries.
    * @returns OrderedDictionary field.
    */
   public static orderedDictionary(
+    explanation: string,
     entries?: Iterable<[string, HumanReadableField]>,
   ): HumanReadableField<'OrderedDictionary'> {
-    return new HumanReadableField('OrderedDictionary', new Map(entries))
+    return new HumanReadableField('OrderedDictionary', new Map(entries), explanation)
   }
 
   /**

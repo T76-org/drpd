@@ -54,7 +54,7 @@ export class BatteryStatusMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Battery_Status is a data message that communicates current battery presence and status information so a partner can track battery health and charging-related state.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Battery_Status is a data message that communicates current battery presence and status information so a partner can track battery health and charging-related state.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

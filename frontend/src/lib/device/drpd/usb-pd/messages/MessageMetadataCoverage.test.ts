@@ -68,14 +68,16 @@ describe('USB-PD message metadata coverage', () => {
       const parsed = parseUSBPDMessage(buildControlPayload(messageTypeNumber))
       expect(parsed.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
-        'messageType',
-        'messageDescription',
+        'Message Type',
+        'Message Description',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
-      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('Message Description')
       expect(description?.type).toBe('String')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
@@ -88,14 +90,16 @@ describe('USB-PD message metadata coverage', () => {
       const parsed = parseUSBPDMessage(buildDataPayload(messageTypeNumber))
       expect(parsed.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
-        'messageType',
-        'messageDescription',
+        'Message Type',
+        'Message Description',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
-      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('Message Description')
       expect(description?.type).toBe('String')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
@@ -108,14 +112,16 @@ describe('USB-PD message metadata coverage', () => {
       const parsed = parseUSBPDMessage(buildExtendedPayload(messageTypeNumber))
       expect(parsed.humanReadableMetadata.baseInformation.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
+      expect(parsed.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
-        'messageType',
-        'messageDescription',
+        'Message Type',
+        'Message Description',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
-      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('Message Description')
       expect(description?.type).toBe('String')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)

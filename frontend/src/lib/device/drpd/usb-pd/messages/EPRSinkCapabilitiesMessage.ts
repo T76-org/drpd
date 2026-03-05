@@ -68,7 +68,7 @@ export class EPRSinkCapabilitiesMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Sink_Capabilities is an extended message that advertises sink EPR capability data so a source can select and negotiate compatible high-power operating ranges.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('EPR_Sink_Capabilities is an extended message that advertises sink EPR capability data so a source can select and negotiate compatible high-power operating ranges.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

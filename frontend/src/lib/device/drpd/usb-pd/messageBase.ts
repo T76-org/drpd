@@ -80,12 +80,28 @@ export class Message {
    * The root metadata object always contains the standard container fields.
    */
   public get humanReadableMetadata(): HumanReadableMetadataRoot {
-    const baseInformation = HumanReadableField.orderedDictionary()
-    baseInformation.insertEntryAt(0, 'messageType', HumanReadableField.string(this.messageTypeName))
+    const baseInformation = HumanReadableField.orderedDictionary(
+      'Container for general message identity and descriptive fields.',
+    )
+    baseInformation.insertEntryAt(
+      0,
+      'Message Type',
+      HumanReadableField.string(
+        this.messageTypeName,
+        'USB Power Delivery specification name for this message type.',
+      ),
+    )
     return {
       baseInformation,
-      technicalData: HumanReadableField.orderedDictionary(),
-      messageSpecificData: HumanReadableField.orderedDictionary(),
+      technicalData: HumanReadableField.orderedDictionary(
+        'Container for technical-level decoded values that apply broadly.',
+      ),
+      headerData: HumanReadableField.orderedDictionary(
+        'Container for parsed header-level fields and derived header metadata.',
+      ),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Container for decoded fields specific to this concrete message type.',
+      ),
     }
   }
 }

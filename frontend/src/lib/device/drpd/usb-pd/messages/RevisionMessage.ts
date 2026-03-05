@@ -54,9 +54,7 @@ export class RevisionMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string(
-      'Revision is a data message that communicates protocol and firmware revision information so partners can understand each other\'s implemented USB-PD revision context.',
-    ))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Revision is a data message that communicates protocol and firmware revision information so partners can understand each other\'s implemented USB-PD revision context.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 }

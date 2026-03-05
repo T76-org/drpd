@@ -62,7 +62,7 @@ export class GetManufacturerInfoMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Manufacturer_Info is an extended message request that asks for manufacturer identity details so a partner can expose vendor and product identification data.'))
+    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Get_Manufacturer_Info is an extended message request that asks for manufacturer identity details so a partner can expose vendor and product identification data.', 'A description of the message\'s function and usage.'))
     return metadata
   }
 
