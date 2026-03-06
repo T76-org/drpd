@@ -8,6 +8,14 @@ import { parseUSBPDMessage } from '../parser'
 import { buildMessage, makeExtendedHeader, makeMessageHeader } from './messageTestUtils'
 
 const SOP = [0x18, 0x18, 0x18, 0x11]
+const EXPECTED_TECHNICAL_DATA_KEYS = [
+  'startTimestamp',
+  'endTimestamp',
+  'bmcCarrier',
+  'sop',
+  'crc32',
+  'messageBytes',
+]
 
 /**
  * Build a parseable control payload for one message type.
@@ -74,7 +82,9 @@ describe('USB-PD message metadata coverage', () => {
         'messageType',
         'messageDescription',
       ])
-      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
+        EXPECTED_TECHNICAL_DATA_KEYS,
+      )
       expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
@@ -85,6 +95,18 @@ describe('USB-PD message metadata coverage', () => {
       expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('bmcCarrier')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('sop')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('crc32')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('messageBytes')?.type).toBe(
+        'ByteData',
+      )
     })
   })
 
@@ -100,7 +122,9 @@ describe('USB-PD message metadata coverage', () => {
         'messageType',
         'messageDescription',
       ])
-      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
+        EXPECTED_TECHNICAL_DATA_KEYS,
+      )
       expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
@@ -111,6 +135,18 @@ describe('USB-PD message metadata coverage', () => {
       expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('bmcCarrier')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('sop')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('crc32')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('messageBytes')?.type).toBe(
+        'ByteData',
+      )
     })
   })
 
@@ -126,7 +162,9 @@ describe('USB-PD message metadata coverage', () => {
         'messageType',
         'messageDescription',
       ])
-      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
+        EXPECTED_TECHNICAL_DATA_KEYS,
+      )
       expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
@@ -137,6 +175,18 @@ describe('USB-PD message metadata coverage', () => {
       expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('bmcCarrier')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('sop')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('crc32')?.type).toBe(
+        'OrderedDictionary',
+      )
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('messageBytes')?.type).toBe(
+        'ByteData',
+      )
     })
   })
 })

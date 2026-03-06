@@ -1576,7 +1576,10 @@ export class DRPDDevice extends EventTarget {
       const usbPayload = new Uint8Array(rawSop.length + rawDecodedData.length)
       usbPayload.set(rawSop, 0)
       usbPayload.set(rawDecodedData, rawSop.length)
-      const parsedMessage = parseUSBPDMessage(usbPayload, rawPulseWidths)
+      const parsedMessage = parseUSBPDMessage(usbPayload, rawPulseWidths, {
+        startTimestampUs: message.startTimestampUs,
+        endTimestampUs: message.endTimestampUs,
+      })
       const header = parsedMessage.header.messageHeader
       sopKind = parsedMessage.sop.kind
       messageKind = header.messageKind

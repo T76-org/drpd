@@ -40,6 +40,14 @@ describe('usb-pd parser', () => {
       'messageType',
       'messageDescription',
     ])
+    expect(Array.from(message.humanReadableMetadata.technicalData.keys())).toEqual([
+      'startTimestamp',
+      'endTimestamp',
+      'bmcCarrier',
+      'sop',
+      'crc32',
+      'messageBytes',
+    ])
     const messageType = message.humanReadableMetadata.baseInformation.getEntry('messageType')
     expect(messageType?.type).toBe('String')
     expect(messageType?.Label).toBe('Message Type')
@@ -49,6 +57,33 @@ describe('usb-pd parser', () => {
     expect(messageDescription?.type).toBe('String')
     expect(messageDescription?.Label).toBe('Message Description')
     expect(messageDescription?.value).toMatch(/GoodCRC/)
+    const startTimestamp = message.humanReadableMetadata.technicalData.getEntry('startTimestamp')
+    expect(startTimestamp?.Label).toBe('Start Timestamp')
+    expect(startTimestamp?.value).toBe('0')
+    const endTimestamp = message.humanReadableMetadata.technicalData.getEntry('endTimestamp')
+    expect(endTimestamp?.Label).toBe('End Timestamp')
+    expect(endTimestamp?.value).toBe('0')
+    const bmcCarrier = message.humanReadableMetadata.technicalData.getEntry('bmcCarrier')
+    expect(bmcCarrier?.type).toBe('OrderedDictionary')
+    expect(bmcCarrier?.Label).toBe('BMC Carrier')
+    expect(bmcCarrier?.getEntry('frequency')?.value).toBe('Unavailable')
+    expect(bmcCarrier?.getEntry('valid')?.value).toBe('false')
+    const sop = message.humanReadableMetadata.technicalData.getEntry('sop')
+    expect(sop?.type).toBe('OrderedDictionary')
+    expect(sop?.getEntry('type')?.value).toBe('SOP\'')
+    const kCodes = sop?.getEntry('kCodes')
+    expect(kCodes?.type).toBe('ByteData')
+    expect(Array.from((kCodes?.value as { data: Uint8Array }).data ?? [])).toEqual([0x18, 0x18, 0x06, 0x06])
+    const crc32 = message.humanReadableMetadata.technicalData.getEntry('crc32')
+    expect(crc32?.type).toBe('OrderedDictionary')
+    expect(crc32?.getEntry('expected')?.value).toBe('0x2FC51328')
+    expect(crc32?.getEntry('actual')?.value).toBe('0x2FC51328')
+    expect(crc32?.getEntry('valid')?.value).toBe('true')
+    const messageBytes = message.humanReadableMetadata.technicalData.getEntry('messageBytes')
+    expect(messageBytes?.type).toBe('ByteData')
+    expect(Array.from((messageBytes?.value as { data: Uint8Array }).data ?? [])).toEqual(
+      Array.from(sampleGoodCRC),
+    )
   })
 
   it('parses SOP Request data messages', () => {
@@ -97,5 +132,32 @@ describe('usb-pd parser', () => {
     const message = parseUSBPDMessage(sampleAccept, pulseWidthsNs)
     pulseWidthsNs[0] = 999
     expect(Array.from(message.pulseWidthsNs)).toEqual([120, 340, 560])
+  })
+
+  it('uses capture timestamps in technical metadata when provided', () => {
+    const message = parseUSBPDMessage(sampleAccept, Float64Array.from([1_000, 1_000, 1_000]), {
+      startTimestampUs: 1000n,
+      endTimestampUs: 1005n,
+    })
+    expect(message.startTimestampUs).toBe(1000n)
+    expect(message.endTimestampUs).toBe(1005n)
+    expect(message.humanReadableMetadata.technicalData.getEntry('startTimestamp')?.value).toBe('1000')
+    expect(message.humanReadableMetadata.technicalData.getEntry('endTimestamp')?.value).toBe('1005')
+  })
+
+  it('computes BMC carrier frequency using the DRPD preamble/message clock algorithm', () => {
+    const preamblePulseWidthsNs = Array.from({ length: 96 }, (_, index) =>
+      index % 3 === 0 ? 1_666.6666666666667 : 3_333.3333333333335,
+    )
+    const messagePulseWidthsNs = [1_000, 1_000, 1_000, 1_000]
+    const message = parseUSBPDMessage(
+      sampleAccept,
+      Float64Array.from([...preamblePulseWidthsNs, ...messagePulseWidthsNs]),
+    )
+
+    const bmcCarrier = message.humanReadableMetadata.technicalData.getEntry('bmcCarrier')
+    expect(bmcCarrier?.type).toBe('OrderedDictionary')
+    expect(bmcCarrier?.getEntry('frequency')?.value).toBe('500')
+    expect(bmcCarrier?.getEntry('valid')?.value).toBe('false')
   })
 })

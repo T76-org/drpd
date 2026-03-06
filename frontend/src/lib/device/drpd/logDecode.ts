@@ -53,7 +53,10 @@ export const decodeLoggedCapturedMessage = (
   payload.set(row.rawSop, 0)
   payload.set(row.rawDecodedData, row.rawSop.length)
   try {
-    const message = parseUSBPDMessage(payload, row.rawPulseWidths)
+    const message = parseUSBPDMessage(payload, row.rawPulseWidths, {
+      startTimestampUs: row.startTimestampUs,
+      endTimestampUs: row.endTimestampUs,
+    })
     return { kind: 'message', row, message }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
