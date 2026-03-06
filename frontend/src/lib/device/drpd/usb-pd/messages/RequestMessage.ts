@@ -50,7 +50,7 @@ export class RequestMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Request is a data message that selects a specific source power data object and operating level so a sink can establish or change its power contract.', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Request is a data message that selects a specific source power data object and operating level so a sink can establish or change its power contract.', 'Message Description', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

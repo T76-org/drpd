@@ -54,7 +54,7 @@ export class EnterUSBMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Enter_USB is a data message that carries USB mode entry parameters so partners can transition from USB-PD negotiation into a selected USB data mode with agreed constraints.', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Enter_USB is a data message that carries USB mode entry parameters so partners can transition from USB-PD negotiation into a selected USB data mode with agreed constraints.', 'Message Description', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

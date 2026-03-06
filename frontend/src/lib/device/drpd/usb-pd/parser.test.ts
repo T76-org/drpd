@@ -37,21 +37,18 @@ describe('usb-pd parser', () => {
     expect(message.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
     expect(message.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
     expect(Array.from(message.humanReadableMetadata.baseInformation.keys())).toEqual([
-      'Message Type',
-      'Message Description',
+      'messageType',
+      'messageDescription',
     ])
-    expect(message.humanReadableMetadata.baseInformation.getEntry('Message Type')?.type).toBe(
-      'String',
-    )
-    expect(message.humanReadableMetadata.baseInformation.getEntry('Message Type')?.value).toBe(
-      'GoodCRC',
-    )
-    expect(
-      message.humanReadableMetadata.baseInformation.getEntry('Message Description')?.type,
-    ).toBe('String')
-    expect(
-      message.humanReadableMetadata.baseInformation.getEntry('Message Description')?.value,
-    ).toMatch(/GoodCRC/)
+    const messageType = message.humanReadableMetadata.baseInformation.getEntry('messageType')
+    expect(messageType?.type).toBe('String')
+    expect(messageType?.Label).toBe('Message Type')
+    expect(messageType?.value).toBe('GoodCRC')
+    const messageDescription =
+      message.humanReadableMetadata.baseInformation.getEntry('messageDescription')
+    expect(messageDescription?.type).toBe('String')
+    expect(messageDescription?.Label).toBe('Message Description')
+    expect(messageDescription?.value).toMatch(/GoodCRC/)
   })
 
   it('parses SOP Request data messages', () => {

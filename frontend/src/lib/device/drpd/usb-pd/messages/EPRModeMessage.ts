@@ -52,9 +52,10 @@ export class EPRModeMessage extends DataMessage {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(
       1,
-      'Message Description',
+      'messageDescription',
       HumanReadableField.string(
         'EPR_Mode is a data message used to coordinate entering, exiting, or acknowledging Extended Power Range operation so both partners stay synchronized on EPR state transitions.',
+        'Message Description',
         'A description of the message\'s function and usage.',
       ),
     )

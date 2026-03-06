@@ -51,7 +51,7 @@ export class SourceCapabilitiesMessage extends DataMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Source_Capabilities is a data message that advertises source power data objects so sinks can select and request a suitable power contract.', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Capabilities is a data message that advertises source power data objects so sinks can select and request a suitable power contract.', 'Message Description', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

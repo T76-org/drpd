@@ -58,7 +58,7 @@ export class SecurityRequestMessage extends ExtendedMessage {
    */
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
-    metadata.baseInformation.insertEntryAt(1, 'Message Description', HumanReadableField.string('Security_Request is an extended message used by USB Type-C authentication and security flows to request security-related payload exchanges between partners.', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Security_Request is an extended message used by USB Type-C authentication and security flows to request security-related payload exchanges between partners.', 'Message Description', 'A description of the message\'s function and usage.'))
     return metadata
   }
 

@@ -71,14 +71,18 @@ describe('USB-PD message metadata coverage', () => {
       expect(parsed.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
-        'Message Type',
-        'Message Description',
+        'messageType',
+        'messageDescription',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
-      const description = parsed.humanReadableMetadata.baseInformation.getEntry('Message Description')
+      const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
+      expect(messageType?.type).toBe('String')
+      expect(messageType?.Label).toBe('Message Type')
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
       expect(description?.type).toBe('String')
+      expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
     })
@@ -93,14 +97,18 @@ describe('USB-PD message metadata coverage', () => {
       expect(parsed.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
-        'Message Type',
-        'Message Description',
+        'messageType',
+        'messageDescription',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
-      const description = parsed.humanReadableMetadata.baseInformation.getEntry('Message Description')
+      const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
+      expect(messageType?.type).toBe('String')
+      expect(messageType?.Label).toBe('Message Type')
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
       expect(description?.type).toBe('String')
+      expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
     })
@@ -115,14 +123,18 @@ describe('USB-PD message metadata coverage', () => {
       expect(parsed.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
-        'Message Type',
-        'Message Description',
+        'messageType',
+        'messageDescription',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
-      const description = parsed.humanReadableMetadata.baseInformation.getEntry('Message Description')
+      const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
+      expect(messageType?.type).toBe('String')
+      expect(messageType?.Label).toBe('Message Type')
+      const description = parsed.humanReadableMetadata.baseInformation.getEntry('messageDescription')
       expect(description?.type).toBe('String')
+      expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
     })

@@ -81,25 +81,30 @@ export class Message {
    */
   public get humanReadableMetadata(): HumanReadableMetadataRoot {
     const baseInformation = HumanReadableField.orderedDictionary(
+      'Base Information',
       'Container for general message identity and descriptive fields.',
     )
     baseInformation.insertEntryAt(
       0,
-      'Message Type',
+      'messageType',
       HumanReadableField.string(
         this.messageTypeName,
+        'Message Type',
         'USB Power Delivery specification name for this message type.',
       ),
     )
     return {
       baseInformation,
       technicalData: HumanReadableField.orderedDictionary(
+        'Technical Data',
         'Container for technical-level decoded values that apply broadly.',
       ),
       headerData: HumanReadableField.orderedDictionary(
+        'Header Data',
         'Container for parsed header-level fields and derived header metadata.',
       ),
       messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
         'Container for decoded fields specific to this concrete message type.',
       ),
     }

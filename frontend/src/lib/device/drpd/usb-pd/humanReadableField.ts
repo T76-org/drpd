@@ -67,6 +67,8 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
   public readonly type: T
   ///< Backing value for the field type.
   public readonly value: HumanReadableFieldValueMap[T]
+  ///< Human-readable label shown for this field.
+  public readonly Label: string
   ///< Human-readable explanation of the field meaning.
   public readonly explanation: string
 
@@ -75,14 +77,19 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
    *
    * @param type - Field type.
    * @param value - Value for the type.
+   * @param Label - Human-readable label for this field.
    * @param explanation - Human-readable explanation for this field.
    */
-  public constructor(type: T, value: HumanReadableFieldValueMap[T], explanation: string) {
+  public constructor(type: T, value: HumanReadableFieldValueMap[T], Label: string, explanation: string) {
+    if (typeof Label !== 'string' || !Label.trim()) {
+      throw new Error('HumanReadableField Label must be a non-empty string')
+    }
     if (typeof explanation !== 'string' || !explanation.trim()) {
       throw new Error('HumanReadableField explanation must be a non-empty string')
     }
     this.type = type
     this.value = value
+    this.Label = Label
     this.explanation = explanation
   }
 
@@ -93,8 +100,12 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
    * @param explanation - Human-readable explanation for this field.
    * @returns String field.
    */
-  public static string(value: string, explanation: string): HumanReadableField<'String'> {
-    return new HumanReadableField('String', value, explanation)
+  public static string(
+    value: string,
+    Label: string,
+    explanation: string,
+  ): HumanReadableField<'String'> {
+    return new HumanReadableField('String', value, Label, explanation)
   }
 
   /**
@@ -105,10 +116,11 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
    * @returns Table field.
    */
   public static table(
+    Label: string,
     explanation: string,
     cells: HumanReadableTableCell[] = [],
   ): HumanReadableField<'Table'> {
-    return new HumanReadableField('Table', [...cells], explanation)
+    return new HumanReadableField('Table', [...cells], Label, explanation)
   }
 
   /**
@@ -124,6 +136,7 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
     data: Uint8Array,
     byteWidth: HumanReadableByteWidth,
     signed: boolean,
+    Label: string,
     explanation: string,
   ): HumanReadableField<'ByteData'> {
     if (byteWidth !== 8 && byteWidth !== 16 && byteWidth !== 32) {
@@ -139,6 +152,7 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
         byteWidth,
         signed,
       },
+      Label,
       explanation,
     )
   }
@@ -151,10 +165,11 @@ export class HumanReadableField<T extends HumanReadableFieldType = HumanReadable
    * @returns OrderedDictionary field.
    */
   public static orderedDictionary(
+    Label: string,
     explanation: string,
     entries?: Iterable<[string, HumanReadableField]>,
   ): HumanReadableField<'OrderedDictionary'> {
-    return new HumanReadableField('OrderedDictionary', new Map(entries), explanation)
+    return new HumanReadableField('OrderedDictionary', new Map(entries), Label, explanation)
   }
 
   /**
