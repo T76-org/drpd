@@ -60,6 +60,22 @@ export class GetBatteryStatusMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Status is an extended message request that asks for current battery status information so policy logic can query live battery condition when needed.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    const getBatteryStatusDataBlock = HumanReadableField.orderedDictionary(
+      'Get Battery Status Data Block',
+      'Metadata describing the Get_Battery_Status request data block.',
+    )
+    if (this.batteryStatusRef !== null) {
+      getBatteryStatusDataBlock.setEntry(
+        'batteryStatusRef',
+        HumanReadableField.string(
+          this.batteryStatusRef.toString(),
+          'Battery Status Reference',
+          'Battery reference identifying which battery status record is being requested.',
+        ),
+      )
+    }
+    metadata.messageSpecificData.setEntry('getBatteryStatusDataBlock', getBatteryStatusDataBlock)
     return metadata
   }
 

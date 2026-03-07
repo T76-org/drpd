@@ -1,6 +1,8 @@
 import { DataMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import {
+  buildDiscoverIdentityMetadata,
+  buildVDMHeaderMetadata,
   parseDiscoverIdentityVDOs,
   parseVDMHeader,
   readDataObjects,
@@ -97,6 +99,64 @@ export class VendorDefinedMessage extends DataMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined is a data message carrying structured or unstructured vendor-defined objects so partners can perform alternate mode discovery and proprietary feature exchange.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.vdmHeader) {
+      metadata.messageSpecificData.setEntry('vdmHeader', buildVDMHeaderMetadata(this.vdmHeader))
+    }
+    if (this.discoverIdentity) {
+      metadata.messageSpecificData.setEntry('discoverIdentity', buildDiscoverIdentityMetadata(this.discoverIdentity))
+    }
+    if (this.discoverSVIDs.length > 0) {
+      const discoverSvids = HumanReadableField.orderedDictionary(
+        'Discover SVIDs',
+        'Ordered collection of SVID values returned by a Discover SVIDs Structured Vendor Defined Message.',
+      )
+      this.discoverSVIDs.forEach((svid, index) => {
+        discoverSvids.setEntry(
+          `svid${index + 1}`,
+          HumanReadableField.string(
+            `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`,
+            `SVID ${index + 1}`,
+            'Standard or vendor identifier reported by the Discover SVIDs response.',
+          ),
+        )
+      })
+      metadata.messageSpecificData.setEntry('discoverSvids', discoverSvids)
+    }
+    if (this.discoverModes.length > 0) {
+      const discoverModes = HumanReadableField.orderedDictionary(
+        'Discover Modes',
+        'Ordered collection of raw Mode VDO values returned by a Discover Modes Structured Vendor Defined Message.',
+      )
+      this.discoverModes.forEach((mode, index) => {
+        discoverModes.setEntry(
+          `modeVdo${index + 1}`,
+          HumanReadableField.string(
+            `0x${mode.toString(16).toUpperCase().padStart(8, '0')}`,
+            `Mode VDO ${index + 1}`,
+            'Raw Vendor Data Object describing one discovered mode entry.',
+          ),
+        )
+      })
+      metadata.messageSpecificData.setEntry('discoverModes', discoverModes)
+    }
+    if (this.rawVDOs.length > 0 && !this.discoverIdentity && this.discoverModes.length === 0 && this.discoverSVIDs.length === 0) {
+      const rawVdos = HumanReadableField.orderedDictionary(
+        'Raw VDOs',
+        'Vendor Data Objects preserved without a richer structured interpretation in the current parser.',
+      )
+      this.rawVDOs.forEach((raw, index) => {
+        rawVdos.setEntry(
+          `rawVdo${index + 1}`,
+          HumanReadableField.string(
+            `0x${raw.toString(16).toUpperCase().padStart(8, '0')}`,
+            `Raw VDO ${index + 1}`,
+            'Raw Vendor Data Object preserved for a vendor-defined payload that does not yet have a richer parser path.',
+          ),
+        )
+      })
+      metadata.messageSpecificData.setEntry('rawVdos', rawVdos)
+    }
     return metadata
   }
 

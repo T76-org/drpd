@@ -1,6 +1,6 @@
 import { DataMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
-import { parseEPRModeDataObject, readDataObjects, type ParsedEPRModeDataObject } from '../DataObjects'
+import { buildEPRModeDataObjectMetadata, parseEPRModeDataObject, readDataObjects, type ParsedEPRModeDataObject } from '../DataObjects'
 
 /**
  * EPR_Mode data message.
@@ -59,6 +59,10 @@ export class EPRModeMessage extends DataMessage {
         'A description of the message\'s function and usage.',
       ),
     )
+
+    if (this.eprModeDataObject) {
+      metadata.messageSpecificData.setEntry('eprModeDataObject', buildEPRModeDataObjectMetadata(this.eprModeDataObject))
+    }
     return metadata
   }
 

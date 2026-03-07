@@ -1,6 +1,7 @@
 import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import {
+  buildBatteryCapabilitiesDataBlockMetadata,
   parseBatteryCapabilitiesDataBlock,
   type ParsedBatteryCapabilitiesDataBlock,
 } from '../DataObjects'
@@ -65,6 +66,13 @@ export class BatteryCapabilitiesMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Battery_Capabilities is an extended message that reports detailed battery design and capability information so policy logic can evaluate battery limits and make informed power decisions.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.batteryCapabilities) {
+      metadata.messageSpecificData.setEntry(
+        'batteryCapabilitiesDataBlock',
+        buildBatteryCapabilitiesDataBlockMetadata(this.batteryCapabilities),
+      )
+    }
     return metadata
   }
 

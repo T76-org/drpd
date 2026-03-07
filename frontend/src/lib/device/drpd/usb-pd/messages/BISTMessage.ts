@@ -1,6 +1,6 @@
 import { DataMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
-import { parseBISTDataObject, readDataObjects, type ParsedBISTDataObject } from '../DataObjects'
+import { buildBISTDataObjectMetadata, parseBISTDataObject, readDataObjects, type ParsedBISTDataObject } from '../DataObjects'
 
 /**
  * BIST data message.
@@ -56,6 +56,10 @@ export class BISTMessage extends DataMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('BIST is a data message that carries Built-In Self-Test mode information so partners can request or indicate link and protocol self-test behavior during validation and debug flows.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.bistDataObject) {
+      metadata.messageSpecificData.setEntry('bistDataObject', buildBISTDataObjectMetadata(this.bistDataObject))
+    }
     return metadata
   }
 

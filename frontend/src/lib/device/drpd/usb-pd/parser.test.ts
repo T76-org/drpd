@@ -142,6 +142,12 @@ describe('usb-pd parser', () => {
     expect(messageHeader?.getEntry('specificationRevision')?.value).toBe('Revision 3.x (10b)')
     expect(messageHeader?.getEntry('portDataRole')?.value).toBe('UFP (0b)')
     expect(messageHeader?.getEntry('messageType')?.value).toBe('Request (0x02)')
+    const requestDataObject = message.humanReadableMetadata.messageSpecificData.getEntry(
+      'requestDataObject',
+    )
+    expect(requestDataObject?.type).toBe('OrderedDictionary')
+    expect(requestDataObject?.Label).toBe('Request Data Object')
+    expect(requestDataObject?.getEntry('objectPosition')?.value).toBe('1')
   })
 
   it('parses SOP Accept control messages', () => {

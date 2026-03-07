@@ -62,6 +62,17 @@ export class FirmwareUpdateRequestMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Firmware_Update_Request is an extended message used to initiate or advance firmware update transactions so partners can perform standardized in-band firmware update procedures.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    metadata.messageSpecificData.setEntry(
+      'firmwareUpdateRequestDataBlock',
+      HumanReadableField.byteData(
+        this.firmwareUpdateRequestDataBlock,
+        8,
+        false,
+        'Firmware Update Request Data Block',
+        'Raw Firmware_Update_Request payload bytes preserved until a field-by-field parser is implemented.',
+      ),
+    )
     return metadata
   }
 

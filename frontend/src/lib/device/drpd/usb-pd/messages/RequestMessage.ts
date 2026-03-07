@@ -1,6 +1,6 @@
 import { DataMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
-import { parseRDO, readDataObjects, type ParsedRDO } from '../DataObjects'
+import { buildRDOMetadata, parseRDO, readDataObjects, type ParsedRDO } from '../DataObjects'
 
 /**
  * Request data message.
@@ -51,6 +51,10 @@ export class RequestMessage extends DataMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Request is a data message that selects a specific source power data object and operating level so a sink can establish or change its power contract.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.rdo) {
+      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata(this.rdo))
+    }
     return metadata
   }
 

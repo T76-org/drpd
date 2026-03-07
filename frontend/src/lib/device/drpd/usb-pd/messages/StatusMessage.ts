@@ -1,6 +1,8 @@
 import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import {
+  buildSOPPrimeStatusDataBlockMetadata,
+  buildSOPStatusDataBlockMetadata,
   parseSOPPrimeStatusDataBlock,
   parseSOPStatusDataBlock,
   type ParsedSOPPrimeStatusDataBlock,
@@ -83,6 +85,16 @@ export class StatusMessage extends ExtendedMessage {
         'A description of the message\'s function and usage.',
       ),
     )
+
+    if (this.sopStatusDataBlock) {
+      metadata.messageSpecificData.setEntry('statusDataBlock', buildSOPStatusDataBlockMetadata(this.sopStatusDataBlock))
+    }
+    if (this.sopPrimeStatusDataBlock) {
+      metadata.messageSpecificData.setEntry(
+        'statusDataBlock',
+        buildSOPPrimeStatusDataBlockMetadata(this.sopPrimeStatusDataBlock),
+      )
+    }
     return metadata
   }
 

@@ -1,6 +1,7 @@
 import { DataMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import {
+  buildRevisionDataObjectMetadata,
   parseRevisionDataObject,
   readDataObjects,
   type ParsedRevisionDataObject,
@@ -55,6 +56,10 @@ export class RevisionMessage extends DataMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Revision is a data message that communicates protocol and firmware revision information so partners can understand each other\'s implemented USB-PD revision context.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.revisionDataObject) {
+      metadata.messageSpecificData.setEntry('revisionDataObject', buildRevisionDataObjectMetadata(this.revisionDataObject))
+    }
     return metadata
   }
 }

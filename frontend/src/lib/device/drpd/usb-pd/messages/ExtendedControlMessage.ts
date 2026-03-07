@@ -1,6 +1,7 @@
 import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import {
+  buildExtendedControlDataBlockMetadata,
   parseExtendedControlDataBlock,
   type ParsedExtendedControlDataBlock,
 } from '../DataObjects'
@@ -73,6 +74,13 @@ export class ExtendedControlMessage extends ExtendedMessage {
         'A description of the message\'s function and usage.',
       ),
     )
+
+    if (this.extendedControlDataBlock) {
+      metadata.messageSpecificData.setEntry(
+        'extendedControlDataBlock',
+        buildExtendedControlDataBlockMetadata(this.extendedControlDataBlock),
+      )
+    }
     return metadata
   }
 

@@ -63,10 +63,10 @@ const buildDataPayload = (messageTypeNumber: number): Uint8Array =>
     SOP,
     makeMessageHeader({
       extended: false,
-      numberOfDataObjects: 1,
+      numberOfDataObjects: messageTypeNumber === 0x09 ? 2 : 1,
       messageTypeNumber,
     }),
-    [0, 0, 0, 0],
+    messageTypeNumber === 0x09 ? [0, 0, 0, 0, 0, 0, 0, 0] : [0, 0, 0, 0],
   )
 
 /**
@@ -75,17 +75,40 @@ const buildDataPayload = (messageTypeNumber: number): Uint8Array =>
  * @param messageTypeNumber - Extended message type number.
  * @returns Encoded payload.
  */
-const buildExtendedPayload = (messageTypeNumber: number): Uint8Array =>
-  buildMessage(
+const buildExtendedPayload = (messageTypeNumber: number): Uint8Array => {
+  const dataByType: Record<number, number[]> = {
+    0x01: new Array(25).fill(0),
+    0x02: new Array(7).fill(0),
+    0x03: [0],
+    0x04: [0],
+    0x05: new Array(9).fill(0),
+    0x06: [0, 0],
+    0x07: [0, 0, 0, 0, 0],
+    0x08: [0],
+    0x09: [0],
+    0x0A: [0],
+    0x0B: [0],
+    0x0C: [0, 0, 0, 0],
+    0x0D: [0, 0, 0, 0],
+    0x0E: [0, 0, 0, 0],
+    0x0F: new Array(24).fill(0),
+    0x10: [0, 0],
+    0x11: [0, 0, 0, 0],
+    0x12: [0, 0, 0, 0],
+    0x13: [0, 0, 0, 0],
+  }
+  const data = dataByType[messageTypeNumber] ?? []
+  return buildMessage(
     SOP,
     makeMessageHeader({
       extended: true,
       numberOfDataObjects: 0,
       messageTypeNumber,
     }),
-    [],
-    makeExtendedHeader({ dataSize: 0 }),
+    data,
+    makeExtendedHeader({ dataSize: data.length }),
   )
+}
 
 describe('USB-PD message metadata coverage', () => {
   it('adds messageDescription metadata for every mapped control message type', () => {
@@ -147,7 +170,7 @@ describe('USB-PD message metadata coverage', () => {
         EXPECTED_TECHNICAL_DATA_KEYS,
       )
       expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual(['messageHeader'])
-      expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys()).length).toBeGreaterThan(0)
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
       expect(messageType?.type).toBe('String')
       expect(messageType?.Label).toBe('Message Type')
@@ -193,7 +216,7 @@ describe('USB-PD message metadata coverage', () => {
         'messageHeader',
         'extendedMessageHeader',
       ])
-      expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys()).length).toBeGreaterThan(0)
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
       expect(messageType?.type).toBe('String')
       expect(messageType?.Label).toBe('Message Type')
