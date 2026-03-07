@@ -1053,7 +1053,7 @@ export const parseUFPVDO = (raw: number): ParsedUFPVDO => {
     deviceCapability: getBits(raw, 27, 24),
     vconnPower: getBits(raw, 10, 8),
     vconnRequired: getBits(raw, 7, 7) === 1,
-    vbusRequired: getBits(raw, 6, 6) === 1,
+    vbusRequired: getBits(raw, 6, 6) === 0,
     alternateModes: getBits(raw, 5, 3),
     usbHighestSpeed: getBits(raw, 2, 0),
   }
@@ -1834,28 +1834,269 @@ const addSequenceMetadata = (
 const formatPowerRoleSwapCurrent = (code: number): string => {
   switch (code) {
     case 0:
-      return 'Default USB Power'
+      return '0b00 (Fast Role Swap not supported)'
     case 1:
-      return '1.5 A @ 5 V'
+      return '0b01 (Default USB Port current)'
     case 2:
-      return '3.0 A @ 5 V'
+      return '0b10 (1.5 A @ 5 V)'
+    case 3:
+      return '0b11 (3.0 A @ 5 V)'
     default:
-      return `Reserved (${code})`
+      return `0b${code.toString(2)} (Reserved)`
   }
 }
 
 const formatPeakCurrentCode = (code: number): string => {
   switch (code) {
     case 0:
-      return '100% overload current'
+      return '0b00 (Peak current equals IoC, or use Source_Capabilities_Extended)'
     case 1:
-      return '130% overload current'
+      return '0b01 (150% IoC for 1 ms @ 5%, 125% IoC for 2 ms @ 10%, 110% IoC for 10 ms @ 50%)'
     case 2:
-      return '150% overload current'
+      return '0b10 (200% IoC for 1 ms @ 5%, 150% IoC for 2 ms @ 10%, 125% IoC for 10 ms @ 50%)'
     case 3:
-      return '200% overload current'
+      return '0b11 (200% IoC for 1 ms @ 5%, 175% IoC for 2 ms @ 10%, 150% IoC for 10 ms @ 50%)'
     default:
-      return `Reserved (${code})`
+      return `0b${code.toString(2)} (Reserved)`
+  }
+}
+
+const formatCode = (code: number, width: number, meaning: string): string =>
+  `0b${code.toString(2).padStart(width, '0')} (${meaning})`
+
+const formatBitfieldWithMeanings = (value: number, width: number, meanings: string[]): string =>
+  `0b${value.toString(2).padStart(width, '0')} (${meanings.length > 0 ? meanings.join(', ') : 'No asserted capabilities'})`
+
+const formatUfpVdoVersion = (code: number): string =>
+  formatCode(code, 3, code === 0b011 ? 'Version 1.3' : 'Reserved')
+
+const formatDfpVdoVersion = (code: number): string =>
+  formatCode(code, 3, code === 0b010 ? 'Version 1.2' : 'Reserved')
+
+const formatCableOrVpdVdoVersion = (code: number): string =>
+  formatCode(code, 3, code === 0b000 ? 'Version 1.0' : 'Reserved')
+
+const formatUsbHighestSpeed = (code: number): string => {
+  switch (code) {
+    case 0b000:
+      return formatCode(code, 3, 'USB 2.0 only, no SuperSpeed support')
+    case 0b001:
+      return formatCode(code, 3, 'USB 3.2 Gen1')
+    case 0b010:
+      return formatCode(code, 3, 'USB 3.2/USB4 Gen2')
+    case 0b011:
+      return formatCode(code, 3, 'USB4 Gen3')
+    case 0b100:
+      return formatCode(code, 3, 'USB4 Gen4')
+    default:
+      return formatCode(code, 3, 'Reserved')
+  }
+}
+
+const formatVconnPower = (code: number): string => {
+  switch (code) {
+    case 0b000:
+      return formatCode(code, 3, '1 W')
+    case 0b001:
+      return formatCode(code, 3, '1.5 W')
+    case 0b010:
+      return formatCode(code, 3, '2 W')
+    case 0b011:
+      return formatCode(code, 3, '3 W')
+    case 0b100:
+      return formatCode(code, 3, '4 W')
+    case 0b101:
+      return formatCode(code, 3, '5 W')
+    case 0b110:
+      return formatCode(code, 3, '6 W')
+    default:
+      return formatCode(code, 3, 'Reserved')
+  }
+}
+
+const formatUfpDeviceCapability = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('USB 2.0 Device Capable')
+  if ((value & (1 << 1)) !== 0) meanings.push('USB 2.0 Device Capable (Billboard only)')
+  if ((value & (1 << 2)) !== 0) meanings.push('USB 3.2 Device Capable')
+  if ((value & (1 << 3)) !== 0) meanings.push('USB4 Device Capable')
+  return formatBitfieldWithMeanings(value, 4, meanings)
+}
+
+const formatAlternateModes = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('Supports TBT3 Alternate Mode')
+  if ((value & (1 << 1)) !== 0) meanings.push('Supports Alternate Modes that reconfigure the USB Type-C connector, except TBT3')
+  if ((value & (1 << 2)) !== 0) meanings.push('Supports Alternate Modes that do not reconfigure the USB Type-C connector')
+  return formatBitfieldWithMeanings(value, 3, meanings)
+}
+
+const formatDfpHostCapability = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('USB 2.0 Host Capable')
+  if ((value & (1 << 1)) !== 0) meanings.push('USB 3.2 Host Capable')
+  if ((value & (1 << 2)) !== 0) meanings.push('USB4 Host Capable')
+  return formatBitfieldWithMeanings(value, 3, meanings)
+}
+
+const formatSopProductTypeUfp = (code: number): string => {
+  switch (code) {
+    case 0b000:
+      return formatCode(code, 3, 'SOP: Not a UFP')
+    case 0b001:
+      return formatCode(code, 3, 'SOP: PDUSB Hub')
+    case 0b010:
+      return formatCode(code, 3, 'SOP: PDUSB Peripheral')
+    case 0b011:
+      return formatCode(code, 3, 'SOP: PSD')
+    default:
+      return formatCode(code, 3, "SOP: Reserved")
+  }
+}
+
+const formatSopPrimeProductTypeCable = (code: number): string => {
+  switch (code) {
+    case 0b000:
+      return formatCode(code, 3, "SOP': Not a Cable Plug/VPD")
+    case 0b011:
+      return formatCode(code, 3, "SOP': Passive Cable")
+    case 0b100:
+      return formatCode(code, 3, "SOP': Active Cable")
+    case 0b110:
+      return formatCode(code, 3, "SOP': VCONN Powered USB Device (VPD)")
+    default:
+      return formatCode(code, 3, "SOP': Reserved")
+  }
+}
+
+const formatSopProductTypeCombined = (code: number): string =>
+  `${formatSopProductTypeUfp(code)}; ${formatSopPrimeProductTypeCable(code)}`
+
+const formatSopProductTypeDfp = (code: number): string => {
+  switch (code) {
+    case 0b000:
+      return formatCode(code, 3, 'Not a DFP')
+    case 0b001:
+      return formatCode(code, 3, 'PDUSB Hub')
+    case 0b010:
+      return formatCode(code, 3, 'PDUSB Host')
+    case 0b011:
+      return formatCode(code, 3, 'Power Brick')
+    default:
+      return formatCode(code, 3, 'Reserved')
+  }
+}
+
+const formatConnectorType = (code: number): string => {
+  switch (code) {
+    case 0b00:
+      return formatCode(code, 2, 'Reserved, for compatibility with legacy systems')
+    case 0b01:
+      return formatCode(code, 2, 'Reserved')
+    case 0b10:
+      return formatCode(code, 2, 'USB Type-C Receptacle')
+    case 0b11:
+      return formatCode(code, 2, 'USB Type-C Plug')
+    default:
+      return formatCode(code, 2, 'Reserved')
+  }
+}
+
+const formatCablePlugType = (code: number): string => {
+  switch (code) {
+    case 0b10:
+      return formatCode(code, 2, 'USB Type-C')
+    case 0b11:
+      return formatCode(code, 2, 'Captive')
+    default:
+      return formatCode(code, 2, 'Reserved')
+  }
+}
+
+const formatPassiveCableLatency = (code: number): string => {
+  switch (code) {
+    case 0b0001: return formatCode(code, 4, '<10 ns (~1 m)')
+    case 0b0010: return formatCode(code, 4, '10 ns to 20 ns (~2 m)')
+    case 0b0011: return formatCode(code, 4, '20 ns to 30 ns (~3 m)')
+    case 0b0100: return formatCode(code, 4, '30 ns to 40 ns (~4 m)')
+    case 0b0101: return formatCode(code, 4, '40 ns to 50 ns (~5 m)')
+    case 0b0110: return formatCode(code, 4, '50 ns to 60 ns (~6 m)')
+    case 0b0111: return formatCode(code, 4, '60 ns to 70 ns (~7 m)')
+    case 0b1000: return formatCode(code, 4, '>70 ns (>~7 m)')
+    default: return formatCode(code, 4, 'Reserved')
+  }
+}
+
+const formatActiveCableLatency = (code: number): string => {
+  switch (code) {
+    case 0b0001: return formatCode(code, 4, '<10 ns (~1 m)')
+    case 0b0010: return formatCode(code, 4, '10 ns to 20 ns (~2 m)')
+    case 0b0011: return formatCode(code, 4, '20 ns to 30 ns (~3 m)')
+    case 0b0100: return formatCode(code, 4, '30 ns to 40 ns (~4 m)')
+    case 0b0101: return formatCode(code, 4, '40 ns to 50 ns (~5 m)')
+    case 0b0110: return formatCode(code, 4, '50 ns to 60 ns (~6 m)')
+    case 0b0111: return formatCode(code, 4, '60 ns to 70 ns (~7 m)')
+    case 0b1000: return formatCode(code, 4, '1000 ns (~100 m)')
+    case 0b1001: return formatCode(code, 4, '2000 ns (~200 m)')
+    case 0b1010: return formatCode(code, 4, '3000 ns (~300 m)')
+    default: return formatCode(code, 4, 'Reserved')
+  }
+}
+
+const formatPassiveCableTerminationType = (code: number): string => {
+  switch (code) {
+    case 0b00: return formatCode(code, 2, 'VCONN not required')
+    case 0b01: return formatCode(code, 2, 'VCONN required')
+    default: return formatCode(code, 2, 'Reserved')
+  }
+}
+
+const formatActiveCableTerminationType = (code: number): string => {
+  switch (code) {
+    case 0b10: return formatCode(code, 2, 'One end active, one end passive, VCONN required')
+    case 0b11: return formatCode(code, 2, 'Both ends active, VCONN required')
+    default: return formatCode(code, 2, 'Reserved')
+  }
+}
+
+const formatPassiveOrActiveMaximumVbusVoltage = (code: number): string => {
+  switch (code) {
+    case 0b00: return formatCode(code, 2, '20 V')
+    case 0b01: return formatCode(code, 2, '30 V (Deprecated; interpret as 20 V)')
+    case 0b10: return formatCode(code, 2, '40 V (Deprecated; interpret as 20 V)')
+    case 0b11: return formatCode(code, 2, '50 V')
+    default: return formatCode(code, 2, 'Reserved')
+  }
+}
+
+const formatVpdMaximumVbusVoltage = (code: number): string => {
+  switch (code) {
+    case 0b00: return formatCode(code, 2, '20 V')
+    case 0b01: return formatCode(code, 2, '30 V (Deprecated; interpret as 20 V)')
+    case 0b10: return formatCode(code, 2, '40 V (Deprecated; interpret as 20 V)')
+    case 0b11: return formatCode(code, 2, '50 V (Deprecated; interpret as 20 V)')
+    default: return formatCode(code, 2, 'Reserved')
+  }
+}
+
+const formatVbusCurrentHandlingCapability = (code: number): string => {
+  switch (code) {
+    case 0b01: return formatCode(code, 2, '3 A')
+    case 0b10: return formatCode(code, 2, '5 A')
+    default: return formatCode(code, 2, 'Reserved')
+  }
+}
+
+const formatU3CldPower = (code: number): string => {
+  switch (code) {
+    case 0b000: return formatCode(code, 3, '>10 mW')
+    case 0b001: return formatCode(code, 3, '5-10 mW')
+    case 0b010: return formatCode(code, 3, '1-5 mW')
+    case 0b011: return formatCode(code, 3, '0.5-1 mW')
+    case 0b100: return formatCode(code, 3, '0.2-0.5 mW')
+    case 0b101: return formatCode(code, 3, '50-200 uW')
+    case 0b110: return formatCode(code, 3, '<50 uW')
+    default: return formatCode(code, 3, 'Reserved')
   }
 }
 
@@ -2211,10 +2452,10 @@ export const buildIDHeaderVDOMetadata = (idHeader: ParsedIDHeaderVDO): HumanRead
   addRawUint32MetadataField(container, 'Raw 32-bit ID Header VDO value before field interpretation.', idHeader.raw)
   addBooleanMetadataField(container, 'usbHostCapable', 'USB Host Capable', idHeader.usbHostCapable, 'Indicates USB host capability in the Discover Identity response.')
   addBooleanMetadataField(container, 'usbDeviceCapable', 'USB Device Capable', idHeader.usbDeviceCapable, 'Indicates USB device capability in the Discover Identity response.')
-  addNumberMetadataField(container, 'sopProductTypeUfpOrCable', 'SOP Product Type (UFP/Cable)', idHeader.sopProductTypeUfpOrCable, 'Product type field used for UFP or cable-directed Discover Identity responses.')
+  addStringMetadataField(container, 'sopProductTypeUfpOrCable', 'SOP Product Type (UFP/Cable)', formatSopProductTypeCombined(idHeader.sopProductTypeUfpOrCable), 'Product type code shared by SOP UFP responses and SOP\' cable/VPD responses in the ID Header VDO.')
   addBooleanMetadataField(container, 'modalOperationSupported', 'Modal Operation Supported', idHeader.modalOperationSupported, 'Indicates support for modal operation in the Discover Identity response.')
-  addNumberMetadataField(container, 'sopProductTypeDfp', 'SOP Product Type (DFP)', idHeader.sopProductTypeDfp, 'Product type field used for DFP-directed Discover Identity responses.')
-  addNumberMetadataField(container, 'connectorType', 'Connector Type', idHeader.connectorType, 'Connector type code reported by the Discover Identity response.')
+  addStringMetadataField(container, 'sopProductTypeDfp', 'SOP Product Type (DFP)', formatSopProductTypeDfp(idHeader.sopProductTypeDfp), 'Product type field used for DFP-directed Discover Identity responses.')
+  addStringMetadataField(container, 'connectorType', 'Connector Type', formatConnectorType(idHeader.connectorType), 'Connector type code reported by the Discover Identity response.')
   addStringMetadataField(container, 'usbVendorId', 'USB Vendor ID', formatVdmSvid(idHeader.usbVendorId), 'USB Vendor ID reported by the Discover Identity response.')
   return container
 }
@@ -2248,19 +2489,19 @@ const buildSimpleNumericMetadata = (
 
 export const buildUFPVDOMetadata = (ufp: ParsedUFPVDO): HumanReadableField<'OrderedDictionary'> =>
   buildSimpleNumericMetadata('UFP VDO', 'Metadata describing a UFP VDO from a Discover Identity response.', ufp.raw, [
-    { key: 'vdoVersion', label: 'VDO Version', value: ufp.vdoVersion.toString(), explanation: 'Version field encoded in the UFP VDO.' },
-    { key: 'deviceCapability', label: 'Device Capability', value: `0x${ufp.deviceCapability.toString(16).toUpperCase()}`, explanation: 'Device capability bitfield carried by the UFP VDO.' },
-    { key: 'vconnPower', label: 'VCONN Power', value: ufp.vconnPower.toString(), explanation: 'VCONN power requirement encoding carried by the UFP VDO.' },
-    { key: 'vconnRequired', label: 'VCONN Required', value: ufp.vconnRequired ? 'true' : 'false', explanation: 'Indicates whether VCONN is required by the product.' },
-    { key: 'vbusRequired', label: 'VBUS Required', value: ufp.vbusRequired ? 'true' : 'false', explanation: 'Indicates whether VBUS is required by the product.' },
-    { key: 'alternateModes', label: 'Alternate Modes', value: `0x${ufp.alternateModes.toString(16).toUpperCase()}`, explanation: 'Alternate mode capability bitfield carried by the UFP VDO.' },
-    { key: 'usbHighestSpeed', label: 'USB Highest Speed', value: ufp.usbHighestSpeed.toString(), explanation: 'Highest USB speed code reported by the UFP VDO.' },
+    { key: 'vdoVersion', label: 'VDO Version', value: formatUfpVdoVersion(ufp.vdoVersion), explanation: 'Version field encoded in the UFP VDO.' },
+    { key: 'deviceCapability', label: 'Device Capability', value: formatUfpDeviceCapability(ufp.deviceCapability), explanation: 'Device capability bitfield carried by the UFP VDO.' },
+    { key: 'vconnPower', label: 'VCONN Power', value: formatVconnPower(ufp.vconnPower), explanation: 'VCONN power requirement encoding carried by the UFP VDO.' },
+    { key: 'vconnRequired', label: 'VCONN Required', value: ufp.vconnRequired ? '0b1 (Yes)' : '0b0 (No)', explanation: 'Indicates whether VCONN is required by the product.' },
+    { key: 'vbusRequired', label: 'VBUS Required', value: ufp.vbusRequired ? '0b0 (Yes)' : '0b1 (No)', explanation: 'Indicates whether VBUS is required by the product.' },
+    { key: 'alternateModes', label: 'Alternate Modes', value: formatAlternateModes(ufp.alternateModes), explanation: 'Alternate mode capability bitfield carried by the UFP VDO.' },
+    { key: 'usbHighestSpeed', label: 'USB Highest Speed', value: formatUsbHighestSpeed(ufp.usbHighestSpeed), explanation: 'Highest USB speed code reported by the UFP VDO.' },
   ])
 
 export const buildDFPVDOMetadata = (dfp: ParsedDFPVDO): HumanReadableField<'OrderedDictionary'> =>
   buildSimpleNumericMetadata('DFP VDO', 'Metadata describing a DFP VDO from a Discover Identity response.', dfp.raw, [
-    { key: 'vdoVersion', label: 'VDO Version', value: dfp.vdoVersion.toString(), explanation: 'Version field encoded in the DFP VDO.' },
-    { key: 'hostCapability', label: 'Host Capability', value: `0x${dfp.hostCapability.toString(16).toUpperCase()}`, explanation: 'Host capability bitfield carried by the DFP VDO.' },
+    { key: 'vdoVersion', label: 'VDO Version', value: formatDfpVdoVersion(dfp.vdoVersion), explanation: 'Version field encoded in the DFP VDO.' },
+    { key: 'hostCapability', label: 'Host Capability', value: formatDfpHostCapability(dfp.hostCapability), explanation: 'Host capability bitfield carried by the DFP VDO.' },
     { key: 'portNumber', label: 'Port Number', value: dfp.portNumber.toString(), explanation: 'Port number encoded in the DFP VDO.' },
   ])
 
@@ -2268,62 +2509,62 @@ export const buildPassiveCableVDOMetadata = (cable: ParsedPassiveCableVDO): Huma
   buildSimpleNumericMetadata('Passive Cable VDO', 'Metadata describing a Passive Cable VDO from a Discover Identity response.', cable.raw, [
     { key: 'hwVersion', label: 'Hardware Version', value: cable.hwVersion.toString(), explanation: 'Hardware version code reported by the passive cable VDO.' },
     { key: 'fwVersion', label: 'Firmware Version', value: cable.fwVersion.toString(), explanation: 'Firmware version code reported by the passive cable VDO.' },
-    { key: 'vdoVersion', label: 'VDO Version', value: cable.vdoVersion.toString(), explanation: 'Version field encoded in the passive cable VDO.' },
-    { key: 'plugToPlugOrCaptive', label: 'Plug Type', value: cable.plugToPlugOrCaptive.toString(), explanation: 'Plug or captive-cable encoding carried by the passive cable VDO.' },
-    { key: 'eprCapable', label: 'EPR Capable', value: cable.eprCapable ? 'true' : 'false', explanation: 'Indicates Extended Power Range capability for the cable.' },
-    { key: 'cableLatency', label: 'Cable Latency', value: cable.cableLatency.toString(), explanation: 'Cable latency code reported by the passive cable VDO.' },
-    { key: 'cableTerminationType', label: 'Cable Termination Type', value: cable.cableTerminationType.toString(), explanation: 'Cable termination encoding reported by the passive cable VDO.' },
-    { key: 'maximumVbusVoltage', label: 'Maximum VBUS Voltage', value: cable.maximumVbusVoltage.toString(), explanation: 'Maximum VBUS voltage encoding reported by the passive cable VDO.' },
-    { key: 'vbusCurrentHandlingCapability', label: 'VBUS Current Handling Capability', value: cable.vbusCurrentHandlingCapability.toString(), explanation: 'Current handling capability encoding reported by the passive cable VDO.' },
-    { key: 'usbHighestSpeed', label: 'USB Highest Speed', value: cable.usbHighestSpeed.toString(), explanation: 'Highest USB speed code reported by the passive cable VDO.' },
+    { key: 'vdoVersion', label: 'VDO Version', value: formatCableOrVpdVdoVersion(cable.vdoVersion), explanation: 'Version field encoded in the passive cable VDO.' },
+    { key: 'plugToPlugOrCaptive', label: 'Plug Type', value: formatCablePlugType(cable.plugToPlugOrCaptive), explanation: 'Plug or captive-cable encoding carried by the passive cable VDO.' },
+    { key: 'eprCapable', label: 'EPR Capable', value: cable.eprCapable ? '0b1 (Cable is EPR Capable)' : '0b0 (Cable is not EPR Capable)', explanation: 'Indicates Extended Power Range capability for the cable.' },
+    { key: 'cableLatency', label: 'Cable Latency', value: formatPassiveCableLatency(cable.cableLatency), explanation: 'Cable latency code reported by the passive cable VDO.' },
+    { key: 'cableTerminationType', label: 'Cable Termination Type', value: formatPassiveCableTerminationType(cable.cableTerminationType), explanation: 'Cable termination encoding reported by the passive cable VDO.' },
+    { key: 'maximumVbusVoltage', label: 'Maximum VBUS Voltage', value: formatPassiveOrActiveMaximumVbusVoltage(cable.maximumVbusVoltage), explanation: 'Maximum VBUS voltage encoding reported by the passive cable VDO.' },
+    { key: 'vbusCurrentHandlingCapability', label: 'VBUS Current Handling Capability', value: formatVbusCurrentHandlingCapability(cable.vbusCurrentHandlingCapability), explanation: 'Current handling capability encoding reported by the passive cable VDO.' },
+    { key: 'usbHighestSpeed', label: 'USB Highest Speed', value: formatUsbHighestSpeed(cable.usbHighestSpeed), explanation: 'Highest USB speed code reported by the passive cable VDO.' },
   ])
 
 export const buildActiveCableVDO1Metadata = (cable: ParsedActiveCableVDO1): HumanReadableField<'OrderedDictionary'> =>
   buildSimpleNumericMetadata('Active Cable VDO1', 'Metadata describing the first Active Cable VDO from a Discover Identity response.', cable.raw, [
     { key: 'hwVersion', label: 'Hardware Version', value: cable.hwVersion.toString(), explanation: 'Hardware version code reported by Active Cable VDO1.' },
     { key: 'fwVersion', label: 'Firmware Version', value: cable.fwVersion.toString(), explanation: 'Firmware version code reported by Active Cable VDO1.' },
-    { key: 'vdoVersion', label: 'VDO Version', value: cable.vdoVersion.toString(), explanation: 'Version field encoded in Active Cable VDO1.' },
-    { key: 'plugToPlugOrCaptive', label: 'Plug Type', value: cable.plugToPlugOrCaptive.toString(), explanation: 'Plug or captive-cable encoding carried by Active Cable VDO1.' },
-    { key: 'eprCapable', label: 'EPR Capable', value: cable.eprCapable ? 'true' : 'false', explanation: 'Indicates Extended Power Range capability for the active cable.' },
-    { key: 'cableLatency', label: 'Cable Latency', value: cable.cableLatency.toString(), explanation: 'Cable latency code reported by Active Cable VDO1.' },
-    { key: 'cableTerminationType', label: 'Cable Termination Type', value: cable.cableTerminationType.toString(), explanation: 'Cable termination encoding reported by Active Cable VDO1.' },
-    { key: 'maximumVbusVoltage', label: 'Maximum VBUS Voltage', value: cable.maximumVbusVoltage.toString(), explanation: 'Maximum VBUS voltage encoding reported by Active Cable VDO1.' },
-    { key: 'sbuSupported', label: 'SBU Supported', value: cable.sbuSupported ? 'true' : 'false', explanation: 'Indicates Sideband Use signal support for the active cable.' },
-    { key: 'sbuType', label: 'SBU Type', value: cable.sbuType ? 'true' : 'false', explanation: 'Sideband Use type bit carried by Active Cable VDO1.' },
-    { key: 'vbusCurrentHandlingCapability', label: 'VBUS Current Handling Capability', value: cable.vbusCurrentHandlingCapability.toString(), explanation: 'Current handling capability encoding reported by Active Cable VDO1.' },
-    { key: 'vbusThroughCable', label: 'VBUS Through Cable', value: cable.vbusThroughCable ? 'true' : 'false', explanation: 'Indicates whether VBUS passes through the active cable assembly.' },
-    { key: 'sopDoublePrimeControllerPresent', label: 'SOP" Controller Present', value: cable.sopDoublePrimeControllerPresent ? 'true' : 'false', explanation: 'Indicates the presence of an SOP" controller in the active cable.' },
-    { key: 'usbHighestSpeed', label: 'USB Highest Speed', value: cable.usbHighestSpeed.toString(), explanation: 'Highest USB speed code reported by Active Cable VDO1.' },
+    { key: 'vdoVersion', label: 'VDO Version', value: formatCableOrVpdVdoVersion(cable.vdoVersion), explanation: 'Version field encoded in Active Cable VDO1.' },
+    { key: 'plugToPlugOrCaptive', label: 'Plug Type', value: formatCablePlugType(cable.plugToPlugOrCaptive), explanation: 'Plug or captive-cable encoding carried by Active Cable VDO1.' },
+    { key: 'eprCapable', label: 'EPR Capable', value: cable.eprCapable ? '0b1 (Cable is EPR Capable)' : '0b0 (Cable is not EPR Capable)', explanation: 'Indicates Extended Power Range capability for the active cable.' },
+    { key: 'cableLatency', label: 'Cable Latency', value: formatActiveCableLatency(cable.cableLatency), explanation: 'Cable latency code reported by Active Cable VDO1.' },
+    { key: 'cableTerminationType', label: 'Cable Termination Type', value: formatActiveCableTerminationType(cable.cableTerminationType), explanation: 'Cable termination encoding reported by Active Cable VDO1.' },
+    { key: 'maximumVbusVoltage', label: 'Maximum VBUS Voltage', value: formatPassiveOrActiveMaximumVbusVoltage(cable.maximumVbusVoltage), explanation: 'Maximum VBUS voltage encoding reported by Active Cable VDO1.' },
+    { key: 'sbuSupported', label: 'SBU Supported', value: cable.sbuSupported ? '0b0 (SBU connections supported)' : '0b1 (SBU connections are not supported)', explanation: 'Indicates Sideband Use signal support for the active cable.' },
+    { key: 'sbuType', label: 'SBU Type', value: cable.sbuSupported ? (cable.sbuType ? '0b1 (SBU is active)' : '0b0 (SBU is passive)') : `0b${cable.sbuType ? '1' : '0'} (Ignored because SBU connections are not supported)`, explanation: 'Sideband Use type bit carried by Active Cable VDO1.' },
+    { key: 'vbusCurrentHandlingCapability', label: 'VBUS Current Handling Capability', value: cable.vbusThroughCable ? formatVbusCurrentHandlingCapability(cable.vbusCurrentHandlingCapability) : `0b${cable.vbusCurrentHandlingCapability.toString(2).padStart(2, '0')} (Ignored because VBUS Through Cable = No)`, explanation: 'Current handling capability encoding reported by Active Cable VDO1.' },
+    { key: 'vbusThroughCable', label: 'VBUS Through Cable', value: cable.vbusThroughCable ? '0b1 (Yes)' : '0b0 (No)', explanation: 'Indicates whether VBUS passes through the active cable assembly.' },
+    { key: 'sopDoublePrimeControllerPresent', label: 'SOP" Controller Present', value: cable.sopDoublePrimeControllerPresent ? '0b1 (SOP" controller present)' : '0b0 (No SOP" controller present)', explanation: 'Indicates the presence of an SOP" controller in the active cable.' },
+    { key: 'usbHighestSpeed', label: 'USB Highest Speed', value: formatUsbHighestSpeed(cable.usbHighestSpeed), explanation: 'Highest USB speed code reported by Active Cable VDO1.' },
   ])
 
 export const buildActiveCableVDO2Metadata = (cable: ParsedActiveCableVDO2): HumanReadableField<'OrderedDictionary'> =>
   buildSimpleNumericMetadata('Active Cable VDO2', 'Metadata describing the second Active Cable VDO from a Discover Identity response.', cable.raw, [
     { key: 'maximumOperatingTemperature', label: 'Maximum Operating Temperature', value: `${cable.maximumOperatingTemperature} C`, explanation: 'Maximum operating temperature reported by Active Cable VDO2.' },
     { key: 'shutdownTemperature', label: 'Shutdown Temperature', value: `${cable.shutdownTemperature} C`, explanation: 'Shutdown temperature reported by Active Cable VDO2.' },
-    { key: 'u3CldPower', label: 'U3/CLd Power', value: cable.u3CldPower.toString(), explanation: 'U3/CLd power encoding reported by Active Cable VDO2.' },
-    { key: 'u3ToU0TransitionMode', label: 'U3 to U0 Transition Mode', value: cable.u3ToU0TransitionMode ? 'true' : 'false', explanation: 'Indicates the U3-to-U0 transition behavior of the active cable.' },
-    { key: 'physicalConnection', label: 'Physical Connection', value: cable.physicalConnection ? 'true' : 'false', explanation: 'Indicates the physical connection style encoded by Active Cable VDO2.' },
-    { key: 'activeElement', label: 'Active Element', value: cable.activeElement ? 'true' : 'false', explanation: 'Indicates the active element type in the cable.' },
-    { key: 'usb4Supported', label: 'USB4 Supported', value: cable.usb4Supported ? 'true' : 'false', explanation: 'Indicates USB4 support as decoded from the Active Cable VDO2 flag encoding.' },
+    { key: 'u3CldPower', label: 'U3/CLd Power', value: formatU3CldPower(cable.u3CldPower), explanation: 'U3/CLd power encoding reported by Active Cable VDO2.' },
+    { key: 'u3ToU0TransitionMode', label: 'U3 to U0 Transition Mode', value: cable.u3ToU0TransitionMode ? '0b1 (U3 to U0 through U3S)' : '0b0 (U3 to U0 direct)', explanation: 'Indicates the U3-to-U0 transition behavior of the active cable.' },
+    { key: 'physicalConnection', label: 'Physical Connection', value: cable.physicalConnection ? '0b1 (Optical)' : '0b0 (Copper)', explanation: 'Indicates the physical connection style encoded by Active Cable VDO2.' },
+    { key: 'activeElement', label: 'Active Element', value: cable.activeElement ? '0b1 (Active Re-timer)' : '0b0 (Active Re-driver)', explanation: 'Indicates the active element type in the cable.' },
+    { key: 'usb4Supported', label: 'USB4 Supported', value: cable.usb4Supported ? '0b0 (USB4 supported)' : '0b1 (USB4 not supported)', explanation: 'Indicates USB4 support as decoded from the Active Cable VDO2 flag encoding.' },
     { key: 'usb2HubHopsConsumed', label: 'USB 2.0 Hub Hops Consumed', value: cable.usb2HubHopsConsumed.toString(), explanation: 'USB 2.0 hub-hop consumption encoded by Active Cable VDO2.' },
-    { key: 'usb2Supported', label: 'USB 2.0 Supported', value: cable.usb2Supported ? 'true' : 'false', explanation: 'Indicates USB 2.0 support as decoded from the Active Cable VDO2 flag encoding.' },
-    { key: 'usb32Supported', label: 'USB 3.2 Supported', value: cable.usb32Supported ? 'true' : 'false', explanation: 'Indicates USB 3.2 support as decoded from the Active Cable VDO2 flag encoding.' },
-    { key: 'usbLanesSupported', label: 'USB Lanes Supported', value: cable.usbLanesSupported ? 'true' : 'false', explanation: 'Indicates the lane configuration support bit carried by Active Cable VDO2.' },
-    { key: 'opticallyIsolatedActiveCable', label: 'Optically Isolated Active Cable', value: cable.opticallyIsolatedActiveCable ? 'true' : 'false', explanation: 'Indicates whether the active cable is optically isolated.' },
-    { key: 'usb4AsymmetricModeSupported', label: 'USB4 Asymmetric Mode Supported', value: cable.usb4AsymmetricModeSupported ? 'true' : 'false', explanation: 'Indicates support for USB4 asymmetric mode.' },
-    { key: 'usbGen', label: 'USB Generation', value: cable.usbGen ? 'true' : 'false', explanation: 'USB generation flag carried by Active Cable VDO2.' },
+    { key: 'usb2Supported', label: 'USB 2.0 Supported', value: cable.usb2Supported ? '0b0 (USB 2.0 supported)' : '0b1 (USB 2.0 not supported)', explanation: 'Indicates USB 2.0 support as decoded from the Active Cable VDO2 flag encoding.' },
+    { key: 'usb32Supported', label: 'USB 3.2 Supported', value: cable.usb32Supported ? '0b0 (USB 3.2 SuperSpeed supported)' : '0b1 (USB 3.2 SuperSpeed not supported)', explanation: 'Indicates USB 3.2 support as decoded from the Active Cable VDO2 flag encoding.' },
+    { key: 'usbLanesSupported', label: 'USB Lanes Supported', value: cable.usbLanesSupported ? '0b1 (Two lanes)' : '0b0 (One lane)', explanation: 'Indicates the lane configuration support bit carried by Active Cable VDO2.' },
+    { key: 'opticallyIsolatedActiveCable', label: 'Optically Isolated Active Cable', value: cable.opticallyIsolatedActiveCable ? '0b1 (Yes)' : '0b0 (No)', explanation: 'Indicates whether the active cable is optically isolated.' },
+    { key: 'usb4AsymmetricModeSupported', label: 'USB4 Asymmetric Mode Supported', value: cable.usb4AsymmetricModeSupported ? '0b1 (Yes)' : '0b0 (No)', explanation: 'Indicates support for USB4 asymmetric mode.' },
+    { key: 'usbGen', label: 'USB Generation', value: cable.usbGen ? '0b1 (Gen 2 or higher)' : '0b0 (Gen 1)', explanation: 'USB generation flag carried by Active Cable VDO2.' },
   ])
 
 export const buildVPDVDOMetadata = (vpd: ParsedVPDVDO): HumanReadableField<'OrderedDictionary'> =>
   buildSimpleNumericMetadata('VPD VDO', 'Metadata describing a VPD VDO from a Discover Identity response.', vpd.raw, [
     { key: 'hwVersion', label: 'Hardware Version', value: vpd.hwVersion.toString(), explanation: 'Hardware version code reported by the VPD VDO.' },
     { key: 'fwVersion', label: 'Firmware Version', value: vpd.fwVersion.toString(), explanation: 'Firmware version code reported by the VPD VDO.' },
-    { key: 'vdoVersion', label: 'VDO Version', value: vpd.vdoVersion.toString(), explanation: 'Version field encoded in the VPD VDO.' },
-    { key: 'maximumVbusVoltage', label: 'Maximum VBUS Voltage', value: vpd.maximumVbusVoltage.toString(), explanation: 'Maximum VBUS voltage encoding reported by the VPD VDO.' },
-    { key: 'chargeThroughCurrentSupport', label: 'Charge Through Current Support', value: vpd.chargeThroughCurrentSupport ? 'true' : 'false', explanation: 'Indicates support for charge-through current in the VPD.' },
-    { key: 'vbusImpedance', label: 'VBUS Impedance', value: vpd.vbusImpedance.toString(), explanation: 'VBUS impedance value encoded by the VPD VDO.' },
-    { key: 'groundImpedance', label: 'Ground Impedance', value: vpd.groundImpedance.toString(), explanation: 'Ground impedance value encoded by the VPD VDO.' },
-    { key: 'chargeThroughSupport', label: 'Charge Through Support', value: vpd.chargeThroughSupport ? 'true' : 'false', explanation: 'Indicates support for charge-through operation in the VPD.' },
+    { key: 'vdoVersion', label: 'VDO Version', value: formatCableOrVpdVdoVersion(vpd.vdoVersion), explanation: 'Version field encoded in the VPD VDO.' },
+    { key: 'maximumVbusVoltage', label: 'Maximum VBUS Voltage', value: formatVpdMaximumVbusVoltage(vpd.maximumVbusVoltage), explanation: 'Maximum VBUS voltage encoding reported by the VPD VDO.' },
+    { key: 'chargeThroughCurrentSupport', label: 'Charge Through Current Support', value: vpd.chargeThroughSupport ? (vpd.chargeThroughCurrentSupport ? '0b1 (5 A capable)' : '0b0 (3 A capable)') : `0b${vpd.chargeThroughCurrentSupport ? '1' : '0'} (Reserved because Charge Through Support = No)`, explanation: 'Indicates support for charge-through current in the VPD.' },
+    { key: 'vbusImpedance', label: 'VBUS Impedance', value: vpd.chargeThroughSupport ? `${vpd.vbusImpedance * 2} mOhm (raw ${vpd.vbusImpedance})` : `${vpd.vbusImpedance} (Reserved because Charge Through Support = No)`, explanation: 'VBUS impedance value encoded by the VPD VDO.' },
+    { key: 'groundImpedance', label: 'Ground Impedance', value: vpd.chargeThroughSupport ? `${vpd.groundImpedance} mOhm (raw ${vpd.groundImpedance})` : `${vpd.groundImpedance} (Reserved because Charge Through Support = No)`, explanation: 'Ground impedance value encoded by the VPD VDO.' },
+    { key: 'chargeThroughSupport', label: 'Charge Through Support', value: vpd.chargeThroughSupport ? '0b1 (The VPD supports Charge Through)' : '0b0 (The VPD does not support Charge Through)', explanation: 'Indicates support for charge-through operation in the VPD.' },
   ])
 
 export const buildSVIDsVDOMetadata = (svidsVdo: ParsedSVIDsVDO): HumanReadableField<'OrderedDictionary'> =>

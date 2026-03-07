@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { parseUSBPDMessage } from '../parser'
+import {
+  buildDFPVDOMetadata,
+  buildIDHeaderVDOMetadata,
+  buildPDOMetadata,
+  buildPassiveCableVDOMetadata,
+  buildUFPVDOMetadata,
+  parseDFPVDO,
+  parseIDHeaderVDO,
+  parsePassiveCableVDO,
+  parseUFPVDO,
+} from '../DataObjects'
 import type { FixedSupplyPDO, ParsedPDO } from '../DataObjects'
 import {
   buildMessage,
@@ -83,6 +94,81 @@ describe('USB-PD data message decoding', () => {
     const fixedPdo = expectFixedPDO(decoded.decodedPDOs[0] ?? null)
     expect(fixedPdo.pdoType).toBe('FIXED')
     expect(fixedPdo.voltage50mV).toBe(100)
+  })
+
+  it('renders coded PDO and VDO metadata with raw values and decoded meanings', () => {
+    let sinkFixedPdo = 0
+    sinkFixedPdo = setBits(sinkFixedPdo, 31, 30, 0b00)
+    sinkFixedPdo = setBits(sinkFixedPdo, 29, 29, 1)
+    sinkFixedPdo = setBits(sinkFixedPdo, 24, 23, 0b11)
+    sinkFixedPdo = setBits(sinkFixedPdo, 19, 10, 100)
+    sinkFixedPdo = setBits(sinkFixedPdo, 9, 0, 200)
+    const sinkMessage = parseUSBPDMessage(buildMessage(
+      SOP,
+      makeMessageHeader({ extended: false, numberOfDataObjects: 1, messageTypeNumber: 0x04 }),
+      toBytes32(sinkFixedPdo),
+    )) as SinkCapabilitiesMessage
+    const sinkMetadata = buildPDOMetadata(expectFixedPDO(sinkMessage.decodedPDOs[0]))
+    expect(sinkMetadata.getEntry('fastRoleSwapRequiredCurrent')?.value).toBe('0b11 (3.0 A @ 5 V)')
+
+    let sourceFixedPdo = 0
+    sourceFixedPdo = setBits(sourceFixedPdo, 31, 30, 0b00)
+    sourceFixedPdo = setBits(sourceFixedPdo, 21, 20, 0b10)
+    sourceFixedPdo = setBits(sourceFixedPdo, 19, 10, 100)
+    sourceFixedPdo = setBits(sourceFixedPdo, 9, 0, 300)
+    const sourceMessage = parseUSBPDMessage(buildMessage(
+      SOP,
+      makeMessageHeader({ extended: false, numberOfDataObjects: 1, messageTypeNumber: 0x01 }),
+      toBytes32(sourceFixedPdo),
+    )) as SourceCapabilitiesMessage
+    const sourceMetadata = buildPDOMetadata(expectFixedPDO(sourceMessage.decodedPDOs[0]))
+    expect(sourceMetadata.getEntry('peakCurrent')?.value).toContain('0b10')
+    expect(sourceMetadata.getEntry('peakCurrent')?.value).toContain('200% IoC')
+
+    let passiveCableRaw = 0
+    passiveCableRaw = setBits(passiveCableRaw, 23, 21, 0b000)
+    passiveCableRaw = setBits(passiveCableRaw, 19, 18, 0b10)
+    passiveCableRaw = setBits(passiveCableRaw, 16, 13, 0b0010)
+    passiveCableRaw = setBits(passiveCableRaw, 12, 11, 0b01)
+    passiveCableRaw = setBits(passiveCableRaw, 10, 9, 0b11)
+    passiveCableRaw = setBits(passiveCableRaw, 6, 5, 0b10)
+    passiveCableRaw = setBits(passiveCableRaw, 2, 0, 0b100)
+    const passiveCableMetadata = buildPassiveCableVDOMetadata(parsePassiveCableVDO(passiveCableRaw))
+    expect(passiveCableMetadata.getEntry('maximumVbusVoltage')?.value).toBe('0b11 (50 V)')
+    expect(passiveCableMetadata.getEntry('cableLatency')?.value).toBe('0b0010 (10 ns to 20 ns (~2 m))')
+    expect(passiveCableMetadata.getEntry('usbHighestSpeed')?.value).toBe('0b100 (USB4 Gen4)')
+
+    let ufpRaw = 0
+    ufpRaw = setBits(ufpRaw, 31, 29, 0b011)
+    ufpRaw = setBits(ufpRaw, 27, 24, 0b1101)
+    ufpRaw = setBits(ufpRaw, 10, 8, 0b101)
+    ufpRaw = setBits(ufpRaw, 7, 7, 1)
+    ufpRaw = setBits(ufpRaw, 6, 6, 0)
+    ufpRaw = setBits(ufpRaw, 5, 3, 0b011)
+    ufpRaw = setBits(ufpRaw, 2, 0, 0b011)
+    const ufpMetadata = buildUFPVDOMetadata(parseUFPVDO(ufpRaw))
+    expect(ufpMetadata.getEntry('vdoVersion')?.value).toBe('0b011 (Version 1.3)')
+    expect(ufpMetadata.getEntry('vconnPower')?.value).toBe('0b101 (5 W)')
+    expect(ufpMetadata.getEntry('vbusRequired')?.value).toBe('0b0 (Yes)')
+    expect(ufpMetadata.getEntry('alternateModes')?.value).toContain('0b011')
+    expect(ufpMetadata.getEntry('alternateModes')?.value).toContain('Supports TBT3 Alternate Mode')
+
+    let dfpRaw = 0
+    dfpRaw = setBits(dfpRaw, 31, 29, 0b010)
+    dfpRaw = setBits(dfpRaw, 26, 24, 0b111)
+    const dfpMetadata = buildDFPVDOMetadata(parseDFPVDO(dfpRaw))
+    expect(dfpMetadata.getEntry('vdoVersion')?.value).toBe('0b010 (Version 1.2)')
+    expect(dfpMetadata.getEntry('hostCapability')?.value).toContain('0b111')
+    expect(dfpMetadata.getEntry('hostCapability')?.value).toContain('USB4 Host Capable')
+
+    let idHeaderRaw = 0
+    idHeaderRaw = setBits(idHeaderRaw, 29, 27, 0b100)
+    idHeaderRaw = setBits(idHeaderRaw, 25, 23, 0b010)
+    idHeaderRaw = setBits(idHeaderRaw, 22, 21, 0b11)
+    const idHeaderMetadata = buildIDHeaderVDOMetadata(parseIDHeaderVDO(idHeaderRaw))
+    expect(idHeaderMetadata.getEntry('sopProductTypeUfpOrCable')?.value).toContain("SOP': Active Cable")
+    expect(idHeaderMetadata.getEntry('sopProductTypeDfp')?.value).toBe('0b010 (PDUSB Host)')
+    expect(idHeaderMetadata.getEntry('connectorType')?.value).toBe('0b11 (USB Type-C Plug)')
   })
 
   it('decodes Sink_Capabilities', () => {
