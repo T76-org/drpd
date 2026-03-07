@@ -36,6 +36,7 @@ describe('usb-pd parser', () => {
     expect(message.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
     expect(message.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
     expect(message.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
+    expect(Array.from(message.humanReadableMetadata.headerData.keys())).toEqual(['messageHeader'])
     expect(Array.from(message.humanReadableMetadata.baseInformation.keys())).toEqual([
       'messageType',
       'messageDescription',
@@ -84,6 +85,32 @@ describe('usb-pd parser', () => {
     expect(Array.from((messageBytes?.value as { data: Uint8Array }).data ?? [])).toEqual(
       Array.from(sampleGoodCRC),
     )
+    const messageHeader = message.humanReadableMetadata.headerData.getEntry('messageHeader')
+    expect(messageHeader?.type).toBe('OrderedDictionary')
+    expect(messageHeader?.Label).toBe('Message Header')
+    expect(Array.from(messageHeader?.keys() ?? [])).toEqual([
+      'messageHeaderRaw',
+      'extended',
+      'numberOfDataObjects',
+      'messageId',
+      'cablePlug',
+      'specificationRevision',
+      'reservedBit5',
+      'messageType',
+    ])
+    expect(messageHeader?.getEntry('messageHeaderRaw')?.Label).toBe('Message Header Raw')
+    expect(messageHeader?.getEntry('messageHeaderRaw')?.value).toBe('0x0101')
+    expect(messageHeader?.getEntry('extended')?.value).toBe('Not Extended (0b)')
+    expect(messageHeader?.getEntry('numberOfDataObjects')?.value).toBe('0')
+    expect(messageHeader?.getEntry('messageId')?.Label).toBe('MessageID')
+    expect(messageHeader?.getEntry('messageId')?.value).toBe('0')
+    expect(messageHeader?.getEntry('cablePlug')?.Label).toBe('Cable Plug')
+    expect(messageHeader?.getEntry('cablePlug')?.value).toBe('Message originated from a Cable Plug or VPD (1b)')
+    expect(messageHeader?.getEntry('specificationRevision')?.Label).toBe('Specification Revision')
+    expect(messageHeader?.getEntry('specificationRevision')?.value).toBe('Revision 1.0 (00b)')
+    expect(messageHeader?.getEntry('reservedBit5')?.Label).toBe('Reserved')
+    expect(messageHeader?.getEntry('reservedBit5')?.value).toBe('0b0')
+    expect(messageHeader?.getEntry('messageType')?.value).toBe('GoodCRC (0x01)')
   })
 
   it('parses SOP Request data messages', () => {
@@ -98,6 +125,23 @@ describe('usb-pd parser', () => {
     expect(message.pulseWidthsNs).toEqual(new Float64Array())
     expect(message.header.messageHeader.powerRole).toBe('SINK')
     expect(message.header.messageHeader.dataRole).toBe('UFP')
+    const messageHeader = message.humanReadableMetadata.headerData.getEntry('messageHeader')
+    expect(messageHeader?.type).toBe('OrderedDictionary')
+    expect(Array.from(messageHeader?.keys() ?? [])).toEqual([
+      'messageHeaderRaw',
+      'extended',
+      'numberOfDataObjects',
+      'messageId',
+      'portPowerRole',
+      'specificationRevision',
+      'portDataRole',
+      'messageType',
+    ])
+    expect(messageHeader?.getEntry('messageHeaderRaw')?.value).toBe('0x1082')
+    expect(messageHeader?.getEntry('portPowerRole')?.value).toBe('Sink (0b)')
+    expect(messageHeader?.getEntry('specificationRevision')?.value).toBe('Revision 3.x (10b)')
+    expect(messageHeader?.getEntry('portDataRole')?.value).toBe('UFP (0b)')
+    expect(messageHeader?.getEntry('messageType')?.value).toBe('Request (0x02)')
   })
 
   it('parses SOP Accept control messages', () => {
@@ -112,6 +156,9 @@ describe('usb-pd parser', () => {
     expect(message.header.messageHeader.messageId).toBe(1)
     expect(message.header.messageHeader.powerRole).toBe('SOURCE')
     expect(message.header.messageHeader.dataRole).toBe('DFP')
+    const messageHeader = message.humanReadableMetadata.headerData.getEntry('messageHeader')
+    expect(messageHeader?.getEntry('portPowerRole')?.value).toBe('Source (1b)')
+    expect(messageHeader?.getEntry('portDataRole')?.value).toBe('DFP (1b)')
   })
 
   it('parses extended message headers', () => {
@@ -125,6 +172,51 @@ describe('usb-pd parser', () => {
     expect(message.header.extendedHeader?.chunkNumber).toBe(3)
     expect(message.header.extendedHeader?.requestChunk).toBe(true)
     expect(message.header.extendedHeader?.dataSize).toBe(0x12)
+    expect(Array.from(message.humanReadableMetadata.headerData.keys())).toEqual([
+      'messageHeader',
+      'extendedMessageHeader',
+    ])
+    const messageHeader = message.humanReadableMetadata.headerData.getEntry('messageHeader')
+    expect(messageHeader?.type).toBe('OrderedDictionary')
+    expect(Array.from(messageHeader?.keys() ?? [])).toEqual([
+      'messageHeaderRaw',
+      'extended',
+      'numberOfDataObjects',
+      'messageId',
+      'portPowerRole',
+      'specificationRevision',
+      'portDataRole',
+      'messageType',
+    ])
+    expect(messageHeader?.getEntry('messageHeaderRaw')?.value).toBe('0x8001')
+    expect(messageHeader?.getEntry('extended')?.value).toBe('Extended Message (1b)')
+    expect(messageHeader?.getEntry('numberOfDataObjects')?.value).toBe('0')
+    expect(messageHeader?.getEntry('portPowerRole')?.value).toBe('Sink (0b)')
+    expect(messageHeader?.getEntry('specificationRevision')?.value).toBe('Revision 1.0 (00b)')
+    expect(messageHeader?.getEntry('portDataRole')?.value).toBe('UFP (0b)')
+    expect(messageHeader?.getEntry('messageType')?.value).toBe('Source_Capabilities_Extended (0x01)')
+    const extendedMessageHeader = message.humanReadableMetadata.headerData.getEntry(
+      'extendedMessageHeader',
+    )
+    expect(extendedMessageHeader?.type).toBe('OrderedDictionary')
+    expect(extendedMessageHeader?.Label).toBe('Extended Message Header')
+    expect(Array.from(extendedMessageHeader?.keys() ?? [])).toEqual([
+      'extendedMessageHeaderRaw',
+      'chunked',
+      'chunkNumber',
+      'requestChunk',
+      'reservedBit9',
+      'dataSize',
+    ])
+    expect(extendedMessageHeader?.getEntry('extendedMessageHeaderRaw')?.Label).toBe(
+      'Extended Message Header Raw',
+    )
+    expect(extendedMessageHeader?.getEntry('extendedMessageHeaderRaw')?.value).toBe('0x9C12')
+    expect(extendedMessageHeader?.getEntry('chunked')?.value).toBe('Chunked (1b)')
+    expect(extendedMessageHeader?.getEntry('chunkNumber')?.value).toBe('3')
+    expect(extendedMessageHeader?.getEntry('requestChunk')?.value).toBe('Chunk Request (1b)')
+    expect(extendedMessageHeader?.getEntry('reservedBit9')?.value).toBe('0b0')
+    expect(extendedMessageHeader?.getEntry('dataSize')?.value).toBe('18 bytes')
   })
 
   it('copies pulse widths into parsed messages', () => {

@@ -23,6 +23,8 @@ const formatKilohertz = (valueKhz: number): string => {
 const formatHex32 = (value: number | null): string =>
   value === null ? 'Unavailable' : `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
 
+const formatHex16 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
+
 const formatSOPType = (kind: SOP['kind']): string => {
   switch (kind) {
     case 'SOP':
@@ -43,6 +45,46 @@ const formatSOPType = (kind: SOP['kind']): string => {
       return 'Unknown'
   }
 }
+
+const formatExtendedBit = (extended: boolean): string =>
+  extended ? 'Extended Message (1b)' : 'Not Extended (0b)'
+
+const formatPortPowerRole = (roleBit: number): string =>
+  roleBit === 1 ? 'Source (1b)' : 'Sink (0b)'
+
+const formatCablePlug = (cablePlugBit: number): string =>
+  cablePlugBit === 1
+    ? 'Message originated from a Cable Plug or VPD (1b)'
+    : 'Message originated from a DFP or UFP (0b)'
+
+const formatSpecificationRevision = (specRevisionBits: number): string => {
+  switch (specRevisionBits) {
+    case 0b00:
+      return 'Revision 1.0 (00b)'
+    case 0b01:
+      return 'Revision 2.0 (01b)'
+    case 0b10:
+      return 'Revision 3.x (10b)'
+    default:
+      return 'Reserved (11b)'
+  }
+}
+
+const formatPortDataRole = (dataRoleBit: number): string =>
+  dataRoleBit === 1 ? 'DFP (1b)' : 'UFP (0b)'
+
+const formatReservedBit = (bit: number): string => `0b${bit}`
+
+const formatMessageType = (messageTypeName: string, messageTypeNumber: number): string =>
+  `${messageTypeName} (0x${messageTypeNumber.toString(16).toUpperCase().padStart(2, '0')})`
+
+const formatChunked = (chunked: boolean): string =>
+  chunked ? 'Chunked (1b)' : 'Unchunked (0b)'
+
+const formatRequestChunk = (requestChunk: boolean): string =>
+  requestChunk ? 'Chunk Request (1b)' : 'Chunk Data/Response (0b)'
+
+const formatDataSize = (dataSize: number): string => `${dataSize} bytes`
 
 const computeCRC32 = (bytes: Uint8Array): number => {
   let crc = 0xffffffff
@@ -300,6 +342,188 @@ export class Message {
         'Whether the embedded CRC32 exactly matches the calculated CRC32 for this message.',
       ),
     )
+    const headerData = HumanReadableField.orderedDictionary(
+      'Header Data',
+      'Container for parsed header-level fields and derived header metadata.',
+    )
+    const messageHeader = HumanReadableField.orderedDictionary(
+      'Message Header',
+      'USB Power Delivery Message Header fields defined in Table 6.1 of the specification, plus the supplemental raw 16-bit header word.',
+    )
+    const messageHeaderRaw = this.header.messageHeaderRaw
+    const roleBit = (messageHeaderRaw >> 8) & 0x1
+    const dataRoleBit = (messageHeaderRaw >> 5) & 0x1
+    messageHeader.insertEntryAt(
+      0,
+      'messageHeaderRaw',
+      HumanReadableField.string(
+        formatHex16(messageHeaderRaw),
+        'Message Header Raw',
+        'Supplemental raw 16-bit USB Power Delivery Message Header word as captured before individual fields are decoded.',
+      ),
+    )
+    messageHeader.insertEntryAt(
+      1,
+      'extended',
+      HumanReadableField.string(
+        formatExtendedBit(this.header.messageHeader.extended),
+        'Extended',
+        'Indicates whether the Message Header identifies this packet as an Extended Message or as a Control/Data Message.',
+      ),
+    )
+    messageHeader.insertEntryAt(
+      2,
+      'numberOfDataObjects',
+      HumanReadableField.string(
+        this.header.messageHeader.numberOfDataObjects.toString(),
+        'Number of Data Objects',
+        'For non-Extended messages, indicates how many 32-bit Data Objects follow the Message Header; for Extended messages, its meaning depends on chunking as defined by the spec.',
+      ),
+    )
+    messageHeader.insertEntryAt(
+      3,
+      'messageId',
+      HumanReadableField.string(
+        this.header.messageHeader.messageId.toString(),
+        'MessageID',
+        'Rolling 3-bit message identifier maintained by the message originator and used with GoodCRC-based protocol acknowledgement.',
+      ),
+    )
+    const bit8Index = 4
+    if (this.sop.kind === 'SOP') {
+      messageHeader.insertEntryAt(
+        bit8Index,
+        'portPowerRole',
+        HumanReadableField.string(
+          formatPortPowerRole(roleBit),
+          'Port Power Role',
+          'For SOP packets, indicates the transmitting port\'s present power role as Sink or Source.',
+        ),
+      )
+    } else if (this.sop.kind === 'SOP_PRIME' || this.sop.kind === 'SOP_DOUBLE_PRIME') {
+      messageHeader.insertEntryAt(
+        bit8Index,
+        'cablePlug',
+        HumanReadableField.string(
+          formatCablePlug(roleBit),
+          'Cable Plug',
+          'For SOP\' and SOP\'\' packets, indicates whether the message originated from a DFP/UFP or from a Cable Plug or VPD.',
+        ),
+      )
+    } else {
+      messageHeader.insertEntryAt(
+        bit8Index,
+        'reservedBit8',
+        HumanReadableField.string(
+          formatReservedBit(roleBit),
+          'Reserved',
+          'Bit 8 is Reserved for this packet type in the USB Power Delivery Message Header and is not assigned a defined protocol meaning by the specification.',
+        ),
+      )
+    }
+    messageHeader.insertEntryAt(
+      5,
+      'specificationRevision',
+      HumanReadableField.string(
+        formatSpecificationRevision(this.header.messageHeader.specRevisionBits),
+        'Specification Revision',
+        'Indicates which USB Power Delivery specification revision the sender is using for this message.',
+      ),
+    )
+    if (this.sop.kind === 'SOP') {
+      messageHeader.insertEntryAt(
+        6,
+        'portDataRole',
+        HumanReadableField.string(
+          formatPortDataRole(dataRoleBit),
+          'Port Data Role',
+          'For SOP packets, indicates the transmitting port\'s present USB data role as UFP or DFP.',
+        ),
+      )
+    } else {
+      messageHeader.insertEntryAt(
+        6,
+        'reservedBit5',
+        HumanReadableField.string(
+          formatReservedBit(dataRoleBit),
+          'Reserved',
+          'Bit 5 is Reserved for non-SOP packets in the USB Power Delivery Message Header and is not assigned a defined protocol meaning by the specification.',
+        ),
+      )
+    }
+    messageHeader.insertEntryAt(
+      7,
+      'messageType',
+      HumanReadableField.string(
+        formatMessageType(this.messageTypeName, this.messageTypeNumber),
+        'Message Type',
+        'Indicates the message type code; the USB Power Delivery specification decodes it in the context of the message format indicated by the header.',
+      ),
+    )
+    headerData.insertEntryAt(0, 'messageHeader', messageHeader)
+    if (this.header.extendedHeader !== null && this.header.extendedHeaderRaw !== null) {
+      const extendedMessageHeader = HumanReadableField.orderedDictionary(
+        'Extended Message Header',
+        'USB Power Delivery Extended Message Header fields defined in Table 6.3 of the specification, plus the supplemental raw 16-bit header word.',
+      )
+      const extendedHeaderRaw = this.header.extendedHeaderRaw
+      const reservedBit9 = (extendedHeaderRaw >> 9) & 0x1
+      extendedMessageHeader.insertEntryAt(
+        0,
+        'extendedMessageHeaderRaw',
+        HumanReadableField.string(
+          formatHex16(extendedHeaderRaw),
+          'Extended Message Header Raw',
+          'Supplemental raw 16-bit USB Power Delivery Extended Message Header word as captured before individual fields are decoded.',
+        ),
+      )
+      extendedMessageHeader.insertEntryAt(
+        1,
+        'chunked',
+        HumanReadableField.string(
+          formatChunked(this.header.extendedHeader.chunked),
+          'Chunked',
+          'Indicates whether this Extended Message is being transferred in chunks or as a single unchunked transfer.',
+        ),
+      )
+      extendedMessageHeader.insertEntryAt(
+        2,
+        'chunkNumber',
+        HumanReadableField.string(
+          this.header.extendedHeader.chunkNumber.toString(),
+          'Chunk Number',
+          'When chunking is in use, identifies either the chunk being requested or the chunk being returned.',
+        ),
+      )
+      extendedMessageHeader.insertEntryAt(
+        3,
+        'requestChunk',
+        HumanReadableField.string(
+          formatRequestChunk(this.header.extendedHeader.requestChunk),
+          'Request Chunk',
+          'Indicates whether this Extended Message is requesting a chunk or carrying chunk data in response.',
+        ),
+      )
+      extendedMessageHeader.insertEntryAt(
+        4,
+        'reservedBit9',
+        HumanReadableField.string(
+          formatReservedBit(reservedBit9),
+          'Reserved',
+          'Bit 9 of the Extended Message Header is Reserved by the USB Power Delivery specification and does not carry a defined meaning.',
+        ),
+      )
+      extendedMessageHeader.insertEntryAt(
+        5,
+        'dataSize',
+        HumanReadableField.string(
+          formatDataSize(this.header.extendedHeader.dataSize),
+          'Data Size',
+          'Indicates the total number of data bytes in the Extended Message Data Block being transferred.',
+        ),
+      )
+      headerData.insertEntryAt(1, 'extendedMessageHeader', extendedMessageHeader)
+    }
     technicalData.insertEntryAt(
       0,
       'startTimestamp',
@@ -335,10 +559,7 @@ export class Message {
     return {
       baseInformation,
       technicalData,
-      headerData: HumanReadableField.orderedDictionary(
-        'Header Data',
-        'Container for parsed header-level fields and derived header metadata.',
-      ),
+      headerData,
       messageSpecificData: HumanReadableField.orderedDictionary(
         'Message-Specific Data',
         'Container for decoded fields specific to this concrete message type.',

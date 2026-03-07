@@ -16,6 +16,24 @@ const EXPECTED_TECHNICAL_DATA_KEYS = [
   'crc32',
   'messageBytes',
 ]
+const EXPECTED_MESSAGE_HEADER_KEYS_FOR_SOP = [
+  'messageHeaderRaw',
+  'extended',
+  'numberOfDataObjects',
+  'messageId',
+  'portPowerRole',
+  'specificationRevision',
+  'portDataRole',
+  'messageType',
+]
+const EXPECTED_EXTENDED_MESSAGE_HEADER_KEYS = [
+  'extendedMessageHeaderRaw',
+  'chunked',
+  'chunkNumber',
+  'requestChunk',
+  'reservedBit9',
+  'dataSize',
+]
 
 /**
  * Build a parseable control payload for one message type.
@@ -85,7 +103,7 @@ describe('USB-PD message metadata coverage', () => {
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
         EXPECTED_TECHNICAL_DATA_KEYS,
       )
-      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual(['messageHeader'])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
       expect(messageType?.type).toBe('String')
@@ -107,6 +125,9 @@ describe('USB-PD message metadata coverage', () => {
       expect(parsed.humanReadableMetadata.technicalData.getEntry('messageBytes')?.type).toBe(
         'ByteData',
       )
+      const messageHeader = parsed.humanReadableMetadata.headerData.getEntry('messageHeader')
+      expect(messageHeader?.type).toBe('OrderedDictionary')
+      expect(Array.from(messageHeader?.keys() ?? [])).toEqual(EXPECTED_MESSAGE_HEADER_KEYS_FOR_SOP)
     })
   })
 
@@ -125,7 +146,7 @@ describe('USB-PD message metadata coverage', () => {
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
         EXPECTED_TECHNICAL_DATA_KEYS,
       )
-      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual(['messageHeader'])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
       expect(messageType?.type).toBe('String')
@@ -147,6 +168,9 @@ describe('USB-PD message metadata coverage', () => {
       expect(parsed.humanReadableMetadata.technicalData.getEntry('messageBytes')?.type).toBe(
         'ByteData',
       )
+      const messageHeader = parsed.humanReadableMetadata.headerData.getEntry('messageHeader')
+      expect(messageHeader?.type).toBe('OrderedDictionary')
+      expect(Array.from(messageHeader?.keys() ?? [])).toEqual(EXPECTED_MESSAGE_HEADER_KEYS_FOR_SOP)
     })
   })
 
@@ -165,7 +189,10 @@ describe('USB-PD message metadata coverage', () => {
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
         EXPECTED_TECHNICAL_DATA_KEYS,
       )
-      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([])
+      expect(Array.from(parsed.humanReadableMetadata.headerData.keys())).toEqual([
+        'messageHeader',
+        'extendedMessageHeader',
+      ])
       expect(Array.from(parsed.humanReadableMetadata.messageSpecificData.keys())).toEqual([])
       const messageType = parsed.humanReadableMetadata.baseInformation.getEntry('messageType')
       expect(messageType?.type).toBe('String')
@@ -186,6 +213,16 @@ describe('USB-PD message metadata coverage', () => {
       )
       expect(parsed.humanReadableMetadata.technicalData.getEntry('messageBytes')?.type).toBe(
         'ByteData',
+      )
+      const messageHeader = parsed.humanReadableMetadata.headerData.getEntry('messageHeader')
+      expect(messageHeader?.type).toBe('OrderedDictionary')
+      expect(Array.from(messageHeader?.keys() ?? [])).toEqual(EXPECTED_MESSAGE_HEADER_KEYS_FOR_SOP)
+      const extendedMessageHeader = parsed.humanReadableMetadata.headerData.getEntry(
+        'extendedMessageHeader',
+      )
+      expect(extendedMessageHeader?.type).toBe('OrderedDictionary')
+      expect(Array.from(extendedMessageHeader?.keys() ?? [])).toEqual(
+        EXPECTED_EXTENDED_MESSAGE_HEADER_KEYS,
       )
     })
   })
