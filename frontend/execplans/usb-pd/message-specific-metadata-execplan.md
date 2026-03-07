@@ -16,11 +16,11 @@ The visible behavior is that every message type that already has parsed data obj
 - [x] (2026-03-07 00:00Z) Inventoried all parsed data objects and parsed extended data blocks in `frontend/src/lib/device/drpd/usb-pd/DataObjects.ts`.
 - [x] (2026-03-07 00:00Z) Cross-checked the current parser inventory against the local USB-PD 3.2 spec PDF and the checked-in decoding execplan to confirm which message payloads are already structurally decoded and which remain raw.
 - [x] (2026-03-07 00:00Z) Wrote this ExecPlan, including a per-type implementation checklist and a final spec-skeptical validation phase.
-- [ ] Implement shared metadata builder helpers for parsed data objects and parsed data blocks.
-- [ ] Add metadata builders adjacent to each parsed object/data-block type in `frontend/src/lib/device/drpd/usb-pd/DataObjects.ts`.
-- [ ] Update every message class that carries decoded payload data so it populates `humanReadableMetadata.messageSpecificData`.
-- [ ] Add fallback raw-payload metadata for messages whose payloads are not yet structurally decoded.
-- [ ] Add coverage tests for every message family and perform the field-by-field spec verification pass.
+- [x] (2026-03-07 09:00Z) Implemented shared metadata builder helpers for parsed data objects and parsed data blocks.
+- [x] (2026-03-07 09:00Z) Added metadata builders adjacent to parsed object/data-block types in `frontend/src/lib/device/drpd/usb-pd/DataObjects.ts`.
+- [x] (2026-03-07 09:05Z) Updated every message class that carries decoded payload data so it populates `humanReadableMetadata.messageSpecificData`.
+- [x] (2026-03-07 09:05Z) Added explicit fallback metadata for payload families whose internal field layout is defined by external USB-IF specifications not present in this repo.
+- [x] (2026-03-07 09:08Z) Added coverage tests for the newly populated message-specific metadata and completed the skeptical spec verification pass against the local USB-PD 3.2 PDF for the fields defined there.
 
 ## Surprises & Discoveries
 
@@ -32,6 +32,9 @@ The visible behavior is that every message type that already has parsed data obj
 
 - Observation: the checked-in `frontend/execplans/usb-pd/message-decoding-execplan.md` already captures many data-message field layouts in prose and can be safely incorporated by reference, but the final implementation still needs a direct PDF verification pass because the metadata must match the current 2024-10 PDF wording and field applicability.
   Evidence: the existing execplan embeds PDO, RDO, APDO, BIST, Battery Status, Alert, Country Code, Enter_USB, EPR_Mode, Source_Info, and Revision payload definitions.
+
+- Observation: USB-PD 3.2 does not define the internal field layout of `Security_Request`, `Security_Response`, `Firmware_Update_Request`, or `Firmware_Update_Response`; it only defines their message role, valid size range, and the external specification that owns the payload format.
+  Evidence: Sections `6.5.8.1`, `6.5.8.2`, `6.5.9.1`, and `6.5.9.2` state that the SRQDB/SRPDB/FRQDB/FRPDB contents are defined in `USBTypeCAuthentication 1.0` and `USB PD Firmware Update 1.0`.
 
 ## Decision Log
 
@@ -47,9 +50,13 @@ The visible behavior is that every message type that already has parsed data obj
   Rationale: the user asked that data attached to a message be properly interpreted and added to `messageSpecificData`. For payloads that are not yet fully decoded by the parser, the correct near-term behavior is explicit raw-byte metadata plus a clear follow-up path to richer decoding.
   Date/Author: 2026-03-07, Codex
 
+- Decision: for Security and Firmware Update payloads, use opaque but structured data-block metadata rather than inventing field names from examples.
+  Rationale: the local USB-PD 3.2 PDF delegates those internal layouts to external USB-IF specifications that are not available in this repository. The correct spec-grounded implementation is to expose the owning external spec, the valid length range, the actual length, and the raw bytes.
+  Date/Author: 2026-03-07, Codex
+
 ## Outcomes & Retrospective
 
-This plan identifies every currently parsed data object and data block type, maps each one to the messages that use it, and spells out how to add metadata generation without guessing where the code belongs. It also identifies the classes whose payloads are still raw today. The remaining work is implementation and then a skeptical comparison against the spec field by field.
+This plan identified every currently parsed data object and data block type, mapped each one to the messages that use it, and drove the implementation of message-specific metadata generation without guessing where the code belongs. The implementation is now complete for the USB-PD 3.2 fields defined in the local PDF and for the remaining standard VDM command payload wrappers. Security and firmware update payloads are now surfaced through explicit external-spec-aware opaque containers instead of unlabelled raw bytes. The remaining gap is only the absence of the companion USB-IF specifications in this repository.
 
 ## Context and Orientation
 

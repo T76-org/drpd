@@ -1,5 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
+import { buildOpaqueExternalSpecDataBlockMetadata } from '../DataObjects'
 
 /**
  * Security_Response extended message.
@@ -62,12 +63,13 @@ export class SecurityResponseMessage extends ExtendedMessage {
 
     metadata.messageSpecificData.setEntry(
       'securityResponseDataBlock',
-      HumanReadableField.byteData(
-        this.securityResponseDataBlock,
-        8,
-        false,
+      buildOpaqueExternalSpecDataBlockMetadata(
         'Security Response Data Block',
-        'Raw Security_Response payload bytes preserved until a field-by-field parser is implemented.',
+        'Metadata describing the Security_Response data block. USB Power Delivery defines the transport container and length bounds, while USB Type-C Authentication 1.0 defines the internal fields.',
+        'USB Type-C Authentication 1.0',
+        4,
+        260,
+        this.securityResponseDataBlock,
       ),
     )
     return metadata

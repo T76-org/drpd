@@ -1,5 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
+import { buildOpaqueExternalSpecDataBlockMetadata } from '../DataObjects'
 
 /**
  * Firmware_Update_Request extended message.
@@ -65,12 +66,13 @@ export class FirmwareUpdateRequestMessage extends ExtendedMessage {
 
     metadata.messageSpecificData.setEntry(
       'firmwareUpdateRequestDataBlock',
-      HumanReadableField.byteData(
-        this.firmwareUpdateRequestDataBlock,
-        8,
-        false,
+      buildOpaqueExternalSpecDataBlockMetadata(
         'Firmware Update Request Data Block',
-        'Raw Firmware_Update_Request payload bytes preserved until a field-by-field parser is implemented.',
+        'Metadata describing the Firmware_Update_Request data block. USB Power Delivery defines the transport container and length bounds, while USB PD Firmware Update 1.0 defines the internal fields.',
+        'USB PD Firmware Update 1.0',
+        4,
+        260,
+        this.firmwareUpdateRequestDataBlock,
       ),
     )
     return metadata

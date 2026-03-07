@@ -545,6 +545,39 @@ export interface ParsedVPDVDO extends ParsedDataObject {
 }
 
 /**
+ * Parsed Discover SVIDs responder VDO.
+ */
+export interface ParsedSVIDsVDO extends ParsedDataObject {
+  ///< First SVID in the VDO (low 16 bits).
+  svid0: number
+  ///< Second SVID in the VDO (high 16 bits).
+  svid1: number
+}
+
+/**
+ * Parsed Discover Modes VDO.
+ */
+export interface ParsedModesVDO extends ParsedDataObject {
+  ///< Six 4-bit mode nibbles exposed for generic display.
+  modeNibbles: number[]
+}
+
+/**
+ * Parsed Enter Mode payload VDO.
+ */
+export interface ParsedEnterModePayloadVDO extends ParsedDataObject {}
+
+/**
+ * Parsed Exit Mode payload VDO.
+ */
+export interface ParsedExitModePayloadVDO extends ParsedDataObject {}
+
+/**
+ * Parsed Attention payload VDO.
+ */
+export interface ParsedAttentionVDO extends ParsedDataObject {}
+
+/**
  * Parsed Discover Identity response.
  */
 export interface ParsedDiscoverIdentity {
@@ -1134,6 +1167,57 @@ export const parseVPDVDO = (raw: number): ParsedVPDVDO => {
     chargeThroughSupport: getBits(raw, 0, 0) === 1,
   }
 }
+
+/**
+ * Parse a Discover SVIDs responder VDO.
+ *
+ * @param raw - Raw 32-bit value.
+ * @returns Parsed SVIDs VDO.
+ */
+export const parseSVIDsVDO = (raw: number): ParsedSVIDsVDO => {
+  return {
+    raw,
+    svid0: getBits(raw, 15, 0),
+    svid1: getBits(raw, 31, 16),
+  }
+}
+
+/**
+ * Parse a Discover Modes VDO.
+ *
+ * @param raw - Raw 32-bit value.
+ * @returns Parsed Modes VDO.
+ */
+export const parseModesVDO = (raw: number): ParsedModesVDO => {
+  return {
+    raw,
+    modeNibbles: Array.from({ length: 6 }, (_, index) => getBits(raw, (index * 4) + 3, index * 4)),
+  }
+}
+
+/**
+ * Parse an Enter Mode payload VDO.
+ *
+ * @param raw - Raw 32-bit value.
+ * @returns Parsed Enter Mode payload VDO.
+ */
+export const parseEnterModePayloadVDO = (raw: number): ParsedEnterModePayloadVDO => ({ raw })
+
+/**
+ * Parse an Exit Mode payload VDO.
+ *
+ * @param raw - Raw 32-bit value.
+ * @returns Parsed Exit Mode payload VDO.
+ */
+export const parseExitModePayloadVDO = (raw: number): ParsedExitModePayloadVDO => ({ raw })
+
+/**
+ * Parse an Attention payload VDO.
+ *
+ * @param raw - Raw 32-bit value.
+ * @returns Parsed Attention payload VDO.
+ */
+export const parseAttentionVDO = (raw: number): ParsedAttentionVDO => ({ raw })
 
 /**
  * Parse Discover Identity VDOs.
@@ -2241,6 +2325,89 @@ export const buildVPDVDOMetadata = (vpd: ParsedVPDVDO): HumanReadableField<'Orde
     { key: 'groundImpedance', label: 'Ground Impedance', value: vpd.groundImpedance.toString(), explanation: 'Ground impedance value encoded by the VPD VDO.' },
     { key: 'chargeThroughSupport', label: 'Charge Through Support', value: vpd.chargeThroughSupport ? 'true' : 'false', explanation: 'Indicates support for charge-through operation in the VPD.' },
   ])
+
+export const buildSVIDsVDOMetadata = (svidsVdo: ParsedSVIDsVDO): HumanReadableField<'OrderedDictionary'> =>
+  buildSimpleNumericMetadata('Discover SVIDs VDO', 'Metadata describing one Discover SVIDs responder VDO.', svidsVdo.raw, [
+    { key: 'svid0', label: 'SVID 0', value: formatVdmSvid(svidsVdo.svid0), explanation: 'First Standard or Vendor ID carried by this Discover SVIDs responder VDO.' },
+    { key: 'svid1', label: 'SVID 1', value: formatVdmSvid(svidsVdo.svid1), explanation: 'Second Standard or Vendor ID carried by this Discover SVIDs responder VDO.' },
+  ])
+
+export const buildModesVDOMetadata = (modesVdo: ParsedModesVDO): HumanReadableField<'OrderedDictionary'> => {
+  const container = createMetadataContainer('Discover Modes VDO', 'Metadata describing one Discover Modes responder VDO.')
+  addRawUint32MetadataField(container, 'Raw 32-bit Discover Modes VDO value before field interpretation.', modesVdo.raw)
+  const nonZeroModes = modesVdo.modeNibbles.filter((mode) => mode !== 0)
+  addStringMetadataField(
+    container,
+    'modes',
+    'Modes',
+    nonZeroModes.length > 0 ? nonZeroModes.join(', ') : 'None',
+    'Generic mode-number view of the Discover Modes VDO. For SID-defined modes the detailed bit layout is defined by the corresponding standard; for VID-defined modes it is vendor defined.',
+  )
+  const modeNibbles = createMetadataContainer('Mode Nibbles', 'Six 4-bit mode-number nibbles exposed for generic display.')
+  modesVdo.modeNibbles.forEach((mode, index) => addNumberMetadataField(modeNibbles, `modeNibble${index + 1}`, `Mode Nibble ${index + 1}`, mode, 'One 4-bit nibble extracted from the Discover Modes VDO.'))
+  container.setEntry('modeNibbles', modeNibbles)
+  return container
+}
+
+const buildGenericVdoPayloadMetadata = (
+  label: string,
+  explanation: string,
+  raw: number,
+): HumanReadableField<'OrderedDictionary'> => {
+  const container = createMetadataContainer(label, explanation)
+  addRawUint32MetadataField(container, 'Raw 32-bit Vendor Data Object value preserved for a command-specific payload whose detailed format is not defined by USB Power Delivery base specification parsing in this frontend.', raw)
+  return container
+}
+
+export const buildEnterModePayloadVDOMetadata = (payload: ParsedEnterModePayloadVDO): HumanReadableField<'OrderedDictionary'> =>
+  buildGenericVdoPayloadMetadata('Enter Mode Payload VDO', 'Metadata describing an optional Enter Mode payload VDO. Its detailed layout is defined by the addressed Alternate Mode.', payload.raw)
+
+export const buildExitModePayloadVDOMetadata = (payload: ParsedExitModePayloadVDO): HumanReadableField<'OrderedDictionary'> =>
+  buildGenericVdoPayloadMetadata('Exit Mode Payload VDO', 'Metadata describing an optional Exit Mode payload VDO. Its detailed layout is defined by the addressed Alternate Mode.', payload.raw)
+
+export const buildAttentionVDOMetadata = (payload: ParsedAttentionVDO): HumanReadableField<'OrderedDictionary'> =>
+  buildGenericVdoPayloadMetadata('Attention VDO', 'Metadata describing an Attention payload VDO. Its detailed layout is defined by the addressed standard or vendor mode.', payload.raw)
+
+export const buildOpaqueExternalSpecDataBlockMetadata = (
+  label: string,
+  explanation: string,
+  externalSpecification: string,
+  minimumLength: number,
+  maximumLength: number,
+  payload: Uint8Array,
+): HumanReadableField<'OrderedDictionary'> => {
+  const container = createMetadataContainer(label, explanation)
+  addStringMetadataField(
+    container,
+    'externalSpecification',
+    'External Specification',
+    externalSpecification,
+    'The USB Power Delivery base specification delegates the internal payload layout for this data block to this external specification.',
+  )
+  addStringMetadataField(
+    container,
+    'definedLengthRange',
+    'Defined Length Range',
+    `${minimumLength}..${maximumLength} bytes`,
+    'Valid payload-size range defined by the USB Power Delivery specification for this externally defined data block.',
+  )
+  addNumberMetadataField(
+    container,
+    'actualLength',
+    'Actual Length',
+    payload.length,
+    'Number of payload bytes present in this data block instance.',
+    'bytes',
+  )
+  addByteDataMetadataField(
+    container,
+    'rawBytes',
+    'Raw Bytes',
+    payload,
+    'Raw data block bytes preserved because the detailed field layout is defined by an external USB-IF specification that is not implemented in this frontend parser.',
+  )
+  return container
+}
 
 const buildProductTypeVDOMetadata = (
   vdo: ParsedDiscoverIdentity['productTypeVDOs'][number],

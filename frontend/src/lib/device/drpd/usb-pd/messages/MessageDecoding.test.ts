@@ -286,6 +286,37 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as VendorDefinedMessage
     expect(decoded.vdmHeader?.commandName).toBe('DISCOVER_SVIDS')
     expect(decoded.discoverSVIDs).toContain(0x1234)
+    const discoverSvidVdos = decoded.humanReadableMetadata.messageSpecificData.getEntry('discoverSvidVdos')
+    expect(discoverSvidVdos?.type).toBe('OrderedDictionary')
+    expect(discoverSvidVdos?.getEntry('vdo1')?.type).toBe('OrderedDictionary')
+    expect(discoverSvidVdos?.getEntry('vdo1')?.getEntry('svid0')?.value).toBe('0x5678')
+    expect(discoverSvidVdos?.getEntry('vdo1')?.getEntry('svid1')?.value).toBe('0x1234')
+  })
+
+  it('decodes Vendor_Defined Enter Mode payload VDOs', () => {
+    let vdm = 0
+    vdm = setBits(vdm, 31, 16, 0xff01)
+    vdm = setBits(vdm, 15, 15, 1)
+    vdm = setBits(vdm, 14, 13, 1)
+    vdm = setBits(vdm, 12, 11, 1)
+    vdm = setBits(vdm, 10, 8, 1)
+    vdm = setBits(vdm, 7, 6, 0)
+    vdm = setBits(vdm, 4, 0, 4)
+    const payloadVdo = 0x12345678
+    const header = makeMessageHeader({
+      extended: false,
+      numberOfDataObjects: 2,
+      messageTypeNumber: 0x0f,
+    })
+    const message = parseUSBPDMessage(buildMessage(SOP, header, [...toBytes32(vdm), ...toBytes32(payloadVdo)]))
+    expect(message).toBeInstanceOf(VendorDefinedMessage)
+    const decoded = message as VendorDefinedMessage
+    const enterModePayloadVdos = decoded.humanReadableMetadata.messageSpecificData.getEntry(
+      'enterModePayloadVdos',
+    )
+    expect(enterModePayloadVdos?.type).toBe('OrderedDictionary')
+    expect(enterModePayloadVdos?.getEntry('vdo1')?.type).toBe('OrderedDictionary')
+    expect(enterModePayloadVdos?.getEntry('vdo1')?.getEntry('raw')?.value).toBe('0x12345678')
   })
 })
 
@@ -416,6 +447,14 @@ describe('USB-PD extended message decoding', () => {
     const extHeaderRequest = makeExtendedHeader({ dataSize: 4 })
     const request = parseUSBPDMessage(buildMessage(SOP, headerRequest, [1, 2, 3, 4], extHeaderRequest))
     expect(request).toBeInstanceOf(SecurityRequestMessage)
+    const decodedRequest = request as SecurityRequestMessage
+    const requestBlock = decodedRequest.humanReadableMetadata.messageSpecificData.getEntry(
+      'securityRequestDataBlock',
+    )
+    expect(requestBlock?.type).toBe('OrderedDictionary')
+    expect(requestBlock?.getEntry('externalSpecification')?.value).toBe('USB Type-C Authentication 1.0')
+    expect(requestBlock?.getEntry('actualLength')?.value).toBe('4 bytes')
+    expect(requestBlock?.getEntry('rawBytes')?.type).toBe('ByteData')
 
     const headerResponse = makeMessageHeader({
       extended: true,
@@ -425,6 +464,11 @@ describe('USB-PD extended message decoding', () => {
     const extHeaderResponse = makeExtendedHeader({ dataSize: 4 })
     const response = parseUSBPDMessage(buildMessage(SOP, headerResponse, [5, 6, 7, 8], extHeaderResponse))
     expect(response).toBeInstanceOf(SecurityResponseMessage)
+    const decodedResponse = response as SecurityResponseMessage
+    const responseBlock = decodedResponse.humanReadableMetadata.messageSpecificData.getEntry(
+      'securityResponseDataBlock',
+    )
+    expect(responseBlock?.getEntry('externalSpecification')?.value).toBe('USB Type-C Authentication 1.0')
   })
 
   it('decodes Firmware Update messages', () => {
@@ -436,6 +480,12 @@ describe('USB-PD extended message decoding', () => {
     const extHeaderRequest = makeExtendedHeader({ dataSize: 4 })
     const request = parseUSBPDMessage(buildMessage(SOP, headerRequest, [9, 8, 7, 6], extHeaderRequest))
     expect(request).toBeInstanceOf(FirmwareUpdateRequestMessage)
+    const decodedRequest = request as FirmwareUpdateRequestMessage
+    const requestBlock = decodedRequest.humanReadableMetadata.messageSpecificData.getEntry(
+      'firmwareUpdateRequestDataBlock',
+    )
+    expect(requestBlock?.type).toBe('OrderedDictionary')
+    expect(requestBlock?.getEntry('externalSpecification')?.value).toBe('USB PD Firmware Update 1.0')
 
     const headerResponse = makeMessageHeader({
       extended: true,
@@ -445,6 +495,11 @@ describe('USB-PD extended message decoding', () => {
     const extHeaderResponse = makeExtendedHeader({ dataSize: 4 })
     const response = parseUSBPDMessage(buildMessage(SOP, headerResponse, [6, 7, 8, 9], extHeaderResponse))
     expect(response).toBeInstanceOf(FirmwareUpdateResponseMessage)
+    const decodedResponse = response as FirmwareUpdateResponseMessage
+    const responseBlock = decodedResponse.humanReadableMetadata.messageSpecificData.getEntry(
+      'firmwareUpdateResponseDataBlock',
+    )
+    expect(responseBlock?.getEntry('externalSpecification')?.value).toBe('USB PD Firmware Update 1.0')
   })
 
   it('decodes PPS_Status', () => {
