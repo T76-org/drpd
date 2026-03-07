@@ -2103,93 +2103,299 @@ const formatU3CldPower = (code: number): string => {
 const formatBatteryChargingStatus = (status: number): string => {
   switch (status) {
     case 0:
-      return 'Charging'
+      return '0b00 (Charging)'
     case 1:
-      return 'Discharging'
+      return '0b01 (Discharging)'
     case 2:
-      return 'Idle'
+      return '0b10 (Idle)'
     default:
-      return 'Reserved'
+      return formatCode(status, 2, 'Reserved')
   }
 }
 
 const formatUsbMode = (usbMode: number): string => {
   switch (usbMode) {
     case 0:
-      return 'USB 2.0'
+      return '0b000 (USB 2.0)'
     case 1:
-      return 'USB 3.2'
+      return '0b001 (USB 3.2)'
     case 2:
-      return 'USB4'
+      return '0b010 (USB4)'
     default:
-      return `Reserved (${usbMode})`
+      return formatCode(usbMode, 3, 'Reserved')
   }
 }
 
 const formatEnterUsbCableSpeed = (cableSpeed: number): string => {
   switch (cableSpeed) {
     case 0:
-      return 'USB 2.0 only'
+      return '0b000 (USB 2.0 only)'
     case 1:
-      return 'USB 3.2 Gen 1'
+      return '0b001 (USB 3.2 Gen1)'
     case 2:
-      return 'USB 3.2/USB4 Gen 2'
+      return '0b010 (USB 3.2 Gen2 and USB4 Gen2)'
     case 3:
-      return 'USB4 Gen 3'
+      return '0b011 (USB4 Gen3)'
     case 4:
-      return 'USB4 Gen 4'
+      return '0b100 (USB4 Gen4)'
     default:
-      return `Reserved (${cableSpeed})`
+      return formatCode(cableSpeed, 3, 'Reserved')
   }
 }
 
 const formatEnterUsbCableType = (cableType: number): string => {
   switch (cableType) {
     case 0:
-      return 'Passive'
+      return '0b00 (Passive)'
     case 1:
-      return 'Active Re-timer'
+      return '0b01 (Active Re-timer)'
     case 2:
-      return 'Active Re-driver'
+      return '0b10 (Active Re-driver)'
     case 3:
-      return 'Optically Isolated'
+      return '0b11 (Optically Isolated)'
     default:
-      return `Reserved (${cableType})`
+      return formatCode(cableType, 2, 'Reserved')
   }
 }
 
 const formatEnterUsbCableCurrent = (cableCurrent: number): string => {
   switch (cableCurrent) {
     case 0:
-      return 'VBUS not supported'
+      return '0b00 (VBUS is not supported)'
+    case 1:
+      return '0b01 (Reserved)'
     case 2:
-      return '3 A'
+      return '0b10 (3 A)'
     case 3:
-      return '5 A'
+      return '0b11 (5 A)'
     default:
-      return `Reserved (${cableCurrent})`
+      return formatCode(cableCurrent, 2, 'Reserved')
   }
 }
 
 const formatEprModeAction = (action: number): string => {
   switch (action) {
     case 0x01:
-      return 'Enter'
+      return '0x01 (Enter)'
     case 0x02:
-      return 'Enter Acknowledged'
+      return '0x02 (Enter Acknowledged)'
     case 0x03:
-      return 'Enter Succeeded'
+      return '0x03 (Enter Succeeded)'
     case 0x04:
-      return 'Enter Failed'
+      return '0x04 (Enter Failed)'
     case 0x05:
-      return 'Exit'
+      return '0x05 (Exit)'
     default:
       return `Reserved (0x${action.toString(16).toUpperCase().padStart(2, '0')})`
   }
 }
 
 const formatSourceInfoPortType = (portType: number): string =>
-  portType === 1 ? 'Guaranteed' : 'Managed'
+  portType === 1 ? '0b1 (Guaranteed Capability Port)' : '0b0 (Managed Capability Port)'
+
+const formatEprModeData = (action: number, data: number): string => {
+  const raw = `0x${data.toString(16).toUpperCase().padStart(2, '0')}`
+  switch (action) {
+    case 0x01:
+      return `${raw} (EPR Sink Operational PDP)`
+    case 0x02:
+    case 0x03:
+    case 0x05:
+      return `${raw} (Shall be zero)`
+    case 0x04:
+      switch (data) {
+        case 0x00: return `${raw} (Unknown cause)`
+        case 0x01: return `${raw} (Cable not EPR Capable)`
+        case 0x02: return `${raw} (Source failed to become VCONN Source)`
+        case 0x03: return `${raw} (EPR Capable bit not set in RDO)`
+        case 0x04: return `${raw} (Source unable to enter EPR Mode)`
+        case 0x05: return `${raw} (EPR Capable bit not set in PDO)`
+        default: return `${raw} (Reserved)`
+      }
+    default:
+      return `${raw} (Reserved)`
+  }
+}
+
+const formatStructuredVdmType = (raw: number): string =>
+  getBits(raw, 15, 15) === 1 ? '0b1 (Structured VDM)' : '0b0 (Unstructured VDM)'
+
+const formatStructuredVdmVersionMajor = (major: number): string => {
+  switch (major) {
+    case 0b00: return '0b00 (Version 1.0, deprecated)'
+    case 0b01: return '0b01 (Version 2.x)'
+    default: return formatCode(major, 2, 'Reserved')
+  }
+}
+
+const formatStructuredVdmVersionMinor = (minor: number): string => {
+  switch (minor) {
+    case 0b00: return '0b00 (Version 2.0)'
+    case 0b01: return '0b01 (Version 2.1)'
+    default: return formatCode(minor, 2, 'Reserved')
+  }
+}
+
+const formatStructuredVdmCommandType = (commandType: number): string => {
+  switch (commandType) {
+    case 0b00: return '0b00 (REQ)'
+    case 0b01: return '0b01 (ACK)'
+    case 0b10: return '0b10 (NAK)'
+    case 0b11: return '0b11 (BUSY)'
+    default: return formatCode(commandType, 2, 'Reserved')
+  }
+}
+
+const formatVoltageRegulation = (value: number): string => {
+  const slew = value & 0b11
+  const magnitude = (value >> 2) & 0b1
+  const slewText = slew === 0b00 ? '150 mA/us load step' : slew === 0b01 ? '500 mA/us load step' : 'Reserved'
+  const magnitudeText = magnitude === 0b0 ? '25% IoC' : '90% IoC'
+  return `0b${value.toString(2).padStart(8, '0')} (Load Step Slew Rate: ${slewText}; Load Step Magnitude: ${magnitudeText})`
+}
+
+const formatComplianceBits = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('LPS')
+  if ((value & (1 << 1)) !== 0) meanings.push('PS1')
+  if ((value & (1 << 2)) !== 0) meanings.push('PS2')
+  return formatBitfieldWithMeanings(value, 8, meanings)
+}
+
+const formatTouchCurrent = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('Low touch current EPS')
+  if ((value & (1 << 1)) !== 0) meanings.push('Ground pin supported')
+  if ((value & (1 << 2)) !== 0) meanings.push('Ground pin intended for protective earth')
+  return formatBitfieldWithMeanings(value, 8, meanings)
+}
+
+const formatTouchTempSource = (value: number): string => {
+  switch (value) {
+    case 0: return '0x00 (IEC 60950-1)'
+    case 1: return '0x01 (IEC 62368-1 TS1)'
+    case 2: return '0x02 (IEC 62368-1 TS2)'
+    default: return `0x${value.toString(16).toUpperCase().padStart(2, '0')} (Reserved)`
+  }
+}
+
+const formatTouchTempSink = (value: number): string => {
+  switch (value) {
+    case 0: return '0x00 (Not applicable)'
+    case 1: return '0x01 (IEC 60950-1)'
+    case 2: return '0x02 (IEC 62368-1 TS1)'
+    case 3: return '0x03 (IEC 62368-1 TS2)'
+    default: return `0x${value.toString(16).toUpperCase().padStart(2, '0')} (Reserved)`
+  }
+}
+
+const formatSourceInputs = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) {
+    meanings.push('External supply present')
+    meanings.push((value & (1 << 1)) !== 0 ? 'External supply is unconstrained' : 'External supply is constrained')
+  }
+  if ((value & (1 << 2)) !== 0) meanings.push('Internal Battery present')
+  return formatBitfieldWithMeanings(value, 8, meanings)
+}
+
+const formatPeakCurrentField = (value: number): string => {
+  const percentOverload = value & 0x1f
+  const overloadPeriod = (value >> 5) & 0x3f
+  const dutyCycle = (value >> 11) & 0x0f
+  const droop = ((value >> 15) & 0x1) === 1
+  return `0b${value.toString(2).padStart(16, '0')} (Percent overload: ${Math.min(percentOverload, 25) * 10}%; Overload period: ${overloadPeriod * 20} ms; Duty cycle: ${dutyCycle * 5}%; VBUS voltage droop: ${droop ? 'set' : 'clear'})`
+}
+
+const formatPresentInput = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 1)) !== 0) meanings.push(`External power present (${(value & (1 << 2)) !== 0 ? 'AC' : 'DC'})`)
+  if ((value & (1 << 3)) !== 0) meanings.push('Internal power from Battery')
+  if ((value & (1 << 4)) !== 0) meanings.push('Internal power from non-Battery source')
+  return formatBitfieldWithMeanings(value, 8, meanings)
+}
+
+const formatPresentBatteryInput = (value: number): string => {
+  const fixed = value & 0x0f
+  const hotSwap = (value >> 4) & 0x0f
+  return `0b${value.toString(2).padStart(8, '0')} (Fixed Batteries: 0b${fixed.toString(2).padStart(4, '0')}; Hot Swappable Batteries: 0b${hotSwap.toString(2).padStart(4, '0')})`
+}
+
+const formatStatusEventFlags = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 1)) !== 0) meanings.push('OCP event')
+  if ((value & (1 << 2)) !== 0) meanings.push('OTP event')
+  if ((value & (1 << 3)) !== 0) meanings.push('OVP event')
+  if ((value & (1 << 4)) !== 0) meanings.push('CL mode (PPS only)')
+  return formatBitfieldWithMeanings(value, 8, meanings)
+}
+
+const formatTemperatureStatus = (value: number): string => {
+  const code = (value >> 1) & 0b11
+  switch (code) {
+    case 0b00: return `0b${value.toString(2).padStart(8, '0')} (Not Supported)`
+    case 0b01: return `0b${value.toString(2).padStart(8, '0')} (Normal)`
+    case 0b10: return `0b${value.toString(2).padStart(8, '0')} (Warning)`
+    case 0b11: return `0b${value.toString(2).padStart(8, '0')} (Over temperature)`
+    default: return `0b${value.toString(2).padStart(8, '0')} (Reserved)`
+  }
+}
+
+const formatPowerStatus = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 1)) !== 0) meanings.push('Source power limited due to cable supported current')
+  if ((value & (1 << 2)) !== 0) meanings.push('Source power limited while sourcing other ports')
+  if ((value & (1 << 3)) !== 0) meanings.push('Source power limited due to insufficient external power')
+  if ((value & (1 << 4)) !== 0) meanings.push('Source power limited due to Event Flags in place')
+  if ((value & (1 << 5)) !== 0) meanings.push('Source power limited due to temperature')
+  return formatBitfieldWithMeanings(value, 8, meanings)
+}
+
+const formatPowerStateChange = (value: number): string => {
+  const state = value & 0b111
+  const indicator = (value >> 3) & 0b111
+  const stateText = ['Status not supported', 'S0', 'Modern Standby', 'S3', 'S4', 'S5', 'G3', 'Reserved'][state] ?? 'Reserved'
+  const indicatorText = ['Off LED', 'On LED', 'Blinking LED', 'Breathing LED', 'Reserved', 'Reserved', 'Reserved', 'Reserved'][indicator] ?? 'Reserved'
+  return `0b${value.toString(2).padStart(8, '0')} (New Power State: ${stateText}; New Power State Indicator: ${indicatorText})`
+}
+
+const formatBatteryType = (value: number): string =>
+  `0b${value.toString(2).padStart(8, '0')} (${(value & 0x1) !== 0 ? 'Invalid Battery Reference set' : 'Invalid Battery Reference clear'})`
+
+const formatPpsRealTimeFlags = (value: number): string => {
+  const ptf = (value >> 1) & 0b11
+  const ptfText = ['Not Supported', 'Normal', 'Warning', 'Over temperature'][ptf] ?? 'Reserved'
+  const omf = ((value >> 3) & 0x1) === 1 ? 'Current Limit mode' : 'Constant Voltage mode'
+  return `0b${value.toString(2).padStart(8, '0')} (PTF: ${ptfText}; OMF: ${omf})`
+}
+
+const formatSkedbVersion = (value: number): string =>
+  value === 1 ? '0x01 (Version 1.0)' : `0x${value.toString(16).toUpperCase().padStart(2, '0')} (Reserved)`
+
+const formatSinkLoadStep = (value: number): string => {
+  const slew = value & 0b11
+  const slewText = slew === 0b00 ? '150 mA/us load step' : slew === 0b01 ? '500 mA/us load step' : 'Reserved'
+  return `0b${value.toString(2).padStart(8, '0')} (Load Step Slew Rate: ${slewText})`
+}
+
+const formatSinkLoadCharacteristics = (value: number): string => {
+  const percentOverload = value & 0x1f
+  const overloadPeriod = (value >> 5) & 0x3f
+  const dutyCycle = (value >> 11) & 0x0f
+  const droop = ((value >> 15) & 0x1) === 1
+  return `0b${value.toString(2).padStart(16, '0')} (Percent overload: ${Math.min(percentOverload, 25) * 10}%; Overload period: ${overloadPeriod * 20} ms; Duty cycle: ${dutyCycle * 5}%; Can tolerate VBUS voltage droop: ${droop ? 'Yes' : 'No'})`
+}
+
+const formatSinkModes = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('PPS charging supported')
+  if ((value & (1 << 1)) !== 0) meanings.push('VBUS powered')
+  if ((value & (1 << 2)) !== 0) meanings.push('AC Supply powered')
+  if ((value & (1 << 3)) !== 0) meanings.push('Battery powered')
+  if ((value & (1 << 4)) !== 0) meanings.push('Battery essentially unlimited')
+  if ((value & (1 << 5)) !== 0) meanings.push('AVS Support')
+  return formatBitfieldWithMeanings(value, 8, meanings)
+}
 
 const formatVdmSvid = (svid: number): string => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`
 
@@ -2381,15 +2587,15 @@ export const buildEnterUSBDataObjectMetadata = (enterUsb: ParsedEnterUSBDataObje
   const container = createMetadataContainer('Enter USB Data Object', 'Metadata describing the Enter_USB Data Object used to negotiate USB data mode entry.')
   addRawUint32MetadataField(container, 'Raw 32-bit Enter_USB Data Object value before field interpretation.', enterUsb.raw)
   addStringMetadataField(container, 'usbMode', 'USB Mode', formatUsbMode(enterUsb.usbMode), 'Requested USB operating mode encoded in the Enter_USB Data Object.')
-  addBooleanMetadataField(container, 'usb4Drd', 'USB4 DRD', enterUsb.usb4Drd, 'Indicates USB4 dual-role-data capability.')
-  addBooleanMetadataField(container, 'usb3Drd', 'USB3 DRD', enterUsb.usb3Drd, 'Indicates USB 3 dual-role-data capability.')
+  addStringMetadataField(container, 'usb4Drd', 'USB4 DRD', enterUsb.usb4Drd ? '0b1 (Capable of operating as a USB4 Device)' : '0b0 (Not capable of operating as a USB4 Device)', 'Indicates USB4 dual-role-data capability.')
+  addStringMetadataField(container, 'usb3Drd', 'USB3 DRD', enterUsb.usb3Drd ? '0b1 (Capable of operating as a USB 3.2 Device)' : '0b0 (Not capable of operating as a USB 3.2 Device)', 'Indicates USB 3 dual-role-data capability.')
   addStringMetadataField(container, 'cableSpeed', 'Cable Speed', formatEnterUsbCableSpeed(enterUsb.cableSpeed), 'Highest cable speed advertised for Enter_USB negotiation.')
   addStringMetadataField(container, 'cableType', 'Cable Type', formatEnterUsbCableType(enterUsb.cableType), 'Cable implementation type encoded by the Enter_USB Data Object.')
   addStringMetadataField(container, 'cableCurrent', 'Cable Current', formatEnterUsbCableCurrent(enterUsb.cableCurrent), 'Cable current capability encoded by the Enter_USB Data Object.')
-  addBooleanMetadataField(container, 'pcieSupport', 'PCIe Support', enterUsb.pcieSupport, 'Indicates PCIe tunneling support.')
-  addBooleanMetadataField(container, 'dpSupport', 'DisplayPort Support', enterUsb.dpSupport, 'Indicates DisplayPort Alternate Mode support.')
-  addBooleanMetadataField(container, 'tbtSupport', 'Thunderbolt Support', enterUsb.tbtSupport, 'Indicates Thunderbolt compatibility support.')
-  addBooleanMetadataField(container, 'hostPresent', 'Host Present', enterUsb.hostPresent, 'Indicates that a host is present for the negotiated USB mode.')
+  addStringMetadataField(container, 'pcieSupport', 'PCIe Support', enterUsb.pcieSupport ? '0b1 (PCIe tunneling supported by the host)' : '0b0 (Not indicated)', 'Indicates PCIe tunneling support.')
+  addStringMetadataField(container, 'dpSupport', 'DisplayPort Support', enterUsb.dpSupport ? '0b1 (DP tunneling supported by the host)' : '0b0 (Not indicated)', 'Indicates DisplayPort Alternate Mode support.')
+  addStringMetadataField(container, 'tbtSupport', 'Thunderbolt Support', enterUsb.tbtSupport ? '0b1 (TBT3 supported by the host connection manager)' : '0b0 (Not indicated)', 'Indicates Thunderbolt compatibility support.')
+  addStringMetadataField(container, 'hostPresent', 'Host Present', enterUsb.hostPresent ? '0b1 (A Host is present at the top of the USB tree)' : '0b0 (No Host present)', 'Indicates that a host is present for the negotiated USB mode.')
   return container
 }
 
@@ -2397,7 +2603,7 @@ export const buildEPRModeDataObjectMetadata = (eprMode: ParsedEPRModeDataObject)
   const container = createMetadataContainer('EPR Mode Data Object', 'Metadata describing the EPR Mode Data Object carried by an EPR_Mode message.')
   addRawUint32MetadataField(container, 'Raw 32-bit EPR Mode Data Object value before field interpretation.', eprMode.raw)
   addStringMetadataField(container, 'action', 'Action', formatEprModeAction(eprMode.action), 'Action code that indicates the current Extended Power Range mode transition state.')
-  addNumberMetadataField(container, 'data', 'Data', eprMode.data, 'Action-specific data field carried by the EPR Mode Data Object.')
+  addStringMetadataField(container, 'data', 'Data', formatEprModeData(eprMode.action, eprMode.data), 'Action-specific data field carried by the EPR Mode Data Object.')
   return container
 }
 
@@ -2425,18 +2631,18 @@ export const buildVDMHeaderMetadata = (vdmHeader: ParsedVDMHeader): HumanReadabl
   const container = createMetadataContainer('VDM Header', 'Metadata describing the Vendor Defined Message header object.')
   addRawUint32MetadataField(container, 'Raw 32-bit Vendor Defined Message header value before field interpretation.', vdmHeader.raw)
   addStringMetadataField(container, 'svid', 'SVID', formatVdmSvid(vdmHeader.svid), 'Standard or vendor identifier associated with this Vendor Defined Message.')
-  addStringMetadataField(container, 'vdmType', 'VDM Type', vdmHeader.vdmType, 'Indicates whether the Vendor Defined Message is structured or unstructured.')
+  addStringMetadataField(container, 'vdmType', 'VDM Type', formatStructuredVdmType(vdmHeader.raw), 'Indicates whether the Vendor Defined Message is structured or unstructured.')
   if (vdmHeader.structuredVersionMajor !== null) {
-    addNumberMetadataField(container, 'structuredVersionMajor', 'Structured VDM Version Major', vdmHeader.structuredVersionMajor, 'Major Structured VDM version encoded in the header.')
+    addStringMetadataField(container, 'structuredVersionMajor', 'Structured VDM Version Major', formatStructuredVdmVersionMajor(vdmHeader.structuredVersionMajor), 'Major Structured VDM version encoded in the header.')
   }
   if (vdmHeader.structuredVersionMinor !== null) {
-    addNumberMetadataField(container, 'structuredVersionMinor', 'Structured VDM Version Minor', vdmHeader.structuredVersionMinor, 'Minor Structured VDM version encoded in the header.')
+    addStringMetadataField(container, 'structuredVersionMinor', 'Structured VDM Version Minor', formatStructuredVdmVersionMinor(vdmHeader.structuredVersionMinor), 'Minor Structured VDM version encoded in the header.')
   }
   if (vdmHeader.objectPosition !== null) {
     addNumberMetadataField(container, 'objectPosition', 'Object Position', vdmHeader.objectPosition, 'Structured VDM object position field used by certain commands.')
   }
   if (vdmHeader.commandType !== null) {
-    addStringMetadataField(container, 'commandType', 'Command Type', vdmHeader.commandTypeName ?? vdmHeader.commandType.toString(), 'Structured VDM command type field indicating REQ, ACK, NAK, or BUSY.')
+    addStringMetadataField(container, 'commandType', 'Command Type', formatStructuredVdmCommandType(vdmHeader.commandType), 'Structured VDM command type field indicating REQ, ACK, NAK, or BUSY.')
   }
   if (vdmHeader.command !== null) {
     addStringMetadataField(container, 'command', 'Command', vdmHeader.commandName ? `${vdmHeader.commandName} (0x${vdmHeader.command.toString(16).toUpperCase()})` : `0x${vdmHeader.command.toString(16).toUpperCase()}`, 'Structured VDM command code carried by the header.')
@@ -2716,15 +2922,15 @@ export const buildSourceCapabilitiesExtendedDataBlockMetadata = (block: ParsedSo
   addStringMetadataField(container, 'xid', 'XID', `0x${block.xid.toString(16).toUpperCase().padStart(8, '0')}`, 'XID value reported in the Source Capabilities Extended Data Block.')
   addNumberMetadataField(container, 'fwVersion', 'Firmware Version', block.fwVersion, 'Firmware version byte reported in the Source Capabilities Extended Data Block.')
   addNumberMetadataField(container, 'hwVersion', 'Hardware Version', block.hwVersion, 'Hardware version byte reported in the Source Capabilities Extended Data Block.')
-  addStringMetadataField(container, 'voltageRegulation', 'Voltage Regulation', `0x${block.voltageRegulation.toString(16).toUpperCase()}`, 'Voltage regulation bitfield from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'voltageRegulation', 'Voltage Regulation', formatVoltageRegulation(block.voltageRegulation), 'Voltage regulation bitfield from the Source Capabilities Extended Data Block.')
   addNumberMetadataField(container, 'holdupTimeMs', 'Holdup Time', block.holdupTimeMs, 'Holdup time reported by the source.', 'ms')
-  addStringMetadataField(container, 'compliance', 'Compliance', `0x${block.compliance.toString(16).toUpperCase()}`, 'Compliance bitfield from the Source Capabilities Extended Data Block.')
-  addStringMetadataField(container, 'touchCurrent', 'Touch Current', `0x${block.touchCurrent.toString(16).toUpperCase()}`, 'Touch-current encoding from the Source Capabilities Extended Data Block.')
-  addNumberMetadataField(container, 'peakCurrent1', 'Peak Current 1', block.peakCurrent1, 'First peak-current field from the Source Capabilities Extended Data Block.')
-  addNumberMetadataField(container, 'peakCurrent2', 'Peak Current 2', block.peakCurrent2, 'Second peak-current field from the Source Capabilities Extended Data Block.')
-  addNumberMetadataField(container, 'peakCurrent3', 'Peak Current 3', block.peakCurrent3, 'Third peak-current field from the Source Capabilities Extended Data Block.')
-  addNumberMetadataField(container, 'touchTemp', 'Touch Temperature', block.touchTemp, 'Touch-temperature encoding from the Source Capabilities Extended Data Block.')
-  addStringMetadataField(container, 'sourceInputs', 'Source Inputs', `0x${block.sourceInputs.toString(16).toUpperCase()}`, 'Source-input capability bitfield from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'compliance', 'Compliance', formatComplianceBits(block.compliance), 'Compliance bitfield from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'touchCurrent', 'Touch Current', formatTouchCurrent(block.touchCurrent), 'Touch-current encoding from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'peakCurrent1', 'Peak Current 1', formatPeakCurrentField(block.peakCurrent1), 'First peak-current field from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'peakCurrent2', 'Peak Current 2', formatPeakCurrentField(block.peakCurrent2), 'Second peak-current field from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'peakCurrent3', 'Peak Current 3', formatPeakCurrentField(block.peakCurrent3), 'Third peak-current field from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'touchTemp', 'Touch Temperature', formatTouchTempSource(block.touchTemp), 'Touch-temperature encoding from the Source Capabilities Extended Data Block.')
+  addStringMetadataField(container, 'sourceInputs', 'Source Inputs', formatSourceInputs(block.sourceInputs), 'Source-input capability bitfield from the Source Capabilities Extended Data Block.')
   addNumberMetadataField(container, 'hotSwappableBatterySlots', 'Hot Swappable Battery Slots', block.hotSwappableBatterySlots, 'Number of hot-swappable battery slots reported by the source.')
   addNumberMetadataField(container, 'fixedBatteries', 'Fixed Batteries', block.fixedBatteries, 'Number of fixed batteries reported by the source.')
   addNumberMetadataField(container, 'sprSourcePdpRating', 'SPR Source PDP Rating', block.sprSourcePdpRating, 'SPR Power Data Profile rating reported by the source.', 'W')
@@ -2735,12 +2941,12 @@ export const buildSourceCapabilitiesExtendedDataBlockMetadata = (block: ParsedSo
 export const buildSOPStatusDataBlockMetadata = (block: ParsedSOPStatusDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('SOP Status Data Block', 'Metadata describing the SOP Status data block carried by a Status message.')
   addNumberMetadataField(container, 'internalTemp', 'Internal Temperature', block.internalTemp, 'Internal temperature value reported in the SOP Status Data Block.', 'C')
-  addStringMetadataField(container, 'presentInput', 'Present Input', `0x${block.presentInput.toString(16).toUpperCase()}`, 'Present-input bitfield from the SOP Status Data Block.')
-  addStringMetadataField(container, 'presentBatteryInput', 'Present Battery Input', `0x${block.presentBatteryInput.toString(16).toUpperCase()}`, 'Present-battery-input bitfield from the SOP Status Data Block.')
-  addStringMetadataField(container, 'eventFlags', 'Event Flags', `0x${block.eventFlags.toString(16).toUpperCase()}`, 'Event flag bitfield from the SOP Status Data Block.')
-  addStringMetadataField(container, 'temperatureStatus', 'Temperature Status', `0x${block.temperatureStatus.toString(16).toUpperCase()}`, 'Temperature-status bitfield from the SOP Status Data Block.')
-  addStringMetadataField(container, 'powerStatus', 'Power Status', `0x${block.powerStatus.toString(16).toUpperCase()}`, 'Power-status bitfield from the SOP Status Data Block.')
-  addStringMetadataField(container, 'powerStateChange', 'Power State Change', `0x${block.powerStateChange.toString(16).toUpperCase()}`, 'Power-state-change bitfield from the SOP Status Data Block.')
+  addStringMetadataField(container, 'presentInput', 'Present Input', formatPresentInput(block.presentInput), 'Present-input bitfield from the SOP Status Data Block.')
+  addStringMetadataField(container, 'presentBatteryInput', 'Present Battery Input', formatPresentBatteryInput(block.presentBatteryInput), 'Present-battery-input bitfield from the SOP Status Data Block.')
+  addStringMetadataField(container, 'eventFlags', 'Event Flags', formatStatusEventFlags(block.eventFlags), 'Event flag bitfield from the SOP Status Data Block.')
+  addStringMetadataField(container, 'temperatureStatus', 'Temperature Status', formatTemperatureStatus(block.temperatureStatus), 'Temperature-status bitfield from the SOP Status Data Block.')
+  addStringMetadataField(container, 'powerStatus', 'Power Status', formatPowerStatus(block.powerStatus), 'Power-status bitfield from the SOP Status Data Block.')
+  addStringMetadataField(container, 'powerStateChange', 'Power State Change', formatPowerStateChange(block.powerStateChange), 'Power-state-change bitfield from the SOP Status Data Block.')
   return container
 }
 
@@ -2757,7 +2963,7 @@ export const buildBatteryCapabilitiesDataBlockMetadata = (block: ParsedBatteryCa
   addStringMetadataField(container, 'pid', 'Product ID', `0x${block.pid.toString(16).toUpperCase().padStart(4, '0')}`, 'Product identifier reported in the Battery Capabilities data block.')
   addNumberMetadataField(container, 'batteryDesignCapacity', 'Battery Design Capacity', block.batteryDesignCapacity, 'Battery design capacity reported in the Battery Capabilities data block.')
   addNumberMetadataField(container, 'batteryLastFullChargeCapacity', 'Battery Last Full Charge Capacity', block.batteryLastFullChargeCapacity, 'Battery last full charge capacity reported in the Battery Capabilities data block.')
-  addStringMetadataField(container, 'batteryType', 'Battery Type', `0x${block.batteryType.toString(16).toUpperCase()}`, 'Battery type field reported in the Battery Capabilities data block.')
+  addStringMetadataField(container, 'batteryType', 'Battery Type', formatBatteryType(block.batteryType), 'Battery type field reported in the Battery Capabilities data block.')
   return container
 }
 
@@ -2774,7 +2980,7 @@ export const buildPPSStatusDataBlockMetadata = (block: ParsedPPSStatusDataBlock)
   const container = createMetadataContainer('PPS Status Data Block', 'Metadata describing the PPS Status data block carried by a PPS_Status message.')
   addNumberMetadataField(container, 'outputVoltage20mV', 'Output Voltage', block.outputVoltage20mV * 20, 'Measured PPS output voltage reported by the source, expressed in millivolts.', 'mV')
   addNumberMetadataField(container, 'outputCurrent50mA', 'Output Current', block.outputCurrent50mA * 50, 'Measured PPS output current reported by the source, expressed in milliamps.', 'mA')
-  addStringMetadataField(container, 'realTimeFlags', 'Real Time Flags', `0x${block.realTimeFlags.toString(16).toUpperCase()}`, 'Real-time status flag bitfield from the PPS Status data block.')
+  addStringMetadataField(container, 'realTimeFlags', 'Real Time Flags', formatPpsRealTimeFlags(block.realTimeFlags), 'Real-time status flag bitfield from the PPS Status data block.')
   return container
 }
 
@@ -2802,14 +3008,14 @@ export const buildSinkCapabilitiesExtendedDataBlockMetadata = (block: ParsedSink
   addStringMetadataField(container, 'xid', 'XID', `0x${block.xid.toString(16).toUpperCase().padStart(8, '0')}`, 'XID value reported in the Sink Capabilities Extended data block.')
   addNumberMetadataField(container, 'fwVersion', 'Firmware Version', block.fwVersion, 'Firmware version byte reported in the Sink Capabilities Extended data block.')
   addNumberMetadataField(container, 'hwVersion', 'Hardware Version', block.hwVersion, 'Hardware version byte reported in the Sink Capabilities Extended data block.')
-  addNumberMetadataField(container, 'skedbVersion', 'SKEDB Version', block.skedbVersion, 'Version value reported in the Sink Capabilities Extended data block.')
-  addStringMetadataField(container, 'loadStep', 'Load Step', `0x${block.loadStep.toString(16).toUpperCase()}`, 'Load-step encoding from the Sink Capabilities Extended data block.')
-  addStringMetadataField(container, 'sinkLoadCharacteristics', 'Sink Load Characteristics', `0x${block.sinkLoadCharacteristics.toString(16).toUpperCase()}`, 'Sink-load-characteristics bitfield from the Sink Capabilities Extended data block.')
-  addStringMetadataField(container, 'compliance', 'Compliance', `0x${block.compliance.toString(16).toUpperCase()}`, 'Compliance bitfield from the Sink Capabilities Extended data block.')
-  addNumberMetadataField(container, 'touchTemp', 'Touch Temperature', block.touchTemp, 'Touch-temperature encoding from the Sink Capabilities Extended data block.')
+  addStringMetadataField(container, 'skedbVersion', 'SKEDB Version', formatSkedbVersion(block.skedbVersion), 'Version value reported in the Sink Capabilities Extended data block.')
+  addStringMetadataField(container, 'loadStep', 'Load Step', formatSinkLoadStep(block.loadStep), 'Load-step encoding from the Sink Capabilities Extended data block.')
+  addStringMetadataField(container, 'sinkLoadCharacteristics', 'Sink Load Characteristics', formatSinkLoadCharacteristics(block.sinkLoadCharacteristics), 'Sink-load-characteristics bitfield from the Sink Capabilities Extended data block.')
+  addStringMetadataField(container, 'compliance', 'Compliance', formatComplianceBits(block.compliance), 'Compliance bitfield from the Sink Capabilities Extended data block.')
+  addStringMetadataField(container, 'touchTemp', 'Touch Temperature', formatTouchTempSink(block.touchTemp), 'Touch-temperature encoding from the Sink Capabilities Extended data block.')
   addNumberMetadataField(container, 'hotSwappableBatterySlots', 'Hot Swappable Battery Slots', block.hotSwappableBatterySlots, 'Number of hot-swappable battery slots reported by the sink.')
   addNumberMetadataField(container, 'fixedBatteries', 'Fixed Batteries', block.fixedBatteries, 'Number of fixed batteries reported by the sink.')
-  addStringMetadataField(container, 'sinkModes', 'Sink Modes', `0x${block.sinkModes.toString(16).toUpperCase()}`, 'Sink-mode bitfield from the Sink Capabilities Extended data block.')
+  addStringMetadataField(container, 'sinkModes', 'Sink Modes', formatSinkModes(block.sinkModes), 'Sink-mode bitfield from the Sink Capabilities Extended data block.')
   addNumberMetadataField(container, 'sprSinkMinimumPdp', 'SPR Sink Minimum PDP', block.sprSinkMinimumPdp, 'Minimum SPR Power Data Profile level reported by the sink.', 'W')
   addNumberMetadataField(container, 'sprSinkOperationalPdp', 'SPR Sink Operational PDP', block.sprSinkOperationalPdp, 'Operational SPR Power Data Profile level reported by the sink.', 'W')
   addNumberMetadataField(container, 'sprSinkMaximumPdp', 'SPR Sink Maximum PDP', block.sprSinkMaximumPdp, 'Maximum SPR Power Data Profile level reported by the sink.', 'W')

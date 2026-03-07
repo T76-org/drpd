@@ -171,6 +171,58 @@ describe('USB-PD data message decoding', () => {
     expect(idHeaderMetadata.getEntry('connectorType')?.value).toBe('0b11 (USB Type-C Plug)')
   })
 
+  it('renders remaining code-valued metadata fields with raw values and decoded meanings', () => {
+    let eudo = 0
+    eudo = setBits(eudo, 30, 28, 0b010)
+    eudo = setBits(eudo, 26, 26, 1)
+    eudo = setBits(eudo, 25, 25, 1)
+    eudo = setBits(eudo, 23, 21, 0b011)
+    eudo = setBits(eudo, 20, 19, 0b10)
+    eudo = setBits(eudo, 18, 17, 0b11)
+    eudo = setBits(eudo, 16, 16, 1)
+    eudo = setBits(eudo, 15, 15, 1)
+    eudo = setBits(eudo, 14, 14, 1)
+    eudo = setBits(eudo, 13, 13, 1)
+    const enterUsbMessage = parseUSBPDMessage(buildMessage(
+      SOP,
+      makeMessageHeader({ extended: false, numberOfDataObjects: 1, messageTypeNumber: 0x08 }),
+      toBytes32(eudo),
+    )) as EnterUSBMessage
+    const enterUsbMetadata = enterUsbMessage.humanReadableMetadata.messageSpecificData.getEntry('enterUsbDataObject')
+    expect(enterUsbMetadata?.getEntry('usbMode')?.value).toBe('0b010 (USB4)')
+    expect(enterUsbMetadata?.getEntry('cableType')?.value).toBe('0b10 (Active Re-driver)')
+    expect(enterUsbMetadata?.getEntry('hostPresent')?.value).toBe('0b1 (A Host is present at the top of the USB tree)')
+
+    let eprModeRaw = 0
+    eprModeRaw = setBits(eprModeRaw, 31, 24, 0x04)
+    eprModeRaw = setBits(eprModeRaw, 23, 16, 0x01)
+    const eprModeMessage = parseUSBPDMessage(buildMessage(
+      SOP,
+      makeMessageHeader({ extended: false, numberOfDataObjects: 1, messageTypeNumber: 0x0a }),
+      toBytes32(eprModeRaw),
+    )) as EPRModeMessage
+    const eprModeMetadata = eprModeMessage.humanReadableMetadata.messageSpecificData.getEntry('eprModeDataObject')
+    expect(eprModeMetadata?.getEntry('action')?.value).toBe('0x04 (Enter Failed)')
+    expect(eprModeMetadata?.getEntry('data')?.value).toBe('0x01 (Cable not EPR Capable)')
+
+    let vdm = 0
+    vdm = setBits(vdm, 31, 16, 0xff00)
+    vdm = setBits(vdm, 15, 15, 1)
+    vdm = setBits(vdm, 14, 13, 1)
+    vdm = setBits(vdm, 12, 11, 1)
+    vdm = setBits(vdm, 7, 6, 2)
+    vdm = setBits(vdm, 4, 0, 2)
+    const vendorMessage = parseUSBPDMessage(buildMessage(
+      SOP,
+      makeMessageHeader({ extended: false, numberOfDataObjects: 1, messageTypeNumber: 0x0f }),
+      toBytes32(vdm),
+    )) as VendorDefinedMessage
+    const vdmHeader = vendorMessage.humanReadableMetadata.messageSpecificData.getEntry('vdmHeader')
+    expect(vdmHeader?.getEntry('vdmType')?.value).toBe('0b1 (Structured VDM)')
+    expect(vdmHeader?.getEntry('structuredVersionMajor')?.value).toBe('0b01 (Version 2.x)')
+    expect(vdmHeader?.getEntry('commandType')?.value).toBe('0b10 (NAK)')
+  })
+
   it('decodes Sink_Capabilities', () => {
     let pdo = 0
     pdo = setBits(pdo, 29, 29, 1)
@@ -424,6 +476,8 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as SourceCapabilitiesExtendedMessage
     expect(decoded.sourceCapabilitiesExtended?.vid).toBe(0x1234)
     expect(decoded.sourceCapabilitiesExtended?.hwVersion).toBe(0x20)
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sourceCapabilitiesExtendedDataBlock')
+    expect(block?.getEntry('voltageRegulation')?.value).toContain('Load Step Slew Rate')
   })
 
   it('decodes Status for SOP', () => {
@@ -438,6 +492,8 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(StatusMessage)
     const decoded = message as StatusMessage
     expect(decoded.sopStatusDataBlock?.internalTemp).toBe(25)
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('statusDataBlock')
+    expect(block?.getEntry('temperatureStatus')?.value).toContain('Normal')
   })
 
   it('decodes Status for SOP\'', () => {
@@ -494,6 +550,8 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(BatteryCapabilitiesMessage)
     const decoded = message as BatteryCapabilitiesMessage
     expect(decoded.batteryCapabilities?.batteryDesignCapacity).toBe(0x0010)
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('batteryCapabilitiesDataBlock')
+    expect(block?.getEntry('batteryType')?.value).toBe('0b00000000 (Invalid Battery Reference clear)')
   })
 
   it('decodes Get_Manufacturer_Info', () => {
@@ -600,6 +658,8 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(PPSStatusMessage)
     const decoded = message as PPSStatusMessage
     expect(decoded.ppsStatusDataBlock?.outputVoltage20mV).toBe(0x1234)
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('ppsStatusDataBlock')
+    expect(block?.getEntry('realTimeFlags')?.value).toContain('PTF')
   })
 
   it('decodes Country_Info and Country_Codes', () => {
@@ -643,6 +703,9 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as SinkCapabilitiesExtendedMessage
     expect(decoded.sinkCapabilitiesExtended?.skedbVersion).toBe(1)
     expect(decoded.sinkCapabilitiesExtended?.sinkModes).toBe(0x10)
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sinkCapabilitiesExtendedDataBlock')
+    expect(block?.getEntry('skedbVersion')?.value).toBe('0x01 (Version 1.0)')
+    expect(block?.getEntry('sinkModes')?.value).toContain('Battery essentially unlimited')
   })
 
   it('decodes Extended_Control', () => {
