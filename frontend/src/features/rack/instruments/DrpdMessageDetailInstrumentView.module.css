@@ -1,0 +1,19 @@
+.singleSelectionContainer {
+  width: 100%;
+  height: 100%;
+}
+
+.singleSelectionText {
+}
+
+.emptyStateContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.emptyStateText {
+  font-size: var(--font-size-2xs);
+}
