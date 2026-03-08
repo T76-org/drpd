@@ -631,4 +631,43 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(driver.logSelection.anchorIndex).toBe(0)
     expect(driver.logSelection.activeIndex).toBe(1)
   })
+
+  it('clears selection when escape is pressed while the viewport has focus', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildMessage(1, 3),
+      buildMessage(2, 4),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await screen.findByText('Reject')
+    const viewport = screen.getByTestId('drpd-usbpd-log-viewport')
+
+    await userEvent.click(viewport)
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(driver.logSelection.selectedKeys).toHaveLength(1)
+    expect(driver.logSelection.activeIndex).toBe(1)
+
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(0)
+      expect(driver.logSelection.anchorIndex).toBeNull()
+      expect(driver.logSelection.activeIndex).toBeNull()
+    })
+  })
 })

@@ -937,10 +937,23 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   const handleViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!driver || isEditMode || totalRows <= 0) {
+    if (!driver || isEditMode) {
       return
     }
     const key = event.key
+    if (key === 'Escape') {
+      if (selection.selectedKeys.length === 0) {
+        return
+      }
+      event.preventDefault()
+      enqueueSelectionTask(async () => {
+        await persistSelection(EMPTY_SELECTION)
+      })
+      return
+    }
+    if (totalRows <= 0) {
+      return
+    }
     if (key !== 'ArrowDown' && key !== 'ArrowUp') {
       return
     }
