@@ -94,6 +94,24 @@ const formatByteDataSummary = (field: HumanReadableField<'ByteData'>): string =>
   return hex.length > 0 ? hex.toUpperCase() : '--'
 }
 
+const isStringField = (field: HumanReadableField): field is HumanReadableField<'String'> => {
+  return field.type === 'String'
+}
+
+const isByteDataField = (field: HumanReadableField): field is HumanReadableField<'ByteData'> => {
+  return field.type === 'ByteData'
+}
+
+const isOrderedDictionaryField = (
+  field: HumanReadableField,
+): field is HumanReadableField<'OrderedDictionary'> => {
+  return field.type === 'OrderedDictionary'
+}
+
+const isTableField = (field: HumanReadableField): field is HumanReadableField<'Table'> => {
+  return field.type === 'Table'
+}
+
 const groupTableCellsIntoRows = (cells: HumanReadableTableCell[]): HumanReadableTableCell[][] => {
   const rows: HumanReadableTableCell[][] = []
   let currentRow: HumanReadableTableCell[] = []
@@ -118,32 +136,37 @@ const MetadataFieldValue = ({
   field: HumanReadableField
   depth: number
 }) => {
-  switch (field.type) {
-    case 'String':
-      return <span className={styles.scalarValue}>{field.value}</span>
-    case 'ByteData':
-      return <span className={styles.byteDataValue}>{formatByteDataSummary(field)}</span>
-    case 'OrderedDictionary':
-      return (
-        <div
-          className={styles.nestedContainer}
-          style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
-        >
-          <MetadataDictionaryTable field={field} depth={depth + 1} />
-        </div>
-      )
-    case 'Table':
-      return (
-        <div
-          className={styles.nestedContainer}
-          style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
-        >
-          <MetadataNestedTable field={field} depth={depth + 1} />
-        </div>
-      )
-    default:
-      return null
+  if (isStringField(field)) {
+    return <span className={styles.scalarValue}>{field.value}</span>
   }
+
+  if (isByteDataField(field)) {
+    return <span className={styles.byteDataValue}>{formatByteDataSummary(field)}</span>
+  }
+
+  if (isOrderedDictionaryField(field)) {
+    return (
+      <div
+        className={styles.nestedContainer}
+        style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
+      >
+        <MetadataDictionaryTable field={field} depth={depth + 1} />
+      </div>
+    )
+  }
+
+  if (isTableField(field)) {
+    return (
+      <div
+        className={styles.nestedContainer}
+        style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
+      >
+        <MetadataNestedTable field={field} depth={depth + 1} />
+      </div>
+    )
+  }
+
+  return null
 }
 
 const MetadataDictionaryTable = ({
@@ -337,7 +360,6 @@ export const DrpdMessageDetailInstrumentView = ({
     >
       {activeSelectionKey !== null ? (
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
-          <h2 className={styles.singleSelectionHeading}>1 message selected</h2>
           <div className={styles.sectionsContainer}>
             {visibleSections.map((section) => {
               const isExpanded = expandedSectionIds.includes(section.id)
