@@ -17,6 +17,7 @@
   --font-family-mono: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
 
+  --font-size-4xs: 0.3rem;
   --font-size-3xs: 0.4rem;
   --font-size-2xs: 0.5rem;
   --font-size-xs: 0.5625rem;

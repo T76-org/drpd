@@ -466,4 +466,129 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(screen.getByText('Meaning')).toBeInTheDocument()
     expect(screen.getByText('Answer')).toBeInTheDocument()
   })
+
+  it('shows and dismisses field description popups', async () => {
+    const user = userEvent.setup()
+    const row = buildMessageRow()
+    const metadata = {
+      baseInformation: HumanReadableField.orderedDictionary('Base Information', 'Base information container.'),
+      technicalData: HumanReadableField.orderedDictionary(
+        'Technical Data',
+        'Technical data container.',
+        [
+          [
+            'messageType',
+            HumanReadableField.string('Accept', 'Message Type', 'Explains the message type field.'),
+          ],
+          [
+            'details',
+            HumanReadableField.orderedDictionary('Details', 'Explains the details container.', [
+              [
+                'meaning',
+                HumanReadableField.string('Answer', 'Meaning', 'Explains the nested meaning field.'),
+              ],
+            ]),
+          ],
+        ],
+      ),
+      headerData: HumanReadableField.orderedDictionary('Header Data', 'Header data container.'),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
+        'Message-specific data container.',
+      ),
+    }
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+      kind: 'message',
+      row,
+      message: {
+        humanReadableMetadata: metadata,
+      } as unknown as ReturnType<typeof deviceModule.decodeLoggedCapturedMessage> extends { kind: 'message'; message: infer T } ? T : never,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    const scalarHelpButton = await screen.findByRole('button', {
+      name: 'Show description for Message Type',
+    })
+    await user.click(scalarHelpButton)
+    expect(screen.getByText('Explains the message type field.')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByText('Explains the message type field.')).toBeNull()
+    })
+
+    const compositeHelpButton = screen.getByRole('button', {
+      name: 'Show description for Details',
+    })
+    await user.click(compositeHelpButton)
+    expect(screen.getByText('Explains the details container.')).toBeInTheDocument()
+
+    await user.click(document.body)
+    await waitFor(() => {
+      expect(screen.queryByText('Explains the details container.')).toBeNull()
+    })
+  })
+
+  it('does not show help buttons for base information fields', async () => {
+    const row = buildMessageRow()
+    const metadata = {
+      baseInformation: HumanReadableField.orderedDictionary(
+        'Base Information',
+        'Base information container.',
+        [[
+          'messageType',
+          HumanReadableField.string('Accept', 'Message Type', 'Explains the message type field.'),
+        ]],
+      ),
+      technicalData: HumanReadableField.orderedDictionary('Technical Data', 'Technical data container.'),
+      headerData: HumanReadableField.orderedDictionary('Header Data', 'Header data container.'),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
+        'Message-specific data container.',
+      ),
+    }
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+      kind: 'message',
+      row,
+      message: {
+        humanReadableMetadata: metadata,
+      } as unknown as ReturnType<typeof deviceModule.decodeLoggedCapturedMessage> extends { kind: 'message'; message: infer T } ? T : never,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Message Type')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: 'Show description for Message Type' })).toBeNull()
+  })
 })

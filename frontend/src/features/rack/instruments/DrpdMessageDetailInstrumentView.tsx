@@ -1,4 +1,5 @@
-import { type CSSProperties, useEffect, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   buildCapturedLogSelectionKey,
   decodeLoggedCapturedMessage,
@@ -178,29 +179,181 @@ const MetadataFieldValue = ({
   return null
 }
 
-const MetadataDictionaryTable = ({
-  field,
-  depth,
+const FieldHelpButton = ({
+  label,
+  explanation,
 }: {
-  field: HumanReadableField<'OrderedDictionary'>
-  depth: number
+  label: string
+  explanation: string
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLSpanElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const popupRef = useRef<HTMLDivElement | null>(null)
+  const popupId = useId()
+  const [popupStyle, setPopupStyle] = useState<CSSProperties | null>(null)
+
+  useLayoutEffect(() => {
+    if (!isOpen || !buttonRef.current || !popupRef.current || typeof window === 'undefined') {
+      return
+    }
+
+    const margin = 8
+    const updatePosition = () => {
+      const buttonRect = buttonRef.current?.getBoundingClientRect()
+      const popupRect = popupRef.current?.getBoundingClientRect()
+      if (!buttonRect || !popupRect) {
+        return
+      }
+
+      const maxLeft = Math.max(margin, window.innerWidth - popupRect.width - margin)
+      const maxTop = Math.max(margin, window.innerHeight - popupRect.height - margin)
+      const left = Math.min(Math.max(buttonRect.left, margin), maxLeft)
+      const top = Math.min(Math.max(buttonRect.bottom, margin), maxTop)
+
+      setPopupStyle({
+        left: `${left}px`,
+        top: `${top}px`,
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (
+        !containerRef.current?.contains(target) &&
+        !popupRef.current?.contains(target)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  return (
+    <span className={styles.fieldHelp} ref={containerRef}>
+      <button
+        type="button"
+        ref={buttonRef}
+        className={styles.fieldHelpButton}
+        aria-label={`Show description for ${label}`}
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? popupId : undefined}
+        onClick={() => {
+          setIsOpen((current) => !current)
+        }}
+      >
+        <span className={styles.fieldHelpButtonIcon} aria-hidden="true">
+          ?
+        </span>
+      </button>
+      {isOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              className={styles.fieldHelpPopup}
+              id={popupId}
+              ref={popupRef}
+              role="dialog"
+              aria-label={`${label} description`}
+              style={popupStyle ?? { visibility: 'hidden' }}
+            >
+              <p className={styles.fieldHelpPopupText}>{explanation}</p>
+            </div>,
+            document.body,
+          )
+        : null}
+    </span>
+  )
+}
+
+const FieldLabel = ({
+  label,
+  explanation,
+  textClassName,
+  showHelpButton = true,
+}: {
+  label: string
+  explanation: string
+  textClassName: string
+  showHelpButton?: boolean
 }) => {
   return (
-    <table className={styles.metadataTable} data-depth={depth}>
+    <span className={styles.fieldLabel}>
+      <span className={textClassName}>{label}</span>
+      {showHelpButton ? <FieldHelpButton label={label} explanation={explanation} /> : null}
+    </span>
+  )
+}
+
+const NestedTableCellLabel = ({
+  field,
+  showHelpButton,
+}: {
+  field: HumanReadableField
+  showHelpButton: boolean
+}) => {
+  const content: ReactNode = isStringField(field) ? field.value : <MetadataFieldValue field={field} />
+
+  return (
+    <span className={styles.fieldLabel}>
+      <span className={styles.nestedTableCellText}>{content}</span>
+      {showHelpButton ? <FieldHelpButton label={field.Label} explanation={field.explanation} /> : null}
+    </span>
+  )
+}
+
+const MetadataDictionaryTable = ({
+  field,
+  showHelpButton,
+}: {
+  field: HumanReadableField<'OrderedDictionary'>
+  showHelpButton: boolean
+}) => {
+  return (
+    <table className={styles.metadataTable}>
       <tbody className={styles.metadataTableBody}>
         {Array.from(field.entries()).map(([key, entryField]) =>
           isOrderedDictionaryField(entryField) || isTableField(entryField) ? (
             <tr className={styles.metadataCompositeRow} key={`${key}-${entryField.Label}`}>
               <td className={styles.metadataCompositeCell} colSpan={2}>
-                <div className={styles.metadataCompositeLabel}>{entryField.Label}</div>
-                <div
-                  className={styles.nestedContainer}
-                  style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
-                >
+                <div className={styles.metadataCompositeLabel}>
+                  <FieldLabel
+                    label={entryField.Label}
+                    explanation={entryField.explanation}
+                    textClassName={styles.metadataCompositeLabelText}
+                    showHelpButton={showHelpButton}
+                  />
+                </div>
+                <div className={styles.nestedContainer}>
                   {isOrderedDictionaryField(entryField) ? (
-                    <MetadataDictionaryTable field={entryField} depth={depth + 1} />
+                    <MetadataDictionaryTable field={entryField} showHelpButton={showHelpButton} />
                   ) : (
-                    <MetadataNestedTable field={entryField} depth={depth + 1} />
+                    <MetadataNestedTable field={entryField} showHelpButton={showHelpButton} />
                   )}
                 </div>
               </td>
@@ -208,7 +361,12 @@ const MetadataDictionaryTable = ({
           ) : (
             <tr className={styles.metadataRow} key={`${key}-${entryField.Label}`}>
               <th className={styles.metadataLabelCell} scope="row">
-                <span className={styles.metadataLabelText}>{entryField.Label}</span>
+                <FieldLabel
+                  label={entryField.Label}
+                  explanation={entryField.explanation}
+                  textClassName={styles.metadataLabelText}
+                  showHelpButton={showHelpButton}
+                />
               </th>
               <td className={styles.metadataValueCell}>
                 <MetadataFieldValue field={entryField} />
@@ -223,21 +381,21 @@ const MetadataDictionaryTable = ({
 
 const MetadataNestedTable = ({
   field,
-  depth,
+  showHelpButton,
 }: {
   field: HumanReadableField<'Table'>
-  depth: number
+  showHelpButton: boolean
 }) => {
   const rows = groupTableCellsIntoRows(field.value)
   return (
-    <table className={styles.nestedTable} data-depth={depth}>
+    <table className={styles.nestedTable}>
       <tbody className={styles.nestedTableBody}>
         {rows.map((row, rowIndex) => (
           <tr className={styles.nestedTableRow} key={`${field.Label}-${rowIndex}`}>
             {row.map((cell, cellIndex) =>
               cell.kind === 'header' ? (
                 <th className={styles.nestedTableHeaderCell} key={`${rowIndex}-${cellIndex}`}>
-                  <MetadataFieldValue field={cell.field} />
+                  <NestedTableCellLabel field={cell.field} showHelpButton={showHelpButton} />
                 </th>
               ) : (
                 <td className={styles.nestedTableValueCell} key={`${rowIndex}-${cellIndex}`}>
@@ -419,7 +577,10 @@ export const DrpdMessageDetailInstrumentView = ({
                   </h3>
                   {isExpanded ? (
                     <div className={styles.sectionContent}>
-                      <MetadataDictionaryTable field={section.field} depth={0} />
+                      <MetadataDictionaryTable
+                        field={section.field}
+                        showHelpButton={section.id !== 'baseInformation'}
+                      />
                     </div>
                   ) : null}
                 </section>
