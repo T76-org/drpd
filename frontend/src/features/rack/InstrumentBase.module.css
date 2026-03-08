@@ -3,12 +3,13 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
+  min-height: 0;
   min-width: 0;
   border: var(--border-thin) solid var(--color-border-instrument);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
   border-radius: var(--radius-none);
-  overflow: visible;
+  overflow: hidden;
   box-shadow: none;
 }
 
@@ -123,10 +124,13 @@
 
 .content {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   padding: var(--space-10) var(--space-12);
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .editMode .content {

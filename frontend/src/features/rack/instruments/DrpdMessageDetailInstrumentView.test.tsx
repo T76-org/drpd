@@ -1,8 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import {
   DRPDDevice,
   type DRPDLogSelectionState,
+  type LoggedCapturedMessage,
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
@@ -10,14 +12,27 @@ import { DrpdMessageDetailInstrumentView } from './DrpdMessageDetailInstrumentVi
 
 class TestSelectionDriver extends EventTarget {
   public logSelection: DRPDLogSelectionState
+  public rows: LoggedCapturedMessage[]
 
-  public constructor(logSelection: DRPDLogSelectionState) {
+  public constructor(logSelection: DRPDLogSelectionState, rows: LoggedCapturedMessage[] = []) {
     super()
     this.logSelection = logSelection
+    this.rows = rows
   }
 
   public getLogSelectionState(): DRPDLogSelectionState | Promise<DRPDLogSelectionState> {
     return this.logSelection
+  }
+
+  public async queryCapturedMessages(query: {
+    startTimestampUs: bigint
+    endTimestampUs: bigint
+  }): Promise<LoggedCapturedMessage[]> {
+    return this.rows.filter(
+      (row) =>
+        row.startTimestampUs >= query.startTimestampUs &&
+        row.startTimestampUs <= query.endTimestampUs,
+    )
   }
 
   public setLogSelectionState(logSelection: DRPDLogSelectionState): void {
@@ -43,10 +58,39 @@ const buildDeviceRecord = (): RackDeviceRecord => ({
   productId: 0x000a,
 })
 
-const buildDeviceState = (selection: DRPDLogSelectionState): RackDeviceState => ({
+const buildMessageRow = (
+  overrides: Partial<LoggedCapturedMessage> = {},
+): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
+  startTimestampUs: 1000n,
+  endTimestampUs: 1005n,
+  displayTimestampUs: 0n,
+  decodeResult: 0,
+  sopKind: 'SOP',
+  messageKind: 'CONTROL',
+  messageType: 3,
+  messageId: 1,
+  senderPowerRole: 'SOURCE',
+  senderDataRole: 'DFP',
+  pulseCount: 4,
+  rawPulseWidths: Float64Array.from([1, 2, 3, 4]),
+  rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
+  rawDecodedData: Uint8Array.from([0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d]),
+  parseError: null,
+  createdAtMs: 1_700_000_000_000,
+  ...overrides,
+})
+
+const buildDeviceState = (
+  selection: DRPDLogSelectionState,
+  rows: LoggedCapturedMessage[] = [],
+): RackDeviceState => ({
   record: buildDeviceRecord(),
   status: 'connected',
-  drpdDriver: new TestSelectionDriver(selection) as unknown as RackDeviceState['drpdDriver'],
+  drpdDriver: new TestSelectionDriver(selection, rows) as unknown as RackDeviceState['drpdDriver'],
 })
 
 describe('DrpdMessageDetailInstrumentView', () => {
@@ -70,15 +114,16 @@ describe('DrpdMessageDetailInstrumentView', () => {
   })
 
   it('shows the single-message placeholder when exactly one message is selected', async () => {
+    const row = buildMessageRow()
     render(
       <DrpdMessageDetailInstrumentView
         instrument={buildInstrument()}
         displayName="MESSAGE DETAIL"
         deviceState={buildDeviceState({
-          selectedKeys: ['message:1000:1005:1'],
+          selectedKeys: ['message:1000:1005:1700000000000'],
           anchorIndex: 0,
           activeIndex: 0,
-        })}
+        }, [row])}
         isEditMode={false}
       />,
     )
@@ -87,6 +132,22 @@ describe('DrpdMessageDetailInstrumentView', () => {
       expect(screen.getByText('1 message selected')).toBeInTheDocument()
     })
     expect(screen.getByText('1 message selected').parentElement).toHaveClass(/singleSelectionContainer/)
+    expect(await screen.findByRole('button', { name: /base information/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /technical data/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /header data/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /message-specific data/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
   })
 
   it('returns to the inspect prompt when multiple messages are selected', async () => {
@@ -129,14 +190,15 @@ describe('DrpdMessageDetailInstrumentView', () => {
       }
     }
 
+    const row = buildMessageRow()
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
       status: 'connected',
       drpdDriver: new AsyncSelectionDriver({
-        selectedKeys: ['message:1000:1005:1'],
+        selectedKeys: ['message:1000:1005:1700000000000'],
         anchorIndex: 0,
         activeIndex: 0,
-      }) as unknown as RackDeviceState['drpdDriver'],
+      }, [row]) as unknown as RackDeviceState['drpdDriver'],
     }
 
     render(
@@ -151,5 +213,47 @@ describe('DrpdMessageDetailInstrumentView', () => {
     await waitFor(() => {
       expect(screen.getByText('1 message selected')).toBeInTheDocument()
     })
+  })
+
+  it('renders metadata sections and toggles their placeholder content', async () => {
+    const user = userEvent.setup()
+    const row = buildMessageRow()
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    const baseInformationToggle = await screen.findByRole('button', {
+      name: /base information/i,
+    })
+
+    expect(screen.getAllByText('Placeholder content')).toHaveLength(4)
+    expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(baseInformationToggle)
+
+    await waitFor(() => {
+      expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+    expect(screen.getAllByText('Placeholder content')).toHaveLength(3)
+
+    await user.click(baseInformationToggle)
+
+    await waitFor(() => {
+      expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'true')
+    })
+    expect(screen.getAllByText('Placeholder content')).toHaveLength(4)
   })
 })
