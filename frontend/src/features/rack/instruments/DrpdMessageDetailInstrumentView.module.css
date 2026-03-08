@@ -78,6 +78,10 @@
   vertical-align: top;
 }
 
+.metadataCompositeRow {
+  vertical-align: top;
+}
+
 .metadataLabelCell {
   width: 1%;
   white-space: nowrap;
@@ -97,6 +101,15 @@
   vertical-align: top;
 }
 
+.metadataCompositeCell {
+  padding: 0 0 var(--space-4);
+  vertical-align: top;
+}
+
+.metadataCompositeLabel {
+  font-weight: var(--font-weight-semibold);
+}
+
 .scalarValue {
   display: inline-block;
 }
@@ -108,6 +121,8 @@
 }
 
 .nestedContainer {
+  margin-top: var(--space-4);
+  padding-left: var(--space-10);
 }
 
 .nestedTable {

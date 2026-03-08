@@ -144,28 +144,6 @@ const MetadataFieldValue = ({
     return <span className={styles.byteDataValue}>{formatByteDataSummary(field)}</span>
   }
 
-  if (isOrderedDictionaryField(field)) {
-    return (
-      <div
-        className={styles.nestedContainer}
-        style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
-      >
-        <MetadataDictionaryTable field={field} depth={depth + 1} />
-      </div>
-    )
-  }
-
-  if (isTableField(field)) {
-    return (
-      <div
-        className={styles.nestedContainer}
-        style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
-      >
-        <MetadataNestedTable field={field} depth={depth + 1} />
-      </div>
-    )
-  }
-
   return null
 }
 
@@ -179,16 +157,34 @@ const MetadataDictionaryTable = ({
   return (
     <table className={styles.metadataTable} data-depth={depth}>
       <tbody className={styles.metadataTableBody}>
-        {Array.from(field.entries()).map(([key, entryField]) => (
-          <tr className={styles.metadataRow} key={`${key}-${entryField.Label}`}>
-            <th className={styles.metadataLabelCell} scope="row">
-              <span className={styles.metadataLabelText}>{entryField.Label}</span>
-            </th>
-            <td className={styles.metadataValueCell}>
-              <MetadataFieldValue field={entryField} depth={depth} />
-            </td>
-          </tr>
-        ))}
+        {Array.from(field.entries()).map(([key, entryField]) =>
+          isOrderedDictionaryField(entryField) || isTableField(entryField) ? (
+            <tr className={styles.metadataCompositeRow} key={`${key}-${entryField.Label}`}>
+              <td className={styles.metadataCompositeCell} colSpan={2}>
+                <div className={styles.metadataCompositeLabel}>{entryField.Label}</div>
+                <div
+                  className={styles.nestedContainer}
+                  style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
+                >
+                  {isOrderedDictionaryField(entryField) ? (
+                    <MetadataDictionaryTable field={entryField} depth={depth + 1} />
+                  ) : (
+                    <MetadataNestedTable field={entryField} depth={depth + 1} />
+                  )}
+                </div>
+              </td>
+            </tr>
+          ) : (
+            <tr className={styles.metadataRow} key={`${key}-${entryField.Label}`}>
+              <th className={styles.metadataLabelCell} scope="row">
+                <span className={styles.metadataLabelText}>{entryField.Label}</span>
+              </th>
+              <td className={styles.metadataValueCell}>
+                <MetadataFieldValue field={entryField} depth={depth} />
+              </td>
+            </tr>
+          ),
+        )}
       </tbody>
     </table>
   )
@@ -360,6 +356,7 @@ export const DrpdMessageDetailInstrumentView = ({
     >
       {activeSelectionKey !== null ? (
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
+          <h2 className={styles.singleSelectionHeading}>1 message selected</h2>
           <div className={styles.sectionsContainer}>
             {visibleSections.map((section) => {
               const isExpanded = expandedSectionIds.includes(section.id)
