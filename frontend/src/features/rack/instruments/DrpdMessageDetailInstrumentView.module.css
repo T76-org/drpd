@@ -108,7 +108,6 @@
 }
 
 .nestedContainer {
-  padding-left: calc(var(--space-10) * (var(--detail-indent-depth) + 1));
 }
 
 .nestedTable {
