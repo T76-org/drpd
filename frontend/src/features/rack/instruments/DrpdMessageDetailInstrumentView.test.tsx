@@ -95,8 +95,31 @@ const buildDeviceState = (
   drpdDriver: new TestSelectionDriver(selection, rows) as unknown as RackDeviceState['drpdDriver'],
 })
 
+const createStorage = (): Storage => {
+  const store = new Map<string, string>()
+  return {
+    clear: () => {
+      store.clear()
+    },
+    getItem: (key: string) => store.get(key) ?? null,
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, value)
+    },
+    get length() {
+      return store.size
+    },
+  }
+}
+
+vi.stubGlobal('localStorage', createStorage())
+
 afterEach(() => {
   vi.restoreAllMocks()
+  window.localStorage.clear()
 })
 
 describe('DrpdMessageDetailInstrumentView', () => {
@@ -135,9 +158,8 @@ describe('DrpdMessageDetailInstrumentView', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('1 message selected')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /base information/i })).toBeInTheDocument()
     })
-    expect(screen.getByText('1 message selected').parentElement).toHaveClass(/singleSelectionContainer/)
     expect(await screen.findByRole('button', { name: /base information/i })).toHaveAttribute(
       'aria-expanded',
       'true',
@@ -222,7 +244,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('1 message selected')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /base information/i })).toBeInTheDocument()
     })
   })
 
@@ -272,6 +294,111 @@ describe('DrpdMessageDetailInstrumentView', () => {
       expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'true')
     })
     expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+  })
+
+  it('preserves collapsed section state across message selection changes', async () => {
+    const user = userEvent.setup()
+    const firstRow = buildMessageRow()
+    const secondRow = buildMessageRow({
+      startTimestampUs: 2000n,
+      endTimestampUs: 2005n,
+      displayTimestampUs: 1000n,
+      messageId: 2,
+      createdAtMs: 1_700_000_000_100,
+    })
+    const deviceState = buildDeviceState(
+      {
+        selectedKeys: ['message:1000:1005:1700000000000'],
+        anchorIndex: 0,
+        activeIndex: 0,
+      },
+      [firstRow, secondRow],
+    )
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const technicalDataToggle = await screen.findByRole('button', {
+      name: /technical data/i,
+    })
+    const technicalDataSection = technicalDataToggle.closest('section') as HTMLElement
+    expect(within(technicalDataSection).getByText('Start Timestamp')).toBeInTheDocument()
+
+    await user.click(technicalDataToggle)
+
+    await waitFor(() => {
+      expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+    expect(within(technicalDataSection).queryByText('Start Timestamp')).toBeNull()
+
+    act(() => {
+      driver.setLogSelectionState({
+        selectedKeys: ['message:2000:2005:1700000000100'],
+        anchorIndex: 1,
+        activeIndex: 1,
+      })
+    })
+
+    await waitFor(() => {
+      expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+    expect(within(technicalDataSection).queryByText('Start Timestamp')).toBeNull()
+  })
+
+  it('preserves collapsed section state after remount', async () => {
+    const user = userEvent.setup()
+    const row = buildMessageRow()
+    const deviceState = buildDeviceState(
+      {
+        selectedKeys: ['message:1000:1005:1700000000000'],
+        anchorIndex: 0,
+        activeIndex: 0,
+      },
+      [row],
+    )
+
+    const firstRender = render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const technicalDataToggle = await screen.findByRole('button', {
+      name: /technical data/i,
+    })
+    await user.click(technicalDataToggle)
+
+    await waitFor(() => {
+      expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    firstRender.unmount()
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /technical data/i })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+    })
   })
 
   it('renders nested table fields inside the value column', async () => {

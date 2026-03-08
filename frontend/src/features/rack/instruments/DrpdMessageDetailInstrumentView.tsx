@@ -22,6 +22,39 @@ const EMPTY_SELECTION: DRPDLogSelectionState = {
   activeIndex: null,
 }
 
+const buildCollapsedSectionsStorageKey = (instrumentId: string): string => {
+  return `drpd:message-detail:collapsed-sections:${instrumentId}`
+}
+
+const readStoredCollapsedSectionIds = (instrumentId: string): string[] | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+  const rawValue = window.localStorage.getItem(buildCollapsedSectionsStorageKey(instrumentId))
+  if (!rawValue) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(rawValue)
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+    return parsed.filter((entry): entry is string => typeof entry === 'string')
+  } catch {
+    return null
+  }
+}
+
+const writeStoredCollapsedSectionIds = (instrumentId: string, sectionIds: string[]): void => {
+  if (typeof window === 'undefined') {
+    return
+  }
+  window.localStorage.setItem(
+    buildCollapsedSectionsStorageKey(instrumentId),
+    JSON.stringify(sectionIds),
+  )
+}
+
 type MessageDetailSection = {
   id: keyof HumanReadableMetadataRoot
   label: string
@@ -131,10 +164,8 @@ const groupTableCellsIntoRows = (cells: HumanReadableTableCell[]): HumanReadable
 
 const MetadataFieldValue = ({
   field,
-  depth,
 }: {
   field: HumanReadableField
-  depth: number
 }) => {
   if (isStringField(field)) {
     return <span className={styles.scalarValue}>{field.value}</span>
@@ -180,7 +211,7 @@ const MetadataDictionaryTable = ({
                 <span className={styles.metadataLabelText}>{entryField.Label}</span>
               </th>
               <td className={styles.metadataValueCell}>
-                <MetadataFieldValue field={entryField} depth={depth} />
+                <MetadataFieldValue field={entryField} />
               </td>
             </tr>
           ),
@@ -206,11 +237,11 @@ const MetadataNestedTable = ({
             {row.map((cell, cellIndex) =>
               cell.kind === 'header' ? (
                 <th className={styles.nestedTableHeaderCell} key={`${rowIndex}-${cellIndex}`}>
-                  <MetadataFieldValue field={cell.field} depth={depth} />
+                  <MetadataFieldValue field={cell.field} />
                 </th>
               ) : (
                 <td className={styles.nestedTableValueCell} key={`${rowIndex}-${cellIndex}`}>
-                  <MetadataFieldValue field={cell.field} depth={depth} />
+                  <MetadataFieldValue field={cell.field} />
                 </td>
               ),
             )}
@@ -242,7 +273,9 @@ export const DrpdMessageDetailInstrumentView = ({
   const activeSelectionKey = selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
   const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null)
   const [sections, setSections] = useState<MessageDetailSection[]>([])
-  const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>([])
+  const [collapsedSectionIds, setCollapsedSectionIds] = useState<(keyof HumanReadableMetadataRoot)[]>(
+    () => (readStoredCollapsedSectionIds(instrument.id) ?? []) as (keyof HumanReadableMetadataRoot)[],
+  )
 
   useEffect(() => {
     if (!driver || !('getLogSelectionState' in driver) || typeof driver.getLogSelectionState !== 'function') {
@@ -308,20 +341,21 @@ export const DrpdMessageDetailInstrumentView = ({
       if (!row) {
         setLoadedSelectionKey(activeSelectionKey)
         setSections([])
-        setExpandedSectionIds([])
         return
       }
       const decoded = decodeLoggedCapturedMessage(row)
       if (decoded.kind !== 'message') {
         setLoadedSelectionKey(activeSelectionKey)
         setSections([])
-        setExpandedSectionIds([])
         return
       }
       const nextSections = buildMetadataSections(decoded.message.humanReadableMetadata)
       setLoadedSelectionKey(activeSelectionKey)
       setSections(nextSections)
-      setExpandedSectionIds(nextSections.map((section) => section.id))
+      setCollapsedSectionIds((current) => {
+        const nextIds = nextSections.map((section) => section.id)
+        return current.filter((sectionId) => nextIds.includes(sectionId))
+      })
     }
 
     void loadSections()
@@ -331,13 +365,17 @@ export const DrpdMessageDetailInstrumentView = ({
     }
   }, [activeSelectionKey, driver])
 
-  const toggleSection = (sectionId: string) => {
-    setExpandedSectionIds((current) =>
+  const toggleSection = (sectionId: keyof HumanReadableMetadataRoot) => {
+    setCollapsedSectionIds((current) =>
       current.includes(sectionId)
         ? current.filter((entry) => entry !== sectionId)
         : [...current, sectionId],
     )
   }
+
+  useEffect(() => {
+    writeStoredCollapsedSectionIds(instrument.id, collapsedSectionIds)
+  }, [collapsedSectionIds, instrument.id])
   const visibleSections =
     activeSelectionKey !== null && loadedSelectionKey === activeSelectionKey ? sections : []
 
@@ -356,12 +394,11 @@ export const DrpdMessageDetailInstrumentView = ({
     >
       {activeSelectionKey !== null ? (
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
-          <h2 className={styles.singleSelectionHeading}>1 message selected</h2>
           <div className={styles.sectionsContainer}>
             {visibleSections.map((section) => {
-              const isExpanded = expandedSectionIds.includes(section.id)
+              const isExpanded = !collapsedSectionIds.includes(section.id)
               return (
-                <section className={styles.section} key={section.id}>
+                <section className={styles.section} data-section-id={section.id} key={section.id}>
                   <h3 className={styles.sectionHeading}>
                     <button
                       type="button"

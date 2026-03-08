@@ -25,6 +25,46 @@
 .section {
   display: grid;
   gap: var(--space-6);
+  padding: var(--space-8);
+  border: var(--border-thin) solid var(--detail-section-border, var(--color-border-panel));
+  background: var(--detail-section-surface, var(--color-surface-panel));
+  color: var(--detail-section-text, inherit);
+}
+
+.section[data-section-id='baseInformation'] {
+  --detail-section-surface: color-mix(in srgb, #3f7a52 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #3f7a52 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #3f7a52 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #3f7a52 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #3f7a52 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #3f7a52 10%, var(--color-surface-panel));
+}
+
+.section[data-section-id='technicalData'] {
+  --detail-section-surface: color-mix(in srgb, #2d6f9f 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #2d6f9f 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #2d6f9f 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #2d6f9f 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #2d6f9f 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #2d6f9f 10%, var(--color-surface-panel));
+}
+
+.section[data-section-id='headerData'] {
+  --detail-section-surface: color-mix(in srgb, #8b6a2b 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #8b6a2b 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #8b6a2b 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #8b6a2b 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #8b6a2b 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #8b6a2b 10%, var(--color-surface-panel));
+}
+
+.section[data-section-id='messageSpecificData'] {
+  --detail-section-surface: color-mix(in srgb, #8a4f67 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #8a4f67 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #8a4f67 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #8a4f67 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #8a4f67 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #8a4f67 10%, var(--color-surface-panel));
 }
 
 .sectionToggle {
@@ -58,6 +98,7 @@
 
 .sectionHeadingText {
   font-weight: var(--font-weight-semibold);
+  color: inherit;
 }
 
 .sectionContent {
@@ -78,46 +119,77 @@
   vertical-align: top;
 }
 
+.metadataRow:nth-child(odd) .metadataLabelCell {
+  background: var(--detail-label-surface, color-mix(in srgb, var(--color-surface-panel-accent) 82%, transparent));
+}
+
+.metadataRow:nth-child(even) .metadataLabelCell {
+  background: var(--detail-label-surface-alt, color-mix(in srgb, var(--color-surface-panel-accent) 72%, transparent));
+}
+
+.metadataRow:nth-child(odd) .metadataValueCell {
+  background: var(--detail-value-surface, color-mix(in srgb, var(--color-surface-panel) 94%, transparent));
+}
+
+.metadataRow:nth-child(even) .metadataValueCell {
+  background: var(--detail-value-surface-alt, color-mix(in srgb, var(--color-surface-panel) 88%, transparent));
+}
+
 .metadataCompositeRow {
   vertical-align: top;
+}
+
+.metadataCompositeRow:nth-child(odd) .metadataCompositeCell {
+  background: var(--detail-value-surface, color-mix(in srgb, var(--color-surface-panel) 94%, transparent));
+}
+
+.metadataCompositeRow:nth-child(even) .metadataCompositeCell {
+  background: var(--detail-value-surface-alt, color-mix(in srgb, var(--color-surface-panel) 88%, transparent));
 }
 
 .metadataLabelCell {
   width: 1%;
   white-space: nowrap;
-  padding: 0 var(--space-10) var(--space-4) 0;
+  padding: var(--space-4) var(--space-10) var(--space-4) var(--space-6);
   text-align: left;
   vertical-align: top;
   font-weight: var(--font-weight-semibold);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 60%, transparent);
 }
 
 .metadataLabelText {
+  color: color-mix(in srgb, currentColor 84%, black);
 }
 
 .metadataValueCell {
   width: 99%;
   min-width: 0;
-  padding: 0 0 var(--space-4);
+  padding: var(--space-4) var(--space-6);
   vertical-align: top;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 45%, transparent);
 }
 
 .metadataCompositeCell {
-  padding: 0 0 var(--space-4);
+  padding: var(--space-4) var(--space-6);
   vertical-align: top;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 45%, transparent);
 }
 
 .metadataCompositeLabel {
   font-weight: var(--font-weight-semibold);
+  color: color-mix(in srgb, currentColor 84%, black);
 }
 
 .scalarValue {
   display: inline-block;
+  color: color-mix(in srgb, currentColor 90%, black);
 }
 
 .byteDataValue {
   display: inline-block;
   font-family: var(--font-family-monospace, monospace);
   word-break: break-word;
+  color: color-mix(in srgb, currentColor 92%, black);
 }
 
 .nestedContainer {
@@ -138,17 +210,35 @@
   vertical-align: top;
 }
 
+.nestedTableRow:nth-child(odd) .nestedTableHeaderCell {
+  background: color-mix(in srgb, var(--detail-label-surface, var(--color-surface-panel-accent)) 86%, transparent);
+}
+
+.nestedTableRow:nth-child(even) .nestedTableHeaderCell {
+  background: color-mix(in srgb, var(--detail-label-surface-alt, var(--color-surface-panel-accent)) 78%, transparent);
+}
+
+.nestedTableRow:nth-child(odd) .nestedTableValueCell {
+  background: color-mix(in srgb, var(--detail-value-surface, var(--color-surface-panel)) 94%, transparent);
+}
+
+.nestedTableRow:nth-child(even) .nestedTableValueCell {
+  background: color-mix(in srgb, var(--detail-value-surface-alt, var(--color-surface-panel)) 90%, transparent);
+}
+
 .nestedTableHeaderCell {
-  padding: 0 var(--space-8) var(--space-4) 0;
+  padding: var(--space-4) var(--space-8) var(--space-4) var(--space-6);
   text-align: left;
   vertical-align: top;
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 45%, transparent);
 }
 
 .nestedTableValueCell {
-  padding: 0 var(--space-8) var(--space-4) 0;
+  padding: var(--space-4) var(--space-8) var(--space-4) var(--space-6);
   vertical-align: top;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 35%, transparent);
 }
 
 .emptyStateContainer {
