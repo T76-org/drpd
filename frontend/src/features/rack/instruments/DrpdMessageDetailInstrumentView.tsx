@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 import {
   buildCapturedLogSelectionKey,
   decodeLoggedCapturedMessage,
@@ -6,7 +6,11 @@ import {
   type DRPDLogSelectionState,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
-import type { HumanReadableMetadataRoot } from '../../../lib/device/drpd/usb-pd/humanReadableField'
+import type {
+  HumanReadableField,
+  HumanReadableMetadataRoot,
+  HumanReadableTableCell,
+} from '../../../lib/device/drpd/usb-pd/humanReadableField'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -21,6 +25,7 @@ const EMPTY_SELECTION: DRPDLogSelectionState = {
 type MessageDetailSection = {
   id: keyof HumanReadableMetadataRoot
   label: string
+  field: HumanReadableField<'OrderedDictionary'>
 }
 
 const normalizeSelectionState = (value: unknown): DRPDLogSelectionState => {
@@ -47,10 +52,14 @@ const buildMetadataSections = (
   metadata: HumanReadableMetadataRoot,
 ): MessageDetailSection[] => {
   return [
-    { id: 'baseInformation', label: metadata.baseInformation.Label },
-    { id: 'technicalData', label: metadata.technicalData.Label },
-    { id: 'headerData', label: metadata.headerData.Label },
-    { id: 'messageSpecificData', label: metadata.messageSpecificData.Label },
+    { id: 'baseInformation', label: metadata.baseInformation.Label, field: metadata.baseInformation },
+    { id: 'technicalData', label: metadata.technicalData.Label, field: metadata.technicalData },
+    { id: 'headerData', label: metadata.headerData.Label, field: metadata.headerData },
+    {
+      id: 'messageSpecificData',
+      label: metadata.messageSpecificData.Label,
+      field: metadata.messageSpecificData,
+    },
   ]
 }
 
@@ -77,6 +86,119 @@ const findSelectedMessageRow = (
         row.entryKind === 'message' &&
         buildCapturedLogSelectionKey(row) === selectionKey,
     ) ?? null
+  )
+}
+
+const formatByteDataSummary = (field: HumanReadableField<'ByteData'>): string => {
+  const hex = Array.from(field.value.data, (value) => value.toString(16).padStart(2, '0')).join(' ')
+  return hex.length > 0 ? hex.toUpperCase() : '--'
+}
+
+const groupTableCellsIntoRows = (cells: HumanReadableTableCell[]): HumanReadableTableCell[][] => {
+  const rows: HumanReadableTableCell[][] = []
+  let currentRow: HumanReadableTableCell[] = []
+  cells.forEach((cell) => {
+    if (cell.kind === 'header' && currentRow.length > 0) {
+      rows.push(currentRow)
+      currentRow = [cell]
+      return
+    }
+    currentRow.push(cell)
+  })
+  if (currentRow.length > 0) {
+    rows.push(currentRow)
+  }
+  return rows
+}
+
+const MetadataFieldValue = ({
+  field,
+  depth,
+}: {
+  field: HumanReadableField
+  depth: number
+}) => {
+  switch (field.type) {
+    case 'String':
+      return <span className={styles.scalarValue}>{field.value}</span>
+    case 'ByteData':
+      return <span className={styles.byteDataValue}>{formatByteDataSummary(field)}</span>
+    case 'OrderedDictionary':
+      return (
+        <div
+          className={styles.nestedContainer}
+          style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
+        >
+          <MetadataDictionaryTable field={field} depth={depth + 1} />
+        </div>
+      )
+    case 'Table':
+      return (
+        <div
+          className={styles.nestedContainer}
+          style={{ '--detail-indent-depth': `${depth}` } as CSSProperties}
+        >
+          <MetadataNestedTable field={field} depth={depth + 1} />
+        </div>
+      )
+    default:
+      return null
+  }
+}
+
+const MetadataDictionaryTable = ({
+  field,
+  depth,
+}: {
+  field: HumanReadableField<'OrderedDictionary'>
+  depth: number
+}) => {
+  return (
+    <table className={styles.metadataTable} data-depth={depth}>
+      <tbody className={styles.metadataTableBody}>
+        {Array.from(field.entries()).map(([key, entryField]) => (
+          <tr className={styles.metadataRow} key={`${key}-${entryField.Label}`}>
+            <th className={styles.metadataLabelCell} scope="row">
+              <span className={styles.metadataLabelText}>{entryField.Label}</span>
+            </th>
+            <td className={styles.metadataValueCell}>
+              <MetadataFieldValue field={entryField} depth={depth} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+const MetadataNestedTable = ({
+  field,
+  depth,
+}: {
+  field: HumanReadableField<'Table'>
+  depth: number
+}) => {
+  const rows = groupTableCellsIntoRows(field.value)
+  return (
+    <table className={styles.nestedTable} data-depth={depth}>
+      <tbody className={styles.nestedTableBody}>
+        {rows.map((row, rowIndex) => (
+          <tr className={styles.nestedTableRow} key={`${field.Label}-${rowIndex}`}>
+            {row.map((cell, cellIndex) =>
+              cell.kind === 'header' ? (
+                <th className={styles.nestedTableHeaderCell} key={`${rowIndex}-${cellIndex}`}>
+                  <MetadataFieldValue field={cell.field} depth={depth} />
+                </th>
+              ) : (
+                <td className={styles.nestedTableValueCell} key={`${rowIndex}-${cellIndex}`}>
+                  <MetadataFieldValue field={cell.field} depth={depth} />
+                </td>
+              ),
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 
@@ -240,7 +362,9 @@ export const DrpdMessageDetailInstrumentView = ({
                     </button>
                   </h3>
                   {isExpanded ? (
-                    <p className={styles.sectionContent}>Placeholder content</p>
+                    <div className={styles.sectionContent}>
+                      <MetadataDictionaryTable field={section.field} depth={0} />
+                    </div>
                   ) : null}
                 </section>
               )

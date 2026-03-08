@@ -1,11 +1,13 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as deviceModule from '../../../lib/device'
 import {
   DRPDDevice,
   type DRPDLogSelectionState,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
+import { HumanReadableField } from '../../../lib/device/drpd/usb-pd/humanReadableField'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdMessageDetailInstrumentView } from './DrpdMessageDetailInstrumentView'
@@ -93,6 +95,10 @@ const buildDeviceState = (
   drpdDriver: new TestSelectionDriver(selection, rows) as unknown as RackDeviceState['drpdDriver'],
 })
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('DrpdMessageDetailInstrumentView', () => {
   it('shows the inspect prompt when nothing is selected', async () => {
     render(
@@ -113,7 +119,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
     })
   })
 
-  it('shows the single-message placeholder when exactly one message is selected', async () => {
+  it('shows decoded metadata rows when exactly one message is selected', async () => {
     const row = buildMessageRow()
     render(
       <DrpdMessageDetailInstrumentView
@@ -148,6 +154,11 @@ describe('DrpdMessageDetailInstrumentView', () => {
       'aria-expanded',
       'true',
     )
+    const baseInformationSection = screen.getByRole('button', { name: /base information/i }).closest('section')
+    expect(baseInformationSection).not.toBeNull()
+    expect(within(baseInformationSection as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+    expect(within(baseInformationSection as HTMLElement).getByText('Accept')).toBeInTheDocument()
+    expect(screen.getByText('Technical Data')).toBeInTheDocument()
   })
 
   it('returns to the inspect prompt when multiple messages are selected', async () => {
@@ -215,7 +226,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
     })
   })
 
-  it('renders metadata sections and toggles their placeholder content', async () => {
+  it('renders recursive dictionary and byte-data content and toggles sections', async () => {
     const user = userEvent.setup()
     const row = buildMessageRow()
 
@@ -238,8 +249,14 @@ describe('DrpdMessageDetailInstrumentView', () => {
     const baseInformationToggle = await screen.findByRole('button', {
       name: /base information/i,
     })
+    const technicalDataSection = screen.getByRole('button', { name: /technical data/i }).closest('section')
 
-    expect(screen.getAllByText('Placeholder content')).toHaveLength(4)
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Accept')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('Type')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getAllByText('SOP')).toHaveLength(2)
+    expect(within(technicalDataSection as HTMLElement).getByText('K-Codes')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('18 18 18 11')).toBeInTheDocument()
     expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'true')
 
     await user.click(baseInformationToggle)
@@ -247,13 +264,79 @@ describe('DrpdMessageDetailInstrumentView', () => {
     await waitFor(() => {
       expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'false')
     })
-    expect(screen.getAllByText('Placeholder content')).toHaveLength(3)
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).queryByText('Message Type')).toBeNull()
 
     await user.click(baseInformationToggle)
 
     await waitFor(() => {
       expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'true')
     })
-    expect(screen.getAllByText('Placeholder content')).toHaveLength(4)
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+  })
+
+  it('renders nested table fields inside the value column', async () => {
+    const row = buildMessageRow()
+    const tableField = HumanReadableField.table('Example Table', 'Example nested table.', [
+      {
+        kind: 'header',
+        field: HumanReadableField.string('Byte', 'Byte Header', 'Header label'),
+      },
+      {
+        kind: 'value',
+        field: HumanReadableField.string('0x2A', 'Hex Value', 'Hex cell value'),
+      },
+      {
+        kind: 'header',
+        field: HumanReadableField.string('Meaning', 'Meaning Header', 'Meaning header'),
+      },
+      {
+        kind: 'value',
+        field: HumanReadableField.string('Answer', 'Meaning Value', 'Meaning value'),
+      },
+    ])
+    const metadata = {
+      baseInformation: HumanReadableField.orderedDictionary(
+        'Base Information',
+        'Base information container.',
+        [['exampleTable', tableField]],
+      ),
+      technicalData: HumanReadableField.orderedDictionary('Technical Data', 'Technical data container.'),
+      headerData: HumanReadableField.orderedDictionary('Header Data', 'Header data container.'),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
+        'Message-specific data container.',
+      ),
+    }
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+      kind: 'message',
+      row,
+      message: {
+        humanReadableMetadata: metadata,
+      } as unknown as ReturnType<typeof deviceModule.decodeLoggedCapturedMessage> extends { kind: 'message'; message: infer T } ? T : never,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Example Table')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Byte')).toBeInTheDocument()
+    expect(screen.getByText('0x2A')).toBeInTheDocument()
+    expect(screen.getByText('Meaning')).toBeInTheDocument()
+    expect(screen.getByText('Answer')).toBeInTheDocument()
   })
 })

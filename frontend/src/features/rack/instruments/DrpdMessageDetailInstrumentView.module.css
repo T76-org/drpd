@@ -65,6 +65,78 @@
   padding-left: calc(1em + var(--space-8));
 }
 
+.metadataTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.metadataTableBody {
+}
+
+.metadataRow {
+  vertical-align: top;
+}
+
+.metadataLabelCell {
+  width: 1%;
+  white-space: nowrap;
+  padding: 0 var(--space-10) var(--space-4) 0;
+  text-align: left;
+  vertical-align: top;
+  font-weight: var(--font-weight-semibold);
+}
+
+.metadataLabelText {
+}
+
+.metadataValueCell {
+  width: 99%;
+  min-width: 0;
+  padding: 0 0 var(--space-4);
+  vertical-align: top;
+}
+
+.scalarValue {
+  display: inline-block;
+}
+
+.byteDataValue {
+  display: inline-block;
+  font-family: var(--font-family-monospace, monospace);
+  word-break: break-word;
+}
+
+.nestedContainer {
+  padding-left: calc(var(--space-10) * (var(--detail-indent-depth) + 1));
+}
+
+.nestedTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.nestedTableBody {
+}
+
+.nestedTableRow {
+  vertical-align: top;
+}
+
+.nestedTableHeaderCell {
+  padding: 0 var(--space-8) var(--space-4) 0;
+  text-align: left;
+  vertical-align: top;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.nestedTableValueCell {
+  padding: 0 var(--space-8) var(--space-4) 0;
+  vertical-align: top;
+}
+
 .emptyStateContainer {
   display: flex;
   align-items: center;
