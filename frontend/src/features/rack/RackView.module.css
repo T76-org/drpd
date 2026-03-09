@@ -149,13 +149,14 @@
   gap: var(--space-6);
   padding: var(--space-10);
   overflow: auto;
+  font-size: var(--font-size-popup);
 }
 
 .deviceMenuItem {
   width: 100%;
   padding: var(--space-8) var(--space-10);
   background: var(--color-surface-panel-accent);
-  font-size: var(--font-size-md);
+  font-size: inherit;
 }
 
 .deviceMenuSeparator {
@@ -164,7 +165,7 @@
 }
 
 .deviceMenuEmpty {
-  font-size: var(--font-size-md);
+  font-size: inherit;
   color: var(--color-text-muted);
   padding: var(--control-padding-y-sm) var(--space-4);
 }
@@ -196,7 +197,7 @@
 }
 
 .deviceName {
-  font-size: var(--font-size-lg);
+  font-size: inherit;
   color: var(--color-text-primary);
   max-width: 300px;
   white-space: nowrap;
@@ -205,7 +206,7 @@
 }
 
 .deviceStatus {
-  font-size: var(--font-size-sm);
+  font-size: inherit;
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-lg);
   color: var(--color-text-muted);
@@ -235,7 +236,7 @@
   flex: 0 0 auto;
   background: transparent;
   padding: var(--space-4) var(--space-8);
-  font-size: var(--font-size-sm);
+  font-size: inherit;
 }
 
 .deviceMenu, .instrumentMenu {

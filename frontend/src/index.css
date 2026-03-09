@@ -29,13 +29,14 @@
   --font-size-3xl: 1.75rem;
   --font-size-4xl: 2.51rem;
 
-  /* Shared typography scale for header popovers across rack instruments. */
-  --font-size-header-popup-base: 0.85rem;
-  --font-size-header-popup-text: 0.95rem;
-  --font-size-header-popup-label: 0.95rem;
-  --font-size-header-popup-input: 1rem;
-  --font-size-header-popup-hint: 0.95rem;
-  --font-size-header-popup-button: 1rem;
+  /* Shared typography scale for all rack menus and popovers. */
+  --font-size-popup: 0.4rem;
+  --font-size-header-popup-base: var(--font-size-popup);
+  --font-size-header-popup-text: var(--font-size-popup);
+  --font-size-header-popup-label: var(--font-size-popup);
+  --font-size-header-popup-input: var(--font-size-popup);
+  --font-size-header-popup-hint: var(--font-size-popup);
+  --font-size-header-popup-button: var(--font-size-popup);
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;

@@ -108,13 +108,14 @@
   min-width: 120px;
   box-shadow: var(--shadow-strong);
   overflow: auto;
+  font-size: var(--font-size-popup);
 }
 
 .modeMenuItem {
   border: none;
   background: transparent;
   color: var(--color-text-primary);
-  font-size: var(--font-size-xs);
+  font-size: inherit;
   padding: var(--space-4) var(--space-10);
   text-align: left;
   cursor: pointer;

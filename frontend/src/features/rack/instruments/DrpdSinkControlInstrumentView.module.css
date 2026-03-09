@@ -186,7 +186,7 @@
 }
 
 .advancedTitle {
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-header-popup-text);
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
   color: var(--color-text-muted);
