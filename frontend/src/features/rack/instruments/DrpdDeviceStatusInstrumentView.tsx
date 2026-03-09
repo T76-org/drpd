@@ -9,6 +9,7 @@ import {
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
+import { useRackSizingConfig } from '../rackSizing'
 import styles from './DrpdDeviceStatusInstrumentView.module.css'
 
 const ROLE_MENU_Z_INDEX = 10000
@@ -106,6 +107,7 @@ export const DrpdDeviceStatusInstrumentView = ({
   )
   const roleMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const roleMenuRef = useRef<HTMLDivElement | null>(null)
+  const rackSizing = useRackSizingConfig()
 
   const closeRoleMenu = () => {
     setIsRoleMenuOpen(false)
@@ -123,8 +125,8 @@ export const DrpdDeviceStatusInstrumentView = ({
       return
     }
 
-    const viewportInsetPx = 8
-    const menuGapPx = 4
+    const viewportInsetPx = rackSizing.popoverViewportInsetPx
+    const menuGapPx = rackSizing.popoverGapPx
     const buttonRect = button.getBoundingClientRect()
     const menuRect = menu.getBoundingClientRect()
     const width = menuRect.width
@@ -158,7 +160,7 @@ export const DrpdDeviceStatusInstrumentView = ({
       maxHeight: `${Math.round(maxHeight)}px`,
       zIndex: ROLE_MENU_Z_INDEX,
     })
-  }, [isRoleMenuOpen])
+  }, [isRoleMenuOpen, rackSizing.popoverGapPx, rackSizing.popoverViewportInsetPx])
 
   useEffect(() => {
     if (!isRoleMenuOpen) {

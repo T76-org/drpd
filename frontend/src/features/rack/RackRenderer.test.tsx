@@ -81,7 +81,7 @@ describe('RackRenderer', () => {
     })
   })
 
-  it('scales the rack down to fit the viewport height when enough equivalent height is available', () => {
+  it('keeps the native rack width when the viewport height shrinks', () => {
     const rack: RackDefinition = {
       id: 'rack-a',
       name: 'Rack A',
@@ -134,17 +134,13 @@ describe('RackRenderer', () => {
       )
     })
 
-    expect(rackViewport).toHaveAttribute('data-scroll-mode', 'fit')
-    expect(rackScroll).toHaveStyle({ width: '800px', minHeight: '500px', height: '100%' })
-    expect(rackCanvas).toHaveStyle({
-      width: '960px',
-      minHeight: '600px',
-      height: '100%',
-      transform: 'scale(0.8333333333333334)',
-    })
+    expect(rackViewport).toHaveAttribute('data-scroll-mode', 'scroll')
+    expect(rackScroll).toHaveStyle({ width: '960px', minHeight: '600px', height: '100%' })
+    expect(rackCanvas).toHaveStyle({ width: '960px', minHeight: '600px', height: '100%' })
+    expect(rackCanvas).not.toHaveStyle({ transform: 'scale(0.8333333333333334)' })
   })
 
-  it('keeps native rack size and allows scrolling when the equivalent viewport height is below the threshold', () => {
+  it('allows vertical scrolling when the viewport is shorter than the rack', () => {
     const rack: RackDefinition = {
       id: 'rack-a',
       name: 'Rack A',

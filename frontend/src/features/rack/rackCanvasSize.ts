@@ -1,9 +1,9 @@
 import type { Instrument } from '../../lib/instrument'
 import type { RackDefinition } from '../../lib/rack/types'
+import { DEFAULT_RACK_SIZING, type RackSizingConfig } from './rackSizing'
 
-export const RACK_UNIT_HEIGHT_PX = 100
-const RACK_ASPECT_RATIO = 16 / 10
-const MIN_DISPLAY_UNITS = 6
+export const RACK_UNIT_HEIGHT_PX = DEFAULT_RACK_SIZING.unitHeightPx
+const MIN_DISPLAY_UNITS = DEFAULT_RACK_SIZING.minDisplayUnits
 
 /**
  * Compute the rendered rack canvas size in CSS pixels.
@@ -15,13 +15,14 @@ const MIN_DISPLAY_UNITS = 6
 export const getRackCanvasSize = (
   rack: RackDefinition,
   instruments: Instrument[],
+  sizing: RackSizingConfig = DEFAULT_RACK_SIZING,
 ): { rackHeightPx: number; rackWidthPx: number } => {
   const instrumentMap = new Map(
     instruments.map((instrument) => [instrument.identifier, instrument]),
   )
-  const displayUnits = getDisplayUnits(rack, instrumentMap)
-  const rackHeightPx = displayUnits * RACK_UNIT_HEIGHT_PX
-  const rackWidthPx = rackHeightPx * RACK_ASPECT_RATIO
+  const displayUnits = getDisplayUnits(rack, instrumentMap, sizing.minDisplayUnits)
+  const rackHeightPx = displayUnits * sizing.unitHeightPx
+  const rackWidthPx = rackHeightPx * sizing.aspectRatio
   return { rackHeightPx, rackWidthPx }
 }
 
@@ -34,12 +35,13 @@ export const getRackCanvasSize = (
 const getDisplayUnits = (
   rack: RackDefinition,
   instrumentMap: Map<string, Instrument>,
+  minDisplayUnits: number = MIN_DISPLAY_UNITS,
 ): number => {
   if (rack.rows.length === 0) {
-    return Math.min(rack.totalUnits, MIN_DISPLAY_UNITS)
+    return Math.min(rack.totalUnits, minDisplayUnits)
   }
   const contentUnits = getRackContentUnits(rack, instrumentMap)
-  return Math.min(rack.totalUnits, Math.max(contentUnits, MIN_DISPLAY_UNITS))
+  return Math.min(rack.totalUnits, Math.max(contentUnits, minDisplayUnits))
 }
 
 /**

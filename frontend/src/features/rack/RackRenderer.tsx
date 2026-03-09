@@ -2,13 +2,11 @@ import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import type { DRPDDriverRuntime } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import type { RackDefinition, RackDeviceRecord, RackInstrument } from '../../lib/rack/types'
-import { MAX_ROW_WIDTH_UNITS } from './layout'
-import { getRackCanvasSize, RACK_UNIT_HEIGHT_PX } from './rackCanvasSize'
+import { getRackCanvasSize } from './rackCanvasSize'
+import { useRackSizingConfig } from './rackSizing'
 import { RowRenderer } from './RowRenderer'
 import { InstrumentBase } from './InstrumentBase'
 import styles from './RackRenderer.module.css'
-
-const MIN_FIT_VIEWPORT_HEIGHT_PX = 400
 
 /**
  * Render a single rack definition as a column of rows.
@@ -42,7 +40,8 @@ export const RackRenderer = ({
   const instrumentMap = new Map(
     instruments.map((instrument) => [instrument.identifier, instrument]),
   )
-  const { rackHeightPx, rackWidthPx } = getRackCanvasSize(rack, instruments)
+  const rackSizing = useRackSizingConfig()
+  const { rackHeightPx, rackWidthPx } = getRackCanvasSize(rack, instruments, rackSizing)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [viewportHeightPx, setViewportHeightPx] = useState(0)
 
@@ -76,12 +75,7 @@ export const RackRenderer = ({
 
   const fullScreenInstrument = findFullScreenInstrument(rack)
   const shouldAllowVerticalScroll =
-    viewportHeightPx > 0 && viewportHeightPx < MIN_FIT_VIEWPORT_HEIGHT_PX
-  const shouldScaleToFitHeight =
-    viewportHeightPx >= MIN_FIT_VIEWPORT_HEIGHT_PX && viewportHeightPx < rackHeightPx
-  const rackScale = shouldScaleToFitHeight ? viewportHeightPx / rackHeightPx : 1
-  const scaledRackWidthPx = rackWidthPx * rackScale
-  const scaledRackHeightPx = rackHeightPx * rackScale
+    viewportHeightPx > 0 && viewportHeightPx < rackHeightPx
 
   return (
     <div className={styles.rackWrapper}>
@@ -94,32 +88,18 @@ export const RackRenderer = ({
           <div
             className={styles.rackScroll}
             style={{
-              width: shouldScaleToFitHeight ? scaledRackWidthPx : rackWidthPx,
-              minHeight: shouldScaleToFitHeight ? scaledRackHeightPx : rackHeightPx,
+              width: rackWidthPx,
+              minHeight: rackHeightPx,
               height: '100%'
             }}
           >
-            <div
-              className={shouldScaleToFitHeight ? styles.rackCanvasFrame : undefined}
-              style={
-                shouldScaleToFitHeight
-                  ? {
-                      width: scaledRackWidthPx,
-                      minHeight: scaledRackHeightPx,
-                      height: '100%'
-                    }
-                  : undefined
-              }
-            >
+            <div>
               <div
-                className={`${styles.rackCanvas} ${
-                  shouldScaleToFitHeight ? styles.rackCanvasScaled : ''
-                }`}
+                className={styles.rackCanvas}
                 style={{
                   width: rackWidthPx,
                   minHeight: rackHeightPx,
                   height: '100%',
-                  transform: shouldScaleToFitHeight ? `scale(${rackScale})` : undefined
                 }}
                 data-rack-width={Math.round(rackWidthPx)}
                 data-rack-height={rackHeightPx}
@@ -163,8 +143,8 @@ export const RackRenderer = ({
                           row={row}
                           rowIndex={rowIndex}
                           rackWidthPx={rackWidthPx}
-                          unitHeightPx={RACK_UNIT_HEIGHT_PX}
-                          maxRowWidthUnits={MAX_ROW_WIDTH_UNITS}
+                          unitHeightPx={rackSizing.unitHeightPx}
+                          maxRowWidthUnits={rackSizing.maxRowWidthUnits}
                           instruments={instruments}
                           deviceStates={deviceStates}
                           rackDevices={rack.devices ?? []}
