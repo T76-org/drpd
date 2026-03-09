@@ -52,14 +52,16 @@ export const RackRenderer = ({
             className={styles.rackScroll}
             style={{
               width: rackWidthPx,
-              height: rackHeightPx
+              minHeight: rackHeightPx,
+              height: '100%'
             }}
           >
             <div
               className={styles.rackCanvas}
               style={{
                 width: rackWidthPx,
-                height: rackHeightPx
+                minHeight: rackHeightPx,
+                height: '100%'
               }}
               data-rack-width={Math.round(rackWidthPx)}
               data-rack-height={rackHeightPx}
@@ -86,7 +88,7 @@ export const RackRenderer = ({
               {!fullScreenInstrument ? (
                 <div
                   className={styles.rows}
-                  style={{ height: rackHeightPx }}
+                  style={{ minHeight: rackHeightPx, height: '100%' }}
                   data-testid="rack-rows"
                 >
                   {isEditMode ? (

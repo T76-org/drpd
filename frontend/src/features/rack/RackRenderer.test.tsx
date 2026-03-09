@@ -45,12 +45,18 @@ describe('RackRenderer', () => {
     )
 
     const rackCanvas = container.querySelector('[data-rack-width]')
+    const rackScroll = container.querySelector('[class*="rackScroll"]')
     expect(rackCanvas).not.toBeNull()
+    expect(rackScroll).not.toBeNull()
     expect(rackCanvas).toHaveAttribute('data-rack-width', '960')
     expect(rackCanvas).toHaveAttribute('data-rack-height', '600')
-    expect(rackCanvas).toHaveStyle({ width: '960px', height: '600px' })
+    expect(rackCanvas).toHaveStyle({ width: '960px', minHeight: '600px', height: '100%' })
+    expect(rackScroll).toHaveStyle({ width: '960px', minHeight: '600px', height: '100%' })
     expect(rackCanvas).not.toHaveStyle({ transform: 'scale(1)' })
 
-    expect(screen.getByTestId('rack-rows')).toHaveStyle({ height: '600px' })
+    expect(screen.getByTestId('rack-rows')).toHaveStyle({
+      minHeight: '600px',
+      height: '100%'
+    })
   })
 })
