@@ -1145,7 +1145,7 @@ export const RackView = () => {
                               className={styles.deviceMenuItem}
                               onClick={handleConnectDevice}
                             >
-                              Add Device
+                              Pair Device
                             </button>
                             <div className={styles.deviceMenuSeparator} />
                             {deviceStates.length === 0 ? (

@@ -102,32 +102,28 @@
   letter-spacing: var(--letter-spacing-lg);
   cursor: pointer;
   font-size: var(--font-size-3xs);
+  padding: var(--space-1) var(--space-4);
 }
 
 .editButton {
   background: transparent;
-  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .editButtonSecondary {
   background: transparent;
-  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .editButtonPrimary {
   border-color: var(--color-edit-glow);
   background: var(--color-surface-panel-accent);
-  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .themeButton {
   background: var(--color-surface-panel);
-  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .deviceMenuButton {
   background: var(--color-surface-panel);
-  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .deviceMenuButton:disabled {
