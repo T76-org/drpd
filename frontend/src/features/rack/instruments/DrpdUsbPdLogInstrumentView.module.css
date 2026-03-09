@@ -6,6 +6,16 @@
 }
 
 .wrapper {
+  --column-width-timestamp: 11ch;
+  --column-width-duration: 8ch;
+  --column-width-delta: 12ch;
+  --column-width-id: 3ch;
+  --column-width-message-type: 29ch;
+  --column-width-sender: 10ch;
+  --column-width-receiver: 10ch;
+  --column-width-sop-type: 5ch;
+  --column-width-valid: 5ch;
+
   height: 100%;
   width: 100%;
   min-height: 0;
@@ -20,23 +30,23 @@
 .headerRow {
   display: grid;
   grid-template-columns:
-    var(--message-log-column-width-timestamp)
-    var(--message-log-column-width-duration)
-    var(--message-log-column-width-delta)
-    var(--message-log-column-width-id)
-    var(--message-log-column-width-message-type)
-    var(--message-log-column-width-sender)
-    var(--message-log-column-width-receiver)
-    var(--message-log-column-width-sop-type)
-    var(--message-log-column-width-valid);
-  padding: var(--space-0) var(--message-log-header-padding-x);
-  border-top: var(--border-thin) solid var(--message-log-header-top-border);
-  border-bottom: var(--border-thin) solid var(--message-log-header-bottom-border);
-  background: var(--message-log-header-background);
-  font-size: var(--message-log-header-font-size);
-  letter-spacing: var(--message-log-header-letter-spacing);
+    var(--column-width-timestamp)
+    var(--column-width-duration)
+    var(--column-width-delta)
+    var(--column-width-id)
+    var(--column-width-message-type)
+    var(--column-width-sender)
+    var(--column-width-receiver)
+    var(--column-width-sop-type)
+    var(--column-width-valid);
+  padding: var(--space-0) var(--space-8);
+  border-top: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 95%, transparent);
+  background: color-mix(in srgb, var(--color-surface-panel-accent) 88%, var(--color-surface-instrument) 12%);
+  font-size: var(--font-size-3xs);
+  letter-spacing: var(--letter-spacing-sm);
   text-transform: uppercase;
-  color: var(--message-log-header-text-color);
+  color: color-mix(in srgb, var(--color-text-muted) 92%, var(--color-text-primary) 8%);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -51,7 +61,7 @@
 }
 
 .headerRow > span {
-  justify-self: var(--message-log-header-default-align);
+  justify-self: center;
 }
 
 .viewport {
@@ -59,9 +69,9 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: var(--message-log-viewport-background);
+  background: var(--color-surface-instrument);
   scrollbar-width: thin;
-  scrollbar-color: var(--message-log-scrollbar-thumb) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
 .viewport:focus {
@@ -78,12 +88,12 @@
 }
 
 .viewport::-webkit-scrollbar-thumb {
-  background: var(--message-log-scrollbar-thumb);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 0;
 }
 
 .viewport::-webkit-scrollbar-thumb:hover {
-  background: var(--message-log-scrollbar-thumb-hover);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .canvas {
@@ -95,24 +105,24 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: var(--message-log-row-height);
+  height: 14px;
   display: grid;
   grid-template-columns:
-    var(--message-log-column-width-timestamp)
-    var(--message-log-column-width-duration)
-    var(--message-log-column-width-delta)
-    var(--message-log-column-width-id)
-    var(--message-log-column-width-message-type)
-    var(--message-log-column-width-sender)
-    var(--message-log-column-width-receiver)
-    var(--message-log-column-width-sop-type)
-    var(--message-log-column-width-valid);
+    var(--column-width-timestamp)
+    var(--column-width-duration)
+    var(--column-width-delta)
+    var(--column-width-id)
+    var(--column-width-message-type)
+    var(--column-width-sender)
+    var(--column-width-receiver)
+    var(--column-width-sop-type)
+    var(--column-width-valid);
   align-items: center;
-  padding: 0 var(--message-log-row-padding-x);
-  border-bottom: var(--border-thin) solid var(--message-log-row-border);
-  font-size: var(--message-log-row-font-size);
+  padding: 0 var(--space-8);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 40%, transparent);
+  font-size: var(--font-size-3xs);
   font-variant-numeric: tabular-nums;
-  color: var(--message-log-row-text-color);
+  color: var(--color-text-primary);
   cursor: default;
 }
 
@@ -124,11 +134,11 @@
 }
 
 .dataRow > .right {
-  justify-self: var(--message-log-cell-right-align);
+  justify-self: end;
 }
 
 .dataRow > .center {
-  justify-self: var(--message-log-cell-center-align);
+  justify-self: center;
 }
 
 .eventRow {
@@ -151,14 +161,14 @@
 }
 
 .selectedRow {
-  background: var(--message-log-selected-row-background);
-  box-shadow: inset 0 0 0 var(--border-thin) var(--message-log-selected-row-outline);
+  background: color-mix(in srgb, var(--color-status-info) 30%, transparent);
+  box-shadow: inset 0 0 0 var(--border-thin) color-mix(in srgb, var(--color-status-info) 80%, white 20%);
 }
 
 .eventLabel {
   grid-column: 1 / -1;
   justify-self: stretch;
-  text-align: var(--message-log-event-label-align);
+  text-align: left;
 }
 
 .headerPopup {

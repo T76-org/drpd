@@ -249,6 +249,37 @@ describe('SQLiteWasmStore', () => {
     expect(window.latestTimestampUs).toBe(2_400n)
   })
 
+  it('keeps a pulse visible while its waveform still overlaps the window', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    await store.insertCapturedMessage({
+      ...buildMessage(0),
+      startTimestampUs: 1_000n,
+      endTimestampUs: 1_001n,
+      displayTimestampUs: 1_000n,
+      rawPulseWidths: Float64Array.from([1_200, 1_300, 1_400]),
+    })
+    await store.insertCapturedMessage({
+      ...buildMessage(1),
+      startTimestampUs: 2_000n,
+      endTimestampUs: 2_001n,
+      displayTimestampUs: 2_000n,
+      rawPulseWidths: Float64Array.from([100]),
+    })
+
+    const window = await store.queryMessageLogTimeStripWindow({
+      windowStartUs: 1_003n,
+      windowDurationUs: 2n,
+      analogPointBudget: 10,
+    })
+
+    expect(window.pulses).toHaveLength(1)
+    expect(window.pulses[0]?.endTimestampUs).toBe(1_001n)
+    expect(window.pulses[0]?.traceEndTimestampUs).toBe(1_004n)
+    expect(window.windowStartUs).toBe(1_003n)
+  })
+
   it('exports deterministic JSON and CSV payloads and clears scoped tables', async () => {
     const store = new SQLiteWasmStore()
     await store.init()

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampWindowStartUs,
+  computePulseTraceEndTimestampUs,
   formatDeviceTimestampUs,
   formatWallClock,
   interpolateDisplayTimestampUs,
@@ -49,5 +50,14 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
   it('formats axis labels for display and wall clock', () => {
     expect(formatDeviceTimestampUs(1_500n)).toBe('1500')
     expect(formatWallClock(1_700_000_000_123)).toMatch(/\d{2}:\d{2}:\d{2}\.\d{3}/)
+  })
+
+  it('extends the waveform end to the end of the last pulse', () => {
+    expect(
+      computePulseTraceEndTimestampUs(1_000n, Float64Array.from([1_200, 1_300, 1_400]), 1_001n),
+    ).toBe(1_004n)
+    expect(
+      computePulseTraceEndTimestampUs(1_000n, Float64Array.from([100, 200]), 1_005n),
+    ).toBe(1_005n)
   })
 })

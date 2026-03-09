@@ -85,7 +85,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
 
     if (selectedPulse) {
       const left = xScale(Number(selectedPulse.startTimestampUs))
-      const right = xScale(Number(selectedPulse.endTimestampUs))
+      const right = xScale(Number(selectedPulse.traceEndTimestampUs))
       context.fillStyle = DRPD_USB_PD_LOG_CONFIG.stripPulse.highlightFill
       context.fillRect(left, 0, Math.max(1, right - left), PULSE_HEIGHT_PX)
     }
@@ -104,7 +104,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
         stateHigh = !stateHigh
         context.lineTo(x, stateHigh ? highY : lowY)
       }
-      const pulseEndX = xScale(Number(pulse.endTimestampUs))
+      const pulseEndX = xScale(Number(pulse.traceEndTimestampUs))
       context.lineTo(pulseEndX, stateHigh ? highY : lowY)
       if (stateHigh) {
         context.lineTo(pulseEndX, lowY)
@@ -155,7 +155,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
 
     if (selectedPulse) {
       const left = xScale(Number(selectedPulse.startTimestampUs))
-      const right = xScale(Number(selectedPulse.endTimestampUs))
+      const right = xScale(Number(selectedPulse.traceEndTimestampUs))
       context.fillStyle = DRPD_USB_PD_LOG_CONFIG.stripAnalog.selectionFill
       context.fillRect(left, 0, Math.max(1, right - left), ANALOG_HEIGHT_PX)
     }

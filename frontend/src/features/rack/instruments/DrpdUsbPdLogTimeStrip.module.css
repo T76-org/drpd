@@ -1,60 +1,14 @@
 .timeStripShell {
   display: grid;
-  gap: var(--timestrip-shell-gap);
-  padding:
-    var(--timestrip-shell-padding-top)
-    var(--timestrip-shell-padding-right)
-    var(--timestrip-shell-padding-bottom)
-    var(--timestrip-shell-padding-left);
-  border-bottom: var(--border-thin) solid var(--timestrip-shell-border-color);
-  background: var(--timestrip-shell-background);
-}
-
-.timeStripToolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--timestrip-toolbar-gap);
-}
-
-.timeStripMeta {
-  display: grid;
   gap: 2px;
-  min-width: 0;
-}
-
-.timeStripMeta span:first-child {
-  font-size: var(--font-size-3xs);
-  letter-spacing: var(--letter-spacing-md);
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text-muted) 90%, white 10%);
-}
-
-.timeStripMeta span:last-child {
-  font-size: var(--font-size-3xs);
-  color: color-mix(in srgb, var(--color-text-primary) 82%, var(--color-text-muted) 18%);
-}
-
-.timeStripButtons {
-  display: flex;
-  gap: var(--timestrip-button-gap);
-}
-
-.timeStripButton {
-  border: var(--border-thin) solid var(--timestrip-button-border-color);
-  background: var(--timestrip-button-background);
-  color: var(--timestrip-button-text-color);
-  font-size: var(--timestrip-button-font-size);
-  text-transform: uppercase;
-  letter-spacing: var(--timestrip-button-letter-spacing);
-  padding: var(--timestrip-button-padding-y) var(--timestrip-button-padding-x);
-  min-width: var(--timestrip-button-min-width);
-  cursor: pointer;
-}
-
-.timeStripButton:disabled {
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
+  padding: 2px 3px 2px 3px;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-panel-accent) 70%, var(--color-surface-instrument) 30%),
+      color-mix(in srgb, var(--color-surface-instrument) 94%, black 6%)
+    );
 }
 
 .timeStripViewport {
@@ -63,37 +17,19 @@
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  background: var(--timestrip-viewport-background);
-  border: var(--border-thin) solid var(--timestrip-viewport-border-color);
-}
-
-.timeStripScrollbar {
-  overflow-x: auto;
-  overflow-y: hidden;
-  height: var(--timestrip-scrollbar-height);
-  scrollbar-width: thin;
-  scrollbar-color: var(--timestrip-scrollbar-thumb-firefox) transparent;
-}
-
-.timeStripScrollbar::-webkit-scrollbar {
-  height: var(--timestrip-scrollbar-height);
-}
-
-.timeStripScrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.timeStripScrollbar::-webkit-scrollbar-thumb {
-  background: var(--timestrip-scrollbar-thumb);
-}
-
-.timeStripScrollbarTrack {
-  height: var(--timestrip-scrollbar-track-height);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-panel) 45%, transparent),
+      transparent 22%,
+      color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%)
+    );
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 72%, transparent);
 }
 
 .axisLane {
   position: relative;
-  border-bottom: var(--border-thin) solid var(--timestrip-axis-border-color);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 55%, transparent);
 }
 
 .axisSvg {
@@ -102,13 +38,13 @@
 }
 
 .axisTick {
-  stroke: var(--timestrip-axis-tick-stroke);
-  stroke-width: var(--timestrip-axis-tick-stroke-width);
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 1;
 }
 
 .axisDeviceLabel {
-  fill: var(--timestrip-axis-label-color);
-  font-size: var(--timestrip-axis-label-font-size);
+  fill: color-mix(in srgb, var(--color-text-primary) 92%, white 8%);
+  font-size: 5px;
   dominant-baseline: middle;
 }
 
@@ -118,7 +54,7 @@
 }
 
 .pulseLane {
-  border-bottom: var(--border-thin) solid var(--timestrip-pulse-border-color);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 45%, transparent);
 }
 
 .pulseLane canvas,

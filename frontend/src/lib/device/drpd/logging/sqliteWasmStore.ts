@@ -269,6 +269,23 @@ const downsampleAnalogRows = (
 }
 
 /**
+ * Compute the waveform end timestamp from a logged message pulse sequence.
+ *
+ * @param row - Logged captured message row.
+ * @returns Waveform end timestamp.
+ */
+const computePulseTraceEndTimestampUs = (
+  row: Pick<LoggedCapturedMessage, 'startTimestampUs' | 'endTimestampUs' | 'rawPulseWidths'>,
+): bigint => {
+  let totalDurationUs = 0
+  for (const widthNs of row.rawPulseWidths) {
+    totalDurationUs += widthNs / 1_000
+  }
+  const derivedEndTimestampUs = row.startTimestampUs + BigInt(Math.ceil(totalDurationUs))
+  return derivedEndTimestampUs > row.endTimestampUs ? derivedEndTimestampUs : row.endTimestampUs
+}
+
+/**
  * Convert a SQL blob value into bytes.
  *
  * @param value - SQL row value.
@@ -348,6 +365,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
   protected config: DRPDLoggingConfig ///< Retention and control settings.
   protected initialized: boolean ///< True once init has completed.
   protected trimStats: { analog: number; messages: number } ///< Trim counters.
+  protected maxObservedPulseTraceDurationUs: bigint | null ///< Largest pulse-trace duration seen so far.
   protected db?: Database ///< Open SQLite database handle.
   protected memoryFallback?: MemoryFallbackState ///< Test/runtime fallback if SQLite cannot start.
   protected backendKind: 'sqlite-opfs' | 'sqlite-memory' | 'memory-fallback' ///< Active backend kind.
@@ -361,6 +379,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     this.config = normalizeLoggingConfig(config)
     this.initialized = false
     this.trimStats = { analog: 0, messages: 0 }
+    this.maxObservedPulseTraceDurationUs = null
     this.backendKind = 'memory-fallback'
   }
 
@@ -468,6 +487,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
    */
   public async insertCapturedMessage(message: LoggedCapturedMessage): Promise<void> {
     this.ensureInitialized()
+    this.notePulseTraceDuration(message)
     if (this.memoryFallback) {
       this.memoryFallback.capturedMessages.push(message)
       await this.trimCapturedMessagesIfNeededMemory()
@@ -742,16 +762,19 @@ export class SQLiteWasmStore implements DRPDLogStore {
     )
     const windowEndUs = windowStartUs + normalizedDurationUs
     const analogBudget = normalizeAnalogPointBudget(query.analogPointBudget)
+    const maxPulseTraceDurationUs = await this.getMaxObservedPulseTraceDurationUs()
+    const messageLookbackUs =
+      maxPulseTraceDurationUs > normalizedDurationUs ? maxPulseTraceDurationUs : normalizedDurationUs
     const messages = (
       await this.queryCapturedMessages({
-        startTimestampUs: windowStartUs > normalizedDurationUs ? windowStartUs - normalizedDurationUs : 0n,
+        startTimestampUs: windowStartUs > messageLookbackUs ? windowStartUs - messageLookbackUs : 0n,
         endTimestampUs: windowEndUs,
         sortOrder: 'asc',
       })
     ).filter(
       (row) =>
         row.entryKind === 'message' &&
-        row.endTimestampUs >= windowStartUs &&
+        computePulseTraceEndTimestampUs(row) >= windowStartUs &&
         row.startTimestampUs <= windowEndUs,
     )
     const analogRows = downsampleAnalogRows(
@@ -761,10 +784,12 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const pulses = messages.map<MessageLogPulseSegment>((row) => {
       const durationUs = row.endTimestampUs - row.startTimestampUs
       const displayStartTimestampUs = row.displayTimestampUs
+      const traceEndTimestampUs = computePulseTraceEndTimestampUs(row)
       return {
         selectionKey: buildSelectionKey(row),
         startTimestampUs: row.startTimestampUs,
         endTimestampUs: row.endTimestampUs,
+        traceEndTimestampUs,
         displayStartTimestampUs,
         displayEndTimestampUs:
           displayStartTimestampUs === null ? null : displayStartTimestampUs + durationUs,
@@ -943,6 +968,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       if (scope === 'messages' || scope === 'all') {
         result.messagesDeleted = this.memoryFallback.capturedMessages.length
         this.memoryFallback.capturedMessages = []
+        this.maxObservedPulseTraceDurationUs = null
       }
       return result
     }
@@ -960,6 +986,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     if (scope === 'messages' || scope === 'all') {
       result.messagesDeleted = this.selectCount('SELECT COUNT(*) FROM captured_messages')
       db.exec('DELETE FROM captured_messages')
+      this.maxObservedPulseTraceDurationUs = null
     }
 
     return result
@@ -1159,6 +1186,72 @@ export class SQLiteWasmStore implements DRPDLogStore {
           ? latestDisplayCandidates.reduce((maximum, value) => value > maximum ? value : maximum)
           : null,
     }
+  }
+
+  /**
+   * Track one message trace duration for future time-strip lookback windows.
+   *
+   * @param row - Captured message row.
+   */
+  protected notePulseTraceDuration(
+    row: Pick<LoggedCapturedMessage, 'entryKind' | 'startTimestampUs' | 'endTimestampUs' | 'rawPulseWidths'>,
+  ): void {
+    if (row.entryKind !== 'message') {
+      return
+    }
+    const traceDurationUs = computePulseTraceEndTimestampUs(row) - row.startTimestampUs
+    if (this.maxObservedPulseTraceDurationUs === null || traceDurationUs > this.maxObservedPulseTraceDurationUs) {
+      this.maxObservedPulseTraceDurationUs = traceDurationUs
+    }
+  }
+
+  /**
+   * Return the maximum known pulse-trace duration across logged messages.
+   *
+   * @returns Largest derived trace duration in microseconds.
+   */
+  protected async getMaxObservedPulseTraceDurationUs(): Promise<bigint> {
+    if (this.maxObservedPulseTraceDurationUs !== null) {
+      return this.maxObservedPulseTraceDurationUs
+    }
+    this.ensureInitialized()
+    let maximumDurationUs = 0n
+    if (this.memoryFallback) {
+      for (const row of this.memoryFallback.capturedMessages) {
+        if (row.entryKind !== 'message') {
+          continue
+        }
+        const traceDurationUs = computePulseTraceEndTimestampUs(row) - row.startTimestampUs
+        if (traceDurationUs > maximumDurationUs) {
+          maximumDurationUs = traceDurationUs
+        }
+      }
+      this.maxObservedPulseTraceDurationUs = maximumDurationUs
+      return maximumDurationUs
+    }
+    const records = this.requireDb().selectObjects(
+      [
+        'SELECT entry_kind, start_timestamp_us, end_timestamp_us, raw_pulse_widths',
+        'FROM captured_messages',
+        "WHERE entry_kind = 'message'",
+      ].join(' '),
+    )
+    for (const record of records) {
+      const row = {
+        entryKind: 'message' as const,
+        startTimestampUs: toBigIntValue(record.start_timestamp_us as SqlValue, 'message.start_timestamp_us'),
+        endTimestampUs: toBigIntValue(record.end_timestamp_us as SqlValue, 'message.end_timestamp_us'),
+        rawPulseWidths: decodePulseWidthsLE(
+          toBlobValue(record.raw_pulse_widths as SqlValue, 'message.raw_pulse_widths'),
+        ),
+      }
+      const traceDurationUs = computePulseTraceEndTimestampUs(row) - row.startTimestampUs
+      if (traceDurationUs > maximumDurationUs) {
+        maximumDurationUs = traceDurationUs
+      }
+    }
+    this.maxObservedPulseTraceDurationUs = maximumDurationUs
+    return maximumDurationUs
   }
 
   /**

@@ -124,6 +124,29 @@ export const formatDeviceTimestampUs = (valueUs: bigint | null): string => {
 }
 
 /**
+ * Compute the waveform end timestamp from the pulse sequence.
+ *
+ * @param startTimestampUs - Capture start timestamp.
+ * @param pulseWidthsNs - Pulse widths in nanoseconds.
+ * @param fallbackEndTimestampUs - Fallback message end timestamp.
+ * @returns Waveform end timestamp.
+ */
+export const computePulseTraceEndTimestampUs = (
+  startTimestampUs: bigint,
+  pulseWidthsNs: Float64Array,
+  fallbackEndTimestampUs: bigint,
+): bigint => {
+  let totalDurationUs = 0
+  for (const widthNs of pulseWidthsNs) {
+    totalDurationUs += widthNs / 1_000
+  }
+  const derivedEndTimestampUs = startTimestampUs + BigInt(Math.ceil(totalDurationUs))
+  return derivedEndTimestampUs > fallbackEndTimestampUs
+    ? derivedEndTimestampUs
+    : fallbackEndTimestampUs
+}
+
+/**
  * Format one wall-clock label.
  *
  * @param wallClockMs - Host timestamp.

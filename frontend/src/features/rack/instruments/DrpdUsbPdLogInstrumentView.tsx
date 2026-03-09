@@ -25,10 +25,7 @@ import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
-import {
-  buildDrpdUsbPdLogStyleVariables,
-  DRPD_USB_PD_LOG_CONFIG,
-} from './DrpdUsbPdLogTimeStrip.config'
+import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import { DrpdUsbPdLogTimeStrip } from './DrpdUsbPdLogTimeStrip'
 
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
@@ -300,7 +297,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   )
   const activeSelectedKey =
     selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
-  const styleVariables = buildDrpdUsbPdLogStyleVariables()
 
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT_PX) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / ROW_HEIGHT_PX) + OVERSCAN_ROWS * 2
@@ -1002,7 +998,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     >
       <div
         className={styles.wrapper}
-        style={{ ...styleVariables, ...eventRowStyle }}
+        style={eventRowStyle}
         data-testid="drpd-usbpd-log"
       >
         <DrpdUsbPdLogTimeStrip

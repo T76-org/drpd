@@ -172,6 +172,8 @@ export interface MessageLogPulseSegment {
   startTimestampUs: bigint
   ///< Capture end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Waveform end timestamp derived from the pulse sequence.
+  traceEndTimestampUs: bigint
   ///< Display start timestamp in microseconds relative to the active logging epoch.
   displayStartTimestampUs: bigint | null
   ///< Display end timestamp in microseconds relative to the active logging epoch.

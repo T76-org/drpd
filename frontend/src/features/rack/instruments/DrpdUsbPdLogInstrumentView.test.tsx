@@ -10,6 +10,7 @@ import {
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
+import { computePulseTraceEndTimestampUs } from './DrpdUsbPdLogTimeStrip.utils'
 
 class TestLogDriver extends EventTarget {
   public rows: LoggedCapturedMessage[]
@@ -119,6 +120,11 @@ class TestLogDriver extends EventTarget {
         selectionKey: buildCapturedLogSelectionKey(row),
         startTimestampUs: row.startTimestampUs,
         endTimestampUs: row.endTimestampUs,
+        traceEndTimestampUs: computePulseTraceEndTimestampUs(
+          row.startTimestampUs,
+          row.rawPulseWidths,
+          row.endTimestampUs,
+        ),
         displayStartTimestampUs: row.displayTimestampUs,
         displayEndTimestampUs:
           row.displayTimestampUs === null
@@ -234,7 +240,7 @@ afterEach(() => {
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
-  it('renders the time strip above the table with zoom controls', async () => {
+  it('renders the time strip above the table', async () => {
     class ResizeObserverMock {
       public callback: ResizeObserverCallback
 
@@ -292,8 +298,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(
       Boolean(timeStrip.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING),
     ).toBe(true)
-    expect(screen.getByRole('button', { name: 'Zoom In' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Zoom Out' })).toBeInTheDocument()
     expect(header).toBeInTheDocument()
   })
 

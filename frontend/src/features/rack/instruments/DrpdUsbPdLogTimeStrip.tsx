@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type PointerEvent,
@@ -9,7 +8,6 @@ import {
 import type { MessageLogTimeStripWindow } from '../../../lib/device'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
-import { buildDrpdUsbPdLogStyleVariables } from './DrpdUsbPdLogTimeStrip.config'
 import { DrpdUsbPdLogTimeStripRenderer } from './DrpdUsbPdLogTimeStripRenderer'
 import {
   DEFAULT_WINDOW_US,
@@ -31,12 +29,9 @@ export const DrpdUsbPdLogTimeStrip = ({
   selectedKey: string | null
   isEditMode: boolean
 }) => {
-  const styleVariables = buildDrpdUsbPdLogStyleVariables()
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const scrollbarRef = useRef<HTMLDivElement | null>(null)
   const initialAlignmentDoneRef = useRef(false)
   const panRef = useRef<{ pointerId: number; startX: number; startWindowStartUs: bigint } | null>(null)
-  const suppressScrollSyncRef = useRef(false)
   const [width, setWidth] = useState(0)
   const [windowDurationUs, setWindowDurationUs] = useState(DEFAULT_WINDOW_US)
   const [windowStartUs, setWindowStartUs] = useState(0n)
@@ -126,75 +121,11 @@ export const DrpdUsbPdLogTimeStrip = ({
     })
   }, [data?.earliestTimestampUs, data?.latestTimestampUs, selectedKey, windowDurationUs])
 
-  const scrollModel = useMemo(() => {
-    const earliestTimestampUs = data?.earliestTimestampUs ?? null
-    const latestTimestampUs = data?.latestTimestampUs ?? null
-    if (earliestTimestampUs === null || latestTimestampUs === null) {
-      return {
-        enabled: false,
-        contentWidthPx: Math.max(width, 1),
-        maxScrollLeftPx: 0,
-        maxOffsetUs: 0n,
-      }
-    }
-    const rawMaxOffsetUs = latestTimestampUs - earliestTimestampUs - windowDurationUs
-    const maxOffsetUs = rawMaxOffsetUs > 0n ? rawMaxOffsetUs : 0n
-    const contentWidthPx =
-      maxOffsetUs === 0n
-        ? Math.max(width, 1)
-        : Math.max(width + Math.min(12_000, Math.max(width, 1) * 6), width + 1)
-    return {
-      enabled: maxOffsetUs > 0n,
-      contentWidthPx,
-      maxScrollLeftPx: Math.max(0, contentWidthPx - Math.max(width, 1)),
-      maxOffsetUs,
-    }
-  }, [data?.earliestTimestampUs, data?.latestTimestampUs, width, windowDurationUs])
-
-  useEffect(() => {
-    const scrollbar = scrollbarRef.current
-    if (!scrollbar || !scrollModel.enabled || !data?.earliestTimestampUs) {
-      if (scrollbar) {
-        suppressScrollSyncRef.current = true
-        scrollbar.scrollLeft = 0
-        requestAnimationFrame(() => {
-          suppressScrollSyncRef.current = false
-        })
-      }
-      return
-    }
-    const offsetUs = windowStartUs - data.earliestTimestampUs
-    const ratio =
-      scrollModel.maxOffsetUs > 0n
-        ? Number(offsetUs) / Number(scrollModel.maxOffsetUs)
-        : 0
-    const nextScrollLeft = Math.max(
-      0,
-      Math.min(scrollModel.maxScrollLeftPx, Math.round(ratio * scrollModel.maxScrollLeftPx)),
-    )
-    suppressScrollSyncRef.current = true
-    scrollbar.scrollLeft = nextScrollLeft
-    requestAnimationFrame(() => {
-      suppressScrollSyncRef.current = false
-    })
-  }, [
-    data?.earliestTimestampUs,
-    scrollModel.contentWidthPx,
-    scrollModel.enabled,
-    scrollModel.maxOffsetUs,
-    scrollModel.maxScrollLeftPx,
-    windowStartUs,
-  ])
-
-  /**
-   * Apply a new zoom level around the current window center.
-   *
-   * @param direction - Zoom direction.
-   */
-  const handleZoom = (direction: 'in' | 'out'): void => {
+  const handleZoom = (direction: 'in' | 'out', centerRatio = 0.5): void => {
     setWindowDurationUs((currentDurationUs) => {
       const nextDurationUs = zoomWindowDurationUs(currentDurationUs, direction)
-      const centerUs = windowStartUs + currentDurationUs / 2n
+      const centerOffsetUs = BigInt(Math.round(Number(currentDurationUs) * centerRatio))
+      const centerUs = windowStartUs + centerOffsetUs
       const nextStartUs = clampWindowStartUs(
         centerUs - nextDurationUs / 2n,
         nextDurationUs,
@@ -261,6 +192,13 @@ export const DrpdUsbPdLogTimeStrip = ({
     if (width <= 0) {
       return
     }
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault()
+      const rect = event.currentTarget.getBoundingClientRect()
+      const relativeX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5
+      handleZoom(event.deltaY < 0 ? 'in' : 'out', Math.max(0, Math.min(1, relativeX)))
+      return
+    }
     const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
       ? event.deltaX
       : event.deltaY
@@ -279,59 +217,8 @@ export const DrpdUsbPdLogTimeStrip = ({
     )
   }
 
-  /**
-   * Scroll the visible window across the available time range.
-   *
-   * @param scrollLeftPx - Horizontal scrollbar offset.
-   */
-  const handleScrollbarScroll = (scrollLeftPx: number): void => {
-    if (
-      suppressScrollSyncRef.current ||
-      !scrollModel.enabled ||
-      !data?.earliestTimestampUs ||
-      scrollModel.maxScrollLeftPx <= 0
-    ) {
-      return
-    }
-    const ratio = scrollLeftPx / scrollModel.maxScrollLeftPx
-    const offsetUs = BigInt(Math.round(ratio * Number(scrollModel.maxOffsetUs)))
-    setWindowStartUs(
-      clampWindowStartUs(
-        data.earliestTimestampUs + offsetUs,
-        windowDurationUs,
-        data.earliestTimestampUs,
-        data.latestTimestampUs,
-      ),
-    )
-  }
-
   return (
-    <div className={styles.timeStripShell} ref={containerRef} style={styleVariables}>
-      <div className={styles.timeStripToolbar}>
-        <div className={styles.timeStripMeta} />
-        <div className={styles.timeStripButtons}>
-          <button
-            type="button"
-            className={styles.timeStripButton}
-            onClick={() => {
-              handleZoom('out')
-            }}
-            disabled={isEditMode}
-          >
-            Zoom Out
-          </button>
-          <button
-            type="button"
-            className={styles.timeStripButton}
-            onClick={() => {
-              handleZoom('in')
-            }}
-            disabled={isEditMode}
-          >
-            Zoom In
-          </button>
-        </div>
-      </div>
+    <div className={styles.timeStripShell} ref={containerRef}>
       <DrpdUsbPdLogTimeStripRenderer
         width={Math.max(width, 1)}
         data={data}
@@ -342,19 +229,6 @@ export const DrpdUsbPdLogTimeStrip = ({
         onPointerCancel={handlePointerEnd}
         onWheel={handleWheel}
       />
-      <div
-        ref={scrollbarRef}
-        className={styles.timeStripScrollbar}
-        onScroll={(event) => {
-          handleScrollbarScroll(event.currentTarget.scrollLeft)
-        }}
-        data-testid="drpd-usbpd-log-timestrip-scrollbar"
-      >
-        <div
-          className={styles.timeStripScrollbarTrack}
-          style={{ width: `${scrollModel.contentWidthPx}px` }}
-        />
-      </div>
     </div>
   )
 }
