@@ -19,28 +19,11 @@ export const DRPD_USB_PD_LOG_CONFIG = {
   },
   stripAxis: {
     tickTargetSpacingPx: 96, ///< Desired spacing between timestamp ticks.
-    labelYpx: 5, ///< Timestamp label baseline position.
-  },
-  stripPulse: {
-    strokeColor: 'rgba(145, 208, 255, 0.92)', ///< Pulse waveform stroke color.
-    strokeWidthPx: 1, ///< Pulse waveform stroke width.
-    highlightFill: 'rgba(145, 208, 255, 0.14)', ///< Selected pulse highlight color.
-    highYpx: 7, ///< High-state waveform y-position.
-    lowInsetBottomPx: 7, ///< Low-state inset from the lane bottom.
   },
   stripAnalog: {
     voltageMax: 60, ///< Fixed VBUS vertical range maximum in volts.
     currentMax: 6, ///< Fixed IBUS vertical range maximum in amps.
     gridMarks: [0, 15, 30, 45, 60], ///< Horizontal guide marks for the analog lane.
-    topInsetPx: 8, ///< Analog trace top inset.
-    bottomInsetPx: 8, ///< Analog trace bottom inset.
-    gridStroke: 'rgba(255, 255, 255, 0.08)', ///< Analog grid line color.
-    gridStrokeWidthPx: 1, ///< Analog grid line width.
-    selectionFill: 'rgba(145, 208, 255, 0.10)', ///< Selected message highlight in analog lane.
-    voltageStroke: 'rgba(255, 196, 92, 0.95)', ///< VBUS trace color.
-    currentStroke: 'rgba(119, 232, 171, 0.95)', ///< IBUS trace color.
-    traceStrokeWidthPx: 1.5, ///< Analog trace line width.
-    pointRadiusPx: 1.8, ///< Analog sample point radius.
     markerPointLimit: 256, ///< Maximum analog marker count before switching to path-only rendering.
   },
   tableBehavior: {

@@ -1,3 +1,4 @@
+/* Root wrapper for the time-strip block above the message table. */
 .timeStripShell {
   display: grid;
   gap: 2px;
@@ -11,7 +12,29 @@
     );
 }
 
+/* Interactive viewport that owns strip-level visual custom properties. */
 .timeStripViewport {
+  --timestrip-axis-label-y: 5px;
+  --timestrip-plot-inset-left: 18px;
+  --timestrip-plot-inset-right: 18px;
+  --timestrip-axis-tick-stroke: rgba(255, 255, 255, 0.1);
+  --timestrip-axis-tick-stroke-width: 1px;
+  --timestrip-axis-label-fill: color-mix(in srgb, var(--color-text-primary) 92%, white 8%);
+  --timestrip-axis-label-font-size: 5px;
+  --timestrip-pulse-stroke: rgba(145, 208, 255, 0.92);
+  --timestrip-pulse-stroke-width: 1px;
+  --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
+  --timestrip-pulse-high-y: 7px;
+  --timestrip-pulse-low-inset-bottom: 7px;
+  --timestrip-analog-top-inset: 8px;
+  --timestrip-analog-bottom-inset: 8px;
+  --timestrip-analog-grid-stroke: rgba(255, 255, 255, 0.08);
+  --timestrip-analog-grid-stroke-width: 1px;
+  --timestrip-analog-selection-fill: rgba(145, 208, 255, 0.10);
+  --timestrip-analog-voltage-stroke: rgba(255, 196, 92, 0.95);
+  --timestrip-analog-current-stroke: rgba(119, 232, 171, 0.95);
+  --timestrip-analog-trace-stroke-width: 1.5px;
+  --timestrip-analog-point-radius: 1.8px;
   position: relative;
   overflow: hidden;
   touch-action: none;
@@ -27,38 +50,66 @@
   border: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 72%, transparent);
 }
 
+/* Timestamp lane at the top of the strip. */
 .axisLane {
   position: relative;
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 55%, transparent);
 }
 
+/* Full-size SVG used to render timestamp ticks and labels. */
 .axisSvg {
   position: absolute;
   inset: 0;
 }
 
+/* Vertical timestamp notch line. */
 .axisTick {
-  stroke: rgba(255, 255, 255, 0.1);
-  stroke-width: 1;
+  stroke: var(--timestrip-axis-tick-stroke);
+  stroke-width: var(--timestrip-axis-tick-stroke-width);
 }
 
+/* Timestamp label text on the axis SVG. */
 .axisDeviceLabel {
-  fill: color-mix(in srgb, var(--color-text-primary) 92%, white 8%);
-  font-size: 5px;
+  fill: var(--timestrip-axis-label-fill);
+  font-size: var(--timestrip-axis-label-font-size);
   dominant-baseline: middle;
 }
 
+/* Shared wrapper for the pulse and analog SVG lanes. */
 .pulseLane,
 .analogLane {
   position: relative;
 }
 
+/* Pulse waveform lane between the axis and analog chart. */
 .pulseLane {
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 45%, transparent);
 }
 
+/* Analog chart lane containing traces, grid, and Y-axis labels. */
+.analogLane {
+  --timestrip-analog-scale-label-font-size: 5px;
+}
+
+/* Full-size SVG used by the pulse and analog lanes. */
 .laneSvg {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Left-side analog scale label for the voltage axis. */
+.analogScaleLabelLeft {
+  fill: var(--timestrip-analog-voltage-stroke);
+  font-size: var(--timestrip-analog-scale-label-font-size);
+  dominant-baseline: middle;
+  text-anchor: start;
+}
+
+/* Right-side analog scale label for the current axis. */
+.analogScaleLabelRight {
+  fill: var(--timestrip-analog-current-stroke);
+  font-size: var(--timestrip-analog-scale-label-font-size);
+  dominant-baseline: middle;
+  text-anchor: end;
 }

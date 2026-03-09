@@ -12,6 +12,24 @@ import {
   findSelectedPulseSegment,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
+const parseCssPixels = (
+  value: string,
+  fallback: number,
+): number => {
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const formatScaleLabel = (
+  value: number,
+  suffix: string,
+): string => {
+  if (Number.isInteger(value)) {
+    return `${value}${suffix}`
+  }
+  return `${value.toFixed(1).replace(/\.0$/, '')}${suffix}`
+}
+
 /**
  * Render-only time-strip view.
  */
@@ -34,6 +52,39 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   onPointerUp?: PointerEventHandler<HTMLDivElement>
   onPointerCancel?: PointerEventHandler<HTMLDivElement>
 }) => {
+  const viewportStyle =
+    viewportRef?.current !== undefined && viewportRef.current !== null
+      ? getComputedStyle(viewportRef.current)
+      : null
+  const axisLabelY = parseCssPixels(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
+  const plotInsetLeft = parseCssPixels(
+    viewportStyle?.getPropertyValue('--timestrip-plot-inset-left') ?? '',
+    18,
+  )
+  const plotInsetRight = parseCssPixels(
+    viewportStyle?.getPropertyValue('--timestrip-plot-inset-right') ?? '',
+    18,
+  )
+  const pulseHighY = parseCssPixels(viewportStyle?.getPropertyValue('--timestrip-pulse-high-y') ?? '', 7)
+  const pulseLowInsetBottom = parseCssPixels(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-low-inset-bottom') ?? '',
+    7,
+  )
+  const analogTopInset = parseCssPixels(
+    viewportStyle?.getPropertyValue('--timestrip-analog-top-inset') ?? '',
+    8,
+  )
+  const analogBottomInset = parseCssPixels(
+    viewportStyle?.getPropertyValue('--timestrip-analog-bottom-inset') ?? '',
+    8,
+  )
+  const analogPointRadius = parseCssPixels(
+    viewportStyle?.getPropertyValue('--timestrip-analog-point-radius') ?? '',
+    1.8,
+  )
+  const plotLeftX = Math.min(Math.max(0, plotInsetLeft), Math.max(width, 1))
+  const plotRightX = Math.max(plotLeftX, Math.max(width, 1) - Math.max(0, plotInsetRight))
+  const plotWidth = Math.max(0, plotRightX - plotLeftX)
   const selectedPulse = useMemo(
     () => findSelectedPulseSegment(data?.pulses ?? [], selectedKey),
     [data?.pulses, selectedKey],
@@ -43,8 +94,8 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     const domainEnd = Number(data?.windowEndUs ?? 1n)
     return scaleLinear()
       .domain([domainStart, domainEnd > domainStart ? domainEnd : domainStart + 1])
-      .range([0, Math.max(width, 1)])
-  }, [data?.windowEndUs, data?.windowStartUs, width])
+      .range([plotLeftX, plotRightX])
+  }, [data?.windowEndUs, data?.windowStartUs, plotLeftX, plotRightX])
   const ticks = useMemo(() => {
     const targetCount = Math.max(
       2,
@@ -62,8 +113,8 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     if (!data) {
       return { highlight: null, paths: [] as string[] }
     }
-    const lowY = PULSE_HEIGHT_PX - DRPD_USB_PD_LOG_CONFIG.stripPulse.lowInsetBottomPx
-    const highY = DRPD_USB_PD_LOG_CONFIG.stripPulse.highYpx
+    const lowY = PULSE_HEIGHT_PX - pulseLowInsetBottom
+    const highY = pulseHighY
     const highlight = selectedPulse
       ? {
           x: xScale(Number(selectedPulse.startTimestampUs)),
@@ -94,23 +145,29 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       return commands.join(' ')
     })
     return { highlight, paths }
-  }, [data, selectedPulse, xScale])
+  }, [data, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
   const analogGeometry = useMemo(() => {
     const voltageScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax])
       .range([
-        ANALOG_HEIGHT_PX - DRPD_USB_PD_LOG_CONFIG.stripAnalog.bottomInsetPx,
-        DRPD_USB_PD_LOG_CONFIG.stripAnalog.topInsetPx,
+        ANALOG_HEIGHT_PX - analogBottomInset,
+        analogTopInset,
       ])
     const currentScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax])
       .range([
-        ANALOG_HEIGHT_PX - DRPD_USB_PD_LOG_CONFIG.stripAnalog.bottomInsetPx,
-        DRPD_USB_PD_LOG_CONFIG.stripAnalog.topInsetPx,
+        ANALOG_HEIGHT_PX - analogBottomInset,
+        analogTopInset,
       ])
     const gridLines = DRPD_USB_PD_LOG_CONFIG.stripAnalog.gridMarks.map((mark) => ({
       y: voltageScale(mark),
       key: mark,
+      voltageLabel: formatScaleLabel(mark, 'V'),
+      currentLabel: formatScaleLabel(
+        (mark / DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax) *
+          DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax,
+        'A',
+      ),
     }))
     if (!data) {
       return {
@@ -166,7 +223,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       voltageMarkers,
       currentMarkers,
     }
-  }, [data, selectedPulse, xScale])
+  }, [analogBottomInset, analogTopInset, data, selectedPulse, xScale])
 
   return (
     <div
@@ -186,7 +243,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
               <line className={styles.axisTick} y1={0} y2={AXIS_HEIGHT_PX} />
               <text
                 className={styles.axisDeviceLabel}
-                y={DRPD_USB_PD_LOG_CONFIG.stripAxis.labelYpx}
+                y={axisLabelY}
                 textAnchor="middle"
               >
                 {tick.deviceLabel}
@@ -197,85 +254,113 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       </div>
       <div className={styles.pulseLane} style={{ height: `${PULSE_HEIGHT_PX}px` }}>
         <svg className={styles.laneSvg} width={Math.max(width, 1)} height={PULSE_HEIGHT_PX}>
-          {pulseGeometry.highlight ? (
-            <rect
-              x={pulseGeometry.highlight.x}
-              y={0}
-              width={pulseGeometry.highlight.width}
-              height={PULSE_HEIGHT_PX}
-              fill={DRPD_USB_PD_LOG_CONFIG.stripPulse.highlightFill}
-            />
-          ) : null}
-          {pulseGeometry.paths.map((path, index) => (
-            <path
-              key={`${index}-${path.length}`}
-              d={path}
-              fill="none"
-              stroke={DRPD_USB_PD_LOG_CONFIG.stripPulse.strokeColor}
-              strokeWidth={DRPD_USB_PD_LOG_CONFIG.stripPulse.strokeWidthPx}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
+          <defs>
+            <clipPath id="drpd-usbpd-log-pulse-clip">
+              <rect x={plotLeftX} y={0} width={plotWidth} height={PULSE_HEIGHT_PX} />
+            </clipPath>
+          </defs>
+          <g clipPath="url(#drpd-usbpd-log-pulse-clip)">
+            {pulseGeometry.highlight ? (
+              <rect
+                x={pulseGeometry.highlight.x}
+                y={0}
+                width={pulseGeometry.highlight.width}
+                height={PULSE_HEIGHT_PX}
+                fill="var(--timestrip-pulse-highlight-fill)"
+              />
+            ) : null}
+            {pulseGeometry.paths.map((path, index) => (
+              <path
+                key={`${index}-${path.length}`}
+                d={path}
+                fill="none"
+                stroke="var(--timestrip-pulse-stroke)"
+                strokeWidth="var(--timestrip-pulse-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+          </g>
         </svg>
       </div>
       <div className={styles.analogLane} style={{ height: `${ANALOG_HEIGHT_PX}px` }}>
         <svg className={styles.laneSvg} width={Math.max(width, 1)} height={ANALOG_HEIGHT_PX}>
-          {analogGeometry.highlight ? (
-            <rect
-              x={analogGeometry.highlight.x}
-              y={0}
-              width={analogGeometry.highlight.width}
-              height={ANALOG_HEIGHT_PX}
-              fill={DRPD_USB_PD_LOG_CONFIG.stripAnalog.selectionFill}
-            />
-          ) : null}
+          <defs>
+            <clipPath id="drpd-usbpd-log-analog-clip">
+              <rect x={plotLeftX} y={0} width={plotWidth} height={ANALOG_HEIGHT_PX} />
+            </clipPath>
+          </defs>
+          <g clipPath="url(#drpd-usbpd-log-analog-clip)">
+            {analogGeometry.highlight ? (
+              <rect
+                x={analogGeometry.highlight.x}
+                y={0}
+                width={analogGeometry.highlight.width}
+                height={ANALOG_HEIGHT_PX}
+                fill="var(--timestrip-analog-selection-fill)"
+              />
+            ) : null}
+            {analogGeometry.gridLines.map((line) => (
+              <line
+                key={`grid-${line.key}`}
+                x1={plotLeftX}
+                y1={line.y}
+                x2={plotRightX}
+                y2={line.y}
+                stroke="var(--timestrip-analog-grid-stroke)"
+                strokeWidth="var(--timestrip-analog-grid-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+            {analogGeometry.voltagePath ? (
+              <path
+                d={analogGeometry.voltagePath}
+                fill="none"
+                stroke="var(--timestrip-analog-voltage-stroke)"
+                strokeWidth="var(--timestrip-analog-trace-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : null}
+            {analogGeometry.currentPath ? (
+              <path
+                d={analogGeometry.currentPath}
+                fill="none"
+                stroke="var(--timestrip-analog-current-stroke)"
+                strokeWidth="var(--timestrip-analog-trace-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : null}
+            {analogGeometry.voltageMarkers.map((point) => (
+              <circle
+                key={point.key}
+                cx={point.x}
+                cy={point.y}
+                r={analogPointRadius}
+                fill="var(--timestrip-analog-voltage-stroke)"
+              />
+            ))}
+            {analogGeometry.currentMarkers.map((point) => (
+              <circle
+                key={point.key}
+                cx={point.x}
+                cy={point.y}
+                r={analogPointRadius}
+                fill="var(--timestrip-analog-current-stroke)"
+              />
+            ))}
+          </g>
           {analogGeometry.gridLines.map((line) => (
-            <line
-              key={line.key}
-              x1={0}
-              y1={line.y}
-              x2={Math.max(width, 1)}
-              y2={line.y}
-              stroke={DRPD_USB_PD_LOG_CONFIG.stripAnalog.gridStroke}
-              strokeWidth={DRPD_USB_PD_LOG_CONFIG.stripAnalog.gridStrokeWidthPx}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-          {analogGeometry.voltagePath ? (
-            <path
-              d={analogGeometry.voltagePath}
-              fill="none"
-              stroke={DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageStroke}
-              strokeWidth={DRPD_USB_PD_LOG_CONFIG.stripAnalog.traceStrokeWidthPx}
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : null}
-          {analogGeometry.currentPath ? (
-            <path
-              d={analogGeometry.currentPath}
-              fill="none"
-              stroke={DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentStroke}
-              strokeWidth={DRPD_USB_PD_LOG_CONFIG.stripAnalog.traceStrokeWidthPx}
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : null}
-          {analogGeometry.voltageMarkers.map((point) => (
-            <circle
-              key={point.key}
-              cx={point.x}
-              cy={point.y}
-              r={DRPD_USB_PD_LOG_CONFIG.stripAnalog.pointRadiusPx}
-              fill={DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageStroke}
-            />
-          ))}
-          {analogGeometry.currentMarkers.map((point) => (
-            <circle
-              key={point.key}
-              cx={point.x}
-              cy={point.y}
-              r={DRPD_USB_PD_LOG_CONFIG.stripAnalog.pointRadiusPx}
-              fill={DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentStroke}
-            />
+            <g key={`label-${line.key}`}>
+              <text className={styles.analogScaleLabelLeft} x={2} y={line.y}>
+                {line.voltageLabel}
+              </text>
+              <text
+                className={styles.analogScaleLabelRight}
+                x={Math.max(width, 1) - 2}
+                y={line.y}
+              >
+                {line.currentLabel}
+              </text>
+            </g>
           ))}
         </svg>
       </div>
