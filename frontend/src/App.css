@@ -46,7 +46,7 @@
   }
 }
 
-@media (min-width: 2560px) {
+@media (min-width: 2200px) {
   .appViewport {
     --app-scale: 2;
   }
