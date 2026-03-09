@@ -316,6 +316,20 @@ describe('RackView', () => {
     expect(screen.queryByText('Bench Rack A')).not.toBeInTheDocument()
   })
 
+  it('renders the top header at the same native width as the rack canvas', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    const { container } = render(<RackView />)
+
+    const header = await screen.findByRole('banner')
+    const rackCanvas = container.querySelector('[data-rack-width]')
+
+    expect(rackCanvas).not.toBeNull()
+    expect(header).toHaveStyle({
+      width: `${rackCanvas?.getAttribute('data-rack-width')}px`
+    })
+  })
+
   it('renders the base instrument header', () => {
     render(
       <InstrumentBase

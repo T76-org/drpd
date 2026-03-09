@@ -35,8 +35,8 @@ export const DrpdUsbPdLogTimeStrip = ({
   const lastAutoCenterSignatureRef = useRef<string | null>(null)
   const panRef = useRef<{ pointerId: number; startX: number; startWindowStartUs: bigint } | null>(null)
   const [width, setWidth] = useState(0)
-  const [windowDurationUs, setWindowDurationUs] = useState(DEFAULT_WINDOW_US)
-  const [windowStartUs, setWindowStartUs] = useState(0n)
+  const [windowDurationUs, setWindowDurationUs] = useState<bigint>(DEFAULT_WINDOW_US)
+  const [windowStartUs, setWindowStartUs] = useState<bigint>(0n)
   const [data, setData] = useState<MessageLogTimeStripWindow | null>(null)
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null)
 
@@ -69,6 +69,24 @@ export const DrpdUsbPdLogTimeStrip = ({
     if (!element) {
       return undefined
     }
+    const handleZoomLocal = (direction: 'in' | 'out', focusRatio = 0.5): void => {
+      const nextWindow = zoomWindowAroundFocusUs(
+        windowStartUs,
+        windowDurationUs,
+        direction,
+        focusRatio,
+        data?.earliestTimestampUs ?? null,
+        data?.latestTimestampUs ?? null,
+      )
+      if (
+        nextWindow.windowStartUs === windowStartUs &&
+        nextWindow.windowDurationUs === windowDurationUs
+      ) {
+        return
+      }
+      setWindowStartUs(nextWindow.windowStartUs)
+      setWindowDurationUs(nextWindow.windowDurationUs)
+    }
     const handleNativeWheel = (event: globalThis.WheelEvent): void => {
       if (width <= 0) {
         return
@@ -77,7 +95,7 @@ export const DrpdUsbPdLogTimeStrip = ({
         event.preventDefault()
         const rect = element.getBoundingClientRect()
         const relativeX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5
-        handleZoom(event.deltaY < 0 ? 'in' : 'out', Math.max(0, Math.min(1, relativeX)))
+        handleZoomLocal(event.deltaY < 0 ? 'in' : 'out', Math.max(0, Math.min(1, relativeX)))
         return
       }
       const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
@@ -172,26 +190,7 @@ export const DrpdUsbPdLogTimeStrip = ({
       )
       return clampedStartUs === current ? current : clampedStartUs
     })
-  }, [data?.earliestTimestampUs, data?.latestTimestampUs, selectedKey])
-
-  const handleZoom = (direction: 'in' | 'out', focusRatio = 0.5): void => {
-    const nextWindow = zoomWindowAroundFocusUs(
-      windowStartUs,
-      windowDurationUs,
-      direction,
-      focusRatio,
-      data?.earliestTimestampUs ?? null,
-      data?.latestTimestampUs ?? null,
-    )
-    if (
-      nextWindow.windowStartUs === windowStartUs &&
-      nextWindow.windowDurationUs === windowDurationUs
-    ) {
-      return
-    }
-    setWindowStartUs(nextWindow.windowStartUs)
-    setWindowDurationUs(nextWindow.windowDurationUs)
-  }
+  }, [data?.earliestTimestampUs, data?.latestTimestampUs, selectedKey, windowDurationUs])
 
   /**
    * Begin panning the time strip.

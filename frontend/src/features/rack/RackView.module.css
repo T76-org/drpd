@@ -8,13 +8,26 @@
   overflow: hidden;
 }
 
+.headerViewport {
+  flex: 0 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--color-surface-header);
+  border-bottom: var(--border-thin) solid var(--color-border-divider);
+}
+
+.headerScroll {
+  min-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
 .header {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-12) var(--space-20);
-  border-bottom: var(--border-thin) solid var(--color-border-divider);
   background: var(--color-surface-header);
 }
 
@@ -88,37 +101,33 @@
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-lg);
   cursor: pointer;
+  font-size: var(--font-size-3xs);
 }
 
 .editButton {
   background: transparent;
-  padding: var(--control-padding-y-sm) var(--control-padding-x-md);
-  font-size: var(--font-size-md);
+  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .editButtonSecondary {
   background: transparent;
-  padding: var(--control-padding-y-sm) var(--control-padding-x-md);
-  font-size: var(--font-size-md);
+  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .editButtonPrimary {
   border-color: var(--color-edit-glow);
   background: var(--color-surface-panel-accent);
-  padding: var(--control-padding-y-sm) var(--control-padding-x-md);
-  font-size: var(--font-size-md);
+  padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
 }
 
 .themeButton {
   background: var(--color-surface-panel);
   padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
-  font-size: var(--font-size-md);
 }
 
 .deviceMenuButton {
   background: var(--color-surface-panel);
   padding: var(--control-padding-y-sm) var(--control-padding-x-sm);
-  font-size: var(--font-size-md);
 }
 
 .deviceMenuButton:disabled {

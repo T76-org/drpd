@@ -25,6 +25,7 @@ import {
   type RackDeviceState,
   type RackInstrumentDragPayload
 } from './RackRenderer'
+import { getRackCanvasSize } from './rackCanvasSize'
 import {
   canInsertInstrumentIntoRow,
   insertInstrumentIntoRowAtIndex,
@@ -466,7 +467,7 @@ export const RackView = () => {
           'window.__drpdLogs.devices()',
           'window.__drpdLogs.driver(deviceId?)',
           'await window.__drpdLogs.diagnostics(deviceId?)',
-          'await window.__drpdLogs.count(kind?, deviceId?) // kind: \"analog\" | \"messages\" | \"all\" (default)',
+          'await window.__drpdLogs.count(kind?, deviceId?) // kind: "analog" | "messages" | "all" (default)',
           'await window.__drpdLogs.queryAnalog({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessage({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessages({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?) // alias',
@@ -927,177 +928,186 @@ export const RackView = () => {
         ),
       )
     : []
+  const rackCanvasWidthPx = currentRack
+    ? getRackCanvasSize(currentRack, instrumentDefinitions).rackWidthPx
+    : null
 
   return (
     <div className={styles.page}>
       {!currentRack?.hideHeader ? (
-        <header className={styles.header}>
-          <div className={styles.titleBlock}>
-            <h1 className={styles.title}>{currentRack?.name ?? 'Rack'}</h1>
-            <p className={styles.subtitle}>Virtual control surface</p>
-          </div>
-          <div className={styles.headerActions}>
-            {!isEditMode ? (
-              <button
-                type="button"
-                className={styles.editButton}
-                onClick={handleEnterEditMode}
-              >
-                Edit
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className={styles.editButtonSecondary}
-                  onClick={handleCancelEditMode}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className={styles.editButtonPrimary}
-                  onClick={handleSaveEditMode}
-                >
-                  Save
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className={styles.themeButton}
-              onClick={handleThemeToggle}
+        <div className={styles.headerViewport}>
+          <div className={styles.headerScroll}>
+            <header
+              className={styles.header}
+              style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
             >
-              Theme: {themeLabel}
-            </button>
-            {currentRack &&
-            !currentRack.hideHeader &&
-            (currentRack.devices ?? []).length > 0 ? (
-              <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
-                <button
-                  type="button"
-                  className={styles.deviceMenuButton}
-                  onClick={() =>
-                    setIsInstrumentMenuOpen((open) => !open)
-                  }
-                >
-                  Add Instrument
-                </button>
-                {isInstrumentMenuOpen ? (
-                  <div className={styles.deviceMenuPanel}>
-                    {compatibleInstruments.length === 0 ? (
-                      <div className={styles.deviceMenuEmpty}>
-                        No compatible instruments
-                      </div>
-                    ) : (
-                      <ul className={styles.deviceMenuList}>
-                        {compatibleInstruments.map((instrument) => (
-                          <li key={instrument.identifier}>
-                            <button
-                              type="button"
-                              className={styles.deviceMenuItem}
-                              onClick={() =>
-                                handleAddInstrument(instrument.identifier)
-                              }
-                            >
-                              {instrument.displayName}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ) : null}
+              <div className={styles.titleBlock}>
+                <h1 className={styles.title}>{currentRack?.name ?? 'Rack'}</h1>
               </div>
-            ) : null}
-            <div
-              className={styles.deviceMenu}
-              data-testid="rack-devices"
-              ref={deviceMenuRef}
-            >
-              <button
-                type="button"
-                className={styles.deviceMenuButton}
-                onClick={() => setIsDeviceMenuOpen((open) => !open)}
-                disabled={isEditMode}
-              >
-                Devices
-              </button>
-              {isDeviceMenuOpen ? (
-                <div className={styles.deviceMenuPanel}>
+              <div className={styles.headerActions}>
+                {!isEditMode ? (
                   <button
                     type="button"
-                    className={styles.deviceMenuItem}
-                    onClick={handleConnectDevice}
+                    className={styles.editButton}
+                    onClick={handleEnterEditMode}
                   >
-                    Add Device
+                    Edit
                   </button>
-                  <div className={styles.deviceMenuSeparator} />
-                  {deviceStates.length === 0 ? (
-                    <div className={styles.deviceMenuEmpty}>No devices</div>
-                  ) : (
-                    <ul className={styles.deviceMenuList}>
-                      {deviceStates.map((device) => (
-                        <li key={device.record.id} className={styles.deviceRow}>
-                          <div className={styles.deviceInfo}>
-                            <span className={styles.deviceName}>
-                              {device.record.displayName}
-                            </span>
-                            <span
-                              className={`${styles.deviceStatus} ${
-                                device.status === 'connected'
-                                  ? styles.deviceStatusConnected
-                                  : device.status === 'error'
-                                    ? styles.deviceStatusError
-                                    : ''
-                              }`}
-                            >
-                              {device.status}
-                            </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.editButtonSecondary}
+                      onClick={handleCancelEditMode}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.editButtonPrimary}
+                      onClick={handleSaveEditMode}
+                    >
+                      Save
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className={styles.themeButton}
+                  onClick={handleThemeToggle}
+                >
+                  Theme: {themeLabel}
+                </button>
+                {currentRack &&
+                !currentRack.hideHeader &&
+                (currentRack.devices ?? []).length > 0 ? (
+                  <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
+                    <button
+                      type="button"
+                      className={styles.deviceMenuButton}
+                      onClick={() =>
+                        setIsInstrumentMenuOpen((open) => !open)
+                      }
+                    >
+                      Add Instrument
+                    </button>
+                    {isInstrumentMenuOpen ? (
+                      <div className={styles.deviceMenuPanel}>
+                        {compatibleInstruments.length === 0 ? (
+                          <div className={styles.deviceMenuEmpty}>
+                            No compatible instruments
                           </div>
-                          <div className={styles.deviceActions}>
-                            {device.status === 'connected' ? (
-                              <button
-                                type="button"
-                                className={styles.deviceActionButton}
-                                onClick={() =>
-                                  handleDisconnectDevice(device.record.id)
-                                }
-                              >
-                                Disconnect
-                              </button>
-                            ) : null}
-                            {device.status === 'disconnected' ||
-                            device.status === 'error' ? (
-                              <button
-                                type="button"
-                                className={styles.deviceActionButton}
-                                onClick={() =>
-                                  handleReconnectDevice(device.record.id)
-                                }
-                              >
-                                Connect
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className={`${styles.deviceActionButton} ${styles.removeButton}`}
-                              onClick={() =>
-                                handleRemoveDevice(device.record.id)
-                              }
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                        ) : (
+                          <ul className={styles.deviceMenuList}>
+                            {compatibleInstruments.map((instrument) => (
+                              <li key={instrument.identifier}>
+                                <button
+                                  type="button"
+                                  className={styles.deviceMenuItem}
+                                  onClick={() =>
+                                    handleAddInstrument(instrument.identifier)
+                                  }
+                                >
+                                  {instrument.displayName}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div
+                  className={styles.deviceMenu}
+                  data-testid="rack-devices"
+                  ref={deviceMenuRef}
+                >
+                  <button
+                    type="button"
+                    className={styles.deviceMenuButton}
+                    onClick={() => setIsDeviceMenuOpen((open) => !open)}
+                    disabled={isEditMode}
+                  >
+                    Devices
+                  </button>
+                  {isDeviceMenuOpen ? (
+                    <div className={styles.deviceMenuPanel}>
+                      <button
+                        type="button"
+                        className={styles.deviceMenuItem}
+                        onClick={handleConnectDevice}
+                      >
+                        Add Device
+                      </button>
+                      <div className={styles.deviceMenuSeparator} />
+                      {deviceStates.length === 0 ? (
+                        <div className={styles.deviceMenuEmpty}>No devices</div>
+                      ) : (
+                        <ul className={styles.deviceMenuList}>
+                          {deviceStates.map((device) => (
+                            <li key={device.record.id} className={styles.deviceRow}>
+                              <div className={styles.deviceInfo}>
+                                <span className={styles.deviceName}>
+                                  {device.record.displayName}
+                                </span>
+                                <span
+                                  className={`${styles.deviceStatus} ${
+                                    device.status === 'connected'
+                                      ? styles.deviceStatusConnected
+                                      : device.status === 'error'
+                                        ? styles.deviceStatusError
+                                        : ''
+                                  }`}
+                                >
+                                  {device.status}
+                                </span>
+                              </div>
+                              <div className={styles.deviceActions}>
+                                {device.status === 'connected' ? (
+                                  <button
+                                    type="button"
+                                    className={styles.deviceActionButton}
+                                    onClick={() =>
+                                      handleDisconnectDevice(device.record.id)
+                                    }
+                                  >
+                                    Disconnect
+                                  </button>
+                                ) : null}
+                                {device.status === 'disconnected' ||
+                                device.status === 'error' ? (
+                                  <button
+                                    type="button"
+                                    className={styles.deviceActionButton}
+                                    onClick={() =>
+                                      handleReconnectDevice(device.record.id)
+                                    }
+                                  >
+                                    Connect
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className={`${styles.deviceActionButton} ${styles.removeButton}`}
+                                  onClick={() =>
+                                    handleRemoveDevice(device.record.id)
+                                  }
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
+              </div>
+            </header>
           </div>
-        </header>
+        </div>
       ) : null}
       <main className={styles.content}>
         {isLoading ? (
@@ -1333,13 +1343,9 @@ const connectDeviceRuntime = async (
   device: USBDevice,
 ): Promise<DeviceRuntime | null> => {
   if (definition instanceof DRPDDeviceDefinition) {
-    try {
-      const runtime = await definition.createConnectedRuntime(device)
-      await definition.connectDevice(device)
-      return { drpdDriver: runtime.driver, transport: runtime.transport }
-    } catch (error) {
-      throw error
-    }
+    const runtime = await definition.createConnectedRuntime(device)
+    await definition.connectDevice(device)
+    return { drpdDriver: runtime.driver, transport: runtime.transport }
   }
 
   await definition.connectDevice(device)
