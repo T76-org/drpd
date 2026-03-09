@@ -136,18 +136,19 @@
 }
 
 .deviceMenuPanel {
-  position: absolute;
-  right: 0;
-  top: calc(100% + var(--space-8));
+  position: fixed;
+  left: 0;
+  top: 0;
   min-width: 100px;
   width: max-content;
+  max-width: min(620px, calc(100vw - var(--space-16)));
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
   box-shadow: var(--shadow-strong);
   display: grid;
   gap: var(--space-6);
   padding: var(--space-10);
-  z-index: 10;
+  overflow: auto;
 }
 
 .deviceMenuItem {
@@ -237,12 +238,8 @@
   font-size: var(--font-size-sm);
 }
 
-.deviceMenu {
-  position: relative;
-}
-
-.instrumentMenu {
-  position: relative;
+.deviceMenu, .instrumentMenu {
+  display: contents;
 }
 
 .removeButton {

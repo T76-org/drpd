@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { Device } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
@@ -39,6 +40,7 @@ type ThemeMode = 'system' | 'light' | 'dark'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
+const HEADER_MENU_POPOVER_Z_INDEX = 11000
 
 interface DRPDLogsConsoleHelper {
   devices(): Array<{ id: string; name: string; status: string }>
@@ -159,9 +161,15 @@ export const RackView = () => {
   const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
+  const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
+    undefined,
+  )
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const deviceMenuRef = useRef<HTMLDivElement | null>(null)
   const instrumentMenuRef = useRef<HTMLDivElement | null>(null)
+  const deviceMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const instrumentMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
   const editSnapshotRef = useRef<RackDefinition | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
 
@@ -225,13 +233,22 @@ export const RackView = () => {
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null
+      const popoverElement = headerMenuPopoverRef.current
       if (isDeviceMenuOpen && deviceMenuRef.current) {
-        if (target && !deviceMenuRef.current.contains(target)) {
+        if (
+          target &&
+          !deviceMenuRef.current.contains(target) &&
+          !(popoverElement && popoverElement.contains(target))
+        ) {
           setIsDeviceMenuOpen(false)
         }
       }
       if (isInstrumentMenuOpen && instrumentMenuRef.current) {
-        if (target && !instrumentMenuRef.current.contains(target)) {
+        if (
+          target &&
+          !instrumentMenuRef.current.contains(target) &&
+          !(popoverElement && popoverElement.contains(target))
+        ) {
           setIsInstrumentMenuOpen(false)
         }
       }
@@ -266,6 +283,71 @@ export const RackView = () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isDeviceMenuOpen, isInstrumentMenuOpen])
+
+  const updateHeaderMenuLayout = useCallback(() => {
+    const anchor = isDeviceMenuOpen
+      ? deviceMenuButtonRef.current
+      : isInstrumentMenuOpen
+        ? instrumentMenuButtonRef.current
+        : null
+    const popover = headerMenuPopoverRef.current
+    if (!anchor || !popover) {
+      return
+    }
+
+    const viewportInsetPx = 8
+    const popoverGapPx = 4
+    const buttonRect = anchor.getBoundingClientRect()
+    const popoverRect = popover.getBoundingClientRect()
+    const width = popoverRect.width
+    const height = popoverRect.height
+
+    let left = buttonRect.right - width
+    left = Math.max(
+      viewportInsetPx,
+      Math.min(left, window.innerWidth - width - viewportInsetPx),
+    )
+
+    const belowTop = buttonRect.bottom + popoverGapPx
+    const belowSpace = window.innerHeight - belowTop - viewportInsetPx
+    const aboveSpace = buttonRect.top - popoverGapPx - viewportInsetPx
+    const shouldOpenAbove = belowSpace < height && aboveSpace > belowSpace
+    const maxHeight = Math.max(120, Math.floor(shouldOpenAbove ? aboveSpace : belowSpace))
+
+    let top = belowTop
+    if (shouldOpenAbove) {
+      top = Math.max(
+        viewportInsetPx,
+        buttonRect.top - popoverGapPx - Math.min(height, maxHeight),
+      )
+    } else {
+      top = Math.min(top, window.innerHeight - viewportInsetPx - Math.min(height, maxHeight))
+    }
+
+    setHeaderMenuInlineStyle({
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+      maxHeight: `${Math.round(maxHeight)}px`,
+    })
+  }, [isDeviceMenuOpen, isInstrumentMenuOpen])
+
+  useLayoutEffect(() => {
+    if (!isDeviceMenuOpen && !isInstrumentMenuOpen) {
+      setHeaderMenuInlineStyle(undefined)
+      return undefined
+    }
+
+    const runLayout = () => {
+      updateHeaderMenuLayout()
+    }
+    runLayout()
+    window.addEventListener('resize', runLayout)
+    window.addEventListener('scroll', runLayout, true)
+    return () => {
+      window.removeEventListener('resize', runLayout)
+      window.removeEventListener('scroll', runLayout, true)
+    }
+  }, [isDeviceMenuOpen, isInstrumentMenuOpen, updateHeaderMenuLayout])
 
   useEffect(() => {
     /** Apply the current theme to the document. */
@@ -985,6 +1067,7 @@ export const RackView = () => {
                     <button
                       type="button"
                       className={styles.deviceMenuButton}
+                      ref={instrumentMenuButtonRef}
                       onClick={() =>
                         setIsInstrumentMenuOpen((open) => !open)
                       }
@@ -992,29 +1075,42 @@ export const RackView = () => {
                       Add Instrument
                     </button>
                     {isInstrumentMenuOpen ? (
-                      <div className={styles.deviceMenuPanel}>
-                        {compatibleInstruments.length === 0 ? (
-                          <div className={styles.deviceMenuEmpty}>
-                            No compatible instruments
-                          </div>
-                        ) : (
-                          <ul className={styles.deviceMenuList}>
-                            {compatibleInstruments.map((instrument) => (
-                              <li key={instrument.identifier}>
-                                <button
-                                  type="button"
-                                  className={styles.deviceMenuItem}
-                                  onClick={() =>
-                                    handleAddInstrument(instrument.identifier)
-                                  }
-                                >
-                                  {instrument.displayName}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
+                      typeof document !== 'undefined'
+                        ? createPortal(
+                            <div
+                              className={styles.deviceMenuPanel}
+                              ref={headerMenuPopoverRef}
+                              style={{
+                                ...headerMenuInlineStyle,
+                                zIndex: HEADER_MENU_POPOVER_Z_INDEX,
+                                visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
+                              }}
+                            >
+                              {compatibleInstruments.length === 0 ? (
+                                <div className={styles.deviceMenuEmpty}>
+                                  No compatible instruments
+                                </div>
+                              ) : (
+                                <ul className={styles.deviceMenuList}>
+                                  {compatibleInstruments.map((instrument) => (
+                                    <li key={instrument.identifier}>
+                                      <button
+                                        type="button"
+                                        className={styles.deviceMenuItem}
+                                        onClick={() =>
+                                          handleAddInstrument(instrument.identifier)
+                                        }
+                                      >
+                                        {instrument.displayName}
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>,
+                            document.body,
+                          )
+                        : null
                     ) : null}
                   </div>
                 ) : null}
@@ -1026,82 +1122,96 @@ export const RackView = () => {
                   <button
                     type="button"
                     className={styles.deviceMenuButton}
+                    ref={deviceMenuButtonRef}
                     onClick={() => setIsDeviceMenuOpen((open) => !open)}
                     disabled={isEditMode}
                   >
                     Devices
                   </button>
                   {isDeviceMenuOpen ? (
-                    <div className={styles.deviceMenuPanel}>
-                      <button
-                        type="button"
-                        className={styles.deviceMenuItem}
-                        onClick={handleConnectDevice}
-                      >
-                        Add Device
-                      </button>
-                      <div className={styles.deviceMenuSeparator} />
-                      {deviceStates.length === 0 ? (
-                        <div className={styles.deviceMenuEmpty}>No devices</div>
-                      ) : (
-                        <ul className={styles.deviceMenuList}>
-                          {deviceStates.map((device) => (
-                            <li key={device.record.id} className={styles.deviceRow}>
-                              <div className={styles.deviceInfo}>
-                                <span className={styles.deviceName}>
-                                  {device.record.displayName}
-                                </span>
-                                <span
-                                  className={`${styles.deviceStatus} ${
-                                    device.status === 'connected'
-                                      ? styles.deviceStatusConnected
-                                      : device.status === 'error'
-                                        ? styles.deviceStatusError
-                                        : ''
-                                  }`}
-                                >
-                                  {device.status}
-                                </span>
-                              </div>
-                              <div className={styles.deviceActions}>
-                                {device.status === 'connected' ? (
-                                  <button
-                                    type="button"
-                                    className={styles.deviceActionButton}
-                                    onClick={() =>
-                                      handleDisconnectDevice(device.record.id)
-                                    }
-                                  >
-                                    Disconnect
-                                  </button>
-                                ) : null}
-                                {device.status === 'disconnected' ||
-                                device.status === 'error' ? (
-                                  <button
-                                    type="button"
-                                    className={styles.deviceActionButton}
-                                    onClick={() =>
-                                      handleReconnectDevice(device.record.id)
-                                    }
-                                  >
-                                    Connect
-                                  </button>
-                                ) : null}
-                                <button
-                                  type="button"
-                                  className={`${styles.deviceActionButton} ${styles.removeButton}`}
-                                  onClick={() =>
-                                    handleRemoveDevice(device.record.id)
-                                  }
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    typeof document !== 'undefined'
+                      ? createPortal(
+                          <div
+                            className={styles.deviceMenuPanel}
+                            ref={headerMenuPopoverRef}
+                            style={{
+                              ...headerMenuInlineStyle,
+                              zIndex: HEADER_MENU_POPOVER_Z_INDEX,
+                              visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className={styles.deviceMenuItem}
+                              onClick={handleConnectDevice}
+                            >
+                              Add Device
+                            </button>
+                            <div className={styles.deviceMenuSeparator} />
+                            {deviceStates.length === 0 ? (
+                              <div className={styles.deviceMenuEmpty}>No devices</div>
+                            ) : (
+                              <ul className={styles.deviceMenuList}>
+                                {deviceStates.map((device) => (
+                                  <li key={device.record.id} className={styles.deviceRow}>
+                                    <div className={styles.deviceInfo}>
+                                      <span className={styles.deviceName}>
+                                        {device.record.displayName}
+                                      </span>
+                                      <span
+                                        className={`${styles.deviceStatus} ${
+                                          device.status === 'connected'
+                                            ? styles.deviceStatusConnected
+                                            : device.status === 'error'
+                                              ? styles.deviceStatusError
+                                              : ''
+                                        }`}
+                                      >
+                                        {device.status}
+                                      </span>
+                                    </div>
+                                    <div className={styles.deviceActions}>
+                                      {device.status === 'connected' ? (
+                                        <button
+                                          type="button"
+                                          className={styles.deviceActionButton}
+                                          onClick={() =>
+                                            handleDisconnectDevice(device.record.id)
+                                          }
+                                        >
+                                          Disconnect
+                                        </button>
+                                      ) : null}
+                                      {device.status === 'disconnected' ||
+                                      device.status === 'error' ? (
+                                        <button
+                                          type="button"
+                                          className={styles.deviceActionButton}
+                                          onClick={() =>
+                                            handleReconnectDevice(device.record.id)
+                                          }
+                                        >
+                                          Connect
+                                        </button>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        className={`${styles.deviceActionButton} ${styles.removeButton}`}
+                                        onClick={() =>
+                                          handleRemoveDevice(device.record.id)
+                                        }
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>,
+                          document.body,
+                        )
+                      : null
                   ) : null}
                 </div>
               </div>
