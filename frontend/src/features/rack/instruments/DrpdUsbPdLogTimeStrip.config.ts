@@ -2,7 +2,7 @@
  * Runtime-only configuration for the Message Log instrument and time strip.
  *
  * Pure CSS styling stays in the CSS modules; only values the TypeScript runtime
- * needs for layout math, virtualization, zooming, and canvas drawing live here.
+ * needs for layout math, virtualization, zooming, and SVG rendering live here.
  */
 export const DRPD_USB_PD_LOG_CONFIG = {
   window: {
@@ -41,6 +41,7 @@ export const DRPD_USB_PD_LOG_CONFIG = {
     currentStroke: 'rgba(119, 232, 171, 0.95)', ///< IBUS trace color.
     traceStrokeWidthPx: 1.5, ///< Analog trace line width.
     pointRadiusPx: 1.8, ///< Analog sample point radius.
+    markerPointLimit: 256, ///< Maximum analog marker count before switching to path-only rendering.
   },
   tableBehavior: {
     pageSize: 200, ///< Table page fetch size.

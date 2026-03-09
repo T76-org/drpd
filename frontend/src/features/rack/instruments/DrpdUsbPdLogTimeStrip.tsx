@@ -2,8 +2,8 @@ import {
   useEffect,
   useRef,
   useState,
+  type RefObject,
   type PointerEvent,
-  type WheelEvent,
 } from 'react'
 import type { MessageLogTimeStripWindow } from '../../../lib/device'
 import type { RackDeviceState } from '../RackRenderer'
@@ -30,6 +30,7 @@ export const DrpdUsbPdLogTimeStrip = ({
   isEditMode: boolean
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const viewportRef = useRef<HTMLDivElement | null>(null)
   const initialAlignmentDoneRef = useRef(false)
   const lastAutoCenterSignatureRef = useRef<string | null>(null)
   const panRef = useRef<{ pointerId: number; startX: number; startWindowStartUs: bigint } | null>(null)
@@ -61,6 +62,45 @@ export const DrpdUsbPdLogTimeStrip = ({
       observer.disconnect()
     }
   }, [])
+
+  useEffect(() => {
+    const element = viewportRef.current
+    if (!element) {
+      return undefined
+    }
+    const handleNativeWheel = (event: globalThis.WheelEvent): void => {
+      if (width <= 0) {
+        return
+      }
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault()
+        const rect = element.getBoundingClientRect()
+        const relativeX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5
+        handleZoom(event.deltaY < 0 ? 'in' : 'out', Math.max(0, Math.min(1, relativeX)))
+        return
+      }
+      const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+      if (dominantDelta === 0) {
+        return
+      }
+      event.preventDefault()
+      const deltaUs = BigInt(Math.round((dominantDelta / width) * Number(windowDurationUs)))
+      setWindowStartUs((current) =>
+        clampWindowStartUs(
+          current + deltaUs,
+          windowDurationUs,
+          data?.earliestTimestampUs ?? null,
+          data?.latestTimestampUs ?? null,
+        ),
+      )
+    }
+    element.addEventListener('wheel', handleNativeWheel, { passive: false })
+    return () => {
+      element.removeEventListener('wheel', handleNativeWheel)
+    }
+  }, [data?.earliestTimestampUs, data?.latestTimestampUs, width, windowDurationUs, windowStartUs])
 
   useEffect(() => {
     if (!driver || width <= 0 || !('queryMessageLogTimeStripWindow' in driver)) {
@@ -198,43 +238,10 @@ export const DrpdUsbPdLogTimeStrip = ({
     panRef.current = null
   }
 
-  /**
-   * Pan horizontally with the mouse wheel.
-   *
-   * @param event - Wheel event.
-   */
-  const handleWheel = (event: WheelEvent<HTMLDivElement>): void => {
-    if (width <= 0) {
-      return
-    }
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault()
-      const rect = event.currentTarget.getBoundingClientRect()
-      const relativeX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5
-      handleZoom(event.deltaY < 0 ? 'in' : 'out', Math.max(0, Math.min(1, relativeX)))
-      return
-    }
-    const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
-      ? event.deltaX
-      : event.deltaY
-    if (dominantDelta === 0) {
-      return
-    }
-    event.preventDefault()
-    const deltaUs = BigInt(Math.round((dominantDelta / width) * Number(windowDurationUs)))
-    setWindowStartUs((current) =>
-      clampWindowStartUs(
-        current + deltaUs,
-        windowDurationUs,
-        data?.earliestTimestampUs ?? null,
-        data?.latestTimestampUs ?? null,
-      ),
-    )
-  }
-
   return (
     <div className={styles.timeStripShell} ref={containerRef}>
       <DrpdUsbPdLogTimeStripRenderer
+        viewportRef={viewportRef as RefObject<HTMLDivElement>}
         width={Math.max(width, 1)}
         data={data}
         selectedKey={selectedKey}
@@ -242,7 +249,6 @@ export const DrpdUsbPdLogTimeStrip = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
-        onWheel={handleWheel}
       />
     </div>
   )
