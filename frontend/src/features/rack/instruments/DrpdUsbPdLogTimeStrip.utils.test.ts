@@ -7,6 +7,7 @@ import {
   interpolateDisplayTimestampUs,
   interpolateWallClockMs,
   parseMessageSelectionKey,
+  zoomWindowAroundFocusUs,
   zoomWindowDurationUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
@@ -25,6 +26,28 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
     expect(clampWindowStartUs(980n, 100n, 0n, 1_000n)).toBe(900n)
     expect(zoomWindowDurationUs(10_000n, 'in')).toBe(5_000n)
     expect(zoomWindowDurationUs(250n, 'in')).toBe(250n)
+  })
+
+  it('keeps the cursor focus timestamp fixed while zooming', () => {
+    expect(zoomWindowAroundFocusUs(1_000n, 10_000n, 'in', 0.25, 0n, 50_000n)).toEqual({
+      windowStartUs: 2_250n,
+      windowDurationUs: 5_000n,
+    })
+    expect(zoomWindowAroundFocusUs(1_000n, 10_000n, 'out', 0.25, 0n, 50_000n)).toEqual({
+      windowStartUs: 0n,
+      windowDurationUs: 20_000n,
+    })
+  })
+
+  it('clamps cursor-focused zoom to the available edges', () => {
+    expect(zoomWindowAroundFocusUs(100n, 1_000n, 'out', 0.1, 0n, 5_000n)).toEqual({
+      windowStartUs: 0n,
+      windowDurationUs: 2_000n,
+    })
+    expect(zoomWindowAroundFocusUs(4_500n, 1_000n, 'out', 0.9, 0n, 5_000n)).toEqual({
+      windowStartUs: 3_000n,
+      windowDurationUs: 2_000n,
+    })
   })
 
   it('interpolates device-relative and wall-clock axes from anchors', () => {

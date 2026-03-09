@@ -94,6 +94,42 @@ export const zoomWindowDurationUs = (
 }
 
 /**
+ * Compute the next visible window for cursor-anchored zoom.
+ *
+ * @param startUs - Current window start.
+ * @param durationUs - Current window duration.
+ * @param direction - `in` or `out`.
+ * @param focusRatio - Cursor position across the viewport, from 0 to 1.
+ * @param earliestUs - Earliest available timestamp.
+ * @param latestUs - Latest available timestamp.
+ * @returns Next clamped window start and duration.
+ */
+export const zoomWindowAroundFocusUs = (
+  startUs: bigint,
+  durationUs: bigint,
+  direction: 'in' | 'out',
+  focusRatio: number,
+  earliestUs: bigint | null,
+  latestUs: bigint | null,
+): { windowStartUs: bigint; windowDurationUs: bigint } => {
+  const clampedFocusRatio = Math.max(0, Math.min(1, focusRatio))
+  const nextDurationUs = zoomWindowDurationUs(durationUs, direction)
+  const focusOffsetUs = BigInt(Math.round(Number(durationUs) * clampedFocusRatio))
+  const nextFocusOffsetUs = BigInt(Math.round(Number(nextDurationUs) * clampedFocusRatio))
+  const focusTimestampUs = startUs + focusOffsetUs
+  const nextWindowStartUs = clampWindowStartUs(
+    focusTimestampUs - nextFocusOffsetUs,
+    nextDurationUs,
+    earliestUs,
+    latestUs,
+  )
+  return {
+    windowStartUs: nextWindowStartUs,
+    windowDurationUs: nextDurationUs,
+  }
+}
+
+/**
  * Center the window around the given absolute timestamp span.
  *
  * @param startTimestampUs - Span start.

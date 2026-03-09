@@ -14,7 +14,7 @@ import {
   clampWindowStartUs,
   centerWindowOnSpanUs,
   parseMessageSelectionKey,
-  zoomWindowDurationUs,
+  zoomWindowAroundFocusUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
 /**
@@ -31,6 +31,7 @@ export const DrpdUsbPdLogTimeStrip = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const initialAlignmentDoneRef = useRef(false)
+  const lastAutoCenterSignatureRef = useRef<string | null>(null)
   const panRef = useRef<{ pointerId: number; startX: number; startWindowStartUs: bigint } | null>(null)
   const [width, setWidth] = useState(0)
   const [windowDurationUs, setWindowDurationUs] = useState(DEFAULT_WINDOW_US)
@@ -39,6 +40,7 @@ export const DrpdUsbPdLogTimeStrip = ({
 
   useEffect(() => {
     initialAlignmentDoneRef.current = false
+    lastAutoCenterSignatureRef.current = null
     setData(null)
     setWindowDurationUs(DEFAULT_WINDOW_US)
     setWindowStartUs(0n)
@@ -103,8 +105,18 @@ export const DrpdUsbPdLogTimeStrip = ({
   useEffect(() => {
     const parsed = selectedKey ? parseMessageSelectionKey(selectedKey) : null
     if (!parsed) {
+      lastAutoCenterSignatureRef.current = null
       return
     }
+    const signature = [
+      selectedKey,
+      data?.earliestTimestampUs?.toString() ?? 'null',
+      data?.latestTimestampUs?.toString() ?? 'null',
+    ].join(':')
+    if (lastAutoCenterSignatureRef.current === signature) {
+      return
+    }
+    lastAutoCenterSignatureRef.current = signature
     setWindowStartUs((current) => {
       const nextStartUs = centerWindowOnSpanUs(
         parsed.startTimestampUs,
@@ -119,22 +131,25 @@ export const DrpdUsbPdLogTimeStrip = ({
       )
       return clampedStartUs === current ? current : clampedStartUs
     })
-  }, [data?.earliestTimestampUs, data?.latestTimestampUs, selectedKey, windowDurationUs])
+  }, [data?.earliestTimestampUs, data?.latestTimestampUs, selectedKey])
 
-  const handleZoom = (direction: 'in' | 'out', centerRatio = 0.5): void => {
-    setWindowDurationUs((currentDurationUs) => {
-      const nextDurationUs = zoomWindowDurationUs(currentDurationUs, direction)
-      const centerOffsetUs = BigInt(Math.round(Number(currentDurationUs) * centerRatio))
-      const centerUs = windowStartUs + centerOffsetUs
-      const nextStartUs = clampWindowStartUs(
-        centerUs - nextDurationUs / 2n,
-        nextDurationUs,
-        data?.earliestTimestampUs ?? null,
-        data?.latestTimestampUs ?? null,
-      )
-      setWindowStartUs(nextStartUs)
-      return nextDurationUs
-    })
+  const handleZoom = (direction: 'in' | 'out', focusRatio = 0.5): void => {
+    const nextWindow = zoomWindowAroundFocusUs(
+      windowStartUs,
+      windowDurationUs,
+      direction,
+      focusRatio,
+      data?.earliestTimestampUs ?? null,
+      data?.latestTimestampUs ?? null,
+    )
+    if (
+      nextWindow.windowStartUs === windowStartUs &&
+      nextWindow.windowDurationUs === windowDurationUs
+    ) {
+      return
+    }
+    setWindowStartUs(nextWindow.windowStartUs)
+    setWindowDurationUs(nextWindow.windowDurationUs)
   }
 
   /**
