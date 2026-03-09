@@ -1,5 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
-import { parseVDMHeader, readUint32LE, type ParsedVDMHeader } from '../DataObjects'
+import { HumanReadableField } from '../humanReadableField'
+import { buildVDMHeaderMetadata, parseVDMHeader, readUint32LE, type ParsedVDMHeader } from '../DataObjects'
 
 /**
  * Vendor_Defined_Extended extended message.
@@ -60,4 +61,30 @@ export class VendorDefinedExtendedMessage extends ExtendedMessage {
       this.vendorData = new Uint8Array()
     }
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined_Extended is an extended message carrying vendor-specific payload content so implementations can exchange proprietary data beyond standard USB-PD fields.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.vdmHeader) {
+      metadata.messageSpecificData.setEntry('vdmHeader', buildVDMHeaderMetadata(this.vdmHeader))
+    }
+    metadata.messageSpecificData.setEntry(
+      'vendorData',
+      HumanReadableField.byteData(
+        this.vendorData,
+        8,
+        false,
+        'Vendor Data',
+        'Raw vendor-defined extended payload bytes that follow the Vendor Defined Message header.',
+      ),
+    )
+    return metadata
+  }
+
 }

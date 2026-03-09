@@ -16,6 +16,7 @@ import type {
   LogExportResult,
   LoggedAnalogSample,
   LoggedCapturedMessage,
+  MessageLogTimeStripQuery,
 } from '../logging/types'
 
 /**
@@ -108,6 +109,7 @@ export type WorkerRpcRequest =
         | { logStoreId: string; op: 'insertCapturedMessage'; message: LoggedCapturedMessage }
         | { logStoreId: string; op: 'queryAnalogSamples'; query: AnalogSampleQuery }
         | { logStoreId: string; op: 'queryCapturedMessages'; query: CapturedMessageQuery }
+        | { logStoreId: string; op: 'queryMessageLogTimeStripWindow'; query: MessageLogTimeStripQuery }
         | { logStoreId: string; op: 'exportData'; request: LogExportRequest }
         | { logStoreId: string; op: 'clear'; scope: LogClearScope }
         | { logStoreId: string; op: 'enforceRetention' }
@@ -149,6 +151,7 @@ export type WorkerRpcRequest =
               | 'refreshState'
               | 'queryAnalogSamples'
               | 'queryCapturedMessages'
+              | 'queryMessageLogTimeStripWindow'
               | 'getLogSelectionState'
               | 'setLogSelectionState'
               | 'clearLogSelection'

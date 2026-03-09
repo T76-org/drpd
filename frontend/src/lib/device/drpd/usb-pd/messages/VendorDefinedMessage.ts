@@ -1,6 +1,19 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
+  buildAttentionVDOMetadata,
+  buildDiscoverIdentityMetadata,
+  buildEnterModePayloadVDOMetadata,
+  buildExitModePayloadVDOMetadata,
+  buildModesVDOMetadata,
+  buildSVIDsVDOMetadata,
+  buildVDMHeaderMetadata,
+  parseAttentionVDO,
   parseDiscoverIdentityVDOs,
+  parseEnterModePayloadVDO,
+  parseExitModePayloadVDO,
+  parseModesVDO,
+  parseSVIDsVDO,
   parseVDMHeader,
   readDataObjects,
   type ParsedDiscoverIdentity,
@@ -87,4 +100,105 @@ export class VendorDefinedMessage extends DataMessage {
       }
     }
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined is a data message carrying structured or unstructured vendor-defined objects so partners can perform alternate mode discovery and proprietary feature exchange.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.vdmHeader) {
+      metadata.messageSpecificData.setEntry('vdmHeader', buildVDMHeaderMetadata(this.vdmHeader))
+    }
+    if (this.discoverIdentity) {
+      metadata.messageSpecificData.setEntry('discoverIdentity', buildDiscoverIdentityMetadata(this.discoverIdentity))
+    }
+    if (this.discoverSVIDs.length > 0) {
+      const discoverSvids = HumanReadableField.orderedDictionary(
+        'Discover SVIDs',
+        'Ordered collection of SVID values returned by a Discover SVIDs Structured Vendor Defined Message.',
+      )
+      this.discoverSVIDs.forEach((svid, index) => {
+        discoverSvids.setEntry(
+          `svid${index + 1}`,
+          HumanReadableField.string(
+            `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`,
+            `SVID ${index + 1}`,
+            'Standard or vendor identifier reported by the Discover SVIDs response.',
+          ),
+        )
+      })
+      metadata.messageSpecificData.setEntry('discoverSvids', discoverSvids)
+      const discoverSvidVdos = HumanReadableField.orderedDictionary(
+        'Discover SVIDs VDOs',
+        'Ordered collection of Discover SVIDs responder VDOs preserved in payload order.',
+      )
+      this.rawVDOs.forEach((raw, index) => {
+        discoverSvidVdos.setEntry(`vdo${index + 1}`, buildSVIDsVDOMetadata(parseSVIDsVDO(raw)))
+      })
+      metadata.messageSpecificData.setEntry('discoverSvidVdos', discoverSvidVdos)
+    }
+    if (this.discoverModes.length > 0) {
+      const discoverModes = HumanReadableField.orderedDictionary(
+        'Discover Modes',
+        'Ordered collection of Discover Modes VDOs returned by a Discover Modes Structured Vendor Defined Message.',
+      )
+      this.discoverModes.forEach((mode, index) => {
+        discoverModes.setEntry(`modeVdo${index + 1}`, buildModesVDOMetadata(parseModesVDO(mode)))
+      })
+      metadata.messageSpecificData.setEntry('discoverModes', discoverModes)
+    }
+    if (this.vdmHeader?.vdmType === 'STRUCTURED' && this.vdmHeader.commandName === 'ENTER_MODE' && this.rawVDOs.length > 0) {
+      const enterModePayloads = HumanReadableField.orderedDictionary(
+        'Enter Mode Payload VDOs',
+        'Ordered collection of optional Enter Mode payload VDOs. The detailed layout is mode specific.',
+      )
+      this.rawVDOs.forEach((raw, index) => {
+        enterModePayloads.setEntry(`vdo${index + 1}`, buildEnterModePayloadVDOMetadata(parseEnterModePayloadVDO(raw)))
+      })
+      metadata.messageSpecificData.setEntry('enterModePayloadVdos', enterModePayloads)
+    }
+    if (this.vdmHeader?.vdmType === 'STRUCTURED' && this.vdmHeader.commandName === 'EXIT_MODE' && this.rawVDOs.length > 0) {
+      const exitModePayloads = HumanReadableField.orderedDictionary(
+        'Exit Mode Payload VDOs',
+        'Ordered collection of optional Exit Mode payload VDOs. The detailed layout is mode specific.',
+      )
+      this.rawVDOs.forEach((raw, index) => {
+        exitModePayloads.setEntry(`vdo${index + 1}`, buildExitModePayloadVDOMetadata(parseExitModePayloadVDO(raw)))
+      })
+      metadata.messageSpecificData.setEntry('exitModePayloadVdos', exitModePayloads)
+    }
+    if (this.vdmHeader?.vdmType === 'STRUCTURED' && this.vdmHeader.commandName === 'ATTENTION' && this.rawVDOs.length > 0) {
+      const attentionPayloads = HumanReadableField.orderedDictionary(
+        'Attention VDOs',
+        'Ordered collection of Attention payload VDOs. The detailed layout is standard- or vendor-mode specific.',
+      )
+      this.rawVDOs.forEach((raw, index) => {
+        attentionPayloads.setEntry(`vdo${index + 1}`, buildAttentionVDOMetadata(parseAttentionVDO(raw)))
+      })
+      metadata.messageSpecificData.setEntry('attentionVdos', attentionPayloads)
+    }
+    if (this.rawVDOs.length > 0 && !this.discoverIdentity && this.discoverModes.length === 0 && this.discoverSVIDs.length === 0) {
+      const rawVdos = HumanReadableField.orderedDictionary(
+        'Raw VDOs',
+        'Vendor Data Objects preserved without a richer structured interpretation in the current parser.',
+      )
+      this.rawVDOs.forEach((raw, index) => {
+        rawVdos.setEntry(
+          `rawVdo${index + 1}`,
+          HumanReadableField.string(
+            `0x${raw.toString(16).toUpperCase().padStart(8, '0')}`,
+            `Raw VDO ${index + 1}`,
+            'Raw Vendor Data Object preserved for a vendor-defined payload that does not yet have a richer parser path.',
+          ),
+        )
+      })
+      metadata.messageSpecificData.setEntry('rawVdos', rawVdos)
+    }
+    return metadata
+  }
+
 }

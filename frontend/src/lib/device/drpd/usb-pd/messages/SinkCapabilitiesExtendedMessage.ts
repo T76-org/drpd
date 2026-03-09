@@ -1,5 +1,7 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
+  buildSinkCapabilitiesExtendedDataBlockMetadata,
   parseSinkCapabilitiesExtendedDataBlock,
   type ParsedSinkCapabilitiesExtendedDataBlock,
 } from '../DataObjects'
@@ -55,4 +57,23 @@ export class SinkCapabilitiesExtendedMessage extends ExtendedMessage {
     this.sinkCapabilitiesExtended =
       dataBlock.length >= 24 ? parseSinkCapabilitiesExtendedDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Sink_Capabilities_Extended is an extended message that reports detailed sink capability metrics so a source can make better policy and power allocation decisions.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.sinkCapabilitiesExtended) {
+      metadata.messageSpecificData.setEntry(
+        'sinkCapabilitiesExtendedDataBlock',
+        buildSinkCapabilitiesExtendedDataBlockMetadata(this.sinkCapabilitiesExtended),
+      )
+    }
+    return metadata
+  }
+
 }

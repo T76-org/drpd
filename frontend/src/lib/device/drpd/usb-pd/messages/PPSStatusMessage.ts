@@ -1,5 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
-import { parsePPSStatusDataBlock, type ParsedPPSStatusDataBlock } from '../DataObjects'
+import { HumanReadableField } from '../humanReadableField'
+import { buildPPSStatusDataBlockMetadata, parsePPSStatusDataBlock, type ParsedPPSStatusDataBlock } from '../DataObjects'
 
 /**
  * PPS_Status extended message.
@@ -51,4 +52,20 @@ export class PPSStatusMessage extends ExtendedMessage {
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
     this.ppsStatusDataBlock = dataBlock.length >= 4 ? parsePPSStatusDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('PPS_Status is an extended message that reports programmable power supply status values so the source and sink can monitor PPS output behavior and status.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.ppsStatusDataBlock) {
+      metadata.messageSpecificData.setEntry('ppsStatusDataBlock', buildPPSStatusDataBlockMetadata(this.ppsStatusDataBlock))
+    }
+    return metadata
+  }
+
 }

@@ -1,5 +1,8 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
+  buildSOPPrimeStatusDataBlockMetadata,
+  buildSOPStatusDataBlockMetadata,
   parseSOPPrimeStatusDataBlock,
   parseSOPStatusDataBlock,
   type ParsedSOPPrimeStatusDataBlock,
@@ -65,4 +68,34 @@ export class StatusMessage extends ExtendedMessage {
         dataBlock.length >= 2 ? parseSOPPrimeStatusDataBlock(dataBlock) : null
     }
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(
+      1,
+      'messageDescription',
+      HumanReadableField.string(
+        'Status is an extended message that reports current port and power status information so the partner can evaluate health, fault, and state conditions during operation.',
+        'Message Description',
+        'A description of the message\'s function and usage.',
+      ),
+    )
+
+    if (this.sopStatusDataBlock) {
+      metadata.messageSpecificData.setEntry('statusDataBlock', buildSOPStatusDataBlockMetadata(this.sopStatusDataBlock))
+    }
+    if (this.sopPrimeStatusDataBlock) {
+      metadata.messageSpecificData.setEntry(
+        'statusDataBlock',
+        buildSOPPrimeStatusDataBlockMetadata(this.sopPrimeStatusDataBlock),
+      )
+    }
+    return metadata
+  }
+
 }

@@ -1,0 +1,146 @@
+/* Root wrapper for the time-strip block above the message table. */
+.timeStripShell {
+  display: grid;
+  gap: 2px;
+  padding: 2px 3px 2px 3px;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-panel-accent) 70%, var(--color-surface-instrument) 30%),
+      color-mix(in srgb, var(--color-surface-instrument) 94%, black 6%)
+    );
+}
+
+/* Interactive viewport that owns strip-level visual custom properties. */
+.timeStripViewport {
+  --timestrip-axis-label-y: 5px;
+  --timestrip-plot-inset-left: 18px;
+  --timestrip-plot-inset-right: 18px;
+  --timestrip-axis-tick-stroke: rgba(255, 255, 255, 0.1);
+  --timestrip-axis-tick-stroke-width: 1px;
+  --timestrip-axis-label-fill: color-mix(in srgb, var(--color-text-primary) 92%, white 8%);
+  --timestrip-axis-label-font-size: 5px;
+  --timestrip-pulse-stroke: rgba(145, 208, 255, 0.92);
+  --timestrip-pulse-stroke-width: 1px;
+  --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
+  --timestrip-pulse-high-y: 7px;
+  --timestrip-pulse-low-inset-bottom: 7px;
+  --timestrip-analog-top-inset: 8px;
+  --timestrip-analog-bottom-inset: 8px;
+  --timestrip-analog-grid-stroke: rgba(255, 255, 255, 0.08);
+  --timestrip-analog-grid-stroke-width: 1px;
+  --timestrip-analog-selection-fill: rgba(145, 208, 255, 0.10);
+  --timestrip-analog-voltage-stroke: rgba(255, 196, 92, 0.95);
+  --timestrip-analog-current-stroke: rgba(119, 232, 171, 0.95);
+  --timestrip-analog-trace-stroke-width: 1.5px;
+  --timestrip-analog-point-radius: 1.8px;
+  --timestrip-hover-line-color: rgba(255, 255, 255, 0.22);
+  --timestrip-tooltip-bg: color-mix(in srgb, var(--color-surface-panel) 92%, black 8%);
+  --timestrip-tooltip-border: color-mix(in srgb, var(--color-border-panel) 82%, transparent);
+  --timestrip-tooltip-text: var(--color-text-primary);
+  --timestrip-tooltip-font-size: 10px;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-panel) 45%, transparent),
+      transparent 22%,
+      color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%)
+    );
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 72%, transparent);
+}
+
+/* Timestamp lane at the top of the strip. */
+.axisLane {
+  position: relative;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 55%, transparent);
+}
+
+/* Full-size SVG used to render timestamp ticks and labels. */
+.axisSvg {
+  position: absolute;
+  inset: 0;
+}
+
+/* Vertical timestamp notch line. */
+.axisTick {
+  stroke: var(--timestrip-axis-tick-stroke);
+  stroke-width: var(--timestrip-axis-tick-stroke-width);
+}
+
+/* Timestamp label text on the axis SVG. */
+.axisDeviceLabel {
+  fill: var(--timestrip-axis-label-fill);
+  font-size: var(--timestrip-axis-label-font-size);
+  dominant-baseline: middle;
+}
+
+/* Shared wrapper for the pulse and analog SVG lanes. */
+.pulseLane,
+.analogLane {
+  position: relative;
+}
+
+/* Pulse waveform lane between the axis and analog chart. */
+.pulseLane {
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 45%, transparent);
+}
+
+/* Analog chart lane containing traces, grid, and Y-axis labels. */
+.analogLane {
+  --timestrip-analog-scale-label-font-size: 5px;
+}
+
+/* Full-size SVG used by the pulse and analog lanes. */
+.laneSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Left-side analog scale label for the voltage axis. */
+.analogScaleLabelLeft {
+  fill: var(--timestrip-analog-voltage-stroke);
+  font-size: var(--timestrip-analog-scale-label-font-size);
+  dominant-baseline: middle;
+  text-anchor: start;
+}
+
+/* Right-side analog scale label for the current axis. */
+.analogScaleLabelRight {
+  fill: var(--timestrip-analog-current-stroke);
+  font-size: var(--timestrip-analog-scale-label-font-size);
+  dominant-baseline: middle;
+  text-anchor: end;
+}
+
+/* Full-height hover guide line that tracks the pointer across the strip. */
+.hoverLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--timestrip-hover-line-color);
+  pointer-events: none;
+}
+
+/* Floating analog measurement tooltip shown when hovering near a trace. */
+.hoverTooltip {
+  position: absolute;
+  min-width: 76px;
+  padding: 3px 5px;
+  border: var(--border-thin) solid var(--timestrip-tooltip-border);
+  border-radius: 4px;
+  background: var(--timestrip-tooltip-bg);
+  color: var(--timestrip-tooltip-text);
+  font-size: var(--timestrip-tooltip-font-size);
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 10px color-mix(in srgb, black 28%, transparent);
+}

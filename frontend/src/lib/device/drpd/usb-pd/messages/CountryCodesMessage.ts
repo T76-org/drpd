@@ -1,5 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
-import { parseCountryCodesDataBlock, type ParsedCountryCodesDataBlock } from '../DataObjects'
+import { HumanReadableField } from '../humanReadableField'
+import { buildCountryCodesDataBlockMetadata, parseCountryCodesDataBlock, type ParsedCountryCodesDataBlock } from '../DataObjects'
 
 /**
  * Country_Codes extended message.
@@ -52,4 +53,23 @@ export class CountryCodesMessage extends ExtendedMessage {
     this.countryCodesDataBlock =
       dataBlock.length >= 4 ? parseCountryCodesDataBlock(dataBlock) : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Codes is an extended message that provides supported country code entries so a partner can discover which country-specific data can be requested.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.countryCodesDataBlock) {
+      metadata.messageSpecificData.setEntry(
+        'countryCodesDataBlock',
+        buildCountryCodesDataBlockMetadata(this.countryCodesDataBlock),
+      )
+    }
+    return metadata
+  }
+
 }

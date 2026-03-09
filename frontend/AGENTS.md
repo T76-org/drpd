@@ -40,6 +40,7 @@ Starter guidance for contributors and AI agents working in this repo.
 - Write modern, idiomatic TypeScript/JavaScript (e.g., use `const`/`let`, arrow functions, async/await).
 - Prefer named exports for reusable components/utilities.
 - Keep side effects inside `useEffect` with cleanups.
+- Do not call `setState` synchronously just to reset/derive render state inside `useEffect`; prefer deriving the rendered view from props/state keys, or update state from async work/event callbacks instead. This avoids React lint errors such as `set-state-in-effect`.
 - Take full advantage of TypeScript's type system and capabilities.
 - Use 2 spaces for indentation.
 

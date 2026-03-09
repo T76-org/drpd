@@ -1,4 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
+import { buildOpaqueExternalSpecDataBlockMetadata } from '../DataObjects'
 
 /**
  * Firmware_Update_Request extended message.
@@ -52,4 +54,28 @@ export class FirmwareUpdateRequestMessage extends ExtendedMessage {
       Math.min(dataEnd, payload.length),
     )
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Firmware_Update_Request is an extended message used to initiate or advance firmware update transactions so partners can perform standardized in-band firmware update procedures.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    metadata.messageSpecificData.setEntry(
+      'firmwareUpdateRequestDataBlock',
+      buildOpaqueExternalSpecDataBlockMetadata(
+        'Firmware Update Request Data Block',
+        'Metadata describing the Firmware_Update_Request data block. USB Power Delivery defines the transport container and length bounds, while USB PD Firmware Update 1.0 defines the internal fields.',
+        'USB PD Firmware Update 1.0',
+        4,
+        260,
+        this.firmwareUpdateRequestDataBlock,
+      ),
+    )
+    return metadata
+  }
+
 }

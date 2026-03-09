@@ -1,4 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
+import { buildOpaqueExternalSpecDataBlockMetadata } from '../DataObjects'
 
 /**
  * Firmware_Update_Response extended message.
@@ -52,4 +54,28 @@ export class FirmwareUpdateResponseMessage extends ExtendedMessage {
       Math.min(dataEnd, payload.length),
     )
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Firmware_Update_Response is an extended message that acknowledges or returns status for firmware update transactions so update state can progress reliably between partners.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    metadata.messageSpecificData.setEntry(
+      'firmwareUpdateResponseDataBlock',
+      buildOpaqueExternalSpecDataBlockMetadata(
+        'Firmware Update Response Data Block',
+        'Metadata describing the Firmware_Update_Response data block. USB Power Delivery defines the transport container and length bounds, while USB PD Firmware Update 1.0 defines the internal fields.',
+        'USB PD Firmware Update 1.0',
+        4,
+        260,
+        this.firmwareUpdateResponseDataBlock,
+      ),
+    )
+    return metadata
+  }
+
 }

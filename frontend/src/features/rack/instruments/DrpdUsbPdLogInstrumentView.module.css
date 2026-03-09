@@ -74,6 +74,10 @@
   scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
+.viewport:focus {
+  outline: none;
+}
+
 .viewport::-webkit-scrollbar {
   width: 5px;
   height: 5px;

@@ -1,5 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
-import { parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
+import { HumanReadableField } from '../humanReadableField'
+import { buildPDOMetadata, parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
 
 /**
  * EPR_Source_Capabilities extended message.
@@ -59,4 +60,26 @@ export class EPRSourceCapabilitiesMessage extends ExtendedMessage {
     this.sprPDOs = decoded.slice(0, 7)
     this.eprPDOs = decoded.slice(7)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Source_Capabilities is an extended message that advertises source EPR capability data so a sink can request valid high-power EPR operating points.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    const decodedPDOs = [...this.sprPDOs, ...this.eprPDOs]
+    if (decodedPDOs.length > 0) {
+      const powerDataObjects = HumanReadableField.orderedDictionary(
+        'Power Data Objects',
+        'Ordered collection of source Power Data Objects advertised by the EPR_Source_Capabilities message.',
+      )
+      decodedPDOs.forEach((pdo, index) => powerDataObjects.setEntry(`pdo${index + 1}`, buildPDOMetadata(pdo)))
+      metadata.messageSpecificData.setEntry('powerDataObjects', powerDataObjects)
+    }
+    return metadata
+  }
+
 }

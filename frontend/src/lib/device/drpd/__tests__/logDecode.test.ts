@@ -40,6 +40,14 @@ describe('decodeLoggedCapturedMessage', () => {
     expect(decoded.message.kind).toBe('CONTROL')
     expect(Array.from(decoded.message.pulseWidthsNs)).toEqual([1, 2, 3, 4])
     expect(decoded.message.pulseWidthsNs).not.toBe(row.rawPulseWidths)
+    expect(decoded.message.startTimestampUs).toBe(1000n)
+    expect(decoded.message.endTimestampUs).toBe(1005n)
+    expect(decoded.message.humanReadableMetadata.technicalData.getEntry('startTimestamp')?.value).toBe(
+      '1000',
+    )
+    expect(decoded.message.humanReadableMetadata.technicalData.getEntry('endTimestamp')?.value).toBe(
+      '1005',
+    )
   })
 
   it('returns event rows without decode attempt', () => {

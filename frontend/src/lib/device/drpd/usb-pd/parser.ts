@@ -16,6 +16,16 @@ import type { MessageKind } from './types'
 const SOP_LENGTH = 4
 
 /**
+ * Optional capture metadata carried alongside a decoded USB-PD message.
+ */
+export interface USBPDCaptureMetadata {
+  ///< Capture start timestamp in microseconds.
+  startTimestampUs?: bigint
+  ///< Capture end timestamp in microseconds.
+  endTimestampUs?: bigint
+}
+
+/**
  * Resolve a message class and type name from a mapping.
  *
  * @param mapping - Message type mapping for the message kind.
@@ -42,11 +52,13 @@ export const resolveMessageType = (
  *
  * @param decodedData - Raw decoded payload (SOP bytes + headers + payload + CRC).
  * @param pulseWidthsNs - Optional pulse widths in nanoseconds.
+ * @param captureMetadata - Optional capture timestamps in microseconds.
  * @returns Parsed USB-PD message.
  */
 export const parseUSBPDMessage = (
   decodedData: Uint8Array,
   pulseWidthsNs?: Float64Array,
+  captureMetadata?: USBPDCaptureMetadata,
 ): Message => {
   if (decodedData.length < SOP_LENGTH + 2) {
     throw new Error(`USB-PD payload too short: ${decodedData.length}`)
@@ -65,6 +77,7 @@ export const parseUSBPDMessage = (
     )
     const message = new messageClass(sop, header, decodedData, name)
     message.setPulseWidthsNs(pulseWidthsNs)
+    message.setCaptureTimestamps(captureMetadata?.startTimestampUs, captureMetadata?.endTimestampUs)
     return message
   }
 
@@ -76,6 +89,7 @@ export const parseUSBPDMessage = (
     )
     const message = new messageClass(sop, header, decodedData, name)
     message.setPulseWidthsNs(pulseWidthsNs)
+    message.setCaptureTimestamps(captureMetadata?.startTimestampUs, captureMetadata?.endTimestampUs)
     return message
   }
 
@@ -86,5 +100,6 @@ export const parseUSBPDMessage = (
   )
   const message = new messageClass(sop, header, decodedData, name)
   message.setPulseWidthsNs(pulseWidthsNs)
+  message.setCaptureTimestamps(captureMetadata?.startTimestampUs, captureMetadata?.endTimestampUs)
   return message
 }

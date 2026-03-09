@@ -97,17 +97,17 @@
 }
 
 .modeMenu {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
   background: var(--color-surface-instrument);
   border: var(--border-thin) solid var(--color-border-panel);
   display: flex;
   flex-direction: column;
   padding: var(--space-4) var(--space-0);
   min-width: 120px;
-  z-index: 2;
   box-shadow: var(--shadow-strong);
+  overflow: auto;
 }
 
 .modeMenuItem {

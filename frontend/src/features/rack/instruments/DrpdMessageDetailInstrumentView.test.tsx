@@ -1,0 +1,594 @@
+import { act, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as deviceModule from '../../../lib/device'
+import {
+  DRPDDevice,
+  type DRPDLogSelectionState,
+  type LoggedCapturedMessage,
+} from '../../../lib/device'
+import { HumanReadableField } from '../../../lib/device/drpd/usb-pd/humanReadableField'
+import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
+import type { RackDeviceState } from '../RackRenderer'
+import { DrpdMessageDetailInstrumentView } from './DrpdMessageDetailInstrumentView'
+
+class TestSelectionDriver extends EventTarget {
+  public logSelection: DRPDLogSelectionState
+  public rows: LoggedCapturedMessage[]
+
+  public constructor(logSelection: DRPDLogSelectionState, rows: LoggedCapturedMessage[] = []) {
+    super()
+    this.logSelection = logSelection
+    this.rows = rows
+  }
+
+  public getLogSelectionState(): DRPDLogSelectionState | Promise<DRPDLogSelectionState> {
+    return this.logSelection
+  }
+
+  public async queryCapturedMessages(query: {
+    startTimestampUs: bigint
+    endTimestampUs: bigint
+  }): Promise<LoggedCapturedMessage[]> {
+    return this.rows.filter(
+      (row) =>
+        row.startTimestampUs >= query.startTimestampUs &&
+        row.startTimestampUs <= query.endTimestampUs,
+    )
+  }
+
+  public setLogSelectionState(logSelection: DRPDLogSelectionState): void {
+    this.logSelection = logSelection
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }),
+    )
+  }
+}
+
+const buildInstrument = (): RackInstrument => ({
+  id: 'inst-message-detail',
+  instrumentIdentifier: 'com.mta.drpd.message-detail',
+})
+
+const buildDeviceRecord = (): RackDeviceRecord => ({
+  id: 'device-1',
+  identifier: 'com.mta.drpd',
+  displayName: 'Dr. PD',
+  vendorId: 0x2e8a,
+  productId: 0x000a,
+})
+
+const buildMessageRow = (
+  overrides: Partial<LoggedCapturedMessage> = {},
+): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
+  startTimestampUs: 1000n,
+  endTimestampUs: 1005n,
+  displayTimestampUs: 0n,
+  decodeResult: 0,
+  sopKind: 'SOP',
+  messageKind: 'CONTROL',
+  messageType: 3,
+  messageId: 1,
+  senderPowerRole: 'SOURCE',
+  senderDataRole: 'DFP',
+  pulseCount: 4,
+  rawPulseWidths: Float64Array.from([1, 2, 3, 4]),
+  rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
+  rawDecodedData: Uint8Array.from([0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d]),
+  parseError: null,
+  createdAtMs: 1_700_000_000_000,
+  ...overrides,
+})
+
+const buildDeviceState = (
+  selection: DRPDLogSelectionState,
+  rows: LoggedCapturedMessage[] = [],
+): RackDeviceState => ({
+  record: buildDeviceRecord(),
+  status: 'connected',
+  drpdDriver: new TestSelectionDriver(selection, rows) as unknown as RackDeviceState['drpdDriver'],
+})
+
+const createStorage = (): Storage => {
+  const store = new Map<string, string>()
+  return {
+    clear: () => {
+      store.clear()
+    },
+    getItem: (key: string) => store.get(key) ?? null,
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, value)
+    },
+    get length() {
+      return store.size
+    },
+  }
+}
+
+vi.stubGlobal('localStorage', createStorage())
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  window.localStorage.clear()
+})
+
+describe('DrpdMessageDetailInstrumentView', () => {
+  it('shows the inspect prompt when nothing is selected', async () => {
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState({
+          selectedKeys: [],
+          anchorIndex: null,
+          activeIndex: null,
+        })}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Select a message to inspect.')).toBeInTheDocument()
+    })
+  })
+
+  it('shows decoded metadata rows when exactly one message is selected', async () => {
+    const row = buildMessageRow()
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState({
+          selectedKeys: ['message:1000:1005:1700000000000'],
+          anchorIndex: 0,
+          activeIndex: 0,
+        }, [row])}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /base information/i })).toBeInTheDocument()
+    })
+    expect(await screen.findByRole('button', { name: /base information/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /technical data/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /header data/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: /message-specific data/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    const baseInformationSection = screen.getByRole('button', { name: /base information/i }).closest('section')
+    expect(baseInformationSection).not.toBeNull()
+    expect(within(baseInformationSection as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+    expect(within(baseInformationSection as HTMLElement).getByText('Accept')).toBeInTheDocument()
+    expect(screen.getByText('Technical Data')).toBeInTheDocument()
+  })
+
+  it('returns to the inspect prompt when multiple messages are selected', async () => {
+    const deviceState = buildDeviceState({
+      selectedKeys: ['message:1000:1005:1'],
+      anchorIndex: 0,
+      activeIndex: 0,
+    })
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    act(() => {
+      driver.setLogSelectionState({
+        selectedKeys: ['message:1000:1005:1', 'message:1010:1015:2'],
+        anchorIndex: 0,
+        activeIndex: 1,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Select a message to inspect.')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Select a message to inspect.').parentElement).toHaveClass(
+      /emptyStateContainer/,
+    )
+  })
+
+  it('loads single-selection state from async drivers', async () => {
+    class AsyncSelectionDriver extends TestSelectionDriver {
+      public override async getLogSelectionState(): Promise<DRPDLogSelectionState> {
+        return this.logSelection
+      }
+    }
+
+    const row = buildMessageRow()
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: new AsyncSelectionDriver({
+        selectedKeys: ['message:1000:1005:1700000000000'],
+        anchorIndex: 0,
+        activeIndex: 0,
+      }, [row]) as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /base information/i })).toBeInTheDocument()
+    })
+  })
+
+  it('renders recursive dictionary and byte-data content and toggles sections', async () => {
+    const user = userEvent.setup()
+    const row = buildMessageRow()
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    const baseInformationToggle = await screen.findByRole('button', {
+      name: /base information/i,
+    })
+    const technicalDataSection = screen.getByRole('button', { name: /technical data/i }).closest('section')
+
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Accept')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('Type')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getAllByText('SOP')).toHaveLength(2)
+    expect(within(technicalDataSection as HTMLElement).getByText('K-Codes')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('18 18 18 11')).toBeInTheDocument()
+    expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(baseInformationToggle)
+
+    await waitFor(() => {
+      expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).queryByText('Message Type')).toBeNull()
+
+    await user.click(baseInformationToggle)
+
+    await waitFor(() => {
+      expect(baseInformationToggle).toHaveAttribute('aria-expanded', 'true')
+    })
+    expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+  })
+
+  it('preserves collapsed section state across message selection changes', async () => {
+    const user = userEvent.setup()
+    const firstRow = buildMessageRow()
+    const secondRow = buildMessageRow({
+      startTimestampUs: 2000n,
+      endTimestampUs: 2005n,
+      displayTimestampUs: 1000n,
+      messageId: 2,
+      createdAtMs: 1_700_000_000_100,
+    })
+    const deviceState = buildDeviceState(
+      {
+        selectedKeys: ['message:1000:1005:1700000000000'],
+        anchorIndex: 0,
+        activeIndex: 0,
+      },
+      [firstRow, secondRow],
+    )
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const technicalDataToggle = await screen.findByRole('button', {
+      name: /technical data/i,
+    })
+    const technicalDataSection = technicalDataToggle.closest('section') as HTMLElement
+    expect(within(technicalDataSection).getByText('Start Timestamp')).toBeInTheDocument()
+
+    await user.click(technicalDataToggle)
+
+    await waitFor(() => {
+      expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+    expect(within(technicalDataSection).queryByText('Start Timestamp')).toBeNull()
+
+    act(() => {
+      driver.setLogSelectionState({
+        selectedKeys: ['message:2000:2005:1700000000100'],
+        anchorIndex: 1,
+        activeIndex: 1,
+      })
+    })
+
+    await waitFor(() => {
+      expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+    expect(within(technicalDataSection).queryByText('Start Timestamp')).toBeNull()
+  })
+
+  it('preserves collapsed section state after remount', async () => {
+    const user = userEvent.setup()
+    const row = buildMessageRow()
+    const deviceState = buildDeviceState(
+      {
+        selectedKeys: ['message:1000:1005:1700000000000'],
+        anchorIndex: 0,
+        activeIndex: 0,
+      },
+      [row],
+    )
+
+    const firstRender = render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const technicalDataToggle = await screen.findByRole('button', {
+      name: /technical data/i,
+    })
+    await user.click(technicalDataToggle)
+
+    await waitFor(() => {
+      expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    firstRender.unmount()
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /technical data/i })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+    })
+  })
+
+  it('renders nested table fields inside the value column', async () => {
+    const row = buildMessageRow()
+    const tableField = HumanReadableField.table('Example Table', 'Example nested table.', [
+      {
+        kind: 'header',
+        field: HumanReadableField.string('Byte', 'Byte Header', 'Header label'),
+      },
+      {
+        kind: 'value',
+        field: HumanReadableField.string('0x2A', 'Hex Value', 'Hex cell value'),
+      },
+      {
+        kind: 'header',
+        field: HumanReadableField.string('Meaning', 'Meaning Header', 'Meaning header'),
+      },
+      {
+        kind: 'value',
+        field: HumanReadableField.string('Answer', 'Meaning Value', 'Meaning value'),
+      },
+    ])
+    const metadata = {
+      baseInformation: HumanReadableField.orderedDictionary(
+        'Base Information',
+        'Base information container.',
+        [['exampleTable', tableField]],
+      ),
+      technicalData: HumanReadableField.orderedDictionary('Technical Data', 'Technical data container.'),
+      headerData: HumanReadableField.orderedDictionary('Header Data', 'Header data container.'),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
+        'Message-specific data container.',
+      ),
+    }
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+      kind: 'message',
+      row,
+      message: {
+        humanReadableMetadata: metadata,
+      } as unknown as ReturnType<typeof deviceModule.decodeLoggedCapturedMessage> extends { kind: 'message'; message: infer T } ? T : never,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Example Table')).toBeInTheDocument()
+    })
+    expect(screen.getByText('Byte')).toBeInTheDocument()
+    expect(screen.getByText('0x2A')).toBeInTheDocument()
+    expect(screen.getByText('Meaning')).toBeInTheDocument()
+    expect(screen.getByText('Answer')).toBeInTheDocument()
+  })
+
+  it('shows and dismisses field description popups', async () => {
+    const user = userEvent.setup()
+    const row = buildMessageRow()
+    const metadata = {
+      baseInformation: HumanReadableField.orderedDictionary('Base Information', 'Base information container.'),
+      technicalData: HumanReadableField.orderedDictionary(
+        'Technical Data',
+        'Technical data container.',
+        [
+          [
+            'messageType',
+            HumanReadableField.string('Accept', 'Message Type', 'Explains the message type field.'),
+          ],
+          [
+            'details',
+            HumanReadableField.orderedDictionary('Details', 'Explains the details container.', [
+              [
+                'meaning',
+                HumanReadableField.string('Answer', 'Meaning', 'Explains the nested meaning field.'),
+              ],
+            ]),
+          ],
+        ],
+      ),
+      headerData: HumanReadableField.orderedDictionary('Header Data', 'Header data container.'),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
+        'Message-specific data container.',
+      ),
+    }
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+      kind: 'message',
+      row,
+      message: {
+        humanReadableMetadata: metadata,
+      } as unknown as ReturnType<typeof deviceModule.decodeLoggedCapturedMessage> extends { kind: 'message'; message: infer T } ? T : never,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    const scalarHelpButton = await screen.findByRole('button', {
+      name: 'Show description for Message Type',
+    })
+    await user.click(scalarHelpButton)
+    expect(screen.getByText('Explains the message type field.')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByText('Explains the message type field.')).toBeNull()
+    })
+
+    const compositeHelpButton = screen.getByRole('button', {
+      name: 'Show description for Details',
+    })
+    await user.click(compositeHelpButton)
+    expect(screen.getByText('Explains the details container.')).toBeInTheDocument()
+
+    await user.click(document.body)
+    await waitFor(() => {
+      expect(screen.queryByText('Explains the details container.')).toBeNull()
+    })
+  })
+
+  it('does not show help buttons for base information fields', async () => {
+    const row = buildMessageRow()
+    const metadata = {
+      baseInformation: HumanReadableField.orderedDictionary(
+        'Base Information',
+        'Base information container.',
+        [[
+          'messageType',
+          HumanReadableField.string('Accept', 'Message Type', 'Explains the message type field.'),
+        ]],
+      ),
+      technicalData: HumanReadableField.orderedDictionary('Technical Data', 'Technical data container.'),
+      headerData: HumanReadableField.orderedDictionary('Header Data', 'Header data container.'),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
+        'Message-specific data container.',
+      ),
+    }
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+      kind: 'message',
+      row,
+      message: {
+        humanReadableMetadata: metadata,
+      } as unknown as ReturnType<typeof deviceModule.decodeLoggedCapturedMessage> extends { kind: 'message'; message: infer T } ? T : never,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Message Type')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: 'Show description for Message Type' })).toBeNull()
+  })
+})

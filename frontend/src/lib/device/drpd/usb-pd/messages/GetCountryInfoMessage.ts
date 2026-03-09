@@ -1,5 +1,7 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
+  buildCountryCodeDataObjectMetadata,
   parseCountryCodeDataObject,
   readDataObjects,
   type ParsedCountryCodeDataObject,
@@ -45,4 +47,23 @@ export class GetCountryInfoMessage extends DataMessage {
     this.rawCountryCodeDataObject = readDataObjects(payload, this.payloadOffset, 1)[0]
     this.countryCodeDataObject = parseCountryCodeDataObject(this.rawCountryCodeDataObject)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Country_Info is a data message request that specifies a country code so the partner can return corresponding country-specific information.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.countryCodeDataObject) {
+      metadata.messageSpecificData.setEntry(
+        'countryCodeDataObject',
+        buildCountryCodeDataObjectMetadata(this.countryCodeDataObject),
+      )
+    }
+    return metadata
+  }
+
 }

@@ -25,13 +25,15 @@ import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
+import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
+import { DrpdUsbPdLogTimeStrip } from './DrpdUsbPdLogTimeStrip'
 
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
-const ROW_HEIGHT_PX = 14
-const PAGE_SIZE = 200
-const OVERSCAN_ROWS = 18
-const COUNT_SYNC_INTERVAL_MS = 1200
-const MIN_CAPTURED_MESSAGE_BUFFER = 51
+const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
+const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
+const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
+const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
+const MIN_CAPTURED_MESSAGE_BUFFER = DRPD_USB_PD_LOG_CONFIG.tableBehavior.minCapturedMessageBuffer
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
@@ -293,6 +295,8 @@ export const DrpdUsbPdLogInstrumentView = ({
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
+  const activeSelectedKey =
+    selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
 
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT_PX) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / ROW_HEIGHT_PX) + OVERSCAN_ROWS * 2
@@ -937,10 +941,23 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   const handleViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!driver || isEditMode || totalRows <= 0) {
+    if (!driver || isEditMode) {
       return
     }
     const key = event.key
+    if (key === 'Escape') {
+      if (selection.selectedKeys.length === 0) {
+        return
+      }
+      event.preventDefault()
+      enqueueSelectionTask(async () => {
+        await persistSelection(EMPTY_SELECTION)
+      })
+      return
+    }
+    if (totalRows <= 0) {
+      return
+    }
     if (key !== 'ArrowDown' && key !== 'ArrowUp') {
       return
     }
@@ -979,7 +996,16 @@ export const DrpdUsbPdLogInstrumentView = ({
           : undefined
       }
     >
-      <div className={styles.wrapper} style={eventRowStyle} data-testid="drpd-usbpd-log">
+      <div
+        className={styles.wrapper}
+        style={eventRowStyle}
+        data-testid="drpd-usbpd-log"
+      >
+        <DrpdUsbPdLogTimeStrip
+          driver={driver}
+          selectedKey={activeSelectedKey}
+          isEditMode={isEditMode}
+        />
         <div className={styles.headerRow}>
           <span>Timestamp</span>
           <span>Length</span>

@@ -1,5 +1,6 @@
 import { DataMessage } from '../messageBase'
-import { parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
+import { HumanReadableField } from '../humanReadableField'
+import { buildPDOMetadata, parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
 
 /**
  * Sink_Capabilities data message.
@@ -42,4 +43,25 @@ export class SinkCapabilitiesMessage extends DataMessage {
     this.rawDataObjects = readDataObjects(payload, this.payloadOffset, count)
     this.decodedPDOs = this.rawDataObjects.map((raw) => parsePDO(raw, 'sink'))
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Sink_Capabilities is a data message that advertises sink power data objects so a source can choose compatible supply options for negotiation.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.decodedPDOs.length > 0) {
+      const powerDataObjects = HumanReadableField.orderedDictionary(
+        'Power Data Objects',
+        'Ordered collection of sink Power Data Objects advertised by the Sink_Capabilities message.',
+      )
+      this.decodedPDOs.forEach((pdo, index) => powerDataObjects.setEntry(`pdo${index + 1}`, buildPDOMetadata(pdo)))
+      metadata.messageSpecificData.setEntry('powerDataObjects', powerDataObjects)
+    }
+    return metadata
+  }
+
 }

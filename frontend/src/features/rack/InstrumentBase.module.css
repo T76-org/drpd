@@ -3,12 +3,13 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
+  min-height: 0;
   min-width: 0;
   border: var(--border-thin) solid var(--color-border-instrument);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
   border-radius: var(--radius-none);
-  overflow: visible;
+  overflow: hidden;
   box-shadow: none;
 }
 
@@ -116,17 +117,20 @@
   border: var(--border-thin) solid var(--color-border-panel);
   box-shadow: var(--shadow-strong);
   padding: var(--space-16);
-  z-index: 40;
+  z-index: 10000;
   overflow: auto;
   font-size: var(--font-size-header-popup-base);
 }
 
 .content {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   padding: var(--space-10) var(--space-12);
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .editMode .content {

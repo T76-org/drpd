@@ -1,4 +1,6 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
+import { buildOpaqueExternalSpecDataBlockMetadata } from '../DataObjects'
 
 /**
  * Security_Request extended message.
@@ -49,4 +51,28 @@ export class SecurityRequestMessage extends ExtendedMessage {
     }
     this.securityRequestDataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Security_Request is an extended message used by USB Type-C authentication and security flows to request security-related payload exchanges between partners.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    metadata.messageSpecificData.setEntry(
+      'securityRequestDataBlock',
+      buildOpaqueExternalSpecDataBlockMetadata(
+        'Security Request Data Block',
+        'Metadata describing the Security_Request data block. USB Power Delivery defines the transport container and length bounds, while USB Type-C Authentication 1.0 defines the internal fields.',
+        'USB Type-C Authentication 1.0',
+        4,
+        260,
+        this.securityRequestDataBlock,
+      ),
+    )
+    return metadata
+  }
+
 }

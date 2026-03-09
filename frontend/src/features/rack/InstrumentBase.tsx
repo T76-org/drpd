@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom'
 import type { RackInstrument } from '../../lib/rack/types'
 import styles from './InstrumentBase.module.css'
 
+const HEADER_CONTROL_POPOVER_Z_INDEX = 10000
+
 export interface InstrumentHeaderPopoverRenderContext {
   closePopover: () => void
 }
@@ -195,7 +197,10 @@ export const InstrumentBase = ({
                           className={styles.headerControlPopover}
                           role="dialog"
                           ref={popoverRef}
-                          style={popoverInlineStyle}
+                          style={{
+                            ...popoverInlineStyle,
+                            zIndex: HEADER_CONTROL_POPOVER_Z_INDEX,
+                          }}
                         >
                           {control.renderPopover?.({ closePopover })}
                         </div>,

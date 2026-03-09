@@ -1,0 +1,336 @@
+.singleSelectionContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-size: var(--font-size-3xs);
+}
+
+.singleSelectionHeading {
+  flex: 0 0 auto;
+  margin-bottom: var(--space-12);
+  font: inherit;
+}
+
+.sectionsContainer {
+  display: grid;
+  gap: var(--space-10);
+  min-width: 0;
+}
+
+.section {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-8);
+  border: var(--border-thin) solid var(--detail-section-border, var(--color-border-panel));
+  background: var(--detail-section-surface, var(--color-surface-panel));
+  color: var(--detail-section-text, inherit);
+}
+
+.section[data-section-id='baseInformation'] {
+  --detail-section-surface: color-mix(in srgb, #3f7a52 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #3f7a52 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #3f7a52 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #3f7a52 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #3f7a52 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #3f7a52 10%, var(--color-surface-panel));
+}
+
+.section[data-section-id='technicalData'] {
+  --detail-section-surface: color-mix(in srgb, #2d6f9f 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #2d6f9f 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #2d6f9f 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #2d6f9f 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #2d6f9f 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #2d6f9f 10%, var(--color-surface-panel));
+}
+
+.section[data-section-id='headerData'] {
+  --detail-section-surface: color-mix(in srgb, #8b6a2b 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #8b6a2b 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #8b6a2b 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #8b6a2b 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #8b6a2b 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #8b6a2b 10%, var(--color-surface-panel));
+}
+
+.section[data-section-id='messageSpecificData'] {
+  --detail-section-surface: color-mix(in srgb, #8a4f67 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #8a4f67 42%, var(--color-border-panel));
+  --detail-label-surface: color-mix(in srgb, #8a4f67 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #8a4f67 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #8a4f67 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #8a4f67 10%, var(--color-surface-panel));
+}
+
+.sectionToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sectionArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  transition: transform 120ms ease;
+}
+
+.sectionArrowExpanded {
+  transform: rotate(90deg);
+}
+
+.sectionHeading {
+  margin: 0;
+}
+
+.sectionHeadingText {
+  font-weight: var(--font-weight-semibold);
+  color: inherit;
+}
+
+.sectionContent {
+  margin: 0;
+  padding-left: calc(1em + var(--space-8));
+}
+
+.metadataTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.metadataTableBody {
+}
+
+.metadataRow {
+  vertical-align: top;
+}
+
+.metadataRow:nth-child(odd) .metadataLabelCell {
+  background: var(--detail-label-surface, color-mix(in srgb, var(--color-surface-panel-accent) 82%, transparent));
+}
+
+.metadataRow:nth-child(even) .metadataLabelCell {
+  background: var(--detail-label-surface-alt, color-mix(in srgb, var(--color-surface-panel-accent) 72%, transparent));
+}
+
+.metadataRow:nth-child(odd) .metadataValueCell {
+  background: var(--detail-value-surface, color-mix(in srgb, var(--color-surface-panel) 94%, transparent));
+}
+
+.metadataRow:nth-child(even) .metadataValueCell {
+  background: var(--detail-value-surface-alt, color-mix(in srgb, var(--color-surface-panel) 88%, transparent));
+}
+
+.metadataCompositeRow {
+  vertical-align: top;
+}
+
+.metadataCompositeRow:nth-child(odd) .metadataCompositeCell {
+  background: var(--detail-value-surface, color-mix(in srgb, var(--color-surface-panel) 94%, transparent));
+}
+
+.metadataCompositeRow:nth-child(even) .metadataCompositeCell {
+  background: var(--detail-value-surface-alt, color-mix(in srgb, var(--color-surface-panel) 88%, transparent));
+}
+
+.metadataLabelCell {
+  width: 1%;
+  white-space: nowrap;
+  padding: var(--space-4) var(--space-10) var(--space-4) var(--space-6);
+  text-align: left;
+  vertical-align: top;
+  font-weight: var(--font-weight-semibold);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 60%, transparent);
+}
+
+.metadataLabelText {
+  color: color-mix(in srgb, currentColor 84%, black);
+}
+
+.fieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fieldHelp {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.fieldHelpButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.97em;
+  height: 0.97em;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font: inherit;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.fieldHelpButton:hover,
+.fieldHelpButton:focus-visible {
+  border-color: color-mix(in srgb, currentColor 36%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: color-mix(in srgb, currentColor 78%, transparent);
+  outline: none;
+}
+
+.fieldHelpButtonIcon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.63em;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-align: center;
+  transform: translateY(-0.03em);
+}
+
+.fieldHelpPopup {
+  position: fixed;
+  z-index: 9999;
+  max-width: min(24rem, calc(100vw - 1rem));
+  max-height: calc(100vh - 1rem);
+  overflow: auto;
+  padding: calc(var(--space-6) * 2.4) calc(var(--space-8) * 2.4);
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  background: color-mix(in srgb, var(--color-surface-panel-elevated, var(--color-surface-panel)) 96%, black);
+  box-shadow: 0 0.4rem 1rem color-mix(in srgb, black 40%, transparent);
+  color: inherit;
+  font-size: calc(var(--font-size-4xs) * 2.4);
+}
+
+.fieldHelpPopupText {
+  margin: 0;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.metadataValueCell {
+  width: 99%;
+  min-width: 0;
+  padding: var(--space-4) var(--space-6);
+  vertical-align: top;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 45%, transparent);
+}
+
+.metadataCompositeCell {
+  padding: var(--space-4) var(--space-6);
+  vertical-align: top;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 45%, transparent);
+}
+
+.metadataCompositeLabel {
+  display: inline-flex;
+}
+
+.metadataCompositeLabelText {
+  font-weight: var(--font-weight-semibold);
+  color: color-mix(in srgb, currentColor 84%, black);
+}
+
+.scalarValue {
+  display: inline-block;
+  color: color-mix(in srgb, currentColor 90%, black);
+}
+
+.byteDataValue {
+  display: inline-block;
+  font-family: var(--font-family-monospace, monospace);
+  word-break: break-word;
+  color: color-mix(in srgb, currentColor 92%, black);
+}
+
+.nestedContainer {
+  margin-top: var(--space-4);
+  padding-left: var(--space-10);
+}
+
+.nestedTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.nestedTableBody {
+}
+
+.nestedTableRow {
+  vertical-align: top;
+}
+
+.nestedTableRow:nth-child(odd) .nestedTableHeaderCell {
+  background: color-mix(in srgb, var(--detail-label-surface, var(--color-surface-panel-accent)) 86%, transparent);
+}
+
+.nestedTableRow:nth-child(even) .nestedTableHeaderCell {
+  background: color-mix(in srgb, var(--detail-label-surface-alt, var(--color-surface-panel-accent)) 78%, transparent);
+}
+
+.nestedTableRow:nth-child(odd) .nestedTableValueCell {
+  background: color-mix(in srgb, var(--detail-value-surface, var(--color-surface-panel)) 94%, transparent);
+}
+
+.nestedTableRow:nth-child(even) .nestedTableValueCell {
+  background: color-mix(in srgb, var(--detail-value-surface-alt, var(--color-surface-panel)) 90%, transparent);
+}
+
+.nestedTableHeaderCell {
+  padding: var(--space-4) var(--space-8) var(--space-4) var(--space-6);
+  text-align: left;
+  vertical-align: top;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 45%, transparent);
+}
+
+.nestedTableCellText {
+  color: color-mix(in srgb, currentColor 90%, black);
+}
+
+.nestedTableValueCell {
+  padding: var(--space-4) var(--space-8) var(--space-4) var(--space-6);
+  vertical-align: top;
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--detail-section-border, var(--color-border-panel)) 35%, transparent);
+}
+
+.emptyStateContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.emptyStateText {
+  font-size: var(--font-size-2xs);
+}

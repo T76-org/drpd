@@ -1,5 +1,7 @@
 import { DataMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 import {
+  buildSourceInfoDataObjectMetadata,
   parseSourceInfoDataObject,
   readDataObjects,
   type ParsedSourceInfoDataObject,
@@ -45,4 +47,23 @@ export class SourceInfoMessage extends DataMessage {
     this.rawSourceInfoDataObject = readDataObjects(payload, this.payloadOffset, 1)[0]
     this.sourceInfoDataObject = parseSourceInfoDataObject(this.rawSourceInfoDataObject)
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Info is a data message that provides source status and capability indicators so the sink can understand source-side constraints and operating context.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    if (this.sourceInfoDataObject) {
+      metadata.messageSpecificData.setEntry(
+        'sourceInfoDataObject',
+        buildSourceInfoDataObjectMetadata(this.sourceInfoDataObject),
+      )
+    }
+    return metadata
+  }
+
 }

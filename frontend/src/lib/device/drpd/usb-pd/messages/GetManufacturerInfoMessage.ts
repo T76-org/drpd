@@ -1,4 +1,5 @@
 import { ExtendedMessage } from '../messageBase'
+import { HumanReadableField } from '../humanReadableField'
 
 /**
  * Get_Manufacturer_Info extended message.
@@ -53,4 +54,42 @@ export class GetManufacturerInfoMessage extends ExtendedMessage {
     this.manufacturerInfoTarget = dataBlock.length >= 1 ? dataBlock[0] : null
     this.manufacturerInfoRef = dataBlock.length >= 2 ? dataBlock[1] : null
   }
+
+  /**
+   * Human-readable metadata for this message.
+   *
+   * @returns Ordered dictionary with message description.
+   */
+  public override get humanReadableMetadata() {
+    const metadata = super.humanReadableMetadata
+    metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Manufacturer_Info is an extended message request that asks for manufacturer identity details so a partner can expose vendor and product identification data.', 'Message Description', 'A description of the message\'s function and usage.'))
+
+    const getManufacturerInfoDataBlock = HumanReadableField.orderedDictionary(
+      'Get Manufacturer Info Data Block',
+      'Metadata describing the Get_Manufacturer_Info request data block.',
+    )
+    if (this.manufacturerInfoTarget !== null) {
+      getManufacturerInfoDataBlock.setEntry(
+        'manufacturerInfoTarget',
+        HumanReadableField.string(
+          this.manufacturerInfoTarget.toString(),
+          'Manufacturer Info Target',
+          'Target selector identifying which partner entity the manufacturer information request addresses.',
+        ),
+      )
+    }
+    if (this.manufacturerInfoRef !== null) {
+      getManufacturerInfoDataBlock.setEntry(
+        'manufacturerInfoRef',
+        HumanReadableField.string(
+          this.manufacturerInfoRef.toString(),
+          'Manufacturer Info Reference',
+          'Reference value identifying which manufacturer information record is being requested.',
+        ),
+      )
+    }
+    metadata.messageSpecificData.setEntry('getManufacturerInfoDataBlock', getManufacturerInfoDataBlock)
+    return metadata
+  }
+
 }
