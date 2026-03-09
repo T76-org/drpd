@@ -120,6 +120,8 @@
   z-index: 10000;
   overflow: auto;
   font-size: var(--font-size-header-popup-base);
+  transform: scale(var(--global-app-scale, 1));
+  transform-origin: top left;
 }
 
 .content {

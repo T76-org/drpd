@@ -1,11 +1,9 @@
 .page {
-  height: 100dvh;
-  max-height: 100dvh;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--color-page-bg);
   color: var(--color-text-primary);
-  overflow: hidden;
 }
 
 .headerViewport {
@@ -150,6 +148,8 @@
   padding: var(--space-10);
   overflow: auto;
   font-size: var(--font-size-popup);
+  transform: scale(var(--global-app-scale, 1));
+  transform-origin: top left;
 }
 
 .deviceMenuItem {

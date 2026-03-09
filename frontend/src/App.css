@@ -1,1 +1,53 @@
-/* Legacy Vite starter stylesheet intentionally left blank. */
+.appViewport {
+  --app-scale: 1;
+
+  width: 100%;
+  height: 100dvh;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.appScaleShell {
+  flex: 0 0 auto;
+  width: calc(100% / var(--app-scale-applied, var(--app-scale)));
+  min-height: calc(100dvh / var(--app-scale-applied, var(--app-scale)));
+}
+
+.appScaleContent {
+  width: 100%;
+  min-height: 100%;
+  transform: scale(var(--app-scale-applied, var(--app-scale)));
+  transform-origin: top center;
+}
+
+@media (min-width: 1280px) {
+  .appViewport {
+    --app-scale: 1.1;
+  }
+}
+
+@media (min-width: 1440px) {
+  .appViewport {
+    --app-scale: 1.2;
+  }
+}
+
+@media (min-width: 1600px) {
+  .appViewport {
+    --app-scale: 1.3;
+  }
+}
+
+@media (min-width: 1920px) {
+  .appViewport {
+    --app-scale: 1.4;
+  }
+}
+
+@media (min-width: 2560px) {
+  .appViewport {
+    --app-scale: 2;
+  }
+}

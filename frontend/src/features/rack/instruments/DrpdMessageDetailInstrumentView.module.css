@@ -225,6 +225,8 @@
   box-shadow: 0 0.4rem 1rem color-mix(in srgb, black 40%, transparent);
   color: inherit;
   font-size: calc(var(--font-size-4xs) * 2.4);
+  transform: scale(var(--global-app-scale, 1));
+  transform-origin: top left;
 }
 
 .fieldHelpPopupText {

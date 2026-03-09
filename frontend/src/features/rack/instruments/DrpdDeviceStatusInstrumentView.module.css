@@ -109,6 +109,8 @@
   box-shadow: var(--shadow-strong);
   overflow: auto;
   font-size: var(--font-size-popup);
+  transform: scale(var(--global-app-scale, 1));
+  transform-origin: top left;
 }
 
 .modeMenuItem {
