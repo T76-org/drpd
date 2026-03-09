@@ -178,6 +178,77 @@ describe('SQLiteWasmStore', () => {
     expect(exportData.payload).toContain('event,capture_changed')
   })
 
+  it('returns a bounded time-strip render window with wall-clock anchors', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    for (let index = 0; index < 20; index += 1) {
+      await store.insertAnalogSample({
+        timestampUs: BigInt(index * 100),
+        displayTimestampUs: BigInt(index * 100),
+        vbusV: 5 + index,
+        ibusA: 0.1 * index,
+        role: 'SOURCE',
+        createdAtMs: 1_700_000_000_000 + index * 10,
+      })
+    }
+    await store.insertCapturedMessage(buildMessage(4))
+    await store.insertCapturedMessage(buildEvent(5))
+
+    const window = await store.queryMessageLogTimeStripWindow({
+      windowStartUs: 900n,
+      windowDurationUs: 400n,
+      analogPointBudget: 5,
+    })
+
+    expect(window.analogPoints.length).toBeLessThanOrEqual(5)
+    expect(Array.isArray(window.timeAnchors)).toBe(true)
+    expect(window.windowEndUs).toBe(window.windowStartUs + window.windowDurationUs)
+  })
+
+  it('uses message boundaries for time-strip scrolling when analog extends beyond the message range', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    await store.insertAnalogSample({
+      timestampUs: 10n,
+      displayTimestampUs: 10n,
+      vbusV: 5,
+      ibusA: 0.1,
+      role: 'SOURCE',
+      createdAtMs: 1,
+    })
+    await store.insertAnalogSample({
+      timestampUs: 50_000n,
+      displayTimestampUs: 50_000n,
+      vbusV: 6,
+      ibusA: 0.2,
+      role: 'SOURCE',
+      createdAtMs: 2,
+    })
+    await store.insertCapturedMessage({
+      ...buildMessage(0),
+      startTimestampUs: 1_000n,
+      endTimestampUs: 1_250n,
+      displayTimestampUs: 1_000n,
+    })
+    await store.insertCapturedMessage({
+      ...buildMessage(1),
+      startTimestampUs: 2_000n,
+      endTimestampUs: 2_400n,
+      displayTimestampUs: 2_000n,
+    })
+
+    const window = await store.queryMessageLogTimeStripWindow({
+      windowStartUs: 0n,
+      windowDurationUs: 200n,
+      analogPointBudget: 10,
+    })
+
+    expect(window.earliestTimestampUs).toBe(1_000n)
+    expect(window.latestTimestampUs).toBe(2_400n)
+  })
+
   it('exports deterministic JSON and CSV payloads and clears scoped tables', async () => {
     const store = new SQLiteWasmStore()
     await store.init()

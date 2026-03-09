@@ -1,0 +1,127 @@
+.timeStripShell {
+  display: grid;
+  gap: var(--timestrip-shell-gap);
+  padding:
+    var(--timestrip-shell-padding-top)
+    var(--timestrip-shell-padding-right)
+    var(--timestrip-shell-padding-bottom)
+    var(--timestrip-shell-padding-left);
+  border-bottom: var(--border-thin) solid var(--timestrip-shell-border-color);
+  background: var(--timestrip-shell-background);
+}
+
+.timeStripToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--timestrip-toolbar-gap);
+}
+
+.timeStripMeta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.timeStripMeta span:first-child {
+  font-size: var(--font-size-3xs);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text-muted) 90%, white 10%);
+}
+
+.timeStripMeta span:last-child {
+  font-size: var(--font-size-3xs);
+  color: color-mix(in srgb, var(--color-text-primary) 82%, var(--color-text-muted) 18%);
+}
+
+.timeStripButtons {
+  display: flex;
+  gap: var(--timestrip-button-gap);
+}
+
+.timeStripButton {
+  border: var(--border-thin) solid var(--timestrip-button-border-color);
+  background: var(--timestrip-button-background);
+  color: var(--timestrip-button-text-color);
+  font-size: var(--timestrip-button-font-size);
+  text-transform: uppercase;
+  letter-spacing: var(--timestrip-button-letter-spacing);
+  padding: var(--timestrip-button-padding-y) var(--timestrip-button-padding-x);
+  min-width: var(--timestrip-button-min-width);
+  cursor: pointer;
+}
+
+.timeStripButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.timeStripViewport {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: var(--timestrip-viewport-background);
+  border: var(--border-thin) solid var(--timestrip-viewport-border-color);
+}
+
+.timeStripScrollbar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: var(--timestrip-scrollbar-height);
+  scrollbar-width: thin;
+  scrollbar-color: var(--timestrip-scrollbar-thumb-firefox) transparent;
+}
+
+.timeStripScrollbar::-webkit-scrollbar {
+  height: var(--timestrip-scrollbar-height);
+}
+
+.timeStripScrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.timeStripScrollbar::-webkit-scrollbar-thumb {
+  background: var(--timestrip-scrollbar-thumb);
+}
+
+.timeStripScrollbarTrack {
+  height: var(--timestrip-scrollbar-track-height);
+}
+
+.axisLane {
+  position: relative;
+  border-bottom: var(--border-thin) solid var(--timestrip-axis-border-color);
+}
+
+.axisSvg {
+  position: absolute;
+  inset: 0;
+}
+
+.axisTick {
+  stroke: var(--timestrip-axis-tick-stroke);
+  stroke-width: var(--timestrip-axis-tick-stroke-width);
+}
+
+.axisDeviceLabel {
+  fill: var(--timestrip-axis-label-color);
+  font-size: var(--timestrip-axis-label-font-size);
+  dominant-baseline: middle;
+}
+
+.pulseLane,
+.analogLane {
+  position: relative;
+}
+
+.pulseLane {
+  border-bottom: var(--border-thin) solid var(--timestrip-pulse-border-color);
+}
+
+.pulseLane canvas,
+.analogLane canvas {
+  display: block;
+}

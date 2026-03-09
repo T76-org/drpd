@@ -356,6 +356,7 @@ describe('RackView', () => {
 
     await user.click(screen.getByRole('button', { name: 'First' }))
     expect(screen.getByText('First popup')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveStyle({ zIndex: '10000' })
     expect(screen.queryByText('Second popup')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Second' }))

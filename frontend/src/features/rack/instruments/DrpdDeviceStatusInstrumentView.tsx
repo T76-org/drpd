@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import {
   CCBusRole,
   CCBusRoleStatus,
@@ -9,6 +10,8 @@ import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdDeviceStatusInstrumentView.module.css'
+
+const ROLE_MENU_Z_INDEX = 10000
 
 /**
  * Build a readable label for a CC bus role.
@@ -98,14 +101,82 @@ export const DrpdDeviceStatusInstrumentView = ({
   const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false)
   const [isRoleUpdating, setIsRoleUpdating] = useState(false)
   const [isCaptureUpdating, setIsCaptureUpdating] = useState(false)
+  const [roleMenuInlineStyle, setRoleMenuInlineStyle] = useState<CSSProperties | undefined>(
+    undefined,
+  )
+  const roleMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const roleMenuRef = useRef<HTMLDivElement | null>(null)
 
   const closeRoleMenu = () => {
     setIsRoleMenuOpen(false)
+    setRoleMenuInlineStyle(undefined)
   }
+
+  const updateRoleMenuLayout = useCallback(() => {
+    if (!isRoleMenuOpen) {
+      return
+    }
+
+    const button = roleMenuButtonRef.current
+    const menu = roleMenuRef.current
+    if (!button || !menu) {
+      return
+    }
+
+    const viewportInsetPx = 8
+    const menuGapPx = 4
+    const buttonRect = button.getBoundingClientRect()
+    const menuRect = menu.getBoundingClientRect()
+    const width = menuRect.width
+    const height = menuRect.height
+
+    let left = buttonRect.right - width
+    left = Math.max(
+      viewportInsetPx,
+      Math.min(left, window.innerWidth - width - viewportInsetPx),
+    )
+
+    const belowTop = buttonRect.bottom + menuGapPx
+    const belowSpace = window.innerHeight - belowTop - viewportInsetPx
+    const aboveSpace = buttonRect.top - menuGapPx - viewportInsetPx
+    const shouldOpenAbove = belowSpace < height && aboveSpace > belowSpace
+    const maxHeight = Math.max(120, Math.floor(shouldOpenAbove ? aboveSpace : belowSpace))
+
+    let top = belowTop
+    if (shouldOpenAbove) {
+      top = Math.max(
+        viewportInsetPx,
+        buttonRect.top - menuGapPx - Math.min(height, maxHeight),
+      )
+    } else {
+      top = Math.min(top, window.innerHeight - viewportInsetPx - Math.min(height, maxHeight))
+    }
+
+    setRoleMenuInlineStyle({
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+      maxHeight: `${Math.round(maxHeight)}px`,
+      zIndex: ROLE_MENU_Z_INDEX,
+    })
+  }, [isRoleMenuOpen])
 
   useEffect(() => {
     if (!isRoleMenuOpen) {
       return undefined
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) {
+        return
+      }
+      if (roleMenuButtonRef.current?.contains(target)) {
+        return
+      }
+      if (roleMenuRef.current?.contains(target)) {
+        return
+      }
+      closeRoleMenu()
     }
 
     const handleRoleMenuKeydown = (event: KeyboardEvent) => {
@@ -115,11 +186,29 @@ export const DrpdDeviceStatusInstrumentView = ({
       }
     }
 
+    window.addEventListener('pointerdown', handlePointerDown)
     window.addEventListener('keydown', handleRoleMenuKeydown)
     return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleRoleMenuKeydown)
     }
   }, [isRoleMenuOpen])
+
+  useEffect(() => {
+    if (!isRoleMenuOpen) {
+      return undefined
+    }
+    const runLayout = () => {
+      updateRoleMenuLayout()
+    }
+    runLayout()
+    window.addEventListener('resize', runLayout)
+    window.addEventListener('scroll', runLayout, true)
+    return () => {
+      window.removeEventListener('resize', runLayout)
+      window.removeEventListener('scroll', runLayout, true)
+    }
+  }, [isRoleMenuOpen, updateRoleMenuLayout])
 
   useEffect(() => {
     if (!driver) {
@@ -230,34 +319,47 @@ export const DrpdDeviceStatusInstrumentView = ({
               <button
                 type="button"
                 className={styles.modeButton}
+                ref={roleMenuButtonRef}
                 onClick={() => setIsRoleMenuOpen((open) => !open)}
                 disabled={!driver || isRoleUpdating}
+                aria-haspopup="menu"
+                aria-expanded={isRoleMenuOpen}
               >
                 Set
               </button>
               {isRoleMenuOpen ? (
-                <div className={styles.modeMenu} role="menu">
-                  {Object.values(CCBusRole).map((nextRole) => {
-                    const isSelected = nextRole === role
-                    return (
-                      <button
-                        key={nextRole}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={isSelected}
-                        className={`${styles.modeMenuItem} ${
-                          isSelected ? styles.modeMenuItemActive : ''
-                        }`}
-                        onClick={() => {
-                          void handleRoleUpdate(nextRole)
-                        }}
-                        disabled={isRoleUpdating}
+                typeof document !== 'undefined'
+                  ? createPortal(
+                      <div
+                        className={styles.modeMenu}
+                        role="menu"
+                        ref={roleMenuRef}
+                        style={roleMenuInlineStyle}
                       >
-                        {formatRoleLabel(nextRole)}
-                      </button>
+                        {Object.values(CCBusRole).map((nextRole) => {
+                          const isSelected = nextRole === role
+                          return (
+                            <button
+                              key={nextRole}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={isSelected}
+                              className={`${styles.modeMenuItem} ${
+                                isSelected ? styles.modeMenuItemActive : ''
+                              }`}
+                              onClick={() => {
+                                void handleRoleUpdate(nextRole)
+                              }}
+                              disabled={isRoleUpdating}
+                            >
+                              {formatRoleLabel(nextRole)}
+                            </button>
+                          )
+                        })}
+                      </div>,
+                      document.body,
                     )
-                  })}
-                </div>
+                  : null
               ) : null}
             </div>
           </div>

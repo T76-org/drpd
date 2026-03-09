@@ -165,6 +165,24 @@ describe('DRPD logging integration', () => {
       public async queryCapturedMessages(_query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
         return [expectedRow]
       }
+      public async queryMessageLogTimeStripWindow() {
+        return {
+          windowStartUs: 0n,
+          windowEndUs: 1n,
+          windowDurationUs: 1n,
+          earliestTimestampUs: null,
+          latestTimestampUs: null,
+          earliestDisplayTimestampUs: null,
+          latestDisplayTimestampUs: null,
+          windowStartDisplayTimestampUs: null,
+          windowEndDisplayTimestampUs: null,
+          hasMoreBefore: false,
+          hasMoreAfter: false,
+          pulses: [],
+          analogPoints: [],
+          timeAnchors: [],
+        }
+      }
       public async exportData(): Promise<{
         mimeType: string
         payload: string

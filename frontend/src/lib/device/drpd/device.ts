@@ -27,7 +27,13 @@ import type {
   LoggedCapturedMessage,
   OnOffState,
 } from './types'
-import type { DRPDLogStore, DRPDLoggingDiagnostics, DRPDLogCounts } from './logging'
+import type {
+  DRPDLogStore,
+  DRPDLoggingDiagnostics,
+  DRPDLogCounts,
+  MessageLogTimeStripQuery,
+  MessageLogTimeStripWindow,
+} from './logging'
 import { DRPDAnalogMonitor } from './analogMonitor'
 import { DRPDCCBus } from './ccBus'
 import { DRPDCapture } from './capture'
@@ -371,6 +377,37 @@ export class DRPDDevice extends EventTarget {
       return []
     }
     return this.logStore.queryCapturedMessages(query)
+  }
+
+  /**
+   * Query a worker-optimized time-strip render window.
+   *
+   * @param query - Time-strip query criteria.
+   * @returns Prepared window payload.
+   */
+  public async queryMessageLogTimeStripWindow(
+    query: MessageLogTimeStripQuery,
+  ): Promise<MessageLogTimeStripWindow> {
+    await this.ensureLogStoreAvailableForRead()
+    if (!this.logStore) {
+      return {
+        windowStartUs: query.windowStartUs,
+        windowEndUs: query.windowStartUs + query.windowDurationUs,
+        windowDurationUs: query.windowDurationUs,
+        earliestTimestampUs: null,
+        latestTimestampUs: null,
+        earliestDisplayTimestampUs: null,
+        latestDisplayTimestampUs: null,
+        windowStartDisplayTimestampUs: null,
+        windowEndDisplayTimestampUs: null,
+        hasMoreBefore: false,
+        hasMoreAfter: false,
+        pulses: [],
+        analogPoints: [],
+        timeAnchors: [],
+      }
+    }
+    return await this.logStore.queryMessageLogTimeStripWindow(query)
   }
 
   /**

@@ -117,7 +117,7 @@
   border: var(--border-thin) solid var(--color-border-panel);
   box-shadow: var(--shadow-strong);
   padding: var(--space-16);
-  z-index: 40;
+  z-index: 10000;
   overflow: auto;
   font-size: var(--font-size-header-popup-base);
 }

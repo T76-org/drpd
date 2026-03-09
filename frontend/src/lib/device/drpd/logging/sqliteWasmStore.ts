@@ -21,6 +21,11 @@ import type {
   LogClearScope,
   LogExportRequest,
   LogExportResult,
+  MessageLogAnalogPoint,
+  MessageLogPulseSegment,
+  MessageLogTimeAnchor,
+  MessageLogTimeStripQuery,
+  MessageLogTimeStripWindow,
   LoggedAnalogSample,
   LoggedCapturedMessage,
 } from './types'
@@ -102,6 +107,21 @@ const toHex = (data: Uint8Array): string => {
   return Array.from(data)
     .map((value) => value.toString(16).padStart(2, '0'))
     .join('')
+}
+
+/**
+ * Build the stable message-log selection key used by UI consumers.
+ *
+ * @param row - Logged row.
+ * @returns Stable selection key.
+ */
+const buildSelectionKey = (
+  row: Pick<LoggedCapturedMessage, 'entryKind' | 'startTimestampUs' | 'endTimestampUs' | 'createdAtMs' | 'eventType'>,
+): string => {
+  if (row.entryKind === 'event') {
+    return `event:${row.startTimestampUs.toString()}:${row.createdAtMs}:${row.eventType ?? 'unknown'}`
+  }
+  return `message:${row.startTimestampUs.toString()}:${row.endTimestampUs.toString()}:${row.createdAtMs}`
 }
 
 /**
@@ -188,6 +208,64 @@ const toNumberValue = (value: SqlValue | undefined, label: string): number => {
     }
   }
   throw new Error(`Invalid SQLite number value for ${label}`)
+}
+
+/**
+ * Clamp a bigint into an inclusive range.
+ *
+ * @param value - Candidate value.
+ * @param minimum - Inclusive minimum.
+ * @param maximum - Inclusive maximum.
+ * @returns Clamped value.
+ */
+const clampBigInt = (value: bigint, minimum: bigint, maximum: bigint): bigint => {
+  if (value < minimum) {
+    return minimum
+  }
+  if (value > maximum) {
+    return maximum
+  }
+  return value
+}
+
+/**
+ * Return a bounded, positive analog point budget.
+ *
+ * @param value - Requested budget.
+ * @returns Normalized budget.
+ */
+const normalizeAnalogPointBudget = (value: number): number => {
+  if (!Number.isFinite(value)) {
+    return 256
+  }
+  return Math.max(2, Math.min(4_096, Math.floor(value)))
+}
+
+/**
+ * Downsample a dense list of analog rows while keeping endpoints.
+ *
+ * @param rows - Sorted analog rows.
+ * @param budget - Maximum desired output rows.
+ * @returns Downsampled rows.
+ */
+const downsampleAnalogRows = (
+  rows: LoggedAnalogSample[],
+  budget: number,
+): LoggedAnalogSample[] => {
+  if (rows.length <= budget) {
+    return rows
+  }
+  if (budget <= 2) {
+    return [rows[0], rows[rows.length - 1]]
+  }
+  const next: LoggedAnalogSample[] = [rows[0]]
+  const lastIndex = rows.length - 1
+  const stride = lastIndex / (budget - 1)
+  for (let index = 1; index < budget - 1; index += 1) {
+    next.push(rows[Math.round(index * stride)])
+  }
+  next.push(rows[lastIndex])
+  return next
 }
 
 /**
@@ -624,6 +702,104 @@ export class SQLiteWasmStore implements DRPDLogStore {
   }
 
   /**
+   * Query a worker-optimized time-strip render window.
+   *
+   * @param query - Time-strip window query.
+   * @returns Prepared window payload.
+   */
+  public async queryMessageLogTimeStripWindow(
+    query: MessageLogTimeStripQuery,
+  ): Promise<MessageLogTimeStripWindow> {
+    this.ensureInitialized()
+    const normalizedDurationUs = query.windowDurationUs > 0n ? query.windowDurationUs : 1n
+    const stats = await this.getTimeStripBoundaryStats()
+    if (!stats.earliestTimestampUs || !stats.latestTimestampUs) {
+      return {
+        windowStartUs: query.windowStartUs,
+        windowEndUs: query.windowStartUs + normalizedDurationUs,
+        windowDurationUs: normalizedDurationUs,
+        earliestTimestampUs: null,
+        latestTimestampUs: null,
+        earliestDisplayTimestampUs: null,
+        latestDisplayTimestampUs: null,
+        windowStartDisplayTimestampUs: null,
+        windowEndDisplayTimestampUs: null,
+        hasMoreBefore: false,
+        hasMoreAfter: false,
+        pulses: [],
+        analogPoints: [],
+        timeAnchors: [],
+      }
+    }
+
+    const maxWindowStartUs = stats.latestTimestampUs > normalizedDurationUs
+      ? stats.latestTimestampUs - normalizedDurationUs
+      : stats.earliestTimestampUs
+    const windowStartUs = clampBigInt(
+      query.windowStartUs,
+      stats.earliestTimestampUs,
+      maxWindowStartUs < stats.earliestTimestampUs ? stats.earliestTimestampUs : maxWindowStartUs,
+    )
+    const windowEndUs = windowStartUs + normalizedDurationUs
+    const analogBudget = normalizeAnalogPointBudget(query.analogPointBudget)
+    const messages = (
+      await this.queryCapturedMessages({
+        startTimestampUs: windowStartUs > normalizedDurationUs ? windowStartUs - normalizedDurationUs : 0n,
+        endTimestampUs: windowEndUs,
+        sortOrder: 'asc',
+      })
+    ).filter(
+      (row) =>
+        row.entryKind === 'message' &&
+        row.endTimestampUs >= windowStartUs &&
+        row.startTimestampUs <= windowEndUs,
+    )
+    const analogRows = downsampleAnalogRows(
+      await this.queryAnalogSamplesForTimeStripWindow(windowStartUs, windowEndUs),
+      analogBudget,
+    )
+    const pulses = messages.map<MessageLogPulseSegment>((row) => {
+      const durationUs = row.endTimestampUs - row.startTimestampUs
+      const displayStartTimestampUs = row.displayTimestampUs
+      return {
+        selectionKey: buildSelectionKey(row),
+        startTimestampUs: row.startTimestampUs,
+        endTimestampUs: row.endTimestampUs,
+        displayStartTimestampUs,
+        displayEndTimestampUs:
+          displayStartTimestampUs === null ? null : displayStartTimestampUs + durationUs,
+        wallClockMs: row.createdAtMs,
+        pulseWidthsNs: Float64Array.from(row.rawPulseWidths),
+      }
+    })
+    const analogPoints = analogRows.map<MessageLogAnalogPoint>((row) => ({
+      timestampUs: row.timestampUs,
+      displayTimestampUs: row.displayTimestampUs,
+      wallClockMs: row.createdAtMs,
+      vbusV: row.vbusV,
+      ibusA: row.ibusA,
+    }))
+    const timeAnchors = this.buildTimeStripAnchors(pulses, analogPoints, stats)
+
+    return {
+      windowStartUs,
+      windowEndUs,
+      windowDurationUs: normalizedDurationUs,
+      earliestTimestampUs: stats.earliestTimestampUs,
+      latestTimestampUs: stats.latestTimestampUs,
+      earliestDisplayTimestampUs: stats.earliestDisplayTimestampUs,
+      latestDisplayTimestampUs: stats.latestDisplayTimestampUs,
+      windowStartDisplayTimestampUs: this.resolveDisplayTimestampAt(windowStartUs, pulses, analogPoints, timeAnchors),
+      windowEndDisplayTimestampUs: this.resolveDisplayTimestampAt(windowEndUs, pulses, analogPoints, timeAnchors),
+      hasMoreBefore: windowStartUs > stats.earliestTimestampUs,
+      hasMoreAfter: windowEndUs < stats.latestTimestampUs,
+      pulses,
+      analogPoints,
+      timeAnchors,
+    }
+  }
+
+  /**
    * Export selected rows as JSON or CSV.
    *
    * @param request - Export request.
@@ -844,6 +1020,482 @@ export class SQLiteWasmStore implements DRPDLogStore {
       analog: this.selectCount('SELECT COUNT(*) FROM analog_samples'),
       messages: this.selectCount('SELECT COUNT(*) FROM captured_messages'),
     }
+  }
+
+  /**
+   * Return earliest/latest timestamps needed by the time-strip.
+   *
+   * @returns Boundary stats across message and analog tables.
+   */
+  protected async getTimeStripBoundaryStats(): Promise<{
+    earliestTimestampUs: bigint | null
+    latestTimestampUs: bigint | null
+    earliestDisplayTimestampUs: bigint | null
+    latestDisplayTimestampUs: bigint | null
+  }> {
+    this.ensureInitialized()
+    if (this.memoryFallback) {
+      const analog = this.memoryFallback.analogSamples
+      const messages = this.memoryFallback.capturedMessages
+        .filter((row) => row.entryKind === 'message')
+      const useMessages = messages.length > 0
+      const absoluteStarts = useMessages
+        ? messages.map((row) => row.startTimestampUs)
+        : analog.map((row) => row.timestampUs)
+      const absoluteEnds = useMessages
+        ? messages.map((row) => row.endTimestampUs)
+        : analog.map((row) => row.timestampUs)
+      const displayStarts = useMessages
+        ? messages.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
+        : analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
+      const displayEnds = useMessages
+        ? messages
+            .map((row) =>
+              row.displayTimestampUs === null
+                ? null
+                : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
+            )
+            .filter((value): value is bigint => value !== null)
+        : analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
+      if (absoluteStarts.length === 0 || absoluteEnds.length === 0) {
+        return {
+          earliestTimestampUs: null,
+          latestTimestampUs: null,
+          earliestDisplayTimestampUs: null,
+          latestDisplayTimestampUs: null,
+        }
+      }
+      return {
+        earliestTimestampUs: absoluteStarts.reduce((minimum, value) => value < minimum ? value : minimum),
+        latestTimestampUs: absoluteEnds.reduce((maximum, value) => value > maximum ? value : maximum),
+        earliestDisplayTimestampUs:
+          displayStarts.length > 0
+            ? displayStarts.reduce((minimum, value) => value < minimum ? value : minimum)
+            : null,
+        latestDisplayTimestampUs:
+          displayEnds.length > 0
+            ? displayEnds.reduce((maximum, value) => value > maximum ? value : maximum)
+            : null,
+      }
+    }
+
+    const db = this.requireDb()
+    const earliestMessage = db.selectObjects(
+      [
+        'SELECT start_timestamp_us, end_timestamp_us, display_timestamp_us',
+        'FROM captured_messages',
+        "WHERE entry_kind = 'message'",
+        'ORDER BY start_timestamp_us ASC, id ASC LIMIT 1',
+      ].join(' '),
+    )[0]
+    const latestMessage = db.selectObjects(
+      [
+        'SELECT start_timestamp_us, end_timestamp_us, display_timestamp_us',
+        'FROM captured_messages',
+        "WHERE entry_kind = 'message'",
+        'ORDER BY end_timestamp_us DESC, id DESC LIMIT 1',
+      ].join(' '),
+    )[0]
+
+    if (earliestMessage && latestMessage) {
+      const start = toBigIntValue(earliestMessage.start_timestamp_us as SqlValue, 'timestrip.earliest_message_ts')
+      const end = toBigIntValue(latestMessage.end_timestamp_us as SqlValue, 'timestrip.latest_message_ts')
+      return {
+        earliestTimestampUs: start,
+        latestTimestampUs: end,
+        earliestDisplayTimestampUs:
+          earliestMessage.display_timestamp_us === null || earliestMessage.display_timestamp_us === undefined
+            ? null
+            : toBigIntValue(earliestMessage.display_timestamp_us as SqlValue, 'timestrip.earliest_message_display_ts'),
+        latestDisplayTimestampUs:
+          latestMessage.display_timestamp_us === null || latestMessage.display_timestamp_us === undefined
+            ? null
+            : toBigIntValue(latestMessage.display_timestamp_us as SqlValue, 'timestrip.latest_message_display_ts') +
+              (end - toBigIntValue(latestMessage.start_timestamp_us as SqlValue, 'timestrip.latest_message_start_ts')),
+      }
+    }
+
+    const earliestAnalog = db.selectObjects(
+      'SELECT timestamp_us, display_timestamp_us FROM analog_samples ORDER BY timestamp_us ASC, id ASC LIMIT 1',
+    )[0]
+    const latestAnalog = db.selectObjects(
+      'SELECT timestamp_us, display_timestamp_us FROM analog_samples ORDER BY timestamp_us DESC, id DESC LIMIT 1',
+    )[0]
+    const earliestTimestampCandidates: bigint[] = []
+    const latestTimestampCandidates: bigint[] = []
+    const earliestDisplayCandidates: bigint[] = []
+    const latestDisplayCandidates: bigint[] = []
+    if (earliestAnalog) {
+      earliestTimestampCandidates.push(toBigIntValue(earliestAnalog.timestamp_us as SqlValue, 'timestrip.earliest_analog_ts'))
+      if (earliestAnalog.display_timestamp_us !== null && earliestAnalog.display_timestamp_us !== undefined) {
+        earliestDisplayCandidates.push(
+          toBigIntValue(earliestAnalog.display_timestamp_us as SqlValue, 'timestrip.earliest_analog_display_ts'),
+        )
+      }
+    }
+    if (latestAnalog) {
+      latestTimestampCandidates.push(toBigIntValue(latestAnalog.timestamp_us as SqlValue, 'timestrip.latest_analog_ts'))
+      if (latestAnalog.display_timestamp_us !== null && latestAnalog.display_timestamp_us !== undefined) {
+        latestDisplayCandidates.push(
+          toBigIntValue(latestAnalog.display_timestamp_us as SqlValue, 'timestrip.latest_analog_display_ts'),
+        )
+      }
+    }
+    return {
+      earliestTimestampUs:
+        earliestTimestampCandidates.length > 0
+          ? earliestTimestampCandidates.reduce((minimum, value) => value < minimum ? value : minimum)
+          : null,
+      latestTimestampUs:
+        latestTimestampCandidates.length > 0
+          ? latestTimestampCandidates.reduce((maximum, value) => value > maximum ? value : maximum)
+          : null,
+      earliestDisplayTimestampUs:
+        earliestDisplayCandidates.length > 0
+          ? earliestDisplayCandidates.reduce((minimum, value) => value < minimum ? value : minimum)
+          : null,
+      latestDisplayTimestampUs:
+        latestDisplayCandidates.length > 0
+          ? latestDisplayCandidates.reduce((maximum, value) => value > maximum ? value : maximum)
+          : null,
+    }
+  }
+
+  /**
+   * Query message rows that overlap the given visible window.
+   *
+   * @param windowStartUs - Inclusive window start.
+   * @param windowEndUs - Inclusive window end.
+   * @returns Overlapping message rows.
+   */
+  protected async queryMessagesOverlappingWindow(
+    windowStartUs: bigint,
+    windowEndUs: bigint,
+  ): Promise<LoggedCapturedMessage[]> {
+    this.ensureInitialized()
+    if (this.memoryFallback) {
+      return this.memoryFallback.capturedMessages
+        .filter(
+          (row) =>
+            row.entryKind === 'message' &&
+            row.endTimestampUs >= windowStartUs &&
+            row.startTimestampUs <= windowEndUs,
+        )
+        .sort((left, right) =>
+          left.startTimestampUs < right.startTimestampUs
+            ? -1
+            : left.startTimestampUs > right.startTimestampUs
+              ? 1
+              : 0,
+        )
+    }
+
+    const sql = [
+      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
+      'message_type, message_id, sender_power_role, sender_data_role, pulse_count,',
+      'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
+      'FROM captured_messages',
+      "WHERE entry_kind = 'message' AND end_timestamp_us >= ? AND start_timestamp_us <= ?",
+      'ORDER BY start_timestamp_us ASC, id ASC',
+    ].join(' ')
+    return this.requireDb().selectObjects(sql, [windowStartUs, windowEndUs]).map((record) => ({
+      entryKind: ((record.entry_kind as string | null) ?? 'message') as LoggedCapturedMessage['entryKind'],
+      eventType: (record.event_type ?? null) as LoggedCapturedMessage['eventType'],
+      eventText: (record.event_text ?? null) as string | null,
+      eventWallClockMs:
+        record.event_wall_clock_ms === null || record.event_wall_clock_ms === undefined
+          ? null
+          : toNumberValue(record.event_wall_clock_ms as SqlValue, 'message.event_wall_clock_ms'),
+      startTimestampUs: toBigIntValue(record.start_timestamp_us as SqlValue, 'message.start_timestamp_us'),
+      endTimestampUs: toBigIntValue(record.end_timestamp_us as SqlValue, 'message.end_timestamp_us'),
+      displayTimestampUs:
+        record.display_timestamp_us === null || record.display_timestamp_us === undefined
+          ? null
+          : toBigIntValue(record.display_timestamp_us as SqlValue, 'message.display_timestamp_us'),
+      decodeResult: toNumberValue(record.decode_result as SqlValue, 'message.decode_result'),
+      sopKind: (record.sop_kind ?? null) as string | null,
+      messageKind: (record.message_kind ?? null) as string | null,
+      messageType:
+        record.message_type === null || record.message_type === undefined
+          ? null
+          : toNumberValue(record.message_type as SqlValue, 'message.message_type'),
+      messageId:
+        record.message_id === null || record.message_id === undefined
+          ? null
+          : toNumberValue(record.message_id as SqlValue, 'message.message_id'),
+      senderPowerRole: (record.sender_power_role ?? null) as string | null,
+      senderDataRole: (record.sender_data_role ?? null) as string | null,
+      pulseCount: toNumberValue(record.pulse_count as SqlValue, 'message.pulse_count'),
+      rawPulseWidths: decodePulseWidthsLE(toBlobValue(record.raw_pulse_widths as SqlValue, 'message.raw_pulse_widths')),
+      rawSop: toBlobValue(record.raw_sop as SqlValue, 'message.raw_sop'),
+      rawDecodedData: toBlobValue(record.raw_decoded_data as SqlValue, 'message.raw_decoded_data'),
+      parseError: (record.parse_error ?? null) as string | null,
+      createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'message.created_at_ms'),
+    }))
+  }
+
+  /**
+   * Query analog samples for a visible strip window, including boundary points
+   * just outside the visible window so sparse telemetry still draws a trace.
+   *
+   * @param windowStartUs - Inclusive visible start timestamp.
+   * @param windowEndUs - Inclusive visible end timestamp.
+   * @returns Sorted analog samples for rendering.
+   */
+  protected async queryAnalogSamplesForTimeStripWindow(
+    windowStartUs: bigint,
+    windowEndUs: bigint,
+  ): Promise<LoggedAnalogSample[]> {
+    const insideWindow = await this.queryAnalogSamples({
+      startTimestampUs: windowStartUs,
+      endTimestampUs: windowEndUs,
+    })
+
+    const before = await this.queryNearestAnalogSampleBefore(windowStartUs)
+    const after = await this.queryNearestAnalogSampleAfter(windowEndUs)
+    const rows = [
+      ...(before ? [before] : []),
+      ...insideWindow,
+      ...(after ? [after] : []),
+    ]
+    const deduped = new Map<string, LoggedAnalogSample>()
+    for (const row of rows) {
+      deduped.set(`${row.timestampUs.toString()}:${row.createdAtMs}`, row)
+    }
+    return Array.from(deduped.values()).sort((left, right) =>
+      left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
+    )
+  }
+
+  /**
+   * Query the nearest analog sample at or before the given timestamp.
+   *
+   * @param timestampUs - Probe timestamp.
+   * @returns Matching row, if any.
+   */
+  protected async queryNearestAnalogSampleBefore(
+    timestampUs: bigint,
+  ): Promise<LoggedAnalogSample | null> {
+    this.ensureInitialized()
+    if (this.memoryFallback) {
+      const rows = this.memoryFallback.analogSamples
+        .filter((row) => row.timestampUs <= timestampUs)
+        .sort((left, right) =>
+          left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
+        )
+      return rows.length > 0 ? rows[rows.length - 1] ?? null : null
+    }
+    const record = this.requireDb().selectObjects(
+      [
+        'SELECT timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms',
+        'FROM analog_samples',
+        'WHERE timestamp_us <= ?',
+        'ORDER BY timestamp_us DESC, id DESC LIMIT 1',
+      ].join(' '),
+      [timestampUs],
+    )[0]
+    if (!record) {
+      return null
+    }
+    return {
+      timestampUs: toBigIntValue(record.timestamp_us as SqlValue, 'analog.timestamp_us'),
+      displayTimestampUs:
+        record.display_timestamp_us === null || record.display_timestamp_us === undefined
+          ? null
+          : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
+      vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
+      ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
+      role: (record.role ?? null) as string | null,
+      createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'analog.created_at_ms'),
+    }
+  }
+
+  /**
+   * Query the nearest analog sample at or after the given timestamp.
+   *
+   * @param timestampUs - Probe timestamp.
+   * @returns Matching row, if any.
+   */
+  protected async queryNearestAnalogSampleAfter(
+    timestampUs: bigint,
+  ): Promise<LoggedAnalogSample | null> {
+    this.ensureInitialized()
+    if (this.memoryFallback) {
+      const rows = this.memoryFallback.analogSamples
+        .filter((row) => row.timestampUs >= timestampUs)
+        .sort((left, right) =>
+          left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
+        )
+      return rows[0] ?? null
+    }
+    const record = this.requireDb().selectObjects(
+      [
+        'SELECT timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms',
+        'FROM analog_samples',
+        'WHERE timestamp_us >= ?',
+        'ORDER BY timestamp_us ASC, id ASC LIMIT 1',
+      ].join(' '),
+      [timestampUs],
+    )[0]
+    if (!record) {
+      return null
+    }
+    return {
+      timestampUs: toBigIntValue(record.timestamp_us as SqlValue, 'analog.timestamp_us'),
+      displayTimestampUs:
+        record.display_timestamp_us === null || record.display_timestamp_us === undefined
+          ? null
+          : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
+      vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
+      ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
+      role: (record.role ?? null) as string | null,
+      createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'analog.created_at_ms'),
+    }
+  }
+
+  /**
+   * Build a bounded set of host/device anchors for wall-clock interpolation.
+   *
+   * @param pulses - Visible message pulse segments.
+   * @param analogPoints - Visible analog points.
+   * @param stats - Boundary stats.
+   * @returns Anchor list sorted by device timestamp.
+   */
+  protected buildTimeStripAnchors(
+    pulses: MessageLogPulseSegment[],
+    analogPoints: MessageLogAnalogPoint[],
+    stats: {
+      earliestTimestampUs: bigint | null
+      latestTimestampUs: bigint | null
+      earliestDisplayTimestampUs: bigint | null
+      latestDisplayTimestampUs: bigint | null
+    },
+  ): MessageLogTimeAnchor[] {
+    const candidates: MessageLogTimeAnchor[] = []
+    for (const point of analogPoints) {
+      candidates.push({
+        timestampUs: point.timestampUs,
+        displayTimestampUs: point.displayTimestampUs,
+        wallClockMs: point.wallClockMs,
+        approximate: false,
+      })
+    }
+    for (const pulse of pulses) {
+      candidates.push({
+        timestampUs: pulse.startTimestampUs,
+        displayTimestampUs: pulse.displayStartTimestampUs,
+        wallClockMs: pulse.wallClockMs,
+        approximate: true,
+      })
+      candidates.push({
+        timestampUs: pulse.endTimestampUs,
+        displayTimestampUs: pulse.displayEndTimestampUs,
+        wallClockMs: pulse.wallClockMs,
+        approximate: true,
+      })
+    }
+
+    if (candidates.length === 0 && stats.earliestTimestampUs !== null && stats.latestTimestampUs !== null) {
+      candidates.push({
+        timestampUs: stats.earliestTimestampUs,
+        displayTimestampUs: stats.earliestDisplayTimestampUs,
+        wallClockMs: null,
+        approximate: true,
+      })
+      candidates.push({
+        timestampUs: stats.latestTimestampUs,
+        displayTimestampUs: stats.latestDisplayTimestampUs,
+        wallClockMs: null,
+        approximate: true,
+      })
+    }
+
+    const deduped = new Map<string, MessageLogTimeAnchor>()
+    for (const candidate of candidates) {
+      const key = [
+        candidate.timestampUs.toString(),
+        candidate.displayTimestampUs?.toString() ?? 'null',
+        candidate.wallClockMs?.toString() ?? 'null',
+      ].join(':')
+      if (!deduped.has(key)) {
+        deduped.set(key, candidate)
+      }
+    }
+    const anchors = Array.from(deduped.values()).sort((left, right) =>
+      left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
+    )
+    if (anchors.length <= 8) {
+      return anchors
+    }
+    return downsampleAnalogRows(
+      anchors.map((anchor) => ({
+        timestampUs: anchor.timestampUs,
+        displayTimestampUs: anchor.displayTimestampUs,
+        vbusV: 0,
+        ibusA: 0,
+        role: null,
+        createdAtMs: anchor.wallClockMs ?? 0,
+      })),
+      8,
+    ).map((row) => {
+      const matchingAnchor = anchors.find((anchor) => anchor.timestampUs === row.timestampUs)
+      return matchingAnchor ?? {
+        timestampUs: row.timestampUs,
+        displayTimestampUs: row.displayTimestampUs,
+        wallClockMs: row.createdAtMs,
+        approximate: true,
+      }
+    })
+  }
+
+  /**
+   * Resolve a display timestamp for an absolute device timestamp.
+   *
+   * @param timestampUs - Absolute device timestamp.
+   * @param pulses - Visible pulse segments.
+   * @param analogPoints - Visible analog points.
+   * @param anchors - Time anchors.
+   * @returns Display timestamp, when inferable.
+   */
+  protected resolveDisplayTimestampAt(
+    timestampUs: bigint,
+    pulses: MessageLogPulseSegment[],
+    analogPoints: MessageLogAnalogPoint[],
+    anchors: MessageLogTimeAnchor[],
+  ): bigint | null {
+    for (const point of analogPoints) {
+      if (point.timestampUs === timestampUs && point.displayTimestampUs !== null) {
+        return point.displayTimestampUs
+      }
+    }
+    for (const pulse of pulses) {
+      if (pulse.startTimestampUs === timestampUs && pulse.displayStartTimestampUs !== null) {
+        return pulse.displayStartTimestampUs
+      }
+      if (pulse.endTimestampUs === timestampUs && pulse.displayEndTimestampUs !== null) {
+        return pulse.displayEndTimestampUs
+      }
+    }
+    const withDisplay = anchors.filter((anchor) => anchor.displayTimestampUs !== null)
+    if (withDisplay.length === 0) {
+      return null
+    }
+    let nearest = withDisplay[0]
+    let nearestDistance = nearest.timestampUs > timestampUs
+      ? nearest.timestampUs - timestampUs
+      : timestampUs - nearest.timestampUs
+    for (const anchor of withDisplay.slice(1)) {
+      const distance = anchor.timestampUs > timestampUs
+        ? anchor.timestampUs - timestampUs
+        : timestampUs - anchor.timestampUs
+      if (distance < nearestDistance) {
+        nearest = anchor
+        nearestDistance = distance
+      }
+    }
+    return nearest.displayTimestampUs === null
+      ? null
+      : nearest.displayTimestampUs + (timestampUs - nearest.timestampUs)
   }
 
   /**

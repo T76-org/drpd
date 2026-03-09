@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { CCBusRole, CCBusRoleStatus, DRPDDevice, OnOffState } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
@@ -90,5 +91,36 @@ describe('DrpdDeviceStatusInstrumentView', () => {
     expect(screen.getByText('On')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Set' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Toggle' })).toBeInTheDocument()
+  })
+
+  it('renders the Set menu above the rack content layer', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setStatusState(
+      CCBusRole.SINK,
+      CCBusRoleStatus.ATTACHED,
+      OnOffState.ON,
+    )
+
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver
+    }
+
+    render(
+      <DrpdDeviceStatusInstrumentView
+        instrument={buildInstrument()}
+        displayName="Device Status"
+        deviceState={deviceState}
+        isEditMode={false}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Set' }))
+
+    expect(screen.getByRole('menu')).toHaveStyle({ zIndex: '10000' })
+    expect(screen.getByRole('menuitemradio', { name: 'Sink' })).toBeInTheDocument()
   })
 })

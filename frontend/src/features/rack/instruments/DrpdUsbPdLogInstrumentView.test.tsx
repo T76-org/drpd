@@ -15,11 +15,13 @@ class TestLogDriver extends EventTarget {
   public rows: LoggedCapturedMessage[]
   public clearScopes: string[]
   public logSelection: DRPDLogSelectionState
+  public timeStripQueries: Array<{ windowStartUs: bigint; windowDurationUs: bigint; analogPointBudget: number }>
 
   public constructor(rows: LoggedCapturedMessage[]) {
     super()
     this.rows = rows
     this.clearScopes = []
+    this.timeStripQueries = []
     this.logSelection = {
       selectedKeys: [],
       anchorIndex: null,
@@ -90,6 +92,63 @@ class TestLogDriver extends EventTarget {
     const offset = query.offset ?? 0
     const limit = query.limit ?? sorted.length
     return sorted.slice(offset, offset + limit)
+  }
+
+  public async queryMessageLogTimeStripWindow(query: {
+    windowStartUs: bigint
+    windowDurationUs: bigint
+    analogPointBudget: number
+  }) {
+    this.timeStripQueries.push(query)
+    const messageRows = this.rows.filter((row) => row.entryKind === 'message')
+    const latestTimestampUs =
+      messageRows.length > 0 ? messageRows[messageRows.length - 1]?.endTimestampUs ?? null : null
+    return {
+      windowStartUs: query.windowStartUs,
+      windowEndUs: query.windowStartUs + query.windowDurationUs,
+      windowDurationUs: query.windowDurationUs,
+      earliestTimestampUs: messageRows[0]?.startTimestampUs ?? null,
+      latestTimestampUs,
+      earliestDisplayTimestampUs: messageRows[0]?.displayTimestampUs ?? null,
+      latestDisplayTimestampUs: messageRows[messageRows.length - 1]?.displayTimestampUs ?? null,
+      windowStartDisplayTimestampUs: query.windowStartUs,
+      windowEndDisplayTimestampUs: query.windowStartUs + query.windowDurationUs,
+      hasMoreBefore: false,
+      hasMoreAfter: false,
+      pulses: messageRows.map((row) => ({
+        selectionKey: buildCapturedLogSelectionKey(row),
+        startTimestampUs: row.startTimestampUs,
+        endTimestampUs: row.endTimestampUs,
+        displayStartTimestampUs: row.displayTimestampUs,
+        displayEndTimestampUs:
+          row.displayTimestampUs === null
+            ? null
+            : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
+        wallClockMs: row.createdAtMs,
+        pulseWidthsNs: row.rawPulseWidths,
+      })),
+      analogPoints: Array.from({ length: Math.min(4, query.analogPointBudget) }, (_, index) => ({
+        timestampUs: BigInt(index * 20),
+        displayTimestampUs: BigInt(index * 20),
+        wallClockMs: 1_700_000_000_000 + index * 10,
+        vbusV: 5 + index,
+        ibusA: 0.5 + index * 0.1,
+      })),
+      timeAnchors: [
+        {
+          timestampUs: 0n,
+          displayTimestampUs: 0n,
+          wallClockMs: 1_700_000_000_000,
+          approximate: false,
+        },
+        {
+          timestampUs: 100n,
+          displayTimestampUs: 100n,
+          wallClockMs: 1_700_000_000_100,
+          approximate: true,
+        },
+      ],
+    }
   }
 
   public async clearLogs(scope: string): Promise<void> {
@@ -171,9 +230,73 @@ const buildEvent = (
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
+  it('renders the time strip above the table with zoom controls', async () => {
+    class ResizeObserverMock {
+      public callback: ResizeObserverCallback
+
+      public constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+      }
+
+      public observe(target: Element): void {
+        this.callback(
+          [
+            {
+              target,
+              contentRect: {
+                width: 640,
+                height: 180,
+                x: 0,
+                y: 0,
+                top: 0,
+                left: 0,
+                bottom: 180,
+                right: 640,
+                toJSON: () => ({}),
+              } as DOMRectReadOnly,
+            } as ResizeObserverEntry,
+          ],
+          this as unknown as ResizeObserver,
+        )
+      }
+
+      public disconnect(): void {}
+      public unobserve(): void {}
+    }
+
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByTestId('drpd-usbpd-log-timestrip')).toBeInTheDocument()
+    const timeStrip = screen.getByTestId('drpd-usbpd-log-timestrip')
+    const header = screen.getByText('Timestamp')
+    expect(
+      Boolean(timeStrip.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true)
+    expect(screen.getByRole('button', { name: 'Zoom In' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Zoom Out' })).toBeInTheDocument()
+    expect(header).toBeInTheDocument()
+  })
+
   it('loads existing logged rows on mount without waiting for add events', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1), // GoodCRC
