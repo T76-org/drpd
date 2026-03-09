@@ -38,6 +38,7 @@ export const DrpdUsbPdLogTimeStrip = ({
   const [windowDurationUs, setWindowDurationUs] = useState(DEFAULT_WINDOW_US)
   const [windowStartUs, setWindowStartUs] = useState(0n)
   const [data, setData] = useState<MessageLogTimeStripWindow | null>(null)
+  const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     initialAlignmentDoneRef.current = false
@@ -215,6 +216,11 @@ export const DrpdUsbPdLogTimeStrip = ({
    * @param event - Pointer event.
    */
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>): void => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setHoverPosition({
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    })
     const pan = panRef.current
     if (!pan || pan.pointerId !== event.pointerId || width <= 0) {
       return
@@ -238,17 +244,26 @@ export const DrpdUsbPdLogTimeStrip = ({
     panRef.current = null
   }
 
+  /**
+   * Clear hover state when leaving the strip.
+   */
+  const handlePointerLeave = (): void => {
+    setHoverPosition(null)
+  }
+
   return (
     <div className={styles.timeStripShell} ref={containerRef}>
       <DrpdUsbPdLogTimeStripRenderer
         viewportRef={viewportRef as RefObject<HTMLDivElement>}
         width={Math.max(width, 1)}
         data={data}
+        hoverPosition={hoverPosition}
         selectedKey={selectedKey}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
+        onPointerLeave={handlePointerLeave}
       />
     </div>
   )

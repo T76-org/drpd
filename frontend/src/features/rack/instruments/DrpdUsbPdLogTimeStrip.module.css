@@ -35,6 +35,11 @@
   --timestrip-analog-current-stroke: rgba(119, 232, 171, 0.95);
   --timestrip-analog-trace-stroke-width: 1.5px;
   --timestrip-analog-point-radius: 1.8px;
+  --timestrip-hover-line-color: rgba(255, 255, 255, 0.22);
+  --timestrip-tooltip-bg: color-mix(in srgb, var(--color-surface-panel) 92%, black 8%);
+  --timestrip-tooltip-border: color-mix(in srgb, var(--color-border-panel) 82%, transparent);
+  --timestrip-tooltip-text: var(--color-text-primary);
+  --timestrip-tooltip-font-size: 10px;
   position: relative;
   overflow: hidden;
   touch-action: none;
@@ -112,4 +117,30 @@
   font-size: var(--timestrip-analog-scale-label-font-size);
   dominant-baseline: middle;
   text-anchor: end;
+}
+
+/* Full-height hover guide line that tracks the pointer across the strip. */
+.hoverLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--timestrip-hover-line-color);
+  pointer-events: none;
+}
+
+/* Floating analog measurement tooltip shown when hovering near a trace. */
+.hoverTooltip {
+  position: absolute;
+  min-width: 76px;
+  padding: 3px 5px;
+  border: var(--border-thin) solid var(--timestrip-tooltip-border);
+  border-radius: 4px;
+  background: var(--timestrip-tooltip-bg);
+  color: var(--timestrip-tooltip-text);
+  font-size: var(--timestrip-tooltip-font-size);
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 10px color-mix(in srgb, black 28%, transparent);
 }

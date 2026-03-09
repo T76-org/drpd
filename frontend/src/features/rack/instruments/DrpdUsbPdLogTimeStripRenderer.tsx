@@ -37,20 +37,24 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   viewportRef,
   width,
   data,
+  hoverPosition,
   selectedKey,
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onPointerCancel,
+  onPointerLeave,
 }: {
   viewportRef?: RefObject<HTMLDivElement>
   width: number
   data: MessageLogTimeStripWindow | null
+  hoverPosition: { x: number; y: number } | null
   selectedKey: string | null
   onPointerDown?: PointerEventHandler<HTMLDivElement>
   onPointerMove?: PointerEventHandler<HTMLDivElement>
   onPointerUp?: PointerEventHandler<HTMLDivElement>
   onPointerCancel?: PointerEventHandler<HTMLDivElement>
+  onPointerLeave?: PointerEventHandler<HTMLDivElement>
 }) => {
   const viewportStyle =
     viewportRef?.current !== undefined && viewportRef.current !== null
@@ -224,6 +228,56 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       currentMarkers,
     }
   }, [analogBottomInset, analogTopInset, data, selectedPulse, xScale])
+  const hoverTooltip = useMemo(() => {
+    if (!hoverPosition || !data || data.analogPoints.length === 0) {
+      return null
+    }
+    const analogLaneTop = AXIS_HEIGHT_PX + PULSE_HEIGHT_PX
+    const analogLaneBottom = analogLaneTop + ANALOG_HEIGHT_PX
+    if (hoverPosition.y < analogLaneTop || hoverPosition.y > analogLaneBottom) {
+      return null
+    }
+    const localAnalogY = hoverPosition.y - analogLaneTop
+    const voltageScale = scaleLinear()
+      .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax])
+      .range([ANALOG_HEIGHT_PX - analogBottomInset, analogTopInset])
+    const currentScale = scaleLinear()
+      .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax])
+      .range([ANALOG_HEIGHT_PX - analogBottomInset, analogTopInset])
+    let nearestIndex = 0
+    let nearestDistance = Number.POSITIVE_INFINITY
+    for (let index = 0; index < data.analogPoints.length; index += 1) {
+      const point = data.analogPoints[index]
+      const distance = Math.abs(xScale(Number(point.timestampUs)) - hoverPosition.x)
+      if (distance < nearestDistance) {
+        nearestDistance = distance
+        nearestIndex = index
+      }
+    }
+    const nearestPoint = data.analogPoints[nearestIndex]
+    if (!nearestPoint) {
+      return null
+    }
+    const voltageY = voltageScale(nearestPoint.vbusV)
+    const currentY = currentScale(nearestPoint.ibusA)
+    const hoverThresholdPx = 8
+    const isNearTrace =
+      Math.min(
+        Math.abs(localAnalogY - voltageY),
+        Math.abs(localAnalogY - currentY),
+      ) <= hoverThresholdPx
+    if (!isNearTrace) {
+      return null
+    }
+    const tooltipLeft = Math.min(Math.max(hoverPosition.x + 8, 4), Math.max(width - 84, 4))
+    const tooltipTop = analogLaneTop + 4
+    return {
+      left: tooltipLeft,
+      top: tooltipTop,
+      vbusLabel: `${nearestPoint.vbusV.toFixed(2)} V`,
+      ibusLabel: `${nearestPoint.ibusA.toFixed(2)} A`,
+    }
+  }, [analogBottomInset, analogTopInset, data, hoverPosition, width, xScale])
 
   return (
     <div
@@ -234,8 +288,15 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onPointerLeave={onPointerLeave}
       data-testid="drpd-usbpd-log-timestrip"
     >
+      {hoverPosition ? (
+        <div
+          className={styles.hoverLine}
+          style={{ left: `${Math.max(0, Math.min(width, hoverPosition.x))}px` }}
+        />
+      ) : null}
       <div className={styles.axisLane} style={{ height: `${AXIS_HEIGHT_PX}px` }}>
         <svg className={styles.axisSvg} width={Math.max(width, 1)} height={AXIS_HEIGHT_PX}>
           {ticks.map((tick, index) => (
@@ -364,6 +425,15 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           ))}
         </svg>
       </div>
+      {hoverTooltip ? (
+        <div
+          className={styles.hoverTooltip}
+          style={{ left: `${hoverTooltip.left}px`, top: `${hoverTooltip.top}px` }}
+        >
+          <div>{hoverTooltip.vbusLabel}</div>
+          <div>{hoverTooltip.ibusLabel}</div>
+        </div>
+      ) : null}
     </div>
   )
 }
