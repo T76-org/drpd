@@ -16,6 +16,8 @@ import {
   verifyMatchingDevices
 } from '../../lib/device'
 import { loadRackDocument, saveRackDocument } from '../../lib/rack/loadRack'
+import drpdLogoDark from '../../assets/drpd-logo-dark.svg'
+import drpdLogoLight from '../../assets/drpd-logo-light.svg'
 import type {
   RackDefinition,
   RackDeviceRecord,
@@ -155,6 +157,9 @@ export const RackView = () => {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
+    getResolvedTheme(getStoredTheme()),
+  )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
@@ -354,13 +359,17 @@ export const RackView = () => {
     const root = document.documentElement
     if (theme !== 'system') {
       root.setAttribute('data-theme', theme)
+      setResolvedTheme(theme)
     } else {
       const mediaQuery = getSystemThemeMediaQuery()
       if (!mediaQuery) {
         root.removeAttribute('data-theme')
+        setResolvedTheme('light')
       } else {
         const applySystemTheme = () => {
-          root.setAttribute('data-theme', mediaQuery.matches ? 'dark' : 'light')
+          const nextTheme = mediaQuery.matches ? 'dark' : 'light'
+          root.setAttribute('data-theme', nextTheme)
+          setResolvedTheme(nextTheme)
         }
         applySystemTheme()
         const cleanup = listenToMediaQueryChange(mediaQuery, applySystemTheme)
@@ -1013,6 +1022,7 @@ export const RackView = () => {
   const rackCanvasWidthPx = currentRack
     ? getRackCanvasSize(currentRack, instrumentDefinitions).rackWidthPx
     : null
+  const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
 
   return (
     <div className={styles.page}>
@@ -1024,7 +1034,10 @@ export const RackView = () => {
               style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
             >
               <div className={styles.titleBlock}>
-                <h1 className={styles.title}>{currentRack?.name ?? 'Rack'}</h1>
+                <h1 className={styles.title}>
+                  <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
+                  <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
+                </h1>
               </div>
               <div className={styles.headerActions}>
                 {!isEditMode ? (
@@ -1273,6 +1286,15 @@ const getStoredTheme = (): ThemeMode => {
     return storedTheme
   }
   return 'system'
+}
+
+/** Resolve the effective theme used for themed assets. */
+const getResolvedTheme = (theme: ThemeMode): 'light' | 'dark' => {
+  if (theme === 'light' || theme === 'dark') {
+    return theme
+  }
+  const mediaQuery = getSystemThemeMediaQuery()
+  return mediaQuery?.matches ? 'dark' : 'light'
 }
 
 /** Resolve the system dark-mode media query when available. */
