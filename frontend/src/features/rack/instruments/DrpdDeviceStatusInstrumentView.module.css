@@ -1,6 +1,6 @@
 .wrapper {
-  --mode-col-label: calc(68px * var(--ui-scale));
-  --mode-col-value: calc(96px * var(--ui-scale));
+  --mode-col-label: calc(40px * var(--ui-scale));
+  --mode-col-value: calc(55px * var(--ui-scale));
   --mode-col-state: calc(64px * var(--ui-scale));
   --separator-opacity: 0.8;
 
