@@ -1,6 +1,6 @@
 .wrapper {
-  --cc-title-width: calc(58px * var(--ui-scale));
-  --cc-label-width: calc(34px * var(--ui-scale));
+  --cc-title-width: calc(30px * var(--ui-scale));
+  --cc-label-width: calc(15px * var(--ui-scale));
   --separator-opacity: 0.8;
 
   height: 100%;
@@ -49,7 +49,7 @@
 }
 
 .ccTitle {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-sm);
   line-height: var(--line-height-snug);
   letter-spacing: var(--letter-spacing-lg);
   text-transform: uppercase;
