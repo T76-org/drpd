@@ -622,7 +622,15 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     const configureDialog = screen.getByRole('dialog')
     await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
     expect(
-      screen.getByText(/enter an integer value of at least 51/i),
+      screen.getByText(/enter an integer value from 100 to 1000000/i),
+    ).toBeInTheDocument()
+    expect(updateDeviceConfig).not.toHaveBeenCalled()
+
+    await userEvent.clear(input)
+    await userEvent.type(input, '1000001')
+    await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
+    expect(
+      screen.getByText(/enter an integer value from 100 to 1000000/i),
     ).toBeInTheDocument()
     expect(updateDeviceConfig).not.toHaveBeenCalled()
 

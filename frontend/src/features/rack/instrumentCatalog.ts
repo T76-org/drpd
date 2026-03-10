@@ -102,7 +102,7 @@ export class DrpdUsbPdLogInstrument extends Instrument {
       identifier: 'com.mta.drpd.usbpd-log',
       displayName: 'Message Log',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 25 },
+      defaultWidth: { mode: 'fixed', units: 30 },
       defaultUnits: 1,
       defaultHeightMode: 'flex'
     })

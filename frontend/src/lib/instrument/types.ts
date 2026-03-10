@@ -17,9 +17,13 @@ export type InstrumentIdentifier = string
  */
 export type InstrumentWidth =
   | {
+      ///< Expand to fill remaining row space.
+      mode: 'flex'
+    }
+  | {
       ///< Use a fixed number of horizontal units.
       mode: 'fixed'
-      ///< Fixed horizontal width in row units.
+      ///< Fixed horizontal width in integer row units.
       units: number
     }
 
@@ -27,10 +31,6 @@ export type InstrumentWidth =
  * Supported vertical sizing modes for instruments.
  */
 export type InstrumentHeightMode = 'fixed' | 'flex'
-  | {
-      ///< Expand to fill remaining row space.
-      mode: 'flex'
-    }
 
 /**
  * Initialization data for Instrument subclasses.
@@ -97,7 +97,7 @@ export abstract class Instrument {
     this.defaultHeightMode = init.defaultHeightMode ?? 'fixed'
     if (
       this.defaultWidth.mode === 'fixed' &&
-      (!Number.isFinite(this.defaultWidth.units) ||
+      (!Number.isInteger(this.defaultWidth.units) ||
         this.defaultWidth.units <= 0)
     ) {
       throw new Error(

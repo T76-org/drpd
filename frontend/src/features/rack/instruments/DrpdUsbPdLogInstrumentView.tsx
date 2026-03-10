@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
   useLayoutEffect,
   type MouseEvent as ReactMouseEvent,
   useEffect,
@@ -34,7 +35,8 @@ const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
 const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
-const MIN_CAPTURED_MESSAGE_BUFFER = DRPD_USB_PD_LOG_CONFIG.tableBehavior.minCapturedMessageBuffer
+const MIN_CAPTURED_MESSAGE_BUFFER = 100
+const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
@@ -268,7 +270,10 @@ export const DrpdUsbPdLogInstrumentView = ({
     if (typeof value !== 'number' || !Number.isFinite(value)) {
       return fallback
     }
-    return Math.max(MIN_CAPTURED_MESSAGE_BUFFER, Math.floor(value))
+    return Math.max(
+      MIN_CAPTURED_MESSAGE_BUFFER,
+      Math.min(MAX_CAPTURED_MESSAGE_BUFFER, Math.floor(value)),
+    )
   }, [deviceRecord?.config])
   const [bufferInput, setBufferInput] = useState(() =>
     configuredMaxCapturedMessages.toString(),
@@ -314,7 +319,7 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [totalRows, setTotalRows] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
-  const [rowHeightPx, setRowHeightPx] = useState(ROW_HEIGHT_PX)
+  const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const selectedKeySet = useMemo(
@@ -368,13 +373,13 @@ export const DrpdUsbPdLogInstrumentView = ({
     setSelection(normalized)
   }
 
-  const readSelectionFromDriver = async (): Promise<DRPDLogSelectionState> => {
+  const readSelectionFromDriver = useCallback(async (): Promise<DRPDLogSelectionState> => {
     if (!driver) {
       return EMPTY_SELECTION
     }
     const maybeSelection = driver.getLogSelectionState()
     return normalizeSelectionState(await Promise.resolve(maybeSelection))
-  }
+  }, [driver])
 
   const enqueueSelectionTask = (task: () => Promise<void>): void => {
     selectionTaskRef.current = selectionTaskRef.current
@@ -439,7 +444,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }
 
-  const parseBufferInput = (): number | null => {
+  const parseBufferInput = useCallback((): number | null => {
     if (!/^\d+$/.test(bufferInput)) {
       return null
     }
@@ -448,11 +453,14 @@ export const DrpdUsbPdLogInstrumentView = ({
       return null
     }
     const normalized = Math.floor(parsed)
-    if (normalized < MIN_CAPTURED_MESSAGE_BUFFER) {
+    if (
+      normalized < MIN_CAPTURED_MESSAGE_BUFFER ||
+      normalized > MAX_CAPTURED_MESSAGE_BUFFER
+    ) {
       return null
     }
     return normalized
-  }
+  }, [bufferInput])
 
   useEffect(() => {
     totalRowsRef.current = totalRows
@@ -494,7 +502,7 @@ export const DrpdUsbPdLogInstrumentView = ({
       cancelled = true
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     }
-  }, [driver])
+  }, [driver, readSelectionFromDriver])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -839,25 +847,26 @@ export const DrpdUsbPdLogInstrumentView = ({
       disabled: !deviceRecord || !onUpdateDeviceConfig || isEditMode || isApplyingBuffer,
       renderPopover: ({ closePopover }) => (
         <div className={styles.headerPopup}>
-          <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-max-buffer`}>
-            Max message buffer
-          </label>
-          <input
-            id={`${instrument.id}-max-buffer`}
-            className={styles.headerPopupInput}
-            type="number"
-            min={MIN_CAPTURED_MESSAGE_BUFFER}
-            step={1}
-            value={bufferInput}
-            onChange={(event) => {
-              setBufferInput(event.currentTarget.value)
-              setBufferError(null)
-            }}
-            disabled={isApplyingBuffer}
-          />
-          <p className={styles.headerPopupHint}>
-            Minimum: {MIN_CAPTURED_MESSAGE_BUFFER}
-          </p>
+          <div className={styles.headerPopupFieldRow}>
+            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-max-buffer`}>
+              Message buffer size
+            </label>
+            <input
+              id={`${instrument.id}-max-buffer`}
+              className={styles.headerPopupInput}
+              aria-label="Max message buffer"
+              type="number"
+              min={MIN_CAPTURED_MESSAGE_BUFFER}
+              max={MAX_CAPTURED_MESSAGE_BUFFER}
+              step={1}
+              value={bufferInput}
+              onChange={(event) => {
+                setBufferInput(event.currentTarget.value)
+                setBufferError(null)
+              }}
+              disabled={isApplyingBuffer}
+            />
+          </div>
           {bufferError ? (
             <p className={styles.headerPopupError}>{bufferError}</p>
           ) : null}
@@ -883,7 +892,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                 const parsed = parseBufferInput()
                 if (parsed === null) {
                   setBufferError(
-                    `Enter an integer value of at least ${MIN_CAPTURED_MESSAGE_BUFFER}.`,
+                    `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
                   )
                   return
                 }

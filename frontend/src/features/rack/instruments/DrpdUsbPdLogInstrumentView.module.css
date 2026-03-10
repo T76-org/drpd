@@ -7,15 +7,15 @@
 
 .wrapper {
   --log-row-height: calc(14px * var(--ui-scale));
-  --column-width-timestamp: calc(108px * var(--ui-scale));
-  --column-width-duration: calc(76px * var(--ui-scale));
-  --column-width-delta: calc(118px * var(--ui-scale));
-  --column-width-id: calc(36px * var(--ui-scale));
-  --column-width-message-type: calc(280px * var(--ui-scale));
-  --column-width-sender: calc(92px * var(--ui-scale));
-  --column-width-receiver: calc(92px * var(--ui-scale));
-  --column-width-sop-type: calc(54px * var(--ui-scale));
-  --column-width-valid: calc(52px * var(--ui-scale));
+  --column-width-timestamp: calc(70px * var(--ui-scale));
+  --column-width-duration: calc(55px * var(--ui-scale));
+  --column-width-delta: calc(70px * var(--ui-scale));
+  --column-width-id: calc(30px * var(--ui-scale));
+  --column-width-message-type: calc(170px * var(--ui-scale));
+  --column-width-sender: calc(56px * var(--ui-scale));
+  --column-width-receiver: calc(56px * var(--ui-scale));
+  --column-width-sop-type: calc(37px * var(--ui-scale));
+  --column-width-valid: calc(36px * var(--ui-scale));
 
   height: 100%;
   width: 100%;
@@ -44,7 +44,7 @@
   border-top: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 95%, transparent);
   background: color-mix(in srgb, var(--color-surface-panel-accent) 88%, var(--color-surface-instrument) 12%);
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-2xs);
   letter-spacing: var(--letter-spacing-sm);
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-text-muted) 92%, var(--color-text-primary) 8%);
@@ -121,7 +121,7 @@
   align-items: center;
   padding: 0 var(--space-8);
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 40%, transparent);
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
   cursor: default;
@@ -177,6 +177,13 @@
   gap: var(--space-8);
 }
 
+.headerPopupFieldRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+}
+
 .headerPopupText {
   margin: var(--space-0);
   font-size: var(--font-size-header-popup-text);
@@ -188,6 +195,7 @@
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .headerPopupInput {
@@ -196,7 +204,8 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-input);
   padding: var(--space-8) var(--space-10);
-  min-height: calc(38px * var(--ui-scale));
+  width: 100%;
+  min-width: 0;
 }
 
 .headerPopupHint {
@@ -224,10 +233,10 @@
   font-size: var(--font-size-header-popup-button);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-sm);
-  padding: var(--space-8) var(--space-16);
+  padding: var(--space-6) var(--space-2);
   cursor: pointer;
   line-height: var(--line-height-tight);
-  min-width: calc(120px * var(--ui-scale));
+  min-width: calc(70px * var(--ui-scale));
 }
 
 .headerPopupButton:disabled {
