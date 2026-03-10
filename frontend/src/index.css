@@ -13,24 +13,26 @@
 
   color-scheme: light dark;
 
+  --ui-scale: 1;
+
   --font-family-base: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   --font-family-mono: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
 
-  --font-size-4xs: 0.3rem;
-  --font-size-3xs: 0.4rem;
-  --font-size-2xs: 0.5rem;
-  --font-size-xs: 0.5625rem;
-  --font-size-sm: 0.625rem;
-  --font-size-md: 0.6875rem;
-  --font-size-lg: 0.75rem;
-  --font-size-xl: 1rem;
-  --font-size-2xl: 1.125rem;
-  --font-size-3xl: 1.75rem;
-  --font-size-4xl: 2.51rem;
+  --font-size-4xs: calc(0.3rem * var(--ui-scale));
+  --font-size-3xs: calc(0.4rem * var(--ui-scale));
+  --font-size-2xs: calc(0.5rem * var(--ui-scale));
+  --font-size-xs: calc(0.5625rem * var(--ui-scale));
+  --font-size-sm: calc(0.625rem * var(--ui-scale));
+  --font-size-md: calc(0.6875rem * var(--ui-scale));
+  --font-size-lg: calc(0.75rem * var(--ui-scale));
+  --font-size-xl: calc(1rem * var(--ui-scale));
+  --font-size-2xl: calc(1.125rem * var(--ui-scale));
+  --font-size-3xl: calc(1.75rem * var(--ui-scale));
+  --font-size-4xl: calc(2.51rem * var(--ui-scale));
 
   /* Shared typography scale for all rack menus and popovers. */
-  --font-size-popup: 0.4rem;
+  --font-size-popup: calc(0.4rem * var(--ui-scale));
   --font-size-header-popup-base: var(--font-size-popup);
   --font-size-header-popup-text: var(--font-size-popup);
   --font-size-header-popup-label: var(--font-size-popup);
@@ -52,32 +54,49 @@
   --letter-spacing-xl: 0.1em;
 
   --space-0: 0;
-  --space-1: 1px;
-  --space-2: 2px;
-  --space-3: 3px;
-  --space-4: 4px;
-  --space-6: 6px;
-  --space-7: 6px;
-  --space-8: 8px;
-  --space-10: 10px;
-  --space-12: 12px;
-  --space-16: 16px;
-  --space-20: 20px;
-  --space-24: 24px;
-  --space-28: 28px;
-  --space-32: 32px;
+  --space-1: calc(1px * var(--ui-scale));
+  --space-2: calc(2px * var(--ui-scale));
+  --space-3: calc(3px * var(--ui-scale));
+  --space-4: calc(4px * var(--ui-scale));
+  --space-6: calc(6px * var(--ui-scale));
+  --space-7: calc(6px * var(--ui-scale));
+  --space-8: calc(8px * var(--ui-scale));
+  --space-10: calc(10px * var(--ui-scale));
+  --space-12: calc(12px * var(--ui-scale));
+  --space-16: calc(16px * var(--ui-scale));
+  --space-20: calc(20px * var(--ui-scale));
+  --space-24: calc(24px * var(--ui-scale));
+  --space-28: calc(28px * var(--ui-scale));
+  --space-32: calc(32px * var(--ui-scale));
 
   --radius-none: 0;
-  --radius-sm: 10px;
-  --radius-md: 18px;
+  --radius-sm: calc(10px * var(--ui-scale));
+  --radius-md: calc(18px * var(--ui-scale));
 
-  --border-thin: 1px;
+  --border-thin: calc(1px * max(1, var(--ui-scale)));
 
-  --control-icon-size-sm: 20px;
+  --control-icon-size-sm: calc(20px * var(--ui-scale));
   --control-padding-y-sm: var(--space-6);
   --control-padding-x-sm: var(--space-10);
   --control-padding-y-md: var(--space-10);
   --control-padding-x-md: var(--space-16);
+
+  --rack-horizontal-unit-px: calc(20px * var(--ui-scale));
+  --rack-max-row-width-units: 60;
+  --rack-unit-height-px: calc(100px * var(--ui-scale));
+  --rack-canvas-aspect-ratio: 1.6;
+  --rack-min-display-units: 6;
+  --rack-fit-min-viewport-height-px: calc(400px * var(--ui-scale));
+  --rack-popover-viewport-inset-px: calc(8px * var(--ui-scale));
+  --rack-popover-gap-px: calc(4px * var(--ui-scale));
+  --rack-header-logo-height: calc(22px * var(--ui-scale));
+  --rack-header-control-font-size: calc(0.33rem * var(--ui-scale));
+  --rack-header-control-min-width: calc(40px * var(--ui-scale));
+  --rack-device-menu-min-width: calc(100px * var(--ui-scale));
+  --rack-device-actions-width: calc(170px * var(--ui-scale));
+  --rack-device-status-width: calc(100px * var(--ui-scale));
+  --rack-device-info-max-width: calc(412px * var(--ui-scale));
+  --rack-device-name-max-width: calc(300px * var(--ui-scale));
 
   --transition-fast: 0.1s ease;
   --transition-standard: 0.2s ease;

@@ -32,10 +32,10 @@ import { getRackCanvasSize } from './rackCanvasSize'
 import {
   canInsertInstrumentIntoRow,
   insertInstrumentIntoRowAtIndex,
-  MAX_ROW_WIDTH_UNITS
 } from './layout'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
+import { useRackSizingConfig } from './rackSizing'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -177,6 +177,7 @@ export const RackView = () => {
   const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
   const editSnapshotRef = useRef<RackDefinition | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
+  const rackSizing = useRackSizingConfig()
 
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
   const instrumentDefinitions = useMemo(() => getSupportedInstruments(), [])
@@ -300,8 +301,8 @@ export const RackView = () => {
       return
     }
 
-    const viewportInsetPx = 8
-    const popoverGapPx = 4
+    const viewportInsetPx = rackSizing.popoverViewportInsetPx
+    const popoverGapPx = rackSizing.popoverGapPx
     const buttonRect = anchor.getBoundingClientRect()
     const popoverRect = popover.getBoundingClientRect()
     const width = popoverRect.width
@@ -334,7 +335,12 @@ export const RackView = () => {
       top: `${Math.round(top)}px`,
       maxHeight: `${Math.round(maxHeight)}px`,
     })
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen])
+  }, [
+    isDeviceMenuOpen,
+    isInstrumentMenuOpen,
+    rackSizing.popoverGapPx,
+    rackSizing.popoverViewportInsetPx,
+  ])
 
   useLayoutEffect(() => {
     if (!isDeviceMenuOpen && !isInstrumentMenuOpen) {
@@ -968,7 +974,8 @@ export const RackView = () => {
       dragState.snapshot,
       dragState.instrumentId,
       target,
-      instrumentDefinitionMap
+      instrumentDefinitionMap,
+      rackSizing.maxRowWidthUnits,
     )
     setDraftRack(nextRack)
   }
@@ -989,7 +996,8 @@ export const RackView = () => {
       dragState.snapshot,
       dragState.instrumentId,
       target,
-      instrumentDefinitionMap
+      instrumentDefinitionMap,
+      rackSizing.maxRowWidthUnits,
     )
     dragState.didDrop = true
     dragState.snapshot = nextRack
@@ -1020,7 +1028,7 @@ export const RackView = () => {
       )
     : []
   const rackCanvasWidthPx = currentRack
-    ? getRackCanvasSize(currentRack, instrumentDefinitions).rackWidthPx
+    ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
     : null
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
 
@@ -1762,6 +1770,7 @@ const moveInstrumentInRack = (
   instrumentId: string,
   target: DropTarget,
   instrumentMap: Map<string, Instrument>,
+  maxRowWidthUnits: number,
 ): RackDefinition => {
   const extraction = extractInstrumentFromRack(rack, instrumentId)
   if (!extraction.removedInstrument) {
@@ -1784,7 +1793,7 @@ const moveInstrumentInRack = (
           extraction.removedInstrument,
           insertIndex,
           instrumentMap,
-          MAX_ROW_WIDTH_UNITS,
+          maxRowWidthUnits,
         )
       ) {
         const nextRow = insertInstrumentIntoRowAtIndex(

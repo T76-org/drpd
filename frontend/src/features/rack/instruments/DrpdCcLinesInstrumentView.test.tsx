@@ -41,7 +41,7 @@ const buildDeviceRecord = (): RackDeviceRecord => ({
 })
 
 describe('DrpdCcLinesInstrumentView', () => {
-  it('renders DUT and US/DS CC line telemetry', () => {
+  it('renders DUT and US/DS CC status telemetry', () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
     driver.setAnalogMonitor({
@@ -76,8 +76,8 @@ describe('DrpdCcLinesInstrumentView', () => {
     expect(screen.getByText('US/DS')).toBeInTheDocument()
     expect(screen.getAllByText('CC1')).toHaveLength(2)
     expect(screen.getAllByText('CC2')).toHaveLength(2)
-    expect(screen.getByText('0.33 V')).toBeInTheDocument()
-    expect(screen.getByText('1.23 V')).toBeInTheDocument()
-    expect(screen.getByText('2.20 V')).toBeInTheDocument()
+    expect(screen.getAllByText('Sink TX NG')).toHaveLength(2)
+    expect(screen.getByText('Off')).toBeInTheDocument()
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
   })
 })

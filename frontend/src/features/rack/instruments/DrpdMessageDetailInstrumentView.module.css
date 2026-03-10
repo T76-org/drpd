@@ -1,3 +1,10 @@
+.contentFill {
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  min-height: 0;
+}
+
 .singleSelectionContainer {
   display: flex;
   flex-direction: column;

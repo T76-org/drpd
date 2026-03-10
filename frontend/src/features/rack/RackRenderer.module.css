@@ -30,6 +30,11 @@
   justify-content: center;
 }
 
+.rackCanvasFrame {
+  position: relative;
+  overflow: hidden;
+}
+
 .rackCanvas {
   display: flex;
   flex-direction: column;
@@ -41,6 +46,11 @@
   box-shadow: none;
   transform-origin: top left;
   position: relative;
+}
+
+.rackCanvasScaled {
+  position: absolute;
+  inset: 0 auto auto 0;
 }
 
 .rows {

@@ -6,15 +6,16 @@
 }
 
 .wrapper {
-  --column-width-timestamp: 11ch;
-  --column-width-duration: 8ch;
-  --column-width-delta: 12ch;
-  --column-width-id: 3ch;
-  --column-width-message-type: 29ch;
-  --column-width-sender: 10ch;
-  --column-width-receiver: 10ch;
-  --column-width-sop-type: 5ch;
-  --column-width-valid: 5ch;
+  --log-row-height: calc(14px * var(--ui-scale));
+  --column-width-timestamp: calc(108px * var(--ui-scale));
+  --column-width-duration: calc(76px * var(--ui-scale));
+  --column-width-delta: calc(118px * var(--ui-scale));
+  --column-width-id: calc(36px * var(--ui-scale));
+  --column-width-message-type: calc(280px * var(--ui-scale));
+  --column-width-sender: calc(92px * var(--ui-scale));
+  --column-width-receiver: calc(92px * var(--ui-scale));
+  --column-width-sop-type: calc(54px * var(--ui-scale));
+  --column-width-valid: calc(52px * var(--ui-scale));
 
   height: 100%;
   width: 100%;
@@ -79,8 +80,8 @@
 }
 
 .viewport::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: calc(5px * var(--ui-scale));
+  height: calc(5px * var(--ui-scale));
 }
 
 .viewport::-webkit-scrollbar-track {
@@ -105,7 +106,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 14px;
+  height: var(--log-row-height);
   display: grid;
   grid-template-columns:
     var(--column-width-timestamp)
@@ -195,7 +196,7 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-input);
   padding: var(--space-8) var(--space-10);
-  min-height: 38px;
+  min-height: calc(38px * var(--ui-scale));
 }
 
 .headerPopupHint {
@@ -226,7 +227,7 @@
   padding: var(--space-8) var(--space-16);
   cursor: pointer;
   line-height: var(--line-height-tight);
-  min-width: 120px;
+  min-width: calc(120px * var(--ui-scale));
 }
 
 .headerPopupButton:disabled {

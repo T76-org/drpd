@@ -1,11 +1,11 @@
 .wrapper {
-  --left-col-label: 4.5ch;
-  --left-col-value: 7ch;
-  --left-col-state: 6ch;
+  --left-col-label: calc(44px * var(--ui-scale));
+  --left-col-value: calc(68px * var(--ui-scale));
+  --left-col-state: calc(64px * var(--ui-scale));
 
-  --right-col-label: 8ch;
-  --right-col-value: 0ch;
-  --right-col-state: 11ch;
+  --right-col-label: calc(82px * var(--ui-scale));
+  --right-col-value: calc(0px * var(--ui-scale));
+  --right-col-state: calc(112px * var(--ui-scale));
 
   width: 100%;
   height: 100%;
@@ -25,7 +25,7 @@
   height: 100%;
   align-content: stretch;
   align-items: stretch;
-  width: max-content;
+  width: 100%;
   padding-left: var(--space-6);
 }
 
@@ -56,7 +56,7 @@
   column-gap: var(--space-6);
   font-size: var(--font-size-2xs);
   line-height: var(--line-height-tight);
-  width: max-content;
+  width: 100%;
   padding: var(--space-0);
 }
 
@@ -132,7 +132,7 @@
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
   min-width: 0;
-  min-height: 34px;
+  min-height: calc(34px * var(--ui-scale));
 }
 
 .control[readonly] {
@@ -156,7 +156,7 @@
   text-transform: uppercase;
   cursor: pointer;
   white-space: nowrap;
-  min-width: 96px;
+  min-width: calc(96px * var(--ui-scale));
 }
 
 .requestButton {
@@ -172,9 +172,9 @@
 
 .advancedPanel {
   position: static;
-  width: 420px;
+  width: calc(420px * var(--ui-scale));
   min-width: 0;
-  max-width: calc(100vw - 24px);
+  max-width: calc(100vw - calc(24px * var(--ui-scale)));
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
   padding: var(--space-8);
@@ -206,7 +206,7 @@
 }
 
 .pdoList {
-  --pdo-list-row-height: 46px;
+  --pdo-list-row-height: calc(46px * var(--ui-scale));
 
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
@@ -219,8 +219,8 @@
 }
 
 .pdoList::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: calc(5px * var(--ui-scale));
+  height: calc(5px * var(--ui-scale));
 }
 
 .pdoList::-webkit-scrollbar-track {

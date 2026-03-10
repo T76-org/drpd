@@ -1,6 +1,6 @@
 .wrapper {
-  --vbus-number-width: 4.2ch;
-  --metric-number-width: 5.8ch;
+  --vbus-number-width: calc(64px * var(--ui-scale));
+  --metric-number-width: calc(72px * var(--ui-scale));
   --separator-opacity: 0.8;
   --protection-color-on: var(--color-status-success);
   --protection-color-off: var(--color-status-muted);
@@ -208,11 +208,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-10);
-  min-width: 360px;
+  min-width: calc(360px * var(--ui-scale));
 }
 
 .headerResetPopup {
-  min-width: 200px;
+  min-width: calc(200px * var(--ui-scale));
 }
 
 .headerPopupRow {
@@ -241,7 +241,7 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-input);
   padding: var(--space-8) var(--space-10);
-  min-height: 38px;
+  min-height: calc(38px * var(--ui-scale));
 }
 
 .headerPopupHint {

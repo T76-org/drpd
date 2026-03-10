@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { RackInstrument } from '../../lib/rack/types'
+import { useRackSizingConfig } from './rackSizing'
 import styles from './InstrumentBase.module.css'
 
 const HEADER_CONTROL_POPOVER_Z_INDEX = 10000
@@ -44,6 +45,7 @@ export const InstrumentBase = ({
   const controlsRef = useRef<HTMLDivElement | null>(null)
   const controlButtonRefMap = useRef(new Map<string, HTMLButtonElement>())
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  const rackSizing = useRackSizingConfig()
 
   const closePopover = useCallback(() => {
     setOpenControlId(null)
@@ -60,8 +62,8 @@ export const InstrumentBase = ({
       return
     }
 
-    const viewportInsetPx = 8
-    const popoverGapPx = 4
+    const viewportInsetPx = rackSizing.popoverViewportInsetPx
+    const popoverGapPx = rackSizing.popoverGapPx
     const buttonRect = button.getBoundingClientRect()
     const popoverRect = popover.getBoundingClientRect()
 
@@ -95,7 +97,7 @@ export const InstrumentBase = ({
       top: `${Math.round(top)}px`,
       maxHeight: `${Math.round(maxHeight)}px`,
     })
-  }, [openControlId])
+  }, [openControlId, rackSizing.popoverGapPx, rackSizing.popoverViewportInsetPx])
 
   useEffect(() => {
     const controlsElement = controlsRef.current

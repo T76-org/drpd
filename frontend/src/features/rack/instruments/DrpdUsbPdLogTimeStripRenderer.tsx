@@ -4,20 +4,39 @@ import type { MessageLogTimeStripWindow } from '../../../lib/device'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import {
-  ANALOG_HEIGHT_PX,
-  AXIS_HEIGHT_PX,
-  PULSE_HEIGHT_PX,
-  TIME_STRIP_HEIGHT_PX,
   formatDeviceTimestampUs,
   findSelectedPulseSegment,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
-const parseCssPixels = (
+const parseCssNumber = (
   value: string,
   fallback: number,
 ): number => {
   const parsed = Number.parseFloat(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const resolveCssLength = (
+  value: string,
+  fallback: number,
+): number => {
+  if (value.trim().length === 0 || typeof document === 'undefined') {
+    return fallback
+  }
+
+  const probe = document.createElement('div')
+  probe.style.position = 'absolute'
+  probe.style.visibility = 'hidden'
+  probe.style.pointerEvents = 'none'
+  probe.style.width = value
+  document.body.appendChild(probe)
+
+  try {
+    const resolved = window.getComputedStyle(probe).width
+    return parseCssNumber(resolved, fallback)
+  } finally {
+    probe.remove()
+  }
 }
 
 const formatScaleLabel = (
@@ -60,29 +79,45 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     viewportRef?.current !== undefined && viewportRef.current !== null
       ? getComputedStyle(viewportRef.current)
       : null
-  const axisLabelY = parseCssPixels(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
-  const plotInsetLeft = parseCssPixels(
+  const timeStripHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-total-height') ?? '',
+    80,
+  )
+  const axisHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-axis-height') ?? '',
+    10,
+  )
+  const pulseHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-height') ?? '',
+    20,
+  )
+  const analogHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-analog-height') ?? '',
+    50,
+  )
+  const axisLabelY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
+  const plotInsetLeft = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-plot-inset-left') ?? '',
     18,
   )
-  const plotInsetRight = parseCssPixels(
+  const plotInsetRight = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-plot-inset-right') ?? '',
     18,
   )
-  const pulseHighY = parseCssPixels(viewportStyle?.getPropertyValue('--timestrip-pulse-high-y') ?? '', 7)
-  const pulseLowInsetBottom = parseCssPixels(
+  const pulseHighY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-pulse-high-y') ?? '', 7)
+  const pulseLowInsetBottom = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-pulse-low-inset-bottom') ?? '',
     7,
   )
-  const analogTopInset = parseCssPixels(
+  const analogTopInset = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-top-inset') ?? '',
     8,
   )
-  const analogBottomInset = parseCssPixels(
+  const analogBottomInset = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-bottom-inset') ?? '',
     8,
   )
-  const analogPointRadius = parseCssPixels(
+  const analogPointRadius = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-point-radius') ?? '',
     1.8,
   )
@@ -117,7 +152,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     if (!data) {
       return { highlight: null, paths: [] as string[] }
     }
-    const lowY = PULSE_HEIGHT_PX - pulseLowInsetBottom
+    const lowY = pulseHeightPx - pulseLowInsetBottom
     const highY = pulseHighY
     const highlight = selectedPulse
       ? {
@@ -149,18 +184,18 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       return commands.join(' ')
     })
     return { highlight, paths }
-  }, [data, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
+  }, [data, pulseHeightPx, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
   const analogGeometry = useMemo(() => {
     const voltageScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax])
       .range([
-        ANALOG_HEIGHT_PX - analogBottomInset,
+        analogHeightPx - analogBottomInset,
         analogTopInset,
       ])
     const currentScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax])
       .range([
-        ANALOG_HEIGHT_PX - analogBottomInset,
+        analogHeightPx - analogBottomInset,
         analogTopInset,
       ])
     const gridLines = DRPD_USB_PD_LOG_CONFIG.stripAnalog.gridMarks.map((mark) => ({
@@ -227,23 +262,23 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       voltageMarkers,
       currentMarkers,
     }
-  }, [analogBottomInset, analogTopInset, data, selectedPulse, xScale])
+  }, [analogBottomInset, analogHeightPx, analogTopInset, data, selectedPulse, xScale])
   const hoverTooltip = useMemo(() => {
     if (!hoverPosition || !data || data.analogPoints.length === 0) {
       return null
     }
-    const analogLaneTop = AXIS_HEIGHT_PX + PULSE_HEIGHT_PX
-    const analogLaneBottom = analogLaneTop + ANALOG_HEIGHT_PX
+    const analogLaneTop = axisHeightPx + pulseHeightPx
+    const analogLaneBottom = analogLaneTop + analogHeightPx
     if (hoverPosition.y < analogLaneTop || hoverPosition.y > analogLaneBottom) {
       return null
     }
     const localAnalogY = hoverPosition.y - analogLaneTop
     const voltageScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax])
-      .range([ANALOG_HEIGHT_PX - analogBottomInset, analogTopInset])
+      .range([analogHeightPx - analogBottomInset, analogTopInset])
     const currentScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax])
-      .range([ANALOG_HEIGHT_PX - analogBottomInset, analogTopInset])
+      .range([analogHeightPx - analogBottomInset, analogTopInset])
     let nearestIndex = 0
     let nearestDistance = Number.POSITIVE_INFINITY
     for (let index = 0; index < data.analogPoints.length; index += 1) {
@@ -260,7 +295,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     }
     const voltageY = voltageScale(nearestPoint.vbusV)
     const currentY = currentScale(nearestPoint.ibusA)
-    const hoverThresholdPx = 8
+    const hoverThresholdPx = Math.max(8, analogPointRadius * 4)
     const isNearTrace =
       Math.min(
         Math.abs(localAnalogY - voltageY),
@@ -269,21 +304,21 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     if (!isNearTrace) {
       return null
     }
-    const tooltipLeft = Math.min(Math.max(hoverPosition.x + 8, 4), Math.max(width - 84, 4))
-    const tooltipTop = analogLaneTop + 4
+    const tooltipLeft = Math.min(Math.max(hoverPosition.x + analogPointRadius * 4, 4), Math.max(width - 84, 4))
+    const tooltipTop = analogLaneTop + Math.max(4, analogPointRadius * 2)
     return {
       left: tooltipLeft,
       top: tooltipTop,
       vbusLabel: `${nearestPoint.vbusV.toFixed(2)} V`,
       ibusLabel: `${nearestPoint.ibusA.toFixed(2)} A`,
     }
-  }, [analogBottomInset, analogTopInset, data, hoverPosition, width, xScale])
+  }, [analogBottomInset, analogHeightPx, analogPointRadius, analogTopInset, axisHeightPx, data, hoverPosition, pulseHeightPx, width, xScale])
 
   return (
     <div
       ref={viewportRef}
       className={styles.timeStripViewport}
-      style={{ height: `${TIME_STRIP_HEIGHT_PX}px` }}
+      style={{ height: `${timeStripHeightPx}px` }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -297,11 +332,11 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           style={{ left: `${Math.max(0, Math.min(width, hoverPosition.x))}px` }}
         />
       ) : null}
-      <div className={styles.axisLane} style={{ height: `${AXIS_HEIGHT_PX}px` }}>
-        <svg className={styles.axisSvg} width={Math.max(width, 1)} height={AXIS_HEIGHT_PX}>
+      <div className={styles.axisLane} style={{ height: `${axisHeightPx}px` }}>
+        <svg className={styles.axisSvg} width={Math.max(width, 1)} height={axisHeightPx}>
           {ticks.map((tick, index) => (
             <g key={`${tick.x}-${index}`} transform={`translate(${tick.x},0)`}>
-              <line className={styles.axisTick} y1={0} y2={AXIS_HEIGHT_PX} />
+              <line className={styles.axisTick} y1={0} y2={axisHeightPx} />
               <text
                 className={styles.axisDeviceLabel}
                 y={axisLabelY}
@@ -313,11 +348,11 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           ))}
         </svg>
       </div>
-      <div className={styles.pulseLane} style={{ height: `${PULSE_HEIGHT_PX}px` }}>
-        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={PULSE_HEIGHT_PX}>
+      <div className={styles.pulseLane} style={{ height: `${pulseHeightPx}px` }}>
+        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={pulseHeightPx}>
           <defs>
             <clipPath id="drpd-usbpd-log-pulse-clip">
-              <rect x={plotLeftX} y={0} width={plotWidth} height={PULSE_HEIGHT_PX} />
+              <rect x={plotLeftX} y={0} width={plotWidth} height={pulseHeightPx} />
             </clipPath>
           </defs>
           <g clipPath="url(#drpd-usbpd-log-pulse-clip)">
@@ -326,7 +361,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 x={pulseGeometry.highlight.x}
                 y={0}
                 width={pulseGeometry.highlight.width}
-                height={PULSE_HEIGHT_PX}
+                height={pulseHeightPx}
                 fill="var(--timestrip-pulse-highlight-fill)"
               />
             ) : null}
@@ -343,11 +378,11 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           </g>
         </svg>
       </div>
-      <div className={styles.analogLane} style={{ height: `${ANALOG_HEIGHT_PX}px` }}>
-        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={ANALOG_HEIGHT_PX}>
+      <div className={styles.analogLane} style={{ height: `${analogHeightPx}px` }}>
+        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={analogHeightPx}>
           <defs>
             <clipPath id="drpd-usbpd-log-analog-clip">
-              <rect x={plotLeftX} y={0} width={plotWidth} height={ANALOG_HEIGHT_PX} />
+              <rect x={plotLeftX} y={0} width={plotWidth} height={analogHeightPx} />
             </clipPath>
           </defs>
           <g clipPath="url(#drpd-usbpd-log-analog-clip)">
@@ -356,7 +391,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 x={analogGeometry.highlight.x}
                 y={0}
                 width={analogGeometry.highlight.width}
-                height={ANALOG_HEIGHT_PX}
+                height={analogHeightPx}
                 fill="var(--timestrip-analog-selection-fill)"
               />
             ) : null}

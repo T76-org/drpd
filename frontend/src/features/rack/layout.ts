@@ -1,10 +1,11 @@
 import type { Instrument, InstrumentWidth } from '../../lib/instrument'
 import type { RackInstrument, RackRow } from '../../lib/rack/types'
+import { DEFAULT_RACK_SIZING } from './rackSizing'
 
 /**
  * Horizontal unit size used for rack width allocation math.
  */
-export const HORIZONTAL_UNIT_PX = 20
+export const HORIZONTAL_UNIT_PX = DEFAULT_RACK_SIZING.horizontalUnitPx
 
 /**
  * Maximum horizontal width available per row in width units.
@@ -12,7 +13,7 @@ export const HORIZONTAL_UNIT_PX = 20
  * This was historically 12 units at 100 px per unit. The unit size is now
  * 20 px, so capacity is scaled to preserve the same effective row width.
  */
-export const MAX_ROW_WIDTH_UNITS = 60
+export const MAX_ROW_WIDTH_UNITS = DEFAULT_RACK_SIZING.maxRowWidthUnits
 
 /**
  * Width allocation for an instrument in a row.
