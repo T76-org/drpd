@@ -36,7 +36,7 @@ afterEach(() => {
 })
 
 describe('App', () => {
-  it('renders the app scaling shell around the rack view', async () => {
+  it('renders the app viewport around the rack view without a scale shell', async () => {
     saveRackDocument({
       racks: [
         {
@@ -51,9 +51,8 @@ describe('App', () => {
     const { container } = render(<App />)
 
     expect(screen.getByTestId('app-viewport')).toBeInTheDocument()
-    expect(screen.getByTestId('app-scale-shell')).toHaveAttribute('data-app-scale', '1.000')
-    expect(screen.getByTestId('app-scale-content')).toBeInTheDocument()
+    expect(screen.getByTestId('app-content')).toBeInTheDocument()
     expect(await screen.findByAltText('Dr.PD')).toBeInTheDocument()
-    expect(container.querySelector('[data-testid="app-scale-content"] [data-testid="rack-rows"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="app-content"] [data-testid="rack-rows"]')).not.toBeNull()
   })
 })
