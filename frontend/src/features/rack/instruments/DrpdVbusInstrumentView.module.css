@@ -1,6 +1,6 @@
 .wrapper {
-  --vbus-number-width: calc(64px * var(--ui-scale));
-  --metric-number-width: calc(72px * var(--ui-scale));
+  --vbus-number-width: calc(89px * var(--ui-scale));
+  --metric-number-width: calc(56px * var(--ui-scale));
   --separator-opacity: 0.8;
   --protection-color-on: var(--color-status-success);
   --protection-color-off: var(--color-status-muted);
