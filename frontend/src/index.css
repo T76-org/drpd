@@ -150,42 +150,6 @@
   --empty-text: rgba(255, 255, 255, 0.45);
 }
 
-@media (max-width: 1279px) {
-  :root {
-    --ui-scale: 0.9;
-  }
-}
-
-@media (min-width: 1280px) and (max-width: 1679px) {
-  :root {
-    --ui-scale: 1;
-  }
-}
-
-@media (min-width: 1680px) and (max-width: 1919px) {
-  :root {
-    --ui-scale: 1.08;
-  }
-}
-
-@media (min-width: 1920px)  and (max-width: 2499px) {
-  :root {
-    --ui-scale: 1.4;
-  }
-}
-
-@media (min-width: 2500px) and (max-width: 3200px) {
-  :root {
-    --ui-scale: 2;
-  }
-}
-
-@media (min-width: 3201px) {
-  :root {
-    --ui-scale: 2.8;
-  }
-}
-
 :root[data-theme='light'] {
   color-scheme: light;
   --color-page-bg: #f4f6fa;
