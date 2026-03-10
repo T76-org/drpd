@@ -14,7 +14,7 @@
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-2xs);
 }
 
 .singleSelectionHeading {
@@ -25,8 +25,9 @@
 
 .sectionsContainer {
   display: grid;
-  gap: var(--space-10);
+  gap: var(--space-8);
   min-width: 0;
+  padding: var(--space-6);
 }
 
 .section {
@@ -188,8 +189,8 @@
   width: 0.97em;
   height: 0.97em;
   padding: 0;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  border-radius: 999px;
+  border: var(--border-thin) solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 9999px;
   background: transparent;
   color: color-mix(in srgb, currentColor 62%, transparent);
   font: inherit;
@@ -222,18 +223,17 @@
 .fieldHelpPopup {
   position: fixed;
   z-index: 9999;
-  max-width: min(24rem, calc(100vw - 1rem));
-  max-height: calc(100vh - 1rem);
+  max-width: min(calc(120px * var(--ui-scale)), calc(100vw - calc(16px * var(--ui-scale))));
+  max-height: calc(100vh - calc(16px * var(--ui-scale)));
   overflow: auto;
-  padding: calc(var(--space-6) * 2.4) calc(var(--space-8) * 2.4);
-  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
-  border-radius: var(--radius-sm, 0.25rem);
+  padding: var(--space-6) var(--space-10);
+  border: var(--border-thin) solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-surface-panel-elevated, var(--color-surface-panel)) 96%, black);
-  box-shadow: 0 0.4rem 1rem color-mix(in srgb, black 40%, transparent);
+  box-shadow: 0 calc(6px * var(--ui-scale)) calc(16px * var(--ui-scale))
+    color-mix(in srgb, black 40%, transparent);
   color: inherit;
-  font-size: calc(var(--font-size-4xs) * 2.4);
-  transform: scale(var(--global-app-scale, 1));
-  transform-origin: top left;
+  font-size: var(--font-size-3xs);
 }
 
 .fieldHelpPopupText {
