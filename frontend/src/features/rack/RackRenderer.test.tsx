@@ -16,6 +16,19 @@ class PlaceholderInstrument extends Instrument {
   }
 }
 
+class FlexInstrument extends Instrument {
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.flex',
+      displayName: 'Flex',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'fixed', units: 30 },
+      defaultUnits: 1,
+      defaultHeightMode: 'flex',
+    })
+  }
+}
+
 let resizeObserverCallback: ResizeObserverCallback | null = null
 
 class ResizeObserverMock {
@@ -71,14 +84,11 @@ describe('RackRenderer', () => {
     expect(rackScroll).not.toBeNull()
     expect(rackCanvas).toHaveAttribute('data-rack-width', '1200')
     expect(rackCanvas).toHaveAttribute('data-rack-height', '600')
-    expect(rackCanvas).toHaveStyle({ width: '1200px', minHeight: '600px', height: '100%' })
-    expect(rackScroll).toHaveStyle({ width: '1200px', minHeight: '600px', height: '100%' })
+    expect(rackCanvas).toHaveStyle({ width: '1200px', minHeight: '600px', height: '600px' })
+    expect(rackScroll).toHaveStyle({ width: '1200px', minHeight: '600px', height: '600px' })
     expect(rackCanvas).not.toHaveStyle({ transform: 'scale(1)' })
 
-    expect(screen.getByTestId('rack-rows')).toHaveStyle({
-      minHeight: '600px',
-      height: '100%'
-    })
+    expect(screen.getByTestId('rack-rows')).toHaveStyle({ height: '600px' })
   })
 
   it('keeps the native rack width when the viewport height shrinks', () => {
@@ -135,8 +145,9 @@ describe('RackRenderer', () => {
     })
 
     expect(rackViewport).toHaveAttribute('data-scroll-mode', 'scroll')
-    expect(rackScroll).toHaveStyle({ width: '1200px', minHeight: '600px', height: '100%' })
-    expect(rackCanvas).toHaveStyle({ width: '1200px', minHeight: '600px', height: '100%' })
+    expect(rackScroll).toHaveStyle({ width: '1200px', minHeight: '500px', height: '500px' })
+    expect(rackCanvas).toHaveStyle({ width: '1200px', minHeight: '500px', height: '500px' })
+    expect(screen.getByTestId('rack-rows')).toHaveStyle({ height: '500px' })
     expect(rackCanvas).not.toHaveStyle({ transform: 'scale(0.8333333333333334)' })
   })
 
@@ -194,7 +205,62 @@ describe('RackRenderer', () => {
     })
 
     expect(rackViewport).toHaveAttribute('data-scroll-mode', 'scroll')
-    expect(rackScroll).toHaveStyle({ width: '1200px', minHeight: '600px', height: '100%' })
+    expect(rackScroll).toHaveStyle({ width: '1200px', minHeight: '350px', height: '350px' })
+    expect(rackCanvas).toHaveStyle({ width: '1200px', minHeight: '350px', height: '350px' })
     expect(rackCanvas).not.toHaveStyle({ transform: 'scale(0.5833333333333334)' })
+  })
+
+  it('lets flex-height rows and instrument slots follow the clamped rack height', () => {
+    const rack: RackDefinition = {
+      id: 'rack-a',
+      name: 'Rack A',
+      totalUnits: 8,
+      devices: [],
+      rows: [
+        {
+          id: 'row-1',
+          instruments: [
+            {
+              id: 'inst-1',
+              instrumentIdentifier: 'com.mta.drpd.flex',
+            },
+          ],
+        },
+      ],
+    }
+
+    const { container } = render(
+      <RackRenderer
+        rack={rack}
+        instruments={[new FlexInstrument()]}
+        deviceStates={[]}
+      />,
+    )
+
+    const rackViewport = container.querySelector('[class*="rackViewport"]')
+    expect(rackViewport).not.toBeNull()
+
+    Object.defineProperty(rackViewport as HTMLDivElement, 'clientHeight', {
+      configurable: true,
+      value: 320,
+    })
+
+    act(() => {
+      resizeObserverCallback?.(
+        [
+          {
+            target: rackViewport as HTMLDivElement,
+            contentRect: {
+              height: 320,
+            } as DOMRectReadOnly,
+          } as ResizeObserverEntry,
+        ],
+        {} as ResizeObserver,
+      )
+    })
+
+    expect(screen.getByTestId('rack-rows')).toHaveStyle({ height: '320px' })
+    expect(screen.getByTestId('rack-row-row-1')).toHaveStyle({ flex: '1 1 0' })
+    expect(screen.getByTestId('rack-instrument-inst-1')).toHaveStyle({ height: '100%' })
   })
 })

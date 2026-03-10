@@ -544,6 +544,7 @@ export const DrpdMessageDetailInstrumentView = ({
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
+      contentClassName={styles.contentFill}
       onClose={
         onRemove
           ? () => {

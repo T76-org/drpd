@@ -76,6 +76,8 @@ export const RackRenderer = ({
   const fullScreenInstrument = findFullScreenInstrument(rack)
   const shouldAllowVerticalScroll =
     viewportHeightPx > 0 && viewportHeightPx < rackHeightPx
+  const renderedRackHeightPx =
+    viewportHeightPx > 0 ? Math.min(rackHeightPx, viewportHeightPx) : rackHeightPx
 
   return (
     <div className={styles.rackWrapper}>
@@ -89,8 +91,8 @@ export const RackRenderer = ({
             className={styles.rackScroll}
             style={{
               width: rackWidthPx,
-              minHeight: rackHeightPx,
-              height: '100%'
+              minHeight: renderedRackHeightPx,
+              height: renderedRackHeightPx,
             }}
           >
             <div>
@@ -98,8 +100,9 @@ export const RackRenderer = ({
                 className={styles.rackCanvas}
                 style={{
                   width: rackWidthPx,
-                  minHeight: rackHeightPx,
-                  height: '100%',
+                  minHeight: renderedRackHeightPx,
+                  height: renderedRackHeightPx,
+                  overflowY: shouldAllowVerticalScroll ? 'auto' : 'hidden',
                 }}
                 data-rack-width={Math.round(rackWidthPx)}
                 data-rack-height={rackHeightPx}
@@ -126,7 +129,7 @@ export const RackRenderer = ({
                 {!fullScreenInstrument ? (
                   <div
                     className={styles.rows}
-                    style={{ minHeight: rackHeightPx, height: '100%' }}
+                    style={{ height: renderedRackHeightPx }}
                     data-testid="rack-rows"
                   >
                     {isEditMode ? (
