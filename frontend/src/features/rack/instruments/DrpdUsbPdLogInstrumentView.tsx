@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  useLayoutEffect,
   type MouseEvent as ReactMouseEvent,
   useEffect,
   useMemo,
@@ -38,6 +39,30 @@ const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
   activeIndex: null,
+}
+
+const resolveCssLength = (
+  value: string,
+  fallback: number,
+): number => {
+  if (value.trim().length === 0 || typeof document === 'undefined') {
+    return fallback
+  }
+
+  const probe = document.createElement('div')
+  probe.style.position = 'absolute'
+  probe.style.visibility = 'hidden'
+  probe.style.pointerEvents = 'none'
+  probe.style.width = value
+  document.body.appendChild(probe)
+
+  try {
+    const resolved = window.getComputedStyle(probe).width
+    const parsed = Number.parseFloat(resolved)
+    return Number.isFinite(parsed) ? parsed : fallback
+  } finally {
+    probe.remove()
+  }
 }
 
 type DisplayRow = {
@@ -289,6 +314,7 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [totalRows, setTotalRows] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
+  const [rowHeightPx, setRowHeightPx] = useState(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const selectedKeySet = useMemo(
@@ -298,8 +324,8 @@ export const DrpdUsbPdLogInstrumentView = ({
   const activeSelectedKey =
     selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
 
-  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT_PX) - OVERSCAN_ROWS)
-  const visibleRowCount = Math.ceil(viewportHeight / ROW_HEIGHT_PX) + OVERSCAN_ROWS * 2
+  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
+  const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
   const lastVisibleRow = Math.min(totalRows - 1, firstVisibleRow + visibleRowCount)
 
   const visibleRows = useMemo(() => {
@@ -401,8 +427,8 @@ export const DrpdUsbPdLogInstrumentView = ({
     if (!viewport) {
       return
     }
-    const rowTop = index * ROW_HEIGHT_PX
-    const rowBottom = rowTop + ROW_HEIGHT_PX
+    const rowTop = index * rowHeightPx
+    const rowBottom = rowTop + rowHeightPx
     if (rowTop < viewport.scrollTop) {
       viewport.scrollTop = rowTop
       return
@@ -469,6 +495,27 @@ export const DrpdUsbPdLogInstrumentView = ({
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     }
   }, [driver])
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    const updateRowHeight = () => {
+      const nextRowHeight = resolveCssLength(
+        window.getComputedStyle(viewport).getPropertyValue('--log-row-height'),
+        ROW_HEIGHT_PX,
+      )
+      setRowHeightPx(nextRowHeight)
+    }
+
+    updateRowHeight()
+    window.addEventListener('resize', updateRowHeight)
+    return () => {
+      window.removeEventListener('resize', updateRowHeight)
+    }
+  }, [])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -1026,13 +1073,13 @@ export const DrpdUsbPdLogInstrumentView = ({
             const element = event.currentTarget
             setScrollTop(element.scrollTop)
             atBottomRef.current =
-              element.scrollHeight - element.clientHeight - element.scrollTop <= ROW_HEIGHT_PX * 2
+              element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
           }}
           data-testid="drpd-usbpd-log-viewport"
         >
           <div
             className={styles.canvas}
-            style={{ height: `${Math.max(totalRows * ROW_HEIGHT_PX, 0)}px` }}
+            style={{ height: `${Math.max(totalRows * rowHeightPx, 0)}px` }}
             data-testid="drpd-usbpd-log-canvas"
           >
             {visibleRows.map(({ index, row }) => (
@@ -1048,7 +1095,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                style={{ transform: `translateY(${index * ROW_HEIGHT_PX}px)` }}
+                style={{ transform: `translateY(${index * rowHeightPx}px)` }}
                 onClick={(event) => {
                   handleRowClick(event, index, row)
                 }}

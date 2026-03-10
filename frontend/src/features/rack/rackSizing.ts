@@ -43,6 +43,66 @@ const readCssNumber = (
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const readCssLength = (
+  styles: CSSStyleDeclaration,
+  propertyName: string,
+  fallback: number,
+): number => {
+  const value = styles.getPropertyValue(propertyName).trim()
+  if (value.length === 0 || typeof document === 'undefined') {
+    return fallback
+  }
+
+  const probe = document.createElement('div')
+  probe.style.position = 'absolute'
+  probe.style.visibility = 'hidden'
+  probe.style.pointerEvents = 'none'
+  probe.style.width = value
+  document.body.appendChild(probe)
+
+  try {
+    const resolved = window.getComputedStyle(probe).width
+    const parsed = Number.parseFloat(resolved)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  } finally {
+    probe.remove()
+  }
+
+  const inlineResolved = resolveLengthExpression(value, styles)
+  return inlineResolved ?? fallback
+}
+
+const resolveLengthExpression = (
+  value: string,
+  styles: CSSStyleDeclaration,
+): number | null => {
+  const resolvedValue = resolveCssVariables(value, styles).trim()
+  const directParsed = Number.parseFloat(resolvedValue)
+  if (Number.isFinite(directParsed) && !resolvedValue.startsWith('calc(')) {
+    return directParsed
+  }
+
+  const calcMatch = resolvedValue.match(/^calc\(\s*([0-9.]+)px\s*\*\s*([0-9.]+)\s*\)$/)
+  if (calcMatch) {
+    const [, lengthPx, scale] = calcMatch
+    return Number.parseFloat(lengthPx) * Number.parseFloat(scale)
+  }
+
+  return null
+}
+
+const resolveCssVariables = (
+  value: string,
+  styles: CSSStyleDeclaration,
+): string => {
+  return value.replace(/var\((--[a-zA-Z0-9-]+)\)/g, (_match, variableName: string) => {
+    const resolved = styles.getPropertyValue(variableName).trim()
+    return resolved.length > 0 ? resolved : '0'
+  })
+}
+
 /**
  * Read the resolved rack sizing tokens from CSS custom properties.
  *
@@ -54,7 +114,7 @@ export const getRackSizingConfig = (): RackSizingConfig => {
   }
   const styles = window.getComputedStyle(document.documentElement)
   return {
-    horizontalUnitPx: readCssNumber(
+    horizontalUnitPx: readCssLength(
       styles,
       '--rack-horizontal-unit-px',
       DEFAULT_RACK_SIZING.horizontalUnitPx,
@@ -64,7 +124,7 @@ export const getRackSizingConfig = (): RackSizingConfig => {
       '--rack-max-row-width-units',
       DEFAULT_RACK_SIZING.maxRowWidthUnits,
     ),
-    unitHeightPx: readCssNumber(
+    unitHeightPx: readCssLength(
       styles,
       '--rack-unit-height-px',
       DEFAULT_RACK_SIZING.unitHeightPx,
@@ -79,17 +139,17 @@ export const getRackSizingConfig = (): RackSizingConfig => {
       '--rack-min-display-units',
       DEFAULT_RACK_SIZING.minDisplayUnits,
     ),
-    minFitViewportHeightPx: readCssNumber(
+    minFitViewportHeightPx: readCssLength(
       styles,
       '--rack-fit-min-viewport-height-px',
       DEFAULT_RACK_SIZING.minFitViewportHeightPx,
     ),
-    popoverViewportInsetPx: readCssNumber(
+    popoverViewportInsetPx: readCssLength(
       styles,
       '--rack-popover-viewport-inset-px',
       DEFAULT_RACK_SIZING.popoverViewportInsetPx,
     ),
-    popoverGapPx: readCssNumber(
+    popoverGapPx: readCssLength(
       styles,
       '--rack-popover-gap-px',
       DEFAULT_RACK_SIZING.popoverGapPx,

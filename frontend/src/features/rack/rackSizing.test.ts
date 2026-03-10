@@ -23,4 +23,21 @@ describe('rackSizing', () => {
     expect(config.minFitViewportHeightPx).toBe(360)
     expect(config.popoverGapPx).toBe(6)
   })
+
+  it('resolves calc-based rack sizing tokens that depend on a shared scale variable', () => {
+    document.documentElement.style.setProperty('--ui-scale', '0.9')
+    document.documentElement.style.setProperty(
+      '--rack-unit-height-px',
+      'calc(100px * var(--ui-scale))',
+    )
+    document.documentElement.style.setProperty(
+      '--rack-popover-viewport-inset-px',
+      'calc(8px * var(--ui-scale))',
+    )
+
+    const config = getRackSizingConfig()
+
+    expect(config.unitHeightPx).toBeCloseTo(90)
+    expect(config.popoverViewportInsetPx).toBeCloseTo(7.2)
+  })
 })

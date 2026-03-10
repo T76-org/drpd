@@ -22,7 +22,7 @@ export const getRackCanvasSize = (
   )
   const displayUnits = getDisplayUnits(rack, instrumentMap, sizing.minDisplayUnits)
   const rackHeightPx = displayUnits * sizing.unitHeightPx
-  const rackWidthPx = rackHeightPx * sizing.aspectRatio
+  const rackWidthPx = sizing.maxRowWidthUnits * sizing.horizontalUnitPx
   return { rackHeightPx, rackWidthPx }
 }
 
