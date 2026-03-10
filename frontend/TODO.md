@@ -10,3 +10,4 @@
 - [ ] Add Wh display to the VBUS instrument - make it either that or Ah
 - [ ] Add filters to message log instrument
 - [ ] Add support for exporting logs in CSV format
+- [ ] Add support for cursors in time strip tooltip to make it easier to read values at specific time points

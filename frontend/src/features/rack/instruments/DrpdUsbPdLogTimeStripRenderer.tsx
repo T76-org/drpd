@@ -121,6 +121,10 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     viewportStyle?.getPropertyValue('--timestrip-analog-point-radius') ?? '',
     1.8,
   )
+  const analogScaleLabelInset = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-analog-scale-label-inset') ?? '',
+    2,
+  )
   const plotLeftX = Math.min(Math.max(0, plotInsetLeft), Math.max(width, 1))
   const plotRightX = Math.max(plotLeftX, Math.max(width, 1) - Math.max(0, plotInsetRight))
   const plotWidth = Math.max(0, plotRightX - plotLeftX)
@@ -446,12 +450,12 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           </g>
           {analogGeometry.gridLines.map((line) => (
             <g key={`label-${line.key}`}>
-              <text className={styles.analogScaleLabelLeft} x={2} y={line.y}>
+              <text className={styles.analogScaleLabelLeft} x={analogScaleLabelInset} y={line.y}>
                 {line.voltageLabel}
               </text>
               <text
                 className={styles.analogScaleLabelRight}
-                x={Math.max(width, 1) - 2}
+                x={Math.max(width, 1) - analogScaleLabelInset}
                 y={line.y}
               >
                 {line.currentLabel}
