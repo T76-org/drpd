@@ -5,6 +5,7 @@ import { DRPDDevice } from '../../../lib/device'
 import {
   buildCapturedLogSelectionKey,
   type DRPDLogSelectionState,
+  type LoggedAnalogSample,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
@@ -13,13 +14,15 @@ import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
 import { computePulseTraceEndTimestampUs } from './DrpdUsbPdLogTimeStrip.utils'
 
 class TestLogDriver extends EventTarget {
+  public analogRows: LoggedAnalogSample[]
   public rows: LoggedCapturedMessage[]
   public clearScopes: string[]
   public logSelection: DRPDLogSelectionState
   public timeStripQueries: Array<{ windowStartUs: bigint; windowDurationUs: bigint; analogPointBudget: number }>
 
-  public constructor(rows: LoggedCapturedMessage[]) {
+  public constructor(rows: LoggedCapturedMessage[], analogRows: LoggedAnalogSample[] = []) {
     super()
+    this.analogRows = analogRows
     this.rows = rows
     this.clearScopes = []
     this.timeStripQueries = []
@@ -80,7 +83,7 @@ class TestLogDriver extends EventTarget {
   }
 
   public async getLogCounts(): Promise<{ analog: number; messages: number }> {
-    return { analog: 0, messages: this.rows.length }
+    return { analog: this.analogRows.length, messages: this.rows.length }
   }
 
   public async queryCapturedMessages(query: {
@@ -102,16 +105,59 @@ class TestLogDriver extends EventTarget {
   }) {
     this.timeStripQueries.push(query)
     const messageRows = this.rows.filter((row) => row.entryKind === 'message')
-    const latestTimestampUs =
+    const earliestMessageTimestampUs = messageRows[0]?.startTimestampUs ?? null
+    const latestMessageTimestampUs =
       messageRows.length > 0 ? messageRows[messageRows.length - 1]?.endTimestampUs ?? null : null
+    const earliestAnalogTimestampUs = this.analogRows[0]?.timestampUs ?? null
+    const latestAnalogTimestampUs =
+      this.analogRows.length > 0 ? this.analogRows[this.analogRows.length - 1]?.timestampUs ?? null : null
+    const earliestTimestampUs =
+      earliestMessageTimestampUs === null
+        ? earliestAnalogTimestampUs
+        : earliestAnalogTimestampUs === null
+          ? earliestMessageTimestampUs
+          : earliestMessageTimestampUs < earliestAnalogTimestampUs
+            ? earliestMessageTimestampUs
+            : earliestAnalogTimestampUs
+    const latestTimestampUs =
+      latestMessageTimestampUs === null
+        ? latestAnalogTimestampUs
+        : latestAnalogTimestampUs === null
+          ? latestMessageTimestampUs
+          : latestMessageTimestampUs > latestAnalogTimestampUs
+            ? latestMessageTimestampUs
+            : latestAnalogTimestampUs
+    const earliestDisplayTimestampUs = (() => {
+      const candidates = [
+        messageRows[0]?.displayTimestampUs ?? null,
+        this.analogRows[0]?.displayTimestampUs ?? null,
+      ].filter((value): value is bigint => value !== null)
+      if (candidates.length === 0) {
+        return null
+      }
+      return candidates.reduce((minimum, value) => value < minimum ? value : minimum)
+    })()
+    const latestDisplayTimestampUs = (() => {
+      const latestMessage = messageRows[messageRows.length - 1]
+      const candidates = [
+        latestMessage && latestMessage.displayTimestampUs !== null
+          ? latestMessage.displayTimestampUs + (latestMessage.endTimestampUs - latestMessage.startTimestampUs)
+          : null,
+        this.analogRows.length > 0 ? this.analogRows[this.analogRows.length - 1]?.displayTimestampUs ?? null : null,
+      ].filter((value): value is bigint => value !== null)
+      if (candidates.length === 0) {
+        return null
+      }
+      return candidates.reduce((maximum, value) => value > maximum ? value : maximum)
+    })()
     return {
       windowStartUs: query.windowStartUs,
       windowEndUs: query.windowStartUs + query.windowDurationUs,
       windowDurationUs: query.windowDurationUs,
-      earliestTimestampUs: messageRows[0]?.startTimestampUs ?? null,
+      earliestTimestampUs,
       latestTimestampUs,
-      earliestDisplayTimestampUs: messageRows[0]?.displayTimestampUs ?? null,
-      latestDisplayTimestampUs: messageRows[messageRows.length - 1]?.displayTimestampUs ?? null,
+      earliestDisplayTimestampUs,
+      latestDisplayTimestampUs,
       windowStartDisplayTimestampUs: query.windowStartUs,
       windowEndDisplayTimestampUs: query.windowStartUs + query.windowDurationUs,
       hasMoreBefore: false,
@@ -133,12 +179,12 @@ class TestLogDriver extends EventTarget {
         wallClockMs: row.createdAtMs,
         pulseWidthsNs: row.rawPulseWidths,
       })),
-      analogPoints: Array.from({ length: Math.min(4, query.analogPointBudget) }, (_, index) => ({
-        timestampUs: BigInt(index * 20),
-        displayTimestampUs: BigInt(index * 20),
-        wallClockMs: 1_700_000_000_000 + index * 10,
-        vbusV: 5 + index,
-        ibusA: 0.5 + index * 0.1,
+      analogPoints: this.analogRows.slice(0, query.analogPointBudget).map((row) => ({
+        timestampUs: row.timestampUs,
+        displayTimestampUs: row.displayTimestampUs,
+        wallClockMs: row.createdAtMs,
+        vbusV: row.vbusV,
+        ibusA: row.ibusA,
       })),
       timeAnchors: [
         {
@@ -159,12 +205,27 @@ class TestLogDriver extends EventTarget {
 
   public async clearLogs(scope: string): Promise<void> {
     this.clearScopes.push(scope)
-    this.rows = []
+    if (scope === 'all' || scope === 'analog') {
+      this.analogRows = []
+    }
+    if (scope === 'all' || scope === 'messages') {
+      this.rows = []
+    }
     this.logSelection = {
       selectedKeys: [],
       anchorIndex: null,
       activeIndex: null,
     }
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.LOG_ENTRY_DELETED_EVENT, {
+        detail: {
+          scope,
+          analogDeleted: scope === 'all' || scope === 'analog' ? 1 : 0,
+          messagesDeleted: scope === 'all' || scope === 'messages' ? 1 : 0,
+          reason: 'clear',
+        },
+      }),
+    )
   }
 }
 
@@ -205,6 +266,15 @@ const buildMessage = (
   rawDecodedData: Uint8Array.from([0xaa, 0xbb]),
   parseError: null,
   createdAtMs: 1_700_000_000_000 + index,
+})
+
+const buildAnalogSample = (index: number): LoggedAnalogSample => ({
+  timestampUs: BigInt(index * 20),
+  displayTimestampUs: BigInt(index * 20),
+  vbusV: 5 + index,
+  ibusA: 0.5 + index * 0.1,
+  role: 'SOURCE',
+  createdAtMs: 1_700_000_000_000 + index * 10,
 })
 
 const buildEvent = (
@@ -556,7 +626,45 @@ describe('DrpdUsbPdLogInstrumentView', () => {
   })
 
   it('shows clear confirmation popup and clears all logs when confirmed', async () => {
-    const driver = new TestLogDriver([buildMessage(0, 1)])
+    class ResizeObserverMock {
+      public callback: ResizeObserverCallback
+
+      public constructor(callback: ResizeObserverCallback) {
+        this.callback = callback
+      }
+
+      public observe(target: Element): void {
+        this.callback(
+          [
+            {
+              target,
+              contentRect: {
+                width: 640,
+                height: 180,
+                x: 0,
+                y: 0,
+                top: 0,
+                left: 0,
+                bottom: 180,
+                right: 640,
+                toJSON: () => ({}),
+              } as DOMRectReadOnly,
+            } as ResizeObserverEntry,
+          ],
+          this as unknown as ResizeObserver,
+        )
+      }
+
+      public disconnect(): void {}
+      public unobserve(): void {}
+    }
+
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+
+    const driver = new TestLogDriver([buildMessage(0, 1)], [
+      buildAnalogSample(0),
+      buildAnalogSample(1),
+    ])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
       status: 'connected',
@@ -575,13 +683,15 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Clear' }))
     expect(
-      screen.getByText(/permanently delete all entries in the log/i),
+      screen.getByText(/permanently delete all logged messages and analog samples/i),
     ).toBeInTheDocument()
 
     const clearDialog = screen.getByRole('dialog')
     await userEvent.click(within(clearDialog).getByRole('button', { name: /^Clear$/ }))
     await waitFor(() => {
       expect(driver.clearScopes).toEqual(['all'])
+      expect(driver.rows).toHaveLength(0)
+      expect(driver.analogRows).toHaveLength(0)
     })
   })
 

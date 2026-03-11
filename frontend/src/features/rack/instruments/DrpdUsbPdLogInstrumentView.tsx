@@ -792,7 +792,8 @@ export const DrpdUsbPdLogInstrumentView = ({
       renderPopover: ({ closePopover }) => (
         <div className={styles.headerPopup}>
           <p className={styles.headerPopupText}>
-            This will permanently delete all entries in the log. Are you sure?
+            This will permanently delete all logged messages and analog samples, and clear the
+            time strip. Are you sure?
           </p>
           {clearError ? (
             <p className={styles.headerPopupError}>{clearError}</p>

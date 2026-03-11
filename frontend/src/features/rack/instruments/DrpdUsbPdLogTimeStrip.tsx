@@ -5,7 +5,7 @@ import {
   type RefObject,
   type PointerEvent,
 } from 'react'
-import type { MessageLogTimeStripWindow } from '../../../lib/device'
+import { DRPDDevice, type MessageLogTimeStripWindow } from '../../../lib/device'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
 import { DrpdUsbPdLogTimeStripRenderer } from './DrpdUsbPdLogTimeStripRenderer'
@@ -39,6 +39,7 @@ export const DrpdUsbPdLogTimeStrip = ({
   const [windowStartUs, setWindowStartUs] = useState<bigint>(0n)
   const [data, setData] = useState<MessageLogTimeStripWindow | null>(null)
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null)
+  const [refreshVersion, setRefreshVersion] = useState(0)
 
   useEffect(() => {
     initialAlignmentDoneRef.current = false
@@ -46,6 +47,31 @@ export const DrpdUsbPdLogTimeStrip = ({
     setData(null)
     setWindowDurationUs(DEFAULT_WINDOW_US)
     setWindowStartUs(0n)
+    setRefreshVersion(0)
+  }, [driver])
+
+  useEffect(() => {
+    if (!driver) {
+      return undefined
+    }
+    const handleDeleted = (event: Event): void => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      if (detail?.reason !== 'clear') {
+        return
+      }
+      initialAlignmentDoneRef.current = false
+      lastAutoCenterSignatureRef.current = null
+      panRef.current = null
+      setHoverPosition(null)
+      setData(null)
+      setWindowDurationUs(DEFAULT_WINDOW_US)
+      setWindowStartUs(0n)
+      setRefreshVersion((current) => current + 1)
+    }
+    driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+    return () => {
+      driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+    }
   }, [driver])
 
   useEffect(() => {
@@ -159,7 +185,7 @@ export const DrpdUsbPdLogTimeStrip = ({
     return () => {
       cancelled = true
     }
-  }, [driver, width, windowDurationUs, windowStartUs])
+  }, [driver, refreshVersion, width, windowDurationUs, windowStartUs])
 
   useEffect(() => {
     const parsed = selectedKey ? parseMessageSelectionKey(selectedKey) : null
