@@ -1099,7 +1099,7 @@ export const RackView = () => {
                       typeof document !== 'undefined'
                         ? createPortal(
                             <div
-                              className={styles.deviceMenuPanel}
+                              className={styles.instrumentMenuPanel}
                               ref={headerMenuPopoverRef}
                               style={{
                                 ...headerMenuInlineStyle,
@@ -1108,16 +1108,16 @@ export const RackView = () => {
                               }}
                             >
                               {compatibleInstruments.length === 0 ? (
-                                <div className={styles.deviceMenuEmpty}>
+                                <div className={styles.instrumentMenuEmpty}>
                                   No compatible instruments
                                 </div>
                               ) : (
-                                <ul className={styles.deviceMenuList}>
+                                <ul className={styles.instrumentMenuList}>
                                   {compatibleInstruments.map((instrument) => (
                                     <li key={instrument.identifier}>
                                       <button
                                         type="button"
-                                        className={styles.deviceMenuItem}
+                                        className={styles.instrumentMenuItem}
                                         onClick={() =>
                                           handleAddInstrument(instrument.identifier)
                                         }

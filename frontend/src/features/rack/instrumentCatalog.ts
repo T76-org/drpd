@@ -1,24 +1,6 @@
 import { Instrument } from '../../lib/instrument'
 
 /**
- * Dummy instrument compatible with the Dr. PD device.
- */
-export class DrpdPlaceholderInstrument extends Instrument {
-  /**
-   * Create a placeholder instrument definition.
-   */
-  public constructor() {
-    super({
-      identifier: 'com.mta.drpd.placeholder',
-      displayName: 'Dr. PD Placeholder',
-      supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 30 },
-      defaultUnits: 2
-    })
-  }
-}
-
-/**
  * VBUS instrument for Dr. PD analog telemetry.
  */
 export class DrpdVbusInstrument extends Instrument {
@@ -119,7 +101,7 @@ export class DrpdMessageDetailInstrument extends Instrument {
   public constructor() {
     super({
       identifier: 'com.mta.drpd.message-detail',
-      displayName: 'MESSAGE DETAIL',
+      displayName: 'Message Detail',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'flex' },
       defaultUnits: 1,
@@ -139,6 +121,5 @@ export const getSupportedInstruments = (): Instrument[] => {
     new DrpdSinkControlInstrument(),
     new DrpdUsbPdLogInstrument(),
     new DrpdMessageDetailInstrument(),
-    new DrpdPlaceholderInstrument()
   ]
 }

@@ -4,12 +4,12 @@ import { Instrument } from '../../lib/instrument'
 import type { RackDefinition } from '../../lib/rack/types'
 import { RackRenderer } from './RackRenderer'
 
-class PlaceholderInstrument extends Instrument {
+class TestPanelInstrument extends Instrument {
   public constructor() {
     super({
-      identifier: 'com.mta.drpd.placeholder',
-      displayName: 'Placeholder',
-      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      identifier: 'com.example.test-panel',
+      displayName: 'Test Panel',
+      supportedDeviceIdentifiers: [],
       defaultWidth: { mode: 'fixed', units: 30 },
       defaultUnits: 2
     })
@@ -63,7 +63,7 @@ describe('RackRenderer', () => {
           instruments: [
             {
               id: 'inst-1',
-              instrumentIdentifier: 'com.mta.drpd.placeholder'
+              instrumentIdentifier: 'com.example.test-panel'
             }
           ]
         }
@@ -73,7 +73,7 @@ describe('RackRenderer', () => {
     const { container } = render(
       <RackRenderer
         rack={rack}
-        instruments={[new PlaceholderInstrument()]}
+        instruments={[new TestPanelInstrument()]}
         deviceStates={[]}
       />,
     )
@@ -103,7 +103,7 @@ describe('RackRenderer', () => {
           instruments: [
             {
               id: 'inst-1',
-              instrumentIdentifier: 'com.mta.drpd.placeholder'
+              instrumentIdentifier: 'com.example.test-panel'
             }
           ]
         }
@@ -113,7 +113,7 @@ describe('RackRenderer', () => {
     const { container } = render(
       <RackRenderer
         rack={rack}
-        instruments={[new PlaceholderInstrument()]}
+        instruments={[new TestPanelInstrument()]}
         deviceStates={[]}
       />,
     )
@@ -163,7 +163,7 @@ describe('RackRenderer', () => {
           instruments: [
             {
               id: 'inst-1',
-              instrumentIdentifier: 'com.mta.drpd.placeholder'
+              instrumentIdentifier: 'com.example.test-panel'
             }
           ]
         }
@@ -173,7 +173,7 @@ describe('RackRenderer', () => {
     const { container } = render(
       <RackRenderer
         rack={rack}
-        instruments={[new PlaceholderInstrument()]}
+        instruments={[new TestPanelInstrument()]}
         deviceStates={[]}
       />,
     )

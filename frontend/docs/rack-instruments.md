@@ -85,7 +85,7 @@ Then register it in `getSupportedInstruments()`.
 
 Create a UI file under `src/features/rack/instruments/`, for example `AcmeScopeInstrumentView.tsx`. Render inside `InstrumentBase` and show any content you want. The view receives the allocated pixel size and units, so you can show a readout or use it for layout.
 
-Follow the placeholder view pattern:
+Follow the standard instrument view pattern:
 
     import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
     import { InstrumentBase } from '../InstrumentBase'
@@ -123,7 +123,7 @@ Follow the placeholder view pattern:
 
 3) Wire the instrument view into the row renderer.
 
-Update `src/features/rack/RowRenderer.tsx` to render your new view when the instrument identifier matches. Follow the existing `com.mta.drpd.placeholder` case.
+Update `src/features/rack/RowRenderer.tsx` to render your new view when the instrument identifier matches.
 
 4) Test compatibility filtering.
 
