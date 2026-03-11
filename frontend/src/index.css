@@ -89,6 +89,7 @@
   --rack-fit-min-viewport-height-px: calc(400px * var(--ui-scale));
   --rack-popover-viewport-inset-px: calc(8px * var(--ui-scale));
   --rack-popover-gap-px: calc(4px * var(--ui-scale));
+  --rack-instrument-margin-px: calc(2px * var(--ui-scale));
   --rack-header-logo-height: calc(22px * var(--ui-scale));
   --rack-header-control-font-size: calc(0.33rem * var(--ui-scale));
   --rack-header-control-min-width: calc(40px * var(--ui-scale));

@@ -45,7 +45,7 @@
   border-bottom: var(--border-thin) solid var(--color-border-panel);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-md);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-3xs);
 }
 
 .name {
