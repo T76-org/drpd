@@ -44,7 +44,7 @@
 .vbusValue {
   font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-status-info);
+  color: var(--color-metric-voltage);
   line-height: var(--line-height-snug);
   font-variant-numeric: tabular-nums;
   display: inline-flex;
@@ -58,7 +58,7 @@
 }
 
 .vbusCurrentLeftValue {
-  color: var(--color-status-ok);
+  color: var(--color-metric-current);
 }
 
 .metricBlock {
@@ -104,7 +104,7 @@
 .metricValue {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-status-ok);
+  color: var(--color-metric-current);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
   display: grid;
@@ -115,12 +115,12 @@
 }
 
 .powerValue {
-  color: var(--color-status-warning);
+  color: var(--color-metric-power);
   font-size: var(--font-size-lg);
 }
 
 .chargeValue {
-  color: var(--color-status-charge);
+  color: var(--color-metric-charge);
   font-size: var(--font-size-lg);
 }
 

@@ -103,7 +103,7 @@
 
 .metricValue {
   font-weight: var(--font-weight-semibold);
-  color: var(--color-status-info);
+  color: var(--color-text-primary);
 }
 
 .pdoTitle {
@@ -114,6 +114,14 @@
 .pdoDetail {
   color: var(--color-text-primary);
   font-weight: var(--font-weight-medium);
+}
+
+.voltageValue {
+  color: var(--color-metric-voltage);
+}
+
+.currentValue {
+  color: var(--color-metric-current);
 }
 
 .fieldLabel {

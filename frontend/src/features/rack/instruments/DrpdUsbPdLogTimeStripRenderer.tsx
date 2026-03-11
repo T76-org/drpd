@@ -469,8 +469,8 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           className={styles.hoverTooltip}
           style={{ left: `${hoverTooltip.left}px`, top: `${hoverTooltip.top}px` }}
         >
-          <div>{hoverTooltip.vbusLabel}</div>
-          <div>{hoverTooltip.ibusLabel}</div>
+          <div className={styles.hoverTooltipVoltage}>{hoverTooltip.vbusLabel}</div>
+          <div className={styles.hoverTooltipCurrent}>{hoverTooltip.ibusLabel}</div>
         </div>
       ) : null}
     </div>

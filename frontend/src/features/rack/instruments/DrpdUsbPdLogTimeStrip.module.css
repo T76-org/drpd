@@ -35,8 +35,8 @@
   --timestrip-analog-grid-stroke: rgba(255, 255, 255, 0.08);
   --timestrip-analog-grid-stroke-width: calc(0.5px * max(1, var(--ui-scale)));
   --timestrip-analog-selection-fill: rgba(145, 208, 255, 0.10);
-  --timestrip-analog-voltage-stroke: rgba(255, 196, 92, 0.95);
-  --timestrip-analog-current-stroke: rgba(119, 232, 171, 0.95);
+  --timestrip-analog-voltage-stroke: var(--color-metric-voltage);
+  --timestrip-analog-current-stroke: var(--color-metric-current);
   --timestrip-analog-trace-stroke-width: calc(0.5px * var(--ui-scale));
   --timestrip-analog-point-radius: calc(1.8px * var(--ui-scale));
   --timestrip-analog-scale-label-inset: calc(5px * var(--ui-scale));
@@ -148,4 +148,12 @@
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 calc(2px * var(--ui-scale)) calc(10px * var(--ui-scale)) color-mix(in srgb, black 28%, transparent);
+}
+
+.hoverTooltipVoltage {
+  color: var(--color-metric-voltage);
+}
+
+.hoverTooltipCurrent {
+  color: var(--color-metric-current);
 }
