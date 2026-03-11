@@ -1065,25 +1065,28 @@ export class SQLiteWasmStore implements DRPDLogStore {
       const analog = this.memoryFallback.analogSamples
       const messages = this.memoryFallback.capturedMessages
         .filter((row) => row.entryKind === 'message')
-      const useMessages = messages.length > 0
-      const absoluteStarts = useMessages
-        ? messages.map((row) => row.startTimestampUs)
-        : analog.map((row) => row.timestampUs)
-      const absoluteEnds = useMessages
-        ? messages.map((row) => row.endTimestampUs)
-        : analog.map((row) => row.timestampUs)
-      const displayStarts = useMessages
-        ? messages.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
-        : analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
-      const displayEnds = useMessages
-        ? messages
-            .map((row) =>
-              row.displayTimestampUs === null
-                ? null
-                : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
-            )
-            .filter((value): value is bigint => value !== null)
-        : analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
+      const absoluteStarts = [
+        ...messages.map((row) => row.startTimestampUs),
+        ...analog.map((row) => row.timestampUs),
+      ]
+      const absoluteEnds = [
+        ...messages.map((row) => row.endTimestampUs),
+        ...analog.map((row) => row.timestampUs),
+      ]
+      const displayStarts = [
+        ...messages.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null),
+        ...analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null),
+      ]
+      const displayEnds = [
+        ...messages
+          .map((row) =>
+            row.displayTimestampUs === null
+              ? null
+              : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
+          )
+          .filter((value): value is bigint => value !== null),
+        ...analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null),
+      ]
       if (absoluteStarts.length === 0 || absoluteEnds.length === 0) {
         return {
           earliestTimestampUs: null,
@@ -1124,24 +1127,6 @@ export class SQLiteWasmStore implements DRPDLogStore {
       ].join(' '),
     )[0]
 
-    if (earliestMessage && latestMessage) {
-      const start = toBigIntValue(earliestMessage.start_timestamp_us as SqlValue, 'timestrip.earliest_message_ts')
-      const end = toBigIntValue(latestMessage.end_timestamp_us as SqlValue, 'timestrip.latest_message_ts')
-      return {
-        earliestTimestampUs: start,
-        latestTimestampUs: end,
-        earliestDisplayTimestampUs:
-          earliestMessage.display_timestamp_us === null || earliestMessage.display_timestamp_us === undefined
-            ? null
-            : toBigIntValue(earliestMessage.display_timestamp_us as SqlValue, 'timestrip.earliest_message_display_ts'),
-        latestDisplayTimestampUs:
-          latestMessage.display_timestamp_us === null || latestMessage.display_timestamp_us === undefined
-            ? null
-            : toBigIntValue(latestMessage.display_timestamp_us as SqlValue, 'timestrip.latest_message_display_ts') +
-              (end - toBigIntValue(latestMessage.start_timestamp_us as SqlValue, 'timestrip.latest_message_start_ts')),
-      }
-    }
-
     const earliestAnalog = db.selectObjects(
       'SELECT timestamp_us, display_timestamp_us FROM analog_samples ORDER BY timestamp_us ASC, id ASC LIMIT 1',
     )[0]
@@ -1152,6 +1137,23 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const latestTimestampCandidates: bigint[] = []
     const earliestDisplayCandidates: bigint[] = []
     const latestDisplayCandidates: bigint[] = []
+    if (earliestMessage && latestMessage) {
+      const start = toBigIntValue(earliestMessage.start_timestamp_us as SqlValue, 'timestrip.earliest_message_ts')
+      const end = toBigIntValue(latestMessage.end_timestamp_us as SqlValue, 'timestrip.latest_message_ts')
+      earliestTimestampCandidates.push(start)
+      latestTimestampCandidates.push(end)
+      if (earliestMessage.display_timestamp_us !== null && earliestMessage.display_timestamp_us !== undefined) {
+        earliestDisplayCandidates.push(
+          toBigIntValue(earliestMessage.display_timestamp_us as SqlValue, 'timestrip.earliest_message_display_ts'),
+        )
+      }
+      if (latestMessage.display_timestamp_us !== null && latestMessage.display_timestamp_us !== undefined) {
+        latestDisplayCandidates.push(
+          toBigIntValue(latestMessage.display_timestamp_us as SqlValue, 'timestrip.latest_message_display_ts') +
+            (end - toBigIntValue(latestMessage.start_timestamp_us as SqlValue, 'timestrip.latest_message_start_ts')),
+        )
+      }
+    }
     if (earliestAnalog) {
       earliestTimestampCandidates.push(toBigIntValue(earliestAnalog.timestamp_us as SqlValue, 'timestrip.earliest_analog_ts'))
       if (earliestAnalog.display_timestamp_us !== null && earliestAnalog.display_timestamp_us !== undefined) {
