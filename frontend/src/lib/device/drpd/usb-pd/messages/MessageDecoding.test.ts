@@ -731,6 +731,34 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(ExtendedControlMessage)
     const decoded = message as ExtendedControlMessage
     expect(decoded.extendedControlDataBlock?.type).toBe(0x03)
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('extendedControlDataBlock')
+    expect(block?.getEntry('messageType')?.value).toBe('EPR_KeepAlive')
+    expect(block?.getEntry('messageMeaning')?.value).toContain('periodic EPR traffic')
+    expect(block?.getEntry('sentBy')?.value).toBe('Sink')
+    expect(block?.getEntry('validStartOfPacket')?.value).toBe('SOP only')
+    expect(block?.getEntry('dataMeaning')?.value).toContain('shall be 0x00')
+  })
+
+  it('decodes Extended_Control EPR_Get_Source_Cap and EPR_KeepAlive_Ack meanings', () => {
+    const header = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 0,
+      messageTypeNumber: 0x10,
+    })
+    const extHeader = makeExtendedHeader({ dataSize: 2 })
+
+    const sourceCap = parseUSBPDMessage(buildMessage(SOP, header, [0x01, 0x00], extHeader)) as ExtendedControlMessage
+    const sourceCapBlock = sourceCap.humanReadableMetadata.messageSpecificData.getEntry('extendedControlDataBlock')
+    expect(sourceCapBlock?.getEntry('messageType')?.value).toBe('EPR_Get_Source_Cap')
+    expect(sourceCapBlock?.getEntry('messageMeaning')?.value).toContain('Requests EPR source capabilities')
+    expect(sourceCapBlock?.getEntry('sentBy')?.value).toBe('Sink or DRP')
+
+    const keepAliveAck = parseUSBPDMessage(buildMessage(SOP, header, [0x04, 0x01], extHeader)) as ExtendedControlMessage
+    const keepAliveAckBlock = keepAliveAck.humanReadableMetadata.messageSpecificData.getEntry('extendedControlDataBlock')
+    expect(keepAliveAckBlock?.getEntry('messageType')?.value).toBe('EPR_KeepAlive_Ack')
+    expect(keepAliveAckBlock?.getEntry('messageMeaning')?.value).toContain('Acknowledges an EPR_KeepAlive')
+    expect(keepAliveAckBlock?.getEntry('sentBy')?.value).toBe('Source')
+    expect(keepAliveAckBlock?.getEntry('dataMeaning')?.value).toContain('Observed value: 0x01')
   })
 
   it('decodes EPR Source/Sink Capabilities', () => {

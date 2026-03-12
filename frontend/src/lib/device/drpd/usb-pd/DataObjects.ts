@@ -1566,6 +1566,59 @@ export interface ParsedExtendedControlDataBlock {
   dataByte: number
 }
 
+type ExtendedControlTypeMetadata = {
+  messageType: string
+  messageMeaning: string
+  sentBy: string
+  validStartOfPacket: string
+  dataMeaning: string
+}
+
+const getExtendedControlTypeMetadata = (type: number): ExtendedControlTypeMetadata => {
+  switch (type) {
+    case 0x01:
+      return {
+        messageType: 'EPR_Get_Source_Cap',
+        messageMeaning: 'Requests EPR source capabilities from an EPR-capable source partner.',
+        sentBy: 'Sink or DRP',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_Get_Source_Cap.',
+      }
+    case 0x02:
+      return {
+        messageType: 'EPR_Get_Sink_Cap',
+        messageMeaning: 'Requests EPR sink capabilities from an EPR-capable sink partner.',
+        sentBy: 'Source or DRP',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_Get_Sink_Cap.',
+      }
+    case 0x03:
+      return {
+        messageType: 'EPR_KeepAlive',
+        messageMeaning: 'Provides periodic EPR traffic from the sink so the EPR session remains active.',
+        sentBy: 'Sink',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_KeepAlive.',
+      }
+    case 0x04:
+      return {
+        messageType: 'EPR_KeepAlive_Ack',
+        messageMeaning: 'Acknowledges an EPR_KeepAlive message from the sink while operating in EPR mode.',
+        sentBy: 'Source',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_KeepAlive_Ack.',
+      }
+    default:
+      return {
+        messageType: 'Reserved',
+        messageMeaning: 'Reserved Extended_Control type. This value is not defined by the USB-PD 3.2 specification.',
+        sentBy: 'Reserved',
+        validStartOfPacket: 'Reserved',
+        dataMeaning: 'Reserved. The data byte has no defined meaning for this type.',
+      }
+  }
+}
+
 /**
  * Parse a Source Capabilities Extended Data Block.
  *
@@ -3059,7 +3112,21 @@ export const buildSinkCapabilitiesExtendedDataBlockMetadata = (block: ParsedSink
 
 export const buildExtendedControlDataBlockMetadata = (block: ParsedExtendedControlDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('Extended Control Data Block', 'Metadata describing the Extended Control data block carried by an Extended_Control message.')
+  const typeMetadata = getExtendedControlTypeMetadata(block.type)
   addNumberMetadataField(container, 'type', 'Type', block.type, 'Type byte carried by the Extended Control data block.')
+  addStringMetadataField(container, 'messageType', 'Message Type', typeMetadata.messageType, 'Human-readable Extended_Control message type decoded from the ECDB type byte.')
+  addStringMetadataField(container, 'messageMeaning', 'Message Meaning', typeMetadata.messageMeaning, 'Human-readable explanation of what this Extended_Control message does in the USB-PD protocol.')
+  addStringMetadataField(container, 'sentBy', 'Sent By', typeMetadata.sentBy, 'Which USB-PD partners are allowed by the specification to send this Extended_Control message type.')
+  addStringMetadataField(container, 'validStartOfPacket', 'Valid Start of Packet', typeMetadata.validStartOfPacket, 'Which Start-of-Packet packet type is valid for this Extended_Control message type.')
   addNumberMetadataField(container, 'dataByte', 'Data Byte', block.dataByte, 'Data byte carried by the Extended Control data block.')
+  addStringMetadataField(
+    container,
+    'dataMeaning',
+    'Data Meaning',
+    block.dataByte === 0
+      ? typeMetadata.dataMeaning
+      : `${typeMetadata.dataMeaning} Observed value: 0x${block.dataByte.toString(16).toUpperCase().padStart(2, '0')}.`,
+    'Human-readable interpretation of the ECDB data byte for this Extended_Control message type.',
+  )
   return container
 }
