@@ -40,6 +40,7 @@ describe('usb-pd parser', () => {
     expect(Array.from(message.humanReadableMetadata.baseInformation.keys())).toEqual([
       'messageType',
       'messageDescription',
+      'usbPdReference',
     ])
     expect(Array.from(message.humanReadableMetadata.technicalData.keys())).toEqual([
       'timingInformation',
@@ -56,6 +57,10 @@ describe('usb-pd parser', () => {
     expect(messageDescription?.type).toBe('String')
     expect(messageDescription?.Label).toBe('Message Description')
     expect(messageDescription?.value).toMatch(/GoodCRC/)
+    const usbPdReference = message.humanReadableMetadata.baseInformation.getEntry('usbPdReference')
+    expect(usbPdReference?.type).toBe('String')
+    expect(usbPdReference?.Label).toBe('USB-PD Reference')
+    expect(usbPdReference?.value).toBe('Section 6.3.1 - GoodCRC Message')
     const timingInformation = message.humanReadableMetadata.technicalData.getEntry('timingInformation')
     expect(timingInformation?.type).toBe('OrderedDictionary')
     expect(timingInformation?.Label).toBe('Timing Information')

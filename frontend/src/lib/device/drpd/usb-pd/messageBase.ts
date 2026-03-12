@@ -77,6 +77,79 @@ const formatReservedBit = (bit: number): string => `0b${bit}`
 const formatMessageType = (messageTypeName: string, messageTypeNumber: number): string =>
   `${messageTypeName} (0x${messageTypeNumber.toString(16).toUpperCase().padStart(2, '0')})`
 
+const USB_PD_MESSAGE_REFERENCES: Record<string, string> = {
+  GoodCRC: 'Section 6.3.1 - GoodCRC Message',
+  GotoMin: 'Section 6.3.2 - GotoMin Message (Deprecated)',
+  Accept: 'Section 6.3.3 - Accept Message',
+  Reject: 'Section 6.3.4 - Reject Message',
+  Ping: 'Section 6.3.5 - Ping Message',
+  PS_RDY: 'Section 6.3.6 - PS_RDY Message',
+  Get_Source_Cap: 'Section 6.3.7 - Get_Source_Cap Message',
+  Get_Sink_Cap: 'Section 6.3.8 - Get_Sink_Cap Message',
+  DR_Swap: 'Section 6.3.9 - DR_Swap Message',
+  PR_Swap: 'Section 6.3.10 - PR_Swap Message',
+  VCONN_Swap: 'Section 6.3.11 - VCONN_Swap Message',
+  Wait: 'Section 6.3.12 - Wait Message',
+  Soft_Reset: 'Section 6.3.13 - Soft Reset Message',
+  Data_Reset: 'Section 6.3.14 - Data_Reset Message',
+  Data_Reset_Complete: 'Section 6.3.15 - Data_Reset_Complete Message',
+  Not_Supported: 'Section 6.3.16 - Not_Supported Message',
+  Get_Source_Cap_Extended: 'Section 6.3.17 - Get_Source_Cap_Extended Message',
+  Get_Status: 'Section 6.3.18 - Get_Status Message',
+  FR_Swap: 'Section 6.3.19 - FR_Swap Message',
+  Get_PPS_Status: 'Section 6.3.20 - Get_PPS_Status Message',
+  Get_Country_Codes: 'Section 6.3.21 - Get_Country_Codes',
+  Get_Sink_Cap_Extended: 'Section 6.3.22 - Get_Sink_Cap_Extended Message',
+  Get_Source_Info: 'Section 6.3.23 - Get_Source_Info Message',
+  Get_Revision: 'Section 6.3.24 - Get_Revision Message',
+  Source_Capabilities: 'Section 6.4.1 - Capabilities Message',
+  Sink_Capabilities: 'Section 6.4.1 - Capabilities Message',
+  Request: 'Section 6.4.2 - Request Message',
+  BIST: 'Section 6.4.3 - BIST Message',
+  Vendor_Defined: 'Section 6.4.4 - Vendor Defined Message',
+  Battery_Status: 'Section 6.4.5 - Battery_Status Message',
+  Alert: 'Section 6.4.6 - Alert Message',
+  Get_Country_Info: 'Section 6.4.7 - Get_Country_Info Message',
+  Enter_USB: 'Section 6.4.8 - Enter_USB Message',
+  EPR_Request: 'Section 6.4.9 - EPR_Request Message',
+  EPR_Mode: 'Section 6.4.10 - EPR_Mode Message',
+  Source_Info: 'Section 6.4.11 - Source_Info Message',
+  Revision: 'Section 6.4.12 - Revision Message',
+  Source_Capabilities_Extended: 'Section 6.5.1 - Source_Capabilities_Extended Message',
+  Status: 'Section 6.5.2 - Status Message',
+  Get_Battery_Cap: 'Section 6.5.3 - Get_Battery_Cap Message',
+  Get_Battery_Status: 'Section 6.5.4 - Get_Battery_Status Message',
+  Battery_Capabilities: 'Section 6.5.5 - Battery_Capabilities Message',
+  Get_Manufacturer_Info: 'Section 6.5.6 - Get_Manufacturer_Info Message',
+  Manufacturer_Info: 'Section 6.5.7 - Manufacturer_Info Message',
+  Security_Request: 'Section 6.5.8 - Security Messages',
+  Security_Response: 'Section 6.5.8 - Security Messages',
+  Firmware_Update_Request: 'Section 6.5.9 - Firmware Update Messages',
+  Firmware_Update_Response: 'Section 6.5.9 - Firmware Update Messages',
+  PPS_Status: 'Section 6.5.10 - PPS_Status Message',
+  Country_Codes: 'Section 6.5.11 - Country_Codes Message',
+  Country_Info: 'Section 6.5.12 - Country_Info Message',
+  Sink_Capabilities_Extended: 'Section 6.5.13 - Sink_Capabilities_Extended Message',
+  Extended_Control: 'Section 6.5.14 - Extended_Control Message',
+  EPR_Source_Capabilities: 'Section 6.5.15 - EPR Capabilities Message',
+  EPR_Sink_Capabilities: 'Section 6.5.15 - EPR Capabilities Message',
+  Vendor_Defined_Extended: 'Section 6.5.16 - Vendor_Defined_Extended Message',
+}
+
+const getUSBPDReference = (messageKind: MessageKind, messageTypeName: string): string => {
+  if (messageTypeName === 'Reserved') {
+    switch (messageKind) {
+      case 'CONTROL':
+        return 'Section 6.3 - Control Message'
+      case 'DATA':
+        return 'Section 6.4 - Data Message'
+      case 'EXTENDED':
+        return 'Section 6.5 - Extended Message'
+    }
+  }
+  return USB_PD_MESSAGE_REFERENCES[messageTypeName] ?? 'USB-PD 3.2 section reference unavailable'
+}
+
 const formatChunked = (chunked: boolean): string =>
   chunked ? 'Chunked (1b)' : 'Unchunked (0b)'
 
@@ -243,6 +316,15 @@ export class Message {
         this.messageTypeName,
         'Message Type',
         'USB Power Delivery specification name for this message type.',
+      ),
+    )
+    baseInformation.insertEntryAt(
+      1,
+      'usbPdReference',
+      HumanReadableField.string(
+        getUSBPDReference(this.kind, this.messageTypeName),
+        'USB-PD Reference',
+        'Section in the USB Power Delivery Specification Revision 3.2, Version 1.1 where this message is described.',
       ),
     )
     const technicalData = HumanReadableField.orderedDictionary(
