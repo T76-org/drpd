@@ -262,6 +262,12 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as RequestMessage
     expect(decoded.rdo?.objectPosition).toBe(3)
     expect(decoded.rdo?.fixedVariable.operatingCurrent10mA).toBe(50)
+    const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
+    expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
+    expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
+    expect(requestMetadata?.getEntry('battery')).toBeUndefined()
+    expect(requestMetadata?.getEntry('pps')).toBeUndefined()
+    expect(requestMetadata?.getEntry('avs')).toBeUndefined()
   })
 
   it('decodes BIST', () => {
@@ -358,6 +364,12 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as EPRRequestMessage
     expect(decoded.rdo?.objectPosition).toBe(1)
     expect(decoded.requestedPDOCopy?.pdoType).toBe('FIXED')
+    const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
+    expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
+    expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
+    expect(requestMetadata?.getEntry('battery')).toBeUndefined()
+    expect(requestMetadata?.getEntry('pps')).toBeUndefined()
+    expect(requestMetadata?.getEntry('avs')).toBeUndefined()
   })
 
   it('decodes EPR_Mode', () => {

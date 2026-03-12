@@ -149,6 +149,11 @@ describe('usb-pd parser', () => {
     expect(requestDataObject?.type).toBe('OrderedDictionary')
     expect(requestDataObject?.Label).toBe('Request Data Object')
     expect(requestDataObject?.getEntry('objectPosition')?.value).toBe('1')
+    expect(requestDataObject?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
+    expect(requestDataObject?.getEntry('fixedVariable')).not.toBeUndefined()
+    expect(requestDataObject?.getEntry('battery')).toBeUndefined()
+    expect(requestDataObject?.getEntry('pps')).toBeUndefined()
+    expect(requestDataObject?.getEntry('avs')).toBeUndefined()
   })
 
   it('parses SOP Accept control messages', () => {
