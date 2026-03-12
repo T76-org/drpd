@@ -205,26 +205,26 @@
 }
 
 .headerPopup {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-10);
-  min-width: calc(360px * var(--ui-scale));
+  display: grid;
+  gap: var(--space-8);
+  min-width: calc(250px * var(--ui-scale));
 }
 
 .headerResetPopup {
-  min-width: calc(200px * var(--ui-scale));
+  min-width: calc(180px * var(--ui-scale));
 }
 
 .headerPopupRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-10);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
 }
 
 .headerPopupField {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .headerPopupLabel {
@@ -232,26 +232,27 @@
   color: var(--color-text-muted);
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .headerPopupInput {
   border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-none);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-input);
   padding: var(--space-8) var(--space-10);
-  min-height: calc(38px * var(--ui-scale));
+  width: 100%;
+  min-width: 0;
 }
 
 .headerPopupHint {
-  margin: 0;
+  margin: var(--space-0);
   font-size: var(--font-size-header-popup-hint);
   color: var(--color-text-muted);
 }
 
 .headerPopupError {
-  margin: 0;
+  margin: var(--space-0);
   font-size: var(--font-size-header-popup-hint);
   color: var(--color-status-error);
 }
@@ -259,16 +260,17 @@
 .headerPopupActions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-6);
+  gap: var(--space-8);
 }
 
 .headerPopupButton {
   border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-none);
-  background: var(--color-surface-instrument);
+  background: var(--color-surface-panel);
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-button);
-  padding: var(--space-8) var(--space-16);
+  padding: var(--space-6) var(--space-12);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
   cursor: pointer;
 }
 
