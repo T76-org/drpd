@@ -4,6 +4,7 @@ import type { MessageLogTimeStripWindow } from '../../../lib/device'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import {
+  findAnalogPointAtStepTimestamp,
   formatDeviceTimestampUs,
   findSelectedPulseSegment,
 } from './DrpdUsbPdLogTimeStrip.utils'
@@ -264,17 +265,8 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     const currentScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax])
       .range([analogHeightPx - analogBottomInset, analogTopInset])
-    let nearestIndex = 0
-    let nearestDistance = Number.POSITIVE_INFINITY
-    for (let index = 0; index < data.analogPoints.length; index += 1) {
-      const point = data.analogPoints[index]
-      const distance = Math.abs(xScale(Number(point.timestampUs)) - hoverPosition.x)
-      if (distance < nearestDistance) {
-        nearestDistance = distance
-        nearestIndex = index
-      }
-    }
-    const nearestPoint = data.analogPoints[nearestIndex]
+    const hoverTimestampUs = BigInt(Math.round(xScale.invert(hoverPosition.x)))
+    const nearestPoint = findAnalogPointAtStepTimestamp(data.analogPoints, hoverTimestampUs)
     if (!nearestPoint) {
       return null
     }

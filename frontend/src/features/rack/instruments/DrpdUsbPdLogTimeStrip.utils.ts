@@ -1,4 +1,5 @@
 import type {
+  MessageLogAnalogPoint,
   MessageLogPulseSegment,
   MessageLogTimeAnchor,
 } from '../../../lib/device'
@@ -305,4 +306,28 @@ export const findSelectedPulseSegment = (
     return null
   }
   return pulses.find((pulse) => pulse.selectionKey === selectedKey) ?? null
+}
+
+/**
+ * Return the active analog sample for a step-after trace at the given timestamp.
+ *
+ * @param analogPoints - Ordered analog samples in the visible window.
+ * @param timestampUs - Hover timestamp in device microseconds.
+ * @returns The sample whose value is active at that timestamp.
+ */
+export const findAnalogPointAtStepTimestamp = (
+  analogPoints: MessageLogAnalogPoint[],
+  timestampUs: bigint,
+): MessageLogAnalogPoint | null => {
+  if (analogPoints.length === 0) {
+    return null
+  }
+  let activePoint = analogPoints[0] ?? null
+  for (const point of analogPoints) {
+    if (point.timestampUs > timestampUs) {
+      break
+    }
+    activePoint = point
+  }
+  return activePoint
 }

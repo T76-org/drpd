@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   clampWindowStartUs,
   computePulseTraceEndTimestampUs,
+  findAnalogPointAtStepTimestamp,
   formatDeviceTimestampUs,
   formatWallClock,
   interpolateDisplayTimestampUs,
@@ -82,5 +83,29 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
     expect(
       computePulseTraceEndTimestampUs(1_000n, Float64Array.from([100, 200]), 1_005n),
     ).toBe(1_005n)
+  })
+
+  it('uses the previous sample value for step-trace hover lookups', () => {
+    const analogPoints = [
+      {
+        timestampUs: 1_000n,
+        displayTimestampUs: 10n,
+        wallClockMs: 1,
+        vbusV: 0.5,
+        ibusA: 0.02,
+      },
+      {
+        timestampUs: 2_000n,
+        displayTimestampUs: 20n,
+        wallClockMs: 2,
+        vbusV: 5,
+        ibusA: 0.2,
+      },
+    ]
+
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 999n)?.vbusV).toBe(0.5)
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 1_500n)?.vbusV).toBe(0.5)
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 2_000n)?.vbusV).toBe(5)
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 2_500n)?.vbusV).toBe(5)
   })
 })
