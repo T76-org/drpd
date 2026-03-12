@@ -276,6 +276,9 @@ describe('DrpdMessageDetailInstrumentView', () => {
 
     expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Message Type')).toBeInTheDocument()
     expect(within(baseInformationToggle.closest('section') as HTMLElement).getByText('Accept')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('Timing Information')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('Pulse Count')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('4')).toBeInTheDocument()
     expect(within(technicalDataSection as HTMLElement).getByText('Type')).toBeInTheDocument()
     expect(within(technicalDataSection as HTMLElement).getAllByText('SOP')).toHaveLength(2)
     expect(within(technicalDataSection as HTMLElement).getByText('K-Codes')).toBeInTheDocument()
@@ -421,14 +424,14 @@ describe('DrpdMessageDetailInstrumentView', () => {
       name: /technical data/i,
     })
     const technicalDataSection = technicalDataToggle.closest('section') as HTMLElement
-    expect(within(technicalDataSection).getByText('Start Timestamp')).toBeInTheDocument()
+    expect(within(technicalDataSection).getByText('Timing Information')).toBeInTheDocument()
 
     await user.click(technicalDataToggle)
 
     await waitFor(() => {
       expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
     })
-    expect(within(technicalDataSection).queryByText('Start Timestamp')).toBeNull()
+    expect(within(technicalDataSection).queryByText('Timing Information')).toBeNull()
 
     act(() => {
       driver.setLogSelectionState({
@@ -441,7 +444,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
     await waitFor(() => {
       expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
     })
-    expect(within(technicalDataSection).queryByText('Start Timestamp')).toBeNull()
+    expect(within(technicalDataSection).queryByText('Timing Information')).toBeNull()
   })
 
   it('preserves collapsed section state after remount', async () => {

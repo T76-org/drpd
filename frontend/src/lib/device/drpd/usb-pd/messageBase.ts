@@ -16,8 +16,7 @@ const formatKilohertz = (valueKhz: number): string => {
   if (!Number.isFinite(valueKhz)) {
     return 'Unavailable'
   }
-  const rounded = Math.round(valueKhz * 1000) / 1000
-  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+  return `${Math.trunc(valueKhz)} kHz`
 }
 
 const formatHex32 = (value: number | null): string =>
@@ -248,6 +247,37 @@ export class Message {
       Number.isFinite(bmcFrequencyKhz) &&
       bmcFrequencyKhz >= USB_PD_BMC_CARRIER_KHZ * (1 - USB_PD_BMC_TOLERANCE) &&
       bmcFrequencyKhz <= USB_PD_BMC_CARRIER_KHZ * (1 + USB_PD_BMC_TOLERANCE)
+    const timingInformation = HumanReadableField.orderedDictionary(
+      'Timing Information',
+      'Capture timing and pulse-derived measurements for this message.',
+    )
+    timingInformation.insertEntryAt(
+      0,
+      'startTimestamp',
+      HumanReadableField.string(
+        formatMicroseconds(startTimestampUs),
+        'Start Timestamp',
+        'Capture start timestamp in microseconds.',
+      ),
+    )
+    timingInformation.insertEntryAt(
+      1,
+      'endTimestamp',
+      HumanReadableField.string(
+        formatMicroseconds(endTimestampUs),
+        'End Timestamp',
+        'Capture end timestamp in microseconds.',
+      ),
+    )
+    timingInformation.insertEntryAt(
+      2,
+      'pulseCount',
+      HumanReadableField.string(
+        this.pulseWidthsNs.length.toString(),
+        'Pulse Count',
+        'Number of captured BMC pulse widths used to decode this message.',
+      ),
+    )
     const bmcCarrier = HumanReadableField.orderedDictionary(
       'BMC Carrier',
       'Biphase Mark Coding carrier measurements derived from the pulse widths.',
@@ -270,6 +300,7 @@ export class Message {
         'Whether the measured Biphase Mark Coding carrier frequency is within the USB-PD specification tolerance of 300 kHz +/-10%.',
       ),
     )
+    timingInformation.insertEntryAt(3, 'bmcCarrier', bmcCarrier)
     const sop = HumanReadableField.orderedDictionary(
       'SOP',
       'Start of Packet metadata derived from the ordered-set prefix.',
@@ -524,29 +555,11 @@ export class Message {
       )
       headerData.insertEntryAt(1, 'extendedMessageHeader', extendedMessageHeader)
     }
+    technicalData.insertEntryAt(0, 'timingInformation', timingInformation)
+    technicalData.insertEntryAt(1, 'sop', sop)
+    technicalData.insertEntryAt(2, 'crc32', crcField)
     technicalData.insertEntryAt(
-      0,
-      'startTimestamp',
-      HumanReadableField.string(
-        formatMicroseconds(startTimestampUs),
-        'Start Timestamp',
-        'Capture start timestamp in microseconds.',
-      ),
-    )
-    technicalData.insertEntryAt(
-      1,
-      'endTimestamp',
-      HumanReadableField.string(
-        formatMicroseconds(endTimestampUs),
-        'End Timestamp',
-        'Capture end timestamp in microseconds.',
-      ),
-    )
-    technicalData.insertEntryAt(2, 'bmcCarrier', bmcCarrier)
-    technicalData.insertEntryAt(3, 'sop', sop)
-    technicalData.insertEntryAt(4, 'crc32', crcField)
-    technicalData.insertEntryAt(
-      5,
+      3,
       'messageBytes',
       HumanReadableField.byteData(
         this.payload,
