@@ -194,10 +194,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
       'aria-expanded',
       'true',
     )
-    expect(screen.getByRole('button', { name: /message-specific data/i })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
+    expect(screen.queryByRole('button', { name: /message-specific data/i })).toBeNull()
     const baseInformationSection = screen.getByRole('button', { name: /base information/i }).closest('section')
     expect(baseInformationSection).not.toBeNull()
     expect(within(baseInformationSection as HTMLElement).getByText('Message Type')).toBeInTheDocument()
@@ -496,6 +493,11 @@ describe('DrpdMessageDetailInstrumentView', () => {
 
     await waitFor(() => {
       expect(technicalDataToggle).toHaveAttribute('aria-expanded', 'false')
+    })
+    await waitFor(() => {
+      expect(window.localStorage.getItem('drpd:message-detail:collapsed-sections:inst-message-detail')).toBe(
+        JSON.stringify(['technicalData']),
+      )
     })
 
     firstRender.unmount()
@@ -808,5 +810,54 @@ describe('DrpdMessageDetailInstrumentView', () => {
       sortOrder: 'desc',
       limit: 64,
     })
+  })
+
+  it('shows an explanatory message for incomplete chunked extended-message selections', async () => {
+    const sop = [0x18, 0x18, 0x18, 0x11]
+    const messageHeader = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x11,
+      roleBit: 1,
+      dataRoleBit: 1,
+      specRevisionBits: 0b10,
+    })
+    const chunk0 = buildMessage(
+      sop,
+      messageHeader,
+      [...toBytes32(0x0001912c), 0xaa, 0xbb, 0xcc, 0xdd],
+      makeExtendedHeader({ chunked: true, chunkNumber: 0, dataSize: 8 }),
+    )
+    const row = buildMessageRow({
+      rawSop: chunk0.subarray(0, 4),
+      rawDecodedData: chunk0.subarray(4),
+      messageKind: 'EXTENDED',
+      messageType: 0x11,
+      createdAtMs: 1_700_000_000_001,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000001'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    const messageSpecificDataSection = (await screen.findByRole('button', { name: /message-specific data/i })).closest('section')
+    expect(within(messageSpecificDataSection as HTMLElement).getByText('Unavailable')).toBeInTheDocument()
+    expect(
+      within(messageSpecificDataSection as HTMLElement).getByText(
+        'Message-specific data can only be decoded after the full chunked message has been transferred.',
+      ),
+    ).toBeInTheDocument()
   })
 })

@@ -100,18 +100,58 @@ const normalizeSelectionState = (value: unknown): DRPDLogSelectionState => {
   }
 }
 
-const buildMetadataSections = (
-  metadata: HumanReadableMetadataRoot,
-): MessageDetailSection[] => {
+const isIncompleteChunkedExtendedMessage = (message: Message): boolean => {
+  if (!message.header?.messageHeader?.extended) {
+    return false
+  }
+  const extendedHeader = message.header.extendedHeader
+  if (!extendedHeader?.chunked) {
+    return false
+  }
+  if (!(message.payload instanceof Uint8Array) || typeof message.payloadOffset !== 'number') {
+    return false
+  }
+  return message.payload.length < message.payloadOffset + extendedHeader.dataSize
+}
+
+const buildMessageSpecificDataField = (message: Message): HumanReadableField<'OrderedDictionary'> | null => {
+  const field = message.humanReadableMetadata.messageSpecificData
+  if (field.value.size > 0) {
+    return field
+  }
+
+  if (!isIncompleteChunkedExtendedMessage(message)) {
+    return null
+  }
+
+  return HumanReadableField.orderedDictionary(
+    field.Label,
+    field.explanation,
+    [[
+      'incompleteChunkedMessage',
+      HumanReadableField.string(
+        'Message-specific data can only be decoded after the full chunked message has been transferred.',
+        'Unavailable',
+        'Explains why message-specific decoding is unavailable for an incomplete chunked extended message.',
+      ),
+    ]],
+  )
+}
+
+const buildMetadataSections = (message: Message): MessageDetailSection[] => {
+  const metadata = message.humanReadableMetadata
+  const messageSpecificData = buildMessageSpecificDataField(message)
   return [
     { id: 'baseInformation', label: metadata.baseInformation.Label, field: metadata.baseInformation },
     { id: 'technicalData', label: metadata.technicalData.Label, field: metadata.technicalData },
     { id: 'headerData', label: metadata.headerData.Label, field: metadata.headerData },
-    {
-      id: 'messageSpecificData',
-      label: metadata.messageSpecificData.Label,
-      field: metadata.messageSpecificData,
-    },
+    ...(messageSpecificData
+      ? [{
+          id: 'messageSpecificData' as const,
+          label: messageSpecificData.Label,
+          field: messageSpecificData,
+        }]
+      : []),
   ]
 }
 
@@ -650,7 +690,7 @@ export const DrpdMessageDetailInstrumentView = ({
         setLoadedSelection({ kind: 'invalid' })
         return
       }
-      const nextSections = buildMetadataSections(decoded.message.humanReadableMetadata)
+      const nextSections = buildMetadataSections(decoded.message)
       setLoadedSelectionKey(activeSelectionKey)
       setLoadedSelection({
         kind: 'message',
