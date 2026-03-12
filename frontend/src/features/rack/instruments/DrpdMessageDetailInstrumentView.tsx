@@ -7,11 +7,13 @@ import {
   type DRPDLogSelectionState,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
-import type {
+import {
   HumanReadableField,
-  HumanReadableMetadataRoot,
-  HumanReadableTableCell,
+  type HumanReadableMetadataRoot,
+  type HumanReadableTableCell,
 } from '../../../lib/device/drpd/usb-pd/humanReadableField'
+import type { Message } from '../../../lib/device/drpd/usb-pd/messageBase'
+import type { SOPKind } from '../../../lib/device/drpd/usb-pd/types'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -61,6 +63,21 @@ type MessageDetailSection = {
   id: keyof HumanReadableMetadataRoot
   label: string
   field: HumanReadableField<'OrderedDictionary'>
+}
+
+type LoadedSelection =
+  | { kind: 'none' }
+  | { kind: 'invalid' }
+  | {
+      kind: 'message'
+      message: Message
+      sections: MessageDetailSection[]
+    }
+
+type MessageByteSegment = {
+  kind: 'sop' | 'header' | 'extendedHeader' | 'body' | 'crc32'
+  bytes: Uint8Array
+  tooltip: string
 }
 
 const normalizeSelectionState = (value: unknown): DRPDLogSelectionState => {
@@ -129,6 +146,93 @@ const formatByteDataSummary = (field: HumanReadableField<'ByteData'>): string =>
   return hex.length > 0 ? hex.toUpperCase() : '--'
 }
 
+const formatSOPType = (kind: SOPKind): string => {
+  switch (kind) {
+    case 'SOP':
+      return 'SOP'
+    case 'SOP_PRIME':
+      return "SOP'"
+    case 'SOP_DOUBLE_PRIME':
+      return "SOP''"
+    case 'SOP_DEBUG_PRIME':
+      return "SOP'-D"
+    case 'SOP_DEBUG_DOUBLE_PRIME':
+      return "SOP''-D"
+    case 'SOP_HARD_RESET':
+      return 'Hard Reset'
+    case 'SOP_CABLE_RESET':
+      return 'Cable Reset'
+  }
+}
+
+const describeSOPType = (kind: SOPKind): string => {
+  switch (kind) {
+    case 'SOP':
+      return 'Start of Packet ordered set for port-to-port USB-PD messages.'
+    case 'SOP_PRIME':
+      return 'SOP prime ordered set for cable-plug or VPD communication.'
+    case 'SOP_DOUBLE_PRIME':
+      return 'SOP double-prime ordered set for the far-end cable plug.'
+    case 'SOP_DEBUG_PRIME':
+      return 'Debug SOP prime ordered set used for debug communication.'
+    case 'SOP_DEBUG_DOUBLE_PRIME':
+      return 'Debug SOP double-prime ordered set used for debug communication.'
+    case 'SOP_HARD_RESET':
+      return 'Hard Reset ordered set.'
+    case 'SOP_CABLE_RESET':
+      return 'Cable Reset ordered set.'
+  }
+}
+
+const buildMessageByteSegments = (message: Message): MessageByteSegment[] => {
+  const headerLength = message.header.messageHeader.extended ? 4 : 2
+  const bodyLength = message.header.messageHeader.extended
+    ? (message.header.extendedHeader?.dataSize ?? 0)
+    : message.header.messageHeader.numberOfDataObjects * 4
+  const bodyStart = message.payloadOffset
+  const bodyEnd = Math.min(message.payload.length, bodyStart + bodyLength)
+  const hasEmbeddedCRC = message.payload.length >= bodyEnd + 4
+  const crcStart = hasEmbeddedCRC ? bodyEnd : message.payload.length
+  const segments: MessageByteSegment[] = [
+    {
+      kind: 'sop',
+      bytes: message.payload.subarray(0, 4),
+      tooltip: `SOP: ${formatSOPType(message.sop.kind)}. ${describeSOPType(message.sop.kind)}`,
+    },
+    {
+      kind: 'header',
+      bytes: message.payload.subarray(4, 6),
+      tooltip: 'Message header: the 16-bit USB-PD header containing message type, roles, revision, and related flags.',
+    },
+  ]
+
+  if (headerLength > 2) {
+    segments.push({
+      kind: 'extendedHeader',
+      bytes: message.payload.subarray(6, 8),
+      tooltip: 'Extended header: the 16-bit USB-PD extended-message header containing chunking and data-size fields.',
+    })
+  }
+
+  if (bodyEnd > bodyStart) {
+    segments.push({
+      kind: 'body',
+      bytes: message.payload.subarray(bodyStart, bodyEnd),
+      tooltip: 'Message body: the message payload bytes, including data objects or extended-message data.',
+    })
+  }
+
+  if (hasEmbeddedCRC) {
+    segments.push({
+      kind: 'crc32',
+      bytes: message.payload.subarray(crcStart, crcStart + 4),
+      tooltip: 'CRC32: the 32-bit checksum embedded at the end of the message.',
+    })
+  }
+
+  return segments.filter((segment) => segment.bytes.length > 0)
+}
+
 const isStringField = (field: HumanReadableField): field is HumanReadableField<'String'> => {
   return field.type === 'String'
 }
@@ -166,14 +270,31 @@ const groupTableCellsIntoRows = (cells: HumanReadableTableCell[]): HumanReadable
 
 const MetadataFieldValue = ({
   field,
+  messageByteSegments,
 }: {
   field: HumanReadableField
+  messageByteSegments?: MessageByteSegment[] | null
 }) => {
   if (isStringField(field)) {
     return <span className={styles.scalarValue}>{field.value}</span>
   }
 
   if (isByteDataField(field)) {
+    if (messageByteSegments && field.Label === 'Message Bytes') {
+      return (
+        <span className={styles.byteDataSegments} aria-label="Segmented message bytes">
+          {messageByteSegments.map((segment) => (
+            <span
+              className={`${styles.byteDataSegment} ${styles[`byteDataSegment${segment.kind[0].toUpperCase()}${segment.kind.slice(1)}` as keyof typeof styles]}`}
+              key={`${segment.kind}-${Array.from(segment.bytes).join('-')}`}
+              title={segment.tooltip}
+            >
+              {Array.from(segment.bytes, (value) => value.toString(16).padStart(2, '0').toUpperCase()).join(' ')}
+            </span>
+          ))}
+        </span>
+      )
+    }
     return <span className={styles.byteDataValue}>{formatByteDataSummary(field)}</span>
   }
 
@@ -332,9 +453,11 @@ const NestedTableCellLabel = ({
 const MetadataDictionaryTable = ({
   field,
   showHelpButton,
+  messageByteSegments,
 }: {
   field: HumanReadableField<'OrderedDictionary'>
   showHelpButton: boolean
+  messageByteSegments?: MessageByteSegment[] | null
 }) => {
   return (
     <table className={styles.metadataTable}>
@@ -371,7 +494,7 @@ const MetadataDictionaryTable = ({
                 />
               </th>
               <td className={styles.metadataValueCell}>
-                <MetadataFieldValue field={entryField} />
+                <MetadataFieldValue field={entryField} messageByteSegments={key === 'messageBytes' ? messageByteSegments : null} />
               </td>
             </tr>
           ),
@@ -432,7 +555,7 @@ export const DrpdMessageDetailInstrumentView = ({
   const [selection, setSelection] = useState<DRPDLogSelectionState>(() => EMPTY_SELECTION)
   const activeSelectionKey = selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
   const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null)
-  const [sections, setSections] = useState<MessageDetailSection[]>([])
+  const [loadedSelection, setLoadedSelection] = useState<LoadedSelection>({ kind: 'none' })
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<(keyof HumanReadableMetadataRoot)[]>(
     () => (readStoredCollapsedSectionIds(instrument.id) ?? []) as (keyof HumanReadableMetadataRoot)[],
   )
@@ -500,18 +623,22 @@ export const DrpdMessageDetailInstrumentView = ({
       const row = findSelectedMessageRow(rows, activeSelectionKey)
       if (!row) {
         setLoadedSelectionKey(activeSelectionKey)
-        setSections([])
+        setLoadedSelection({ kind: 'none' })
         return
       }
       const decoded = decodeLoggedCapturedMessage(row)
       if (decoded.kind !== 'message') {
         setLoadedSelectionKey(activeSelectionKey)
-        setSections([])
+        setLoadedSelection({ kind: 'invalid' })
         return
       }
       const nextSections = buildMetadataSections(decoded.message.humanReadableMetadata)
       setLoadedSelectionKey(activeSelectionKey)
-      setSections(nextSections)
+      setLoadedSelection({
+        kind: 'message',
+        message: decoded.message,
+        sections: nextSections,
+      })
       setCollapsedSectionIds((current) => {
         const nextIds = nextSections.map((section) => section.id)
         return current.filter((sectionId) => nextIds.includes(sectionId))
@@ -536,8 +663,8 @@ export const DrpdMessageDetailInstrumentView = ({
   useEffect(() => {
     writeStoredCollapsedSectionIds(instrument.id, collapsedSectionIds)
   }, [collapsedSectionIds, instrument.id])
-  const visibleSections =
-    activeSelectionKey !== null && loadedSelectionKey === activeSelectionKey ? sections : []
+  const visibleSelection =
+    activeSelectionKey !== null && loadedSelectionKey === activeSelectionKey ? loadedSelection : { kind: 'none' as const }
 
   return (
     <InstrumentBase
@@ -555,41 +682,51 @@ export const DrpdMessageDetailInstrumentView = ({
     >
       {activeSelectionKey !== null ? (
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
-          <div className={styles.sectionsContainer}>
-            {visibleSections.map((section) => {
-              const isExpanded = !collapsedSectionIds.includes(section.id)
-              return (
-                <section className={styles.section} data-section-id={section.id} key={section.id}>
-                  <h3 className={styles.sectionHeading}>
-                    <button
-                      type="button"
-                      className={styles.sectionToggle}
-                      aria-expanded={isExpanded}
-                      onClick={() => {
-                        toggleSection(section.id)
-                      }}
-                    >
-                      <span
-                        className={`${styles.sectionArrow} ${isExpanded ? styles.sectionArrowExpanded : ''}`}
-                        aria-hidden="true"
+          {visibleSelection.kind === 'invalid' ? (
+            <div className={styles.invalidMessageState}>invalid</div>
+          ) : visibleSelection.kind === 'message' ? (
+            <div className={styles.sectionsContainer}>
+              {visibleSelection.sections.map((section) => {
+                const isExpanded = !collapsedSectionIds.includes(section.id)
+                return (
+                  <section className={styles.section} data-section-id={section.id} key={section.id}>
+                    <h3 className={styles.sectionHeading}>
+                      <button
+                        type="button"
+                        className={styles.sectionToggle}
+                        aria-expanded={isExpanded}
+                        onClick={() => {
+                          toggleSection(section.id)
+                        }}
                       >
-                        ▶
-                      </span>
-                      <span className={styles.sectionHeadingText}>{section.label}</span>
-                    </button>
-                  </h3>
-                  {isExpanded ? (
-                    <div className={styles.sectionContent}>
-                      <MetadataDictionaryTable
-                        field={section.field}
-                        showHelpButton={section.id !== 'baseInformation'}
-                      />
-                    </div>
-                  ) : null}
-                </section>
-              )
-            })}
-          </div>
+                        <span
+                          className={`${styles.sectionArrow} ${isExpanded ? styles.sectionArrowExpanded : ''}`}
+                          aria-hidden="true"
+                        >
+                          ▶
+                        </span>
+                        <span className={styles.sectionHeadingText}>{section.label}</span>
+                      </button>
+                    </h3>
+                    {isExpanded ? (
+                      <div className={styles.sectionContent}>
+                        <MetadataDictionaryTable
+                          field={section.field}
+                          showHelpButton={section.id !== 'baseInformation'}
+                          messageByteSegments={
+                            section.id === 'technicalData' &&
+                            section.field.getEntry('messageBytes')?.type === 'ByteData'
+                              ? buildMessageByteSegments(visibleSelection.message)
+                              : null
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </section>
+                )
+              })}
+            </div>
+          ) : null}
         </section>
       ) : (
         <div className={styles.emptyStateContainer}>

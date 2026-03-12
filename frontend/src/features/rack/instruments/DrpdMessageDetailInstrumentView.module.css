@@ -55,6 +55,12 @@
   --detail-label-surface-alt: color-mix(in srgb, #2d6f9f 22%, var(--color-surface-panel-accent));
   --detail-value-surface: color-mix(in srgb, #2d6f9f 16%, var(--color-surface-panel));
   --detail-value-surface-alt: color-mix(in srgb, #2d6f9f 10%, var(--color-surface-panel));
+  --message-bytes-sop-background: color-mix(in srgb, #0f766e 30%, var(--color-surface-panel));
+  --message-bytes-header-background: color-mix(in srgb, #1d4ed8 28%, var(--color-surface-panel));
+  --message-bytes-extended-header-background: color-mix(in srgb, #7c3aed 26%, var(--color-surface-panel));
+  --message-bytes-body-background: color-mix(in srgb, #b45309 24%, var(--color-surface-panel));
+  --message-bytes-crc32-background: color-mix(in srgb, #be185d 24%, var(--color-surface-panel));
+  --message-bytes-invalid-background: color-mix(in srgb, #b91c1c 38%, var(--color-surface-panel));
 }
 
 .section[data-section-id='headerData'] {
@@ -277,6 +283,41 @@
   color: color-mix(in srgb, currentColor 92%, black);
 }
 
+.byteDataSegments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-family: var(--font-family-monospace, monospace);
+  color: color-mix(in srgb, currentColor 92%, black);
+}
+
+.byteDataSegment {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-xs, 4px);
+  word-break: break-word;
+}
+
+.byteDataSegmentSop {
+  background: var(--message-bytes-sop-background);
+}
+
+.byteDataSegmentHeader {
+  background: var(--message-bytes-header-background);
+}
+
+.byteDataSegmentExtendedHeader {
+  background: var(--message-bytes-extended-header-background);
+}
+
+.byteDataSegmentBody {
+  background: var(--message-bytes-body-background);
+}
+
+.byteDataSegmentCrc32 {
+  background: var(--message-bytes-crc32-background);
+}
+
 .nestedContainer {
   margin-top: var(--space-4);
   padding-left: var(--space-10);
@@ -342,4 +383,18 @@
 
 .emptyStateText {
   font-size: var(--font-size-2xs);
+}
+
+.invalidMessageState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--space-12);
+  background: var(--message-bytes-invalid-background, color-mix(in srgb, #b91c1c 38%, var(--color-surface-panel)));
+  color: color-mix(in srgb, white 88%, var(--color-text, currentColor));
+  font-family: var(--font-family-monospace, monospace);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: lowercase;
 }
