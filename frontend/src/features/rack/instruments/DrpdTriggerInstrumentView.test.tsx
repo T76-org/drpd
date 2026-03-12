@@ -133,8 +133,8 @@ describe('DrpdTriggerInstrumentView', () => {
       />,
     )
 
-    expect(screen.getByText('Status')).toBeInTheDocument()
-    expect(screen.getByText('Setup')).toBeInTheDocument()
+    expect(screen.getByText('State')).toBeInTheDocument()
+    expect(screen.getByText('Event')).toBeInTheDocument()
     expect(screen.getByText('Armed')).toBeInTheDocument()
     expect(screen.getByText('8')).toBeInTheDocument()
     expect(screen.getByText('Message Complete')).toBeInTheDocument()

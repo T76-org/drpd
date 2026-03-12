@@ -494,44 +494,42 @@ export const DrpdTriggerInstrumentView = ({
       contentClassName={styles.content}
     >
       <div className={styles.wrapper}>
-        <section className={styles.section}>
-          <div className={styles.metricRow}>
+        <section className={styles.leftPane}>
+          <div className={styles.leftMetricRow}>
             <span className={styles.metricLabel}>State</span>
             <span className={`${styles.metricValue} ${statusClassName}`}>
               {formatTriggerStatus(triggerInfo?.status)}
             </span>
           </div>
-          <div className={styles.metricRow}>
+          <div className={styles.leftMetricRow}>
             <span className={styles.metricLabel}>Count</span>
             <span className={styles.metricValue}>
               {formatNumber(triggerInfo?.eventCount)}
             </span>
           </div>
+          <div className={styles.leftMetricRow}>
+            <span className={styles.metricLabel}>Repeat</span>
+            <span className={styles.metricValue}>{formatOnOff(triggerInfo?.autorepeat)}</span>
+          </div>
+          <div className={styles.leftMetricRow}>
+            <span className={styles.metricLabel}>Threshold</span>
+            <span className={styles.metricValue}>{formatNumber(triggerInfo?.eventThreshold)}</span>
+          </div>
         </section>
-        <section className={styles.section}>
-          <div className={styles.setupGrid}>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Event</span>
-              <span className={styles.metricValue}>{formatTriggerEventType(triggerInfo?.type)}</span>
-            </div>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Threshold</span>
-              <span className={styles.metricValue}>{formatNumber(triggerInfo?.eventThreshold)}</span>
-            </div>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Repeat</span>
-              <span className={styles.metricValue}>{formatOnOff(triggerInfo?.autorepeat)}</span>
-            </div>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Sync</span>
-              <span className={styles.metricValue}>{formatTriggerSyncMode(triggerInfo?.syncMode)}</span>
-            </div>
-            <div className={styles.metricRow}>
-              <span className={styles.metricLabel}>Pulse</span>
-              <span className={styles.metricValue}>
-                {formatNumber(triggerInfo?.syncPulseWidthUs, ' us')}
-              </span>
-            </div>
+        <section className={styles.rightPane}>
+          <div className={styles.rightMetricRow}>
+            <span className={styles.metricLabel}>Event</span>
+            <span className={styles.metricValue}>{formatTriggerEventType(triggerInfo?.type)}</span>
+          </div>
+          <div className={styles.rightMetricRow}>
+            <span className={styles.metricLabel}>Sync</span>
+            <span className={styles.metricValue}>{formatTriggerSyncMode(triggerInfo?.syncMode)}</span>
+          </div>
+          <div className={styles.rightMetricRow}>
+            <span className={styles.metricLabel}>Pulse</span>
+            <span className={styles.metricValue}>
+              {formatNumber(triggerInfo?.syncPulseWidthUs, ' us')}
+            </span>
           </div>
           {configureError ? <p className={styles.inlineError}>{configureError}</p> : null}
         </section>
