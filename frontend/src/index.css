@@ -130,6 +130,12 @@
   --color-metric-current: var(--color-status-ok);
   --color-metric-power: var(--color-status-warning);
   --color-metric-charge: var(--color-status-charge);
+  --color-log-event-capture: var(--color-status-warning);
+  --color-log-event-role: var(--color-status-info);
+  --color-log-event-status: var(--color-status-success);
+  --color-log-event-capture-bg: color-mix(in srgb, var(--color-log-event-capture) 18%, transparent);
+  --color-log-event-role-bg: color-mix(in srgb, var(--color-log-event-role) 18%, transparent);
+  --color-log-event-status-bg: color-mix(in srgb, var(--color-log-event-status) 18%, transparent);
 
   --color-edit-glow: #4cc7ff;
   --color-edit-glow-strong: #6fd6ff;

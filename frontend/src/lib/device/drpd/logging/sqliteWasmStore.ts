@@ -22,6 +22,7 @@ import type {
   LogExportRequest,
   LogExportResult,
   MessageLogAnalogPoint,
+  MessageLogEventMarker,
   MessageLogPulseSegment,
   MessageLogTimeAnchor,
   MessageLogTimeStripQuery,
@@ -748,6 +749,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
         hasMoreAfter: false,
         pulses: [],
         analogPoints: [],
+        events: [],
         timeAnchors: [],
       }
     }
@@ -765,18 +767,34 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const maxPulseTraceDurationUs = await this.getMaxObservedPulseTraceDurationUs()
     const messageLookbackUs =
       maxPulseTraceDurationUs > normalizedDurationUs ? maxPulseTraceDurationUs : normalizedDurationUs
-    const messages = (
+    const capturedRows = (
       await this.queryCapturedMessages({
         startTimestampUs: windowStartUs > messageLookbackUs ? windowStartUs - messageLookbackUs : 0n,
         endTimestampUs: windowEndUs,
         sortOrder: 'asc',
       })
-    ).filter(
+    )
+    const messages = capturedRows.filter(
       (row) =>
         row.entryKind === 'message' &&
         computePulseTraceEndTimestampUs(row) >= windowStartUs &&
         row.startTimestampUs <= windowEndUs,
     )
+    const events = capturedRows
+      .filter(
+        (row): row is LoggedCapturedMessage & { eventType: NonNullable<LoggedCapturedMessage['eventType']> } =>
+          row.entryKind === 'event' &&
+          row.eventType !== null &&
+          row.startTimestampUs >= windowStartUs &&
+          row.startTimestampUs <= windowEndUs,
+      )
+      .map<MessageLogEventMarker>((row) => ({
+        selectionKey: buildSelectionKey(row),
+        eventType: row.eventType,
+        timestampUs: row.startTimestampUs,
+        displayTimestampUs: row.displayTimestampUs,
+        wallClockMs: row.createdAtMs,
+      }))
     const analogRows = downsampleAnalogRows(
       await this.queryAnalogSamplesForTimeStripWindow(windowStartUs, windowEndUs),
       analogBudget,
@@ -820,6 +838,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       hasMoreAfter: windowEndUs < stats.latestTimestampUs,
       pulses,
       analogPoints,
+      events,
       timeAnchors,
     }
   }

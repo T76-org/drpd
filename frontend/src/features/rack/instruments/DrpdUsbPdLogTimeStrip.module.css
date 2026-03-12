@@ -30,6 +30,10 @@
   --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
   --timestrip-pulse-high-y: calc(7px * var(--ui-scale));
   --timestrip-pulse-low-inset-bottom: calc(7px * var(--ui-scale));
+  --timestrip-event-stroke-width: calc(1px * max(1, var(--ui-scale)));
+  --timestrip-event-capture-stroke: var(--color-log-event-capture);
+  --timestrip-event-role-stroke: var(--color-log-event-role);
+  --timestrip-event-status-stroke: var(--color-log-event-status);
   --timestrip-analog-top-inset: calc(8px * var(--ui-scale));
   --timestrip-analog-bottom-inset: calc(8px * var(--ui-scale));
   --timestrip-analog-grid-stroke: rgba(255, 255, 255, 0.08);

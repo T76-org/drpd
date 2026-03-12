@@ -404,6 +404,7 @@ export class DRPDDevice extends EventTarget {
         hasMoreAfter: false,
         pulses: [],
         analogPoints: [],
+        events: [],
         timeAnchors: [],
       }
     }

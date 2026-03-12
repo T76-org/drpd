@@ -105,6 +105,10 @@ class TestLogDriver extends EventTarget {
   }) {
     this.timeStripQueries.push(query)
     const messageRows = this.rows.filter((row) => row.entryKind === 'message')
+    const eventRows = this.rows.filter(
+      (row): row is LoggedCapturedMessage & { eventType: NonNullable<LoggedCapturedMessage['eventType']> } =>
+        row.entryKind === 'event' && row.eventType !== null,
+    )
     const earliestMessageTimestampUs = messageRows[0]?.startTimestampUs ?? null
     const latestMessageTimestampUs =
       messageRows.length > 0 ? messageRows[messageRows.length - 1]?.endTimestampUs ?? null : null
@@ -185,6 +189,13 @@ class TestLogDriver extends EventTarget {
         wallClockMs: row.createdAtMs,
         vbusV: row.vbusV,
         ibusA: row.ibusA,
+      })),
+      events: eventRows.map((row) => ({
+        selectionKey: buildCapturedLogSelectionKey(row),
+        eventType: row.eventType,
+        timestampUs: row.startTimestampUs,
+        displayTimestampUs: row.displayTimestampUs,
+        wallClockMs: row.createdAtMs,
       })),
       timeAnchors: [
         {
@@ -553,7 +564,9 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(rowTexts.some((text) => text.includes('SourceCable'))).toBe(true)
   })
 
-  it('renders full-width event rows and applies per-event-type colors', async () => {
+  it('renders full-width event rows and time-strip markers with shared event colors', async () => {
+    stubResizeObserver()
+
     const driver = new TestLogDriver([
       buildMessage(0, 1),
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
@@ -568,14 +581,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     const { container } = render(
       <DrpdUsbPdLogInstrumentView
-        instrument={{
-          ...buildInstrument(),
-          config: {
-            captureChangedEventTextColor: 'rgb(255, 170, 0)',
-            ccRoleChangedEventTextColor: 'rgb(0, 180, 255)',
-            ccStatusChangedEventTextColor: 'rgb(50, 220, 120)',
-          },
-        }}
+        instrument={buildInstrument()}
         displayName="USB-PD Log"
         deviceState={deviceState}
         isEditMode={false}
@@ -589,10 +595,14 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(eventRow).not.toBeNull()
     const eventLabel = container.querySelector('[class*="eventLabel"]')
     expect(eventLabel).not.toBeNull()
-    expect(screen.getByTestId('drpd-usbpd-log')).toHaveStyle({
-      '--event-color-capture': 'rgb(255, 170, 0)',
-      '--event-color-role': 'rgb(0, 180, 255)',
-      '--event-color-status': 'rgb(50, 220, 120)',
+    await waitFor(() => {
+      const eventMarkers = Array.from(
+        container.querySelectorAll('line[stroke^="var(--timestrip-event-"]'),
+      )
+      expect(eventMarkers).toHaveLength(6)
+      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-capture-stroke)')).toHaveLength(2)
+      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-role-stroke)')).toHaveLength(2)
+      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-status-stroke)')).toHaveLength(2)
     })
   })
 

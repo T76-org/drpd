@@ -1,6 +1,6 @@
 import { curveStepAfter, line, scaleLinear } from 'd3'
 import { useMemo, type PointerEventHandler, type RefObject } from 'react'
-import type { MessageLogTimeStripWindow } from '../../../lib/device'
+import type { LoggedCapturedEventType, MessageLogTimeStripWindow } from '../../../lib/device'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import {
@@ -48,6 +48,17 @@ const formatScaleLabel = (
     return `${value}${suffix}`
   }
   return `${value.toFixed(1).replace(/\.0$/, '')}${suffix}`
+}
+
+const resolveEventStroke = (eventType: LoggedCapturedEventType): string => {
+  switch (eventType) {
+    case 'capture_changed':
+      return 'var(--timestrip-event-capture-stroke)'
+    case 'cc_role_changed':
+      return 'var(--timestrip-event-role-stroke)'
+    case 'cc_status_changed':
+      return 'var(--timestrip-event-status-stroke)'
+  }
 }
 
 /**
@@ -155,7 +166,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   }, [width, xScale])
   const pulseGeometry = useMemo(() => {
     if (!data) {
-      return { highlight: null, paths: [] as string[] }
+      return { highlight: null, paths: [] as string[], events: [] as Array<{ key: string; x: number; stroke: string }> }
     }
     const lowY = pulseHeightPx - pulseLowInsetBottom
     const highY = pulseHighY
@@ -188,7 +199,12 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       }
       return commands.join(' ')
     })
-    return { highlight, paths }
+    const events = data.events.map((event) => ({
+      key: event.selectionKey,
+      x: xScale(Number(event.timestampUs)),
+      stroke: resolveEventStroke(event.eventType),
+    }))
+    return { highlight, paths, events }
   }, [data, pulseHeightPx, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
   const analogGeometry = useMemo(() => {
     const voltageScale = scaleLinear()
@@ -219,6 +235,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
         highlight: null as null | { x: number; width: number },
         voltagePath: null as string | null,
         currentPath: null as string | null,
+        events: [] as Array<{ key: string; x: number; stroke: string }>,
       }
     }
     const pathBuilder = line<(typeof data.analogPoints)[number]>()
@@ -242,11 +259,17 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           ),
         }
       : null
+    const events = data.events.map((event) => ({
+      key: event.selectionKey,
+      x: xScale(Number(event.timestampUs)),
+      stroke: resolveEventStroke(event.eventType),
+    }))
     return {
       gridLines,
       highlight,
       voltagePath,
       currentPath,
+      events,
     }
   }, [analogBottomInset, analogHeightPx, analogTopInset, data, selectedPulse, xScale])
   const hoverTooltip = useMemo(() => {
@@ -352,6 +375,18 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 vectorEffect="non-scaling-stroke"
               />
             ))}
+            {pulseGeometry.events.map((event) => (
+              <line
+                key={`pulse-event-${event.key}`}
+                x1={event.x}
+                y1={0}
+                x2={event.x}
+                y2={pulseHeightPx}
+                stroke={event.stroke}
+                strokeWidth="var(--timestrip-event-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
           </g>
         </svg>
       </div>
@@ -402,6 +437,18 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 vectorEffect="non-scaling-stroke"
               />
             ) : null}
+            {analogGeometry.events.map((event) => (
+              <line
+                key={`analog-event-${event.key}`}
+                x1={event.x}
+                y1={0}
+                x2={event.x}
+                y2={analogHeightPx}
+                stroke={event.stroke}
+                strokeWidth="var(--timestrip-event-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
           </g>
           {analogGeometry.gridLines.map((line) => (
             <g key={`label-${line.key}`}>

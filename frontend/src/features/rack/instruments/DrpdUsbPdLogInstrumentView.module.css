@@ -147,18 +147,18 @@
 }
 
 .eventRowCapture {
-  color: var(--event-color-capture);
-  background: var(--event-bg-capture);
+  color: var(--color-log-event-capture);
+  background: var(--color-log-event-capture-bg);
 }
 
 .eventRowRole {
-  color: var(--event-color-role);
-  background: var(--event-bg-role);
+  color: var(--color-log-event-role);
+  background: var(--color-log-event-role-bg);
 }
 
 .eventRowStatus {
-  color: var(--event-color-status);
-  background: var(--event-bg-status);
+  color: var(--color-log-event-status);
+  background: var(--color-log-event-status-bg);
 }
 
 .selectedRow {

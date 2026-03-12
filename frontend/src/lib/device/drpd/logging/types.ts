@@ -185,6 +185,22 @@ export interface MessageLogPulseSegment {
 }
 
 /**
+ * One significant event marker prepared for time-strip rendering.
+ */
+export interface MessageLogEventMarker {
+  ///< Stable event selection key.
+  selectionKey: string
+  ///< Significant event type.
+  eventType: LoggedCapturedEventType
+  ///< Capture timestamp in microseconds.
+  timestampUs: bigint
+  ///< Display timestamp in microseconds relative to the active logging epoch.
+  displayTimestampUs: bigint | null
+  ///< Host wall-clock timestamp in milliseconds.
+  wallClockMs: number | null
+}
+
+/**
  * Host/device anchor pair used to derive the secondary wall-clock axis.
  */
 export interface MessageLogTimeAnchor {
@@ -228,6 +244,8 @@ export interface MessageLogTimeStripWindow {
   pulses: MessageLogPulseSegment[]
   ///< Analog samples for the current window after worker-side downsampling.
   analogPoints: MessageLogAnalogPoint[]
+  ///< Significant event markers overlapping the current window.
+  events: MessageLogEventMarker[]
   ///< Host/device anchors for the secondary wall-clock axis.
   timeAnchors: MessageLogTimeAnchor[]
 }

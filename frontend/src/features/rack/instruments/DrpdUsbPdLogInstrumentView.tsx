@@ -1,5 +1,4 @@
 import {
-  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useLayoutEffect,
@@ -83,17 +82,6 @@ type DisplayRow = {
   receiver: string
   sopType: string
   valid: string
-}
-
-type UsbPdLogInstrumentConfig = {
-  eventTextColor?: string
-  eventBackgroundColor?: string
-  captureChangedEventTextColor?: string
-  captureChangedEventBackgroundColor?: string
-  ccRoleChangedEventTextColor?: string
-  ccRoleChangedEventBackgroundColor?: string
-  ccStatusChangedEventTextColor?: string
-  ccStatusChangedEventBackgroundColor?: string
 }
 
 const formatMicroseconds = (value: bigint | null): string => {
@@ -282,35 +270,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [isApplyingBuffer, setIsApplyingBuffer] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
   const [clearError, setClearError] = useState<string | null>(null)
-  const instrumentConfig = (instrument.config ?? {}) as UsbPdLogInstrumentConfig
-  const fallbackEventTextColor = instrumentConfig.eventTextColor
-  const fallbackEventBackgroundColor = instrumentConfig.eventBackgroundColor
-  const eventRowStyle = {
-    '--event-color-capture':
-      instrumentConfig.captureChangedEventTextColor ??
-      fallbackEventTextColor ??
-      'var(--color-status-warning)',
-    '--event-color-role':
-      instrumentConfig.ccRoleChangedEventTextColor ??
-      fallbackEventTextColor ??
-      'var(--color-status-info)',
-    '--event-color-status':
-      instrumentConfig.ccStatusChangedEventTextColor ??
-      fallbackEventTextColor ??
-      'var(--color-status-success)',
-    '--event-bg-capture':
-      instrumentConfig.captureChangedEventBackgroundColor ??
-      fallbackEventBackgroundColor ??
-      'color-mix(in srgb, var(--event-color-capture) 18%, transparent)',
-    '--event-bg-role':
-      instrumentConfig.ccRoleChangedEventBackgroundColor ??
-      fallbackEventBackgroundColor ??
-      'color-mix(in srgb, var(--event-color-role) 18%, transparent)',
-    '--event-bg-status':
-      instrumentConfig.ccStatusChangedEventBackgroundColor ??
-      fallbackEventBackgroundColor ??
-      'color-mix(in srgb, var(--event-color-status) 18%, transparent)',
-  } as CSSProperties
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -1055,7 +1014,6 @@ export const DrpdUsbPdLogInstrumentView = ({
     >
       <div
         className={styles.wrapper}
-        style={eventRowStyle}
         data-testid="drpd-usbpd-log"
       >
         <DrpdUsbPdLogTimeStrip
