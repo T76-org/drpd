@@ -180,6 +180,10 @@ export interface MessageLogPulseSegment {
   displayEndTimestampUs: bigint | null
   ///< Host wall-clock timestamp in milliseconds.
   wallClockMs: number | null
+  ///< Decoded SOP label for message annotations.
+  sopLabel: string | null
+  ///< Decoded message label for message annotations.
+  messageLabel: string | null
   ///< Pulse widths converted to nanoseconds.
   pulseWidthsNs: Float64Array
 }

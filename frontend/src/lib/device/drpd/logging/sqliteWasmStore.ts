@@ -7,6 +7,11 @@
 
 import type { Database, SqlValue, Sqlite3Static } from '@sqlite.org/sqlite-wasm'
 import {
+  CONTROL_MESSAGE_TYPES,
+  DATA_MESSAGE_TYPES,
+  EXTENDED_MESSAGE_TYPES,
+} from '../usb-pd/message'
+import {
   LOG_SCHEMA_STATEMENTS,
   LOG_SCHEMA_VERSION,
 } from './schema'
@@ -108,6 +113,40 @@ const toHex = (data: Uint8Array): string => {
   return Array.from(data)
     .map((value) => value.toString(16).padStart(2, '0'))
     .join('')
+}
+
+const normalizeSopTypeLabel = (value: string | null): string | null => {
+  switch (value) {
+    case 'SOP':
+      return 'SOP'
+    case 'SOP_PRIME':
+      return "SOP'"
+    case 'SOP_DOUBLE_PRIME':
+      return "SOP''"
+    case 'SOP_DEBUG_PRIME':
+      return "SOP'-D"
+    case 'SOP_DEBUG_DOUBLE_PRIME':
+      return "SOP''-D"
+    default:
+      return null
+  }
+}
+
+const resolveMessageTypeLabel = (
+  row: Pick<LoggedCapturedMessage, 'messageKind' | 'messageType'>,
+): string | null => {
+  if (!row.messageKind || row.messageType == null) {
+    return null
+  }
+  const mapping =
+    row.messageKind === 'CONTROL'
+      ? CONTROL_MESSAGE_TYPES[row.messageType]
+      : row.messageKind === 'DATA'
+        ? DATA_MESSAGE_TYPES[row.messageType]
+        : row.messageKind === 'EXTENDED'
+          ? EXTENDED_MESSAGE_TYPES[row.messageType]
+          : undefined
+  return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
 }
 
 /**
@@ -812,6 +851,8 @@ export class SQLiteWasmStore implements DRPDLogStore {
         displayEndTimestampUs:
           displayStartTimestampUs === null ? null : displayStartTimestampUs + durationUs,
         wallClockMs: row.createdAtMs,
+        sopLabel: normalizeSopTypeLabel(row.sopKind),
+        messageLabel: resolveMessageTypeLabel(row),
         pulseWidthsNs: Float64Array.from(row.rawPulseWidths),
       }
     })

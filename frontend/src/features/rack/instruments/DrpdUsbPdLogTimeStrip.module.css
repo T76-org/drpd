@@ -14,9 +14,9 @@
 
 /* Interactive viewport that owns strip-level visual custom properties. */
 .timeStripViewport {
-  --timestrip-total-height: calc(80px * var(--ui-scale));
+  --timestrip-total-height: calc(92px * var(--ui-scale));
   --timestrip-axis-height: calc(10px * var(--ui-scale));
-  --timestrip-pulse-height: calc(20px * var(--ui-scale));
+  --timestrip-pulse-height: calc(32px * var(--ui-scale));
   --timestrip-analog-height: calc(50px * var(--ui-scale));
   --timestrip-axis-label-y: calc(5px * var(--ui-scale));
   --timestrip-plot-inset-left: calc(18px * var(--ui-scale));
@@ -28,8 +28,15 @@
   --timestrip-pulse-stroke: rgba(255, 255, 255, 0.92);
   --timestrip-pulse-stroke-width: calc(0.5px * max(1, var(--ui-scale)));
   --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
-  --timestrip-pulse-high-y: calc(7px * var(--ui-scale));
-  --timestrip-pulse-low-inset-bottom: calc(7px * var(--ui-scale));
+  --timestrip-pulse-high-y: calc(6px * var(--ui-scale));
+  --timestrip-pulse-low-inset-bottom: calc(17px * var(--ui-scale));
+  --timestrip-pulse-annotation-top: calc(18px * var(--ui-scale));
+  --timestrip-pulse-annotation-height: calc(11px * var(--ui-scale));
+  --timestrip-pulse-annotation-font-size: calc(5px * var(--ui-scale));
+  --timestrip-pulse-annotation-text: var(--color-text-primary);
+  --timestrip-pulse-annotation-preamble-fill: color-mix(in srgb, var(--color-surface-panel-accent) 78%, transparent);
+  --timestrip-pulse-annotation-sop-fill: color-mix(in srgb, var(--color-status-info) 26%, transparent);
+  --timestrip-pulse-annotation-message-fill: color-mix(in srgb, var(--color-status-warning) 24%, transparent);
   --timestrip-event-stroke-width: calc(1px * max(1, var(--ui-scale)));
   --timestrip-event-capture-stroke: var(--color-log-event-capture);
   --timestrip-event-role-stroke: var(--color-log-event-role);
@@ -165,4 +172,8 @@
 :root[data-theme='light'] .timeStripViewport {
   --timestrip-pulse-stroke: rgba(28, 31, 42, 0.82);
   --timestrip-hover-line-color: rgba(28, 31, 42, 0.38);
+  --timestrip-pulse-annotation-text: rgba(28, 31, 42, 0.92);
+  --timestrip-pulse-annotation-preamble-fill: rgba(28, 31, 42, 0.1);
+  --timestrip-pulse-annotation-sop-fill: color-mix(in srgb, var(--color-status-info) 18%, white 82%);
+  --timestrip-pulse-annotation-message-fill: color-mix(in srgb, var(--color-status-warning) 18%, white 82%);
 }

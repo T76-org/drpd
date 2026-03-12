@@ -8,6 +8,11 @@ import {
   type LoggedAnalogSample,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
+import {
+  CONTROL_MESSAGE_TYPES,
+  DATA_MESSAGE_TYPES,
+  EXTENDED_MESSAGE_TYPES,
+} from '../../../lib/device/drpd/usb-pd/message'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
@@ -203,6 +208,8 @@ class TestLogDriver extends EventTarget {
             ? null
             : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
         wallClockMs: row.createdAtMs,
+        sopLabel: normalizeSopType(row.sopKind),
+        messageLabel: resolvePulseMessageLabel(row),
         pulseWidthsNs: row.rawPulseWidths,
       })),
       analogPoints: this.analogRows.slice(0, query.analogPointBudget).map((row) => ({
@@ -247,6 +254,38 @@ class TestLogDriver extends EventTarget {
       }),
     )
   }
+}
+
+const normalizeSopType = (value: string | null): string | null => {
+  switch (value) {
+    case 'SOP':
+      return 'SOP'
+    case 'SOP_PRIME':
+      return "SOP'"
+    case 'SOP_DOUBLE_PRIME':
+      return "SOP''"
+    case 'SOP_DEBUG_PRIME':
+      return "SOP'-D"
+    case 'SOP_DEBUG_DOUBLE_PRIME':
+      return "SOP''-D"
+    default:
+      return null
+  }
+}
+
+const resolvePulseMessageLabel = (row: LoggedCapturedMessage): string | null => {
+  if (!row.messageKind || row.messageType == null) {
+    return null
+  }
+  const mapping =
+    row.messageKind === 'CONTROL'
+      ? CONTROL_MESSAGE_TYPES[row.messageType]
+      : row.messageKind === 'DATA'
+        ? DATA_MESSAGE_TYPES[row.messageType]
+        : row.messageKind === 'EXTENDED'
+          ? EXTENDED_MESSAGE_TYPES[row.messageType]
+          : undefined
+  return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
 }
 
 const buildInstrument = (): RackInstrument => ({
@@ -462,6 +501,36 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
     expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
     expect(await screen.findByText('Accept')).toBeInTheDocument()
+  })
+
+  it('keeps the pulse trace baseline visible when there are no captured messages', async () => {
+    stubResizeObserver()
+
+    const driver = new TestLogDriver([], [
+      buildAnalogSample(0),
+      buildAnalogSample(1),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByTestId('drpd-usbpd-log-timestrip')).toBeInTheDocument()
+
+    await waitFor(() => {
+      const pulseBaseline = container.querySelector('line[stroke="var(--timestrip-pulse-stroke)"]')
+      expect(pulseBaseline).not.toBeNull()
+    })
   })
 
   it('recovers from missed add events by reconciling counts and fetching new rows', async () => {

@@ -122,6 +122,18 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     viewportStyle?.getPropertyValue('--timestrip-pulse-low-inset-bottom') ?? '',
     7,
   )
+  const pulseAnnotationTop = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-top') ?? '',
+    18,
+  )
+  const pulseAnnotationHeight = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-height') ?? '',
+    11,
+  )
+  const pulseAnnotationFontSize = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-font-size') ?? '',
+    5,
+  )
   const analogTopInset = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-top-inset') ?? '',
     8,
@@ -170,10 +182,31 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     })
   }, [data?.timeAnchors, width, xScale])
   const pulseGeometry = useMemo(() => {
-    if (!data) {
-      return { highlight: null, paths: [] as string[], events: [] as Array<{ key: string; x: number; stroke: string }> }
-    }
     const lowY = pulseHeightPx - pulseLowInsetBottom
+    if (!data) {
+      return {
+        annotations: [] as Array<{
+          key: string
+          x: number
+          width: number
+          label: string
+          fill: string
+          showLabel: boolean
+          y: number
+          height: number
+          textY: number
+          index: number
+        }>,
+        baselines: [{
+          x1: plotLeftX,
+          x2: plotRightX,
+          y: lowY,
+        }],
+        highlight: null,
+        paths: [] as string[],
+        events: [] as Array<{ key: string; x: number; stroke: string }>,
+      }
+    }
     const highY = pulseHighY
     const highlight = selectedPulse
       ? {
@@ -204,13 +237,89 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       }
       return commands.join(' ')
     })
+    const annotations = data.pulses.flatMap((pulse, index) => {
+      const pulseStartUs = Number(pulse.startTimestampUs)
+      const pulseEndUs = Number(pulse.traceEndTimestampUs)
+      const pulseWidthPx = xScale(pulseEndUs) - xScale(pulseStartUs)
+      if (pulseWidthPx < DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.minPulseWidthPx) {
+        return []
+      }
+      const preambleEndUs = Math.min(
+        pulseEndUs,
+        pulseStartUs + DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.preambleDurationUs,
+      )
+      const sopEndUs = Math.min(
+        pulseEndUs,
+        preambleEndUs + DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.sopDurationUs,
+      )
+      const segments = [
+        {
+          key: `${pulse.selectionKey}-preamble`,
+          x: xScale(pulseStartUs),
+          width: xScale(preambleEndUs) - xScale(pulseStartUs),
+          label: 'Preamble',
+          fill: 'var(--timestrip-pulse-annotation-preamble-fill)',
+        },
+        {
+          key: `${pulse.selectionKey}-sop`,
+          x: xScale(preambleEndUs),
+          width: xScale(sopEndUs) - xScale(preambleEndUs),
+          label: pulse.sopLabel ?? 'SOP',
+          fill: 'var(--timestrip-pulse-annotation-sop-fill)',
+        },
+        {
+          key: `${pulse.selectionKey}-message`,
+          x: xScale(sopEndUs),
+          width: xScale(pulseEndUs) - xScale(sopEndUs),
+          label: pulse.messageLabel ?? 'message',
+          fill: 'var(--timestrip-pulse-annotation-message-fill)',
+        },
+      ]
+      return segments
+        .filter((segment) => segment.width > 1)
+        .map((segment) => ({
+          ...segment,
+          showLabel: segment.width >= DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.minSegmentLabelWidthPx,
+          y: pulseAnnotationTop,
+          height: pulseAnnotationHeight,
+          textY: pulseAnnotationTop + pulseAnnotationHeight / 2,
+          index,
+        }))
+    })
+    const baselines =
+      data.pulses.length === 0
+        ? [{
+            x1: plotLeftX,
+            x2: plotRightX,
+            y: lowY,
+          }]
+        : [
+            {
+              startUs: data.windowStartUs,
+              endUs: data.pulses[0]?.startTimestampUs ?? data.windowEndUs,
+            },
+            ...data.pulses.slice(0, -1).map((pulse, index) => ({
+              startUs: pulse.traceEndTimestampUs,
+              endUs: data.pulses[index + 1]?.startTimestampUs ?? pulse.traceEndTimestampUs,
+            })),
+            {
+              startUs: data.pulses[data.pulses.length - 1]?.traceEndTimestampUs ?? data.windowStartUs,
+              endUs: data.windowEndUs,
+            },
+          ]
+            .filter((segment) => segment.endUs > segment.startUs)
+            .map((segment) => ({
+              x1: xScale(Number(segment.startUs)),
+              x2: xScale(Number(segment.endUs)),
+              y: lowY,
+            }))
     const events = data.events.map((event) => ({
       key: event.selectionKey,
       x: xScale(Number(event.timestampUs)),
       stroke: resolveEventStroke(event.eventType),
     }))
-    return { highlight, paths, events }
-  }, [data, pulseHeightPx, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
+    return { annotations, baselines, highlight, paths, events }
+  }, [data, plotLeftX, plotRightX, pulseAnnotationHeight, pulseAnnotationTop, pulseHeightPx, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
   const analogGeometry = useMemo(() => {
     const voltageScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax])
@@ -370,6 +479,18 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 fill="var(--timestrip-pulse-highlight-fill)"
               />
             ) : null}
+            {pulseGeometry.baselines.map((baseline, index) => (
+              <line
+                key={`pulse-baseline-${index}-${baseline.x1}-${baseline.x2}`}
+                x1={baseline.x1}
+                y1={baseline.y}
+                x2={baseline.x2}
+                y2={baseline.y}
+                stroke="var(--timestrip-pulse-stroke)"
+                strokeWidth="var(--timestrip-pulse-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
             {pulseGeometry.paths.map((path, index) => (
               <path
                 key={`${index}-${path.length}`}
@@ -379,6 +500,29 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 strokeWidth="var(--timestrip-pulse-stroke-width)"
                 vectorEffect="non-scaling-stroke"
               />
+            ))}
+            {pulseGeometry.annotations.map((annotation) => (
+              <g key={`pulse-annotation-${annotation.key}`}>
+                <rect
+                  x={annotation.x}
+                  y={annotation.y}
+                  width={annotation.width}
+                  height={annotation.height}
+                  fill={annotation.fill}
+                />
+                {annotation.showLabel ? (
+                  <text
+                    x={annotation.x + annotation.width / 2}
+                    y={annotation.textY}
+                    fill="var(--timestrip-pulse-annotation-text)"
+                    fontSize={pulseAnnotationFontSize}
+                    dominantBaseline="middle"
+                    textAnchor="middle"
+                  >
+                    {annotation.label}
+                  </text>
+                ) : null}
+              </g>
             ))}
             {pulseGeometry.events.map((event) => (
               <line
