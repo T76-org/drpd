@@ -547,6 +547,42 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         }
         throw new Error(`Unsupported sink method: ${method}`)
       }
+      if (target === 'system') {
+        if (method === 'identify') {
+          return await session.device.system.identify()
+        }
+        throw new Error(`Unsupported system method: ${method}`)
+      }
+      if (target === 'trigger') {
+        if (method === 'getInfo') {
+          return await session.device.trigger.getInfo()
+        }
+        if (method === 'setEventType') {
+          await session.device.trigger.setEventType(args[0] as never)
+          return null
+        }
+        if (method === 'setEventThreshold') {
+          await session.device.trigger.setEventThreshold(args[0] as number)
+          return null
+        }
+        if (method === 'setAutoRepeat') {
+          await session.device.trigger.setAutoRepeat(args[0] as never)
+          return null
+        }
+        if (method === 'setSyncMode') {
+          await session.device.trigger.setSyncMode(args[0] as never)
+          return null
+        }
+        if (method === 'setSyncPulseWidthUs') {
+          await session.device.trigger.setSyncPulseWidthUs(args[0] as number)
+          return null
+        }
+        if (method === 'reset') {
+          await session.device.trigger.reset()
+          return null
+        }
+        throw new Error(`Unsupported trigger method: ${method}`)
+      }
       if (target === 'vbus') {
         if (method === 'resetFault') {
           await session.device.vbus.resetFault()

@@ -13,6 +13,7 @@ import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusIn
 import { DrpdMessageDetailInstrumentView } from './instruments/DrpdMessageDetailInstrumentView'
 import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
 import { DrpdTimeStripInstrumentView } from './instruments/DrpdTimeStripInstrumentView'
+import { DrpdTriggerInstrumentView } from './instruments/DrpdTriggerInstrumentView'
 import { DrpdUsbPdLogInstrumentView } from './instruments/DrpdUsbPdLogInstrumentView'
 import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
 import styles from './RowRenderer.module.css'
@@ -290,6 +291,17 @@ const renderInstrument = ({
     case 'com.mta.drpd.sink-control':
       return (
         <DrpdSinkControlInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          deviceRecord={deviceRecord}
+          deviceState={deviceState}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
+        />
+      )
+    case 'com.mta.drpd.trigger':
+      return (
+        <DrpdTriggerInstrumentView
           instrument={instrument}
           displayName={definition?.displayName ?? 'Instrument'}
           deviceRecord={deviceRecord}
