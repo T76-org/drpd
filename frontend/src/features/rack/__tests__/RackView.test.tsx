@@ -585,7 +585,7 @@ describe('RackView', () => {
     )
     expect(await screen.findByTestId('rack-instrument-inst-cc')).toHaveAttribute(
       'data-width-units',
-      '10',
+      '7',
     )
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
       'data-width-units',
@@ -906,7 +906,7 @@ describe('RackView', () => {
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists VBUS, CC Lines, Device Status, Timestrip, and MESSAGE DETAIL instruments for compatible devices', async () => {
+  it('lists VBUS, CC Lines, Device Status, Sync Trigger, Timestrip, and MESSAGE DETAIL instruments for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -948,6 +948,9 @@ describe('RackView', () => {
     ).toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: /sink control/i }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /sync trigger/i }),
     ).toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: /timestrip/i }),
@@ -993,7 +996,7 @@ describe('RackView', () => {
       '50',
     )
     expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveStyle({
-      height: '100px'
+      height: '125px'
     })
   })
 

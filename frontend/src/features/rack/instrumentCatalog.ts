@@ -73,6 +73,24 @@ export class DrpdSinkControlInstrument extends Instrument {
 }
 
 /**
+ * Trigger instrument for Dr. PD trigger setup/status controls.
+ */
+export class DrpdTriggerInstrument extends Instrument {
+  /**
+   * Create a trigger instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.trigger',
+      displayName: 'Sync Trigger',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'fixed', units: 14 },
+      defaultUnits: 1,
+    })
+  }
+}
+
+/**
  * USB-PD message log instrument for Dr. PD capture logs.
  */
 export class DrpdUsbPdLogInstrument extends Instrument {
@@ -137,6 +155,7 @@ export const getSupportedInstruments = (): Instrument[] => {
     new DrpdCcLinesInstrument(),
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),
+    new DrpdTriggerInstrument(),
     new DrpdUsbPdLogInstrument(),
     new DrpdTimeStripInstrument(),
     new DrpdMessageDetailInstrument(),

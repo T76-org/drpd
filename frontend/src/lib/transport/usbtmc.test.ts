@@ -192,7 +192,7 @@ describe('USBTMCTransport', () => {
     const device = createMockDevice()
     const transport = new TestTransport(device)
     const formatted = transport.exposeFormatSCPI('MEAS:VOLT', 1, true, 'a"b', scpiEnum('NORM'))
-    expect(formatted).toBe('MEAS:VOLT 1, ON, "a""b", NORM')
+    expect(formatted).toBe('MEAS:VOLT 1 ON "a""b" NORM')
   })
 
   it('parses SCPI response values with quoted strings', () => {

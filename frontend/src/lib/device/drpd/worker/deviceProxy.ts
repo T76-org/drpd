@@ -25,6 +25,9 @@ import type {
   OnOffState,
   SinkInfo,
   SinkPdo,
+  TriggerEventType,
+  TriggerInfo,
+  TriggerSyncMode,
 } from '../types'
 import type { MessageLogTimeStripQuery, MessageLogTimeStripWindow } from '../logging'
 import { DRPDDevice } from '../device'
@@ -48,6 +51,15 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getSinkInfo: () => Promise<SinkInfo>
     requestPdo: (index: number, voltageMv: number, currentMa: number) => Promise<void>
   } ///< Sink command-group proxy.
+  public readonly trigger: {
+    getInfo: () => Promise<TriggerInfo>
+    setEventType: (type: TriggerEventType) => Promise<void>
+    setEventThreshold: (count: number) => Promise<void>
+    setAutoRepeat: (enabled: OnOffState) => Promise<void>
+    setSyncMode: (mode: TriggerSyncMode) => Promise<void>
+    setSyncPulseWidthUs: (widthUs: number) => Promise<void>
+    reset: () => Promise<void>
+  } ///< Trigger command-group proxy.
   public readonly vbus: {
     resetFault: () => Promise<void>
     setOvpThresholdMv: (thresholdMv: number) => Promise<void>
@@ -144,6 +156,27 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       getSinkInfo: async () => (await this.callGroup('sink', 'getSinkInfo')) as SinkInfo,
       requestPdo: async (index, voltageMv, currentMa) => {
         await this.callGroup('sink', 'requestPdo', index, voltageMv, currentMa)
+      },
+    }
+    this.trigger = {
+      getInfo: async () => (await this.callGroup('trigger', 'getInfo')) as TriggerInfo,
+      setEventType: async (type) => {
+        await this.callGroup('trigger', 'setEventType', type)
+      },
+      setEventThreshold: async (count) => {
+        await this.callGroup('trigger', 'setEventThreshold', count)
+      },
+      setAutoRepeat: async (enabled) => {
+        await this.callGroup('trigger', 'setAutoRepeat', enabled)
+      },
+      setSyncMode: async (mode) => {
+        await this.callGroup('trigger', 'setSyncMode', mode)
+      },
+      setSyncPulseWidthUs: async (widthUs) => {
+        await this.callGroup('trigger', 'setSyncPulseWidthUs', widthUs)
+      },
+      reset: async () => {
+        await this.callGroup('trigger', 'reset')
       },
     }
     this.vbus = {
@@ -438,7 +471,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    * @param args - Method args.
    * @returns RPC result.
    */
-  protected async callGroup(target: 'analogMonitor' | 'ccBus' | 'capture' | 'sink' | 'vbus', method: string, ...args: unknown[]): Promise<unknown> {
+  protected async callGroup(target: 'analogMonitor' | 'ccBus' | 'capture' | 'sink' | 'system' | 'trigger' | 'vbus', method: string, ...args: unknown[]): Promise<unknown> {
     this.ensureOpen()
     return await this.client.callWorker('drpdSession.call', {
       sessionId: this.sessionId,

@@ -162,7 +162,7 @@ export type WorkerRpcRequest =
           }
         | {
             sessionId: string
-            target: 'analogMonitor' | 'ccBus' | 'capture' | 'sink' | 'vbus'
+            target: 'analogMonitor' | 'ccBus' | 'capture' | 'sink' | 'system' | 'trigger' | 'vbus'
             method: string
             args: unknown[]
           }
