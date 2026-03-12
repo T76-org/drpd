@@ -23,6 +23,12 @@ export interface ParsedMessageSelectionKey {
   createdAtMs: number
 }
 
+export interface ParsedLogSelectionKey {
+  startTimestampUs: bigint
+  endTimestampUs: bigint
+  createdAtMs: number
+}
+
 /**
  * Parse a message-row selection key.
  *
@@ -40,6 +46,31 @@ export const parseMessageSelectionKey = (
     startTimestampUs: BigInt(match[1]),
     endTimestampUs: BigInt(match[2]),
     createdAtMs: Number(match[3]),
+  }
+}
+
+/**
+ * Parse a log-row selection key for either a message or event row.
+ *
+ * @param selectionKey - Stable log row key.
+ * @returns Parsed row metadata, or null for unknown keys.
+ */
+export const parseLogSelectionKey = (
+  selectionKey: string,
+): ParsedLogSelectionKey | null => {
+  const parsedMessage = parseMessageSelectionKey(selectionKey)
+  if (parsedMessage) {
+    return parsedMessage
+  }
+  const eventMatch = /^event:(\d+):(\d+):.+$/.exec(selectionKey)
+  if (!eventMatch) {
+    return null
+  }
+  const timestampUs = BigInt(eventMatch[1])
+  return {
+    startTimestampUs: timestampUs,
+    endTimestampUs: timestampUs,
+    createdAtMs: Number(eventMatch[2]),
   }
 }
 

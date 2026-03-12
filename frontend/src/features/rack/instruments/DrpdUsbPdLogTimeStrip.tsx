@@ -13,7 +13,7 @@ import {
   DEFAULT_WINDOW_US,
   clampWindowStartUs,
   centerWindowOnSpanUs,
-  parseMessageSelectionKey,
+  parseLogSelectionKey,
   zoomWindowAroundFocusUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
@@ -303,7 +303,7 @@ export const DrpdUsbPdLogTimeStrip = ({
   }, [driver, refreshVersion, width, windowDurationUs, windowStartUs])
 
   useEffect(() => {
-    const parsed = selectedKey ? parseMessageSelectionKey(selectedKey) : null
+    const parsed = selectedKey ? parseLogSelectionKey(selectedKey) : null
     if (!parsed) {
       lastAutoCenterSignatureRef.current = null
       return

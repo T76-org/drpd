@@ -154,6 +154,28 @@ class TestLogDriver extends EventTarget {
       }
       return candidates.reduce((maximum, value) => value > maximum ? value : maximum)
     })()
+    const timeAnchors = [
+      ...messageRows.flatMap((row) => (
+        row.displayTimestampUs === null
+          ? []
+          : [{
+              timestampUs: row.startTimestampUs,
+              displayTimestampUs: row.displayTimestampUs,
+              wallClockMs: row.createdAtMs,
+              approximate: false,
+            }]
+      )),
+      ...this.analogRows.flatMap((row) => (
+        row.displayTimestampUs === null
+          ? []
+          : [{
+              timestampUs: row.timestampUs,
+              displayTimestampUs: row.displayTimestampUs,
+              wallClockMs: row.createdAtMs,
+              approximate: false,
+            }]
+      )),
+    ]
     return {
       windowStartUs: query.windowStartUs,
       windowEndUs: query.windowStartUs + query.windowDurationUs,
@@ -162,8 +184,8 @@ class TestLogDriver extends EventTarget {
       latestTimestampUs,
       earliestDisplayTimestampUs,
       latestDisplayTimestampUs,
-      windowStartDisplayTimestampUs: query.windowStartUs,
-      windowEndDisplayTimestampUs: query.windowStartUs + query.windowDurationUs,
+      windowStartDisplayTimestampUs: earliestDisplayTimestampUs,
+      windowEndDisplayTimestampUs: latestDisplayTimestampUs,
       hasMoreBefore: false,
       hasMoreAfter: false,
       pulses: messageRows.map((row) => ({
@@ -197,20 +219,7 @@ class TestLogDriver extends EventTarget {
         displayTimestampUs: row.displayTimestampUs,
         wallClockMs: row.createdAtMs,
       })),
-      timeAnchors: [
-        {
-          timestampUs: 0n,
-          displayTimestampUs: 0n,
-          wallClockMs: 1_700_000_000_000,
-          approximate: false,
-        },
-        {
-          timestampUs: 100n,
-          displayTimestampUs: 100n,
-          wallClockMs: 1_700_000_000_100,
-          approximate: true,
-        },
-      ],
+      timeAnchors,
     }
   }
 
@@ -933,6 +942,56 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     await waitFor(() => {
       expect(driver.timeStripQueries[driver.timeStripQueries.length - 1]?.windowStartUs).toBe(50_000n)
+    })
+  })
+
+  it('recenters the timestrip when an event row is selected', async () => {
+    stubResizeObserver()
+
+    const earlyEvent = {
+      ...buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
+      startTimestampUs: 10_000n,
+      endTimestampUs: 10_000n,
+    } satisfies LoggedCapturedMessage
+    const lateMessage = {
+      ...buildMessage(2, 4),
+      startTimestampUs: 260_000n,
+      endTimestampUs: 260_005n,
+      displayTimestampUs: 260_000n,
+    } satisfies LoggedCapturedMessage
+    const driver = new TestLogDriver([buildMessage(0, 1), earlyEvent, lateMessage], [
+      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
+      { ...buildAnalogSample(1), timestampUs: 260_000n, displayTimestampUs: 260_000n },
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await screen.findByText('Capture turned off at 2026-02-28 10:00:00')
+
+    await waitFor(() => {
+      expect(driver.timeStripQueries.length).toBeGreaterThan(0)
+    })
+
+    const initialWindowStart = driver.timeStripQueries.at(-1)?.windowStartUs ?? null
+    expect(initialWindowStart).not.toBeNull()
+    expect(initialWindowStart).not.toBe(0n)
+
+    await userEvent.click(screen.getByText('Capture turned off at 2026-02-28 10:00:00'))
+
+    await waitFor(() => {
+      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(0n)
     })
   })
 

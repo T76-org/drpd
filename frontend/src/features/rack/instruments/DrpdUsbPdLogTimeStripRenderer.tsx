@@ -7,6 +7,7 @@ import {
   findAnalogPointAtStepTimestamp,
   formatDeviceTimestampUs,
   findSelectedPulseSegment,
+  interpolateDisplayTimestampUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
 const parseCssNumber = (
@@ -158,12 +159,16 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     )
     return xScale.ticks(targetCount).map((tick) => {
       const timestampUs = BigInt(Math.round(tick))
+      const displayTimestampUs = interpolateDisplayTimestampUs(
+        timestampUs,
+        data?.timeAnchors ?? [],
+      )
       return {
         x: xScale(tick),
-        deviceLabel: formatDeviceTimestampUs(timestampUs),
+        displayLabel: formatDeviceTimestampUs(displayTimestampUs),
       }
     })
-  }, [width, xScale])
+  }, [data?.timeAnchors, width, xScale])
   const pulseGeometry = useMemo(() => {
     if (!data) {
       return { highlight: null, paths: [] as string[], events: [] as Array<{ key: string; x: number; stroke: string }> }
@@ -342,7 +347,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 y={axisLabelY}
                 textAnchor="middle"
               >
-                {tick.deviceLabel}
+                {tick.displayLabel}
               </text>
             </g>
           ))}

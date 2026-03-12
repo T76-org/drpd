@@ -7,6 +7,7 @@ import {
   formatWallClock,
   interpolateDisplayTimestampUs,
   interpolateWallClockMs,
+  parseLogSelectionKey,
   parseMessageSelectionKey,
   zoomWindowAroundFocusUs,
   zoomWindowDurationUs,
@@ -20,6 +21,16 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
       createdAtMs: 42,
     })
     expect(parseMessageSelectionKey('event:1000:42:capture_changed')).toBeNull()
+    expect(parseLogSelectionKey('message:1000:1100:42')).toEqual({
+      startTimestampUs: 1000n,
+      endTimestampUs: 1100n,
+      createdAtMs: 42,
+    })
+    expect(parseLogSelectionKey('event:2000:52:capture_changed')).toEqual({
+      startTimestampUs: 2000n,
+      endTimestampUs: 2000n,
+      createdAtMs: 52,
+    })
   })
 
   it('clamps and zooms windows inside configured bounds', () => {
