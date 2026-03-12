@@ -162,21 +162,16 @@ export const zoomWindowAroundFocusUs = (
 }
 
 /**
- * Center the window around the given absolute timestamp span.
+ * Center the window around one absolute timestamp.
  *
- * @param startTimestampUs - Span start.
- * @param endTimestampUs - Span end.
+ * @param timestampUs - Target timestamp.
  * @param durationUs - Window duration.
  * @returns Window start.
  */
-export const centerWindowOnSpanUs = (
-  startTimestampUs: bigint,
-  endTimestampUs: bigint,
+export const centerWindowOnTimestampUs = (
+  timestampUs: bigint,
   durationUs: bigint,
-): bigint => {
-  const centerUs = startTimestampUs + (endTimestampUs - startTimestampUs) / 2n
-  return centerUs - durationUs / 2n
-}
+): bigint => timestampUs - durationUs / 2n
 
 /**
  * Format one absolute device timestamp label.

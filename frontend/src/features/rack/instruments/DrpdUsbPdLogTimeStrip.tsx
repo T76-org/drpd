@@ -12,7 +12,7 @@ import { DrpdUsbPdLogTimeStripRenderer } from './DrpdUsbPdLogTimeStripRenderer'
 import {
   DEFAULT_WINDOW_US,
   clampWindowStartUs,
-  centerWindowOnSpanUs,
+  centerWindowOnTimestampUs,
   parseLogSelectionKey,
   zoomWindowAroundFocusUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
@@ -314,9 +314,8 @@ export const DrpdUsbPdLogTimeStrip = ({
     }
     lastAutoCenterSignatureRef.current = signature
     setWindowStartUs((current) => {
-      const nextStartUs = centerWindowOnSpanUs(
+      const nextStartUs = centerWindowOnTimestampUs(
         parsed.startTimestampUs,
-        parsed.endTimestampUs,
         windowDurationUs,
       )
       const clampedStartUs = clampWindowStartUs(

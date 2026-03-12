@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampWindowStartUs,
+  centerWindowOnTimestampUs,
   computePulseTraceEndTimestampUs,
   findAnalogPointAtStepTimestamp,
   formatDeviceTimestampUs,
@@ -60,6 +61,10 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
       windowStartUs: 3_000n,
       windowDurationUs: 2_000n,
     })
+  })
+
+  it('centers the window on a specific timestamp', () => {
+    expect(centerWindowOnTimestampUs(120_000n, 100_000n)).toBe(70_000n)
   })
 
   it('interpolates device-relative and wall-clock axes from anchors', () => {

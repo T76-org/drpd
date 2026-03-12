@@ -995,6 +995,48 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
   })
 
+  it('centers the timestrip on the start of a selected message', async () => {
+    stubResizeObserver()
+
+    const selectedMessage = {
+      ...buildMessage(1, 3),
+      startTimestampUs: 120_000n,
+      endTimestampUs: 120_005n,
+      displayTimestampUs: 120_000n,
+    } satisfies LoggedCapturedMessage
+    const driver = new TestLogDriver([
+      { ...buildMessage(0, 1), startTimestampUs: 0n, endTimestampUs: 5n, displayTimestampUs: 0n },
+      selectedMessage,
+      { ...buildMessage(2, 4), startTimestampUs: 260_000n, endTimestampUs: 260_005n, displayTimestampUs: 260_000n },
+    ], [
+      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
+      { ...buildAnalogSample(1), timestampUs: 260_000n, displayTimestampUs: 260_000n },
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await screen.findByText('Accept')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+
+    await userEvent.click(rows[1] as HTMLElement)
+
+    await waitFor(() => {
+      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(70_000n)
+    })
+  })
+
   it('supports click unselect and ctrl/cmd multi-select', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3), buildMessage(2, 4)])
     const deviceState: RackDeviceState = {
