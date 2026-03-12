@@ -49,6 +49,10 @@ export interface RackDeviceRecord {
   productId: number
   ///< Optional USB serial number.
   serialNumber?: string
+  ///< Optional device identity serial number shown in the UI.
+  deviceSerialNumber?: string
+  ///< Optional firmware version reported by the device.
+  firmwareVersion?: string
   ///< Optional USB product name.
   productName?: string
   ///< Optional device-specific persisted configuration.

@@ -10,6 +10,7 @@ import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
   CCBusRole,
+  DeviceIdentity,
   DRPDDeviceState,
   DRPDLogSelectionState,
   DRPDLoggingConfig,
@@ -40,6 +41,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
   public readonly analogMonitor: { getStatus: () => Promise<AnalogMonitorChannels> } ///< Analog monitor command-group proxy.
   public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
   public readonly capture: { setCaptureEnabled: (enabled: OnOffState) => Promise<void> } ///< Capture command-group proxy.
+  public readonly system: { identify: () => Promise<DeviceIdentity> } ///< System command-group proxy.
   public readonly sink: {
     getAvailablePdoCount: () => Promise<number>
     getPdoAtIndex: (index: number) => Promise<SinkPdo>
@@ -132,6 +134,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       setCaptureEnabled: async (enabled) => {
         await this.setCaptureEnabled(enabled)
       },
+    }
+    this.system = {
+      identify: async () => (await this.callGroup('system', 'identify')) as DeviceIdentity,
     }
     this.sink = {
       getAvailablePdoCount: async () => (await this.callGroup('sink', 'getAvailablePdoCount')) as number,

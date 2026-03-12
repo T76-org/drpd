@@ -148,7 +148,7 @@
   gap: var(--space-6);
   padding: var(--space-10);
   overflow: auto;
-  font-size: var(--font-size-popup);
+  font-size: var(--font-size-3xs);
   transform: scale(var(--global-app-scale, 1));
   transform-origin: top left;
 }
@@ -172,8 +172,7 @@
 }
 
 .deviceMenuItem {
-  width: 100%;
-  padding: var(--space-8) var(--space-10);
+  padding: var(--space-2) var(--space-4);
   background: var(--color-surface-panel-accent);
   font-size: inherit;
 }
@@ -245,7 +244,7 @@
   display: grid;
   grid-template-columns: auto var(--rack-device-actions-width);
   align-items: center;
-  gap: var(--space-12);
+  gap: var(--space-4);
   width: max-content;
 }
 
@@ -253,7 +252,7 @@
   display: grid;
   grid-template-columns: max-content var(--rack-device-status-width);
   align-items: center;
-  column-gap: var(--space-12);
+  column-gap: var(--space-4);
   min-width: 0;
   max-width: var(--rack-device-info-max-width);
 }
@@ -270,9 +269,7 @@
 .deviceStatus {
   font-size: inherit;
   text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-lg);
   color: var(--color-text-muted);
-  width: var(--rack-device-status-width);
   text-align: right;
   display: inline-block;
 }

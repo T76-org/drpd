@@ -95,7 +95,7 @@
   --rack-header-control-min-width: calc(40px * var(--ui-scale));
   --rack-device-menu-min-width: calc(100px * var(--ui-scale));
   --rack-device-actions-width: calc(170px * var(--ui-scale));
-  --rack-device-status-width: calc(100px * var(--ui-scale));
+  --rack-device-status-width: calc(5px * var(--ui-scale));
   --rack-device-info-max-width: calc(412px * var(--ui-scale));
   --rack-device-name-max-width: calc(300px * var(--ui-scale));
 

@@ -179,6 +179,8 @@ const createUSBDevice = (): USBDevice =>
     productName: 'Dr. PD'
   }) as USBDevice
 
+const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
+
 /**
  * Stub the navigator.usb API.
  */
@@ -764,12 +766,12 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 
     expect(requestDevice).toHaveBeenCalled()
-    expect(await screen.findAllByText('Dr. PD')).not.toHaveLength(0)
+    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
     expect(await screen.findAllByText('connected')).not.toHaveLength(0)
   })
 
@@ -783,7 +785,7 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 
@@ -794,7 +796,7 @@ describe('RackView', () => {
     await userEvent.click(disconnectButton)
 
     expect(await screen.findByText('disconnected')).toBeInTheDocument()
-    expect(await screen.findByText('Dr. PD')).toBeInTheDocument()
+    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
 
     const reconnectButton = await screen.findByRole('button', {
       name: /connect/i
@@ -814,7 +816,7 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 
@@ -824,7 +826,7 @@ describe('RackView', () => {
     })
     await userEvent.click(removeButton)
     await waitFor(() => {
-      expect(screen.queryByText('Dr. PD')).not.toBeInTheDocument()
+      expect(screen.queryByText(DRPD_DEVICE_LABEL)).not.toBeInTheDocument()
     })
   })
 
@@ -849,7 +851,7 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 

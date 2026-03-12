@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { Device } from '../../lib/device'
+import type { DeviceIdentity } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
   DRPDDeviceDefinition,
@@ -111,6 +112,45 @@ interface DeviceRuntime {
   drpdDriver?: DRPDDriverRuntime
   ///< Active transport-like runtime, if available.
   transport?: { close(): Promise<void> }
+}
+
+const formatRackDeviceLabel = (record: RackDeviceRecord): string => {
+  const parts = [record.displayName]
+  if (record.firmwareVersion) {
+    parts.push(record.firmwareVersion)
+  }
+  const displaySerial = record.deviceSerialNumber ?? record.serialNumber
+  if (displaySerial) {
+    parts.push(`#${displaySerial}`)
+  }
+  return parts.join(' ')
+}
+
+const identifyRackDeviceRuntime = async (
+  runtime: DeviceRuntime | null | undefined,
+): Promise<DeviceIdentity | null> => {
+  const driver = runtime?.drpdDriver
+  if (!driver) {
+    return null
+  }
+  if ('system' in driver && driver.system && typeof driver.system.identify === 'function') {
+    return await driver.system.identify()
+  }
+  return null
+}
+
+const mergeRackDeviceIdentity = (
+  record: RackDeviceRecord,
+  identity: DeviceIdentity | null,
+): RackDeviceRecord => {
+  if (!identity) {
+    return record
+  }
+  return {
+    ...record,
+    deviceSerialNumber: identity.serialNumber || record.deviceSerialNumber,
+    firmwareVersion: identity.firmwareVersion || record.firmwareVersion,
+  }
 }
 
 const resolveDeviceLoggingConfig = (record: RackDeviceRecord): DRPDLoggingConfig => {
@@ -640,7 +680,9 @@ export const RackView = () => {
       }
 
       const runtime = await connectDeviceRuntime(deviceDefinition, selected)
-      const record = buildRackDeviceRecord(deviceDefinition, selected)
+      const baseRecord = buildRackDeviceRecord(deviceDefinition, selected)
+      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+      const record = mergeRackDeviceIdentity(baseRecord, identity)
       await applyRecordConfigToRuntime(record, runtime)
       setDeviceStates((states) =>
         upsertDeviceState(states, buildRackDeviceState(record, runtime)),
@@ -759,9 +801,11 @@ export const RackView = () => {
       }
 
       const runtime = await connectDeviceRuntime(definition, matchedDevice)
-      await applyRecordConfigToRuntime(record, runtime)
+      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+      const nextRecord = mergeRackDeviceIdentity(record, identity)
+      await applyRecordConfigToRuntime(nextRecord, runtime)
       setDeviceStates((states) =>
-        upsertDeviceState(states, buildRackDeviceState(record, runtime)),
+        upsertDeviceState(states, buildRackDeviceState(nextRecord, runtime)),
       )
     } catch (connectError) {
       const message =
@@ -1177,7 +1221,7 @@ export const RackView = () => {
                                   <li key={device.record.id} className={styles.deviceRow}>
                                     <div className={styles.deviceInfo}>
                                       <span className={styles.deviceName}>
-                                        {device.record.displayName}
+                                        {formatRackDeviceLabel(device.record)}
                                       </span>
                                       <span
                                         className={`${styles.deviceStatus} ${
@@ -1606,8 +1650,10 @@ const autoConnectDevices = async ({
 
       try {
         const runtime = await connectDeviceRuntime(target, matchedDevice)
-        await applyRecordConfigToRuntime(record, runtime)
-        nextStates.push(buildRackDeviceState(record, runtime))
+        const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+        const nextRecord = mergeRackDeviceIdentity(record, identity)
+        await applyRecordConfigToRuntime(nextRecord, runtime)
+        nextStates.push(buildRackDeviceState(nextRecord, runtime))
       } catch (connectError) {
         const message =
           connectError instanceof Error ? connectError.message : String(connectError)
