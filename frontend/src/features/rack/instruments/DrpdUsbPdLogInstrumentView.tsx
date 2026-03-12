@@ -27,7 +27,6 @@ import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
-import { DrpdUsbPdLogTimeStrip } from './DrpdUsbPdLogTimeStrip'
 
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
@@ -285,8 +284,6 @@ export const DrpdUsbPdLogInstrumentView = ({
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
-  const activeSelectedKey =
-    selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
 
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
@@ -1016,11 +1013,6 @@ export const DrpdUsbPdLogInstrumentView = ({
         className={styles.wrapper}
         data-testid="drpd-usbpd-log"
       >
-        <DrpdUsbPdLogTimeStrip
-          driver={driver}
-          selectedKey={activeSelectedKey}
-          isEditMode={isEditMode}
-        />
         <div className={styles.headerRow}>
           <span>Timestamp</span>
           <span>Length</span>

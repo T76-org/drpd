@@ -12,6 +12,7 @@ import { DrpdCcLinesInstrumentView } from './instruments/DrpdCcLinesInstrumentVi
 import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusInstrumentView'
 import { DrpdMessageDetailInstrumentView } from './instruments/DrpdMessageDetailInstrumentView'
 import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
+import { DrpdTimeStripInstrumentView } from './instruments/DrpdTimeStripInstrumentView'
 import { DrpdUsbPdLogInstrumentView } from './instruments/DrpdUsbPdLogInstrumentView'
 import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
 import styles from './RowRenderer.module.css'
@@ -307,6 +308,16 @@ const renderInstrument = ({
           isEditMode={isEditMode}
           onRemove={onRemove}
           onUpdateDeviceConfig={onUpdateDeviceConfig}
+        />
+      )
+    case 'com.mta.drpd.timestrip':
+      return (
+        <DrpdTimeStripInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          deviceState={deviceState}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
         />
       )
     case 'com.mta.drpd.message-detail':

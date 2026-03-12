@@ -906,7 +906,7 @@ describe('RackView', () => {
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists VBUS, CC Lines, Device Status, and MESSAGE DETAIL instruments for compatible devices', async () => {
+  it('lists VBUS, CC Lines, Device Status, Timestrip, and MESSAGE DETAIL instruments for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -950,8 +950,51 @@ describe('RackView', () => {
       await screen.findByRole('button', { name: /sink control/i }),
     ).toBeInTheDocument()
     expect(
+      await screen.findByRole('button', { name: /timestrip/i }),
+    ).toBeInTheDocument()
+    expect(
       await screen.findByRole('button', { name: /message detail/i }),
     ).toBeInTheDocument()
+  })
+
+  it('allocates Timestrip as horizontally flexible with a fixed single-unit height', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-vbus',
+                    instrumentIdentifier: 'com.mta.drpd.vbus'
+                  },
+                  {
+                    id: 'inst-timestrip',
+                    instrumentIdentifier: 'com.mta.drpd.timestrip'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveAttribute(
+      'data-width-units',
+      '50',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveStyle({
+      height: '100px'
+    })
   })
 
   it('allocates MESSAGE DETAIL as horizontally and vertically flexible', async () => {

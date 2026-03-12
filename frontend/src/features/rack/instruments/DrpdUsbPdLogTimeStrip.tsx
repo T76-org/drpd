@@ -6,6 +6,7 @@ import {
   type PointerEvent,
 } from 'react'
 import { DRPDDevice, type MessageLogTimeStripWindow } from '../../../lib/device'
+import type { DRPDLogSelectionState } from '../../../lib/device'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
 import { DrpdUsbPdLogTimeStripRenderer } from './DrpdUsbPdLogTimeStripRenderer'
@@ -18,6 +19,31 @@ import {
 } from './DrpdUsbPdLogTimeStrip.utils'
 
 const LIVE_EDGE_TOLERANCE_DIVISOR = 50n
+const EMPTY_SELECTION: DRPDLogSelectionState = {
+  selectedKeys: [],
+  anchorIndex: null,
+  activeIndex: null,
+}
+
+const normalizeSelectionState = (value: unknown): DRPDLogSelectionState => {
+  if (!value || typeof value !== 'object') {
+    return EMPTY_SELECTION
+  }
+  const probe = value as Partial<DRPDLogSelectionState>
+  return {
+    selectedKeys: Array.isArray(probe.selectedKeys)
+      ? probe.selectedKeys.filter((entry): entry is string => typeof entry === 'string')
+      : [],
+    anchorIndex:
+      typeof probe.anchorIndex === 'number' && Number.isFinite(probe.anchorIndex)
+        ? Math.max(0, Math.floor(probe.anchorIndex))
+        : null,
+    activeIndex:
+      typeof probe.activeIndex === 'number' && Number.isFinite(probe.activeIndex)
+        ? Math.max(0, Math.floor(probe.activeIndex))
+        : null,
+  }
+}
 
 const resolveLogEntryLatestTimestampUs = (detail: unknown): bigint | null => {
   if (!detail || typeof detail !== 'object') {
@@ -55,11 +81,9 @@ const isWindowAtLiveEdge = (
  */
 export const DrpdUsbPdLogTimeStrip = ({
   driver,
-  selectedKey,
   isEditMode,
 }: {
   driver?: RackDeviceState['drpdDriver']
-  selectedKey: string | null
   isEditMode: boolean
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -77,6 +101,7 @@ export const DrpdUsbPdLogTimeStrip = ({
   const [data, setData] = useState<MessageLogTimeStripWindow | null>(null)
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null)
   const [refreshVersion, setRefreshVersion] = useState(0)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const refreshTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -98,6 +123,7 @@ export const DrpdUsbPdLogTimeStrip = ({
     windowDurationUsRef.current = DEFAULT_WINDOW_US
     dataRef.current = null
     followLiveRef.current = true
+    setSelectedKey(null)
     setData(null)
     setWindowDurationUs(DEFAULT_WINDOW_US)
     setWindowStartUs(0n)
@@ -110,6 +136,48 @@ export const DrpdUsbPdLogTimeStrip = ({
       refreshTimerRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    if (!driver) {
+      setSelectedKey(null)
+      return undefined
+    }
+
+    let cancelled = false
+
+    const syncSelection = async (): Promise<void> => {
+      if (!('getLogSelectionState' in driver) || typeof driver.getLogSelectionState !== 'function') {
+        if (!cancelled) {
+          setSelectedKey(null)
+        }
+        return
+      }
+      try {
+        const selection = normalizeSelectionState(
+          await Promise.resolve(driver.getLogSelectionState()),
+        )
+        if (cancelled) {
+          return
+        }
+        setSelectedKey(selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null)
+      } catch {
+        if (!cancelled) {
+          setSelectedKey(null)
+        }
+      }
+    }
+
+    const handleStateUpdated = (): void => {
+      void syncSelection()
+    }
+
+    void syncSelection()
+    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    return () => {
+      cancelled = true
+      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [driver])
 
   useEffect(() => {
     if (!driver) {
@@ -399,18 +467,20 @@ export const DrpdUsbPdLogTimeStrip = ({
 
   return (
     <div className={styles.timeStripShell} ref={containerRef}>
-      <DrpdUsbPdLogTimeStripRenderer
-        viewportRef={viewportRef as RefObject<HTMLDivElement>}
-        width={Math.max(width, 1)}
-        data={data}
-        hoverPosition={hoverPosition}
-        selectedKey={selectedKey}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
-        onPointerLeave={handlePointerLeave}
-      />
+      {width > 0 ? (
+        <DrpdUsbPdLogTimeStripRenderer
+          viewportRef={viewportRef as RefObject<HTMLDivElement>}
+          width={width}
+          data={data}
+          hoverPosition={hoverPosition}
+          selectedKey={selectedKey}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+          onPointerLeave={handlePointerLeave}
+        />
+      ) : null}
     </div>
   )
 }

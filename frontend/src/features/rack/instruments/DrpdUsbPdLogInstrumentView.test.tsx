@@ -414,42 +414,7 @@ afterEach(() => {
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
-  it('renders the time strip above the table', async () => {
-    class ResizeObserverMock {
-      public callback: ResizeObserverCallback
-
-      public constructor(callback: ResizeObserverCallback) {
-        this.callback = callback
-      }
-
-      public observe(target: Element): void {
-        this.callback(
-          [
-            {
-              target,
-              contentRect: {
-                width: 640,
-                height: 180,
-                x: 0,
-                y: 0,
-                top: 0,
-                left: 0,
-                bottom: 180,
-                right: 640,
-                toJSON: () => ({}),
-              } as DOMRectReadOnly,
-            } as ResizeObserverEntry,
-          ],
-          this as unknown as ResizeObserver,
-        )
-      }
-
-      public disconnect(): void {}
-      public unobserve(): void {}
-    }
-
-    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
-
+  it('renders the message table without the timestrip', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1)])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -466,13 +431,8 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       />,
     )
 
-    expect(await screen.findByTestId('drpd-usbpd-log-timestrip')).toBeInTheDocument()
-    const timeStrip = screen.getByTestId('drpd-usbpd-log-timestrip')
-    const header = screen.getByText('Timestamp')
-    expect(
-      Boolean(timeStrip.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true)
-    expect(header).toBeInTheDocument()
+    expect(await screen.findByText('Timestamp')).toBeInTheDocument()
+    expect(screen.queryByTestId('drpd-usbpd-log-timestrip')).not.toBeInTheDocument()
   })
 
   it('loads existing logged rows on mount without waiting for add events', async () => {
@@ -501,36 +461,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
     expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
     expect(await screen.findByText('Accept')).toBeInTheDocument()
-  })
-
-  it('keeps the pulse trace baseline visible when there are no captured messages', async () => {
-    stubResizeObserver()
-
-    const driver = new TestLogDriver([], [
-      buildAnalogSample(0),
-      buildAnalogSample(1),
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    const { container } = render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    expect(await screen.findByTestId('drpd-usbpd-log-timestrip')).toBeInTheDocument()
-
-    await waitFor(() => {
-      const pulseBaseline = container.querySelector('line[stroke="var(--timestrip-pulse-stroke)"]')
-      expect(pulseBaseline).not.toBeNull()
-    })
   })
 
   it('recovers from missed add events by reconciling counts and fetching new rows', async () => {
@@ -642,9 +572,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(rowTexts.some((text) => text.includes('SourceCable'))).toBe(true)
   })
 
-  it('renders full-width event rows and time-strip markers with shared event colors', async () => {
-    stubResizeObserver()
-
+  it('renders full-width event rows with shared event colors', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1),
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
@@ -673,15 +601,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(eventRow).not.toBeNull()
     const eventLabel = container.querySelector('[class*="eventLabel"]')
     expect(eventLabel).not.toBeNull()
-    await waitFor(() => {
-      const eventMarkers = Array.from(
-        container.querySelectorAll('line[stroke^="var(--timestrip-event-"]'),
-      )
-      expect(eventMarkers).toHaveLength(6)
-      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-capture-stroke)')).toHaveLength(2)
-      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-role-stroke)')).toHaveLength(2)
-      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-status-stroke)')).toHaveLength(2)
-    })
   })
 
   it('resets delta display after an event row', async () => {
@@ -869,240 +788,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       maxAnalogSamples: 123,
       retentionTrimBatchSize: 10,
       maxCapturedMessages: 777,
-    })
-  })
-
-  it('keeps the current timestrip window while new logs arrive when scrolled away from the live end', async () => {
-    stubResizeObserver()
-
-    const driver = new TestLogDriver([buildMessage(0, 1)], [
-      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 200_000n, displayTimestampUs: 200_000n },
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 100_000n)).toBe(true)
-    })
-
-    fireEvent.wheel(screen.getByTestId('drpd-usbpd-log-timestrip'), { deltaY: -320 })
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 50_000n)).toBe(true)
-    })
-
-    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 210_000n, displayTimestampUs: 210_000n }
-    driver.analogRows = [...driver.analogRows, nextAnalog]
-    await act(async () => {
-      driver.dispatchEvent(
-        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
-          detail: { kind: 'analog', row: nextAnalog },
-        }),
-      )
-    })
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries[driver.timeStripQueries.length - 1]?.windowStartUs).toBe(50_000n)
-    })
-  })
-
-  it('follows the live edge when new logs arrive while the timestrip is at the end', async () => {
-    stubResizeObserver()
-
-    const driver = new TestLogDriver([buildMessage(0, 1)], [
-      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 200_000n, displayTimestampUs: 200_000n },
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 100_000n)).toBe(true)
-    })
-
-    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 210_000n, displayTimestampUs: 210_000n }
-    driver.analogRows = [...driver.analogRows, nextAnalog]
-    await act(async () => {
-      driver.dispatchEvent(
-        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
-          detail: { kind: 'analog', row: nextAnalog },
-        }),
-      )
-    })
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries[driver.timeStripQueries.length - 1]?.windowStartUs).toBe(110_000n)
-    })
-  })
-
-  it('does not keep recentering the timestrip on a selected message as new logs arrive', async () => {
-    stubResizeObserver()
-
-    const driver = new TestLogDriver([
-      { ...buildMessage(0, 1), startTimestampUs: 10_000n, endTimestampUs: 10_005n },
-      { ...buildMessage(1, 3), startTimestampUs: 20_000n, endTimestampUs: 20_005n },
-    ], [
-      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 200_000n, displayTimestampUs: 200_000n },
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    const { container } = render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await screen.findByText('Accept')
-    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
-    await userEvent.click(rows[0] as HTMLElement)
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 0n)).toBe(true)
-    })
-
-    fireEvent.wheel(screen.getByTestId('drpd-usbpd-log-timestrip'), { deltaY: 320 })
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 50_000n)).toBe(true)
-    })
-
-    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 210_000n, displayTimestampUs: 210_000n }
-    driver.analogRows = [...driver.analogRows, nextAnalog]
-    await act(async () => {
-      driver.dispatchEvent(
-        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
-          detail: { kind: 'analog', row: nextAnalog },
-        }),
-      )
-    })
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries[driver.timeStripQueries.length - 1]?.windowStartUs).toBe(50_000n)
-    })
-  })
-
-  it('recenters the timestrip when an event row is selected', async () => {
-    stubResizeObserver()
-
-    const earlyEvent = {
-      ...buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
-      startTimestampUs: 10_000n,
-      endTimestampUs: 10_000n,
-    } satisfies LoggedCapturedMessage
-    const lateMessage = {
-      ...buildMessage(2, 4),
-      startTimestampUs: 260_000n,
-      endTimestampUs: 260_005n,
-      displayTimestampUs: 260_000n,
-    } satisfies LoggedCapturedMessage
-    const driver = new TestLogDriver([buildMessage(0, 1), earlyEvent, lateMessage], [
-      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 260_000n, displayTimestampUs: 260_000n },
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await screen.findByText('Capture turned off at 2026-02-28 10:00:00')
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.length).toBeGreaterThan(0)
-    })
-
-    const initialWindowStart = driver.timeStripQueries.at(-1)?.windowStartUs ?? null
-    expect(initialWindowStart).not.toBeNull()
-    expect(initialWindowStart).not.toBe(0n)
-
-    await userEvent.click(screen.getByText('Capture turned off at 2026-02-28 10:00:00'))
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(0n)
-    })
-  })
-
-  it('centers the timestrip on the start of a selected message', async () => {
-    stubResizeObserver()
-
-    const selectedMessage = {
-      ...buildMessage(1, 3),
-      startTimestampUs: 120_000n,
-      endTimestampUs: 120_005n,
-      displayTimestampUs: 120_000n,
-    } satisfies LoggedCapturedMessage
-    const driver = new TestLogDriver([
-      { ...buildMessage(0, 1), startTimestampUs: 0n, endTimestampUs: 5n, displayTimestampUs: 0n },
-      selectedMessage,
-      { ...buildMessage(2, 4), startTimestampUs: 260_000n, endTimestampUs: 260_005n, displayTimestampUs: 260_000n },
-    ], [
-      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 260_000n, displayTimestampUs: 260_000n },
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    const { container } = render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await screen.findByText('Accept')
-    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
-
-    await userEvent.click(rows[1] as HTMLElement)
-
-    await waitFor(() => {
-      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(70_000n)
     })
   })
 

@@ -92,6 +92,24 @@ export class DrpdUsbPdLogInstrument extends Instrument {
 }
 
 /**
+ * Standalone timestrip instrument for Dr. PD capture logs.
+ */
+export class DrpdTimeStripInstrument extends Instrument {
+  /**
+   * Create a standalone timestrip instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.timestrip',
+      displayName: 'Timestrip',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'flex' },
+      defaultUnits: 1.25,
+    })
+  }
+}
+
+/**
  * Message detail instrument for focused message inspection.
  */
 export class DrpdMessageDetailInstrument extends Instrument {
@@ -120,6 +138,7 @@ export const getSupportedInstruments = (): Instrument[] => {
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),
     new DrpdUsbPdLogInstrument(),
+    new DrpdTimeStripInstrument(),
     new DrpdMessageDetailInstrument(),
   ]
 }
