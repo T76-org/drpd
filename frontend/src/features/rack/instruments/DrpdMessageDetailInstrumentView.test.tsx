@@ -9,6 +9,7 @@ import {
 } from '../../../lib/device'
 import { HumanReadableField } from '../../../lib/device/drpd/usb-pd/humanReadableField'
 import type { Message } from '../../../lib/device/drpd/usb-pd/messageBase'
+import { buildMessage, makeExtendedHeader, makeMessageHeader, toBytes32 } from '../../../lib/device/drpd/usb-pd/messages/messageTestUtils'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdMessageDetailInstrumentView } from './DrpdMessageDetailInstrumentView'
@@ -16,6 +17,14 @@ import { DrpdMessageDetailInstrumentView } from './DrpdMessageDetailInstrumentVi
 class TestSelectionDriver extends EventTarget {
   public logSelection: DRPDLogSelectionState
   public rows: LoggedCapturedMessage[]
+  public lastQuery:
+    | {
+        startTimestampUs: bigint
+        endTimestampUs: bigint
+        sortOrder?: 'asc' | 'desc'
+        limit?: number
+      }
+    | null = null
 
   public constructor(logSelection: DRPDLogSelectionState, rows: LoggedCapturedMessage[] = []) {
     super()
@@ -30,12 +39,24 @@ class TestSelectionDriver extends EventTarget {
   public async queryCapturedMessages(query: {
     startTimestampUs: bigint
     endTimestampUs: bigint
+    sortOrder?: 'asc' | 'desc'
+    limit?: number
   }): Promise<LoggedCapturedMessage[]> {
-    return this.rows.filter(
+    this.lastQuery = query
+    const filtered = this.rows.filter(
       (row) =>
         row.startTimestampUs >= query.startTimestampUs &&
         row.startTimestampUs <= query.endTimestampUs,
     )
+    const sorted = [...filtered].sort((left, right) =>
+      left.startTimestampUs < right.startTimestampUs
+        ? -1
+        : left.startTimestampUs > right.startTimestampUs
+          ? 1
+          : left.createdAtMs - right.createdAtMs,
+    )
+    const ordered = query.sortOrder === 'desc' ? sorted.reverse() : sorted
+    return query.limit ? ordered.slice(0, query.limit) : ordered
   }
 
   public setLogSelectionState(logSelection: DRPDLogSelectionState): void {
@@ -332,7 +353,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
         'Message-specific data container.',
       ),
     }
-    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessageWithContext').mockReturnValue({
       kind: 'message',
       row,
       message: {
@@ -369,10 +390,10 @@ describe('DrpdMessageDetailInstrumentView', () => {
     )
 
     const technicalDataSection = (await screen.findByRole('button', { name: /technical data/i })).closest('section')
-    expect(within(technicalDataSection as HTMLElement).getByText('18 18 18 11')).toHaveAttribute(
-      'title',
-      expect.stringContaining("SOP: SOP'"),
-    )
+    const sopSegment = within(technicalDataSection as HTMLElement)
+      .getAllByText('18 18 18 11')
+      .find((element) => element.getAttribute('title')?.includes("SOP: SOP'"))
+    expect(sopSegment).toHaveAttribute('title', expect.stringContaining("SOP: SOP'"))
     expect(within(technicalDataSection as HTMLElement).getByText('81 10')).toHaveAttribute(
       'title',
       expect.stringContaining('Message header'),
@@ -529,7 +550,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
         'Message-specific data container.',
       ),
     }
-    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessageWithContext').mockReturnValue({
       kind: 'message',
       row,
       message: {
@@ -592,7 +613,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
         'Message-specific data container.',
       ),
     }
-    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessageWithContext').mockReturnValue({
       kind: 'message',
       row,
       message: {
@@ -657,7 +678,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
         'Message-specific data container.',
       ),
     }
-    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessage').mockReturnValue({
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessageWithContext').mockReturnValue({
       kind: 'message',
       row,
       message: {
@@ -712,5 +733,80 @@ describe('DrpdMessageDetailInstrumentView', () => {
       expect(screen.getByText('invalid')).toBeInTheDocument()
     })
     expect(screen.getByText('invalid')).toHaveClass(/invalidMessageState/)
+  })
+
+  it('uses prior rows to decode terminal chunked extended-message selections', async () => {
+    const sop = [0x18, 0x18, 0x18, 0x11]
+    const messageHeader = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x11,
+      roleBit: 1,
+      dataRoleBit: 1,
+      specRevisionBits: 0b10,
+    })
+    const pdo1 = 0x0001912c
+    const pdo2 = 0x0002d12c
+    const chunk0 = buildMessage(
+      sop,
+      messageHeader,
+      [...toBytes32(pdo1), 0xaa, 0xbb, 0xcc, 0xdd],
+      makeExtendedHeader({ chunked: true, chunkNumber: 0, dataSize: 8 }),
+    )
+    const chunk1 = buildMessage(
+      sop,
+      messageHeader,
+      [...toBytes32(pdo2), 0x01, 0x02, 0x03, 0x04],
+      makeExtendedHeader({ chunked: true, chunkNumber: 1, dataSize: 8 }),
+    )
+    const firstRow = buildMessageRow({
+      startTimestampUs: 1000n,
+      endTimestampUs: 1005n,
+      rawSop: chunk0.subarray(0, 4),
+      rawDecodedData: chunk0.subarray(4),
+      messageKind: 'EXTENDED',
+      messageType: 0x11,
+      createdAtMs: 1_700_000_000_001,
+    })
+    const secondRow = buildMessageRow({
+      startTimestampUs: 1010n,
+      endTimestampUs: 1015n,
+      rawSop: chunk1.subarray(0, 4),
+      rawDecodedData: chunk1.subarray(4),
+      messageKind: 'EXTENDED',
+      messageType: 0x11,
+      createdAtMs: 1_700_000_000_002,
+    })
+    const deviceState = buildDeviceState(
+      {
+        selectedKeys: ['message:1010:1015:1700000000002'],
+        anchorIndex: 1,
+        activeIndex: 1,
+      },
+      [firstRow, secondRow],
+    )
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const technicalDataSection = (await screen.findByRole('button', { name: /technical data/i })).closest('section')
+    expect(within(technicalDataSection as HTMLElement).getByText('2C D1 02 00')).toHaveAttribute(
+      'title',
+      expect.stringContaining('Message body'),
+    )
+    expect(await screen.findByText('Power Data Objects')).toBeInTheDocument()
+    expect(driver.lastQuery).toMatchObject({
+      startTimestampUs: 0n,
+      endTimestampUs: 1010n,
+      sortOrder: 'desc',
+      limit: 64,
+    })
   })
 })

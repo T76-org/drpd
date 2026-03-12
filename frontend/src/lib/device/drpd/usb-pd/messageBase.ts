@@ -150,6 +150,8 @@ export class Message {
   public readonly header: Header
   ///< Raw payload bytes including SOP and headers.
   public readonly payload: Uint8Array
+  ///< Raw captured frame bytes including SOP and any fragment-local CRC.
+  public capturePayload: Uint8Array
   ///< Offset where the message payload begins (after SOP and headers).
   public readonly payloadOffset: number
   ///< Message kind derived from the header.
@@ -182,6 +184,7 @@ export class Message {
     this.sop = sop
     this.header = header
     this.payload = payload
+    this.capturePayload = Uint8Array.from(payload)
     const headerBytes = header.messageHeader.extended
       ? MESSAGE_HEADER_LENGTH + EXTENDED_HEADER_LENGTH
       : MESSAGE_HEADER_LENGTH
@@ -212,6 +215,15 @@ export class Message {
   public setCaptureTimestamps(startTimestampUs?: bigint, endTimestampUs?: bigint): void {
     this.startTimestampUs = typeof startTimestampUs === 'bigint' ? startTimestampUs : null
     this.endTimestampUs = typeof endTimestampUs === 'bigint' ? endTimestampUs : null
+  }
+
+  /**
+   * Preserve the originally captured frame bytes when decoding from a synthetic payload.
+   *
+   * @param payload - Raw captured frame bytes.
+   */
+  public setCapturePayload(payload: Uint8Array): void {
+    this.capturePayload = Uint8Array.from(payload)
   }
 
   /**
@@ -329,21 +341,27 @@ export class Message {
       'CRC32',
       'CRC32 check data comparing the calculated message checksum to the embedded checksum bytes.',
     )
+    const framePayload = this.capturePayload
     const declaredDataLength = this.header.messageHeader.extended
       ? (this.header.extendedHeader?.dataSize ?? 0)
       : this.header.messageHeader.numberOfDataObjects * 4
-    const crcOffset = this.payloadOffset + declaredDataLength
-    const hasEmbeddedCRC = this.payload.length >= crcOffset + CRC_LENGTH
+    const chunkedExtended = this.header.messageHeader.extended && (this.header.extendedHeader?.chunked ?? false)
+    const crcOffset = chunkedExtended
+      ? Math.max(this.payloadOffset, framePayload.length - CRC_LENGTH)
+      : this.payloadOffset + declaredDataLength
+    const hasEmbeddedCRC = chunkedExtended
+      ? framePayload.length >= this.payloadOffset + CRC_LENGTH
+      : framePayload.length >= crcOffset + CRC_LENGTH
     const crcInput = hasEmbeddedCRC
-      ? this.payload.subarray(SOP_LENGTH, crcOffset)
-      : this.payload.subarray(SOP_LENGTH)
+      ? framePayload.subarray(SOP_LENGTH, crcOffset)
+      : framePayload.subarray(SOP_LENGTH)
     const expectedCRC32 = computeCRC32(crcInput)
     const actualCRC32 = hasEmbeddedCRC
       ? (
-          this.payload[crcOffset] |
-          (this.payload[crcOffset + 1] << 8) |
-          (this.payload[crcOffset + 2] << 16) |
-          (this.payload[crcOffset + 3] << 24)
+          framePayload[crcOffset] |
+          (framePayload[crcOffset + 1] << 8) |
+          (framePayload[crcOffset + 2] << 16) |
+          (framePayload[crcOffset + 3] << 24)
         ) >>> 0
       : null
     crcField.insertEntryAt(
@@ -562,7 +580,9 @@ export class Message {
       3,
       'messageBytes',
       HumanReadableField.byteData(
-        this.payload,
+        this.capturePayload,
+        // Preserve the captured fragment bytes even when decode-time reassembly
+        // uses a synthetic payload for message-specific parsing.
         8,
         false,
         'Message Bytes',

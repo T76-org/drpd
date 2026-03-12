@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties
 import { createPortal } from 'react-dom'
 import {
   buildCapturedLogSelectionKey,
-  decodeLoggedCapturedMessage,
+  decodeLoggedCapturedMessageWithContext,
   DRPDDevice,
   type DRPDLogSelectionState,
   type LoggedCapturedMessage,
@@ -185,23 +185,34 @@ const describeSOPType = (kind: SOPKind): string => {
 }
 
 const buildMessageByteSegments = (message: Message): MessageByteSegment[] => {
+  const payload = message.capturePayload ?? message.payload
+  const chunkedExtended = message.header.messageHeader.extended && (message.header.extendedHeader?.chunked ?? false)
   const headerLength = message.header.messageHeader.extended ? 4 : 2
   const bodyLength = message.header.messageHeader.extended
     ? (message.header.extendedHeader?.dataSize ?? 0)
     : message.header.messageHeader.numberOfDataObjects * 4
   const bodyStart = message.payloadOffset
-  const bodyEnd = Math.min(message.payload.length, bodyStart + bodyLength)
-  const hasEmbeddedCRC = message.payload.length >= bodyEnd + 4
-  const crcStart = hasEmbeddedCRC ? bodyEnd : message.payload.length
+  const provisionalBodyEnd = Math.min(payload.length, bodyStart + bodyLength)
+  const hasEmbeddedCRC = chunkedExtended
+    ? payload.length >= bodyStart + 4
+    : payload.length >= provisionalBodyEnd + 4
+  const crcStart = hasEmbeddedCRC
+    ? (
+        chunkedExtended
+          ? Math.max(bodyStart, payload.length - 4)
+          : provisionalBodyEnd
+      )
+    : payload.length
+  const bodyEnd = chunkedExtended ? crcStart : provisionalBodyEnd
   const segments: MessageByteSegment[] = [
     {
       kind: 'sop',
-      bytes: message.payload.subarray(0, 4),
+      bytes: payload.subarray(0, 4),
       tooltip: `SOP: ${formatSOPType(message.sop.kind)}. ${describeSOPType(message.sop.kind)}`,
     },
     {
       kind: 'header',
-      bytes: message.payload.subarray(4, 6),
+      bytes: payload.subarray(4, 6),
       tooltip: 'Message header: the 16-bit USB-PD header containing message type, roles, revision, and related flags.',
     },
   ]
@@ -209,7 +220,7 @@ const buildMessageByteSegments = (message: Message): MessageByteSegment[] => {
   if (headerLength > 2) {
     segments.push({
       kind: 'extendedHeader',
-      bytes: message.payload.subarray(6, 8),
+      bytes: payload.subarray(6, 8),
       tooltip: 'Extended header: the 16-bit USB-PD extended-message header containing chunking and data-size fields.',
     })
   }
@@ -217,7 +228,7 @@ const buildMessageByteSegments = (message: Message): MessageByteSegment[] => {
   if (bodyEnd > bodyStart) {
     segments.push({
       kind: 'body',
-      bytes: message.payload.subarray(bodyStart, bodyEnd),
+      bytes: payload.subarray(bodyStart, bodyEnd),
       tooltip: 'Message body: the message payload bytes, including data objects or extended-message data.',
     })
   }
@@ -225,7 +236,7 @@ const buildMessageByteSegments = (message: Message): MessageByteSegment[] => {
   if (hasEmbeddedCRC) {
     segments.push({
       kind: 'crc32',
-      bytes: message.payload.subarray(crcStart, crcStart + 4),
+      bytes: payload.subarray(crcStart, crcStart + 4),
       tooltip: 'CRC32: the 32-bit checksum embedded at the end of the message.',
     })
   }
@@ -613,20 +624,27 @@ export const DrpdMessageDetailInstrumentView = ({
     const loadSections = async () => {
       const rows = await Promise.resolve(
         driver.queryCapturedMessages({
-          startTimestampUs: parsedSelectionKey.startTimestampUs,
+          startTimestampUs: 0n,
           endTimestampUs: parsedSelectionKey.startTimestampUs,
+          sortOrder: 'desc',
+          limit: 64,
         }),
       )
       if (cancelled) {
         return
       }
-      const row = findSelectedMessageRow(rows, activeSelectionKey)
+      const orderedRows = [...rows].reverse()
+      const row = findSelectedMessageRow(orderedRows, activeSelectionKey)
       if (!row) {
         setLoadedSelectionKey(activeSelectionKey)
         setLoadedSelection({ kind: 'none' })
         return
       }
-      const decoded = decodeLoggedCapturedMessage(row)
+      const targetIndex = orderedRows.findIndex(
+        (candidate) => buildCapturedLogSelectionKey(candidate) === activeSelectionKey,
+      )
+      const decodeContext = targetIndex >= 0 ? orderedRows.slice(0, targetIndex + 1) : [row]
+      const decoded = decodeLoggedCapturedMessageWithContext(row, decodeContext)
       if (decoded.kind !== 'message') {
         setLoadedSelectionKey(activeSelectionKey)
         setLoadedSelection({ kind: 'invalid' })
