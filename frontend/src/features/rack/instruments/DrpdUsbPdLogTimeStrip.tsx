@@ -17,6 +17,39 @@ import {
   zoomWindowAroundFocusUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
+const LIVE_EDGE_TOLERANCE_DIVISOR = 50n
+
+const resolveLogEntryLatestTimestampUs = (detail: unknown): bigint | null => {
+  if (!detail || typeof detail !== 'object') {
+    return null
+  }
+  const probe = detail as {
+    kind?: string
+    row?: { timestampUs?: bigint; endTimestampUs?: bigint; entryKind?: string }
+  }
+  if (probe.kind === 'analog') {
+    return probe.row?.timestampUs ?? null
+  }
+  if (probe.kind === 'message') {
+    return probe.row?.endTimestampUs ?? null
+  }
+  return null
+}
+
+const isWindowAtLiveEdge = (
+  windowStartUs: bigint,
+  windowDurationUs: bigint,
+  latestTimestampUs: bigint | null,
+): boolean => {
+  if (latestTimestampUs === null) {
+    return true
+  }
+  const toleranceUs = windowDurationUs > LIVE_EDGE_TOLERANCE_DIVISOR
+    ? windowDurationUs / LIVE_EDGE_TOLERANCE_DIVISOR
+    : 1n
+  return windowStartUs + windowDurationUs >= latestTimestampUs - toleranceUs
+}
+
 /**
  * Time-strip controller for the Message Log instrument.
  */
@@ -34,42 +67,107 @@ export const DrpdUsbPdLogTimeStrip = ({
   const initialAlignmentDoneRef = useRef(false)
   const lastAutoCenterSignatureRef = useRef<string | null>(null)
   const panRef = useRef<{ pointerId: number; startX: number; startWindowStartUs: bigint } | null>(null)
+  const windowStartUsRef = useRef(0n)
+  const windowDurationUsRef = useRef(DEFAULT_WINDOW_US)
+  const dataRef = useRef<MessageLogTimeStripWindow | null>(null)
+  const followLiveRef = useRef(true)
   const [width, setWidth] = useState(0)
   const [windowDurationUs, setWindowDurationUs] = useState<bigint>(DEFAULT_WINDOW_US)
   const [windowStartUs, setWindowStartUs] = useState<bigint>(0n)
   const [data, setData] = useState<MessageLogTimeStripWindow | null>(null)
   const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null)
   const [refreshVersion, setRefreshVersion] = useState(0)
+  const refreshTimerRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    windowStartUsRef.current = windowStartUs
+  }, [windowStartUs])
+
+  useEffect(() => {
+    windowDurationUsRef.current = windowDurationUs
+  }, [windowDurationUs])
+
+  useEffect(() => {
+    dataRef.current = data
+  }, [data])
 
   useEffect(() => {
     initialAlignmentDoneRef.current = false
     lastAutoCenterSignatureRef.current = null
+    windowStartUsRef.current = 0n
+    windowDurationUsRef.current = DEFAULT_WINDOW_US
+    dataRef.current = null
+    followLiveRef.current = true
     setData(null)
     setWindowDurationUs(DEFAULT_WINDOW_US)
     setWindowStartUs(0n)
     setRefreshVersion(0)
   }, [driver])
 
+  useEffect(() => () => {
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
     if (!driver) {
       return undefined
     }
+    const scheduleRefresh = (): void => {
+      if (refreshTimerRef.current !== null) {
+        return
+      }
+      refreshTimerRef.current = window.setTimeout(() => {
+        refreshTimerRef.current = null
+        setRefreshVersion((current) => current + 1)
+      }, 0)
+    }
+    const handleAdded = (event: Event): void => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const currentData = dataRef.current
+      const currentWindowStartUs = windowStartUsRef.current
+      const currentWindowDurationUs = windowDurationUsRef.current
+      const addedLatestTimestampUs = resolveLogEntryLatestTimestampUs(detail)
+      if (followLiveRef.current && addedLatestTimestampUs !== null) {
+        const nextStartUs = clampWindowStartUs(
+          addedLatestTimestampUs - currentWindowDurationUs,
+          currentWindowDurationUs,
+          currentData?.earliestTimestampUs ?? null,
+          addedLatestTimestampUs,
+        )
+        if (nextStartUs !== currentWindowStartUs) {
+          windowStartUsRef.current = nextStartUs
+          setWindowStartUs(nextStartUs)
+          return
+        }
+      }
+      scheduleRefresh()
+    }
     const handleDeleted = (event: Event): void => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
       if (detail?.reason !== 'clear') {
+        scheduleRefresh()
         return
       }
       initialAlignmentDoneRef.current = false
       lastAutoCenterSignatureRef.current = null
       panRef.current = null
       setHoverPosition(null)
+      windowStartUsRef.current = 0n
+      windowDurationUsRef.current = DEFAULT_WINDOW_US
+      dataRef.current = null
+      followLiveRef.current = true
       setData(null)
       setWindowDurationUs(DEFAULT_WINDOW_US)
       setWindowStartUs(0n)
       setRefreshVersion((current) => current + 1)
     }
+    driver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
     driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     return () => {
+      driver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     }
   }, [driver])
@@ -110,6 +208,13 @@ export const DrpdUsbPdLogTimeStrip = ({
       ) {
         return
       }
+      followLiveRef.current = isWindowAtLiveEdge(
+        nextWindow.windowStartUs,
+        nextWindow.windowDurationUs,
+        data?.latestTimestampUs ?? null,
+      )
+      windowStartUsRef.current = nextWindow.windowStartUs
+      windowDurationUsRef.current = nextWindow.windowDurationUs
       setWindowStartUs(nextWindow.windowStartUs)
       setWindowDurationUs(nextWindow.windowDurationUs)
     }
@@ -132,14 +237,21 @@ export const DrpdUsbPdLogTimeStrip = ({
       }
       event.preventDefault()
       const deltaUs = BigInt(Math.round((dominantDelta / width) * Number(windowDurationUs)))
-      setWindowStartUs((current) =>
-        clampWindowStartUs(
+      setWindowStartUs((current) => {
+        const nextStartUs = clampWindowStartUs(
           current + deltaUs,
           windowDurationUs,
           data?.earliestTimestampUs ?? null,
           data?.latestTimestampUs ?? null,
-        ),
-      )
+        )
+        followLiveRef.current = isWindowAtLiveEdge(
+          nextStartUs,
+          windowDurationUs,
+          data?.latestTimestampUs ?? null,
+        )
+        windowStartUsRef.current = nextStartUs
+        return nextStartUs
+      })
     }
     element.addEventListener('wheel', handleNativeWheel, { passive: false })
     return () => {
@@ -163,6 +275,7 @@ export const DrpdUsbPdLogTimeStrip = ({
         if (cancelled) {
           return
         }
+        dataRef.current = next
         setData(next)
         if (!initialAlignmentDoneRef.current && next.latestTimestampUs !== null) {
           initialAlignmentDoneRef.current = true
@@ -173,6 +286,8 @@ export const DrpdUsbPdLogTimeStrip = ({
             next.latestTimestampUs,
           )
           if (alignedStartUs !== windowStartUs) {
+            followLiveRef.current = true
+            windowStartUsRef.current = alignedStartUs
             setWindowStartUs(alignedStartUs)
           }
         }
@@ -193,11 +308,7 @@ export const DrpdUsbPdLogTimeStrip = ({
       lastAutoCenterSignatureRef.current = null
       return
     }
-    const signature = [
-      selectedKey,
-      data?.earliestTimestampUs?.toString() ?? 'null',
-      data?.latestTimestampUs?.toString() ?? 'null',
-    ].join(':')
+    const signature = selectedKey
     if (lastAutoCenterSignatureRef.current === signature) {
       return
     }
@@ -214,9 +325,15 @@ export const DrpdUsbPdLogTimeStrip = ({
         data?.earliestTimestampUs ?? null,
         data?.latestTimestampUs ?? null,
       )
+      followLiveRef.current = isWindowAtLiveEdge(
+        clampedStartUs,
+        windowDurationUs,
+        data?.latestTimestampUs ?? null,
+      )
+      windowStartUsRef.current = clampedStartUs
       return clampedStartUs === current ? current : clampedStartUs
     })
-  }, [data?.earliestTimestampUs, data?.latestTimestampUs, selectedKey, windowDurationUs])
+  }, [selectedKey, windowDurationUs])
 
   /**
    * Begin panning the time strip.
@@ -231,7 +348,7 @@ export const DrpdUsbPdLogTimeStrip = ({
     panRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
-      startWindowStartUs: windowStartUs,
+      startWindowStartUs: windowStartUsRef.current,
     }
   }
 
@@ -252,14 +369,19 @@ export const DrpdUsbPdLogTimeStrip = ({
     }
     const deltaPx = event.clientX - pan.startX
     const deltaUs = BigInt(Math.round((deltaPx / width) * Number(windowDurationUs)))
-    setWindowStartUs(
-      clampWindowStartUs(
+    const nextStartUs = clampWindowStartUs(
         pan.startWindowStartUs - deltaUs,
         windowDurationUs,
         data?.earliestTimestampUs ?? null,
         data?.latestTimestampUs ?? null,
-      ),
+      )
+    followLiveRef.current = isWindowAtLiveEdge(
+      nextStartUs,
+      windowDurationUs,
+      data?.latestTimestampUs ?? null,
     )
+    windowStartUsRef.current = nextStartUs
+    setWindowStartUs(nextStartUs)
   }
 
   /**

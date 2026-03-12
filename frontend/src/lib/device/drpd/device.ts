@@ -139,7 +139,7 @@ export class DRPDDevice extends EventTarget {
         activeIndex: null,
       },
     }
-    this.analogMonitorIntervalMs = 20
+    this.analogMonitorIntervalMs = 50
     this.analogMonitorPollingActive = false
     this.analogMonitorInFlight = false
     this.captureDrainIntervalMs = 1000

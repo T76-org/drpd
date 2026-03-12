@@ -1,4 +1,4 @@
-import { line, scaleLinear } from 'd3'
+import { curveStepAfter, line, scaleLinear } from 'd3'
 import { useMemo, type PointerEventHandler, type RefObject } from 'react'
 import type { MessageLogTimeStripWindow } from '../../../lib/device'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
@@ -218,12 +218,11 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
         highlight: null as null | { x: number; width: number },
         voltagePath: null as string | null,
         currentPath: null as string | null,
-        voltageMarkers: [] as Array<{ key: string; x: number; y: number }>,
-        currentMarkers: [] as Array<{ key: string; x: number; y: number }>,
       }
     }
     const pathBuilder = line<(typeof data.analogPoints)[number]>()
       .x((point) => xScale(Number(point.timestampUs)))
+      .curve(curveStepAfter)
     const voltagePath =
       data.analogPoints.length > 0
         ? pathBuilder.y((point) => voltageScale(point.vbusV))(data.analogPoints)
@@ -232,22 +231,6 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       data.analogPoints.length > 0
         ? pathBuilder.y((point) => currentScale(point.ibusA))(data.analogPoints)
         : null
-    const markersEnabled =
-      data.analogPoints.length <= DRPD_USB_PD_LOG_CONFIG.stripAnalog.markerPointLimit
-    const voltageMarkers = markersEnabled
-      ? data.analogPoints.map((point, index) => ({
-          key: `v-${index}-${point.timestampUs.toString()}`,
-          x: xScale(Number(point.timestampUs)),
-          y: voltageScale(point.vbusV),
-        }))
-      : []
-    const currentMarkers = markersEnabled
-      ? data.analogPoints.map((point, index) => ({
-          key: `i-${index}-${point.timestampUs.toString()}`,
-          x: xScale(Number(point.timestampUs)),
-          y: currentScale(point.ibusA),
-        }))
-      : []
     const highlight = selectedPulse
       ? {
           x: xScale(Number(selectedPulse.startTimestampUs)),
@@ -263,8 +246,6 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       highlight,
       voltagePath,
       currentPath,
-      voltageMarkers,
-      currentMarkers,
     }
   }, [analogBottomInset, analogHeightPx, analogTopInset, data, selectedPulse, xScale])
   const hoverTooltip = useMemo(() => {
@@ -429,24 +410,6 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 vectorEffect="non-scaling-stroke"
               />
             ) : null}
-            {analogGeometry.voltageMarkers.map((point) => (
-              <circle
-                key={point.key}
-                cx={point.x}
-                cy={point.y}
-                r={analogPointRadius}
-                fill="var(--timestrip-analog-voltage-stroke)"
-              />
-            ))}
-            {analogGeometry.currentMarkers.map((point) => (
-              <circle
-                key={point.key}
-                cx={point.x}
-                cy={point.y}
-                r={analogPointRadius}
-                fill="var(--timestrip-analog-current-stroke)"
-              />
-            ))}
           </g>
           {analogGeometry.gridLines.map((line) => (
             <g key={`label-${line.key}`}>
