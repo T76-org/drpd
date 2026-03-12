@@ -29,6 +29,7 @@
 }
 
 .headerRow {
+  --log-header-divider: color-mix(in srgb, var(--color-border-panel) 88%, transparent);
   display: grid;
   grid-template-columns:
     var(--column-width-timestamp)
@@ -40,14 +41,26 @@
     var(--column-width-receiver)
     var(--column-width-sop-type)
     var(--column-width-valid);
-  padding: var(--space-0) var(--space-8);
-  border-top: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
-  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 95%, transparent);
-  background: color-mix(in srgb, var(--color-surface-panel-accent) 88%, var(--color-surface-instrument) 12%);
+  position: relative;
+  z-index: 1;
+  padding: var(--space-2) var(--space-8);
+  border-top: var(--border-thin) solid color-mix(in srgb, var(--color-text-primary) 9%, transparent);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, black 32%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-panel) 96%, black 4%),
+      color-mix(in srgb, var(--color-surface-panel) 78%, var(--color-surface-panel-accent) 22%)
+    );
+  box-shadow:
+    inset 0 var(--border-thin) 0 color-mix(in srgb, var(--color-text-primary) 10%, transparent),
+    inset 0 calc(-1 * var(--border-thin)) 0 color-mix(in srgb, black 22%, transparent),
+    0 calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale)) color-mix(in srgb, black 10%, transparent);
   font-size: var(--font-size-2xs);
-  letter-spacing: var(--letter-spacing-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-lg);
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text-muted) 92%, var(--color-text-primary) 8%);
+  color: color-mix(in srgb, var(--color-text-primary) 88%, var(--color-text-muted) 12%);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -63,6 +76,38 @@
 
 .headerRow > span {
   justify-self: center;
+  position: relative;
+}
+
+.headerRow > span + span::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-4));
+  top: 10%;
+  bottom: 10%;
+  width: var(--border-thin);
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--log-header-divider) 22%,
+    var(--log-header-divider) 78%,
+    transparent
+  );
+}
+
+:root[data-theme='light'] .headerRow {
+  --log-header-divider: color-mix(in srgb, rgba(28, 31, 42, 0.22) 90%, transparent);
+  border-bottom-color: color-mix(in srgb, rgba(28, 31, 42, 0.2) 100%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 84%, var(--color-surface-header) 16%),
+    color-mix(in srgb, #eef3fa 82%, var(--color-surface-panel-accent) 18%)
+  );
+  box-shadow:
+    inset 0 var(--border-thin) 0 rgba(255, 255, 255, 0.72),
+    inset 0 calc(-1 * var(--border-thin)) 0 rgba(28, 31, 42, 0.08),
+    0 calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale)) rgba(28, 31, 42, 0.06);
+  color: rgba(28, 31, 42, 0.86);
 }
 
 .viewport {
@@ -125,6 +170,14 @@
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
   cursor: default;
+}
+
+.dataRow:nth-child(odd):not(.eventRow):not(.selectedRow) {
+  background: color-mix(in srgb, var(--color-surface-panel-accent) 18%, transparent);
+}
+
+.dataRow:nth-child(even):not(.eventRow):not(.selectedRow) {
+  background: color-mix(in srgb, var(--color-surface-instrument) 90%, transparent);
 }
 
 .dataRow > span {
