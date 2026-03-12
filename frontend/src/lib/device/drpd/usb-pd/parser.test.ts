@@ -40,11 +40,10 @@ describe('usb-pd parser', () => {
     expect(Array.from(message.humanReadableMetadata.baseInformation.keys())).toEqual([
       'messageType',
       'messageDescription',
+      'usbPdReference',
     ])
     expect(Array.from(message.humanReadableMetadata.technicalData.keys())).toEqual([
-      'startTimestamp',
-      'endTimestamp',
-      'bmcCarrier',
+      'timingInformation',
       'sop',
       'crc32',
       'messageBytes',
@@ -58,13 +57,20 @@ describe('usb-pd parser', () => {
     expect(messageDescription?.type).toBe('String')
     expect(messageDescription?.Label).toBe('Message Description')
     expect(messageDescription?.value).toMatch(/GoodCRC/)
-    const startTimestamp = message.humanReadableMetadata.technicalData.getEntry('startTimestamp')
+    const usbPdReference = message.humanReadableMetadata.baseInformation.getEntry('usbPdReference')
+    expect(usbPdReference?.type).toBe('String')
+    expect(usbPdReference?.Label).toBe('USB-PD Reference')
+    expect(usbPdReference?.value).toBe('Section 6.3.1 - GoodCRC Message')
+    const timingInformation = message.humanReadableMetadata.technicalData.getEntry('timingInformation')
+    expect(timingInformation?.type).toBe('OrderedDictionary')
+    expect(timingInformation?.Label).toBe('Timing Information')
+    const startTimestamp = timingInformation?.getEntry('startTimestamp')
     expect(startTimestamp?.Label).toBe('Start Timestamp')
     expect(startTimestamp?.value).toBe('0')
-    const endTimestamp = message.humanReadableMetadata.technicalData.getEntry('endTimestamp')
+    const endTimestamp = timingInformation?.getEntry('endTimestamp')
     expect(endTimestamp?.Label).toBe('End Timestamp')
     expect(endTimestamp?.value).toBe('0')
-    const bmcCarrier = message.humanReadableMetadata.technicalData.getEntry('bmcCarrier')
+    const bmcCarrier = timingInformation?.getEntry('bmcCarrier')
     expect(bmcCarrier?.type).toBe('OrderedDictionary')
     expect(bmcCarrier?.Label).toBe('BMC Carrier')
     expect(bmcCarrier?.getEntry('frequency')?.value).toBe('Unavailable')
@@ -148,6 +154,11 @@ describe('usb-pd parser', () => {
     expect(requestDataObject?.type).toBe('OrderedDictionary')
     expect(requestDataObject?.Label).toBe('Request Data Object')
     expect(requestDataObject?.getEntry('objectPosition')?.value).toBe('1')
+    expect(requestDataObject?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
+    expect(requestDataObject?.getEntry('fixedVariable')).not.toBeUndefined()
+    expect(requestDataObject?.getEntry('battery')).toBeUndefined()
+    expect(requestDataObject?.getEntry('pps')).toBeUndefined()
+    expect(requestDataObject?.getEntry('avs')).toBeUndefined()
   })
 
   it('parses SOP Accept control messages', () => {
@@ -239,8 +250,9 @@ describe('usb-pd parser', () => {
     })
     expect(message.startTimestampUs).toBe(1000n)
     expect(message.endTimestampUs).toBe(1005n)
-    expect(message.humanReadableMetadata.technicalData.getEntry('startTimestamp')?.value).toBe('1000')
-    expect(message.humanReadableMetadata.technicalData.getEntry('endTimestamp')?.value).toBe('1005')
+    const timingInformation = message.humanReadableMetadata.technicalData.getEntry('timingInformation')
+    expect(timingInformation?.getEntry('startTimestamp')?.value).toBe('1000')
+    expect(timingInformation?.getEntry('endTimestamp')?.value).toBe('1005')
   })
 
   it('computes BMC carrier frequency using the DRPD preamble/message clock algorithm', () => {
@@ -253,9 +265,10 @@ describe('usb-pd parser', () => {
       Float64Array.from([...preamblePulseWidthsNs, ...messagePulseWidthsNs]),
     )
 
-    const bmcCarrier = message.humanReadableMetadata.technicalData.getEntry('bmcCarrier')
+    const timingInformation = message.humanReadableMetadata.technicalData.getEntry('timingInformation')
+    const bmcCarrier = timingInformation?.getEntry('bmcCarrier')
     expect(bmcCarrier?.type).toBe('OrderedDictionary')
-    expect(bmcCarrier?.getEntry('frequency')?.value).toBe('500')
+    expect(bmcCarrier?.getEntry('frequency')?.value).toBe('500 kHz')
     expect(bmcCarrier?.getEntry('valid')?.value).toBe('false')
   })
 })

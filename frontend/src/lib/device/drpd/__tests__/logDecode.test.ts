@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LoggedCapturedMessage } from '../logging'
-import { decodeLoggedCapturedMessage } from '../logDecode'
+import { decodeLoggedCapturedMessage, decodeLoggedCapturedMessageWithContext } from '../logDecode'
+import { buildMessage, makeExtendedHeader, makeMessageHeader, toBytes32 } from '../usb-pd/messages/messageTestUtils'
 
 const buildMessageRow = (
   overrides: Partial<LoggedCapturedMessage> = {},
@@ -42,12 +43,9 @@ describe('decodeLoggedCapturedMessage', () => {
     expect(decoded.message.pulseWidthsNs).not.toBe(row.rawPulseWidths)
     expect(decoded.message.startTimestampUs).toBe(1000n)
     expect(decoded.message.endTimestampUs).toBe(1005n)
-    expect(decoded.message.humanReadableMetadata.technicalData.getEntry('startTimestamp')?.value).toBe(
-      '1000',
-    )
-    expect(decoded.message.humanReadableMetadata.technicalData.getEntry('endTimestamp')?.value).toBe(
-      '1005',
-    )
+    const timingInformation = decoded.message.humanReadableMetadata.technicalData.getEntry('timingInformation')
+    expect(timingInformation?.getEntry('startTimestamp')?.value).toBe('1000')
+    expect(timingInformation?.getEntry('endTimestamp')?.value).toBe('1005')
   })
 
   it('returns event rows without decode attempt', () => {
@@ -80,5 +78,97 @@ describe('decodeLoggedCapturedMessage', () => {
       return
     }
     expect(decoded.reason).toContain('CRC mismatch')
+  })
+
+  it('reassembles chunked EPR source capabilities when decoding with ordered context', () => {
+    const sop = [0x18, 0x18, 0x18, 0x11]
+    const messageHeader = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x11,
+      roleBit: 1,
+      dataRoleBit: 1,
+      specRevisionBits: 0b10,
+    })
+    const pdo1 = 0x0001912c
+    const pdo2 = 0x0002d12c
+    const chunk0 = buildMessage(
+      sop,
+      messageHeader,
+      [...toBytes32(pdo1), 0xaa, 0xbb, 0xcc, 0xdd],
+      makeExtendedHeader({ chunked: true, chunkNumber: 0, dataSize: 8 }),
+    )
+    const chunk1 = buildMessage(
+      sop,
+      messageHeader,
+      [...toBytes32(pdo2), 0x01, 0x02, 0x03, 0x04],
+      makeExtendedHeader({ chunked: true, chunkNumber: 1, dataSize: 8 }),
+    )
+    const firstRow = buildMessageRow({
+      startTimestampUs: 1000n,
+      endTimestampUs: 1005n,
+      rawSop: chunk0.subarray(0, 4),
+      rawDecodedData: chunk0.subarray(4),
+      messageKind: 'EXTENDED',
+      messageType: 0x11,
+      createdAtMs: 1_700_000_000_001,
+    })
+    const secondRow = buildMessageRow({
+      startTimestampUs: 1010n,
+      endTimestampUs: 1015n,
+      rawSop: chunk1.subarray(0, 4),
+      rawDecodedData: chunk1.subarray(4),
+      messageKind: 'EXTENDED',
+      messageType: 0x11,
+      createdAtMs: 1_700_000_000_002,
+    })
+
+    const decoded = decodeLoggedCapturedMessageWithContext(secondRow, [firstRow, secondRow])
+    expect(decoded.kind).toBe('message')
+    if (decoded.kind !== 'message') {
+      return
+    }
+
+    const powerDataObjects = decoded.message.humanReadableMetadata.messageSpecificData.getEntry('powerDataObjects')
+    expect(powerDataObjects).not.toBeUndefined()
+    expect(Array.from(decoded.message.capturePayload)).toEqual(Array.from(chunk1))
+    const crc32 = decoded.message.humanReadableMetadata.technicalData.getEntry('crc32')
+    expect(crc32?.getEntry('actual')?.value).toBe('0x04030201')
+    expect(crc32?.getEntry('actual')?.value).not.toBe('Unavailable')
+  })
+
+  it('keeps incomplete chunked EPR source capabilities fragment-local when context is incomplete', () => {
+    const sop = [0x18, 0x18, 0x18, 0x11]
+    const messageHeader = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x11,
+      roleBit: 1,
+      dataRoleBit: 1,
+      specRevisionBits: 0b10,
+    })
+    const pdo1 = 0x0001912c
+    const chunk0 = buildMessage(
+      sop,
+      messageHeader,
+      [...toBytes32(pdo1), 0xaa, 0xbb, 0xcc, 0xdd],
+      makeExtendedHeader({ chunked: true, chunkNumber: 0, dataSize: 8 }),
+    )
+    const firstRow = buildMessageRow({
+      rawSop: chunk0.subarray(0, 4),
+      rawDecodedData: chunk0.subarray(4),
+      messageKind: 'EXTENDED',
+      messageType: 0x11,
+    })
+
+    const decoded = decodeLoggedCapturedMessageWithContext(firstRow, [firstRow])
+    expect(decoded.kind).toBe('message')
+    if (decoded.kind !== 'message') {
+      return
+    }
+
+    expect(decoded.message.humanReadableMetadata.messageSpecificData.getEntry('powerDataObjects')).toBeUndefined()
+    const crc32 = decoded.message.humanReadableMetadata.technicalData.getEntry('crc32')
+    expect(crc32?.getEntry('actual')?.value).toBe('0xDDCCBBAA')
   })
 })

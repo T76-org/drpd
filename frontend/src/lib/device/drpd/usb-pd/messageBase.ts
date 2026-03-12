@@ -16,8 +16,7 @@ const formatKilohertz = (valueKhz: number): string => {
   if (!Number.isFinite(valueKhz)) {
     return 'Unavailable'
   }
-  const rounded = Math.round(valueKhz * 1000) / 1000
-  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+  return `${Math.trunc(valueKhz)} kHz`
 }
 
 const formatHex32 = (value: number | null): string =>
@@ -77,6 +76,79 @@ const formatReservedBit = (bit: number): string => `0b${bit}`
 
 const formatMessageType = (messageTypeName: string, messageTypeNumber: number): string =>
   `${messageTypeName} (0x${messageTypeNumber.toString(16).toUpperCase().padStart(2, '0')})`
+
+const USB_PD_MESSAGE_REFERENCES: Record<string, string> = {
+  GoodCRC: 'Section 6.3.1 - GoodCRC Message',
+  GotoMin: 'Section 6.3.2 - GotoMin Message (Deprecated)',
+  Accept: 'Section 6.3.3 - Accept Message',
+  Reject: 'Section 6.3.4 - Reject Message',
+  Ping: 'Section 6.3.5 - Ping Message',
+  PS_RDY: 'Section 6.3.6 - PS_RDY Message',
+  Get_Source_Cap: 'Section 6.3.7 - Get_Source_Cap Message',
+  Get_Sink_Cap: 'Section 6.3.8 - Get_Sink_Cap Message',
+  DR_Swap: 'Section 6.3.9 - DR_Swap Message',
+  PR_Swap: 'Section 6.3.10 - PR_Swap Message',
+  VCONN_Swap: 'Section 6.3.11 - VCONN_Swap Message',
+  Wait: 'Section 6.3.12 - Wait Message',
+  Soft_Reset: 'Section 6.3.13 - Soft Reset Message',
+  Data_Reset: 'Section 6.3.14 - Data_Reset Message',
+  Data_Reset_Complete: 'Section 6.3.15 - Data_Reset_Complete Message',
+  Not_Supported: 'Section 6.3.16 - Not_Supported Message',
+  Get_Source_Cap_Extended: 'Section 6.3.17 - Get_Source_Cap_Extended Message',
+  Get_Status: 'Section 6.3.18 - Get_Status Message',
+  FR_Swap: 'Section 6.3.19 - FR_Swap Message',
+  Get_PPS_Status: 'Section 6.3.20 - Get_PPS_Status Message',
+  Get_Country_Codes: 'Section 6.3.21 - Get_Country_Codes',
+  Get_Sink_Cap_Extended: 'Section 6.3.22 - Get_Sink_Cap_Extended Message',
+  Get_Source_Info: 'Section 6.3.23 - Get_Source_Info Message',
+  Get_Revision: 'Section 6.3.24 - Get_Revision Message',
+  Source_Capabilities: 'Section 6.4.1 - Capabilities Message',
+  Sink_Capabilities: 'Section 6.4.1 - Capabilities Message',
+  Request: 'Section 6.4.2 - Request Message',
+  BIST: 'Section 6.4.3 - BIST Message',
+  Vendor_Defined: 'Section 6.4.4 - Vendor Defined Message',
+  Battery_Status: 'Section 6.4.5 - Battery_Status Message',
+  Alert: 'Section 6.4.6 - Alert Message',
+  Get_Country_Info: 'Section 6.4.7 - Get_Country_Info Message',
+  Enter_USB: 'Section 6.4.8 - Enter_USB Message',
+  EPR_Request: 'Section 6.4.9 - EPR_Request Message',
+  EPR_Mode: 'Section 6.4.10 - EPR_Mode Message',
+  Source_Info: 'Section 6.4.11 - Source_Info Message',
+  Revision: 'Section 6.4.12 - Revision Message',
+  Source_Capabilities_Extended: 'Section 6.5.1 - Source_Capabilities_Extended Message',
+  Status: 'Section 6.5.2 - Status Message',
+  Get_Battery_Cap: 'Section 6.5.3 - Get_Battery_Cap Message',
+  Get_Battery_Status: 'Section 6.5.4 - Get_Battery_Status Message',
+  Battery_Capabilities: 'Section 6.5.5 - Battery_Capabilities Message',
+  Get_Manufacturer_Info: 'Section 6.5.6 - Get_Manufacturer_Info Message',
+  Manufacturer_Info: 'Section 6.5.7 - Manufacturer_Info Message',
+  Security_Request: 'Section 6.5.8 - Security Messages',
+  Security_Response: 'Section 6.5.8 - Security Messages',
+  Firmware_Update_Request: 'Section 6.5.9 - Firmware Update Messages',
+  Firmware_Update_Response: 'Section 6.5.9 - Firmware Update Messages',
+  PPS_Status: 'Section 6.5.10 - PPS_Status Message',
+  Country_Codes: 'Section 6.5.11 - Country_Codes Message',
+  Country_Info: 'Section 6.5.12 - Country_Info Message',
+  Sink_Capabilities_Extended: 'Section 6.5.13 - Sink_Capabilities_Extended Message',
+  Extended_Control: 'Section 6.5.14 - Extended_Control Message',
+  EPR_Source_Capabilities: 'Section 6.5.15 - EPR Capabilities Message',
+  EPR_Sink_Capabilities: 'Section 6.5.15 - EPR Capabilities Message',
+  Vendor_Defined_Extended: 'Section 6.5.16 - Vendor_Defined_Extended Message',
+}
+
+const getUSBPDReference = (messageKind: MessageKind, messageTypeName: string): string => {
+  if (messageTypeName === 'Reserved') {
+    switch (messageKind) {
+      case 'CONTROL':
+        return 'Section 6.3 - Control Message'
+      case 'DATA':
+        return 'Section 6.4 - Data Message'
+      case 'EXTENDED':
+        return 'Section 6.5 - Extended Message'
+    }
+  }
+  return USB_PD_MESSAGE_REFERENCES[messageTypeName] ?? 'USB-PD 3.2 section reference unavailable'
+}
 
 const formatChunked = (chunked: boolean): string =>
   chunked ? 'Chunked (1b)' : 'Unchunked (0b)'
@@ -151,6 +223,8 @@ export class Message {
   public readonly header: Header
   ///< Raw payload bytes including SOP and headers.
   public readonly payload: Uint8Array
+  ///< Raw captured frame bytes including SOP and any fragment-local CRC.
+  public capturePayload: Uint8Array
   ///< Offset where the message payload begins (after SOP and headers).
   public readonly payloadOffset: number
   ///< Message kind derived from the header.
@@ -183,6 +257,7 @@ export class Message {
     this.sop = sop
     this.header = header
     this.payload = payload
+    this.capturePayload = Uint8Array.from(payload)
     const headerBytes = header.messageHeader.extended
       ? MESSAGE_HEADER_LENGTH + EXTENDED_HEADER_LENGTH
       : MESSAGE_HEADER_LENGTH
@@ -216,6 +291,15 @@ export class Message {
   }
 
   /**
+   * Preserve the originally captured frame bytes when decoding from a synthetic payload.
+   *
+   * @param payload - Raw captured frame bytes.
+   */
+  public setCapturePayload(payload: Uint8Array): void {
+    this.capturePayload = Uint8Array.from(payload)
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * The root metadata object always contains the standard container fields.
@@ -234,6 +318,15 @@ export class Message {
         'USB Power Delivery specification name for this message type.',
       ),
     )
+    baseInformation.insertEntryAt(
+      1,
+      'usbPdReference',
+      HumanReadableField.string(
+        getUSBPDReference(this.kind, this.messageTypeName),
+        'USB-PD Reference',
+        'Section in the USB Power Delivery Specification Revision 3.2, Version 1.1 where this message is described.',
+      ),
+    )
     const technicalData = HumanReadableField.orderedDictionary(
       'Technical Data',
       'Container for technical-level decoded values that apply broadly.',
@@ -248,6 +341,37 @@ export class Message {
       Number.isFinite(bmcFrequencyKhz) &&
       bmcFrequencyKhz >= USB_PD_BMC_CARRIER_KHZ * (1 - USB_PD_BMC_TOLERANCE) &&
       bmcFrequencyKhz <= USB_PD_BMC_CARRIER_KHZ * (1 + USB_PD_BMC_TOLERANCE)
+    const timingInformation = HumanReadableField.orderedDictionary(
+      'Timing Information',
+      'Capture timing and pulse-derived measurements for this message.',
+    )
+    timingInformation.insertEntryAt(
+      0,
+      'startTimestamp',
+      HumanReadableField.string(
+        formatMicroseconds(startTimestampUs),
+        'Start Timestamp',
+        'Capture start timestamp in microseconds.',
+      ),
+    )
+    timingInformation.insertEntryAt(
+      1,
+      'endTimestamp',
+      HumanReadableField.string(
+        formatMicroseconds(endTimestampUs),
+        'End Timestamp',
+        'Capture end timestamp in microseconds.',
+      ),
+    )
+    timingInformation.insertEntryAt(
+      2,
+      'pulseCount',
+      HumanReadableField.string(
+        this.pulseWidthsNs.length.toString(),
+        'Pulse Count',
+        'Number of captured BMC pulse widths used to decode this message.',
+      ),
+    )
     const bmcCarrier = HumanReadableField.orderedDictionary(
       'BMC Carrier',
       'Biphase Mark Coding carrier measurements derived from the pulse widths.',
@@ -270,6 +394,7 @@ export class Message {
         'Whether the measured Biphase Mark Coding carrier frequency is within the USB-PD specification tolerance of 300 kHz +/-10%.',
       ),
     )
+    timingInformation.insertEntryAt(3, 'bmcCarrier', bmcCarrier)
     const sop = HumanReadableField.orderedDictionary(
       'SOP',
       'Start of Packet metadata derived from the ordered-set prefix.',
@@ -298,21 +423,27 @@ export class Message {
       'CRC32',
       'CRC32 check data comparing the calculated message checksum to the embedded checksum bytes.',
     )
+    const framePayload = this.capturePayload
     const declaredDataLength = this.header.messageHeader.extended
       ? (this.header.extendedHeader?.dataSize ?? 0)
       : this.header.messageHeader.numberOfDataObjects * 4
-    const crcOffset = this.payloadOffset + declaredDataLength
-    const hasEmbeddedCRC = this.payload.length >= crcOffset + CRC_LENGTH
+    const chunkedExtended = this.header.messageHeader.extended && (this.header.extendedHeader?.chunked ?? false)
+    const crcOffset = chunkedExtended
+      ? Math.max(this.payloadOffset, framePayload.length - CRC_LENGTH)
+      : this.payloadOffset + declaredDataLength
+    const hasEmbeddedCRC = chunkedExtended
+      ? framePayload.length >= this.payloadOffset + CRC_LENGTH
+      : framePayload.length >= crcOffset + CRC_LENGTH
     const crcInput = hasEmbeddedCRC
-      ? this.payload.subarray(SOP_LENGTH, crcOffset)
-      : this.payload.subarray(SOP_LENGTH)
+      ? framePayload.subarray(SOP_LENGTH, crcOffset)
+      : framePayload.subarray(SOP_LENGTH)
     const expectedCRC32 = computeCRC32(crcInput)
     const actualCRC32 = hasEmbeddedCRC
       ? (
-          this.payload[crcOffset] |
-          (this.payload[crcOffset + 1] << 8) |
-          (this.payload[crcOffset + 2] << 16) |
-          (this.payload[crcOffset + 3] << 24)
+          framePayload[crcOffset] |
+          (framePayload[crcOffset + 1] << 8) |
+          (framePayload[crcOffset + 2] << 16) |
+          (framePayload[crcOffset + 3] << 24)
         ) >>> 0
       : null
     crcField.insertEntryAt(
@@ -524,32 +655,16 @@ export class Message {
       )
       headerData.insertEntryAt(1, 'extendedMessageHeader', extendedMessageHeader)
     }
+    technicalData.insertEntryAt(0, 'timingInformation', timingInformation)
+    technicalData.insertEntryAt(1, 'sop', sop)
+    technicalData.insertEntryAt(2, 'crc32', crcField)
     technicalData.insertEntryAt(
-      0,
-      'startTimestamp',
-      HumanReadableField.string(
-        formatMicroseconds(startTimestampUs),
-        'Start Timestamp',
-        'Capture start timestamp in microseconds.',
-      ),
-    )
-    technicalData.insertEntryAt(
-      1,
-      'endTimestamp',
-      HumanReadableField.string(
-        formatMicroseconds(endTimestampUs),
-        'End Timestamp',
-        'Capture end timestamp in microseconds.',
-      ),
-    )
-    technicalData.insertEntryAt(2, 'bmcCarrier', bmcCarrier)
-    technicalData.insertEntryAt(3, 'sop', sop)
-    technicalData.insertEntryAt(4, 'crc32', crcField)
-    technicalData.insertEntryAt(
-      5,
+      3,
       'messageBytes',
       HumanReadableField.byteData(
-        this.payload,
+        this.capturePayload,
+        // Preserve the captured fragment bytes even when decode-time reassembly
+        // uses a synthetic payload for message-specific parsing.
         8,
         false,
         'Message Bytes',

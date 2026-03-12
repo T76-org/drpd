@@ -1,6 +1,16 @@
 import { DataMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
-import { buildPDOMetadata, buildRDOMetadata, parsePDO, parseRDO, readDataObjects, type ParsedPDO, type ParsedRDO } from '../DataObjects'
+import {
+  buildPDOMetadata,
+  buildRDOMetadata,
+  inferRequestTypeHintFromPDO,
+  inferRequestTypeHintFromRaw,
+  parsePDO,
+  parseRDO,
+  readDataObjects,
+  type ParsedPDO,
+  type ParsedRDO,
+} from '../DataObjects'
 
 /**
  * EPR_Request data message.
@@ -62,7 +72,15 @@ export class EPRRequestMessage extends DataMessage {
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Request is a data message that requests an Extended Power Range power contract so a sink can ask for higher-power operating points in EPR mode.', 'Message Description', 'A description of the message\'s function and usage.'))
 
     if (this.rdo) {
-      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata(this.rdo))
+      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata({
+        ...this.rdo,
+        requestTypeHint:
+          this.requestedPDOCopy
+            ? inferRequestTypeHintFromPDO(this.requestedPDOCopy)
+            : this.rawRDO !== null
+              ? inferRequestTypeHintFromRaw(this.rawRDO)
+              : this.rdo.requestTypeHint,
+      }))
     }
     if (this.requestedPDOCopy) {
       metadata.messageSpecificData.setEntry('requestedPowerDataObject', buildPDOMetadata(this.requestedPDOCopy))

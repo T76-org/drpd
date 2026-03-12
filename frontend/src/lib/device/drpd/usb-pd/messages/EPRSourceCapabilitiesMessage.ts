@@ -48,13 +48,14 @@ export class EPRSourceCapabilitiesMessage extends ExtendedMessage {
     this.requestChunk = extended?.requestChunk ?? false
     this.rawPayload = payload.subarray(this.payloadOffset)
     const dataEnd = this.payloadOffset + this.dataSize
+    const payloadComplete = payload.length >= dataEnd
     if (payload.length < dataEnd) {
       this.parseErrors.push(
         `EPR_Source_Capabilities expected ${this.dataSize} bytes but only ${payload.length - this.payloadOffset} available`,
       )
     }
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
-    const pdoCount = Math.floor(dataBlock.length / 4)
+    const pdoCount = payloadComplete ? Math.floor(dataBlock.length / 4) : 0
     this.rawPDOs = pdoCount > 0 ? readDataObjects(dataBlock, 0, pdoCount) : []
     const decoded = this.rawPDOs.map((raw) => parsePDO(raw, 'source'))
     this.sprPDOs = decoded.slice(0, 7)

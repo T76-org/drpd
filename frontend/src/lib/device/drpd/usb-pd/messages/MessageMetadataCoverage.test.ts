@@ -9,9 +9,7 @@ import { buildMessage, makeExtendedHeader, makeMessageHeader } from './messageTe
 
 const SOP = [0x18, 0x18, 0x18, 0x11]
 const EXPECTED_TECHNICAL_DATA_KEYS = [
-  'startTimestamp',
-  'endTimestamp',
-  'bmcCarrier',
+  'timingInformation',
   'sop',
   'crc32',
   'messageBytes',
@@ -122,6 +120,7 @@ describe('USB-PD message metadata coverage', () => {
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
         'messageType',
         'messageDescription',
+        'usbPdReference',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
         EXPECTED_TECHNICAL_DATA_KEYS,
@@ -136,7 +135,12 @@ describe('USB-PD message metadata coverage', () => {
       expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
-      expect(parsed.humanReadableMetadata.technicalData.getEntry('bmcCarrier')?.type).toBe(
+      const usbPdReference = parsed.humanReadableMetadata.baseInformation.getEntry('usbPdReference')
+      expect(usbPdReference?.type).toBe('String')
+      expect(usbPdReference?.Label).toBe('USB-PD Reference')
+      expect(typeof usbPdReference?.value).toBe('string')
+      expect((usbPdReference?.value as string).trim().length).toBeGreaterThan(0)
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('timingInformation')?.type).toBe(
         'OrderedDictionary',
       )
       expect(parsed.humanReadableMetadata.technicalData.getEntry('sop')?.type).toBe(
@@ -165,6 +169,7 @@ describe('USB-PD message metadata coverage', () => {
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
         'messageType',
         'messageDescription',
+        'usbPdReference',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
         EXPECTED_TECHNICAL_DATA_KEYS,
@@ -179,7 +184,12 @@ describe('USB-PD message metadata coverage', () => {
       expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
-      expect(parsed.humanReadableMetadata.technicalData.getEntry('bmcCarrier')?.type).toBe(
+      const usbPdReference = parsed.humanReadableMetadata.baseInformation.getEntry('usbPdReference')
+      expect(usbPdReference?.type).toBe('String')
+      expect(usbPdReference?.Label).toBe('USB-PD Reference')
+      expect(typeof usbPdReference?.value).toBe('string')
+      expect((usbPdReference?.value as string).trim().length).toBeGreaterThan(0)
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('timingInformation')?.type).toBe(
         'OrderedDictionary',
       )
       expect(parsed.humanReadableMetadata.technicalData.getEntry('sop')?.type).toBe(
@@ -208,6 +218,7 @@ describe('USB-PD message metadata coverage', () => {
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
         'messageType',
         'messageDescription',
+        'usbPdReference',
       ])
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
         EXPECTED_TECHNICAL_DATA_KEYS,
@@ -225,7 +236,12 @@ describe('USB-PD message metadata coverage', () => {
       expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
-      expect(parsed.humanReadableMetadata.technicalData.getEntry('bmcCarrier')?.type).toBe(
+      const usbPdReference = parsed.humanReadableMetadata.baseInformation.getEntry('usbPdReference')
+      expect(usbPdReference?.type).toBe('String')
+      expect(usbPdReference?.Label).toBe('USB-PD Reference')
+      expect(typeof usbPdReference?.value).toBe('string')
+      expect((usbPdReference?.value as string).trim().length).toBeGreaterThan(0)
+      expect(parsed.humanReadableMetadata.technicalData.getEntry('timingInformation')?.type).toBe(
         'OrderedDictionary',
       )
       expect(parsed.humanReadableMetadata.technicalData.getEntry('sop')?.type).toBe(

@@ -53,7 +53,10 @@ export class RequestMessage extends DataMessage {
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Request is a data message that selects a specific source power data object and operating level so a sink can establish or change its power contract.', 'Message Description', 'A description of the message\'s function and usage.'))
 
     if (this.rdo) {
-      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata(this.rdo))
+      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata({
+        ...this.rdo,
+        requestTypeHint: 'fixed_variable',
+      }))
     }
     return metadata
   }

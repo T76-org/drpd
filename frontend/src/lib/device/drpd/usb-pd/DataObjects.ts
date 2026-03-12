@@ -216,6 +216,29 @@ export interface ParsedRDO extends ParsedDataObject {
   }
 }
 
+export const inferRequestTypeHintFromRaw = (raw: number): ParsedRDO['requestTypeHint'] => {
+  if (getBits(raw, 8, 7) === 0 && (getBits(raw, 20, 9) !== 0 || getBits(raw, 6, 0) !== 0)) {
+    return 'pps'
+  }
+  return 'fixed_variable'
+}
+
+export const inferRequestTypeHintFromPDO = (pdo: ParsedPDO): ParsedRDO['requestTypeHint'] => {
+  if (pdo.pdoType === 'FIXED' || pdo.pdoType === 'VARIABLE') {
+    return 'fixed_variable'
+  }
+  if (pdo.pdoType === 'BATTERY') {
+    return 'battery'
+  }
+  if (pdo.apdoType === 'SPR_PPS') {
+    return 'pps'
+  }
+  if (pdo.apdoType === 'SPR_AVS' || pdo.apdoType === 'EPR_AVS') {
+    return 'avs'
+  }
+  return 'unknown'
+}
+
 /**
  * Parsed BIST Data Object.
  */
@@ -1543,6 +1566,59 @@ export interface ParsedExtendedControlDataBlock {
   dataByte: number
 }
 
+type ExtendedControlTypeMetadata = {
+  messageType: string
+  messageMeaning: string
+  sentBy: string
+  validStartOfPacket: string
+  dataMeaning: string
+}
+
+const getExtendedControlTypeMetadata = (type: number): ExtendedControlTypeMetadata => {
+  switch (type) {
+    case 0x01:
+      return {
+        messageType: 'EPR_Get_Source_Cap',
+        messageMeaning: 'Requests EPR source capabilities from an EPR-capable source partner.',
+        sentBy: 'Sink or DRP',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_Get_Source_Cap.',
+      }
+    case 0x02:
+      return {
+        messageType: 'EPR_Get_Sink_Cap',
+        messageMeaning: 'Requests EPR sink capabilities from an EPR-capable sink partner.',
+        sentBy: 'Source or DRP',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_Get_Sink_Cap.',
+      }
+    case 0x03:
+      return {
+        messageType: 'EPR_KeepAlive',
+        messageMeaning: 'Provides periodic EPR traffic from the sink so the EPR session remains active.',
+        sentBy: 'Sink',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_KeepAlive.',
+      }
+    case 0x04:
+      return {
+        messageType: 'EPR_KeepAlive_Ack',
+        messageMeaning: 'Acknowledges an EPR_KeepAlive message from the sink while operating in EPR mode.',
+        sentBy: 'Source',
+        validStartOfPacket: 'SOP only',
+        dataMeaning: 'Not used. The data byte shall be 0x00 for EPR_KeepAlive_Ack.',
+      }
+    default:
+      return {
+        messageType: 'Reserved',
+        messageMeaning: 'Reserved Extended_Control type. This value is not defined by the USB-PD 3.2 specification.',
+        sentBy: 'Reserved',
+        validStartOfPacket: 'Reserved',
+        dataMeaning: 'Reserved. The data byte has no defined meaning for this type.',
+      }
+  }
+}
+
 /**
  * Parse a Source Capabilities Extended Data Block.
  *
@@ -2513,27 +2589,36 @@ export const buildRDOMetadata = (rdo: ParsedRDO): HumanReadableField<'OrderedDic
   addBooleanMetadataField(container, 'noUsbSuspend', 'No USB Suspend', rdo.noUsbSuspend, 'Requests that the source not place USB into suspend while this contract is active.')
   addBooleanMetadataField(container, 'unchunkedExtendedMessagesSupported', 'Unchunked Extended Messages Supported', rdo.unchunkedExtendedMessagesSupported, 'Indicates sink support for unchunked Extended Messages.')
   addBooleanMetadataField(container, 'eprCapable', 'EPR Capable', rdo.eprCapable, 'Indicates sink support for Extended Power Range operation.')
-  addStringMetadataField(container, 'requestTypeHint', 'Request Type Hint', rdo.requestTypeHint, 'Parser-side hint describing which interpretation of the Request Data Object is most likely to apply.')
+  addStringMetadataField(container, 'requestTypeHint', 'Request Type', rdo.requestTypeHint, 'Best-effort interpretation of the Request Data Object based on the referenced or copied PDO when available.')
+
+  if (rdo.requestTypeHint === 'battery') {
+    const battery = createMetadataContainer('Battery Request', 'Battery RDO interpretation fields.')
+    addNumberMetadataField(battery, 'operatingPower250mW', 'Operating Power', rdo.battery.operatingPower250mW * 250, 'Requested operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
+    addNumberMetadataField(battery, 'maximumOperatingPower250mW', 'Maximum Operating Power', rdo.battery.maximumOperatingPower250mW * 250, 'Requested maximum operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
+    container.setEntry('battery', battery)
+    return container
+  }
+
+  if (rdo.requestTypeHint === 'pps') {
+    const pps = createMetadataContainer('PPS Request', 'Programmable Power Supply RDO interpretation fields.')
+    addNumberMetadataField(pps, 'outputVoltage20mV', 'Output Voltage', rdo.pps.outputVoltage20mV * 20, 'Requested PPS output voltage, expressed in millivolts.', 'mV')
+    addNumberMetadataField(pps, 'operatingCurrent50mA', 'Operating Current', rdo.pps.operatingCurrent50mA * 50, 'Requested PPS operating current, expressed in milliamps.', 'mA')
+    container.setEntry('pps', pps)
+    return container
+  }
+
+  if (rdo.requestTypeHint === 'avs') {
+    const avs = createMetadataContainer('AVS Request', 'Adjustable Voltage Supply RDO interpretation fields.')
+    addNumberMetadataField(avs, 'outputVoltage25mV', 'Output Voltage', rdo.avs.outputVoltage25mV * 25, 'Requested AVS output voltage, expressed in millivolts.', 'mV')
+    addNumberMetadataField(avs, 'operatingCurrent50mA', 'Operating Current', rdo.avs.operatingCurrent50mA * 50, 'Requested AVS operating current, expressed in milliamps.', 'mA')
+    container.setEntry('avs', avs)
+    return container
+  }
 
   const fixedVariable = createMetadataContainer('Fixed/Variable Request', 'Fixed/Variable RDO interpretation fields.')
   addNumberMetadataField(fixedVariable, 'operatingCurrent10mA', 'Operating Current', rdo.fixedVariable.operatingCurrent10mA * 10, 'Requested operating current using the Fixed/Variable RDO interpretation, expressed in milliamps.', 'mA')
   addNumberMetadataField(fixedVariable, 'maximumOperatingCurrent10mA', 'Maximum Operating Current', rdo.fixedVariable.maximumOperatingCurrent10mA * 10, 'Requested maximum operating current using the Fixed/Variable RDO interpretation, expressed in milliamps.', 'mA')
   container.setEntry('fixedVariable', fixedVariable)
-
-  const battery = createMetadataContainer('Battery Request', 'Battery RDO interpretation fields.')
-  addNumberMetadataField(battery, 'operatingPower250mW', 'Operating Power', rdo.battery.operatingPower250mW * 250, 'Requested operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
-  addNumberMetadataField(battery, 'maximumOperatingPower250mW', 'Maximum Operating Power', rdo.battery.maximumOperatingPower250mW * 250, 'Requested maximum operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
-  container.setEntry('battery', battery)
-
-  const pps = createMetadataContainer('PPS Request', 'Programmable Power Supply RDO interpretation fields.')
-  addNumberMetadataField(pps, 'outputVoltage20mV', 'Output Voltage', rdo.pps.outputVoltage20mV * 20, 'Requested PPS output voltage, expressed in millivolts.', 'mV')
-  addNumberMetadataField(pps, 'operatingCurrent50mA', 'Operating Current', rdo.pps.operatingCurrent50mA * 50, 'Requested PPS operating current, expressed in milliamps.', 'mA')
-  container.setEntry('pps', pps)
-
-  const avs = createMetadataContainer('AVS Request', 'Adjustable Voltage Supply RDO interpretation fields.')
-  addNumberMetadataField(avs, 'outputVoltage25mV', 'Output Voltage', rdo.avs.outputVoltage25mV * 25, 'Requested AVS output voltage, expressed in millivolts.', 'mV')
-  addNumberMetadataField(avs, 'operatingCurrent50mA', 'Operating Current', rdo.avs.operatingCurrent50mA * 50, 'Requested AVS operating current, expressed in milliamps.', 'mA')
-  container.setEntry('avs', avs)
 
   return container
 }
@@ -3027,7 +3112,21 @@ export const buildSinkCapabilitiesExtendedDataBlockMetadata = (block: ParsedSink
 
 export const buildExtendedControlDataBlockMetadata = (block: ParsedExtendedControlDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('Extended Control Data Block', 'Metadata describing the Extended Control data block carried by an Extended_Control message.')
+  const typeMetadata = getExtendedControlTypeMetadata(block.type)
   addNumberMetadataField(container, 'type', 'Type', block.type, 'Type byte carried by the Extended Control data block.')
+  addStringMetadataField(container, 'messageType', 'Message Type', typeMetadata.messageType, 'Human-readable Extended_Control message type decoded from the ECDB type byte.')
+  addStringMetadataField(container, 'messageMeaning', 'Message Meaning', typeMetadata.messageMeaning, 'Human-readable explanation of what this Extended_Control message does in the USB-PD protocol.')
+  addStringMetadataField(container, 'sentBy', 'Sent By', typeMetadata.sentBy, 'Which USB-PD partners are allowed by the specification to send this Extended_Control message type.')
+  addStringMetadataField(container, 'validStartOfPacket', 'Valid Start of Packet', typeMetadata.validStartOfPacket, 'Which Start-of-Packet packet type is valid for this Extended_Control message type.')
   addNumberMetadataField(container, 'dataByte', 'Data Byte', block.dataByte, 'Data byte carried by the Extended Control data block.')
+  addStringMetadataField(
+    container,
+    'dataMeaning',
+    'Data Meaning',
+    block.dataByte === 0
+      ? typeMetadata.dataMeaning
+      : `${typeMetadata.dataMeaning} Observed value: 0x${block.dataByte.toString(16).toUpperCase().padStart(2, '0')}.`,
+    'Human-readable interpretation of the ECDB data byte for this Extended_Control message type.',
+  )
   return container
 }
