@@ -58,7 +58,7 @@ void App::_loop() {
             _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
         }
         
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vPortYield(); // Yield to other tasks, especially the USB task to ensure responsiveness
     }
 }
 
@@ -97,7 +97,6 @@ void App::_startCore1() {
         _bmcDecoder.loopCore1();
         _bmcEncoder.loopCore1();
         _ccBusController.loopCore1();
-        sleep_us(100);
     }
 }
 
