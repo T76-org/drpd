@@ -7,6 +7,11 @@
 
 import type { Database, SqlValue, Sqlite3Static } from '@sqlite.org/sqlite-wasm'
 import {
+  CONTROL_MESSAGE_TYPES,
+  DATA_MESSAGE_TYPES,
+  EXTENDED_MESSAGE_TYPES,
+} from '../usb-pd/message'
+import {
   LOG_SCHEMA_STATEMENTS,
   LOG_SCHEMA_VERSION,
 } from './schema'
@@ -22,6 +27,7 @@ import type {
   LogExportRequest,
   LogExportResult,
   MessageLogAnalogPoint,
+  MessageLogEventMarker,
   MessageLogPulseSegment,
   MessageLogTimeAnchor,
   MessageLogTimeStripQuery,
@@ -107,6 +113,40 @@ const toHex = (data: Uint8Array): string => {
   return Array.from(data)
     .map((value) => value.toString(16).padStart(2, '0'))
     .join('')
+}
+
+const normalizeSopTypeLabel = (value: string | null): string | null => {
+  switch (value) {
+    case 'SOP':
+      return 'SOP'
+    case 'SOP_PRIME':
+      return "SOP'"
+    case 'SOP_DOUBLE_PRIME':
+      return "SOP''"
+    case 'SOP_DEBUG_PRIME':
+      return "SOP'-D"
+    case 'SOP_DEBUG_DOUBLE_PRIME':
+      return "SOP''-D"
+    default:
+      return null
+  }
+}
+
+const resolveMessageTypeLabel = (
+  row: Pick<LoggedCapturedMessage, 'messageKind' | 'messageType'>,
+): string | null => {
+  if (!row.messageKind || row.messageType == null) {
+    return null
+  }
+  const mapping =
+    row.messageKind === 'CONTROL'
+      ? CONTROL_MESSAGE_TYPES[row.messageType]
+      : row.messageKind === 'DATA'
+        ? DATA_MESSAGE_TYPES[row.messageType]
+        : row.messageKind === 'EXTENDED'
+          ? EXTENDED_MESSAGE_TYPES[row.messageType]
+          : undefined
+  return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
 }
 
 /**
@@ -748,6 +788,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
         hasMoreAfter: false,
         pulses: [],
         analogPoints: [],
+        events: [],
         timeAnchors: [],
       }
     }
@@ -765,18 +806,34 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const maxPulseTraceDurationUs = await this.getMaxObservedPulseTraceDurationUs()
     const messageLookbackUs =
       maxPulseTraceDurationUs > normalizedDurationUs ? maxPulseTraceDurationUs : normalizedDurationUs
-    const messages = (
+    const capturedRows = (
       await this.queryCapturedMessages({
         startTimestampUs: windowStartUs > messageLookbackUs ? windowStartUs - messageLookbackUs : 0n,
         endTimestampUs: windowEndUs,
         sortOrder: 'asc',
       })
-    ).filter(
+    )
+    const messages = capturedRows.filter(
       (row) =>
         row.entryKind === 'message' &&
         computePulseTraceEndTimestampUs(row) >= windowStartUs &&
         row.startTimestampUs <= windowEndUs,
     )
+    const events = capturedRows
+      .filter(
+        (row): row is LoggedCapturedMessage & { eventType: NonNullable<LoggedCapturedMessage['eventType']> } =>
+          row.entryKind === 'event' &&
+          row.eventType !== null &&
+          row.startTimestampUs >= windowStartUs &&
+          row.startTimestampUs <= windowEndUs,
+      )
+      .map<MessageLogEventMarker>((row) => ({
+        selectionKey: buildSelectionKey(row),
+        eventType: row.eventType,
+        timestampUs: row.startTimestampUs,
+        displayTimestampUs: row.displayTimestampUs,
+        wallClockMs: row.createdAtMs,
+      }))
     const analogRows = downsampleAnalogRows(
       await this.queryAnalogSamplesForTimeStripWindow(windowStartUs, windowEndUs),
       analogBudget,
@@ -794,6 +851,8 @@ export class SQLiteWasmStore implements DRPDLogStore {
         displayEndTimestampUs:
           displayStartTimestampUs === null ? null : displayStartTimestampUs + durationUs,
         wallClockMs: row.createdAtMs,
+        sopLabel: normalizeSopTypeLabel(row.sopKind),
+        messageLabel: resolveMessageTypeLabel(row),
         pulseWidthsNs: Float64Array.from(row.rawPulseWidths),
       }
     })
@@ -820,6 +879,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       hasMoreAfter: windowEndUs < stats.latestTimestampUs,
       pulses,
       analogPoints,
+      events,
       timeAnchors,
     }
   }
@@ -1065,25 +1125,28 @@ export class SQLiteWasmStore implements DRPDLogStore {
       const analog = this.memoryFallback.analogSamples
       const messages = this.memoryFallback.capturedMessages
         .filter((row) => row.entryKind === 'message')
-      const useMessages = messages.length > 0
-      const absoluteStarts = useMessages
-        ? messages.map((row) => row.startTimestampUs)
-        : analog.map((row) => row.timestampUs)
-      const absoluteEnds = useMessages
-        ? messages.map((row) => row.endTimestampUs)
-        : analog.map((row) => row.timestampUs)
-      const displayStarts = useMessages
-        ? messages.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
-        : analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
-      const displayEnds = useMessages
-        ? messages
-            .map((row) =>
-              row.displayTimestampUs === null
-                ? null
-                : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
-            )
-            .filter((value): value is bigint => value !== null)
-        : analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null)
+      const absoluteStarts = [
+        ...messages.map((row) => row.startTimestampUs),
+        ...analog.map((row) => row.timestampUs),
+      ]
+      const absoluteEnds = [
+        ...messages.map((row) => row.endTimestampUs),
+        ...analog.map((row) => row.timestampUs),
+      ]
+      const displayStarts = [
+        ...messages.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null),
+        ...analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null),
+      ]
+      const displayEnds = [
+        ...messages
+          .map((row) =>
+            row.displayTimestampUs === null
+              ? null
+              : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
+          )
+          .filter((value): value is bigint => value !== null),
+        ...analog.map((row) => row.displayTimestampUs).filter((value): value is bigint => value !== null),
+      ]
       if (absoluteStarts.length === 0 || absoluteEnds.length === 0) {
         return {
           earliestTimestampUs: null,
@@ -1124,24 +1187,6 @@ export class SQLiteWasmStore implements DRPDLogStore {
       ].join(' '),
     )[0]
 
-    if (earliestMessage && latestMessage) {
-      const start = toBigIntValue(earliestMessage.start_timestamp_us as SqlValue, 'timestrip.earliest_message_ts')
-      const end = toBigIntValue(latestMessage.end_timestamp_us as SqlValue, 'timestrip.latest_message_ts')
-      return {
-        earliestTimestampUs: start,
-        latestTimestampUs: end,
-        earliestDisplayTimestampUs:
-          earliestMessage.display_timestamp_us === null || earliestMessage.display_timestamp_us === undefined
-            ? null
-            : toBigIntValue(earliestMessage.display_timestamp_us as SqlValue, 'timestrip.earliest_message_display_ts'),
-        latestDisplayTimestampUs:
-          latestMessage.display_timestamp_us === null || latestMessage.display_timestamp_us === undefined
-            ? null
-            : toBigIntValue(latestMessage.display_timestamp_us as SqlValue, 'timestrip.latest_message_display_ts') +
-              (end - toBigIntValue(latestMessage.start_timestamp_us as SqlValue, 'timestrip.latest_message_start_ts')),
-      }
-    }
-
     const earliestAnalog = db.selectObjects(
       'SELECT timestamp_us, display_timestamp_us FROM analog_samples ORDER BY timestamp_us ASC, id ASC LIMIT 1',
     )[0]
@@ -1152,6 +1197,23 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const latestTimestampCandidates: bigint[] = []
     const earliestDisplayCandidates: bigint[] = []
     const latestDisplayCandidates: bigint[] = []
+    if (earliestMessage && latestMessage) {
+      const start = toBigIntValue(earliestMessage.start_timestamp_us as SqlValue, 'timestrip.earliest_message_ts')
+      const end = toBigIntValue(latestMessage.end_timestamp_us as SqlValue, 'timestrip.latest_message_ts')
+      earliestTimestampCandidates.push(start)
+      latestTimestampCandidates.push(end)
+      if (earliestMessage.display_timestamp_us !== null && earliestMessage.display_timestamp_us !== undefined) {
+        earliestDisplayCandidates.push(
+          toBigIntValue(earliestMessage.display_timestamp_us as SqlValue, 'timestrip.earliest_message_display_ts'),
+        )
+      }
+      if (latestMessage.display_timestamp_us !== null && latestMessage.display_timestamp_us !== undefined) {
+        latestDisplayCandidates.push(
+          toBigIntValue(latestMessage.display_timestamp_us as SqlValue, 'timestrip.latest_message_display_ts') +
+            (end - toBigIntValue(latestMessage.start_timestamp_us as SqlValue, 'timestrip.latest_message_start_ts')),
+        )
+      }
+    }
     if (earliestAnalog) {
       earliestTimestampCandidates.push(toBigIntValue(earliestAnalog.timestamp_us as SqlValue, 'timestrip.earliest_analog_ts'))
       if (earliestAnalog.display_timestamp_us !== null && earliestAnalog.display_timestamp_us !== undefined) {

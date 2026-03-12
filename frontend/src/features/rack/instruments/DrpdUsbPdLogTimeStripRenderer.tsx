@@ -1,23 +1,44 @@
-import { line, scaleLinear } from 'd3'
+import { curveStepAfter, line, scaleLinear } from 'd3'
 import { useMemo, type PointerEventHandler, type RefObject } from 'react'
-import type { MessageLogTimeStripWindow } from '../../../lib/device'
+import type { LoggedCapturedEventType, MessageLogTimeStripWindow } from '../../../lib/device'
 import styles from './DrpdUsbPdLogTimeStrip.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import {
-  ANALOG_HEIGHT_PX,
-  AXIS_HEIGHT_PX,
-  PULSE_HEIGHT_PX,
-  TIME_STRIP_HEIGHT_PX,
+  findAnalogPointAtStepTimestamp,
   formatDeviceTimestampUs,
   findSelectedPulseSegment,
+  interpolateDisplayTimestampUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
-const parseCssPixels = (
+const parseCssNumber = (
   value: string,
   fallback: number,
 ): number => {
   const parsed = Number.parseFloat(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+const resolveCssLength = (
+  value: string,
+  fallback: number,
+): number => {
+  if (value.trim().length === 0 || typeof document === 'undefined') {
+    return fallback
+  }
+
+  const probe = document.createElement('div')
+  probe.style.position = 'absolute'
+  probe.style.visibility = 'hidden'
+  probe.style.pointerEvents = 'none'
+  probe.style.width = value
+  document.body.appendChild(probe)
+
+  try {
+    const resolved = window.getComputedStyle(probe).width
+    return parseCssNumber(resolved, fallback)
+  } finally {
+    probe.remove()
+  }
 }
 
 const formatScaleLabel = (
@@ -28,6 +49,17 @@ const formatScaleLabel = (
     return `${value}${suffix}`
   }
   return `${value.toFixed(1).replace(/\.0$/, '')}${suffix}`
+}
+
+const resolveEventStroke = (eventType: LoggedCapturedEventType): string => {
+  switch (eventType) {
+    case 'capture_changed':
+      return 'var(--timestrip-event-capture-stroke)'
+    case 'cc_role_changed':
+      return 'var(--timestrip-event-role-stroke)'
+    case 'cc_status_changed':
+      return 'var(--timestrip-event-status-stroke)'
+  }
 }
 
 /**
@@ -60,31 +92,63 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     viewportRef?.current !== undefined && viewportRef.current !== null
       ? getComputedStyle(viewportRef.current)
       : null
-  const axisLabelY = parseCssPixels(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
-  const plotInsetLeft = parseCssPixels(
+  const timeStripHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-total-height') ?? '',
+    80,
+  )
+  const axisHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-axis-height') ?? '',
+    10,
+  )
+  const pulseHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-height') ?? '',
+    20,
+  )
+  const analogHeightPx = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-analog-height') ?? '',
+    50,
+  )
+  const axisLabelY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
+  const plotInsetLeft = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-plot-inset-left') ?? '',
     18,
   )
-  const plotInsetRight = parseCssPixels(
+  const plotInsetRight = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-plot-inset-right') ?? '',
     18,
   )
-  const pulseHighY = parseCssPixels(viewportStyle?.getPropertyValue('--timestrip-pulse-high-y') ?? '', 7)
-  const pulseLowInsetBottom = parseCssPixels(
+  const pulseHighY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-pulse-high-y') ?? '', 7)
+  const pulseLowInsetBottom = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-pulse-low-inset-bottom') ?? '',
     7,
   )
-  const analogTopInset = parseCssPixels(
+  const pulseAnnotationTop = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-top') ?? '',
+    18,
+  )
+  const pulseAnnotationHeight = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-height') ?? '',
+    11,
+  )
+  const pulseAnnotationFontSize = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-font-size') ?? '',
+    5,
+  )
+  const analogTopInset = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-top-inset') ?? '',
     8,
   )
-  const analogBottomInset = parseCssPixels(
+  const analogBottomInset = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-bottom-inset') ?? '',
     8,
   )
-  const analogPointRadius = parseCssPixels(
+  const analogPointRadius = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-point-radius') ?? '',
     1.8,
+  )
+  const analogScaleLabelInset = resolveCssLength(
+    viewportStyle?.getPropertyValue('--timestrip-analog-scale-label-inset') ?? '',
+    2,
   )
   const plotLeftX = Math.min(Math.max(0, plotInsetLeft), Math.max(width, 1))
   const plotRightX = Math.max(plotLeftX, Math.max(width, 1) - Math.max(0, plotInsetRight))
@@ -107,17 +171,42 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     )
     return xScale.ticks(targetCount).map((tick) => {
       const timestampUs = BigInt(Math.round(tick))
+      const displayTimestampUs = interpolateDisplayTimestampUs(
+        timestampUs,
+        data?.timeAnchors ?? [],
+      )
       return {
         x: xScale(tick),
-        deviceLabel: formatDeviceTimestampUs(timestampUs),
+        displayLabel: formatDeviceTimestampUs(displayTimestampUs),
       }
     })
-  }, [width, xScale])
+  }, [data?.timeAnchors, width, xScale])
   const pulseGeometry = useMemo(() => {
+    const lowY = pulseHeightPx - pulseLowInsetBottom
     if (!data) {
-      return { highlight: null, paths: [] as string[] }
+      return {
+        annotations: [] as Array<{
+          key: string
+          x: number
+          width: number
+          label: string
+          fill: string
+          showLabel: boolean
+          y: number
+          height: number
+          textY: number
+          index: number
+        }>,
+        baselines: [{
+          x1: plotLeftX,
+          x2: plotRightX,
+          y: lowY,
+        }],
+        highlight: null,
+        paths: [] as string[],
+        events: [] as Array<{ key: string; x: number; stroke: string }>,
+      }
     }
-    const lowY = PULSE_HEIGHT_PX - pulseLowInsetBottom
     const highY = pulseHighY
     const highlight = selectedPulse
       ? {
@@ -148,19 +237,100 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       }
       return commands.join(' ')
     })
-    return { highlight, paths }
-  }, [data, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
+    const annotations = data.pulses.flatMap((pulse, index) => {
+      const pulseStartUs = Number(pulse.startTimestampUs)
+      const pulseEndUs = Number(pulse.traceEndTimestampUs)
+      const pulseWidthPx = xScale(pulseEndUs) - xScale(pulseStartUs)
+      if (pulseWidthPx < DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.minPulseWidthPx) {
+        return []
+      }
+      const preambleEndUs = Math.min(
+        pulseEndUs,
+        pulseStartUs + DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.preambleDurationUs,
+      )
+      const sopEndUs = Math.min(
+        pulseEndUs,
+        preambleEndUs + DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.sopDurationUs,
+      )
+      const segments = [
+        {
+          key: `${pulse.selectionKey}-preamble`,
+          x: xScale(pulseStartUs),
+          width: xScale(preambleEndUs) - xScale(pulseStartUs),
+          label: 'Preamble',
+          fill: 'var(--timestrip-pulse-annotation-preamble-fill)',
+        },
+        {
+          key: `${pulse.selectionKey}-sop`,
+          x: xScale(preambleEndUs),
+          width: xScale(sopEndUs) - xScale(preambleEndUs),
+          label: pulse.sopLabel ?? 'SOP',
+          fill: 'var(--timestrip-pulse-annotation-sop-fill)',
+        },
+        {
+          key: `${pulse.selectionKey}-message`,
+          x: xScale(sopEndUs),
+          width: xScale(pulseEndUs) - xScale(sopEndUs),
+          label: pulse.messageLabel ?? 'message',
+          fill: 'var(--timestrip-pulse-annotation-message-fill)',
+        },
+      ]
+      return segments
+        .filter((segment) => segment.width > 1)
+        .map((segment) => ({
+          ...segment,
+          showLabel: segment.width >= DRPD_USB_PD_LOG_CONFIG.stripPulseAnnotations.minSegmentLabelWidthPx,
+          y: pulseAnnotationTop,
+          height: pulseAnnotationHeight,
+          textY: pulseAnnotationTop + pulseAnnotationHeight / 2,
+          index,
+        }))
+    })
+    const baselines =
+      data.pulses.length === 0
+        ? [{
+            x1: plotLeftX,
+            x2: plotRightX,
+            y: lowY,
+          }]
+        : [
+            {
+              startUs: data.windowStartUs,
+              endUs: data.pulses[0]?.startTimestampUs ?? data.windowEndUs,
+            },
+            ...data.pulses.slice(0, -1).map((pulse, index) => ({
+              startUs: pulse.traceEndTimestampUs,
+              endUs: data.pulses[index + 1]?.startTimestampUs ?? pulse.traceEndTimestampUs,
+            })),
+            {
+              startUs: data.pulses[data.pulses.length - 1]?.traceEndTimestampUs ?? data.windowStartUs,
+              endUs: data.windowEndUs,
+            },
+          ]
+            .filter((segment) => segment.endUs > segment.startUs)
+            .map((segment) => ({
+              x1: xScale(Number(segment.startUs)),
+              x2: xScale(Number(segment.endUs)),
+              y: lowY,
+            }))
+    const events = data.events.map((event) => ({
+      key: event.selectionKey,
+      x: xScale(Number(event.timestampUs)),
+      stroke: resolveEventStroke(event.eventType),
+    }))
+    return { annotations, baselines, highlight, paths, events }
+  }, [data, plotLeftX, plotRightX, pulseAnnotationHeight, pulseAnnotationTop, pulseHeightPx, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
   const analogGeometry = useMemo(() => {
     const voltageScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax])
       .range([
-        ANALOG_HEIGHT_PX - analogBottomInset,
+        analogHeightPx - analogBottomInset,
         analogTopInset,
       ])
     const currentScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax])
       .range([
-        ANALOG_HEIGHT_PX - analogBottomInset,
+        analogHeightPx - analogBottomInset,
         analogTopInset,
       ])
     const gridLines = DRPD_USB_PD_LOG_CONFIG.stripAnalog.gridMarks.map((mark) => ({
@@ -179,12 +349,12 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
         highlight: null as null | { x: number; width: number },
         voltagePath: null as string | null,
         currentPath: null as string | null,
-        voltageMarkers: [] as Array<{ key: string; x: number; y: number }>,
-        currentMarkers: [] as Array<{ key: string; x: number; y: number }>,
+        events: [] as Array<{ key: string; x: number; stroke: string }>,
       }
     }
     const pathBuilder = line<(typeof data.analogPoints)[number]>()
       .x((point) => xScale(Number(point.timestampUs)))
+      .curve(curveStepAfter)
     const voltagePath =
       data.analogPoints.length > 0
         ? pathBuilder.y((point) => voltageScale(point.vbusV))(data.analogPoints)
@@ -193,22 +363,6 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       data.analogPoints.length > 0
         ? pathBuilder.y((point) => currentScale(point.ibusA))(data.analogPoints)
         : null
-    const markersEnabled =
-      data.analogPoints.length <= DRPD_USB_PD_LOG_CONFIG.stripAnalog.markerPointLimit
-    const voltageMarkers = markersEnabled
-      ? data.analogPoints.map((point, index) => ({
-          key: `v-${index}-${point.timestampUs.toString()}`,
-          x: xScale(Number(point.timestampUs)),
-          y: voltageScale(point.vbusV),
-        }))
-      : []
-    const currentMarkers = markersEnabled
-      ? data.analogPoints.map((point, index) => ({
-          key: `i-${index}-${point.timestampUs.toString()}`,
-          x: xScale(Number(point.timestampUs)),
-          y: currentScale(point.ibusA),
-        }))
-      : []
     const highlight = selectedPulse
       ? {
           x: xScale(Number(selectedPulse.startTimestampUs)),
@@ -219,48 +373,43 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           ),
         }
       : null
+    const events = data.events.map((event) => ({
+      key: event.selectionKey,
+      x: xScale(Number(event.timestampUs)),
+      stroke: resolveEventStroke(event.eventType),
+    }))
     return {
       gridLines,
       highlight,
       voltagePath,
       currentPath,
-      voltageMarkers,
-      currentMarkers,
+      events,
     }
-  }, [analogBottomInset, analogTopInset, data, selectedPulse, xScale])
+  }, [analogBottomInset, analogHeightPx, analogTopInset, data, selectedPulse, xScale])
   const hoverTooltip = useMemo(() => {
     if (!hoverPosition || !data || data.analogPoints.length === 0) {
       return null
     }
-    const analogLaneTop = AXIS_HEIGHT_PX + PULSE_HEIGHT_PX
-    const analogLaneBottom = analogLaneTop + ANALOG_HEIGHT_PX
+    const analogLaneTop = axisHeightPx + pulseHeightPx
+    const analogLaneBottom = analogLaneTop + analogHeightPx
     if (hoverPosition.y < analogLaneTop || hoverPosition.y > analogLaneBottom) {
       return null
     }
     const localAnalogY = hoverPosition.y - analogLaneTop
     const voltageScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.voltageMax])
-      .range([ANALOG_HEIGHT_PX - analogBottomInset, analogTopInset])
+      .range([analogHeightPx - analogBottomInset, analogTopInset])
     const currentScale = scaleLinear()
       .domain([0, DRPD_USB_PD_LOG_CONFIG.stripAnalog.currentMax])
-      .range([ANALOG_HEIGHT_PX - analogBottomInset, analogTopInset])
-    let nearestIndex = 0
-    let nearestDistance = Number.POSITIVE_INFINITY
-    for (let index = 0; index < data.analogPoints.length; index += 1) {
-      const point = data.analogPoints[index]
-      const distance = Math.abs(xScale(Number(point.timestampUs)) - hoverPosition.x)
-      if (distance < nearestDistance) {
-        nearestDistance = distance
-        nearestIndex = index
-      }
-    }
-    const nearestPoint = data.analogPoints[nearestIndex]
+      .range([analogHeightPx - analogBottomInset, analogTopInset])
+    const hoverTimestampUs = BigInt(Math.round(xScale.invert(hoverPosition.x)))
+    const nearestPoint = findAnalogPointAtStepTimestamp(data.analogPoints, hoverTimestampUs)
     if (!nearestPoint) {
       return null
     }
     const voltageY = voltageScale(nearestPoint.vbusV)
     const currentY = currentScale(nearestPoint.ibusA)
-    const hoverThresholdPx = 8
+    const hoverThresholdPx = Math.max(8, analogPointRadius * 4)
     const isNearTrace =
       Math.min(
         Math.abs(localAnalogY - voltageY),
@@ -269,21 +418,21 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     if (!isNearTrace) {
       return null
     }
-    const tooltipLeft = Math.min(Math.max(hoverPosition.x + 8, 4), Math.max(width - 84, 4))
-    const tooltipTop = analogLaneTop + 4
+    const tooltipLeft = Math.min(Math.max(hoverPosition.x + analogPointRadius * 4, 4), Math.max(width - 84, 4))
+    const tooltipTop = analogLaneTop + Math.max(4, analogPointRadius * 2)
     return {
       left: tooltipLeft,
       top: tooltipTop,
       vbusLabel: `${nearestPoint.vbusV.toFixed(2)} V`,
       ibusLabel: `${nearestPoint.ibusA.toFixed(2)} A`,
     }
-  }, [analogBottomInset, analogTopInset, data, hoverPosition, width, xScale])
+  }, [analogBottomInset, analogHeightPx, analogPointRadius, analogTopInset, axisHeightPx, data, hoverPosition, pulseHeightPx, width, xScale])
 
   return (
     <div
       ref={viewportRef}
       className={styles.timeStripViewport}
-      style={{ height: `${TIME_STRIP_HEIGHT_PX}px` }}
+      style={{ height: `${timeStripHeightPx}px` }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -297,27 +446,27 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           style={{ left: `${Math.max(0, Math.min(width, hoverPosition.x))}px` }}
         />
       ) : null}
-      <div className={styles.axisLane} style={{ height: `${AXIS_HEIGHT_PX}px` }}>
-        <svg className={styles.axisSvg} width={Math.max(width, 1)} height={AXIS_HEIGHT_PX}>
+      <div className={styles.axisLane} style={{ height: `${axisHeightPx}px` }}>
+        <svg className={styles.axisSvg} width={Math.max(width, 1)} height={axisHeightPx}>
           {ticks.map((tick, index) => (
             <g key={`${tick.x}-${index}`} transform={`translate(${tick.x},0)`}>
-              <line className={styles.axisTick} y1={0} y2={AXIS_HEIGHT_PX} />
+              <line className={styles.axisTick} y1={0} y2={axisHeightPx} />
               <text
                 className={styles.axisDeviceLabel}
                 y={axisLabelY}
                 textAnchor="middle"
               >
-                {tick.deviceLabel}
+                {tick.displayLabel}
               </text>
             </g>
           ))}
         </svg>
       </div>
-      <div className={styles.pulseLane} style={{ height: `${PULSE_HEIGHT_PX}px` }}>
-        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={PULSE_HEIGHT_PX}>
+      <div className={styles.pulseLane} style={{ height: `${pulseHeightPx}px` }}>
+        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={pulseHeightPx}>
           <defs>
             <clipPath id="drpd-usbpd-log-pulse-clip">
-              <rect x={plotLeftX} y={0} width={plotWidth} height={PULSE_HEIGHT_PX} />
+              <rect x={plotLeftX} y={0} width={plotWidth} height={pulseHeightPx} />
             </clipPath>
           </defs>
           <g clipPath="url(#drpd-usbpd-log-pulse-clip)">
@@ -326,10 +475,22 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 x={pulseGeometry.highlight.x}
                 y={0}
                 width={pulseGeometry.highlight.width}
-                height={PULSE_HEIGHT_PX}
+                height={pulseHeightPx}
                 fill="var(--timestrip-pulse-highlight-fill)"
               />
             ) : null}
+            {pulseGeometry.baselines.map((baseline, index) => (
+              <line
+                key={`pulse-baseline-${index}-${baseline.x1}-${baseline.x2}`}
+                x1={baseline.x1}
+                y1={baseline.y}
+                x2={baseline.x2}
+                y2={baseline.y}
+                stroke="var(--timestrip-pulse-stroke)"
+                strokeWidth="var(--timestrip-pulse-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
             {pulseGeometry.paths.map((path, index) => (
               <path
                 key={`${index}-${path.length}`}
@@ -340,14 +501,49 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 vectorEffect="non-scaling-stroke"
               />
             ))}
+            {pulseGeometry.annotations.map((annotation) => (
+              <g key={`pulse-annotation-${annotation.key}`}>
+                <rect
+                  x={annotation.x}
+                  y={annotation.y}
+                  width={annotation.width}
+                  height={annotation.height}
+                  fill={annotation.fill}
+                />
+                {annotation.showLabel ? (
+                  <text
+                    x={annotation.x + annotation.width / 2}
+                    y={annotation.textY}
+                    fill="var(--timestrip-pulse-annotation-text)"
+                    fontSize={pulseAnnotationFontSize}
+                    dominantBaseline="middle"
+                    textAnchor="middle"
+                  >
+                    {annotation.label}
+                  </text>
+                ) : null}
+              </g>
+            ))}
+            {pulseGeometry.events.map((event) => (
+              <line
+                key={`pulse-event-${event.key}`}
+                x1={event.x}
+                y1={0}
+                x2={event.x}
+                y2={pulseHeightPx}
+                stroke={event.stroke}
+                strokeWidth="var(--timestrip-event-stroke-width)"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
           </g>
         </svg>
       </div>
-      <div className={styles.analogLane} style={{ height: `${ANALOG_HEIGHT_PX}px` }}>
-        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={ANALOG_HEIGHT_PX}>
+      <div className={styles.analogLane} style={{ height: `${analogHeightPx}px` }}>
+        <svg className={styles.laneSvg} width={Math.max(width, 1)} height={analogHeightPx}>
           <defs>
             <clipPath id="drpd-usbpd-log-analog-clip">
-              <rect x={plotLeftX} y={0} width={plotWidth} height={ANALOG_HEIGHT_PX} />
+              <rect x={plotLeftX} y={0} width={plotWidth} height={analogHeightPx} />
             </clipPath>
           </defs>
           <g clipPath="url(#drpd-usbpd-log-analog-clip)">
@@ -356,7 +552,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 x={analogGeometry.highlight.x}
                 y={0}
                 width={analogGeometry.highlight.width}
-                height={ANALOG_HEIGHT_PX}
+                height={analogHeightPx}
                 fill="var(--timestrip-analog-selection-fill)"
               />
             ) : null}
@@ -390,33 +586,27 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 vectorEffect="non-scaling-stroke"
               />
             ) : null}
-            {analogGeometry.voltageMarkers.map((point) => (
-              <circle
-                key={point.key}
-                cx={point.x}
-                cy={point.y}
-                r={analogPointRadius}
-                fill="var(--timestrip-analog-voltage-stroke)"
-              />
-            ))}
-            {analogGeometry.currentMarkers.map((point) => (
-              <circle
-                key={point.key}
-                cx={point.x}
-                cy={point.y}
-                r={analogPointRadius}
-                fill="var(--timestrip-analog-current-stroke)"
+            {analogGeometry.events.map((event) => (
+              <line
+                key={`analog-event-${event.key}`}
+                x1={event.x}
+                y1={0}
+                x2={event.x}
+                y2={analogHeightPx}
+                stroke={event.stroke}
+                strokeWidth="var(--timestrip-event-stroke-width)"
+                vectorEffect="non-scaling-stroke"
               />
             ))}
           </g>
           {analogGeometry.gridLines.map((line) => (
             <g key={`label-${line.key}`}>
-              <text className={styles.analogScaleLabelLeft} x={2} y={line.y}>
+              <text className={styles.analogScaleLabelLeft} x={analogScaleLabelInset} y={line.y}>
                 {line.voltageLabel}
               </text>
               <text
                 className={styles.analogScaleLabelRight}
-                x={Math.max(width, 1) - 2}
+                x={Math.max(width, 1) - analogScaleLabelInset}
                 y={line.y}
               >
                 {line.currentLabel}
@@ -430,8 +620,8 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
           className={styles.hoverTooltip}
           style={{ left: `${hoverTooltip.left}px`, top: `${hoverTooltip.top}px` }}
         >
-          <div>{hoverTooltip.vbusLabel}</div>
-          <div>{hoverTooltip.ibusLabel}</div>
+          <div className={styles.hoverTooltipVoltage}>{hoverTooltip.vbusLabel}</div>
+          <div className={styles.hoverTooltipCurrent}>{hoverTooltip.ibusLabel}</div>
         </div>
       ) : null}
     </div>

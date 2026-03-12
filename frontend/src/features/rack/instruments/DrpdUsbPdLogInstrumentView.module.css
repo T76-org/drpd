@@ -6,15 +6,16 @@
 }
 
 .wrapper {
-  --column-width-timestamp: 11ch;
-  --column-width-duration: 8ch;
-  --column-width-delta: 12ch;
-  --column-width-id: 3ch;
-  --column-width-message-type: 29ch;
-  --column-width-sender: 10ch;
-  --column-width-receiver: 10ch;
-  --column-width-sop-type: 5ch;
-  --column-width-valid: 5ch;
+  --log-row-height: calc(14px * var(--ui-scale));
+  --column-width-timestamp: calc(70px * var(--ui-scale));
+  --column-width-duration: calc(55px * var(--ui-scale));
+  --column-width-delta: calc(70px * var(--ui-scale));
+  --column-width-id: calc(30px * var(--ui-scale));
+  --column-width-message-type: calc(170px * var(--ui-scale));
+  --column-width-sender: calc(56px * var(--ui-scale));
+  --column-width-receiver: calc(56px * var(--ui-scale));
+  --column-width-sop-type: calc(37px * var(--ui-scale));
+  --column-width-valid: calc(36px * var(--ui-scale));
 
   height: 100%;
   width: 100%;
@@ -28,6 +29,7 @@
 }
 
 .headerRow {
+  --log-header-divider: color-mix(in srgb, var(--color-border-panel) 88%, transparent);
   display: grid;
   grid-template-columns:
     var(--column-width-timestamp)
@@ -39,14 +41,26 @@
     var(--column-width-receiver)
     var(--column-width-sop-type)
     var(--column-width-valid);
-  padding: var(--space-0) var(--space-8);
-  border-top: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
-  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 95%, transparent);
-  background: color-mix(in srgb, var(--color-surface-panel-accent) 88%, var(--color-surface-instrument) 12%);
-  font-size: var(--font-size-3xs);
-  letter-spacing: var(--letter-spacing-sm);
+  position: relative;
+  z-index: 1;
+  padding: var(--space-2) var(--space-8);
+  border-top: var(--border-thin) solid color-mix(in srgb, var(--color-text-primary) 9%, transparent);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, black 32%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-panel) 96%, black 4%),
+      color-mix(in srgb, var(--color-surface-panel) 78%, var(--color-surface-panel-accent) 22%)
+    );
+  box-shadow:
+    inset 0 var(--border-thin) 0 color-mix(in srgb, var(--color-text-primary) 10%, transparent),
+    inset 0 calc(-1 * var(--border-thin)) 0 color-mix(in srgb, black 22%, transparent),
+    0 calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale)) color-mix(in srgb, black 10%, transparent);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-lg);
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text-muted) 92%, var(--color-text-primary) 8%);
+  color: color-mix(in srgb, var(--color-text-primary) 88%, var(--color-text-muted) 12%);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -62,6 +76,38 @@
 
 .headerRow > span {
   justify-self: center;
+  position: relative;
+}
+
+.headerRow > span + span::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-4));
+  top: 10%;
+  bottom: 10%;
+  width: var(--border-thin);
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--log-header-divider) 22%,
+    var(--log-header-divider) 78%,
+    transparent
+  );
+}
+
+:root[data-theme='light'] .headerRow {
+  --log-header-divider: color-mix(in srgb, rgba(28, 31, 42, 0.22) 90%, transparent);
+  border-bottom-color: color-mix(in srgb, rgba(28, 31, 42, 0.2) 100%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 84%, var(--color-surface-header) 16%),
+    color-mix(in srgb, #eef3fa 82%, var(--color-surface-panel-accent) 18%)
+  );
+  box-shadow:
+    inset 0 var(--border-thin) 0 rgba(255, 255, 255, 0.72),
+    inset 0 calc(-1 * var(--border-thin)) 0 rgba(28, 31, 42, 0.08),
+    0 calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale)) rgba(28, 31, 42, 0.06);
+  color: rgba(28, 31, 42, 0.86);
 }
 
 .viewport {
@@ -79,8 +125,8 @@
 }
 
 .viewport::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: calc(5px * var(--ui-scale));
+  height: calc(5px * var(--ui-scale));
 }
 
 .viewport::-webkit-scrollbar-track {
@@ -105,7 +151,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 14px;
+  height: var(--log-row-height);
   display: grid;
   grid-template-columns:
     var(--column-width-timestamp)
@@ -120,10 +166,18 @@
   align-items: center;
   padding: 0 var(--space-8);
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 40%, transparent);
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-2xs);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
   cursor: default;
+}
+
+.dataRow:nth-child(odd):not(.eventRow):not(.selectedRow) {
+  background: color-mix(in srgb, var(--color-surface-panel-accent) 18%, transparent);
+}
+
+.dataRow:nth-child(even):not(.eventRow):not(.selectedRow) {
+  background: color-mix(in srgb, var(--color-surface-instrument) 90%, transparent);
 }
 
 .dataRow > span {
@@ -146,18 +200,18 @@
 }
 
 .eventRowCapture {
-  color: var(--event-color-capture);
-  background: var(--event-bg-capture);
+  color: var(--color-log-event-capture);
+  background: var(--color-log-event-capture-bg);
 }
 
 .eventRowRole {
-  color: var(--event-color-role);
-  background: var(--event-bg-role);
+  color: var(--color-log-event-role);
+  background: var(--color-log-event-role-bg);
 }
 
 .eventRowStatus {
-  color: var(--event-color-status);
-  background: var(--event-bg-status);
+  color: var(--color-log-event-status);
+  background: var(--color-log-event-status-bg);
 }
 
 .selectedRow {
@@ -176,6 +230,13 @@
   gap: var(--space-8);
 }
 
+.headerPopupFieldRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+}
+
 .headerPopupText {
   margin: var(--space-0);
   font-size: var(--font-size-header-popup-text);
@@ -187,6 +248,7 @@
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .headerPopupInput {
@@ -195,7 +257,8 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-input);
   padding: var(--space-8) var(--space-10);
-  min-height: 38px;
+  width: 100%;
+  min-width: 0;
 }
 
 .headerPopupHint {
@@ -223,10 +286,10 @@
   font-size: var(--font-size-header-popup-button);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-sm);
-  padding: var(--space-8) var(--space-16);
+  padding: var(--space-6) var(--space-2);
   cursor: pointer;
   line-height: var(--line-height-tight);
-  min-width: 120px;
+  min-width: calc(70px * var(--ui-scale));
 }
 
 .headerPopupButton:disabled {

@@ -45,7 +45,7 @@
   border-bottom: var(--border-thin) solid var(--color-border-panel);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-md);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-3xs);
 }
 
 .name {
@@ -94,13 +94,13 @@
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-panel);
   color: var(--color-text-primary);
-  font-size: 0.33rem;
+  font-size: var(--rack-header-control-font-size);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-sm);
   padding: var(--space-1) var(--space-4);
   cursor: pointer;
   line-height: var(--line-height-tight);
-  min-width: 40px;
+  min-width: var(--rack-header-control-min-width);
 }
 
 .headerControlButton:disabled {
@@ -120,6 +120,8 @@
   z-index: 10000;
   overflow: auto;
   font-size: var(--font-size-header-popup-base);
+  transform: scale(var(--global-app-scale, 1));
+  transform-origin: top left;
 }
 
 .content {

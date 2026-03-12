@@ -915,11 +915,15 @@ export const DrpdSinkControlInstrumentView = ({
           </div>
           <div className={styles.row}>
             <span className={styles.rowLabel}>VSET</span>
-            <span className={`${styles.rowValue} ${styles.metricValue}`}>{vsetLabel}</span>
+            <span className={`${styles.rowValue} ${styles.metricValue} ${styles.voltageValue}`}>
+              {vsetLabel}
+            </span>
           </div>
           <div className={styles.row}>
             <span className={styles.rowLabel}>ISET</span>
-            <span className={`${styles.rowValue} ${styles.metricValue}`}>{isetLabel}</span>
+            <span className={`${styles.rowValue} ${styles.metricValue} ${styles.currentValue}`}>
+              {isetLabel}
+            </span>
           </div>
         </section>
 
@@ -933,13 +937,13 @@ export const DrpdSinkControlInstrumentView = ({
           </div>
           <div className={styles.row}>
             <span className={styles.rowLabel}>VRANGE</span>
-            <span className={`${styles.rowValue} ${styles.pdoDetail}`}>
+            <span className={`${styles.rowValue} ${styles.pdoDetail} ${styles.voltageValue}`}>
               {selectedPdoDetails.voltageRange}
             </span>
           </div>
           <div className={styles.row}>
             <span className={styles.rowLabel}>IRANGE</span>
-            <span className={`${styles.rowValue} ${styles.pdoDetail}`}>
+            <span className={`${styles.rowValue} ${styles.pdoDetail} ${styles.currentValue}`}>
               {selectedPdoDetails.currentRange}
             </span>
           </div>

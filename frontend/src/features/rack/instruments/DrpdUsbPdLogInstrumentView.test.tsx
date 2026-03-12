@@ -5,21 +5,29 @@ import { DRPDDevice } from '../../../lib/device'
 import {
   buildCapturedLogSelectionKey,
   type DRPDLogSelectionState,
+  type LoggedAnalogSample,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
+import {
+  CONTROL_MESSAGE_TYPES,
+  DATA_MESSAGE_TYPES,
+  EXTENDED_MESSAGE_TYPES,
+} from '../../../lib/device/drpd/usb-pd/message'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
 import { computePulseTraceEndTimestampUs } from './DrpdUsbPdLogTimeStrip.utils'
 
 class TestLogDriver extends EventTarget {
+  public analogRows: LoggedAnalogSample[]
   public rows: LoggedCapturedMessage[]
   public clearScopes: string[]
   public logSelection: DRPDLogSelectionState
   public timeStripQueries: Array<{ windowStartUs: bigint; windowDurationUs: bigint; analogPointBudget: number }>
 
-  public constructor(rows: LoggedCapturedMessage[]) {
+  public constructor(rows: LoggedCapturedMessage[], analogRows: LoggedAnalogSample[] = []) {
     super()
+    this.analogRows = analogRows
     this.rows = rows
     this.clearScopes = []
     this.timeStripQueries = []
@@ -80,7 +88,7 @@ class TestLogDriver extends EventTarget {
   }
 
   public async getLogCounts(): Promise<{ analog: number; messages: number }> {
-    return { analog: 0, messages: this.rows.length }
+    return { analog: this.analogRows.length, messages: this.rows.length }
   }
 
   public async queryCapturedMessages(query: {
@@ -102,18 +110,87 @@ class TestLogDriver extends EventTarget {
   }) {
     this.timeStripQueries.push(query)
     const messageRows = this.rows.filter((row) => row.entryKind === 'message')
-    const latestTimestampUs =
+    const eventRows = this.rows.filter(
+      (row): row is LoggedCapturedMessage & { eventType: NonNullable<LoggedCapturedMessage['eventType']> } =>
+        row.entryKind === 'event' && row.eventType !== null,
+    )
+    const earliestMessageTimestampUs = messageRows[0]?.startTimestampUs ?? null
+    const latestMessageTimestampUs =
       messageRows.length > 0 ? messageRows[messageRows.length - 1]?.endTimestampUs ?? null : null
+    const earliestAnalogTimestampUs = this.analogRows[0]?.timestampUs ?? null
+    const latestAnalogTimestampUs =
+      this.analogRows.length > 0 ? this.analogRows[this.analogRows.length - 1]?.timestampUs ?? null : null
+    const earliestTimestampUs =
+      earliestMessageTimestampUs === null
+        ? earliestAnalogTimestampUs
+        : earliestAnalogTimestampUs === null
+          ? earliestMessageTimestampUs
+          : earliestMessageTimestampUs < earliestAnalogTimestampUs
+            ? earliestMessageTimestampUs
+            : earliestAnalogTimestampUs
+    const latestTimestampUs =
+      latestMessageTimestampUs === null
+        ? latestAnalogTimestampUs
+        : latestAnalogTimestampUs === null
+          ? latestMessageTimestampUs
+          : latestMessageTimestampUs > latestAnalogTimestampUs
+            ? latestMessageTimestampUs
+            : latestAnalogTimestampUs
+    const earliestDisplayTimestampUs = (() => {
+      const candidates = [
+        messageRows[0]?.displayTimestampUs ?? null,
+        this.analogRows[0]?.displayTimestampUs ?? null,
+      ].filter((value): value is bigint => value !== null)
+      if (candidates.length === 0) {
+        return null
+      }
+      return candidates.reduce((minimum, value) => value < minimum ? value : minimum)
+    })()
+    const latestDisplayTimestampUs = (() => {
+      const latestMessage = messageRows[messageRows.length - 1]
+      const candidates = [
+        latestMessage && latestMessage.displayTimestampUs !== null
+          ? latestMessage.displayTimestampUs + (latestMessage.endTimestampUs - latestMessage.startTimestampUs)
+          : null,
+        this.analogRows.length > 0 ? this.analogRows[this.analogRows.length - 1]?.displayTimestampUs ?? null : null,
+      ].filter((value): value is bigint => value !== null)
+      if (candidates.length === 0) {
+        return null
+      }
+      return candidates.reduce((maximum, value) => value > maximum ? value : maximum)
+    })()
+    const timeAnchors = [
+      ...messageRows.flatMap((row) => (
+        row.displayTimestampUs === null
+          ? []
+          : [{
+              timestampUs: row.startTimestampUs,
+              displayTimestampUs: row.displayTimestampUs,
+              wallClockMs: row.createdAtMs,
+              approximate: false,
+            }]
+      )),
+      ...this.analogRows.flatMap((row) => (
+        row.displayTimestampUs === null
+          ? []
+          : [{
+              timestampUs: row.timestampUs,
+              displayTimestampUs: row.displayTimestampUs,
+              wallClockMs: row.createdAtMs,
+              approximate: false,
+            }]
+      )),
+    ]
     return {
       windowStartUs: query.windowStartUs,
       windowEndUs: query.windowStartUs + query.windowDurationUs,
       windowDurationUs: query.windowDurationUs,
-      earliestTimestampUs: messageRows[0]?.startTimestampUs ?? null,
+      earliestTimestampUs,
       latestTimestampUs,
-      earliestDisplayTimestampUs: messageRows[0]?.displayTimestampUs ?? null,
-      latestDisplayTimestampUs: messageRows[messageRows.length - 1]?.displayTimestampUs ?? null,
-      windowStartDisplayTimestampUs: query.windowStartUs,
-      windowEndDisplayTimestampUs: query.windowStartUs + query.windowDurationUs,
+      earliestDisplayTimestampUs,
+      latestDisplayTimestampUs,
+      windowStartDisplayTimestampUs: earliestDisplayTimestampUs,
+      windowEndDisplayTimestampUs: latestDisplayTimestampUs,
       hasMoreBefore: false,
       hasMoreAfter: false,
       pulses: messageRows.map((row) => ({
@@ -131,41 +208,84 @@ class TestLogDriver extends EventTarget {
             ? null
             : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
         wallClockMs: row.createdAtMs,
+        sopLabel: normalizeSopType(row.sopKind),
+        messageLabel: resolvePulseMessageLabel(row),
         pulseWidthsNs: row.rawPulseWidths,
       })),
-      analogPoints: Array.from({ length: Math.min(4, query.analogPointBudget) }, (_, index) => ({
-        timestampUs: BigInt(index * 20),
-        displayTimestampUs: BigInt(index * 20),
-        wallClockMs: 1_700_000_000_000 + index * 10,
-        vbusV: 5 + index,
-        ibusA: 0.5 + index * 0.1,
+      analogPoints: this.analogRows.slice(0, query.analogPointBudget).map((row) => ({
+        timestampUs: row.timestampUs,
+        displayTimestampUs: row.displayTimestampUs,
+        wallClockMs: row.createdAtMs,
+        vbusV: row.vbusV,
+        ibusA: row.ibusA,
       })),
-      timeAnchors: [
-        {
-          timestampUs: 0n,
-          displayTimestampUs: 0n,
-          wallClockMs: 1_700_000_000_000,
-          approximate: false,
-        },
-        {
-          timestampUs: 100n,
-          displayTimestampUs: 100n,
-          wallClockMs: 1_700_000_000_100,
-          approximate: true,
-        },
-      ],
+      events: eventRows.map((row) => ({
+        selectionKey: buildCapturedLogSelectionKey(row),
+        eventType: row.eventType,
+        timestampUs: row.startTimestampUs,
+        displayTimestampUs: row.displayTimestampUs,
+        wallClockMs: row.createdAtMs,
+      })),
+      timeAnchors,
     }
   }
 
   public async clearLogs(scope: string): Promise<void> {
     this.clearScopes.push(scope)
-    this.rows = []
+    if (scope === 'all' || scope === 'analog') {
+      this.analogRows = []
+    }
+    if (scope === 'all' || scope === 'messages') {
+      this.rows = []
+    }
     this.logSelection = {
       selectedKeys: [],
       anchorIndex: null,
       activeIndex: null,
     }
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.LOG_ENTRY_DELETED_EVENT, {
+        detail: {
+          scope,
+          analogDeleted: scope === 'all' || scope === 'analog' ? 1 : 0,
+          messagesDeleted: scope === 'all' || scope === 'messages' ? 1 : 0,
+          reason: 'clear',
+        },
+      }),
+    )
   }
+}
+
+const normalizeSopType = (value: string | null): string | null => {
+  switch (value) {
+    case 'SOP':
+      return 'SOP'
+    case 'SOP_PRIME':
+      return "SOP'"
+    case 'SOP_DOUBLE_PRIME':
+      return "SOP''"
+    case 'SOP_DEBUG_PRIME':
+      return "SOP'-D"
+    case 'SOP_DEBUG_DOUBLE_PRIME':
+      return "SOP''-D"
+    default:
+      return null
+  }
+}
+
+const resolvePulseMessageLabel = (row: LoggedCapturedMessage): string | null => {
+  if (!row.messageKind || row.messageType == null) {
+    return null
+  }
+  const mapping =
+    row.messageKind === 'CONTROL'
+      ? CONTROL_MESSAGE_TYPES[row.messageType]
+      : row.messageKind === 'DATA'
+        ? DATA_MESSAGE_TYPES[row.messageType]
+        : row.messageKind === 'EXTENDED'
+          ? EXTENDED_MESSAGE_TYPES[row.messageType]
+          : undefined
+  return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
 }
 
 const buildInstrument = (): RackInstrument => ({
@@ -207,6 +327,60 @@ const buildMessage = (
   createdAtMs: 1_700_000_000_000 + index,
 })
 
+const buildAnalogSample = (index: number): LoggedAnalogSample => ({
+  timestampUs: BigInt(index * 20),
+  displayTimestampUs: BigInt(index * 20),
+  vbusV: 5 + index,
+  ibusA: 0.5 + index * 0.1,
+  role: 'SOURCE',
+  createdAtMs: 1_700_000_000_000 + index * 10,
+})
+
+const stubResizeObserver = (): void => {
+  class ResizeObserverMock {
+    public callback: ResizeObserverCallback
+
+    public constructor(callback: ResizeObserverCallback) {
+      this.callback = callback
+    }
+
+    public observe(target: Element): void {
+      Object.defineProperty(target, 'clientWidth', {
+        configurable: true,
+        value: 640,
+      })
+      Object.defineProperty(target, 'clientHeight', {
+        configurable: true,
+        value: 180,
+      })
+      this.callback(
+        [
+          {
+            target,
+            contentRect: {
+              width: 640,
+              height: 180,
+              x: 0,
+              y: 0,
+              top: 0,
+              left: 0,
+              bottom: 180,
+              right: 640,
+              toJSON: () => ({}),
+            } as DOMRectReadOnly,
+          } as ResizeObserverEntry,
+        ],
+        this as unknown as ResizeObserver,
+      )
+    }
+
+    public disconnect(): void {}
+    public unobserve(): void {}
+  }
+
+  vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+}
+
 const buildEvent = (
   index: number,
   text: string,
@@ -240,42 +414,7 @@ afterEach(() => {
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
-  it('renders the time strip above the table', async () => {
-    class ResizeObserverMock {
-      public callback: ResizeObserverCallback
-
-      public constructor(callback: ResizeObserverCallback) {
-        this.callback = callback
-      }
-
-      public observe(target: Element): void {
-        this.callback(
-          [
-            {
-              target,
-              contentRect: {
-                width: 640,
-                height: 180,
-                x: 0,
-                y: 0,
-                top: 0,
-                left: 0,
-                bottom: 180,
-                right: 640,
-                toJSON: () => ({}),
-              } as DOMRectReadOnly,
-            } as ResizeObserverEntry,
-          ],
-          this as unknown as ResizeObserver,
-        )
-      }
-
-      public disconnect(): void {}
-      public unobserve(): void {}
-    }
-
-    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
-
+  it('renders the message table without the timestrip', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1)])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -292,13 +431,8 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       />,
     )
 
-    expect(await screen.findByTestId('drpd-usbpd-log-timestrip')).toBeInTheDocument()
-    const timeStrip = screen.getByTestId('drpd-usbpd-log-timestrip')
-    const header = screen.getByText('Timestamp')
-    expect(
-      Boolean(timeStrip.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING),
-    ).toBe(true)
-    expect(header).toBeInTheDocument()
+    expect(await screen.findByText('Timestamp')).toBeInTheDocument()
+    expect(screen.queryByTestId('drpd-usbpd-log-timestrip')).not.toBeInTheDocument()
   })
 
   it('loads existing logged rows on mount without waiting for add events', async () => {
@@ -438,7 +572,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(rowTexts.some((text) => text.includes('SourceCable'))).toBe(true)
   })
 
-  it('renders full-width event rows and applies per-event-type colors', async () => {
+  it('renders full-width event rows with shared event colors', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1),
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
@@ -453,14 +587,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     const { container } = render(
       <DrpdUsbPdLogInstrumentView
-        instrument={{
-          ...buildInstrument(),
-          config: {
-            captureChangedEventTextColor: 'rgb(255, 170, 0)',
-            ccRoleChangedEventTextColor: 'rgb(0, 180, 255)',
-            ccStatusChangedEventTextColor: 'rgb(50, 220, 120)',
-          },
-        }}
+        instrument={buildInstrument()}
         displayName="USB-PD Log"
         deviceState={deviceState}
         isEditMode={false}
@@ -474,11 +601,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(eventRow).not.toBeNull()
     const eventLabel = container.querySelector('[class*="eventLabel"]')
     expect(eventLabel).not.toBeNull()
-    expect(screen.getByTestId('drpd-usbpd-log')).toHaveStyle({
-      '--event-color-capture': 'rgb(255, 170, 0)',
-      '--event-color-role': 'rgb(0, 180, 255)',
-      '--event-color-status': 'rgb(50, 220, 120)',
-    })
   })
 
   it('resets delta display after an event row', async () => {
@@ -556,7 +678,12 @@ describe('DrpdUsbPdLogInstrumentView', () => {
   })
 
   it('shows clear confirmation popup and clears all logs when confirmed', async () => {
-    const driver = new TestLogDriver([buildMessage(0, 1)])
+    stubResizeObserver()
+
+    const driver = new TestLogDriver([buildMessage(0, 1)], [
+      buildAnalogSample(0),
+      buildAnalogSample(1),
+    ])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
       status: 'connected',
@@ -575,13 +702,15 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Clear' }))
     expect(
-      screen.getByText(/permanently delete all entries in the log/i),
+      screen.getByText(/permanently delete all logged messages and analog samples/i),
     ).toBeInTheDocument()
 
     const clearDialog = screen.getByRole('dialog')
     await userEvent.click(within(clearDialog).getByRole('button', { name: /^Clear$/ }))
     await waitFor(() => {
       expect(driver.clearScopes).toEqual(['all'])
+      expect(driver.rows).toHaveLength(0)
+      expect(driver.analogRows).toHaveLength(0)
     })
   })
 
@@ -622,7 +751,15 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     const configureDialog = screen.getByRole('dialog')
     await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
     expect(
-      screen.getByText(/enter an integer value of at least 51/i),
+      screen.getByText(/enter an integer value from 100 to 1000000/i),
+    ).toBeInTheDocument()
+    expect(updateDeviceConfig).not.toHaveBeenCalled()
+
+    await userEvent.clear(input)
+    await userEvent.type(input, '1000001')
+    await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
+    expect(
+      screen.getByText(/enter an integer value from 100 to 1000000/i),
     ).toBeInTheDocument()
     expect(updateDeviceConfig).not.toHaveBeenCalled()
 

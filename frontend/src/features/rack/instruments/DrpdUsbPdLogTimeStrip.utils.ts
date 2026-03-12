@@ -1,4 +1,5 @@
 import type {
+  MessageLogAnalogPoint,
   MessageLogPulseSegment,
   MessageLogTimeAnchor,
 } from '../../../lib/device'
@@ -22,6 +23,12 @@ export interface ParsedMessageSelectionKey {
   createdAtMs: number
 }
 
+export interface ParsedLogSelectionKey {
+  startTimestampUs: bigint
+  endTimestampUs: bigint
+  createdAtMs: number
+}
+
 /**
  * Parse a message-row selection key.
  *
@@ -39,6 +46,31 @@ export const parseMessageSelectionKey = (
     startTimestampUs: BigInt(match[1]),
     endTimestampUs: BigInt(match[2]),
     createdAtMs: Number(match[3]),
+  }
+}
+
+/**
+ * Parse a log-row selection key for either a message or event row.
+ *
+ * @param selectionKey - Stable log row key.
+ * @returns Parsed row metadata, or null for unknown keys.
+ */
+export const parseLogSelectionKey = (
+  selectionKey: string,
+): ParsedLogSelectionKey | null => {
+  const parsedMessage = parseMessageSelectionKey(selectionKey)
+  if (parsedMessage) {
+    return parsedMessage
+  }
+  const eventMatch = /^event:(\d+):(\d+):.+$/.exec(selectionKey)
+  if (!eventMatch) {
+    return null
+  }
+  const timestampUs = BigInt(eventMatch[1])
+  return {
+    startTimestampUs: timestampUs,
+    endTimestampUs: timestampUs,
+    createdAtMs: Number(eventMatch[2]),
   }
 }
 
@@ -130,21 +162,16 @@ export const zoomWindowAroundFocusUs = (
 }
 
 /**
- * Center the window around the given absolute timestamp span.
+ * Center the window around one absolute timestamp.
  *
- * @param startTimestampUs - Span start.
- * @param endTimestampUs - Span end.
+ * @param timestampUs - Target timestamp.
  * @param durationUs - Window duration.
  * @returns Window start.
  */
-export const centerWindowOnSpanUs = (
-  startTimestampUs: bigint,
-  endTimestampUs: bigint,
+export const centerWindowOnTimestampUs = (
+  timestampUs: bigint,
   durationUs: bigint,
-): bigint => {
-  const centerUs = startTimestampUs + (endTimestampUs - startTimestampUs) / 2n
-  return centerUs - durationUs / 2n
-}
+): bigint => timestampUs - durationUs / 2n
 
 /**
  * Format one absolute device timestamp label.
@@ -305,4 +332,28 @@ export const findSelectedPulseSegment = (
     return null
   }
   return pulses.find((pulse) => pulse.selectionKey === selectedKey) ?? null
+}
+
+/**
+ * Return the active analog sample for a step-after trace at the given timestamp.
+ *
+ * @param analogPoints - Ordered analog samples in the visible window.
+ * @param timestampUs - Hover timestamp in device microseconds.
+ * @returns The sample whose value is active at that timestamp.
+ */
+export const findAnalogPointAtStepTimestamp = (
+  analogPoints: MessageLogAnalogPoint[],
+  timestampUs: bigint,
+): MessageLogAnalogPoint | null => {
+  if (analogPoints.length === 0) {
+    return null
+  }
+  let activePoint = analogPoints[0] ?? null
+  for (const point of analogPoints) {
+    if (point.timestampUs > timestampUs) {
+      break
+    }
+    activePoint = point
+  }
+  return activePoint
 }

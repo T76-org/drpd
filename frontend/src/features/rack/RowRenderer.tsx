@@ -12,9 +12,9 @@ import { DrpdCcLinesInstrumentView } from './instruments/DrpdCcLinesInstrumentVi
 import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusInstrumentView'
 import { DrpdMessageDetailInstrumentView } from './instruments/DrpdMessageDetailInstrumentView'
 import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
+import { DrpdTimeStripInstrumentView } from './instruments/DrpdTimeStripInstrumentView'
 import { DrpdUsbPdLogInstrumentView } from './instruments/DrpdUsbPdLogInstrumentView'
 import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
-import { DrpdPlaceholderInstrumentView } from './instruments/DrpdPlaceholderInstrumentView'
 import styles from './RowRenderer.module.css'
 
 /**
@@ -310,6 +310,16 @@ const renderInstrument = ({
           onUpdateDeviceConfig={onUpdateDeviceConfig}
         />
       )
+    case 'com.mta.drpd.timestrip':
+      return (
+        <DrpdTimeStripInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          deviceState={deviceState}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
+        />
+      )
     case 'com.mta.drpd.message-detail':
       return (
         <DrpdMessageDetailInstrumentView
@@ -352,21 +362,6 @@ const renderInstrument = ({
           deviceState={deviceState}
           isEditMode={isEditMode}
           onRemove={onRemove}
-        />
-      )
-    case 'com.mta.drpd.placeholder':
-      return (
-        <DrpdPlaceholderInstrumentView
-          instrument={instrument}
-          displayName={definition?.displayName ?? 'Instrument'}
-          deviceRecord={deviceRecord}
-          deviceState={deviceState}
-          isEditMode={isEditMode}
-          onRemove={onRemove}
-          allocatedWidthPx={allocatedWidthPx}
-          allocatedHeightPx={allocatedHeightPx}
-          allocatedWidthUnits={allocatedWidthUnits}
-          allocatedHeightUnits={allocatedHeightUnits}
         />
       )
     default:

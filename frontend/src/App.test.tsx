@@ -36,7 +36,7 @@ afterEach(() => {
 })
 
 describe('App', () => {
-  it('renders the rack view', async () => {
+  it('renders the app viewport around the rack view without a scale shell', async () => {
     saveRackDocument({
       racks: [
         {
@@ -48,8 +48,11 @@ describe('App', () => {
         }
       ]
     })
-    render(<App />)
+    const { container } = render(<App />)
 
-    expect(await screen.findByText('Bench Rack A')).toBeInTheDocument()
+    expect(screen.getByTestId('app-viewport')).toBeInTheDocument()
+    expect(screen.getByTestId('app-content')).toBeInTheDocument()
+    expect(await screen.findByAltText('Dr.PD')).toBeInTheDocument()
+    expect(container.querySelector('[data-testid="app-content"] [data-testid="rack-rows"]')).not.toBeNull()
   })
 })

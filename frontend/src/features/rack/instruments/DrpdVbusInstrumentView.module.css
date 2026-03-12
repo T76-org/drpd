@@ -1,6 +1,6 @@
 .wrapper {
-  --vbus-number-width: 4.2ch;
-  --metric-number-width: 5.8ch;
+  --vbus-number-width: calc(89px * var(--ui-scale));
+  --metric-number-width: calc(56px * var(--ui-scale));
   --separator-opacity: 0.8;
   --protection-color-on: var(--color-status-success);
   --protection-color-off: var(--color-status-muted);
@@ -44,7 +44,7 @@
 .vbusValue {
   font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-status-info);
+  color: var(--color-metric-voltage);
   line-height: var(--line-height-snug);
   font-variant-numeric: tabular-nums;
   display: inline-flex;
@@ -58,7 +58,7 @@
 }
 
 .vbusCurrentLeftValue {
-  color: var(--color-status-ok);
+  color: var(--color-metric-current);
 }
 
 .metricBlock {
@@ -104,7 +104,7 @@
 .metricValue {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-status-ok);
+  color: var(--color-metric-current);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
   display: grid;
@@ -115,12 +115,12 @@
 }
 
 .powerValue {
-  color: var(--color-status-warning);
+  color: var(--color-metric-power);
   font-size: var(--font-size-lg);
 }
 
 .chargeValue {
-  color: var(--color-status-charge);
+  color: var(--color-metric-charge);
   font-size: var(--font-size-lg);
 }
 
@@ -205,26 +205,26 @@
 }
 
 .headerPopup {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-10);
-  min-width: 360px;
+  display: grid;
+  gap: var(--space-8);
+  min-width: calc(250px * var(--ui-scale));
 }
 
 .headerResetPopup {
-  min-width: 200px;
+  min-width: calc(180px * var(--ui-scale));
 }
 
 .headerPopupRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-10);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
 }
 
 .headerPopupField {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .headerPopupLabel {
@@ -232,26 +232,27 @@
   color: var(--color-text-muted);
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .headerPopupInput {
   border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-none);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-input);
   padding: var(--space-8) var(--space-10);
-  min-height: 38px;
+  width: 100%;
+  min-width: 0;
 }
 
 .headerPopupHint {
-  margin: 0;
+  margin: var(--space-0);
   font-size: var(--font-size-header-popup-hint);
   color: var(--color-text-muted);
 }
 
 .headerPopupError {
-  margin: 0;
+  margin: var(--space-0);
   font-size: var(--font-size-header-popup-hint);
   color: var(--color-status-error);
 }
@@ -259,16 +260,17 @@
 .headerPopupActions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-6);
+  gap: var(--space-8);
 }
 
 .headerPopupButton {
   border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-none);
-  background: var(--color-surface-instrument);
+  background: var(--color-surface-panel);
   color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-button);
-  padding: var(--space-8) var(--space-16);
+  padding: var(--space-6) var(--space-12);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
   cursor: pointer;
 }
 

@@ -15,6 +15,7 @@ import type {
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
+import { useRackSizingConfig } from '../rackSizing'
 import styles from './DrpdMessageDetailInstrumentView.module.css'
 
 const EMPTY_SELECTION: DRPDLogSelectionState = {
@@ -192,13 +193,14 @@ const FieldHelpButton = ({
   const popupRef = useRef<HTMLDivElement | null>(null)
   const popupId = useId()
   const [popupStyle, setPopupStyle] = useState<CSSProperties | null>(null)
+  const rackSizing = useRackSizingConfig()
 
   useLayoutEffect(() => {
     if (!isOpen || !buttonRef.current || !popupRef.current || typeof window === 'undefined') {
       return
     }
 
-    const margin = 8
+    const margin = rackSizing.popoverViewportInsetPx
     const updatePosition = () => {
       const buttonRect = buttonRef.current?.getBoundingClientRect()
       const popupRect = popupRef.current?.getBoundingClientRect()
@@ -224,7 +226,7 @@ const FieldHelpButton = ({
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [isOpen])
+  }, [isOpen, rackSizing.popoverViewportInsetPx])
 
   useEffect(() => {
     if (!isOpen) {
@@ -542,6 +544,7 @@ export const DrpdMessageDetailInstrumentView = ({
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
+      contentClassName={styles.contentFill}
       onClose={
         onRemove
           ? () => {

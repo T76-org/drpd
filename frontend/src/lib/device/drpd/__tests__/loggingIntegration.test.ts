@@ -180,6 +180,7 @@ describe('DRPD logging integration', () => {
           hasMoreAfter: false,
           pulses: [],
           analogPoints: [],
+          events: [],
           timeAnchors: [],
         }
       }

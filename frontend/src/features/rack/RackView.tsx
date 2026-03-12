@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { Device } from '../../lib/device'
+import type { DeviceIdentity } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
   DRPDDeviceDefinition,
@@ -15,6 +17,8 @@ import {
   verifyMatchingDevices
 } from '../../lib/device'
 import { loadRackDocument, saveRackDocument } from '../../lib/rack/loadRack'
+import drpdLogoDark from '../../assets/drpd-logo-dark.svg'
+import drpdLogoLight from '../../assets/drpd-logo-light.svg'
 import type {
   RackDefinition,
   RackDeviceRecord,
@@ -25,19 +29,21 @@ import {
   type RackDeviceState,
   type RackInstrumentDragPayload
 } from './RackRenderer'
+import { getRackCanvasSize } from './rackCanvasSize'
 import {
   canInsertInstrumentIntoRow,
   insertInstrumentIntoRowAtIndex,
-  MAX_ROW_WIDTH_UNITS
 } from './layout'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
+import { useRackSizingConfig } from './rackSizing'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
+const HEADER_MENU_POPOVER_Z_INDEX = 11000
 
 interface DRPDLogsConsoleHelper {
   devices(): Array<{ id: string; name: string; status: string }>
@@ -108,6 +114,45 @@ interface DeviceRuntime {
   transport?: { close(): Promise<void> }
 }
 
+const formatRackDeviceLabel = (record: RackDeviceRecord): string => {
+  const parts = [record.displayName]
+  if (record.firmwareVersion) {
+    parts.push(record.firmwareVersion)
+  }
+  const displaySerial = record.deviceSerialNumber ?? record.serialNumber
+  if (displaySerial) {
+    parts.push(`#${displaySerial}`)
+  }
+  return parts.join(' ')
+}
+
+const identifyRackDeviceRuntime = async (
+  runtime: DeviceRuntime | null | undefined,
+): Promise<DeviceIdentity | null> => {
+  const driver = runtime?.drpdDriver
+  if (!driver) {
+    return null
+  }
+  if ('system' in driver && driver.system && typeof driver.system.identify === 'function') {
+    return await driver.system.identify()
+  }
+  return null
+}
+
+const mergeRackDeviceIdentity = (
+  record: RackDeviceRecord,
+  identity: DeviceIdentity | null,
+): RackDeviceRecord => {
+  if (!identity) {
+    return record
+  }
+  return {
+    ...record,
+    deviceSerialNumber: identity.serialNumber || record.deviceSerialNumber,
+    firmwareVersion: identity.firmwareVersion || record.firmwareVersion,
+  }
+}
+
 const resolveDeviceLoggingConfig = (record: RackDeviceRecord): DRPDLoggingConfig => {
   const source = record.config
   if (!source || typeof source !== 'object') {
@@ -152,17 +197,27 @@ export const RackView = () => {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
+    getResolvedTheme(getStoredTheme()),
+  )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
   const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
+  const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
+    undefined,
+  )
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const deviceMenuRef = useRef<HTMLDivElement | null>(null)
   const instrumentMenuRef = useRef<HTMLDivElement | null>(null)
+  const deviceMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const instrumentMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+  const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
   const editSnapshotRef = useRef<RackDefinition | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
+  const rackSizing = useRackSizingConfig()
 
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
   const instrumentDefinitions = useMemo(() => getSupportedInstruments(), [])
@@ -224,13 +279,22 @@ export const RackView = () => {
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null
+      const popoverElement = headerMenuPopoverRef.current
       if (isDeviceMenuOpen && deviceMenuRef.current) {
-        if (target && !deviceMenuRef.current.contains(target)) {
+        if (
+          target &&
+          !deviceMenuRef.current.contains(target) &&
+          !(popoverElement && popoverElement.contains(target))
+        ) {
           setIsDeviceMenuOpen(false)
         }
       }
       if (isInstrumentMenuOpen && instrumentMenuRef.current) {
-        if (target && !instrumentMenuRef.current.contains(target)) {
+        if (
+          target &&
+          !instrumentMenuRef.current.contains(target) &&
+          !(popoverElement && popoverElement.contains(target))
+        ) {
           setIsInstrumentMenuOpen(false)
         }
       }
@@ -266,18 +330,92 @@ export const RackView = () => {
     }
   }, [isDeviceMenuOpen, isInstrumentMenuOpen])
 
+  const updateHeaderMenuLayout = useCallback(() => {
+    const anchor = isDeviceMenuOpen
+      ? deviceMenuButtonRef.current
+      : isInstrumentMenuOpen
+        ? instrumentMenuButtonRef.current
+        : null
+    const popover = headerMenuPopoverRef.current
+    if (!anchor || !popover) {
+      return
+    }
+
+    const viewportInsetPx = rackSizing.popoverViewportInsetPx
+    const popoverGapPx = rackSizing.popoverGapPx
+    const buttonRect = anchor.getBoundingClientRect()
+    const popoverRect = popover.getBoundingClientRect()
+    const width = popoverRect.width
+    const height = popoverRect.height
+
+    let left = buttonRect.right - width
+    left = Math.max(
+      viewportInsetPx,
+      Math.min(left, window.innerWidth - width - viewportInsetPx),
+    )
+
+    const belowTop = buttonRect.bottom + popoverGapPx
+    const belowSpace = window.innerHeight - belowTop - viewportInsetPx
+    const aboveSpace = buttonRect.top - popoverGapPx - viewportInsetPx
+    const shouldOpenAbove = belowSpace < height && aboveSpace > belowSpace
+    const maxHeight = Math.max(120, Math.floor(shouldOpenAbove ? aboveSpace : belowSpace))
+
+    let top = belowTop
+    if (shouldOpenAbove) {
+      top = Math.max(
+        viewportInsetPx,
+        buttonRect.top - popoverGapPx - Math.min(height, maxHeight),
+      )
+    } else {
+      top = Math.min(top, window.innerHeight - viewportInsetPx - Math.min(height, maxHeight))
+    }
+
+    setHeaderMenuInlineStyle({
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+      maxHeight: `${Math.round(maxHeight)}px`,
+    })
+  }, [
+    isDeviceMenuOpen,
+    isInstrumentMenuOpen,
+    rackSizing.popoverGapPx,
+    rackSizing.popoverViewportInsetPx,
+  ])
+
+  useLayoutEffect(() => {
+    if (!isDeviceMenuOpen && !isInstrumentMenuOpen) {
+      setHeaderMenuInlineStyle(undefined)
+      return undefined
+    }
+
+    const runLayout = () => {
+      updateHeaderMenuLayout()
+    }
+    runLayout()
+    window.addEventListener('resize', runLayout)
+    window.addEventListener('scroll', runLayout, true)
+    return () => {
+      window.removeEventListener('resize', runLayout)
+      window.removeEventListener('scroll', runLayout, true)
+    }
+  }, [isDeviceMenuOpen, isInstrumentMenuOpen, updateHeaderMenuLayout])
+
   useEffect(() => {
     /** Apply the current theme to the document. */
     const root = document.documentElement
     if (theme !== 'system') {
       root.setAttribute('data-theme', theme)
+      setResolvedTheme(theme)
     } else {
       const mediaQuery = getSystemThemeMediaQuery()
       if (!mediaQuery) {
         root.removeAttribute('data-theme')
+        setResolvedTheme('light')
       } else {
         const applySystemTheme = () => {
-          root.setAttribute('data-theme', mediaQuery.matches ? 'dark' : 'light')
+          const nextTheme = mediaQuery.matches ? 'dark' : 'light'
+          root.setAttribute('data-theme', nextTheme)
+          setResolvedTheme(nextTheme)
         }
         applySystemTheme()
         const cleanup = listenToMediaQueryChange(mediaQuery, applySystemTheme)
@@ -466,7 +604,7 @@ export const RackView = () => {
           'window.__drpdLogs.devices()',
           'window.__drpdLogs.driver(deviceId?)',
           'await window.__drpdLogs.diagnostics(deviceId?)',
-          'await window.__drpdLogs.count(kind?, deviceId?) // kind: \"analog\" | \"messages\" | \"all\" (default)',
+          'await window.__drpdLogs.count(kind?, deviceId?) // kind: "analog" | "messages" | "all" (default)',
           'await window.__drpdLogs.queryAnalog({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessage({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessages({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?) // alias',
@@ -542,7 +680,9 @@ export const RackView = () => {
       }
 
       const runtime = await connectDeviceRuntime(deviceDefinition, selected)
-      const record = buildRackDeviceRecord(deviceDefinition, selected)
+      const baseRecord = buildRackDeviceRecord(deviceDefinition, selected)
+      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+      const record = mergeRackDeviceIdentity(baseRecord, identity)
       await applyRecordConfigToRuntime(record, runtime)
       setDeviceStates((states) =>
         upsertDeviceState(states, buildRackDeviceState(record, runtime)),
@@ -661,9 +801,11 @@ export const RackView = () => {
       }
 
       const runtime = await connectDeviceRuntime(definition, matchedDevice)
-      await applyRecordConfigToRuntime(record, runtime)
+      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+      const nextRecord = mergeRackDeviceIdentity(record, identity)
+      await applyRecordConfigToRuntime(nextRecord, runtime)
       setDeviceStates((states) =>
-        upsertDeviceState(states, buildRackDeviceState(record, runtime)),
+        upsertDeviceState(states, buildRackDeviceState(nextRecord, runtime)),
       )
     } catch (connectError) {
       const message =
@@ -876,7 +1018,8 @@ export const RackView = () => {
       dragState.snapshot,
       dragState.instrumentId,
       target,
-      instrumentDefinitionMap
+      instrumentDefinitionMap,
+      rackSizing.maxRowWidthUnits,
     )
     setDraftRack(nextRack)
   }
@@ -897,7 +1040,8 @@ export const RackView = () => {
       dragState.snapshot,
       dragState.instrumentId,
       target,
-      instrumentDefinitionMap
+      instrumentDefinitionMap,
+      rackSizing.maxRowWidthUnits,
     )
     dragState.didDrop = true
     dragState.snapshot = nextRack
@@ -927,177 +1071,218 @@ export const RackView = () => {
         ),
       )
     : []
+  const rackCanvasWidthPx = currentRack
+    ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
+    : null
+  const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
 
   return (
     <div className={styles.page}>
       {!currentRack?.hideHeader ? (
-        <header className={styles.header}>
-          <div className={styles.titleBlock}>
-            <h1 className={styles.title}>{currentRack?.name ?? 'Rack'}</h1>
-            <p className={styles.subtitle}>Virtual control surface</p>
-          </div>
-          <div className={styles.headerActions}>
-            {!isEditMode ? (
-              <button
-                type="button"
-                className={styles.editButton}
-                onClick={handleEnterEditMode}
-              >
-                Edit
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className={styles.editButtonSecondary}
-                  onClick={handleCancelEditMode}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className={styles.editButtonPrimary}
-                  onClick={handleSaveEditMode}
-                >
-                  Save
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className={styles.themeButton}
-              onClick={handleThemeToggle}
+        <div className={styles.headerViewport}>
+          <div className={styles.headerScroll}>
+            <header
+              className={styles.header}
+              style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
             >
-              Theme: {themeLabel}
-            </button>
-            {currentRack &&
-            !currentRack.hideHeader &&
-            (currentRack.devices ?? []).length > 0 ? (
-              <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
+              <div className={styles.titleBlock}>
+                <h1 className={styles.title}>
+                  <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
+                  <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
+                </h1>
+              </div>
+              <div className={styles.headerActions}>
+                {!isEditMode ? (
+                  <button
+                    type="button"
+                    className={styles.editButton}
+                    onClick={handleEnterEditMode}
+                  >
+                    Edit
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.editButtonSecondary}
+                      onClick={handleCancelEditMode}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.editButtonPrimary}
+                      onClick={handleSaveEditMode}
+                    >
+                      Save
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
-                  className={styles.deviceMenuButton}
-                  onClick={() =>
-                    setIsInstrumentMenuOpen((open) => !open)
-                  }
+                  className={styles.themeButton}
+                  onClick={handleThemeToggle}
                 >
-                  Add Instrument
+                  Theme: {themeLabel}
                 </button>
-                {isInstrumentMenuOpen ? (
-                  <div className={styles.deviceMenuPanel}>
-                    {compatibleInstruments.length === 0 ? (
-                      <div className={styles.deviceMenuEmpty}>
-                        No compatible instruments
-                      </div>
-                    ) : (
-                      <ul className={styles.deviceMenuList}>
-                        {compatibleInstruments.map((instrument) => (
-                          <li key={instrument.identifier}>
+                {currentRack &&
+                !currentRack.hideHeader &&
+                (currentRack.devices ?? []).length > 0 ? (
+                  <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
+                    <button
+                      type="button"
+                      className={styles.deviceMenuButton}
+                      ref={instrumentMenuButtonRef}
+                      onClick={() =>
+                        setIsInstrumentMenuOpen((open) => !open)
+                      }
+                    >
+                      Add Instrument
+                    </button>
+                    {isInstrumentMenuOpen ? (
+                      typeof document !== 'undefined'
+                        ? createPortal(
+                            <div
+                              className={styles.instrumentMenuPanel}
+                              ref={headerMenuPopoverRef}
+                              style={{
+                                ...headerMenuInlineStyle,
+                                zIndex: HEADER_MENU_POPOVER_Z_INDEX,
+                                visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
+                              }}
+                            >
+                              {compatibleInstruments.length === 0 ? (
+                                <div className={styles.instrumentMenuEmpty}>
+                                  No compatible instruments
+                                </div>
+                              ) : (
+                                <ul className={styles.instrumentMenuList}>
+                                  {compatibleInstruments.map((instrument) => (
+                                    <li key={instrument.identifier}>
+                                      <button
+                                        type="button"
+                                        className={styles.instrumentMenuItem}
+                                        onClick={() =>
+                                          handleAddInstrument(instrument.identifier)
+                                        }
+                                      >
+                                        {instrument.displayName}
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>,
+                            document.body,
+                          )
+                        : null
+                    ) : null}
+                  </div>
+                ) : null}
+                <div
+                  className={styles.deviceMenu}
+                  data-testid="rack-devices"
+                  ref={deviceMenuRef}
+                >
+                  <button
+                    type="button"
+                    className={styles.deviceMenuButton}
+                    ref={deviceMenuButtonRef}
+                    onClick={() => setIsDeviceMenuOpen((open) => !open)}
+                    disabled={isEditMode}
+                  >
+                    Devices
+                  </button>
+                  {isDeviceMenuOpen ? (
+                    typeof document !== 'undefined'
+                      ? createPortal(
+                          <div
+                            className={styles.deviceMenuPanel}
+                            ref={headerMenuPopoverRef}
+                            style={{
+                              ...headerMenuInlineStyle,
+                              zIndex: HEADER_MENU_POPOVER_Z_INDEX,
+                              visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
+                            }}
+                          >
                             <button
                               type="button"
                               className={styles.deviceMenuItem}
-                              onClick={() =>
-                                handleAddInstrument(instrument.identifier)
-                              }
+                              onClick={handleConnectDevice}
                             >
-                              {instrument.displayName}
+                              Pair Device
                             </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            <div
-              className={styles.deviceMenu}
-              data-testid="rack-devices"
-              ref={deviceMenuRef}
-            >
-              <button
-                type="button"
-                className={styles.deviceMenuButton}
-                onClick={() => setIsDeviceMenuOpen((open) => !open)}
-                disabled={isEditMode}
-              >
-                Devices
-              </button>
-              {isDeviceMenuOpen ? (
-                <div className={styles.deviceMenuPanel}>
-                  <button
-                    type="button"
-                    className={styles.deviceMenuItem}
-                    onClick={handleConnectDevice}
-                  >
-                    Add Device
-                  </button>
-                  <div className={styles.deviceMenuSeparator} />
-                  {deviceStates.length === 0 ? (
-                    <div className={styles.deviceMenuEmpty}>No devices</div>
-                  ) : (
-                    <ul className={styles.deviceMenuList}>
-                      {deviceStates.map((device) => (
-                        <li key={device.record.id} className={styles.deviceRow}>
-                          <div className={styles.deviceInfo}>
-                            <span className={styles.deviceName}>
-                              {device.record.displayName}
-                            </span>
-                            <span
-                              className={`${styles.deviceStatus} ${
-                                device.status === 'connected'
-                                  ? styles.deviceStatusConnected
-                                  : device.status === 'error'
-                                    ? styles.deviceStatusError
-                                    : ''
-                              }`}
-                            >
-                              {device.status}
-                            </span>
-                          </div>
-                          <div className={styles.deviceActions}>
-                            {device.status === 'connected' ? (
-                              <button
-                                type="button"
-                                className={styles.deviceActionButton}
-                                onClick={() =>
-                                  handleDisconnectDevice(device.record.id)
-                                }
-                              >
-                                Disconnect
-                              </button>
-                            ) : null}
-                            {device.status === 'disconnected' ||
-                            device.status === 'error' ? (
-                              <button
-                                type="button"
-                                className={styles.deviceActionButton}
-                                onClick={() =>
-                                  handleReconnectDevice(device.record.id)
-                                }
-                              >
-                                Connect
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className={`${styles.deviceActionButton} ${styles.removeButton}`}
-                              onClick={() =>
-                                handleRemoveDevice(device.record.id)
-                              }
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                            <div className={styles.deviceMenuSeparator} />
+                            {deviceStates.length === 0 ? (
+                              <div className={styles.deviceMenuEmpty}>No devices</div>
+                            ) : (
+                              <ul className={styles.deviceMenuList}>
+                                {deviceStates.map((device) => (
+                                  <li key={device.record.id} className={styles.deviceRow}>
+                                    <div className={styles.deviceInfo}>
+                                      <span className={styles.deviceName}>
+                                        {formatRackDeviceLabel(device.record)}
+                                      </span>
+                                      <span
+                                        className={`${styles.deviceStatus} ${
+                                          device.status === 'connected'
+                                            ? styles.deviceStatusConnected
+                                            : device.status === 'error'
+                                              ? styles.deviceStatusError
+                                              : ''
+                                        }`}
+                                      >
+                                        {device.status}
+                                      </span>
+                                    </div>
+                                    <div className={styles.deviceActions}>
+                                      {device.status === 'connected' ? (
+                                        <button
+                                          type="button"
+                                          className={styles.deviceActionButton}
+                                          onClick={() =>
+                                            handleDisconnectDevice(device.record.id)
+                                          }
+                                        >
+                                          Disconnect
+                                        </button>
+                                      ) : null}
+                                      {device.status === 'disconnected' ||
+                                      device.status === 'error' ? (
+                                        <button
+                                          type="button"
+                                          className={styles.deviceActionButton}
+                                          onClick={() =>
+                                            handleReconnectDevice(device.record.id)
+                                          }
+                                        >
+                                          Connect
+                                        </button>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        className={`${styles.deviceActionButton} ${styles.removeButton}`}
+                                        onClick={() =>
+                                          handleRemoveDevice(device.record.id)
+                                        }
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>,
+                          document.body,
+                        )
+                      : null
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
+              </div>
+            </header>
           </div>
-        </header>
+        </div>
       ) : null}
       <main className={styles.content}>
         {isLoading ? (
@@ -1153,6 +1338,15 @@ const getStoredTheme = (): ThemeMode => {
     return storedTheme
   }
   return 'system'
+}
+
+/** Resolve the effective theme used for themed assets. */
+const getResolvedTheme = (theme: ThemeMode): 'light' | 'dark' => {
+  if (theme === 'light' || theme === 'dark') {
+    return theme
+  }
+  const mediaQuery = getSystemThemeMediaQuery()
+  return mediaQuery?.matches ? 'dark' : 'light'
 }
 
 /** Resolve the system dark-mode media query when available. */
@@ -1333,13 +1527,9 @@ const connectDeviceRuntime = async (
   device: USBDevice,
 ): Promise<DeviceRuntime | null> => {
   if (definition instanceof DRPDDeviceDefinition) {
-    try {
-      const runtime = await definition.createConnectedRuntime(device)
-      await definition.connectDevice(device)
-      return { drpdDriver: runtime.driver, transport: runtime.transport }
-    } catch (error) {
-      throw error
-    }
+    const runtime = await definition.createConnectedRuntime(device)
+    await definition.connectDevice(device)
+    return { drpdDriver: runtime.driver, transport: runtime.transport }
   }
 
   await definition.connectDevice(device)
@@ -1460,8 +1650,10 @@ const autoConnectDevices = async ({
 
       try {
         const runtime = await connectDeviceRuntime(target, matchedDevice)
-        await applyRecordConfigToRuntime(record, runtime)
-        nextStates.push(buildRackDeviceState(record, runtime))
+        const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+        const nextRecord = mergeRackDeviceIdentity(record, identity)
+        await applyRecordConfigToRuntime(nextRecord, runtime)
+        nextStates.push(buildRackDeviceState(nextRecord, runtime))
       } catch (connectError) {
         const message =
           connectError instanceof Error ? connectError.message : String(connectError)
@@ -1624,6 +1816,7 @@ const moveInstrumentInRack = (
   instrumentId: string,
   target: DropTarget,
   instrumentMap: Map<string, Instrument>,
+  maxRowWidthUnits: number,
 ): RackDefinition => {
   const extraction = extractInstrumentFromRack(rack, instrumentId)
   if (!extraction.removedInstrument) {
@@ -1646,7 +1839,7 @@ const moveInstrumentInRack = (
           extraction.removedInstrument,
           insertIndex,
           instrumentMap,
-          MAX_ROW_WIDTH_UNITS,
+          maxRowWidthUnits,
         )
       ) {
         const nextRow = insertInstrumentIntoRowAtIndex(

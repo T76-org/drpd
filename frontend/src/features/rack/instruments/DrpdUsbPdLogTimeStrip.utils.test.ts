@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   clampWindowStartUs,
+  centerWindowOnTimestampUs,
   computePulseTraceEndTimestampUs,
+  findAnalogPointAtStepTimestamp,
   formatDeviceTimestampUs,
   formatWallClock,
   interpolateDisplayTimestampUs,
   interpolateWallClockMs,
+  parseLogSelectionKey,
   parseMessageSelectionKey,
   zoomWindowAroundFocusUs,
   zoomWindowDurationUs,
@@ -19,6 +22,16 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
       createdAtMs: 42,
     })
     expect(parseMessageSelectionKey('event:1000:42:capture_changed')).toBeNull()
+    expect(parseLogSelectionKey('message:1000:1100:42')).toEqual({
+      startTimestampUs: 1000n,
+      endTimestampUs: 1100n,
+      createdAtMs: 42,
+    })
+    expect(parseLogSelectionKey('event:2000:52:capture_changed')).toEqual({
+      startTimestampUs: 2000n,
+      endTimestampUs: 2000n,
+      createdAtMs: 52,
+    })
   })
 
   it('clamps and zooms windows inside configured bounds', () => {
@@ -48,6 +61,10 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
       windowStartUs: 3_000n,
       windowDurationUs: 2_000n,
     })
+  })
+
+  it('centers the window on a specific timestamp', () => {
+    expect(centerWindowOnTimestampUs(120_000n, 100_000n)).toBe(70_000n)
   })
 
   it('interpolates device-relative and wall-clock axes from anchors', () => {
@@ -82,5 +99,29 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
     expect(
       computePulseTraceEndTimestampUs(1_000n, Float64Array.from([100, 200]), 1_005n),
     ).toBe(1_005n)
+  })
+
+  it('uses the previous sample value for step-trace hover lookups', () => {
+    const analogPoints = [
+      {
+        timestampUs: 1_000n,
+        displayTimestampUs: 10n,
+        wallClockMs: 1,
+        vbusV: 0.5,
+        ibusA: 0.02,
+      },
+      {
+        timestampUs: 2_000n,
+        displayTimestampUs: 20n,
+        wallClockMs: 2,
+        vbusV: 5,
+        ibusA: 0.2,
+      },
+    ]
+
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 999n)?.vbusV).toBe(0.5)
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 1_500n)?.vbusV).toBe(0.5)
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 2_000n)?.vbusV).toBe(5)
+    expect(findAnalogPointAtStepTimestamp(analogPoints, 2_500n)?.vbusV).toBe(5)
   })
 })

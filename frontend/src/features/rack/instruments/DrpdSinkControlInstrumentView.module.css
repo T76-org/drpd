@@ -1,11 +1,11 @@
 .wrapper {
-  --left-col-label: 4.5ch;
-  --left-col-value: 7ch;
-  --left-col-state: 6ch;
+  --left-col-label: calc(25px * var(--ui-scale));
+  --left-col-value: calc(45px * var(--ui-scale));
+  --left-col-state: calc(64px * var(--ui-scale));
 
-  --right-col-label: 8ch;
-  --right-col-value: 0ch;
-  --right-col-state: 11ch;
+  --right-col-label: calc(42px * var(--ui-scale));
+  --right-col-value: calc(0px * var(--ui-scale));
+  --right-col-state: calc(50px * var(--ui-scale));
 
   width: 100%;
   height: 100%;
@@ -25,7 +25,7 @@
   height: 100%;
   align-content: stretch;
   align-items: stretch;
-  width: max-content;
+  width: 100%;
   padding-left: var(--space-6);
 }
 
@@ -56,7 +56,7 @@
   column-gap: var(--space-6);
   font-size: var(--font-size-2xs);
   line-height: var(--line-height-tight);
-  width: max-content;
+  width: 100%;
   padding: var(--space-0);
 }
 
@@ -103,7 +103,7 @@
 
 .metricValue {
   font-weight: var(--font-weight-semibold);
-  color: var(--color-status-info);
+  color: var(--color-text-primary);
 }
 
 .pdoTitle {
@@ -116,23 +116,31 @@
   font-weight: var(--font-weight-medium);
 }
 
+.voltageValue {
+  color: var(--color-metric-voltage);
+}
+
+.currentValue {
+  color: var(--color-metric-current);
+}
+
 .fieldLabel {
   font-size: var(--font-size-header-popup-label);
   letter-spacing: var(--letter-spacing-xl);
   text-transform: uppercase;
   color: var(--color-text-muted);
+  padding-right: var(--space-4);
 }
 
 .control {
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-4) var(--space-2);
   font-size: var(--font-size-header-popup-input);
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
   min-width: 0;
-  min-height: 34px;
 }
 
 .control[readonly] {
@@ -156,7 +164,6 @@
   text-transform: uppercase;
   cursor: pointer;
   white-space: nowrap;
-  min-width: 96px;
 }
 
 .requestButton {
@@ -172,21 +179,21 @@
 
 .advancedPanel {
   position: static;
-  width: 420px;
+  width: calc(250px * var(--ui-scale));
   min-width: 0;
-  max-width: calc(100vw - 24px);
+  max-width: calc(100vw - calc(24px * var(--ui-scale)));
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
-  padding: var(--space-8);
+  padding: var(--space-6);
   box-shadow: var(--shadow-strong);
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
   font-size: var(--font-size-header-popup-base);
 }
 
 .advancedTitle {
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-header-popup-text);
   letter-spacing: var(--letter-spacing-md);
   text-transform: uppercase;
   color: var(--color-text-muted);
@@ -206,7 +213,7 @@
 }
 
 .pdoList {
-  --pdo-list-row-height: 46px;
+  --pdo-list-row-height: calc(28px * var(--ui-scale));
 
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
@@ -216,24 +223,6 @@
   max-height: calc(5 * var(--pdo-list-row-height));
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
-}
-
-.pdoList::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-.pdoList::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.pdoList::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 0;
-}
-
-.pdoList::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
 }
 
 .emptyList {
@@ -250,12 +239,12 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-2) var(--space-8);
   min-height: var(--pdo-list-row-height);
   cursor: pointer;
   display: grid;
   align-content: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .pdoListItem:last-child {
@@ -294,7 +283,6 @@
 .requestPane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
   min-width: 0;
   min-height: 0;
 }
@@ -303,14 +291,12 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-4);
 }
 
 .requestBody {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: var(--space-6) var(--space-8);
 }
 
 .fieldMeta {
@@ -329,7 +315,7 @@
 .requestActions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-6);
+  gap: var(--space-4);
   margin-top: auto;
 }
 

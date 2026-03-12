@@ -8,14 +8,20 @@ export const DRPD_USB_PD_LOG_CONFIG = {
   window: {
     defaultWindowUs: 100_000n, ///< Default visible strip width in microseconds.
     minWindowUs: 250n, ///< Minimum allowed strip width in microseconds.
-    maxWindowUs: 500_000n, ///< Maximum allowed strip width in microseconds.
+    maxWindowUs: 5_000_000n, ///< Maximum allowed strip width in microseconds.
     zoomFactor: 2n, ///< Zoom multiplier for each in/out step.
   },
   stripLayout: {
-    totalHeightPx: 80, ///< Total time-strip viewport height.
+    totalHeightPx: 92, ///< Total time-strip viewport height.
     axisHeightPx: 10, ///< Height of the timestamp row.
-    pulseHeightPx: 20, ///< Height of the pulse lane.
+    pulseHeightPx: 32, ///< Height of the pulse lane including annotations.
     analogHeightPx: 50, ///< Height of the analog lane.
+  },
+  stripPulseAnnotations: {
+    preambleDurationUs: 213.33, ///< Approximate USB-PD preamble duration at 300 kHz.
+    sopDurationUs: 66.67, ///< Approximate USB-PD SOP token duration at 300 kHz.
+    minPulseWidthPx: 120, ///< Minimum visible pulse width before showing annotations.
+    minSegmentLabelWidthPx: 34, ///< Minimum segment width before drawing a label.
   },
   stripAxis: {
     tickTargetSpacingPx: 96, ///< Desired spacing between timestamp ticks.

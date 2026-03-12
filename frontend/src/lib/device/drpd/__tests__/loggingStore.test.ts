@@ -206,7 +206,7 @@ describe('SQLiteWasmStore', () => {
     expect(window.windowEndUs).toBe(window.windowStartUs + window.windowDurationUs)
   })
 
-  it('uses message boundaries for time-strip scrolling when analog extends beyond the message range', async () => {
+  it('uses analog and message boundaries for time-strip scrolling when analog extends beyond the message range', async () => {
     const store = new SQLiteWasmStore()
     await store.init()
 
@@ -245,8 +245,10 @@ describe('SQLiteWasmStore', () => {
       analogPointBudget: 10,
     })
 
-    expect(window.earliestTimestampUs).toBe(1_000n)
-    expect(window.latestTimestampUs).toBe(2_400n)
+    expect(window.earliestTimestampUs).toBe(10n)
+    expect(window.latestTimestampUs).toBe(50_000n)
+    expect(window.earliestDisplayTimestampUs).toBe(10n)
+    expect(window.latestDisplayTimestampUs).toBe(50_000n)
   })
 
   it('keeps a pulse visible while its waveform still overlaps the window', async () => {

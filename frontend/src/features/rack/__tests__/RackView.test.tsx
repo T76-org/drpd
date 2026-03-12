@@ -120,7 +120,7 @@ const buildRackDocument = (overrides?: Partial<RackDocument>): RackDocument => {
             instruments: [
               {
                 id: 'inst-1',
-                instrumentIdentifier: 'com.mta.drpd.placeholder'
+                instrumentIdentifier: 'com.mta.drpd.device-status-panel'
               }
             ]
           },
@@ -129,7 +129,7 @@ const buildRackDocument = (overrides?: Partial<RackDocument>): RackDocument => {
             instruments: [
               {
                 id: 'inst-2',
-                instrumentIdentifier: 'com.mta.drpd.placeholder'
+                instrumentIdentifier: 'com.mta.drpd.device-status-panel'
               }
             ]
           }
@@ -178,6 +178,8 @@ const createUSBDevice = (): USBDevice =>
     serialNumber: 'DRPD-TEST-001',
     productName: 'Dr. PD'
   }) as USBDevice
+
+const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
 
 /**
  * Stub the navigator.usb API.
@@ -240,7 +242,7 @@ describe('RackView', () => {
     expect(await screen.findByText('Bench Rack A')).toBeInTheDocument()
 
     const row = await screen.findByTestId('rack-row-row-2')
-    expect(row).toHaveStyle({ height: '200px' })
+    expect(row).toHaveStyle({ height: '100px' })
     expect(screen.getByTestId('rack-instrument-inst-2')).toBeInTheDocument()
   })
 
@@ -300,7 +302,7 @@ describe('RackView', () => {
                 instruments: [
                   {
                     id: 'inst-1',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                    instrumentIdentifier: 'com.mta.drpd.device-status-panel'
                   }
                 ]
               }
@@ -316,18 +318,32 @@ describe('RackView', () => {
     expect(screen.queryByText('Bench Rack A')).not.toBeInTheDocument()
   })
 
+  it('renders the top header at the same native width as the rack canvas', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    const { container } = render(<RackView />)
+
+    const header = await screen.findByRole('banner')
+    const rackCanvas = container.querySelector('[data-rack-width]')
+
+    expect(rackCanvas).not.toBeNull()
+    expect(header).toHaveStyle({
+      width: `${rackCanvas?.getAttribute('data-rack-width')}px`
+    })
+  })
+
   it('renders the base instrument header', () => {
     render(
       <InstrumentBase
         instrument={{
           id: 'inst-1',
-          instrumentIdentifier: 'com.mta.drpd.placeholder'
+          instrumentIdentifier: 'com.mta.drpd.device-status-panel'
         }}
-        displayName="Dr. PD Placeholder"
+        displayName="Device Status"
       />
     )
 
-    expect(screen.getByText('Dr. PD Placeholder')).toBeInTheDocument()
+    expect(screen.getByText('Device Status')).toBeInTheDocument()
   })
 
   it('opens and switches instrument header popovers', async () => {
@@ -336,9 +352,9 @@ describe('RackView', () => {
       <InstrumentBase
         instrument={{
           id: 'inst-1',
-          instrumentIdentifier: 'com.mta.drpd.placeholder'
+          instrumentIdentifier: 'com.mta.drpd.device-status-panel'
         }}
-        displayName="Dr. PD Placeholder"
+        displayName="Device Status"
         headerControls={[
           {
             id: 'first',
@@ -370,9 +386,9 @@ describe('RackView', () => {
       <InstrumentBase
         instrument={{
           id: 'inst-1',
-          instrumentIdentifier: 'com.mta.drpd.placeholder'
+          instrumentIdentifier: 'com.mta.drpd.device-status-panel'
         }}
-        displayName="Dr. PD Placeholder"
+        displayName="Device Status"
         headerControls={[
           {
             id: 'only',
@@ -396,13 +412,13 @@ describe('RackView', () => {
     expect(screen.queryByText('Only popup')).not.toBeInTheDocument()
   })
 
-  it('renders a concrete instrument size readout', async () => {
+  it('renders a concrete instrument view', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
     await waitFor(() => {
-      expect(screen.getAllByText(/width:/i).length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Role').length).toBeGreaterThan(0)
     })
   })
 
@@ -479,7 +495,7 @@ describe('RackView', () => {
     ).toBeTruthy()
   })
 
-  it('keeps fixed-width allocations for placeholder and VBUS instruments', async () => {
+  it('keeps fixed-width allocations for Message Log and VBUS instruments', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -494,7 +510,7 @@ describe('RackView', () => {
                 instruments: [
                   {
                     id: 'inst-fixed',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                    instrumentIdentifier: 'com.mta.drpd.usbpd-log'
                   },
                   {
                     id: 'inst-flex-1',
@@ -592,7 +608,7 @@ describe('RackView', () => {
                 instruments: [
                   {
                     id: 'inst-a',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                    instrumentIdentifier: 'com.mta.drpd.usbpd-log'
                   }
                 ]
               },
@@ -601,11 +617,11 @@ describe('RackView', () => {
                 instruments: [
                   {
                     id: 'inst-b',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                    instrumentIdentifier: 'com.mta.drpd.usbpd-log'
                   },
                   {
                     id: 'inst-c',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                    instrumentIdentifier: 'com.mta.drpd.usbpd-log'
                   }
                 ]
               }
@@ -722,7 +738,7 @@ describe('RackView', () => {
                 instruments: [
                   {
                     id: 'inst-1',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder',
+                    instrumentIdentifier: 'com.mta.drpd.device-status-panel',
                     fullScreen: true
                   }
                 ]
@@ -750,12 +766,12 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 
     expect(requestDevice).toHaveBeenCalled()
-    expect(await screen.findAllByText('Dr. PD')).not.toHaveLength(0)
+    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
     expect(await screen.findAllByText('connected')).not.toHaveLength(0)
   })
 
@@ -769,7 +785,7 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 
@@ -780,7 +796,7 @@ describe('RackView', () => {
     await userEvent.click(disconnectButton)
 
     expect(await screen.findByText('disconnected')).toBeInTheDocument()
-    expect(await screen.findByText('Dr. PD')).toBeInTheDocument()
+    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
 
     const reconnectButton = await screen.findByRole('button', {
       name: /connect/i
@@ -800,7 +816,7 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 
@@ -810,7 +826,7 @@ describe('RackView', () => {
     })
     await userEvent.click(removeButton)
     await waitFor(() => {
-      expect(screen.queryByText('Dr. PD')).not.toBeInTheDocument()
+      expect(screen.queryByText(DRPD_DEVICE_LABEL)).not.toBeInTheDocument()
     })
   })
 
@@ -835,7 +851,7 @@ describe('RackView', () => {
     })
     await userEvent.click(menuButton)
     const connectButton = await screen.findByRole('button', {
-      name: /add device/i
+      name: /pair device/i
     })
     await userEvent.click(connectButton)
 
@@ -869,7 +885,7 @@ describe('RackView', () => {
                 instruments: [
                   {
                     id: 'inst-1',
-                    instrumentIdentifier: 'com.mta.drpd.placeholder'
+                    instrumentIdentifier: 'com.mta.drpd.device-status-panel'
                   }
                 ]
               }
@@ -890,7 +906,7 @@ describe('RackView', () => {
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists VBUS, CC Lines, Device Status, and MESSAGE DETAIL instruments for compatible devices', async () => {
+  it('lists VBUS, CC Lines, Device Status, Timestrip, and MESSAGE DETAIL instruments for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -934,8 +950,51 @@ describe('RackView', () => {
       await screen.findByRole('button', { name: /sink control/i }),
     ).toBeInTheDocument()
     expect(
+      await screen.findByRole('button', { name: /timestrip/i }),
+    ).toBeInTheDocument()
+    expect(
       await screen.findByRole('button', { name: /message detail/i }),
     ).toBeInTheDocument()
+  })
+
+  it('allocates Timestrip as horizontally flexible with a fixed single-unit height', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-vbus',
+                    instrumentIdentifier: 'com.mta.drpd.vbus'
+                  },
+                  {
+                    id: 'inst-timestrip',
+                    instrumentIdentifier: 'com.mta.drpd.timestrip'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      })
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveAttribute(
+      'data-width-units',
+      '50',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveStyle({
+      height: '100px'
+    })
   })
 
   it('allocates MESSAGE DETAIL as horizontally and vertically flexible', async () => {
@@ -1006,10 +1065,10 @@ describe('RackView', () => {
     })
     await userEvent.click(addButton)
     const option = await screen.findByRole('button', {
-      name: /dr\. pd placeholder/i
+      name: /vbus/i
     })
     await userEvent.click(option)
 
-    expect(await screen.findAllByText('Dr. PD Placeholder')).not.toHaveLength(0)
+    expect(await screen.findAllByText('VBUS')).not.toHaveLength(0)
   })
 })

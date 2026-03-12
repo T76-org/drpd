@@ -12,10 +12,12 @@
 
 .rackViewport {
   width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  overflow: hidden;
+  overflow: auto;
   padding: var(--space-0);
   background: var(--color-surface-rack);
 }
@@ -23,6 +25,14 @@
 .rackScroll {
   position: relative;
   flex: 0 0 auto;
+  min-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.rackCanvasFrame {
+  position: relative;
+  overflow: hidden;
 }
 
 .rackCanvas {
@@ -36,6 +46,11 @@
   box-shadow: none;
   transform-origin: top left;
   position: relative;
+}
+
+.rackCanvasScaled {
+  position: absolute;
+  inset: 0 auto auto 0;
 }
 
 .rows {

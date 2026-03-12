@@ -73,8 +73,8 @@ describe('DRPDDevice state updates', () => {
     const updates: number[] = []
     device.addEventListener(DRPDDevice.ANALOG_MONITOR_CHANGED_EVENT, () => updates.push(1))
 
-    device.startAnalogMonitorPolling(250)
-    await vi.advanceTimersByTimeAsync(250)
+    device.startAnalogMonitorPolling(100)
+    await vi.advanceTimersByTimeAsync(100)
     expect(device.getState().analogMonitor?.vbus).toBe(5.0)
     expect(updates.length).toBe(1)
 
@@ -90,7 +90,7 @@ describe('DRPDDevice state updates', () => {
       '0.0',
       '0.6',
     ])
-    await vi.advanceTimersByTimeAsync(250)
+    await vi.advanceTimersByTimeAsync(100)
     expect(device.getState().analogMonitor?.vbus).toBe(5.1)
     expect(updates.length).toBe(2)
 

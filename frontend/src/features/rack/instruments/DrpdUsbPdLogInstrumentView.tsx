@@ -1,6 +1,7 @@
 import {
-  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useLayoutEffect,
   type MouseEvent as ReactMouseEvent,
   useEffect,
   useMemo,
@@ -26,18 +27,42 @@ import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
-import { DrpdUsbPdLogTimeStrip } from './DrpdUsbPdLogTimeStrip'
 
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
 const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
-const MIN_CAPTURED_MESSAGE_BUFFER = DRPD_USB_PD_LOG_CONFIG.tableBehavior.minCapturedMessageBuffer
+const MIN_CAPTURED_MESSAGE_BUFFER = 100
+const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
   activeIndex: null,
+}
+
+const resolveCssLength = (
+  value: string,
+  fallback: number,
+): number => {
+  if (value.trim().length === 0 || typeof document === 'undefined') {
+    return fallback
+  }
+
+  const probe = document.createElement('div')
+  probe.style.position = 'absolute'
+  probe.style.visibility = 'hidden'
+  probe.style.pointerEvents = 'none'
+  probe.style.width = value
+  document.body.appendChild(probe)
+
+  try {
+    const resolved = window.getComputedStyle(probe).width
+    const parsed = Number.parseFloat(resolved)
+    return Number.isFinite(parsed) ? parsed : fallback
+  } finally {
+    probe.remove()
+  }
 }
 
 type DisplayRow = {
@@ -56,17 +81,6 @@ type DisplayRow = {
   receiver: string
   sopType: string
   valid: string
-}
-
-type UsbPdLogInstrumentConfig = {
-  eventTextColor?: string
-  eventBackgroundColor?: string
-  captureChangedEventTextColor?: string
-  captureChangedEventBackgroundColor?: string
-  ccRoleChangedEventTextColor?: string
-  ccRoleChangedEventBackgroundColor?: string
-  ccStatusChangedEventTextColor?: string
-  ccStatusChangedEventBackgroundColor?: string
 }
 
 const formatMicroseconds = (value: bigint | null): string => {
@@ -243,7 +257,10 @@ export const DrpdUsbPdLogInstrumentView = ({
     if (typeof value !== 'number' || !Number.isFinite(value)) {
       return fallback
     }
-    return Math.max(MIN_CAPTURED_MESSAGE_BUFFER, Math.floor(value))
+    return Math.max(
+      MIN_CAPTURED_MESSAGE_BUFFER,
+      Math.min(MAX_CAPTURED_MESSAGE_BUFFER, Math.floor(value)),
+    )
   }, [deviceRecord?.config])
   const [bufferInput, setBufferInput] = useState(() =>
     configuredMaxCapturedMessages.toString(),
@@ -252,35 +269,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [isApplyingBuffer, setIsApplyingBuffer] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
   const [clearError, setClearError] = useState<string | null>(null)
-  const instrumentConfig = (instrument.config ?? {}) as UsbPdLogInstrumentConfig
-  const fallbackEventTextColor = instrumentConfig.eventTextColor
-  const fallbackEventBackgroundColor = instrumentConfig.eventBackgroundColor
-  const eventRowStyle = {
-    '--event-color-capture':
-      instrumentConfig.captureChangedEventTextColor ??
-      fallbackEventTextColor ??
-      'var(--color-status-warning)',
-    '--event-color-role':
-      instrumentConfig.ccRoleChangedEventTextColor ??
-      fallbackEventTextColor ??
-      'var(--color-status-info)',
-    '--event-color-status':
-      instrumentConfig.ccStatusChangedEventTextColor ??
-      fallbackEventTextColor ??
-      'var(--color-status-success)',
-    '--event-bg-capture':
-      instrumentConfig.captureChangedEventBackgroundColor ??
-      fallbackEventBackgroundColor ??
-      'color-mix(in srgb, var(--event-color-capture) 18%, transparent)',
-    '--event-bg-role':
-      instrumentConfig.ccRoleChangedEventBackgroundColor ??
-      fallbackEventBackgroundColor ??
-      'color-mix(in srgb, var(--event-color-role) 18%, transparent)',
-    '--event-bg-status':
-      instrumentConfig.ccStatusChangedEventBackgroundColor ??
-      fallbackEventBackgroundColor ??
-      'color-mix(in srgb, var(--event-color-status) 18%, transparent)',
-  } as CSSProperties
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -289,17 +277,16 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [totalRows, setTotalRows] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
+  const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
-  const activeSelectedKey =
-    selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
 
-  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT_PX) - OVERSCAN_ROWS)
-  const visibleRowCount = Math.ceil(viewportHeight / ROW_HEIGHT_PX) + OVERSCAN_ROWS * 2
+  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
+  const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
   const lastVisibleRow = Math.min(totalRows - 1, firstVisibleRow + visibleRowCount)
 
   const visibleRows = useMemo(() => {
@@ -342,13 +329,13 @@ export const DrpdUsbPdLogInstrumentView = ({
     setSelection(normalized)
   }
 
-  const readSelectionFromDriver = async (): Promise<DRPDLogSelectionState> => {
+  const readSelectionFromDriver = useCallback(async (): Promise<DRPDLogSelectionState> => {
     if (!driver) {
       return EMPTY_SELECTION
     }
     const maybeSelection = driver.getLogSelectionState()
     return normalizeSelectionState(await Promise.resolve(maybeSelection))
-  }
+  }, [driver])
 
   const enqueueSelectionTask = (task: () => Promise<void>): void => {
     selectionTaskRef.current = selectionTaskRef.current
@@ -401,8 +388,8 @@ export const DrpdUsbPdLogInstrumentView = ({
     if (!viewport) {
       return
     }
-    const rowTop = index * ROW_HEIGHT_PX
-    const rowBottom = rowTop + ROW_HEIGHT_PX
+    const rowTop = index * rowHeightPx
+    const rowBottom = rowTop + rowHeightPx
     if (rowTop < viewport.scrollTop) {
       viewport.scrollTop = rowTop
       return
@@ -413,7 +400,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }
 
-  const parseBufferInput = (): number | null => {
+  const parseBufferInput = useCallback((): number | null => {
     if (!/^\d+$/.test(bufferInput)) {
       return null
     }
@@ -422,11 +409,14 @@ export const DrpdUsbPdLogInstrumentView = ({
       return null
     }
     const normalized = Math.floor(parsed)
-    if (normalized < MIN_CAPTURED_MESSAGE_BUFFER) {
+    if (
+      normalized < MIN_CAPTURED_MESSAGE_BUFFER ||
+      normalized > MAX_CAPTURED_MESSAGE_BUFFER
+    ) {
       return null
     }
     return normalized
-  }
+  }, [bufferInput])
 
   useEffect(() => {
     totalRowsRef.current = totalRows
@@ -468,7 +458,28 @@ export const DrpdUsbPdLogInstrumentView = ({
       cancelled = true
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     }
-  }, [driver])
+  }, [driver, readSelectionFromDriver])
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    const updateRowHeight = () => {
+      const nextRowHeight = resolveCssLength(
+        window.getComputedStyle(viewport).getPropertyValue('--log-row-height'),
+        ROW_HEIGHT_PX,
+      )
+      setRowHeightPx(nextRowHeight)
+    }
+
+    updateRowHeight()
+    window.addEventListener('resize', updateRowHeight)
+    return () => {
+      window.removeEventListener('resize', updateRowHeight)
+    }
+  }, [])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -737,7 +748,8 @@ export const DrpdUsbPdLogInstrumentView = ({
       renderPopover: ({ closePopover }) => (
         <div className={styles.headerPopup}>
           <p className={styles.headerPopupText}>
-            This will permanently delete all entries in the log. Are you sure?
+            This will permanently delete all logged messages and analog samples, and clear the
+            time strip. Are you sure?
           </p>
           {clearError ? (
             <p className={styles.headerPopupError}>{clearError}</p>
@@ -792,25 +804,26 @@ export const DrpdUsbPdLogInstrumentView = ({
       disabled: !deviceRecord || !onUpdateDeviceConfig || isEditMode || isApplyingBuffer,
       renderPopover: ({ closePopover }) => (
         <div className={styles.headerPopup}>
-          <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-max-buffer`}>
-            Max message buffer
-          </label>
-          <input
-            id={`${instrument.id}-max-buffer`}
-            className={styles.headerPopupInput}
-            type="number"
-            min={MIN_CAPTURED_MESSAGE_BUFFER}
-            step={1}
-            value={bufferInput}
-            onChange={(event) => {
-              setBufferInput(event.currentTarget.value)
-              setBufferError(null)
-            }}
-            disabled={isApplyingBuffer}
-          />
-          <p className={styles.headerPopupHint}>
-            Minimum: {MIN_CAPTURED_MESSAGE_BUFFER}
-          </p>
+          <div className={styles.headerPopupFieldRow}>
+            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-max-buffer`}>
+              Message buffer size
+            </label>
+            <input
+              id={`${instrument.id}-max-buffer`}
+              className={styles.headerPopupInput}
+              aria-label="Max message buffer"
+              type="number"
+              min={MIN_CAPTURED_MESSAGE_BUFFER}
+              max={MAX_CAPTURED_MESSAGE_BUFFER}
+              step={1}
+              value={bufferInput}
+              onChange={(event) => {
+                setBufferInput(event.currentTarget.value)
+                setBufferError(null)
+              }}
+              disabled={isApplyingBuffer}
+            />
+          </div>
           {bufferError ? (
             <p className={styles.headerPopupError}>{bufferError}</p>
           ) : null}
@@ -836,7 +849,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                 const parsed = parseBufferInput()
                 if (parsed === null) {
                   setBufferError(
-                    `Enter an integer value of at least ${MIN_CAPTURED_MESSAGE_BUFFER}.`,
+                    `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
                   )
                   return
                 }
@@ -998,14 +1011,8 @@ export const DrpdUsbPdLogInstrumentView = ({
     >
       <div
         className={styles.wrapper}
-        style={eventRowStyle}
         data-testid="drpd-usbpd-log"
       >
-        <DrpdUsbPdLogTimeStrip
-          driver={driver}
-          selectedKey={activeSelectedKey}
-          isEditMode={isEditMode}
-        />
         <div className={styles.headerRow}>
           <span>Timestamp</span>
           <span>Length</span>
@@ -1026,13 +1033,13 @@ export const DrpdUsbPdLogInstrumentView = ({
             const element = event.currentTarget
             setScrollTop(element.scrollTop)
             atBottomRef.current =
-              element.scrollHeight - element.clientHeight - element.scrollTop <= ROW_HEIGHT_PX * 2
+              element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
           }}
           data-testid="drpd-usbpd-log-viewport"
         >
           <div
             className={styles.canvas}
-            style={{ height: `${Math.max(totalRows * ROW_HEIGHT_PX, 0)}px` }}
+            style={{ height: `${Math.max(totalRows * rowHeightPx, 0)}px` }}
             data-testid="drpd-usbpd-log-canvas"
           >
             {visibleRows.map(({ index, row }) => (
@@ -1048,7 +1055,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                style={{ transform: `translateY(${index * ROW_HEIGHT_PX}px)` }}
+                style={{ transform: `translateY(${index * rowHeightPx}px)` }}
                 onClick={(event) => {
                   handleRowClick(event, index, row)
                 }}

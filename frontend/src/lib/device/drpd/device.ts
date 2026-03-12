@@ -139,7 +139,7 @@ export class DRPDDevice extends EventTarget {
         activeIndex: null,
       },
     }
-    this.analogMonitorIntervalMs = 250
+    this.analogMonitorIntervalMs = 50
     this.analogMonitorPollingActive = false
     this.analogMonitorInFlight = false
     this.captureDrainIntervalMs = 1000
@@ -404,6 +404,7 @@ export class DRPDDevice extends EventTarget {
         hasMoreAfter: false,
         pulses: [],
         analogPoints: [],
+        events: [],
         timeAnchors: [],
       }
     }
@@ -483,7 +484,7 @@ export class DRPDDevice extends EventTarget {
     if (!this.logStore) {
       return {
         mimeType: request.format === 'json' ? 'application/json' : 'text/csv',
-        payload: request.format === 'json' ? '{\"analogSamples\":[],\"capturedMessages\":[]}' : '',
+        payload: request.format === 'json' ? '{"analogSamples":[],"capturedMessages":[]}' : '',
         analogCount: 0,
         messageCount: 0,
       }
@@ -530,7 +531,7 @@ export class DRPDDevice extends EventTarget {
    *
    * @param intervalMs - Poll interval in milliseconds.
    */
-  public startAnalogMonitorPolling(intervalMs = 250): void {
+  public startAnalogMonitorPolling(intervalMs = 100): void {
     this.analogMonitorIntervalMs = intervalMs
     this.stopAnalogMonitorPolling()
     this.analogMonitorTimer = setInterval(() => {

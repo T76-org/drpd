@@ -1,24 +1,6 @@
 import { Instrument } from '../../lib/instrument'
 
 /**
- * Dummy instrument compatible with the Dr. PD device.
- */
-export class DrpdPlaceholderInstrument extends Instrument {
-  /**
-   * Create a placeholder instrument definition.
-   */
-  public constructor() {
-    super({
-      identifier: 'com.mta.drpd.placeholder',
-      displayName: 'Dr. PD Placeholder',
-      supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 30 },
-      defaultUnits: 2
-    })
-  }
-}
-
-/**
  * VBUS instrument for Dr. PD analog telemetry.
  */
 export class DrpdVbusInstrument extends Instrument {
@@ -102,9 +84,27 @@ export class DrpdUsbPdLogInstrument extends Instrument {
       identifier: 'com.mta.drpd.usbpd-log',
       displayName: 'Message Log',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 25 },
+      defaultWidth: { mode: 'fixed', units: 30 },
       defaultUnits: 1,
       defaultHeightMode: 'flex'
+    })
+  }
+}
+
+/**
+ * Standalone timestrip instrument for Dr. PD capture logs.
+ */
+export class DrpdTimeStripInstrument extends Instrument {
+  /**
+   * Create a standalone timestrip instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.timestrip',
+      displayName: 'Timestrip',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'flex' },
+      defaultUnits: 1.25,
     })
   }
 }
@@ -119,7 +119,7 @@ export class DrpdMessageDetailInstrument extends Instrument {
   public constructor() {
     super({
       identifier: 'com.mta.drpd.message-detail',
-      displayName: 'MESSAGE DETAIL',
+      displayName: 'Message Detail',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'flex' },
       defaultUnits: 1,
@@ -138,7 +138,7 @@ export const getSupportedInstruments = (): Instrument[] => {
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),
     new DrpdUsbPdLogInstrument(),
+    new DrpdTimeStripInstrument(),
     new DrpdMessageDetailInstrument(),
-    new DrpdPlaceholderInstrument()
   ]
 }

@@ -12,11 +12,11 @@
           "instruments": [
             {
               "id": "inst-1",
-              "instrumentIdentifier": "com.mta.drpd.placeholder"
+              "instrumentIdentifier": "com.mta.drpd.device-status-panel"
             },
             {
               "id": "inst-2",
-              "instrumentIdentifier": "com.mta.drpd.device-status"
+              "instrumentIdentifier": "com.mta.drpd.vbus"
             }
           ]
         },
@@ -25,7 +25,7 @@
           "instruments": [
             {
               "id": "inst-3",
-              "instrumentIdentifier": "com.mta.drpd.device-status"
+              "instrumentIdentifier": "com.mta.drpd.usbpd-log"
             }
           ]
         }
