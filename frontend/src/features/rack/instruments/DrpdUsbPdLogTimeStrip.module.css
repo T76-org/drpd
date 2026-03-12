@@ -26,7 +26,7 @@
   --timestrip-axis-label-fill: color-mix(in srgb, var(--color-text-primary) 92%, white 8%);
   --timestrip-axis-label-font-size: calc(5px * var(--ui-scale));
   --timestrip-pulse-stroke: rgba(145, 208, 255, 0.92);
-  --timestrip-pulse-stroke-width: calc(1px * max(1, var(--ui-scale)));
+  --timestrip-pulse-stroke-width: calc(0.5px * max(1, var(--ui-scale)));
   --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
   --timestrip-pulse-high-y: calc(7px * var(--ui-scale));
   --timestrip-pulse-low-inset-bottom: calc(7px * var(--ui-scale));
