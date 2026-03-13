@@ -7,6 +7,21 @@ import styles from './DrpdVbusInstrumentView.module.css'
 
 const OVP_MAX_V = 50
 const OCP_MAX_A = 6
+const DISPLAY_UPDATE_RATE_STORAGE_PREFIX = 'drpd:vbus:display-rate:'
+const DEFAULT_DISPLAY_UPDATE_RATE_HZ = 3
+const MIN_DISPLAY_UPDATE_RATE_HZ = 1
+const MAX_DISPLAY_UPDATE_RATE_HZ = 30
+
+interface AveragedDisplayMeasurements {
+  vbusVoltage: number | null
+  vbusCurrent: number | null
+}
+
+interface PendingAverageAccumulator {
+  voltageSum: number
+  currentSum: number
+  sampleCount: number
+}
 
 /**
  * Format a numeric value using fixed decimals.
@@ -40,6 +55,39 @@ const formatProtectionThreshold = (
   }
   return `${(value / scale).toFixed(2)}${unit}`
 }
+
+const getDisplayRateStorage = (): Storage | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+  return window.localStorage ?? null
+}
+
+const loadDisplayUpdateRateHz = (storageKey: string): number => {
+  const storage = getDisplayRateStorage()
+  if (!storage) {
+    return DEFAULT_DISPLAY_UPDATE_RATE_HZ
+  }
+  const raw = storage.getItem(storageKey)
+  const parsed = raw == null ? NaN : Number(raw)
+  if (
+    Number.isFinite(parsed) &&
+    parsed >= MIN_DISPLAY_UPDATE_RATE_HZ &&
+    parsed <= MAX_DISPLAY_UPDATE_RATE_HZ
+  ) {
+    return parsed
+  }
+  return DEFAULT_DISPLAY_UPDATE_RATE_HZ
+}
+
+const buildDisplayMeasurements = (
+  analogMonitor: AnalogMonitorChannels | null,
+): AveragedDisplayMeasurements => ({
+  vbusVoltage:
+    analogMonitor && Number.isFinite(analogMonitor.vbus) ? analogMonitor.vbus : null,
+  vbusCurrent:
+    analogMonitor && Number.isFinite(analogMonitor.ibus) ? analogMonitor.ibus : null,
+})
 
 type ProtectionDisplayStatus = 'on' | 'off' | 'triggered'
 
@@ -108,8 +156,18 @@ export const DrpdVbusInstrumentView = ({
   onRemove?: (instrumentId: string) => void
 }) => {
   const driver = deviceState?.drpdDriver
+  const displayRateStorageKey = useMemo(
+    () => `${DISPLAY_UPDATE_RATE_STORAGE_PREFIX}${instrument.id}`,
+    [instrument.id],
+  )
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null
+  )
+  const [displayMeasurements, setDisplayMeasurements] = useState<AveragedDisplayMeasurements>(() =>
+    buildDisplayMeasurements(driver ? driver.getState().analogMonitor ?? null : null),
+  )
+  const [displayUpdateRateHz, setDisplayUpdateRateHz] = useState<number>(() =>
+    loadDisplayUpdateRateHz(displayRateStorageKey),
   )
   const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
     driver ? driver.getState().vbusInfo ?? null : null
@@ -128,9 +186,28 @@ export const DrpdVbusInstrumentView = ({
     }
     return (thresholdMa / 1000).toFixed(2)
   })
+  const [displayUpdateRateInput, setDisplayUpdateRateInput] = useState<string>(() =>
+    loadDisplayUpdateRateHz(displayRateStorageKey).toString(),
+  )
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingProtection, setIsResettingProtection] = useState(false)
+  const pendingAverageRef = useRef<PendingAverageAccumulator>({
+    voltageSum: 0,
+    currentSum: 0,
+    sampleCount: 0,
+  })
+
+  useEffect(() => {
+    const initialAnalogMonitor = driver ? driver.getState().analogMonitor ?? null : null
+    setAnalogMonitor(initialAnalogMonitor)
+    setDisplayMeasurements(buildDisplayMeasurements(initialAnalogMonitor))
+  }, [driver])
+
+  useEffect(() => {
+    setDisplayUpdateRateHz(loadDisplayUpdateRateHz(displayRateStorageKey))
+    setDisplayUpdateRateInput(loadDisplayUpdateRateHz(displayRateStorageKey).toString())
+  }, [displayRateStorageKey])
 
   useEffect(() => {
     if (!driver) {
@@ -164,8 +241,58 @@ export const DrpdVbusInstrumentView = ({
     }
   }, [driver])
 
-  const vbusVoltage = analogMonitor?.vbus
-  const vbusCurrent = analogMonitor?.ibus
+  useEffect(() => {
+    if (!analogMonitor) {
+      pendingAverageRef.current = {
+        voltageSum: 0,
+        currentSum: 0,
+        sampleCount: 0,
+      }
+      setDisplayMeasurements({ vbusVoltage: null, vbusCurrent: null })
+      return
+    }
+    if (!Number.isFinite(analogMonitor.vbus) || !Number.isFinite(analogMonitor.ibus)) {
+      return
+    }
+    pendingAverageRef.current = {
+      voltageSum: pendingAverageRef.current.voltageSum + analogMonitor.vbus,
+      currentSum: pendingAverageRef.current.currentSum + analogMonitor.ibus,
+      sampleCount: pendingAverageRef.current.sampleCount + 1,
+    }
+  }, [analogMonitor])
+
+  useEffect(() => {
+    const periodMs = 1000 / displayUpdateRateHz
+    const timerId = window.setInterval(() => {
+      const pending = pendingAverageRef.current
+      if (pending.sampleCount <= 0) {
+        return
+      }
+      setDisplayMeasurements({
+        vbusVoltage: pending.voltageSum / pending.sampleCount,
+        vbusCurrent: pending.currentSum / pending.sampleCount,
+      })
+      pendingAverageRef.current = {
+        voltageSum: 0,
+        currentSum: 0,
+        sampleCount: 0,
+      }
+    }, periodMs)
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [displayUpdateRateHz])
+
+  useEffect(() => {
+    const storage = getDisplayRateStorage()
+    if (!storage) {
+      return
+    }
+    storage.setItem(displayRateStorageKey, displayUpdateRateHz.toString())
+  }, [displayRateStorageKey, displayUpdateRateHz])
+
+  const vbusVoltage = displayMeasurements.vbusVoltage
+  const vbusCurrent = displayMeasurements.vbusCurrent
   const powerValue =
     vbusVoltage != null && vbusCurrent != null
       ? vbusVoltage * vbusCurrent
@@ -234,6 +361,7 @@ export const DrpdVbusInstrumentView = ({
                   ? (vbusInfo.ocpThresholdMa / 1000).toFixed(2)
                   : '',
               )
+              setDisplayUpdateRateInput(displayUpdateRateHz.toString())
             }}
             onUnmount={() => {
               // No cleanup needed
@@ -282,6 +410,28 @@ export const DrpdVbusInstrumentView = ({
           <p className={styles.headerPopupHint}>
             OVP range: 0-{OVP_MAX_V}V · OCP range: 0-{OCP_MAX_A}A
           </p>
+          <div className={styles.headerPopupField}>
+            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-display-rate`}>
+              Display Rate (Hz)
+            </label>
+            <input
+              id={`${instrument.id}-display-rate`}
+              className={styles.headerPopupInput}
+              type="number"
+              min={MIN_DISPLAY_UPDATE_RATE_HZ}
+              max={MAX_DISPLAY_UPDATE_RATE_HZ}
+              step={1}
+              value={displayUpdateRateInput}
+              onChange={(event) => {
+                setDisplayUpdateRateInput(event.currentTarget.value)
+                setConfigureError(null)
+              }}
+              disabled={isApplyingConfig}
+            />
+          </div>
+          <p className={styles.headerPopupHint}>
+            Display update rate range: {MIN_DISPLAY_UPDATE_RATE_HZ}-{MAX_DISPLAY_UPDATE_RATE_HZ} Hz
+          </p>
           {configureError ? (
             <p className={styles.headerPopupError}>{configureError}</p>
           ) : null}
@@ -306,6 +456,7 @@ export const DrpdVbusInstrumentView = ({
                 }
                 const parsedOvpV = Number(ovpThresholdInput)
                 const parsedOcpA = Number(ocpThresholdInput)
+                const parsedDisplayUpdateRateHz = Number(displayUpdateRateInput)
                 if (!Number.isFinite(parsedOvpV) || parsedOvpV < 0 || parsedOvpV > OVP_MAX_V) {
                   setConfigureError(`OVP must be between 0 and ${OVP_MAX_V} V.`)
                   return
@@ -314,11 +465,22 @@ export const DrpdVbusInstrumentView = ({
                   setConfigureError(`OCP must be between 0 and ${OCP_MAX_A} A.`)
                   return
                 }
+                if (
+                  !Number.isFinite(parsedDisplayUpdateRateHz) ||
+                  parsedDisplayUpdateRateHz < MIN_DISPLAY_UPDATE_RATE_HZ ||
+                  parsedDisplayUpdateRateHz > MAX_DISPLAY_UPDATE_RATE_HZ
+                ) {
+                  setConfigureError(
+                    `Display rate must be between ${MIN_DISPLAY_UPDATE_RATE_HZ} and ${MAX_DISPLAY_UPDATE_RATE_HZ} Hz.`,
+                  )
+                  return
+                }
 
                 setIsApplyingConfig(true)
                 setConfigureError(null)
                 void Promise.resolve()
                   .then(async () => {
+                    setDisplayUpdateRateHz(parsedDisplayUpdateRateHz)
                     if (vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP) {
                       await driver.vbus.resetFault()
                     }
@@ -354,6 +516,8 @@ export const DrpdVbusInstrumentView = ({
     isEditMode,
     ocpThresholdInput,
     ovpThresholdInput,
+    displayUpdateRateHz,
+    displayUpdateRateInput,
     isResettingProtection,
     vbusInfo,
   ])
