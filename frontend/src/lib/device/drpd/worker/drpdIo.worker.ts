@@ -514,6 +514,13 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         if (method === 'getStatus') {
           return await session.device.analogMonitor.getStatus()
         }
+        if (method === 'getAccumulatedMeasurements') {
+          return await session.device.analogMonitor.getAccumulatedMeasurements()
+        }
+        if (method === 'resetAccumulatedMeasurements') {
+          await session.device.analogMonitor.resetAccumulatedMeasurements()
+          return null
+        }
         throw new Error(`Unsupported analogMonitor method: ${method}`)
       }
       if (target === 'ccBus') {

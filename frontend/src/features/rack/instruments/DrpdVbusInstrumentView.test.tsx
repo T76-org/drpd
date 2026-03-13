@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AnalogMonitorChannels, VBusInfo } from '../../../lib/device'
 import { DRPDDevice, VBusStatus } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
@@ -83,49 +83,34 @@ const buildDeviceRecord = (): RackDeviceRecord => ({
   productId: 0x000a
 })
 
-const AH_STORAGE_KEY = 'drpd:vbus:ah:instrument:inst-1'
-
-const createStorage = (): Storage => {
-  const store = new Map<string, string>()
-  return {
-    clear: () => {
-      store.clear()
-    },
-    getItem: (key: string) => store.get(key) ?? null,
-    key: (index: number) => Array.from(store.keys())[index] ?? null,
-    removeItem: (key: string) => {
-      store.delete(key)
-    },
-    setItem: (key: string, value: string) => {
-      store.set(key, value)
-    },
-    get length() {
-      return store.size
-    }
-  }
-}
+const buildAnalogMonitor = (
+  overrides: Partial<AnalogMonitorChannels> = {},
+): AnalogMonitorChannels => ({
+  captureTimestampUs: 1000n,
+  vbus: 12.34,
+  ibus: 1.5,
+  dutCc1: 0,
+  dutCc2: 0,
+  usdsCc1: 0,
+  usdsCc2: 0,
+  adcVref: 0,
+  groundRef: 0,
+  currentVref: 0,
+  accumulationElapsedTimeUs: 0n,
+  accumulatedChargeMah: 0,
+  accumulatedEnergyMwh: 0,
+  ...overrides
+})
 
 describe('DrpdVbusInstrumentView', () => {
-  beforeEach(() => {
-    vi.stubGlobal('localStorage', createStorage())
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('renders derived power from voltage and current', () => {
-    window.localStorage.setItem(AH_STORAGE_KEY, '0')
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    driver.setAnalogMonitor({
-      captureTimestampUs: 1000n,
-      vbus: 12.34,
-      ibus: 1.5,
-      dutCc1: 0,
-      dutCc2: 0,
-      usdsCc1: 0,
-      usdsCc2: 0,
-      adcVref: 0,
-      groundRef: 0,
-      currentVref: 0
-    })
+    driver.setAnalogMonitor(buildAnalogMonitor())
 
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -145,38 +130,32 @@ describe('DrpdVbusInstrumentView', () => {
     expect(screen.queryByText('POWER')).toBeNull()
     expect(screen.queryByText('Role')).toBeNull()
     expect(screen.queryByText('Capture')).toBeNull()
-    expect(screen.queryByText('Status')).toBeNull()
     expect(screen.queryByText('DUT')).toBeNull()
     expect(screen.queryByText('US/DS')).toBeNull()
     const powerValue = screen.getByText('18.51')
     const powerBlock = powerValue.closest('div')
     expect(powerBlock).not.toBeNull()
     expect(powerBlock).toHaveTextContent('W')
-    const ahValue = screen.getByText('0.00')
-    const ahBlock = ahValue.closest('div')
-    expect(ahBlock).not.toBeNull()
-    expect(ahBlock).toHaveTextContent('Ah')
+    expect(screen.queryByText('Ah')).toBeNull()
     expect(screen.getByText('OVP')).toBeInTheDocument()
     expect(screen.getByText('OCP')).toBeInTheDocument()
+    expect(screen.getByText('STATUS')).toBeInTheDocument()
+    expect(screen.getByText('OK')).toBeInTheDocument()
     expect(screen.getAllByText('----')).toHaveLength(2)
   })
 
-  it('accumulates and persists Ah from sampled current over time', async () => {
-    window.localStorage.setItem(AH_STORAGE_KEY, '0')
+  it('updates displayed measurements at the configured rate using averaged samples', () => {
+    vi.useFakeTimers()
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    driver.setAnalogMonitor({
-      captureTimestampUs: 0n,
-      vbus: 5,
-      ibus: 2,
-      dutCc1: 0,
-      dutCc2: 0,
-      usdsCc1: 0,
-      usdsCc2: 0,
-      adcVref: 0,
-      groundRef: 0,
-      currentVref: 0
-    })
+    driver.setAnalogMonitor(
+      buildAnalogMonitor({
+        captureTimestampUs: 1000n,
+        vbus: 6,
+        ibus: 1
+      }),
+    )
+
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
       status: 'connected',
@@ -192,19 +171,28 @@ describe('DrpdVbusInstrumentView', () => {
       />
     )
 
+    expect(screen.getAllByText('6.00')).toHaveLength(2)
+
     act(() => {
-      driver.setAnalogMonitor({
-        captureTimestampUs: 1_800_000_000n,
-        vbus: 5,
-        ibus: 2,
-        dutCc1: 0,
-        dutCc2: 0,
-        usdsCc1: 0,
-        usdsCc2: 0,
-        adcVref: 0,
-        groundRef: 0,
-        currentVref: 0
-      })
+      driver.setAnalogMonitor(
+        buildAnalogMonitor({
+          captureTimestampUs: 2000n,
+          vbus: 12,
+          ibus: 2
+        }),
+      )
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { changed: ['analogMonitor'] }
+        }),
+      )
+      driver.setAnalogMonitor(
+        buildAnalogMonitor({
+          captureTimestampUs: 3000n,
+          vbus: 18,
+          ibus: 3
+        }),
+      )
       driver.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
           detail: { changed: ['analogMonitor'] }
@@ -212,66 +200,27 @@ describe('DrpdVbusInstrumentView', () => {
       )
     })
 
-    await waitFor(() => {
-      expect(screen.getByText('1.00')).toBeInTheDocument()
-    })
-    expect(window.localStorage.getItem(AH_STORAGE_KEY)).toBe('1')
-  })
+    expect(screen.getAllByText('6.00')).toHaveLength(2)
 
-  it('loads persisted Ah value on mount', () => {
-    window.localStorage.setItem(AH_STORAGE_KEY, '12.5')
-    const transport = new TestTransport()
-    const driver = new TestDRPDDevice(transport)
-    driver.setAnalogMonitor({
-      captureTimestampUs: 10n,
-      vbus: 9,
-      ibus: 0.5,
-      dutCc1: 0,
-      dutCc2: 0,
-      usdsCc1: 0,
-      usdsCc2: 0,
-      adcVref: 0,
-      groundRef: 0,
-      currentVref: 0
+    act(() => {
+      vi.advanceTimersByTime(334)
     })
 
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver
-    }
-
-    render(
-      <DrpdVbusInstrumentView
-        instrument={buildInstrument()}
-        displayName="VBUS"
-        deviceState={deviceState}
-        isEditMode={false}
-      />
-    )
-
-    const ahValue = screen.getByText('12.50')
-    const ahBlock = ahValue.closest('div')
-    expect(ahBlock).not.toBeNull()
-    expect(ahBlock).toHaveTextContent('Ah')
+    expect(screen.getByText('12.00')).toBeInTheDocument()
+    expect(screen.getByText('2.00')).toBeInTheDocument()
+    expect(screen.getByText('24.00')).toBeInTheDocument()
   })
 
   it('loads protection thresholds from startup state and tracks vbusInfo events', async () => {
-    window.localStorage.setItem(AH_STORAGE_KEY, '0')
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    driver.setAnalogMonitor({
-      captureTimestampUs: 100n,
-      vbus: 12,
-      ibus: 1,
-      dutCc1: 0,
-      dutCc2: 0,
-      usdsCc1: 0,
-      usdsCc2: 0,
-      adcVref: 0,
-      groundRef: 0,
-      currentVref: 0
-    })
+    driver.setAnalogMonitor(
+      buildAnalogMonitor({
+        captureTimestampUs: 100n,
+        vbus: 12,
+        ibus: 1
+      }),
+    )
     driver.setVBusInfo({
       status: VBusStatus.ENABLED,
       ovpThresholdMv: 15000,
@@ -298,6 +247,7 @@ describe('DrpdVbusInstrumentView', () => {
     expect(startupProtection).toHaveAttribute('data-protection-state', 'on')
     expect(screen.getByText('15.00V')).toBeInTheDocument()
     expect(screen.getByText('3.00A')).toBeInTheDocument()
+    expect(screen.getByText('OK')).toBeInTheDocument()
 
     act(() => {
       driver.setVBusInfo({
@@ -318,5 +268,6 @@ describe('DrpdVbusInstrumentView', () => {
         'triggered',
       )
     })
+    expect(screen.getByText('Triggered')).toBeInTheDocument()
   })
 })

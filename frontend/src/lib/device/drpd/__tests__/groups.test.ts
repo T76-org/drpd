@@ -76,11 +76,38 @@ describe('DRPD command groups', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
 
     const group = new DRPDAnalogMonitor(transport)
     const status = await group.getStatus()
     expect(status.vbus).toBeCloseTo(5.0)
+    expect(status.accumulatedEnergyMwh).toBe(34)
+  })
+
+  it('queries accumulated measurements', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('MEAS:ACC?', ['2500', '12', '34'])
+
+    const group = new DRPDAnalogMonitor(transport)
+    const counters = await group.getAccumulatedMeasurements()
+    expect(counters.accumulationElapsedTimeUs).toBe(2500n)
+    expect(counters.accumulatedChargeMah).toBe(12)
+    expect(counters.accumulatedEnergyMwh).toBe(34)
+  })
+
+  it('resets accumulated measurements', async () => {
+    const transport = new MockTransport()
+    const group = new DRPDAnalogMonitor(transport)
+
+    await group.resetAccumulatedMeasurements()
+
+    expect(transport.commands[0]).toEqual({
+      command: 'MEAS:ACC:RESET',
+      params: [],
+    })
   })
 
   it('sends CC bus role updates with raw enum tokens', async () => {

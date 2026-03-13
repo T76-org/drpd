@@ -19,6 +19,24 @@ export class DrpdVbusInstrument extends Instrument {
 }
 
 /**
+ * Accumulator instrument for Dr. PD analog telemetry.
+ */
+export class DrpdChargeEnergyInstrument extends Instrument {
+  /**
+   * Create an Accumulator instrument definition.
+   */
+  public constructor() {
+    super({
+      identifier: 'com.mta.drpd.charge-energy',
+      displayName: 'Accumulator',
+      supportedDeviceIdentifiers: ['com.mta.drpd'],
+      defaultWidth: { mode: 'fixed', units: 7 },
+      defaultUnits: 1
+    })
+  }
+}
+
+/**
  * Device status instrument for Dr. PD role/capture controls and status.
  */
 export class DrpdDeviceStatusInstrument extends Instrument {
@@ -152,6 +170,7 @@ export class DrpdMessageDetailInstrument extends Instrument {
 export const getSupportedInstruments = (): Instrument[] => {
   return [
     new DrpdVbusInstrument(),
+    new DrpdChargeEnergyInstrument(),
     new DrpdCcLinesInstrument(),
     new DrpdDeviceStatusInstrument(),
     new DrpdSinkControlInstrument(),

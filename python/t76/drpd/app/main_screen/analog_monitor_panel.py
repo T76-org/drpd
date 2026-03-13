@@ -34,6 +34,18 @@ class AnalogMonitorPanel(VerticalGroup):
         super().__init__(*args, **kwargs)
         self._power_window: deque = deque(maxlen=self.POWER_WINDOW_SIZE)
 
+    @staticmethod
+    def _format_accumulation_elapsed_time(elapsed_time_us: int | None) -> str:
+        """Format elapsed accumulation time as hhh:mm:ss."""
+        if elapsed_time_us is None:
+            return "N/A"
+
+        total_seconds = max(0, elapsed_time_us // 1_000_000)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:03d}:{minutes:02d}:{seconds:02d}"
+
     def update(self, new_status: Optional[AnalogMonitorChannels]) -> None:
         if self.device is None or not self.is_mounted:
             return
@@ -44,6 +56,9 @@ class AnalogMonitorPanel(VerticalGroup):
                 self.query_one("#vbus-value", Static).update("N/A")
                 self.query_one("#ibus-value", Static).update("N/A")
                 self.query_one("#pbus-value", Static).update("N/A")
+                self.query_one("#accum-time-value", Static).update("N/A")
+                self.query_one("#accum-charge-value", Static).update("N/A")
+                self.query_one("#accum-energy-value", Static).update("N/A")
                 self.query_one("#dut-cc1-value", Static).update("N/A")
                 self.query_one("#dut-cc2-value", Static).update("N/A")
                 self.query_one("#usds-cc1-value", Static).update("N/A")
@@ -63,6 +78,25 @@ class AnalogMonitorPanel(VerticalGroup):
                            Static).update(f"{new_status.ibus:6.2f}A")
             self.query_one('#pbus-value',
                            Static).update(f"{averaged_power:6.2f}W")
+            accumulation_time = self._format_accumulation_elapsed_time(
+                new_status.accumulation_elapsed_time_us
+            )
+            accumulation_charge = (
+                "N/A"
+                if new_status.accumulated_charge_mah is None
+                else f"{new_status.accumulated_charge_mah}mAh"
+            )
+            accumulation_energy = (
+                "N/A"
+                if new_status.accumulated_energy_mwh is None
+                else f"{new_status.accumulated_energy_mwh}mWh"
+            )
+            self.query_one('#accum-time-value',
+                           Static).update(accumulation_time)
+            self.query_one('#accum-charge-value',
+                           Static).update(accumulation_charge)
+            self.query_one('#accum-energy-value',
+                           Static).update(accumulation_energy)
             self.query_one('#dut-cc1-value',
                            Static).update(
                 f"{new_status.dut_cc1:6.2f}V\n"
@@ -136,6 +170,24 @@ class AnalogMonitorPanel(VerticalGroup):
                 "PBUS", id="pbus-header").add_class("status-header"),
             Static(
                 "W", id="pbus-value").add_class("status-value")
+        ).add_class("status-row")
+        yield HorizontalGroup(
+            Static(
+                "ACCUM T", id="accum-time-header").add_class("status-header"),
+            Static(
+                "us", id="accum-time-value").add_class("status-value")
+        ).add_class("status-row")
+        yield HorizontalGroup(
+            Static(
+                "ACCUM Q", id="accum-charge-header").add_class("status-header"),
+            Static(
+                "mAh", id="accum-charge-value").add_class("status-value")
+        ).add_class("status-row")
+        yield HorizontalGroup(
+            Static(
+                "ACCUM E", id="accum-energy-header").add_class("status-header"),
+            Static(
+                "mWh", id="accum-energy-value").add_class("status-value")
         ).add_class("status-row")
         yield Divider()
         yield HorizontalGroup(

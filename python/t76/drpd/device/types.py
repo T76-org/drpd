@@ -77,7 +77,8 @@ class AnalogMonitorChannels:
     Represents the analog monitor channels and their voltages.
 
     The VBUS capture timestamp is in microseconds when provided by the
-    device firmware.
+    device firmware. Accumulation values are reported as elapsed time in
+    microseconds plus absolute charge and energy counters.
     """
     vbus_timestamp_us: int | None
     dut_cc1: float
@@ -89,6 +90,9 @@ class AnalogMonitorChannels:
     adc_vref: float
     ground_ref: float
     current_vref: float
+    accumulation_elapsed_time_us: int | None
+    accumulated_charge_mah: int | None
+    accumulated_energy_mwh: int | None
 
     @property
     def dut_cc1_status(self) -> AnalogMonitorCCChannelStatus:

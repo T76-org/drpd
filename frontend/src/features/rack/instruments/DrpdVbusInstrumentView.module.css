@@ -37,12 +37,13 @@
 .powerSection {
   padding-right: var(--space-0);
   gap: var(--space-0);
+  padding-bottom: var(--space-0);
   justify-content: flex-start;
   align-items: flex-start;
 }
 
 .vbusValue {
-  font-size: var(--font-size-3xl);
+  font-size: var(--font-size-4xl);
   font-weight: var(--font-weight-semibold);
   color: var(--color-metric-voltage);
   line-height: var(--line-height-snug);
@@ -115,13 +116,9 @@
 }
 
 .powerValue {
+  padding-top: var(--space-10);
   color: var(--color-metric-power);
-  font-size: var(--font-size-lg);
-}
-
-.chargeValue {
-  color: var(--color-metric-charge);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
 }
 
 .protectionValue {
@@ -158,29 +155,12 @@
   padding-right: var(--space-7);
 }
 
-.protectionOn {
+.protectionStatusOk {
   color: var(--protection-color-on);
 }
 
-.protectionOff {
-  color: var(--protection-color-off);
-}
-
-.protectionTriggered {
+.protectionStatusTriggered {
   color: var(--protection-color-triggered);
-  animation: protection-alert-flash 0.25s steps(1, end) infinite;
-}
-
-@keyframes protection-alert-flash {
-  0% {
-    color: var(--protection-color-triggered);
-  }
-  50.01% {
-    color: var(--protection-color-off);
-  }
-  100% {
-    color: var(--protection-color-off);
-  }
 }
 
 .unit {

@@ -52,17 +52,26 @@ class DeviceAnalogMonitor:
             "s",
         )
 
-        if len(result) not in (9, 10):
+        if len(result) not in (9, 10, 12, 13):
             raise ValueError(
-                "Expected 9 or 10 parameters in the voltage response."
+                "Expected 9, 10, 12, or 13 parameters in the voltage response."
             )
 
-        if len(result) == 10:
+        if len(result) in (10, 13):
             vbus_timestamp_us = int(result[0])
             data_offset = 1
         else:
             vbus_timestamp_us = None
             data_offset = 0
+
+        if len(result) - data_offset >= 12:
+            accumulation_elapsed_time_us = int(result[data_offset + 9])
+            accumulated_charge_mah = int(result[data_offset + 10])
+            accumulated_energy_mwh = int(result[data_offset + 11])
+        else:
+            accumulation_elapsed_time_us = None
+            accumulated_charge_mah = None
+            accumulated_energy_mwh = None
 
         return AnalogMonitorChannels(
             vbus_timestamp_us=vbus_timestamp_us,
@@ -75,6 +84,9 @@ class DeviceAnalogMonitor:
             adc_vref=float(result[data_offset + 6]),
             ground_ref=float(result[data_offset + 7]),
             current_vref=float(result[data_offset + 8]),
+            accumulation_elapsed_time_us=accumulation_elapsed_time_us,
+            accumulated_charge_mah=accumulated_charge_mah,
+            accumulated_energy_mwh=accumulated_energy_mwh,
         )
 
     async def start_recurring_status_updates(

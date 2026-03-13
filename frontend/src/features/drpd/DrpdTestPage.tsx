@@ -188,6 +188,24 @@ export const DrpdTestPage = () => {
               {analogStats ? formatNumber(analogStats.currentVref) : '—'}
             </div>
           </div>
+          <div className={styles.kvItem}>
+            <div className={styles.kvLabel}>Accum Elapsed (us)</div>
+            <div className={styles.kvValue}>
+              {analogStats ? analogStats.accumulationElapsedTimeUs.toString() : '—'}
+            </div>
+          </div>
+          <div className={styles.kvItem}>
+            <div className={styles.kvLabel}>Accum Charge (mAh)</div>
+            <div className={styles.kvValue}>
+              {analogStats ? analogStats.accumulatedChargeMah.toString() : '—'}
+            </div>
+          </div>
+          <div className={styles.kvItem}>
+            <div className={styles.kvLabel}>Accum Energy (mWh)</div>
+            <div className={styles.kvValue}>
+              {analogStats ? analogStats.accumulatedEnergyMwh.toString() : '—'}
+            </div>
+          </div>
         </div>
 
         {error ? <div className={styles.error}>Error: {error}</div> : null}

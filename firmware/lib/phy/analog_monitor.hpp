@@ -57,14 +57,18 @@ namespace T76::DRPD::PHY {
         Util::WindowAverager<float, (2 * (1 << PHY_ANALOG_MONITOR_DECIMATION_BITS))> vBusVoltageAverager;
         Util::WindowAverager<float, (2 * (1 << PHY_ANALOG_MONITOR_DECIMATION_BITS))> vBusCurrentAverager;
 
-        float dutCC1Voltage;
-        float dutCC2Voltage;
-        float usdsCC1Voltage;
-        float usdsCC2Voltage;
-        float adcVRefVoltage;
-        float groundRefVoltage;
-        float currentRefVoltage;
-        uint64_t captureTimestampUs; ///< Timestamp in microseconds when VBUS values were captured
+        float dutCC1Voltage = 0.0f;
+        float dutCC2Voltage = 0.0f;
+        float usdsCC1Voltage = 0.0f;
+        float usdsCC2Voltage = 0.0f;
+        float adcVRefVoltage = 0.0f;
+        float groundRefVoltage = 0.0f;
+        float currentRefVoltage = 0.0f;
+        uint64_t captureTimestampUs = 0; ///< Timestamp in microseconds when VBUS values were captured
+        uint64_t accumulationStartTimestampUs = 0; ///< Timestamp in microseconds when accumulation window started
+        uint64_t lastAccumulationTimestampUs = 0; ///< Timestamp in microseconds of the latest integrated VBUS sample
+        uint32_t accumulatedChargeMah = 0; ///< Accumulated absolute charge in milliamp-hours
+        uint32_t accumulatedEnergyMwh = 0; ///< Accumulated absolute energy in milliwatt-hours
     } AnalogMonitorReadings;
 
     /**
@@ -104,6 +108,12 @@ namespace T76::DRPD::PHY {
          * 
          */
         void readCCLineValues();
+
+        /**
+         * @brief Reset accumulated charge and energy counters.
+         * 
+         */
+        void resetAccumulatedMeasurements();
 
         /**
          * @brief Get the VBUS voltage reading
@@ -169,6 +179,27 @@ namespace T76::DRPD::PHY {
         float currentRefVoltage() const;
 
         /**
+         * @brief Get the accumulated charge value.
+         * 
+         * @return uint32_t Accumulated absolute charge in milliamp-hours.
+         */
+        uint32_t accumulatedChargeMah() const;
+
+        /**
+         * @brief Get the accumulated energy value.
+         * 
+         * @return uint32_t Accumulated absolute energy in milliwatt-hours.
+         */
+        uint32_t accumulatedEnergyMwh() const;
+
+        /**
+         * @brief Get the elapsed time in the current accumulation window.
+         * 
+         * @return uint64_t Elapsed time in microseconds since accumulation start.
+         */
+        uint64_t accumulationElapsedTimeUs() const;
+
+        /**
          * @brief Get all analog monitor readings at once
          * 
          * @return AnalogMonitorReadings 
@@ -207,6 +238,8 @@ namespace T76::DRPD::PHY {
         };
 
         AnalogMonitorReadings _readings; ///< Struct holding all current readings
+        uint64_t _chargeAccumulationResidue = 0; ///< Sub-mAh charge numerator residue in centiamp-microseconds
+        uint64_t _energyAccumulationResidue = 0; ///< Sub-mWh energy numerator residue in centivolt-centiamp-microseconds
 
         /**
          * @brief Read the voltage from a specific ADC channel

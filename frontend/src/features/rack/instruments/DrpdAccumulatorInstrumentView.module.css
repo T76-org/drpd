@@ -1,0 +1,92 @@
+.wrapper {
+  --metric-number-width: calc(60px * var(--ui-scale));
+  --metric-unit-width: calc(12px * var(--ui-scale));
+  --metric-value-width: calc(
+    var(--metric-number-width) + var(--metric-unit-width) + var(--space-1)
+  );
+  --separator-opacity: 0.8;
+
+  display: grid;
+  grid-auto-rows: 1fr;
+  row-gap: var(--space-0);
+  height: 100%;
+  width: 100%;
+  align-content: stretch;
+  align-items: stretch;
+  color: var(--color-text-primary);
+  margin: calc(var(--space-10) * -1) calc(var(--space-12) * -1);
+  height: calc(100% + 20px);
+  width: calc(100% + 24px);
+  padding: var(--space-0) var(--space-6);
+}
+
+.metricRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  width: 100%;
+  padding: var(--space-0);
+}
+
+.metricRow + .metricRow {
+  position: relative;
+  padding-top: var(--space-0);
+  margin-top: var(--space-0);
+}
+
+.metricRow + .metricRow::before {
+  content: '';
+  position: absolute;
+  left: var(--space-0);
+  right: var(--space-0);
+  margin: var(--space-0) var(--space-6);
+  top: var(--space-0);
+  height: var(--border-thin);
+  background: var(--color-border-panel);
+  opacity: var(--separator-opacity);
+}
+
+.label {
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  display: grid;
+  grid-template-columns: minmax(0, var(--metric-number-width)) var(--metric-unit-width);
+  column-gap: var(--space-1);
+  align-items: baseline;
+  width: var(--metric-value-width);
+  justify-self: end;
+}
+
+.valueNumber {
+  text-align: right;
+}
+
+.valueUnit {
+  font-size: var(--font-size-xs);
+  text-align: right;
+}
+
+.elapsed {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.unassigned {
+  margin-top: var(--space-6);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}

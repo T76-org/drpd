@@ -1695,7 +1695,10 @@ export class DRPDDevice extends EventTarget {
       left.usdsCc2 === right.usdsCc2 &&
       left.adcVref === right.adcVref &&
       left.groundRef === right.groundRef &&
-      left.currentVref === right.currentVref
+      left.currentVref === right.currentVref &&
+      left.accumulationElapsedTimeUs === right.accumulationElapsedTimeUs &&
+      left.accumulatedChargeMah === right.accumulatedChargeMah &&
+      left.accumulatedEnergyMwh === right.accumulatedEnergyMwh
     )
   }
 

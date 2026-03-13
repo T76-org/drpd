@@ -81,3 +81,31 @@ describe('DRPDWorkerDeviceProxy trigger group', () => {
     })
   })
 })
+
+describe('DRPDWorkerDeviceProxy analog monitor group', () => {
+  it('forwards accumulated measurement calls to the worker session RPC', async () => {
+    const callWorker = vi.fn(async () => null)
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const proxy = new TestDRPDWorkerDeviceProxy(client)
+
+    await proxy.analogMonitor.getAccumulatedMeasurements()
+    await proxy.analogMonitor.resetAccumulatedMeasurements()
+
+    expect(callWorker).toHaveBeenNthCalledWith(1, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'getAccumulatedMeasurements',
+      args: [],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(2, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'resetAccumulatedMeasurements',
+      args: [],
+    })
+  })
+})

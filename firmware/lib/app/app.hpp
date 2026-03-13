@@ -91,6 +91,8 @@ namespace T76::DRPD {
         void _measureADCRefVoltage(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureCurrentRefVoltage(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureGroundRefVoltage(const std::vector<T76::SCPI::ParameterValue> &);
+        void _measureAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &);
+        void _resetAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &);
 
         void _queryCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &);
         void _setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &);

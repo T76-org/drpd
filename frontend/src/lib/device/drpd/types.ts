@@ -271,6 +271,18 @@ export interface MemoryUsage {
 }
 
 /**
+ * Accumulated VBUS charge and energy counters.
+ */
+export interface AccumulatedMeasurements {
+  ///< Elapsed accumulation time in microseconds.
+  accumulationElapsedTimeUs: bigint
+  ///< Accumulated absolute charge in milliamp-hours.
+  accumulatedChargeMah: number
+  ///< Accumulated absolute energy in milliwatt-hours.
+  accumulatedEnergyMwh: number
+}
+
+/**
  * Analog monitor channel measurements.
  */
 export interface AnalogMonitorChannels {
@@ -294,6 +306,12 @@ export interface AnalogMonitorChannels {
   groundRef: number
   ///< Current reference voltage.
   currentVref: number
+  ///< Elapsed accumulation time in microseconds.
+  accumulationElapsedTimeUs: bigint
+  ///< Accumulated absolute charge in milliamp-hours.
+  accumulatedChargeMah: number
+  ///< Accumulated absolute energy in milliwatt-hours.
+  accumulatedEnergyMwh: number
 }
 
 /**
