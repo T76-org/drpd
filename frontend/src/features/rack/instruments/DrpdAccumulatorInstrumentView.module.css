@@ -4,21 +4,48 @@
   --metric-value-width: calc(
     var(--metric-number-width) + var(--metric-unit-width) + var(--space-1)
   );
+  --separator-opacity: 0.8;
 
   display: grid;
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
+  grid-auto-rows: 1fr;
+  row-gap: var(--space-0);
   height: 100%;
   width: 100%;
+  align-content: stretch;
+  align-items: stretch;
   color: var(--color-text-primary);
+  margin: calc(var(--space-10) * -1) calc(var(--space-12) * -1);
+  height: calc(100% + 20px);
+  width: calc(100% + 24px);
+  padding: var(--space-0) var(--space-6);
 }
 
 .metricRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  width: 100%;
+  padding: var(--space-0);
+}
+
+.metricRow + .metricRow {
+  position: relative;
+  padding-top: var(--space-0);
+  margin-top: var(--space-0);
+}
+
+.metricRow + .metricRow::before {
+  content: '';
+  position: absolute;
+  left: var(--space-0);
+  right: var(--space-0);
+  margin: var(--space-0) var(--space-6);
+  top: var(--space-0);
+  height: var(--border-thin);
+  background: var(--color-border-panel);
+  opacity: var(--separator-opacity);
 }
 
 .label {
