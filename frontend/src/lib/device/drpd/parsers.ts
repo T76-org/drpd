@@ -21,6 +21,7 @@ import {
   VBusStatus,
 } from './types'
 import type {
+  AccumulatedMeasurements,
   AnalogMonitorChannels,
   CapturedMessage,
   DeviceIdentity,
@@ -477,6 +478,25 @@ export const parseAnalogMonitorChannels = (values: string[]): AnalogMonitorChann
     accumulationElapsedTimeUs: parseBigIntValue(values[10], 'Accumulation elapsed time'),
     accumulatedChargeMah: parseIntValue(values[11], 'Accumulated charge'),
     accumulatedEnergyMwh: parseIntValue(values[12], 'Accumulated energy'),
+  }
+}
+
+/**
+ * Parse accumulated measurement response values.
+ *
+ * @param values - Parsed response tokens.
+ * @returns Accumulated charge and energy counters.
+ */
+export const parseAccumulatedMeasurements = (
+  values: string[],
+): AccumulatedMeasurements => {
+  if (values.length !== 3) {
+    throw new Error(`Expected 3 accumulated values, got ${values.length}`)
+  }
+  return {
+    accumulationElapsedTimeUs: parseBigIntValue(values[0], 'Accumulation elapsed time'),
+    accumulatedChargeMah: parseIntValue(values[1], 'Accumulated charge'),
+    accumulatedEnergyMwh: parseIntValue(values[2], 'Accumulated energy'),
   }
 }
 

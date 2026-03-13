@@ -9,6 +9,7 @@ import {
 import type { RackDeviceState, RackInstrumentDragPayload } from './RackRenderer'
 import { InstrumentBase } from './InstrumentBase'
 import { DrpdCcLinesInstrumentView } from './instruments/DrpdCcLinesInstrumentView'
+import { DrpdAccumulatorInstrumentView } from './instruments/DrpdAccumulatorInstrumentView'
 import { DrpdDeviceStatusInstrumentView } from './instruments/DrpdDeviceStatusInstrumentView'
 import { DrpdMessageDetailInstrumentView } from './instruments/DrpdMessageDetailInstrumentView'
 import { DrpdSinkControlInstrumentView } from './instruments/DrpdSinkControlInstrumentView'
@@ -345,6 +346,17 @@ const renderInstrument = ({
     case 'com.mta.drpd.device-status-panel':
       return (
         <DrpdDeviceStatusInstrumentView
+          instrument={instrument}
+          displayName={definition?.displayName ?? 'Instrument'}
+          deviceRecord={deviceRecord}
+          deviceState={deviceState}
+          isEditMode={isEditMode}
+          onRemove={onRemove}
+        />
+      )
+    case 'com.mta.drpd.charge-energy':
+      return (
+        <DrpdAccumulatorInstrumentView
           instrument={instrument}
           displayName={definition?.displayName ?? 'Instrument'}
           deviceRecord={deviceRecord}

@@ -549,7 +549,7 @@ describe('RackView', () => {
     )
   })
 
-  it('keeps CC Lines, Device Status, and VBUS fixed-width allocations', async () => {
+  it('keeps CC Lines, Device Status, VBUS, and Accumulator fixed-width allocations', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -573,6 +573,10 @@ describe('RackView', () => {
                   {
                     id: 'inst-vbus',
                     instrumentIdentifier: 'com.mta.drpd.vbus'
+                  },
+                  {
+                    id: 'inst-charge-energy',
+                    instrumentIdentifier: 'com.mta.drpd.charge-energy'
                   }
                 ]
               }
@@ -595,6 +599,10 @@ describe('RackView', () => {
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
       'data-width-units',
       '10',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-charge-energy')).toHaveAttribute(
+      'data-width-units',
+      '7',
     )
   })
 
@@ -911,7 +919,7 @@ describe('RackView', () => {
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists VBUS, CC Lines, Device Status, Sync Trigger, Timestrip, and MESSAGE DETAIL instruments for compatible devices', async () => {
+  it('lists VBUS, Accumulator, CC Lines, Device Status, Sync Trigger, Timestrip, and MESSAGE DETAIL instruments for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -944,6 +952,9 @@ describe('RackView', () => {
     await userEvent.click(addButton)
     expect(
       await screen.findByRole('button', { name: /vbus/i }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /accumulator/i }),
     ).toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: /cc lines/i }),

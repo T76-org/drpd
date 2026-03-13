@@ -1,0 +1,44 @@
+.wrapper {
+  display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  height: 100%;
+  width: 100%;
+  color: var(--color-text-primary);
+}
+
+.metricRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.elapsed {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.unassigned {
+  margin-top: var(--space-6);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}

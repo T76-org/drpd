@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   analogMonitorCCStatusFromVoltage,
+  parseAccumulatedMeasurements,
   parseAnalogMonitorChannels,
   parseCapturedMessage,
   parseDeviceIdentity,
@@ -88,6 +89,13 @@ describe('drpd parsers', () => {
     expect(channels.accumulationElapsedTimeUs).toBe(2500n)
     expect(channels.accumulatedChargeMah).toBe(12)
     expect(channels.accumulatedEnergyMwh).toBe(34)
+  })
+
+  it('parses accumulated measurement responses', () => {
+    const counters = parseAccumulatedMeasurements(['2500', '12', '34'])
+    expect(counters.accumulationElapsedTimeUs).toBe(2500n)
+    expect(counters.accumulatedChargeMah).toBe(12)
+    expect(counters.accumulatedEnergyMwh).toBe(34)
   })
 
   it('parses sink PDO responses', () => {

@@ -7,10 +7,11 @@
 
 import type { DRPDTransport } from './transport'
 import {
+  parseAccumulatedMeasurements,
   parseAnalogMonitorChannels,
   parseSingleNumber,
 } from './parsers'
-import type { AnalogMonitorChannels } from './types'
+import type { AccumulatedMeasurements, AnalogMonitorChannels } from './types'
 
 /**
  * Analog monitor command group for DRPD devices.
@@ -35,6 +36,23 @@ export class DRPDAnalogMonitor {
   public async getStatus(): Promise<AnalogMonitorChannels> {
     const response = await this.transport.queryText('MEAS:ALL?')
     return parseAnalogMonitorChannels(response)
+  }
+
+  /**
+   * Query accumulated VBUS charge and energy counters.
+   *
+   * @returns Accumulated measurement counters.
+   */
+  public async getAccumulatedMeasurements(): Promise<AccumulatedMeasurements> {
+    const response = await this.transport.queryText('MEAS:ACC?')
+    return parseAccumulatedMeasurements(response)
+  }
+
+  /**
+   * Reset accumulated VBUS charge and energy counters.
+   */
+  public async resetAccumulatedMeasurements(): Promise<void> {
+    await this.transport.sendCommand('MEAS:ACC:RESET')
   }
 
   /**
