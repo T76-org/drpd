@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AnalogMonitorChannels, VBusInfo } from '../../../lib/device'
 import { DRPDDevice, VBusStatus } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
@@ -83,25 +83,34 @@ const buildDeviceRecord = (): RackDeviceRecord => ({
   productId: 0x000a
 })
 
+const buildAnalogMonitor = (
+  overrides: Partial<AnalogMonitorChannels> = {},
+): AnalogMonitorChannels => ({
+  captureTimestampUs: 1000n,
+  vbus: 12.34,
+  ibus: 1.5,
+  dutCc1: 0,
+  dutCc2: 0,
+  usdsCc1: 0,
+  usdsCc2: 0,
+  adcVref: 0,
+  groundRef: 0,
+  currentVref: 0,
+  accumulationElapsedTimeUs: 0n,
+  accumulatedChargeMah: 0,
+  accumulatedEnergyMwh: 0,
+  ...overrides
+})
+
 describe('DrpdVbusInstrumentView', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('renders derived power from voltage and current', () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    driver.setAnalogMonitor({
-      captureTimestampUs: 1000n,
-      vbus: 12.34,
-      ibus: 1.5,
-      dutCc1: 0,
-      dutCc2: 0,
-      usdsCc1: 0,
-      usdsCc2: 0,
-      adcVref: 0,
-      groundRef: 0,
-      currentVref: 0,
-      accumulationElapsedTimeUs: 0n,
-      accumulatedChargeMah: 0,
-      accumulatedEnergyMwh: 0
-    })
+    driver.setAnalogMonitor(buildAnalogMonitor())
 
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -135,24 +144,83 @@ describe('DrpdVbusInstrumentView', () => {
     expect(screen.getAllByText('----')).toHaveLength(2)
   })
 
+  it('updates displayed measurements at the configured rate using averaged samples', () => {
+    vi.useFakeTimers()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setAnalogMonitor(
+      buildAnalogMonitor({
+        captureTimestampUs: 1000n,
+        vbus: 6,
+        ibus: 1
+      }),
+    )
+
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver
+    }
+
+    render(
+      <DrpdVbusInstrumentView
+        instrument={buildInstrument()}
+        displayName="VBUS"
+        deviceState={deviceState}
+        isEditMode={false}
+      />
+    )
+
+    expect(screen.getAllByText('6.00')).toHaveLength(2)
+
+    act(() => {
+      driver.setAnalogMonitor(
+        buildAnalogMonitor({
+          captureTimestampUs: 2000n,
+          vbus: 12,
+          ibus: 2
+        }),
+      )
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { changed: ['analogMonitor'] }
+        }),
+      )
+      driver.setAnalogMonitor(
+        buildAnalogMonitor({
+          captureTimestampUs: 3000n,
+          vbus: 18,
+          ibus: 3
+        }),
+      )
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { changed: ['analogMonitor'] }
+        }),
+      )
+    })
+
+    expect(screen.getAllByText('6.00')).toHaveLength(2)
+
+    act(() => {
+      vi.advanceTimersByTime(334)
+    })
+
+    expect(screen.getByText('12.00')).toBeInTheDocument()
+    expect(screen.getByText('2.00')).toBeInTheDocument()
+    expect(screen.getByText('24.00')).toBeInTheDocument()
+  })
+
   it('loads protection thresholds from startup state and tracks vbusInfo events', async () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    driver.setAnalogMonitor({
-      captureTimestampUs: 100n,
-      vbus: 12,
-      ibus: 1,
-      dutCc1: 0,
-      dutCc2: 0,
-      usdsCc1: 0,
-      usdsCc2: 0,
-      adcVref: 0,
-      groundRef: 0,
-      currentVref: 0,
-      accumulationElapsedTimeUs: 0n,
-      accumulatedChargeMah: 0,
-      accumulatedEnergyMwh: 0
-    })
+    driver.setAnalogMonitor(
+      buildAnalogMonitor({
+        captureTimestampUs: 100n,
+        vbus: 12,
+        ibus: 1
+      }),
+    )
     driver.setVBusInfo({
       status: VBusStatus.ENABLED,
       ovpThresholdMv: 15000,

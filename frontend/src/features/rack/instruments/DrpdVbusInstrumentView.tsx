@@ -60,7 +60,11 @@ const getDisplayRateStorage = (): Storage | null => {
   if (typeof window === 'undefined') {
     return null
   }
-  return window.localStorage ?? null
+  const storage = window.localStorage
+  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
+    return null
+  }
+  return storage
 }
 
 const loadDisplayUpdateRateHz = (storageKey: string): number => {
