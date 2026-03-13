@@ -5,8 +5,6 @@ import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdVbusInstrumentView.module.css'
 
-const VBUS_AH_STORAGE_PREFIX = 'drpd:vbus:ah:'
-const MICROSECONDS_PER_HOUR = 3_600_000_000
 const OVP_MAX_V = 50
 const OCP_MAX_A = 6
 
@@ -92,41 +90,6 @@ const PopoverLifecycle = ({
 }
 
 /**
- * Resolve a safe localStorage instance when available.
- *
- * @returns Storage instance or null.
- */
-const getVbusStorage = (): Storage | null => {
-  if (typeof window === 'undefined') {
-    return null
-  }
-  const storage = window.localStorage
-  if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') {
-    return null
-  }
-  return storage
-}
-
-/**
- * Load persisted Ah value from local storage.
- *
- * @param key - Storage key.
- * @returns Persisted Ah value, defaulting to zero.
- */
-const loadPersistedAh = (key: string): number => {
-  const storage = getVbusStorage()
-  if (!storage) {
-    return 0
-  }
-  const raw = storage.getItem(key)
-  if (!raw) {
-    return 0
-  }
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-/**
  * VBUS instrument showing live analog measurements.
  */
 export const DrpdVbusInstrumentView = ({
@@ -145,10 +108,6 @@ export const DrpdVbusInstrumentView = ({
   onRemove?: (instrumentId: string) => void
 }) => {
   const driver = deviceState?.drpdDriver
-  const storageKey = useMemo(() => {
-    const scopeId = deviceRecord?.id ?? `instrument:${instrument.id}`
-    return `${VBUS_AH_STORAGE_PREFIX}${scopeId}`
-  }, [deviceRecord?.id, instrument.id])
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null
   )
@@ -172,18 +131,6 @@ export const DrpdVbusInstrumentView = ({
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingProtection, setIsResettingProtection] = useState(false)
-  const [accumulatedAhState, setAccumulatedAhState] = useState<{
-    storageKey: string
-    value: number
-  }>(() => ({
-    storageKey,
-    value: loadPersistedAh(storageKey)
-  }))
-  const accumulatedAh =
-    accumulatedAhState.storageKey === storageKey
-      ? accumulatedAhState.value
-      : loadPersistedAh(storageKey)
-  const lastSampleTimestampRef = useRef<bigint | null>(analogMonitor?.captureTimestampUs ?? null)
 
   useEffect(() => {
     if (!driver) {
@@ -216,55 +163,6 @@ export const DrpdVbusInstrumentView = ({
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     }
   }, [driver])
-
-  useEffect(() => {
-    lastSampleTimestampRef.current = null
-  }, [storageKey])
-
-  useEffect(() => {
-    const storage = getVbusStorage()
-    if (!storage) {
-      return
-    }
-    storage.setItem(storageKey, accumulatedAh.toString())
-  }, [accumulatedAh, storageKey])
-
-  useEffect(() => {
-    if (!analogMonitor) {
-      return
-    }
-    const sampleTimestampUs = analogMonitor.captureTimestampUs
-    const currentAmps = analogMonitor.ibus
-    if (!Number.isFinite(currentAmps)) {
-      lastSampleTimestampRef.current = sampleTimestampUs
-      return
-    }
-    const previousTimestampUs = lastSampleTimestampRef.current
-    lastSampleTimestampRef.current = sampleTimestampUs
-    if (previousTimestampUs == null || sampleTimestampUs <= previousTimestampUs) {
-      return
-    }
-    const deltaUs = Number(sampleTimestampUs - previousTimestampUs)
-    if (!Number.isFinite(deltaUs) || deltaUs <= 0) {
-      return
-    }
-    const deltaHours = deltaUs / MICROSECONDS_PER_HOUR
-    const deltaAh = currentAmps * deltaHours
-    if (!Number.isFinite(deltaAh)) {
-      return
-    }
-    setAccumulatedAhState((previousState) => {
-      const baseAh =
-        previousState.storageKey === storageKey
-          ? previousState.value
-          : loadPersistedAh(storageKey)
-      const nextAh = baseAh + deltaAh
-      return {
-        storageKey,
-        value: nextAh
-      }
-    })
-  }, [analogMonitor, storageKey])
 
   const vbusVoltage = analogMonitor?.vbus
   const vbusCurrent = analogMonitor?.ibus
@@ -311,16 +209,6 @@ export const DrpdVbusInstrumentView = ({
             disabled={!isProtectionTriggered || isResettingProtection}
           >
             {isResettingProtection ? 'Resetting Protection...' : 'Reset Protection'}
-          </button>
-          <button
-            type="button"
-            className={styles.headerPopupButton}
-            onClick={() => {
-              setAccumulatedAhState({ storageKey, value: 0 })
-              closePopover()
-            }}
-          >
-            Reset Charge/Power Tracker
           </button>
         </div>
       )
@@ -467,7 +355,6 @@ export const DrpdVbusInstrumentView = ({
     ovpThresholdInput,
     isResettingProtection,
     vbusInfo,
-    storageKey,
   ])
 
   return (
@@ -507,14 +394,6 @@ export const DrpdVbusInstrumentView = ({
                 {formatNumber(powerValue, 2)}
               </span>
               <span className={styles.unit}>W</span>
-            </div>
-          </div>
-          <div className={styles.metricBlock}>
-            <div className={`${styles.metricValue} ${styles.chargeValue}`}>
-              <span className={styles.metricNumber}>
-                {formatNumber(accumulatedAh, 2)}
-              </span>
-              <span className={styles.unit}>Ah</span>
             </div>
           </div>
           <div className={styles.metricBlock}>

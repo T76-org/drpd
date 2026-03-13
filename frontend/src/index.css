@@ -29,7 +29,7 @@
   --font-size-xl: calc(1rem * var(--ui-scale));
   --font-size-2xl: calc(1.125rem * var(--ui-scale));
   --font-size-3xl: calc(1.75rem * var(--ui-scale));
-  --font-size-4xl: calc(2.51rem * var(--ui-scale));
+  --font-size-4xl: calc(2rem * var(--ui-scale));
 
   /* Shared typography scale for all rack menus and popovers. */
   --font-size-popup: calc(0.4rem * var(--ui-scale));
