@@ -175,6 +175,7 @@ export const DrpdVbusInstrumentView = ({
   const ocpValueText = formatProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
   const isProtectionTriggered =
     vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP
+  const protectionStatusText = isProtectionTriggered ? 'Triggered' : 'OK'
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
     const resetControl: InstrumentHeaderControl = {
@@ -398,13 +399,7 @@ export const DrpdVbusInstrumentView = ({
           </div>
           <div className={styles.metricBlock}>
             <div
-              className={`${styles.protectionValue} ${
-                protectionState === 'on'
-                  ? styles.protectionOn
-                  : protectionState === 'triggered'
-                    ? styles.protectionTriggered
-                    : styles.protectionOff
-              }`}
+              className={styles.protectionValue}
               data-testid="vbus-protection"
               data-protection-state={protectionState}
             >
@@ -415,6 +410,16 @@ export const DrpdVbusInstrumentView = ({
               <div className={styles.protectionLine}>
                 <span className={styles.protectionLabel}>OCP</span>
                 <span className={styles.protectionThreshold}>{ocpValueText}</span>
+              </div>
+              <div className={styles.protectionLine}>
+                <span className={styles.protectionLabel}>STATUS</span>
+                <span
+                  className={`${styles.protectionThreshold} ${
+                    isProtectionTriggered ? styles.protectionStatusTriggered : styles.protectionStatusOk
+                  }`}
+                >
+                  {protectionStatusText}
+                </span>
               </div>
             </div>
           </div>

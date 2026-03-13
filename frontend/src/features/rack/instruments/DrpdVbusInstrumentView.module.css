@@ -155,29 +155,12 @@
   padding-right: var(--space-7);
 }
 
-.protectionOn {
+.protectionStatusOk {
   color: var(--protection-color-on);
 }
 
-.protectionOff {
-  color: var(--protection-color-off);
-}
-
-.protectionTriggered {
+.protectionStatusTriggered {
   color: var(--protection-color-triggered);
-  animation: protection-alert-flash 0.25s steps(1, end) infinite;
-}
-
-@keyframes protection-alert-flash {
-  0% {
-    color: var(--protection-color-triggered);
-  }
-  50.01% {
-    color: var(--protection-color-off);
-  }
-  100% {
-    color: var(--protection-color-off);
-  }
 }
 
 .unit {

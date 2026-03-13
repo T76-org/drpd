@@ -118,7 +118,6 @@ describe('DrpdVbusInstrumentView', () => {
     expect(screen.queryByText('POWER')).toBeNull()
     expect(screen.queryByText('Role')).toBeNull()
     expect(screen.queryByText('Capture')).toBeNull()
-    expect(screen.queryByText('Status')).toBeNull()
     expect(screen.queryByText('DUT')).toBeNull()
     expect(screen.queryByText('US/DS')).toBeNull()
     const powerValue = screen.getByText('18.51')
@@ -128,6 +127,8 @@ describe('DrpdVbusInstrumentView', () => {
     expect(screen.queryByText('Ah')).toBeNull()
     expect(screen.getByText('OVP')).toBeInTheDocument()
     expect(screen.getByText('OCP')).toBeInTheDocument()
+    expect(screen.getByText('STATUS')).toBeInTheDocument()
+    expect(screen.getByText('OK')).toBeInTheDocument()
     expect(screen.getAllByText('----')).toHaveLength(2)
   })
 
@@ -172,6 +173,7 @@ describe('DrpdVbusInstrumentView', () => {
     expect(startupProtection).toHaveAttribute('data-protection-state', 'on')
     expect(screen.getByText('15.00V')).toBeInTheDocument()
     expect(screen.getByText('3.00A')).toBeInTheDocument()
+    expect(screen.getByText('OK')).toBeInTheDocument()
 
     act(() => {
       driver.setVBusInfo({
@@ -192,5 +194,6 @@ describe('DrpdVbusInstrumentView', () => {
         'triggered',
       )
     })
+    expect(screen.getByText('Triggered')).toBeInTheDocument()
   })
 })
