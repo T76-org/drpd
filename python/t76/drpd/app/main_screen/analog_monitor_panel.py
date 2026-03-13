@@ -34,6 +34,18 @@ class AnalogMonitorPanel(VerticalGroup):
         super().__init__(*args, **kwargs)
         self._power_window: deque = deque(maxlen=self.POWER_WINDOW_SIZE)
 
+    @staticmethod
+    def _format_accumulation_elapsed_time(elapsed_time_us: int | None) -> str:
+        """Format elapsed accumulation time as hhh:mm:ss."""
+        if elapsed_time_us is None:
+            return "N/A"
+
+        total_seconds = max(0, elapsed_time_us // 1_000_000)
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:03d}:{minutes:02d}:{seconds:02d}"
+
     def update(self, new_status: Optional[AnalogMonitorChannels]) -> None:
         if self.device is None or not self.is_mounted:
             return
@@ -66,10 +78,8 @@ class AnalogMonitorPanel(VerticalGroup):
                            Static).update(f"{new_status.ibus:6.2f}A")
             self.query_one('#pbus-value',
                            Static).update(f"{averaged_power:6.2f}W")
-            accumulation_time = (
-                "N/A"
-                if new_status.accumulation_elapsed_time_us is None
-                else f"{new_status.accumulation_elapsed_time_us}us"
+            accumulation_time = self._format_accumulation_elapsed_time(
+                new_status.accumulation_elapsed_time_us
             )
             accumulation_charge = (
                 "N/A"
