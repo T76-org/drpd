@@ -123,13 +123,17 @@ export const DrpdAccumulatorInstrumentView = ({
         <div className={styles.metricRow}>
           <span className={styles.label}>Charge</span>
           <span className={styles.value} data-testid="charge-energy-charge">
-            {formatMetric(accumulatedChargeAh, 2)} Ah
+            <span className={styles.valueNumber}>{formatMetric(accumulatedChargeAh, 2)}</span>
+            {' '}
+            <span className={styles.valueUnit}>Ah</span>
           </span>
         </div>
         <div className={styles.metricRow}>
           <span className={styles.label}>Energy</span>
           <span className={styles.value} data-testid="charge-energy-energy">
-            {formatMetric(accumulatedEnergyWh, 2)} Wh
+            <span className={styles.valueNumber}>{formatMetric(accumulatedEnergyWh, 2)}</span>
+            {' '}
+            <span className={styles.valueUnit}>Wh</span>
           </span>
         </div>
         <div className={styles.metricRow}>

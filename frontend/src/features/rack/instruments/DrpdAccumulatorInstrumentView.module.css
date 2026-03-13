@@ -1,4 +1,10 @@
 .wrapper {
+  --metric-number-width: calc(60px * var(--ui-scale));
+  --metric-unit-width: calc(12px * var(--ui-scale));
+  --metric-value-width: calc(
+    var(--metric-number-width) + var(--metric-unit-width) + var(--space-1)
+  );
+
   display: grid;
   grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
@@ -28,6 +34,21 @@
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  display: grid;
+  grid-template-columns: minmax(0, var(--metric-number-width)) var(--metric-unit-width);
+  column-gap: var(--space-1);
+  align-items: baseline;
+  width: var(--metric-value-width);
+  justify-self: end;
+}
+
+.valueNumber {
+  text-align: right;
+}
+
+.valueUnit {
+  font-size: var(--font-size-xs);
+  text-align: right;
 }
 
 .elapsed {
