@@ -304,8 +304,8 @@ describe('SQLiteWasmStore', () => {
     expect(jsonExport.mimeType).toBe('application/json')
     expect(jsonExport.analogCount).toBe(1)
     expect(jsonExport.messageCount).toBe(1)
-    expect(jsonExport.payload).toContain('\"timestampUs\": \"123\"')
-    expect(jsonExport.payload).toContain('\"rawSopHex\"')
+    expect(jsonExport.payload).toContain('"timestampUs": "123"')
+    expect(jsonExport.payload).toContain('"rawSopHex"')
 
     const csvExport = await store.exportData({
       format: 'csv',

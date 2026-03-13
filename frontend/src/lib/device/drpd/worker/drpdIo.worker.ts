@@ -389,6 +389,8 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         case 'enforceRetention':
           await store.enforceRetention()
           return null
+        default:
+          return request.params satisfies never
       }
     }
     case 'drpdSession.create': {

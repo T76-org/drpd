@@ -42,7 +42,7 @@ export const loadRackDocument = async (): Promise<RackDocument> => {
       throw new Error('Invalid rack document payload')
     }
     return data
-  } catch (error) {
+  } catch {
     const defaults = buildDefaultRackDocument()
     storage.setItem(RACK_STORAGE_KEY, JSON.stringify(defaults))
     return defaults

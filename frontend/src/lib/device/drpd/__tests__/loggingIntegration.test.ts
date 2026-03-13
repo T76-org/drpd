@@ -49,9 +49,13 @@ class MockTransport implements DRPDTransport {
   public textResponses = new Map<string, string[]>()
   public binaryResponses = new Map<string, Uint8Array[]>()
 
-  public async sendCommand(_command: string, ..._params: DRPDSCPIParam[]): Promise<void> {}
+  public async sendCommand(command: string, ...params: DRPDSCPIParam[]): Promise<void> {
+    void command
+    void params
+  }
 
-  public async queryText(command: string, ..._params: DRPDSCPIParam[]): Promise<string[]> {
+  public async queryText(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
+    void params
     const response = this.textResponses.get(command)
     if (!response) {
       throw new Error(`Missing response for ${command}`)
@@ -59,7 +63,8 @@ class MockTransport implements DRPDTransport {
     return response
   }
 
-  public async queryBinary(command: string, ..._params: DRPDSCPIParam[]): Promise<Uint8Array> {
+  public async queryBinary(command: string, ...params: DRPDSCPIParam[]): Promise<Uint8Array> {
+    void params
     const entries = this.binaryResponses.get(command)
     if (!entries || entries.length === 0) {
       throw new Error(`Missing binary response for ${command}`)
@@ -159,10 +164,12 @@ describe('DRPD logging integration', () => {
       public async close(): Promise<void> {}
       public async insertAnalogSample(): Promise<void> {}
       public async insertCapturedMessage(): Promise<void> {}
-      public async queryAnalogSamples(_query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
+      public async queryAnalogSamples(query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
+        void query
         return []
       }
-      public async queryCapturedMessages(_query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
+      public async queryCapturedMessages(query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
+        void query
         return [expectedRow]
       }
       public async queryMessageLogTimeStripWindow() {

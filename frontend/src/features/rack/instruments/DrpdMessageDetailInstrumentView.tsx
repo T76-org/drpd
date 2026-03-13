@@ -202,6 +202,8 @@ const formatSOPType = (kind: SOPKind): string => {
       return 'Hard Reset'
     case 'SOP_CABLE_RESET':
       return 'Cable Reset'
+    case 'UNKNOWN':
+      return 'Unknown'
   }
 }
 
@@ -221,6 +223,8 @@ const describeSOPType = (kind: SOPKind): string => {
       return 'Hard Reset ordered set.'
     case 'SOP_CABLE_RESET':
       return 'Cable Reset ordered set.'
+    case 'UNKNOWN':
+      return 'Unknown ordered set.'
   }
 }
 

@@ -19,4 +19,7 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     exclude: ['@sqlite.org/sqlite-wasm'],
   },
+  worker: {
+    format: 'es',
+  },
 }))

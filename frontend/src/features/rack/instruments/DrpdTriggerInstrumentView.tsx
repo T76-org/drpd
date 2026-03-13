@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   DRPDDevice,
   OnOffState,
@@ -198,9 +198,6 @@ export const DrpdTriggerInstrumentView = ({
 }) => {
   void deviceRecord
   const driver = deviceState?.drpdDriver
-  const [triggerInfo, setTriggerInfo] = useState<TriggerInfo | null>(
-    driver ? driver.getState().triggerInfo ?? null : null,
-  )
   const [eventTypeInput, setEventTypeInput] = useState<TriggerEventType>(TriggerEventType.OFF)
   const [eventThresholdInput, setEventThresholdInput] = useState<string>('1')
   const [autoRepeatInput, setAutoRepeatInput] = useState<OnOffState>(OnOffState.OFF)
@@ -210,43 +207,38 @@ export const DrpdTriggerInstrumentView = ({
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingTrigger, setIsResettingTrigger] = useState(false)
 
-  /**
-   * Seed popup form state from the latest trigger snapshot.
-   */
-  const syncFormFromTriggerInfo = () => {
-    setEventTypeInput(triggerInfo?.type ?? TriggerEventType.OFF)
-    setEventThresholdInput(String(triggerInfo?.eventThreshold ?? 1))
-    setAutoRepeatInput(triggerInfo?.autorepeat ?? OnOffState.OFF)
-    setSyncModeInput(triggerInfo?.syncMode ?? TriggerSyncMode.OFF)
-    setSyncPulseWidthUsInput(String(triggerInfo?.syncPulseWidthUs ?? 1))
-  }
-
-  useEffect(() => {
-    if (!driver) {
-      setTriggerInfo(null)
-      return
-    }
-
-    /**
-     * Handle live driver updates for trigger changes.
-     *
-     * @param event - Device state event.
-     */
-    const handleStateUpdated = (event: Event) => {
-      const detail = event instanceof CustomEvent ? event.detail : undefined
-      const changed = Array.isArray(detail?.changed) ? (detail.changed as string[]) : null
-      if (changed && !changed.includes('triggerInfo')) {
-        return
+  const triggerInfo = useSyncExternalStore(
+    (onStoreChange) => {
+      if (!driver) {
+        return () => {
+          // No subscription when a driver is unavailable.
+        }
       }
-      setTriggerInfo(driver.getState().triggerInfo ?? null)
-    }
 
-    setTriggerInfo(driver.getState().triggerInfo ?? null)
-    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
-    return () => {
-      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
-    }
-  }, [driver])
+      /**
+       * Notify subscribers when trigger info changes.
+       *
+       * @param event - Device state update event.
+       */
+      const handleStateUpdated = (event: Event) => {
+        const detail = event instanceof CustomEvent ? event.detail : undefined
+        const changed = Array.isArray(detail?.changed) ? (detail.changed as string[]) : null
+        if (changed && !changed.includes('triggerInfo')) {
+          return
+        }
+        onStoreChange()
+      }
+
+      driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+      return () => {
+        driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+      }
+    },
+    () => (driver ? driver.getState().triggerInfo ?? null : null),
+    () => null,
+  )
+
+  const visibleTriggerInfo = driver ? triggerInfo : null
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
     const configureControl: InstrumentHeaderControl = {
@@ -257,7 +249,11 @@ export const DrpdTriggerInstrumentView = ({
         <div className={styles.headerPopup}>
           <PopoverLifecycle
             onMount={() => {
-              syncFormFromTriggerInfo()
+              setEventTypeInput(triggerInfo?.type ?? TriggerEventType.OFF)
+              setEventThresholdInput(String(triggerInfo?.eventThreshold ?? 1))
+              setAutoRepeatInput(triggerInfo?.autorepeat ?? OnOffState.OFF)
+              setSyncModeInput(triggerInfo?.syncMode ?? TriggerSyncMode.OFF)
+              setSyncPulseWidthUsInput(String(triggerInfo?.syncPulseWidthUs ?? 1))
               setConfigureError(null)
             }}
             onUnmount={() => {
@@ -434,9 +430,9 @@ export const DrpdTriggerInstrumentView = ({
         !driver ||
         isEditMode ||
         isResettingTrigger ||
-        triggerInfo?.status !== TriggerStatus.TRIGGERED,
+        visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED,
       onClick: () => {
-        if (!driver || triggerInfo?.status !== TriggerStatus.TRIGGERED) {
+        if (!driver || visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED) {
           return
         }
         setConfigureError(null)
@@ -468,13 +464,19 @@ export const DrpdTriggerInstrumentView = ({
     isResettingTrigger,
     syncModeInput,
     syncPulseWidthUsInput,
-    triggerInfo?.status,
+    triggerInfo?.autorepeat,
+    triggerInfo?.eventThreshold,
+    triggerInfo?.syncMode,
+    triggerInfo?.syncPulseWidthUs,
+    triggerInfo?.type,
+    visibleTriggerInfo?.status,
+    configureError,
   ])
 
   const statusClassName =
-    triggerInfo?.status === TriggerStatus.TRIGGERED
+    visibleTriggerInfo?.status === TriggerStatus.TRIGGERED
       ? styles.valueTriggered
-      : triggerInfo?.status === TriggerStatus.ARMED
+      : visibleTriggerInfo?.status === TriggerStatus.ARMED
         ? styles.valueArmed
         : styles.valueNeutral
 
@@ -498,37 +500,37 @@ export const DrpdTriggerInstrumentView = ({
           <div className={styles.leftMetricRow}>
             <span className={styles.metricLabel}>State</span>
             <span className={`${styles.metricValue} ${statusClassName}`}>
-              {formatTriggerStatus(triggerInfo?.status)}
+              {formatTriggerStatus(visibleTriggerInfo?.status)}
             </span>
           </div>
           <div className={styles.leftMetricRow}>
             <span className={styles.metricLabel}>Count</span>
             <span className={styles.metricValue}>
-              {formatNumber(triggerInfo?.eventCount)}
+              {formatNumber(visibleTriggerInfo?.eventCount)}
             </span>
           </div>
           <div className={styles.leftMetricRow}>
             <span className={styles.metricLabel}>Repeat</span>
-            <span className={styles.metricValue}>{formatOnOff(triggerInfo?.autorepeat)}</span>
+            <span className={styles.metricValue}>{formatOnOff(visibleTriggerInfo?.autorepeat)}</span>
           </div>
           <div className={styles.leftMetricRow}>
             <span className={styles.metricLabel}>Threshold</span>
-            <span className={styles.metricValue}>{formatNumber(triggerInfo?.eventThreshold)}</span>
+            <span className={styles.metricValue}>{formatNumber(visibleTriggerInfo?.eventThreshold)}</span>
           </div>
         </section>
         <section className={styles.rightPane}>
           <div className={styles.rightMetricRow}>
             <span className={styles.metricLabel}>Event</span>
-            <span className={styles.metricValue}>{formatTriggerEventType(triggerInfo?.type)}</span>
+            <span className={styles.metricValue}>{formatTriggerEventType(visibleTriggerInfo?.type)}</span>
           </div>
           <div className={styles.rightMetricRow}>
             <span className={styles.metricLabel}>Sync</span>
-            <span className={styles.metricValue}>{formatTriggerSyncMode(triggerInfo?.syncMode)}</span>
+            <span className={styles.metricValue}>{formatTriggerSyncMode(visibleTriggerInfo?.syncMode)}</span>
           </div>
           <div className={styles.rightMetricRow}>
             <span className={styles.metricLabel}>Pulse</span>
             <span className={styles.metricValue}>
-              {formatNumber(triggerInfo?.syncPulseWidthUs, ' us')}
+              {formatNumber(visibleTriggerInfo?.syncPulseWidthUs, ' us')}
             </span>
           </div>
           {configureError ? <p className={styles.inlineError}>{configureError}</p> : null}

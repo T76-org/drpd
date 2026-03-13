@@ -91,8 +91,8 @@ export const DrpdUsbPdLogTimeStrip = ({
   const initialAlignmentDoneRef = useRef(false)
   const lastAutoCenterSignatureRef = useRef<string | null>(null)
   const panRef = useRef<{ pointerId: number; startX: number; startWindowStartUs: bigint } | null>(null)
-  const windowStartUsRef = useRef(0n)
-  const windowDurationUsRef = useRef(DEFAULT_WINDOW_US)
+  const windowStartUsRef = useRef<bigint>(0n)
+  const windowDurationUsRef = useRef<bigint>(DEFAULT_WINDOW_US)
   const dataRef = useRef<MessageLogTimeStripWindow | null>(null)
   const followLiveRef = useRef(true)
   const [width, setWidth] = useState(0)
@@ -400,7 +400,7 @@ export const DrpdUsbPdLogTimeStrip = ({
       windowStartUsRef.current = clampedStartUs
       return clampedStartUs === current ? current : clampedStartUs
     })
-  }, [selectedKey, windowDurationUs])
+  }, [data?.earliestTimestampUs, data?.latestTimestampUs, selectedKey, windowDurationUs])
 
   /**
    * Begin panning the time strip.

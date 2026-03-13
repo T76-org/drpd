@@ -31,6 +31,18 @@ class FlexInstrument extends Instrument {
 
 let resizeObserverCallback: ResizeObserverCallback | null = null
 
+const buildResizeObserverEntry = (
+  target: HTMLDivElement,
+  height: number,
+): ResizeObserverEntry =>
+  ({
+    target,
+    contentRect: { height } as DOMRectReadOnly,
+    borderBoxSize: [],
+    contentBoxSize: [],
+    devicePixelContentBoxSize: [],
+  }) as unknown as ResizeObserverEntry
+
 class ResizeObserverMock {
   public constructor(callback: ResizeObserverCallback) {
     resizeObserverCallback = callback
@@ -133,12 +145,7 @@ describe('RackRenderer', () => {
     act(() => {
       resizeObserverCallback?.(
         [
-          {
-            target: rackViewport as HTMLDivElement,
-            contentRect: {
-              height: 500,
-            } as DOMRectReadOnly,
-          } as ResizeObserverEntry,
+          buildResizeObserverEntry(rackViewport as HTMLDivElement, 500),
         ],
         {} as ResizeObserver,
       )
@@ -193,12 +200,7 @@ describe('RackRenderer', () => {
     act(() => {
       resizeObserverCallback?.(
         [
-          {
-            target: rackViewport as HTMLDivElement,
-            contentRect: {
-              height: 350,
-            } as DOMRectReadOnly,
-          } as ResizeObserverEntry,
+          buildResizeObserverEntry(rackViewport as HTMLDivElement, 350),
         ],
         {} as ResizeObserver,
       )
@@ -248,12 +250,7 @@ describe('RackRenderer', () => {
     act(() => {
       resizeObserverCallback?.(
         [
-          {
-            target: rackViewport as HTMLDivElement,
-            contentRect: {
-              height: 320,
-            } as DOMRectReadOnly,
-          } as ResizeObserverEntry,
+          buildResizeObserverEntry(rackViewport as HTMLDivElement, 320),
         ],
         {} as ResizeObserver,
       )

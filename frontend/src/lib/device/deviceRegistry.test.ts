@@ -96,7 +96,9 @@ const buildDefinition = (
       })
     }
 
-    public loadConfig(_config: unknown): void {}
+    public loadConfig(config: unknown): void {
+      void config
+    }
 
     public saveConfig(): unknown {
       return undefined
@@ -170,7 +172,9 @@ describe('device registry helpers', () => {
         })
       }
 
-      public loadConfig(_config: unknown): void {}
+      public loadConfig(config: unknown): void {
+        void config
+      }
 
       public saveConfig(): unknown {
         return undefined
@@ -188,7 +192,9 @@ describe('device registry helpers', () => {
         })
       }
 
-      public loadConfig(_config: unknown): void {}
+      public loadConfig(config: unknown): void {
+        void config
+      }
 
       public saveConfig(): unknown {
         return undefined

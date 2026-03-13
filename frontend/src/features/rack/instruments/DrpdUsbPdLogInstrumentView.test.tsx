@@ -769,10 +769,11 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     await waitFor(() => {
       expect(updateDeviceConfig).toHaveBeenCalledTimes(1)
     })
-    const updater = updateDeviceConfig.mock.calls[0]?.[1] as
-      | ((current: Record<string, unknown> | undefined) => Record<string, unknown>)
-      | undefined
-    expect(updateDeviceConfig.mock.calls[0]?.[0]).toBe(deviceRecord.id)
+    const updateCalls = updateDeviceConfig.mock.calls as unknown as Array<
+      [string, (current: Record<string, unknown> | undefined) => Record<string, unknown>]
+    >
+    const [updatedDeviceRecordId, updater] = updateCalls[0] ?? []
+    expect(updatedDeviceRecordId).toBe(deviceRecord.id)
     expect(updater).toBeTypeOf('function')
     const next = updater?.({
       logging: {

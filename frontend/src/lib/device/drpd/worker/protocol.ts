@@ -45,7 +45,7 @@ export type WorkerRpcRequest =
       type: 'worker-rpc'
       requestId: number
       method: 'heartbeat'
-      params: {}
+      params: Record<string, never>
     }
   | {
       type: 'worker-rpc'

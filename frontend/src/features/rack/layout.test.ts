@@ -23,7 +23,8 @@ const buildInstrumentDefinition = (
     displayName: identifier,
     supportedDeviceIdentifiers: [],
     defaultWidth: width,
-    defaultUnits: 1
+    defaultUnits: 1,
+    defaultHeightMode: 'fixed',
   } as Instrument
 }
 

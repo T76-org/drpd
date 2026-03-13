@@ -7,9 +7,13 @@ import { CCBusRole } from '../types'
 class MockInterruptTransport extends EventTarget implements DRPDTransport {
   public textResponses = new Map<string, string[]>()
 
-  public async sendCommand(_command: string, ..._params: DRPDSCPIParam[]): Promise<void> {}
+  public async sendCommand(command: string, ...params: DRPDSCPIParam[]): Promise<void> {
+    void command
+    void params
+  }
 
-  public async queryText(command: string, ..._params: DRPDSCPIParam[]): Promise<string[]> {
+  public async queryText(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
+    void params
     const response = this.textResponses.get(command)
     if (!response) {
       throw new Error(`Missing response for ${command}`)
@@ -17,7 +21,9 @@ class MockInterruptTransport extends EventTarget implements DRPDTransport {
     return response
   }
 
-  public async queryBinary(_command: string, ..._params: DRPDSCPIParam[]): Promise<Uint8Array> {
+  public async queryBinary(command: string, ...params: DRPDSCPIParam[]): Promise<Uint8Array> {
+    void command
+    void params
     return new Uint8Array()
   }
 

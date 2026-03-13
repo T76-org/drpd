@@ -195,10 +195,6 @@ export const RowRenderer = ({
               deviceState,
               isEditMode,
               onRemove: onRemoveInstrument,
-              allocatedWidthPx,
-              allocatedHeightPx,
-              allocatedWidthUnits,
-              allocatedHeightUnits,
               onUpdateDeviceConfig
             })}
           </div>
@@ -266,10 +262,6 @@ const renderInstrument = ({
   deviceState,
   isEditMode,
   onRemove,
-  allocatedWidthPx,
-  allocatedHeightPx,
-  allocatedWidthUnits,
-  allocatedHeightUnits,
   onUpdateDeviceConfig
 }: {
   instrument: RackInstrument
@@ -278,10 +270,6 @@ const renderInstrument = ({
   deviceState?: RackDeviceState
   isEditMode: boolean
   onRemove?: (instrumentId: string) => void
-  allocatedWidthPx: number
-  allocatedHeightPx: number
-  allocatedWidthUnits: number
-  allocatedHeightUnits: number
   onUpdateDeviceConfig?: (
     deviceRecordId: string,
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,

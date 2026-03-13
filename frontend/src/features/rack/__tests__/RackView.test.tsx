@@ -203,18 +203,20 @@ const mockUSB = (devices: USBDevice[]) => {
 const mockMatchMedia = (matchesDark: boolean) => {
   const addEventListener = vi.fn()
   const removeEventListener = vi.fn()
+  const addListener = vi.fn()
+  const removeListener = vi.fn()
   const query: MediaQueryList = {
     matches: matchesDark,
     media: '(prefers-color-scheme: dark)',
     onchange: null,
     addEventListener,
     removeEventListener,
-    addListener: undefined,
-    removeListener: undefined,
+    addListener,
+    removeListener,
     dispatchEvent: vi.fn(() => true),
   }
   vi.stubGlobal('matchMedia', vi.fn(() => query))
-  return { addEventListener, removeEventListener }
+  return { addEventListener, removeEventListener, addListener, removeListener }
 }
 
 let originalVerifier: typeof DRPDDeviceDefinition.verifyConnectedDevice

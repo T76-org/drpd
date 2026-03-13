@@ -588,17 +588,17 @@ export interface ParsedModesVDO extends ParsedDataObject {
 /**
  * Parsed Enter Mode payload VDO.
  */
-export interface ParsedEnterModePayloadVDO extends ParsedDataObject {}
+export type ParsedEnterModePayloadVDO = ParsedDataObject
 
 /**
  * Parsed Exit Mode payload VDO.
  */
-export interface ParsedExitModePayloadVDO extends ParsedDataObject {}
+export type ParsedExitModePayloadVDO = ParsedDataObject
 
 /**
  * Parsed Attention payload VDO.
  */
-export interface ParsedAttentionVDO extends ParsedDataObject {}
+export type ParsedAttentionVDO = ParsedDataObject
 
 /**
  * Parsed Discover Identity response.
