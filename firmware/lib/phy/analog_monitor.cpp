@@ -7,6 +7,7 @@
 #include "analog_monitor.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 #include <pico/stdlib.h>
 #include <hardware/adc.h>
@@ -62,7 +63,7 @@ void AnalogMonitor::readVBusValues() {
         _readVoltageFromADCChannel(PHY_ANALOG_MONITOR_VBUS_SENSE_ADC_CHANNEL) - groundReference) * 
         PHY_ANALOG_MONITOR_VBUS_SENSE_SCALE_FACTOR;
 
-    _readings.vBusVoltageAverager.addSample(vbusVoltage);
+    _readings.vBusVoltageAverager.addSample(std::trunc(vbusVoltage * 100.0f) / 100.0f);
 
     // Read current, scale and accumulate in averager. Note that the current sense reading is relative to both a ground reference and a zero-current reference, so we need to subtract both before scaling.
     float currentZeroReference = _readVoltageFromCCLineChannel(ADCChannel::VRef1V65) - groundReference;
@@ -70,7 +71,9 @@ void AnalogMonitor::readVBusValues() {
     SELECT_PIN_MASK_FOR_CHANNEL(PHY_ANALOG_MONITOR_VBUS_ISENSE_ADC_CHANNEL);
     float currentSense = _readVoltageFromADCChannel(PHY_ANALOG_MONITOR_VBUS_ISENSE_ADC_CHANNEL) - groundReference - currentZeroReference;
 
-    _readings.vBusCurrentAverager.addSample(currentSense * PHY_ANALOG_MONITOR_VBUS_ISENSE_SCALE_FACTOR);
+    _readings.vBusCurrentAverager.addSample(
+        std::trunc(currentSense * PHY_ANALOG_MONITOR_VBUS_ISENSE_SCALE_FACTOR * 100.0f) /
+        100.0f);
 
     // Timestamp reflects when the VBUS voltage/current capture completed.
     _readings.captureTimestampUs = time_us_64();
@@ -81,23 +84,30 @@ void AnalogMonitor::readVBusValues() {
 void AnalogMonitor::readCCLineValues() {
     xSemaphoreTake(_adcAccessMutex, portMAX_DELAY);
 
-    _readings.groundRefVoltage = _readVoltageFromCCLineChannel(ADCChannel::GroundReference);
-    _readings.dutCC1Voltage = _readVoltageFromCCLineChannel(ADCChannel::DutCC1);
-    _readings.dutCC2Voltage = _readVoltageFromCCLineChannel(ADCChannel::DutCC2);
-    _readings.usdsCC1Voltage = _readVoltageFromCCLineChannel(ADCChannel::UsdsCC1);
-    _readings.usdsCC2Voltage = _readVoltageFromCCLineChannel(ADCChannel::UsdsCC2);
-    _readings.adcVRefVoltage = _readVoltageFromCCLineChannel(ADCChannel::ADCVRef);
-    _readings.currentRefVoltage = _readVoltageFromCCLineChannel(ADCChannel::VRef1V65);
+    _readings.groundRefVoltage = std::trunc(
+        _readVoltageFromCCLineChannel(ADCChannel::GroundReference) * 100.0f) / 100.0f;
+    _readings.dutCC1Voltage = std::trunc(
+        _readVoltageFromCCLineChannel(ADCChannel::DutCC1) * 100.0f) / 100.0f;
+    _readings.dutCC2Voltage = std::trunc(
+        _readVoltageFromCCLineChannel(ADCChannel::DutCC2) * 100.0f) / 100.0f;
+    _readings.usdsCC1Voltage = std::trunc(
+        _readVoltageFromCCLineChannel(ADCChannel::UsdsCC1) * 100.0f) / 100.0f;
+    _readings.usdsCC2Voltage = std::trunc(
+        _readVoltageFromCCLineChannel(ADCChannel::UsdsCC2) * 100.0f) / 100.0f;
+    _readings.adcVRefVoltage = std::trunc(
+        _readVoltageFromCCLineChannel(ADCChannel::ADCVRef) * 100.0f) / 100.0f;
+    _readings.currentRefVoltage = std::trunc(
+        _readVoltageFromCCLineChannel(ADCChannel::VRef1V65) * 100.0f) / 100.0f;
 
     xSemaphoreGive(_adcAccessMutex);
 }
 
 float AnalogMonitor::vBusVoltage() const {
-    return _readings.vBusVoltageAverager.average();
+    return std::trunc(_readings.vBusVoltageAverager.average() * 100.0f) / 100.0f;
 }
 
 float AnalogMonitor::vBusCurrent() const {
-    return _readings.vBusCurrentAverager.average();
+    return std::trunc(_readings.vBusCurrentAverager.average() * 100.0f) / 100.0f;
 }
 
 float AnalogMonitor::dutCC1Voltage() const {

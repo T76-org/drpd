@@ -6,14 +6,17 @@
 
 #include "app.hpp"
 
+#include <cmath>
 #include <cstdio>
 
 using namespace T76::DRPD;
 
 namespace {
     std::string formatAnalogValue(float value) {
+        float truncatedValue = std::trunc(value * 100.0f) / 100.0f;
         char buffer[20];
-        int written = std::snprintf(buffer, sizeof(buffer), "%.3f", static_cast<double>(value));
+        int written = std::snprintf(
+            buffer, sizeof(buffer), "%.2f", static_cast<double>(truncatedValue));
         if (written < 0) {
             return "0.00";
         }
@@ -29,8 +32,8 @@ void App::_measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &
 
     std::string response = 
         std::to_string(readings.captureTimestampUs) + "," +
-        formatAnalogValue(readings.vBusVoltageAverager.average()) + "," +
-        formatAnalogValue(readings.vBusCurrentAverager.average()) + "," +
+        formatAnalogValue(_analogMonitor.vBusVoltage()) + "," +
+        formatAnalogValue(_analogMonitor.vBusCurrent()) + "," +
         formatAnalogValue(readings.dutCC1Voltage) + "," +
         formatAnalogValue(readings.dutCC2Voltage) + "," +
         formatAnalogValue(readings.usdsCC1Voltage) + "," +
