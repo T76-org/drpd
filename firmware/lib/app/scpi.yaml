@@ -98,7 +98,26 @@ commands:
                     - ADC VREF voltage
                     - Ground reference voltage
                     - Current reference voltage
+                    - Accumulation elapsed time (uint64, microseconds)
+                    - Accumulated absolute charge (uint32, mAh)
+                    - Accumulated absolute energy (uint32, mWh)
     handler:      _measureAllAnalogValues
+
+  - syntax:       "MEASure:ACCumulated?"
+    description:  |-
+                    Query accumulated VBUS charge and energy counters.
+                    Returns comma-separated values in the following order:
+                    - Accumulation elapsed time (uint64, microseconds)
+                    - Accumulated absolute charge (uint32, mAh)
+                    - Accumulated absolute energy (uint32, mWh)
+    handler:      _measureAccumulatedValues
+
+  - syntax:       "MEASure:ACCumulated:RESET"
+    description:  |-
+                    Reset the accumulated VBUS charge and energy counters.
+                    The accumulation start timestamp is set to the current system
+                    time, and both counters are cleared to zero.
+    handler:      _resetAccumulatedValues
 
   - syntax:       "MEASure:VOLTage:VBUS?"
     description:  "Measure the VBUS voltage."

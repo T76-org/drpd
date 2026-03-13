@@ -97,7 +97,10 @@ describe('DrpdVbusInstrumentView', () => {
       usdsCc2: 0,
       adcVref: 0,
       groundRef: 0,
-      currentVref: 0
+      currentVref: 0,
+      accumulationElapsedTimeUs: 0n,
+      accumulatedChargeMah: 0,
+      accumulatedEnergyMwh: 0
     })
 
     const deviceState: RackDeviceState = {
@@ -145,7 +148,10 @@ describe('DrpdVbusInstrumentView', () => {
       usdsCc2: 0,
       adcVref: 0,
       groundRef: 0,
-      currentVref: 0
+      currentVref: 0,
+      accumulationElapsedTimeUs: 0n,
+      accumulatedChargeMah: 0,
+      accumulatedEnergyMwh: 0
     })
     driver.setVBusInfo({
       status: VBusStatus.ENABLED,

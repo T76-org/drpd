@@ -76,11 +76,15 @@ describe('DRPD command groups', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
 
     const group = new DRPDAnalogMonitor(transport)
     const status = await group.getStatus()
     expect(status.vbus).toBeCloseTo(5.0)
+    expect(status.accumulatedEnergyMwh).toBe(34)
   })
 
   it('sends CC bus role updates with raw enum tokens', async () => {

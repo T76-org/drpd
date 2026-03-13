@@ -54,7 +54,10 @@ describe('DrpdCcLinesInstrumentView', () => {
       usdsCc2: 2.2,
       adcVref: 0,
       groundRef: 0,
-      currentVref: 0
+      currentVref: 0,
+      accumulationElapsedTimeUs: 0n,
+      accumulatedChargeMah: 0,
+      accumulatedEnergyMwh: 0
     })
 
     const deviceState: RackDeviceState = {

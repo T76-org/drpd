@@ -73,6 +73,9 @@ describe('DRPDDevice state updates', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
     const device = new DRPDDevice(transport)
     setDeviceConnected(device)
@@ -95,6 +98,9 @@ describe('DRPDDevice state updates', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2700',
+      '13',
+      '35',
     ])
     await vi.advanceTimersByTimeAsync(100)
     expect(device.getState().analogMonitor?.vbus).toBe(5.1)

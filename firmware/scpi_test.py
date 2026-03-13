@@ -75,7 +75,10 @@ def monitor_analog_values(resource_fragment: str) -> None:
             print(f"US/DS CC2: {float(response[6]):1.3f}V | ", end="")
             print(f"ADC VRef: {float(response[7]):1.3f}V | ", end="")
             print(f"Ground Ref: {float(response[8]):1.3f}V | ", end="")
-            print(f"Current Ref: {float(response[9]):1.3f}V", end="\r")
+            print(f"Current Ref: {float(response[9]):1.3f}V | ", end="")
+            print(f"Accum: {int(response[10])}us | ", end="")
+            print(f"Charge: {int(response[11])}mAh | ", end="")
+            print(f"Energy: {int(response[12])}mWh", end="\r")
 
             # Go back up one line
             print("\033[F" * 1, end="")
@@ -168,6 +171,26 @@ def query_device_status(resource_fragment: str) -> None:
             print(f"Device Status: {response}")
     else:
         print(f"Device Status: {response}")
+
+
+def query_accumulated_values(resource_fragment: str) -> None:
+    """Query accumulated VBUS charge and energy counters."""
+    response = send_scpi("MEASure:ACCumulated?", resource_fragment)
+    if isinstance(response, list) and len(response) >= 3:
+        elapsed_us = int(response[0])
+        charge_mah = int(response[1])
+        energy_mwh = int(response[2])
+        print(f"Accumulation Elapsed: {elapsed_us:,} µs")
+        print(f"Accumulated Charge:   {charge_mah:,} mAh")
+        print(f"Accumulated Energy:   {energy_mwh:,} mWh")
+    else:
+        print(f"Accumulated Values: {response}")
+
+
+def reset_accumulated_values(resource_fragment: str) -> None:
+    """Reset accumulated VBUS charge and energy counters."""
+    response = send_scpi("MEASure:ACCumulated:RESET", resource_fragment)
+    print(response)
 
 
 def query_message_count(resource_fragment: str) -> None:
@@ -441,6 +464,16 @@ def main() -> None:
         'status', help='Query device status word (STATus:DEVice?)')
     status_parser.set_defaults(
         func=lambda args: query_device_status(args.resource_fragment))
+
+    accumulation_parser = subparsers.add_parser(
+        'accumulation', help='Query accumulated charge and energy (MEASure:ACCumulated?)')
+    accumulation_parser.set_defaults(
+        func=lambda args: query_accumulated_values(args.resource_fragment))
+
+    accumulation_reset_parser = subparsers.add_parser(
+        'accumulation_reset', help='Reset accumulated charge and energy (MEASure:ACCumulated:RESET)')
+    accumulation_reset_parser.set_defaults(
+        func=lambda args: reset_accumulated_values(args.resource_fragment))
 
     # Capture cycle time subcommand
     cycle_time_parser = subparsers.add_parser(

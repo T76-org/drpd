@@ -294,6 +294,12 @@ export interface AnalogMonitorChannels {
   groundRef: number
   ///< Current reference voltage.
   currentVref: number
+  ///< Elapsed accumulation time in microseconds.
+  accumulationElapsedTimeUs: bigint
+  ///< Accumulated absolute charge in milliamp-hours.
+  accumulatedChargeMah: number
+  ///< Accumulated absolute energy in milliwatt-hours.
+  accumulatedEnergyMwh: number
 }
 
 /**

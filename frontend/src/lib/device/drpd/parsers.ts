@@ -460,8 +460,8 @@ export const parseErrorResponse = (values: string[]): { code: number; message: s
  * @returns Analog monitor channel values.
  */
 export const parseAnalogMonitorChannels = (values: string[]): AnalogMonitorChannels => {
-  if (values.length !== 10) {
-    throw new Error(`Expected 10 analog values, got ${values.length}`)
+  if (values.length !== 13) {
+    throw new Error(`Expected 13 analog values, got ${values.length}`)
   }
   return {
     captureTimestampUs: parseBigIntValue(values[0], 'VBUS capture timestamp'),
@@ -474,6 +474,9 @@ export const parseAnalogMonitorChannels = (values: string[]): AnalogMonitorChann
     adcVref: parseNumber(values[7], 'ADC VREF voltage'),
     groundRef: parseNumber(values[8], 'Ground reference voltage'),
     currentVref: parseNumber(values[9], 'Current reference voltage'),
+    accumulationElapsedTimeUs: parseBigIntValue(values[10], 'Accumulation elapsed time'),
+    accumulatedChargeMah: parseIntValue(values[11], 'Accumulated charge'),
+    accumulatedEnergyMwh: parseIntValue(values[12], 'Accumulated energy'),
   }
 }
 

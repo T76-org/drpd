@@ -29,6 +29,13 @@ namespace {
 
 void App::_measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &) {
     PHY::AnalogMonitorReadings readings = _analogMonitor.allReadings();
+    uint64_t accumulationElapsedTimeUs = 0;
+
+    if (readings.accumulationStartTimestampUs != 0 &&
+        readings.lastAccumulationTimestampUs >= readings.accumulationStartTimestampUs) {
+        accumulationElapsedTimeUs =
+            readings.lastAccumulationTimestampUs - readings.accumulationStartTimestampUs;
+    }
 
     std::string response = 
         std::to_string(readings.captureTimestampUs) + "," +
@@ -40,7 +47,10 @@ void App::_measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &
         formatAnalogValue(readings.usdsCC2Voltage) + "," +
         formatAnalogValue(readings.adcVRefVoltage) + "," +
         formatAnalogValue(readings.groundRefVoltage) + "," +
-        formatAnalogValue(readings.currentRefVoltage);
+        formatAnalogValue(readings.currentRefVoltage) + "," +
+        std::to_string(accumulationElapsedTimeUs) + "," +
+        std::to_string(readings.accumulatedChargeMah) + "," +
+        std::to_string(readings.accumulatedEnergyMwh);
 
     _usbInterface.sendUSBTMCBulkData(response);
 }
@@ -79,4 +89,17 @@ void App::_measureCurrentRefVoltage(const std::vector<T76::SCPI::ParameterValue>
 
 void App::_measureGroundRefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
     _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.groundRefVoltage()));
+}
+
+void App::_measureAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &) {
+    std::string response =
+        std::to_string(_analogMonitor.accumulationElapsedTimeUs()) + "," +
+        std::to_string(_analogMonitor.accumulatedChargeMah()) + "," +
+        std::to_string(_analogMonitor.accumulatedEnergyMwh());
+
+    _usbInterface.sendUSBTMCBulkData(response);
+}
+
+void App::_resetAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &) {
+    _analogMonitor.resetAccumulatedMeasurements();
 }

@@ -261,6 +261,9 @@ describe('DRPD logging integration', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
@@ -370,6 +373,9 @@ describe('DRPD logging integration', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
@@ -429,6 +435,9 @@ describe('DRPD logging integration', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
@@ -493,6 +502,9 @@ describe('DRPD logging integration', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
 
     const store = new SQLiteWasmStore({
@@ -535,6 +547,9 @@ describe('DRPD logging integration', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
 
     const store = new SQLiteWasmStore({
@@ -561,6 +576,9 @@ describe('DRPD logging integration', () => {
       '1.2',
       '0.0',
       '0.6',
+      '3500',
+      '13',
+      '35',
     ])
     await device.setCaptureEnabled(OnOffState.OFF)
     await (device as unknown as { pollAnalogMonitor: () => Promise<void> }).pollAnalogMonitor()
@@ -587,6 +605,9 @@ describe('DRPD logging integration', () => {
       '1.2',
       '0.0',
       '0.6',
+      '2500',
+      '12',
+      '34',
     ])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
