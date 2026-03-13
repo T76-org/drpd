@@ -6,6 +6,7 @@
  */
 
 import type {
+  AccumulatedMeasurements,
   AnalogMonitorChannels,
   AnalogSampleQuery,
   CapturedMessageQuery,
@@ -41,7 +42,11 @@ let workerDeviceSessionCounter = 1 ///< Monotonic worker DRPD session id counter
  * Worker-backed DRPD device proxy that mirrors the subset of DRPDDevice used by the UI.
  */
 export class DRPDWorkerDeviceProxy extends EventTarget {
-  public readonly analogMonitor: { getStatus: () => Promise<AnalogMonitorChannels> } ///< Analog monitor command-group proxy.
+  public readonly analogMonitor: {
+    getStatus: () => Promise<AnalogMonitorChannels>
+    getAccumulatedMeasurements: () => Promise<AccumulatedMeasurements>
+    resetAccumulatedMeasurements: () => Promise<void>
+  } ///< Analog monitor command-group proxy.
   public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
   public readonly capture: { setCaptureEnabled: (enabled: OnOffState) => Promise<void> } ///< Capture command-group proxy.
   public readonly system: { identify: () => Promise<DeviceIdentity> } ///< System command-group proxy.
@@ -135,6 +140,11 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
 
     this.analogMonitor = {
       getStatus: async () => (await this.callGroup('analogMonitor', 'getStatus')) as AnalogMonitorChannels,
+      getAccumulatedMeasurements: async () =>
+        (await this.callGroup('analogMonitor', 'getAccumulatedMeasurements')) as AccumulatedMeasurements,
+      resetAccumulatedMeasurements: async () => {
+        await this.callGroup('analogMonitor', 'resetAccumulatedMeasurements')
+      },
     }
     this.ccBus = {
       getRole: async () => (await this.callGroup('ccBus', 'getRole')) as CCBusRole,

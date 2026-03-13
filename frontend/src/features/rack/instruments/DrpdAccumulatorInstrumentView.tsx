@@ -93,9 +93,6 @@ export const DrpdAccumulatorInstrumentView = ({
           setIsResetting(true)
           void driver.analogMonitor
             .resetAccumulatedMeasurements()
-            .then(async () => {
-              await driver.refreshState()
-            })
             .finally(() => {
               setIsResetting(false)
             })

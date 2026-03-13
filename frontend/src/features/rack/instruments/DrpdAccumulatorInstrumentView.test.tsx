@@ -115,7 +115,6 @@ describe('DrpdAccumulatorInstrumentView', () => {
   it('resets counters through the driver', async () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    const refreshStateSpy = vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)
     driver.setAnalogMonitor(buildAnalogMonitor())
 
     const deviceState: RackDeviceState = {
@@ -143,6 +142,5 @@ describe('DrpdAccumulatorInstrumentView', () => {
         params: []
       })
     })
-    expect(refreshStateSpy).toHaveBeenCalledTimes(1)
   })
 })
