@@ -48,6 +48,8 @@ let sqlite3ModulePromise: Promise<Sqlite3Static> | null = null
 export const buildDefaultLoggingConfig = (): DRPDLoggingConfig => ({
   enabled: false,
   autoStartOnConnect: true,
+  clockSyncEnabled: true,
+  clockSyncResyncIntervalMs: 30_000,
   maxAnalogSamples: 1_000_000,
   maxCapturedMessages: 1_000_000,
   retentionTrimBatchSize: DEFAULT_RETENTION_BATCH,
@@ -66,6 +68,13 @@ export const normalizeLoggingConfig = (
   return {
     enabled: input?.enabled ?? defaults.enabled,
     autoStartOnConnect: input?.autoStartOnConnect ?? defaults.autoStartOnConnect,
+    clockSyncEnabled: input?.clockSyncEnabled ?? defaults.clockSyncEnabled,
+    clockSyncResyncIntervalMs:
+      typeof input?.clockSyncResyncIntervalMs === 'number' &&
+      Number.isFinite(input.clockSyncResyncIntervalMs) &&
+      input.clockSyncResyncIntervalMs > 0
+        ? Math.floor(input.clockSyncResyncIntervalMs)
+        : defaults.clockSyncResyncIntervalMs,
     maxAnalogSamples: Math.max(1, Math.floor(input?.maxAnalogSamples ?? defaults.maxAnalogSamples)),
     maxCapturedMessages: Math.max(
       1,
@@ -352,6 +361,7 @@ const toSerializableAnalog = (row: LoggedAnalogSample): Record<string, unknown> 
   return {
     timestampUs: row.timestampUs.toString(),
     displayTimestampUs: row.displayTimestampUs?.toString() ?? null,
+    wallClockUs: row.wallClockUs?.toString() ?? null,
     vbusV: row.vbusV,
     ibusA: row.ibusA,
     role: row.role,
@@ -371,6 +381,7 @@ const toSerializableMessage = (row: LoggedCapturedMessage): Record<string, unkno
     eventType: row.eventType,
     eventText: row.eventText,
     eventWallClockMs: row.eventWallClockMs,
+    wallClockUs: row.wallClockUs?.toString() ?? null,
     startTimestampUs: row.startTimestampUs.toString(),
     endTimestampUs: row.endTimestampUs.toString(),
     displayTimestampUs: row.displayTimestampUs?.toString() ?? null,
@@ -445,6 +456,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
         this.db.exec(statement)
       }
       this.ensureColumnExists('analog_samples', 'display_timestamp_us', 'INTEGER')
+      this.ensureColumnExists('analog_samples', 'wall_clock_us', 'INTEGER')
       this.ensureColumnExists(
         'captured_messages',
         'entry_kind',
@@ -453,6 +465,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       this.ensureColumnExists('captured_messages', 'event_type', 'TEXT')
       this.ensureColumnExists('captured_messages', 'event_text', 'TEXT')
       this.ensureColumnExists('captured_messages', 'event_wall_clock_ms', 'INTEGER')
+      this.ensureColumnExists('captured_messages', 'wall_clock_us', 'INTEGER')
       this.ensureColumnExists('captured_messages', 'display_timestamp_us', 'INTEGER')
       this.db.exec(
         'INSERT OR REPLACE INTO logging_metadata(key, value) VALUES(?, ?)',
@@ -502,12 +515,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
     const db = this.requireDb()
     const stmt = db.prepare(
-      'INSERT INTO analog_samples(timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms) VALUES(?, ?, ?, ?, ?, ?)',
+      'INSERT INTO analog_samples(timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms) VALUES(?, ?, ?, ?, ?, ?, ?)',
     )
     try {
       stmt.bind([
         sample.timestampUs,
         sample.displayTimestampUs,
+        sample.wallClockUs,
         sample.vbusV,
         sample.ibusA,
         sample.role,
@@ -537,9 +551,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const stmt = db.prepare(
       [
         'INSERT INTO captured_messages(',
-        'entry_kind,event_type,event_text,event_wall_clock_ms,start_timestamp_us,end_timestamp_us,display_timestamp_us,decode_result,sop_kind,message_kind,message_type,message_id,',
+        'entry_kind,event_type,event_text,event_wall_clock_ms,wall_clock_us,start_timestamp_us,end_timestamp_us,display_timestamp_us,decode_result,sop_kind,message_kind,message_type,message_id,',
         'sender_power_role,sender_data_role,pulse_count,raw_pulse_widths,raw_sop,raw_decoded_data,parse_error,created_at_ms',
-        ') VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        ') VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ],
     )
     try {
@@ -548,6 +562,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
         message.eventType,
         message.eventText,
         message.eventWallClockMs,
+        message.wallClockUs,
         message.startTimestampUs,
         message.endTimestampUs,
         message.displayTimestampUs,
@@ -595,7 +610,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
 
     const sql = [
-      'SELECT timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms',
+      'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
       'FROM analog_samples',
       'WHERE timestamp_us >= ? AND timestamp_us <= ?',
       'ORDER BY timestamp_us ASC, id ASC',
@@ -615,6 +630,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
         record.display_timestamp_us === null || record.display_timestamp_us === undefined
           ? null
           : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
+      wallClockUs:
+        record.wall_clock_us === null || record.wall_clock_us === undefined
+          ? null
+          : toBigIntValue(record.wall_clock_us as SqlValue, 'analog.wall_clock_us'),
       vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
       ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
       role: (record.role ?? null) as string | null,
@@ -706,7 +725,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
 
     const sqlParts = [
-      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
+      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, wall_clock_us, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
       'message_type, message_id, sender_power_role, sender_data_role, pulse_count,',
       'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
       'FROM captured_messages',
@@ -733,6 +752,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
         record.event_wall_clock_ms === null || record.event_wall_clock_ms === undefined
           ? null
           : toNumberValue(record.event_wall_clock_ms as SqlValue, 'message.event_wall_clock_ms'),
+      wallClockUs:
+        record.wall_clock_us === null || record.wall_clock_us === undefined
+          ? null
+          : toBigIntValue(record.wall_clock_us as SqlValue, 'message.wall_clock_us'),
       startTimestampUs: toBigIntValue(record.start_timestamp_us as SqlValue, 'message.start_timestamp_us'),
       endTimestampUs: toBigIntValue(record.end_timestamp_us as SqlValue, 'message.end_timestamp_us'),
       displayTimestampUs:
@@ -832,7 +855,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
         eventType: row.eventType,
         timestampUs: row.startTimestampUs,
         displayTimestampUs: row.displayTimestampUs,
-        wallClockMs: row.createdAtMs,
+        wallClockUs: row.wallClockUs ?? (row.eventWallClockMs === null ? null : BigInt(row.eventWallClockMs) * 1000n),
       }))
     const analogRows = downsampleAnalogRows(
       await this.queryAnalogSamplesForTimeStripWindow(windowStartUs, windowEndUs),
@@ -850,7 +873,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
         displayStartTimestampUs,
         displayEndTimestampUs:
           displayStartTimestampUs === null ? null : displayStartTimestampUs + durationUs,
-        wallClockMs: row.createdAtMs,
+        wallClockUs: row.wallClockUs ?? BigInt(row.createdAtMs) * 1000n,
         sopLabel: normalizeSopTypeLabel(row.sopKind),
         messageLabel: resolveMessageTypeLabel(row),
         pulseWidthsNs: Float64Array.from(row.rawPulseWidths),
@@ -859,7 +882,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const analogPoints = analogRows.map<MessageLogAnalogPoint>((row) => ({
       timestampUs: row.timestampUs,
       displayTimestampUs: row.displayTimestampUs,
-      wallClockMs: row.createdAtMs,
+      wallClockUs: row.wallClockUs ?? BigInt(row.createdAtMs) * 1000n,
       vbusV: row.vbusV,
       ibusA: row.ibusA,
     }))
@@ -927,12 +950,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const lines: string[] = []
     if (request.includeAnalog) {
       lines.push('analog_samples')
-      lines.push('timestamp_us,display_timestamp_us,vbus_v,ibus_a,role,created_at_ms')
+      lines.push('timestamp_us,display_timestamp_us,wall_clock_us,vbus_v,ibus_a,role,created_at_ms')
       for (const row of analog) {
         lines.push(
           [
             row.timestampUs.toString(),
             row.displayTimestampUs?.toString() ?? '',
+            row.wallClockUs?.toString() ?? '',
             row.vbusV.toString(),
             row.ibusA.toString(),
             toCSVField(row.role ?? ''),
@@ -953,6 +977,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
           'event_type',
           'event_text',
           'event_wall_clock_ms',
+          'wall_clock_us',
           'start_timestamp_us',
           'end_timestamp_us',
           'display_timestamp_us',
@@ -978,6 +1003,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
             toCSVField(row.eventType ?? ''),
             toCSVField(row.eventText ?? ''),
             row.eventWallClockMs?.toString() ?? '',
+            row.wallClockUs?.toString() ?? '',
             row.startTimestampUs.toString(),
             row.endTimestampUs.toString(),
             row.displayTimestampUs?.toString() ?? '',
@@ -1087,6 +1113,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
       persistent: this.backendKind === 'sqlite-opfs',
       sqlite: this.backendKind === 'sqlite-opfs' || this.backendKind === 'sqlite-memory',
       opfs: this.backendKind === 'sqlite-opfs',
+      clockSyncConfigured: this.config.clockSyncEnabled,
+      clockSyncActive: false,
+      clockSyncResyncIntervalMs: this.config.clockSyncResyncIntervalMs,
     }
   }
 
@@ -1293,7 +1322,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
     const records = this.requireDb().selectObjects(
       [
-        'SELECT entry_kind, start_timestamp_us, end_timestamp_us, raw_pulse_widths',
+      'SELECT entry_kind, start_timestamp_us, end_timestamp_us, raw_pulse_widths',
         'FROM captured_messages',
         "WHERE entry_kind = 'message'",
       ].join(' '),
@@ -1346,7 +1375,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
 
     const sql = [
-      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
+      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, wall_clock_us, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
       'message_type, message_id, sender_power_role, sender_data_role, pulse_count,',
       'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
       'FROM captured_messages',
@@ -1361,6 +1390,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
         record.event_wall_clock_ms === null || record.event_wall_clock_ms === undefined
           ? null
           : toNumberValue(record.event_wall_clock_ms as SqlValue, 'message.event_wall_clock_ms'),
+      wallClockUs:
+        record.wall_clock_us === null || record.wall_clock_us === undefined
+          ? null
+          : toBigIntValue(record.wall_clock_us as SqlValue, 'message.wall_clock_us'),
       startTimestampUs: toBigIntValue(record.start_timestamp_us as SqlValue, 'message.start_timestamp_us'),
       endTimestampUs: toBigIntValue(record.end_timestamp_us as SqlValue, 'message.end_timestamp_us'),
       displayTimestampUs:
@@ -1415,7 +1448,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
     ]
     const deduped = new Map<string, LoggedAnalogSample>()
     for (const row of rows) {
-      deduped.set(`${row.timestampUs.toString()}:${row.createdAtMs}`, row)
+      deduped.set(
+        `${row.timestampUs.toString()}:${row.wallClockUs?.toString() ?? row.createdAtMs.toString()}`,
+        row,
+      )
     }
     return Array.from(deduped.values()).sort((left, right) =>
       left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
@@ -1442,7 +1478,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
     const record = this.requireDb().selectObjects(
       [
-        'SELECT timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms',
+        'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
         'FROM analog_samples',
         'WHERE timestamp_us <= ?',
         'ORDER BY timestamp_us DESC, id DESC LIMIT 1',
@@ -1458,6 +1494,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
         record.display_timestamp_us === null || record.display_timestamp_us === undefined
           ? null
           : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
+      wallClockUs:
+        record.wall_clock_us === null || record.wall_clock_us === undefined
+          ? null
+          : toBigIntValue(record.wall_clock_us as SqlValue, 'analog.wall_clock_us'),
       vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
       ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
       role: (record.role ?? null) as string | null,
@@ -1485,7 +1525,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
     const record = this.requireDb().selectObjects(
       [
-        'SELECT timestamp_us, display_timestamp_us, vbus_v, ibus_a, role, created_at_ms',
+        'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
         'FROM analog_samples',
         'WHERE timestamp_us >= ?',
         'ORDER BY timestamp_us ASC, id ASC LIMIT 1',
@@ -1501,6 +1541,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
         record.display_timestamp_us === null || record.display_timestamp_us === undefined
           ? null
           : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
+      wallClockUs:
+        record.wall_clock_us === null || record.wall_clock_us === undefined
+          ? null
+          : toBigIntValue(record.wall_clock_us as SqlValue, 'analog.wall_clock_us'),
       vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
       ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
       role: (record.role ?? null) as string | null,
@@ -1531,7 +1575,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       candidates.push({
         timestampUs: point.timestampUs,
         displayTimestampUs: point.displayTimestampUs,
-        wallClockMs: point.wallClockMs,
+        wallClockUs: point.wallClockUs,
         approximate: false,
       })
     }
@@ -1539,13 +1583,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       candidates.push({
         timestampUs: pulse.startTimestampUs,
         displayTimestampUs: pulse.displayStartTimestampUs,
-        wallClockMs: pulse.wallClockMs,
+        wallClockUs: pulse.wallClockUs,
         approximate: true,
       })
       candidates.push({
         timestampUs: pulse.endTimestampUs,
         displayTimestampUs: pulse.displayEndTimestampUs,
-        wallClockMs: pulse.wallClockMs,
+        wallClockUs: pulse.wallClockUs,
         approximate: true,
       })
     }
@@ -1554,13 +1598,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       candidates.push({
         timestampUs: stats.earliestTimestampUs,
         displayTimestampUs: stats.earliestDisplayTimestampUs,
-        wallClockMs: null,
+        wallClockUs: null,
         approximate: true,
       })
       candidates.push({
         timestampUs: stats.latestTimestampUs,
         displayTimestampUs: stats.latestDisplayTimestampUs,
-        wallClockMs: null,
+        wallClockUs: null,
         approximate: true,
       })
     }
@@ -1570,7 +1614,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       const key = [
         candidate.timestampUs.toString(),
         candidate.displayTimestampUs?.toString() ?? 'null',
-        candidate.wallClockMs?.toString() ?? 'null',
+        candidate.wallClockUs?.toString() ?? 'null',
       ].join(':')
       if (!deduped.has(key)) {
         deduped.set(key, candidate)
@@ -1589,7 +1633,8 @@ export class SQLiteWasmStore implements DRPDLogStore {
         vbusV: 0,
         ibusA: 0,
         role: null,
-        createdAtMs: anchor.wallClockMs ?? 0,
+        wallClockUs: anchor.wallClockUs,
+        createdAtMs: Number(anchor.wallClockUs === null ? 0n : anchor.wallClockUs / 1000n),
       })),
       8,
     ).map((row) => {
@@ -1597,7 +1642,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       return matchingAnchor ?? {
         timestampUs: row.timestampUs,
         displayTimestampUs: row.displayTimestampUs,
-        wallClockMs: row.createdAtMs,
+        wallClockUs: row.wallClockUs ?? BigInt(row.createdAtMs) * 1000n,
         approximate: true,
       }
     })

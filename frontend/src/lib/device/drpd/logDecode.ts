@@ -83,6 +83,7 @@ const decodeParsedPacket = (
       startTimestampUs: row.startTimestampUs,
       endTimestampUs: row.endTimestampUs,
     })
+    message.setWallClockTimestampUs(row.wallClockUs)
     if (capturePayload) {
       message.setCapturePayload(capturePayload)
     }

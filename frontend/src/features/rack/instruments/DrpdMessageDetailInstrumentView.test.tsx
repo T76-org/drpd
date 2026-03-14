@@ -89,6 +89,7 @@ const buildMessageRow = (
   eventType: null,
   eventText: null,
   eventWallClockMs: null,
+  wallClockUs: 1_700_000_000_000_000n,
   startTimestampUs: 1000n,
   endTimestampUs: 1005n,
   displayTimestampUs: 0n,

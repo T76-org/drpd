@@ -98,6 +98,23 @@ describe('DRPDDeviceDefinition', () => {
     })
   })
 
+  it('normalizes invalid clock-sync config values to defaults', async () => {
+    const device = new DRPDDeviceDefinition()
+    await device.loadConfig({
+      logging: {
+        clockSyncEnabled: false,
+        clockSyncResyncIntervalMs: -1,
+      },
+    })
+    const saved = await device.saveConfig()
+    expect(saved).toEqual({
+      logging: {
+        ...buildDefaultLoggingConfig(),
+        clockSyncEnabled: false,
+      },
+    })
+  })
+
   it('emits connect and disconnect events', async () => {
     const device = new DRPDDeviceDefinition()
     const usbDevice = createUsbDevice()

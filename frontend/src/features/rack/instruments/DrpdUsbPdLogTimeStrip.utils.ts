@@ -212,19 +212,21 @@ export const computePulseTraceEndTimestampUs = (
 /**
  * Format one wall-clock label.
  *
- * @param wallClockMs - Host timestamp.
+ * @param wallClockUs - Host timestamp.
  * @returns Formatted label.
  */
-export const formatWallClock = (wallClockMs: number | null): string => {
-  if (wallClockMs === null || !Number.isFinite(wallClockMs)) {
+export const formatWallClock = (wallClockUs: bigint | null): string => {
+  if (wallClockUs === null) {
     return '--'
   }
-  const date = new Date(wallClockMs)
+  const epochMs = wallClockUs / 1000n
+  const microseconds = wallClockUs % 1000n
+  const date = new Date(Number(epochMs))
   const hours = date.getHours().toString().padStart(2, '0')
   const minutes = date.getMinutes().toString().padStart(2, '0')
   const seconds = date.getSeconds().toString().padStart(2, '0')
-  const milliseconds = date.getMilliseconds().toString().padStart(3, '0')
-  return `${hours}:${minutes}:${seconds}.${milliseconds}`
+  const millisecondsPart = date.getMilliseconds().toString().padStart(3, '0')
+  return `${hours}:${minutes}:${seconds}.${millisecondsPart}${microseconds.toString().padStart(3, '0')}`
 }
 
 /**
@@ -280,16 +282,16 @@ export const interpolateDisplayTimestampUs = (
  * @param anchors - Host/device anchors.
  * @returns Host wall-clock timestamp in milliseconds, if inferable.
  */
-export const interpolateWallClockMs = (
+export const interpolateWallClockUs = (
   timestampUs: bigint,
   anchors: MessageLogTimeAnchor[],
-): number | null => {
-  const hostAnchors = anchors.filter((anchor) => anchor.wallClockMs !== null)
+): bigint | null => {
+  const hostAnchors = anchors.filter((anchor) => anchor.wallClockUs !== null)
   if (hostAnchors.length === 0) {
     return null
   }
   if (hostAnchors.length === 1) {
-    return hostAnchors[0].wallClockMs
+    return hostAnchors[0].wallClockUs
   }
   let previous = hostAnchors[0]
   let next = hostAnchors[hostAnchors.length - 1]
@@ -302,19 +304,19 @@ export const interpolateWallClockMs = (
       break
     }
   }
-  if (previous.wallClockMs === null || next.wallClockMs === null) {
+  if (previous.wallClockUs === null || next.wallClockUs === null) {
     return null
   }
   if (previous.timestampUs === next.timestampUs) {
-    return previous.wallClockMs
+    return previous.wallClockUs
   }
   const domainSpan = Number(next.timestampUs - previous.timestampUs)
   if (!Number.isFinite(domainSpan) || domainSpan === 0) {
-    return previous.wallClockMs
+    return previous.wallClockUs
   }
-  const rangeSpan = next.wallClockMs - previous.wallClockMs
+  const rangeSpan = Number(next.wallClockUs - previous.wallClockUs)
   const offset = Number(timestampUs - previous.timestampUs)
-  return previous.wallClockMs + (offset / domainSpan) * rangeSpan
+  return previous.wallClockUs + BigInt(Math.round((offset / domainSpan) * rangeSpan))
 }
 
 /**

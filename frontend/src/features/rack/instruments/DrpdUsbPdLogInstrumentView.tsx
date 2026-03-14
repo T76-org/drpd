@@ -27,6 +27,7 @@ import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
+import { formatWallClock } from './DrpdUsbPdLogTimeStrip.utils'
 
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
@@ -88,6 +89,10 @@ const formatMicroseconds = (value: bigint | null): string => {
     return '--'
   }
   return `${value}`
+}
+
+const formatTimestampCell = (row: LoggedCapturedMessage): string => {
+  return formatWallClock(row.wallClockUs)
 }
 
 const normalizeSopType = (value: string | null): string => {
@@ -167,7 +172,7 @@ const toDisplayRows = (
         eventType: row.eventType,
         startTimestampUs: row.startTimestampUs,
         endTimestampUs: row.endTimestampUs,
-        timestamp: '',
+        timestamp: formatWallClock(row.wallClockUs),
         duration: '',
         delta: '',
         messageId: '',
@@ -192,7 +197,7 @@ const toDisplayRows = (
       selectionKey: buildCapturedLogSelectionKey(row),
       startTimestampUs: row.startTimestampUs,
       endTimestampUs: row.endTimestampUs,
-      timestamp: formatMicroseconds(row.displayTimestampUs),
+      timestamp: formatTimestampCell(row),
       duration: formatMicroseconds(durationUs),
       delta: formatMicroseconds(deltaUs),
       messageId: row.messageId == null ? '--' : row.messageId.toString(),
@@ -1014,7 +1019,7 @@ export const DrpdUsbPdLogInstrumentView = ({
         data-testid="drpd-usbpd-log"
       >
         <div className={styles.headerRow}>
-          <span>Timestamp</span>
+          <span>Wall time</span>
           <span>Length</span>
           <span>Δt</span>
           <span>ID</span>
@@ -1061,7 +1066,9 @@ export const DrpdUsbPdLogInstrumentView = ({
                 }}
               >
                 {row?.kind === 'event' ? (
-                  <span className={styles.eventLabel}>{row.messageType}</span>
+                  <span className={styles.eventLabel}>
+                    {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
+                  </span>
                 ) : (
                   <>
                     <span className={styles.right}>{row?.timestamp ?? ''}</span>

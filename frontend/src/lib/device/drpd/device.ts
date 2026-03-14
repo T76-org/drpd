@@ -28,6 +28,7 @@ import type {
   OnOffState,
 } from './types'
 import type {
+  DRPDClockSyncSnapshot,
   DRPDLogStore,
   DRPDLoggingDiagnostics,
   DRPDLogCounts,
@@ -45,6 +46,7 @@ import { DRPDTrigger } from './trigger'
 import { DRPDVBus } from './vbus'
 
 const LEGACY_CAPTURE_RETENTION = 50
+const CLOCK_SYNC_SAMPLE_COUNT = 5
 
 /**
  * Optional DRPD device constructor overrides.
@@ -106,6 +108,9 @@ export class DRPDDevice extends EventTarget {
   protected pendingDisplayEpochReset: boolean ///< True when next message should reset display epoch.
   protected lastKnownDeviceTimestampUs: bigint | null ///< Last observed/synthesized stream timestamp.
   protected captureCycleTimeNs: number | null ///< Capture cycle duration in nanoseconds.
+  protected clockSyncTimer?: ReturnType<typeof setInterval> ///< Periodic clock-sync timer.
+  protected clockSyncInFlight?: Promise<void> ///< In-flight clock-sync task.
+  protected clockSync: DRPDClockSyncSnapshot | null ///< Active device-to-host clock-sync snapshot.
 
   /**
    * Create a DRPD device driver.
@@ -154,6 +159,7 @@ export class DRPDDevice extends EventTarget {
     this.pendingDisplayEpochReset = false
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
+    this.clockSync = null
     this.interruptHandler = () => {
       if (this.interruptInFlight) {
         return
@@ -213,6 +219,7 @@ export class DRPDDevice extends EventTarget {
    */
   public async configureLogging(config: DRPDLoggingConfig): Promise<void> {
     this.loggingConfig = this.normalizeLoggingConfig(config)
+    this.refreshClockSyncScheduling()
     if (this.loggingStarted) {
       await this.stopLogging()
       if (this.loggingConfig.enabled) {
@@ -272,16 +279,20 @@ export class DRPDDevice extends EventTarget {
    */
   public getLoggingDiagnostics(): DRPDLoggingDiagnostics {
     const storeDiagnostics = this.logStore?.getDiagnostics?.()
-    return (
-      storeDiagnostics ?? {
+    return {
+      ...(storeDiagnostics ?? {
         loggingStarted: this.loggingStarted,
         loggingConfigured: this.loggingConfig.enabled,
         backend: 'none',
         persistent: false,
         sqlite: false,
         opfs: false,
-      }
-    )
+      }),
+      clockSyncConfigured: this.loggingConfig.clockSyncEnabled,
+      clockSyncActive: this.clockSync !== null,
+      clockSyncResyncIntervalMs: this.loggingConfig.clockSyncResyncIntervalMs,
+      clockSync: this.clockSync ?? undefined,
+    }
   }
 
   /**
@@ -601,6 +612,26 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
+   * Start periodic device-to-host clock resynchronization.
+   */
+  public startClockSyncPolling(intervalMs = this.loggingConfig.clockSyncResyncIntervalMs): void {
+    this.stopClockSyncPolling()
+    this.clockSyncTimer = setInterval(() => {
+      void this.synchronizeClock('periodic')
+    }, intervalMs)
+  }
+
+  /**
+   * Stop periodic device-to-host clock resynchronization.
+   */
+  public stopClockSyncPolling(): void {
+    if (this.clockSyncTimer) {
+      clearInterval(this.clockSyncTimer)
+      this.clockSyncTimer = undefined
+    }
+  }
+
+  /**
    * Handle device connection events.
    */
   public handleConnect(): void {
@@ -608,6 +639,7 @@ export class DRPDDevice extends EventTarget {
     this.isConnected = true
     void this.runConnectTasks().finally(() => {
       if (this.isConnected) {
+        this.refreshClockSyncScheduling()
         this.startAnalogMonitorPolling(this.analogMonitorIntervalMs)
         this.startCaptureDrainPolling(this.captureDrainIntervalMs)
       }
@@ -620,6 +652,7 @@ export class DRPDDevice extends EventTarget {
   public handleDisconnect(): void {
     this.logDebug('disconnect: start')
     this.isConnected = false
+    this.stopClockSyncPolling()
     this.stopAnalogMonitorPolling()
     this.stopCaptureDrainPolling()
     void this.stopLogging().finally(() => this.closeLogStore())
@@ -627,6 +660,7 @@ export class DRPDDevice extends EventTarget {
     this.pendingDisplayEpochReset = false
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
+    this.clockSync = null
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -1309,6 +1343,7 @@ export class DRPDDevice extends EventTarget {
   protected async runConnectTasks(): Promise<void> {
     this.logDebug('runConnectTasks: start')
     await this.ensureLogStoreOpen()
+    await this.synchronizeClock('connect')
     if (this.loggingConfig.enabled && this.loggingConfig.autoStartOnConnect) {
       await this.startLogging()
     }
@@ -1325,6 +1360,158 @@ export class DRPDDevice extends EventTarget {
     await this.refreshState()
     await this.refreshAndDrainCapturedMessagesFromDevice()
     this.logDebug('runConnectTasks: done')
+  }
+
+  /**
+   * Refresh periodic clock-sync scheduling to match current config and connection state.
+   */
+  protected refreshClockSyncScheduling(): void {
+    if (!this.isConnected || !this.loggingConfig.clockSyncEnabled) {
+      this.stopClockSyncPolling()
+      if (!this.loggingConfig.clockSyncEnabled) {
+        this.clockSync = null
+      }
+      return
+    }
+    this.startClockSyncPolling(this.loggingConfig.clockSyncResyncIntervalMs)
+  }
+
+  /**
+   * Synchronize device timestamps to host wall-clock time.
+   *
+   * @param source - Sync trigger source.
+   */
+  protected async synchronizeClock(source: 'connect' | 'periodic'): Promise<void> {
+    if (!this.loggingConfig.clockSyncEnabled) {
+      this.clockSync = null
+      return
+    }
+    if (this.clockSyncInFlight) {
+      await this.clockSyncInFlight
+      return
+    }
+    const task = this.runClockSync(source)
+    this.clockSyncInFlight = task
+    try {
+      await task
+    } finally {
+      if (this.clockSyncInFlight === task) {
+        this.clockSyncInFlight = undefined
+      }
+    }
+  }
+
+  /**
+   * Execute one clock-sync pass and keep the best accepted sample.
+   *
+   * @param source - Sync trigger source.
+   */
+  protected async runClockSync(source: 'connect' | 'periodic'): Promise<void> {
+    try {
+      let best: DRPDClockSyncSnapshot | null = null
+      for (let index = 0; index < CLOCK_SYNC_SAMPLE_COUNT; index += 1) {
+        const startedPerfMs = this.getPerformanceNowMs()
+        const deviceTimestampUs = await this.system.getTimestampUs()
+        const endedPerfMs = this.getPerformanceNowMs()
+        const candidate = this.buildClockSyncSnapshot(
+          deviceTimestampUs,
+          startedPerfMs,
+          endedPerfMs,
+          source,
+        )
+        if (best === null || candidate.roundTripUs < best.roundTripUs) {
+          best = candidate
+        }
+      }
+      if (best) {
+        this.clockSync = best
+      }
+    } catch (error) {
+      this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
+      this.logDebug(`clockSync: ${source} error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Build one accepted clock-sync snapshot from host timing and device timestamp.
+   *
+   * @param deviceTimestampUs - Device timestamp sample.
+   * @param startedPerfMs - Query start performance timestamp in milliseconds.
+   * @param endedPerfMs - Query end performance timestamp in milliseconds.
+   * @param source - Sync trigger source.
+   * @returns Clock-sync snapshot.
+   */
+  protected buildClockSyncSnapshot(
+    deviceTimestampUs: bigint,
+    startedPerfMs: number | null,
+    endedPerfMs: number | null,
+    source: 'connect' | 'periodic',
+  ): DRPDClockSyncSnapshot {
+    const hasPerf = startedPerfMs !== null && endedPerfMs !== null
+    const midpointPerfMs = hasPerf ? startedPerfMs + (endedPerfMs - startedPerfMs) / 2 : null
+    const roundTripUs = hasPerf
+      ? BigInt(Math.max(0, Math.round((endedPerfMs - startedPerfMs) * 1000)))
+      : 0n
+    if (midpointPerfMs === null) {
+      return {
+        deviceTimestampUs,
+        hostWallClockUs: BigInt(Date.now()) * 1000n,
+        measuredAtPerfUs: null,
+        roundTripUs,
+        approximate: true,
+        source,
+      }
+    }
+    return {
+      deviceTimestampUs,
+      hostWallClockUs: this.performanceMsToWallClockUs(midpointPerfMs),
+      measuredAtPerfUs: BigInt(Math.round(midpointPerfMs * 1000)),
+      roundTripUs,
+      approximate: false,
+      source,
+    }
+  }
+
+  /**
+   * Return the current performance timer value in milliseconds, if available.
+   *
+   * @returns Performance timestamp or null.
+   */
+  protected getPerformanceNowMs(): number | null {
+    if (typeof performance === 'undefined' || typeof performance.now !== 'function') {
+      return null
+    }
+    return performance.now()
+  }
+
+  /**
+   * Convert a performance timestamp in milliseconds to wall-clock microseconds.
+   *
+   * @param perfMs - Performance timestamp in milliseconds.
+   * @returns Estimated wall-clock timestamp in microseconds.
+   */
+  protected performanceMsToWallClockUs(perfMs: number): bigint {
+    if (
+      typeof performance === 'undefined' ||
+      typeof performance.timeOrigin !== 'number' ||
+      !Number.isFinite(performance.timeOrigin)
+    ) {
+      return BigInt(Date.now()) * 1000n
+    }
+    return BigInt(Math.round((performance.timeOrigin + perfMs) * 1000))
+  }
+
+  /**
+   * Convert an absolute device timestamp to estimated host wall-clock microseconds.
+   *
+   * @param timestampUs - Absolute device timestamp.
+   * @returns Estimated wall-clock timestamp.
+   */
+  protected resolveWallClockUs(timestampUs: bigint): bigint | null {
+    if (!this.clockSync) {
+      return null
+    }
+    return this.clockSync.hostWallClockUs + (timestampUs - this.clockSync.deviceTimestampUs)
   }
 
   /**
@@ -1404,6 +1591,7 @@ export class DRPDDevice extends EventTarget {
           this.activeDisplayEpochStartUs === null
             ? null
             : sample.captureTimestampUs - this.activeDisplayEpochStartUs,
+        wallClockUs: this.resolveWallClockUs(sample.captureTimestampUs),
         vbusV: sample.vbus,
         ibusA: sample.ibus,
         role: this.state.role,
@@ -1461,11 +1649,13 @@ export class DRPDDevice extends EventTarget {
       const nowMs = Date.now()
       const eventText = `${eventSummary} at ${new Date(nowMs).toLocaleString()}`
       const syntheticTimestampUs = this.nextSyntheticStreamTimestampUs()
+      const wallClockUs = BigInt(nowMs) * 1000n
       const row: LoggedCapturedMessage = {
         entryKind: 'event',
         eventType,
         eventText,
         eventWallClockMs: nowMs,
+        wallClockUs,
         startTimestampUs: syntheticTimestampUs,
         endTimestampUs: syntheticTimestampUs,
         displayTimestampUs: null,
@@ -1652,6 +1842,7 @@ export class DRPDDevice extends EventTarget {
       eventType: null,
       eventText: null,
       eventWallClockMs: null,
+      wallClockUs: this.resolveWallClockUs(message.startTimestampUs),
       startTimestampUs: message.startTimestampUs,
       endTimestampUs: message.endTimestampUs,
       displayTimestampUs: message.startTimestampUs - this.activeDisplayEpochStartUs,

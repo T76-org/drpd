@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DRPDDevice } from '../device'
 import { CaptureDecodeResult, OnOffState } from '../types'
 import type { DRPDSCPIParam, DRPDTransport } from '../transport'
-import { SQLiteWasmStore } from '../logging'
+import { buildDefaultLoggingConfig, SQLiteWasmStore } from '../logging'
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
@@ -73,6 +73,13 @@ class MockTransport implements DRPDTransport {
   }
 }
 
+const buildLoggingConfig = (
+  overrides: Partial<ReturnType<typeof buildDefaultLoggingConfig>> = {},
+) => ({
+  ...buildDefaultLoggingConfig(),
+  ...overrides,
+})
+
 /**
  * Force the driver to connected state in tests.
  *
@@ -137,6 +144,7 @@ describe('DRPD logging integration', () => {
       eventType: null,
       eventText: null,
       eventWallClockMs: null,
+      wallClockUs: 42_000n,
       startTimestampUs: 1234n,
       endTimestampUs: 1240n,
       displayTimestampUs: 0n,
@@ -236,13 +244,13 @@ describe('DRPD logging integration', () => {
     })
     setConnected(device)
 
-    await device.configureLogging({
+    await device.configureLogging(buildLoggingConfig({
       enabled: true,
       autoStartOnConnect: false,
       maxAnalogSamples: 1_000_000,
       maxCapturedMessages: 50,
       retentionTrimBatchSize: 2_000,
-    })
+    }))
     await device.setCaptureEnabled(OnOffState.ON)
 
     expect(createdConfigMaxCaptured).toBe(1_000_000)
@@ -457,13 +465,13 @@ describe('DRPD logging integration', () => {
     const device = new DRPDDevice(transport, {
       createLogStore: () => store,
     })
-    await device.configureLogging({
+    await device.configureLogging(buildLoggingConfig({
       enabled: true,
       autoStartOnConnect: false,
       maxAnalogSamples: 100,
       maxCapturedMessages: 100,
       retentionTrimBatchSize: 10,
-    })
+    }))
     await device.startLogging()
     setConnected(device)
 
@@ -515,13 +523,13 @@ describe('DRPD logging integration', () => {
     const device = new DRPDDevice(transport, {
       createLogStore: () => store,
     })
-    await device.configureLogging({
+    await device.configureLogging(buildLoggingConfig({
       enabled: true,
       autoStartOnConnect: false,
       maxAnalogSamples: 10,
       maxCapturedMessages: 10,
       retentionTrimBatchSize: 5,
-    })
+    }))
     await device.startLogging()
     await device.stopLogging()
     setConnected(device)
@@ -703,5 +711,53 @@ describe('DRPD logging integration', () => {
 
     expect(statusEvent).toBeDefined()
     expect(statusEvent!.startTimestampUs).toBeGreaterThanOrEqual(15_020n)
+  })
+
+  it('derives microsecond wall-clock anchors from clock-sync samples', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SYST:TIME?', ['1000'])
+
+    const device = new DRPDDevice(transport)
+    const originalTimeOrigin = performance.timeOrigin
+    Object.defineProperty(performance, 'timeOrigin', {
+      configurable: true,
+      value: 1_700_000_000_000,
+    })
+    const nowSpy = vi
+      .spyOn(performance, 'now')
+      .mockImplementationOnce(() => 0)
+      .mockImplementationOnce(() => 1)
+      .mockImplementationOnce(() => 10)
+      .mockImplementationOnce(() => 13)
+      .mockImplementationOnce(() => 20)
+      .mockImplementationOnce(() => 24)
+      .mockImplementationOnce(() => 30)
+      .mockImplementationOnce(() => 35)
+      .mockImplementationOnce(() => 40)
+      .mockImplementationOnce(() => 46)
+
+    try {
+      await (device as unknown as { synchronizeClock(source: 'connect' | 'periodic'): Promise<void> })
+        .synchronizeClock('connect')
+    } finally {
+      nowSpy.mockRestore()
+      Object.defineProperty(performance, 'timeOrigin', {
+        configurable: true,
+        value: originalTimeOrigin,
+      })
+    }
+
+    const diagnostics = device.getLoggingDiagnostics()
+    expect(diagnostics.clockSyncActive).toBe(true)
+    expect(diagnostics.clockSync?.source).toBe('connect')
+    expect(diagnostics.clockSync?.roundTripUs).toBe(1000n)
+    expect(diagnostics.clockSync?.hostWallClockUs).toBe(1_700_000_000_000_500n)
+    expect(
+      (
+        device as unknown as {
+          resolveWallClockUs(timestampUs: bigint): bigint | null
+        }
+      ).resolveWallClockUs(1_025n),
+    ).toBe(1_700_000_000_000_525n)
   })
 })

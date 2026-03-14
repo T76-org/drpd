@@ -13,6 +13,10 @@ export interface DRPDLoggingConfig {
   enabled: boolean
   ///< True to auto-start logging when a device connects.
   autoStartOnConnect: boolean
+  ///< True to synchronize device timestamps to host wall clock.
+  clockSyncEnabled: boolean
+  ///< Periodic resynchronization interval in milliseconds.
+  clockSyncResyncIntervalMs: number
   ///< Maximum retained analog samples.
   maxAnalogSamples: number
   ///< Maximum retained captured messages.
@@ -29,6 +33,8 @@ export interface LoggedAnalogSample {
   timestampUs: bigint
   ///< Display timestamp in microseconds relative to the active logging epoch.
   displayTimestampUs: bigint | null
+  ///< Estimated host wall-clock timestamp in microseconds.
+  wallClockUs: bigint | null
   ///< VBUS voltage in volts.
   vbusV: number
   ///< IBUS current in amps.
@@ -64,6 +70,8 @@ export interface LoggedCapturedMessage {
   eventText: string | null
   ///< Optional event wall-clock timestamp in milliseconds.
   eventWallClockMs: number | null
+  ///< Estimated host wall-clock timestamp in microseconds.
+  wallClockUs: bigint | null
   ///< Capture start timestamp in microseconds.
   startTimestampUs: bigint
   ///< Capture end timestamp in microseconds.
@@ -154,8 +162,8 @@ export interface MessageLogAnalogPoint {
   timestampUs: bigint
   ///< Display timestamp in microseconds relative to the active logging epoch.
   displayTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in milliseconds.
-  wallClockMs: number | null
+  ///< Host wall-clock timestamp in microseconds.
+  wallClockUs: bigint | null
   ///< VBUS voltage in volts.
   vbusV: number
   ///< IBUS current in amps.
@@ -178,8 +186,8 @@ export interface MessageLogPulseSegment {
   displayStartTimestampUs: bigint | null
   ///< Display end timestamp in microseconds relative to the active logging epoch.
   displayEndTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in milliseconds.
-  wallClockMs: number | null
+  ///< Host wall-clock timestamp in microseconds.
+  wallClockUs: bigint | null
   ///< Decoded SOP label for message annotations.
   sopLabel: string | null
   ///< Decoded message label for message annotations.
@@ -200,8 +208,8 @@ export interface MessageLogEventMarker {
   timestampUs: bigint
   ///< Display timestamp in microseconds relative to the active logging epoch.
   displayTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in milliseconds.
-  wallClockMs: number | null
+  ///< Host wall-clock timestamp in microseconds.
+  wallClockUs: bigint | null
 }
 
 /**
@@ -212,10 +220,28 @@ export interface MessageLogTimeAnchor {
   timestampUs: bigint
   ///< Display timestamp in microseconds relative to the active logging epoch.
   displayTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in milliseconds.
-  wallClockMs: number | null
+  ///< Host wall-clock timestamp in microseconds.
+  wallClockUs: bigint | null
   ///< True when the mapping is approximate rather than exact.
   approximate: boolean
+}
+
+/**
+ * Active device-to-wall-clock synchronization anchor.
+ */
+export interface DRPDClockSyncSnapshot {
+  ///< Device timestamp in microseconds at the accepted sync sample.
+  deviceTimestampUs: bigint
+  ///< Estimated host wall-clock time in microseconds at the accepted sync sample.
+  hostWallClockUs: bigint
+  ///< Monotonic performance timestamp of the accepted sync sample in microseconds, if available.
+  measuredAtPerfUs: bigint | null
+  ///< Measured request round-trip time in microseconds.
+  roundTripUs: bigint
+  ///< True when the mapping used an approximate host clock fallback.
+  approximate: boolean
+  ///< Sync source.
+  source: 'connect' | 'periodic'
 }
 
 /**
@@ -320,6 +346,14 @@ export interface DRPDLoggingDiagnostics {
   sqlite: boolean
   ///< True when SQLite is using OPFS.
   opfs: boolean
+  ///< True when clock synchronization is configured enabled.
+  clockSyncConfigured: boolean
+  ///< True when a usable clock-sync anchor is active.
+  clockSyncActive: boolean
+  ///< Configured periodic resync interval in milliseconds.
+  clockSyncResyncIntervalMs: number
+  ///< Last accepted sync snapshot, if any.
+  clockSync?: DRPDClockSyncSnapshot
 }
 
 /**
