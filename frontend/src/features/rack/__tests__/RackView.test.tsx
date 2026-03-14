@@ -227,6 +227,11 @@ const mockUSB = (devices: USBDevice[]) => {
   return {
     requestDevice,
     getDevices,
+    dispatchConnect(device: USBDevice) {
+      act(() => {
+        dispatch('connect', { device } as Event)
+      })
+    },
     dispatchDisconnect(device: USBDevice) {
       act(() => {
         dispatch('disconnect', { device } as Event)
@@ -878,6 +883,56 @@ describe('RackView', () => {
     expect(await screen.findByText('disconnected')).toBeInTheDocument()
     expect(screen.queryByText('connected')).not.toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /connect/i })).toBeInTheDocument()
+  })
+
+  it('auto-connects a previously paired device when WebUSB reports it connected', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [
+              {
+                id: 'device-1',
+                identifier: 'com.mta.drpd',
+                displayName: 'Dr. PD',
+                vendorId: 0x2e8a,
+                productId: 0x000a,
+                serialNumber: 'DRPD-TEST-001',
+                productName: 'Dr. PD'
+              }
+            ],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-1',
+                    instrumentIdentifier: 'com.mta.drpd.device-status-panel'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }),
+    )
+    const usbDevice = createUSBDevice()
+    const { dispatchConnect } = mockUSB([])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    expect(await screen.findByText('missing')).toBeInTheDocument()
+
+    dispatchConnect(usbDevice)
+
+    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
+    expect(await screen.findByText('connected')).toBeInTheDocument()
   })
 
   it('removes a device when remove is clicked', async () => {

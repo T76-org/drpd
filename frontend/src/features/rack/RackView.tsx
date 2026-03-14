@@ -669,8 +669,44 @@ export const RackView = () => {
       )
     }
 
+    const handleUsbConnect = (event: Event) => {
+      const usbEvent = event as USBConnectionEvent
+      const connectedDevice = usbEvent.device
+      if (!connectedDevice) {
+        return
+      }
+
+      const matchedStates = deviceStatesRef.current.filter(
+        (state) =>
+          state.status !== 'connected' &&
+          doesRackDeviceRecordMatchUsbDevice(state.record, connectedDevice),
+      )
+
+      if (matchedStates.length === 0) {
+        return
+      }
+
+      for (const state of matchedStates) {
+        const definition = deviceDefinitions.find(
+          (candidate) => candidate.identifier === state.record.identifier,
+        )
+        if (!definition) {
+          continue
+        }
+        void reconnectRackDeviceRecord({
+          record: state.record,
+          definition,
+          device: connectedDevice,
+          onUpdate: setDeviceStates,
+          onError: setDeviceError,
+        })
+      }
+    }
+
+    usb.addEventListener('connect', handleUsbConnect)
     usb.addEventListener('disconnect', handleUsbDisconnect)
     return () => {
+      usb.removeEventListener('connect', handleUsbConnect)
       usb.removeEventListener('disconnect', handleUsbDisconnect)
     }
   }, [deviceDefinitions])
@@ -832,33 +868,12 @@ export const RackView = () => {
       setDeviceError('No matching device definition found.')
       return
     }
-
-    try {
-      const connected = await navigator.usb.getDevices()
-      const matchedDevice = findUsbDeviceForRecord(connected, record)
-      if (!matchedDevice) {
-        setDeviceError('Device is not available. Check the USB connection.')
-        setDeviceStates((states) =>
-          upsertDeviceState(states, { record, status: 'missing' }),
-        )
-        return
-      }
-
-      const runtime = await connectDeviceRuntime(definition, matchedDevice)
-      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
-      const nextRecord = mergeRackDeviceIdentity(record, identity)
-      await applyRecordConfigToRuntime(nextRecord, runtime)
-      setDeviceStates((states) =>
-        upsertDeviceState(states, buildRackDeviceState(nextRecord, runtime)),
-      )
-    } catch (connectError) {
-      const message =
-        connectError instanceof Error ? connectError.message : String(connectError)
-      setDeviceError(message)
-      setDeviceStates((states) =>
-        upsertDeviceState(states, { record, status: 'error', error: message }),
-      )
-    }
+    await reconnectRackDeviceRecord({
+      record,
+      definition,
+      onUpdate: setDeviceStates,
+      onError: setDeviceError,
+    })
   }
 
   /**
@@ -1578,6 +1593,59 @@ const connectDeviceRuntime = async (
 
   await definition.connectDevice(device)
   return null
+}
+
+/**
+ * Connect a persisted rack device record using the normal runtime flow.
+ *
+ * @param params - Reconnect parameters.
+ */
+const reconnectRackDeviceRecord = async ({
+  record,
+  definition,
+  device,
+  onUpdate,
+  onError,
+}: {
+  record: RackDeviceRecord
+  definition: Device
+  device?: USBDevice
+  onUpdate: (updater: (states: RackDeviceState[]) => RackDeviceState[]) => void
+  onError: (message: string | null) => void
+}): Promise<void> => {
+  onError(null)
+
+  try {
+    const matchedDevice =
+      device ??
+      (typeof navigator === 'undefined' || !navigator.usb
+        ? null
+        : findUsbDeviceForRecord(await navigator.usb.getDevices(), record))
+
+    if (!matchedDevice) {
+      onError('Device is not available. Check the USB connection.')
+      onUpdate((states) =>
+        upsertDeviceState(states, { record, status: 'missing' }),
+      )
+      return
+    }
+
+    const runtime = await connectDeviceRuntime(definition, matchedDevice)
+    const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+    const nextRecord = mergeRackDeviceIdentity(record, identity)
+
+    await applyRecordConfigToRuntime(nextRecord, runtime)
+    onUpdate((states) =>
+      upsertDeviceState(states, buildRackDeviceState(nextRecord, runtime)),
+    )
+  } catch (connectError) {
+    const message =
+      connectError instanceof Error ? connectError.message : String(connectError)
+    onError(message)
+    onUpdate((states) =>
+      upsertDeviceState(states, { record, status: 'error', error: message }),
+    )
+  }
 }
 
 /**
