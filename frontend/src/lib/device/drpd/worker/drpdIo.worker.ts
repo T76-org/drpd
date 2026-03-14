@@ -36,6 +36,29 @@ const hostPending = new Map<
   }
 >() ///< Pending host-transport RPCs awaiting main-thread responses.
 let hostRequestCounter = 1 ///< Monotonic host-transport RPC request id counter.
+const SESSION_CLOSE_TIMEOUT_MS = 1_000 ///< Max time to wait for transport close during session teardown.
+
+/**
+ * Wait for teardown work without blocking the worker forever.
+ *
+ * @param promise - Promise to await.
+ * @param timeoutMs - Timeout in milliseconds.
+ * @param label - Debug label.
+ */
+const awaitWithTimeout = async (
+  promise: Promise<void>,
+  timeoutMs: number,
+  label: string,
+): Promise<void> => {
+  await Promise.race([
+    promise,
+    new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve()
+      }, timeoutMs)
+    }),
+  ])
+}
 
 /**
  * Worker-side transport bridge that forwards USBTMC operations to the host.
@@ -431,6 +454,7 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
       if (!session) {
         return null
       }
+      drpdSessions.delete(request.params.sessionId)
       for (const { eventName, handler } of session.eventForwarders) {
         session.device.removeEventListener(eventName, handler)
       }
@@ -441,11 +465,14 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
       }
       session.device.detachInterrupts()
       try {
-        await session.transport.close()
+        await awaitWithTimeout(
+          session.transport.close(),
+          SESSION_CLOSE_TIMEOUT_MS,
+          `drpdSession.dispose transport.close ${request.params.sessionId}`,
+        )
       } catch {
         // Best-effort transport close.
       }
-      drpdSessions.delete(request.params.sessionId)
       return null
     }
     case 'drpdSession.call': {

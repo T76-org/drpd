@@ -37,6 +37,34 @@ import { deserializeWorkerError } from './serialization'
 import { DRPDWorkerServiceClient } from './service'
 
 let workerDeviceSessionCounter = 1 ///< Monotonic worker DRPD session id counter.
+const WORKER_CREATE_TIMEOUT_MS = 1_500 ///< Max time to wait for worker session creation before resetting the worker.
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  return await new Promise<T>((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      settled = true
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    promise
+      .then((value) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
+}
 
 /**
  * Worker-backed DRPD device proxy that mirrors the subset of DRPDDevice used by the UI.
@@ -83,32 +111,44 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    * @returns Ready proxy instance.
    */
   public static async create(device: USBDevice): Promise<DRPDWorkerDeviceProxy> {
-    const client = DRPDWorkerServiceClient.getShared()
-    const suffix = workerDeviceSessionCounter++
-    const sessionId = `drpd-session-${suffix}`
-    const proxy = new DRPDWorkerDeviceProxy(client, sessionId)
-    try {
-      client.registerDRPDSessionEvents(sessionId, (eventName, detail) => {
-        proxy.handleWorkerDeviceEvent(eventName, detail)
-      })
-      const deviceSelection: WorkerUSBDeviceSelection = {
-        vendorId: device.vendorId,
-        productId: device.productId,
-        serialNumber: device.serialNumber ?? null,
-        productName: device.productName ?? null,
-        manufacturerName: device.manufacturerName ?? null,
+    let lastError: unknown
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const client = DRPDWorkerServiceClient.getShared()
+      const suffix = workerDeviceSessionCounter++
+      const sessionId = `drpd-session-${suffix}`
+      const proxy = new DRPDWorkerDeviceProxy(client, sessionId)
+      try {
+        client.registerDRPDSessionEvents(sessionId, (eventName, detail) => {
+          proxy.handleWorkerDeviceEvent(eventName, detail)
+        })
+        const deviceSelection: WorkerUSBDeviceSelection = {
+          vendorId: device.vendorId,
+          productId: device.productId,
+          serialNumber: device.serialNumber ?? null,
+          productName: device.productName ?? null,
+          manufacturerName: device.manufacturerName ?? null,
+        }
+        await withTimeout(
+          client.callWorker('drpdSession.create', {
+            sessionId,
+            deviceSelection,
+          }),
+          WORKER_CREATE_TIMEOUT_MS,
+          'drpdSession.create',
+        )
+        proxy.state = (await proxy.callDevice('getState')) as DRPDDeviceState
+        return proxy
+      } catch (error) {
+        lastError = error
+        client.unregisterDRPDSessionEvents(sessionId)
+        if (attempt === 0) {
+          DRPDWorkerServiceClient.resetShared('drpdSession.create timeout/retry')
+          continue
+        }
+        await client.callWorker('drpdSession.dispose', { sessionId }).catch(() => undefined)
       }
-      await client.callWorker('drpdSession.create', {
-        sessionId,
-        deviceSelection,
-      })
-      proxy.state = (await proxy.callDevice('getState')) as DRPDDeviceState
-      return proxy
-    } catch (error) {
-      client.unregisterDRPDSessionEvents(sessionId)
-      await client.callWorker('drpdSession.dispose', { sessionId }).catch(() => undefined)
-      throw error
     }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
   }
 
   /**

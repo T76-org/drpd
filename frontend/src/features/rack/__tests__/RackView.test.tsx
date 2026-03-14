@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DRPDDeviceDefinition } from '../../../lib/device'
@@ -190,14 +190,54 @@ const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
 const mockUSB = (devices: USBDevice[]) => {
   const requestDevice = vi.fn(async () => devices[0])
   const getDevices = vi.fn(async () => devices)
+  const listeners = new Map<string, Set<EventListener>>()
+  const listenerLookup = new WeakMap<EventListenerOrEventListenerObject, EventListener>()
+  const addEventListener = vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+    const callback = typeof listener === 'function' ? listener : listener.handleEvent.bind(listener)
+    listenerLookup.set(listener, callback)
+    const current = listeners.get(type) ?? new Set<EventListener>()
+    current.add(callback)
+    listeners.set(type, current)
+  })
+  const removeEventListener = vi.fn(
+    (type: string, listener: EventListenerOrEventListenerObject) => {
+      const callback =
+        listenerLookup.get(listener) ?? (typeof listener === 'function' ? listener : null)
+      if (!callback) {
+        return
+      }
+      listeners.get(type)?.delete(callback)
+    },
+  )
   vi.stubGlobal('navigator', {
     usb: {
       requestDevice,
-      getDevices
+      getDevices,
+      addEventListener,
+      removeEventListener,
     }
   })
 
-  return { requestDevice, getDevices }
+  const dispatch = (type: string, event: Event) => {
+    for (const listener of listeners.get(type) ?? []) {
+      listener(event)
+    }
+  }
+
+  return {
+    requestDevice,
+    getDevices,
+    dispatchConnect(device: USBDevice) {
+      act(() => {
+        dispatch('connect', { device } as Event)
+      })
+    },
+    dispatchDisconnect(device: USBDevice) {
+      act(() => {
+        dispatch('disconnect', { device } as Event)
+      })
+    },
+  }
 }
 
 /**
@@ -816,6 +856,82 @@ describe('RackView', () => {
     })
     await userEvent.click(reconnectButton)
 
+    expect(await screen.findByText('connected')).toBeInTheDocument()
+  })
+
+  it('marks a connected device disconnected when WebUSB reports an unplug', async () => {
+    saveRackDocument(buildRackDocument())
+    const usbDevice = createUSBDevice()
+    const { requestDevice, dispatchDisconnect } = mockUSB([usbDevice])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    const connectButton = await screen.findByRole('button', {
+      name: /pair device/i
+    })
+    await userEvent.click(connectButton)
+
+    expect(requestDevice).toHaveBeenCalled()
+    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
+    expect(await screen.findByText('connected')).toBeInTheDocument()
+
+    dispatchDisconnect(usbDevice)
+
+    expect(await screen.findByText('disconnected')).toBeInTheDocument()
+    expect(screen.queryByText('connected')).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /connect/i })).toBeInTheDocument()
+  })
+
+  it('auto-connects a previously paired device when WebUSB reports it connected', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        racks: [
+          {
+            id: 'bench-rack-a',
+            name: 'Bench Rack A',
+            totalUnits: 9,
+            devices: [
+              {
+                id: 'device-1',
+                identifier: 'com.mta.drpd',
+                displayName: 'Dr. PD',
+                vendorId: 0x2e8a,
+                productId: 0x000a,
+                serialNumber: 'DRPD-TEST-001',
+                productName: 'Dr. PD'
+              }
+            ],
+            rows: [
+              {
+                id: 'row-1',
+                instruments: [
+                  {
+                    id: 'inst-1',
+                    instrumentIdentifier: 'com.mta.drpd.device-status-panel'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }),
+    )
+    const usbDevice = createUSBDevice()
+    const { dispatchConnect } = mockUSB([])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i
+    })
+    await userEvent.click(menuButton)
+    expect(await screen.findByText('missing')).toBeInTheDocument()
+
+    dispatchConnect(usbDevice)
+
+    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
     expect(await screen.findByText('connected')).toBeInTheDocument()
   })
 

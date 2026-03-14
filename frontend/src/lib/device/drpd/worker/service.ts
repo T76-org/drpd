@@ -50,6 +50,7 @@ export class DRPDWorkerServiceClient {
   protected readonly worker: Worker ///< Shared worker instance.
   protected rpcRequestCounter: number ///< Main-thread RPC request counter.
   protected pendingRpcs: Map<number, PendingRpc> ///< In-flight worker RPC promises.
+  protected pendingRpcMethods: Map<number, WorkerRpcRequest['method']> ///< In-flight RPC method names keyed by request id.
   protected hostTransports: Map<string, HostTransportRegistration> ///< Host transport registry.
   protected transportEventHandlers: Map<string, (eventName: 'interrupt' | 'interrupterror', detail: unknown) => void> ///< Proxy event callbacks.
   protected sessionEventHandlers: Map<string, SessionEventHandler> ///< Worker DRPD session event callbacks.
@@ -71,12 +72,25 @@ export class DRPDWorkerServiceClient {
   }
 
   /**
+   * Terminate and clear the shared worker client singleton.
+   */
+  public static resetShared(reason: string): void {
+    const instance = DRPDWorkerServiceClient.instance
+    if (!instance) {
+      return
+    }
+    instance.dispose(reason)
+    DRPDWorkerServiceClient.instance = undefined
+  }
+
+  /**
    * Create the shared worker client.
    */
   protected constructor() {
     this.worker = new Worker(new URL('./drpdIo.worker.ts', import.meta.url), { type: 'module' })
     this.rpcRequestCounter = 1
     this.pendingRpcs = new Map()
+    this.pendingRpcMethods = new Map()
     this.hostTransports = new Map()
     this.transportEventHandlers = new Map()
     this.sessionEventHandlers = new Map()
@@ -216,6 +230,7 @@ export class DRPDWorkerServiceClient {
         resolve,
         reject: (error) => reject(error),
       })
+      this.pendingRpcMethods.set(requestId, method)
     })
     this.postToWorker(message)
     return (await result) as T
@@ -241,7 +256,9 @@ export class DRPDWorkerServiceClient {
       if (!pending) {
         return
       }
+      const method = this.pendingRpcMethods.get(message.requestId) ?? 'unknown'
       this.pendingRpcs.delete(message.requestId)
+      this.pendingRpcMethods.delete(message.requestId)
       if (this.isHeartbeatResult(message.result)) {
         this.lastHeartbeatAckMs = Date.now()
         this.workerHealthy = true
@@ -255,7 +272,9 @@ export class DRPDWorkerServiceClient {
       if (!pending) {
         return
       }
+      const method = this.pendingRpcMethods.get(message.requestId) ?? 'unknown'
       this.pendingRpcs.delete(message.requestId)
+      this.pendingRpcMethods.delete(message.requestId)
       pending.reject(deserializeWorkerError(message.error))
       return
     }
@@ -413,5 +432,31 @@ export class DRPDWorkerServiceClient {
     }
     const probe = value as { nowMs?: unknown }
     return typeof probe.nowMs === 'number'
+  }
+
+  /**
+   * Dispose the worker client and reject pending RPCs.
+   *
+   * @param reason - Debug reason.
+   */
+  protected dispose(reason: string): void {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer)
+      this.watchdogTimer = undefined
+    }
+    for (const [requestId, pending] of this.pendingRpcs) {
+      const method = this.pendingRpcMethods.get(requestId)
+      if (method === 'heartbeat') {
+        pending.resolve(undefined)
+        continue
+      }
+      pending.reject(new Error(`DRPD worker client disposed: ${reason} (request ${requestId})`))
+    }
+    this.pendingRpcs.clear()
+    this.pendingRpcMethods.clear()
+    this.transportEventHandlers.clear()
+    this.sessionEventHandlers.clear()
+    this.hostTransports.clear()
+    this.worker.terminate()
   }
 }
