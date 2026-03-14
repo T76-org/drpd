@@ -468,6 +468,34 @@ describe('USB-PD data message decoding', () => {
     expect(enterModePayloadVdos?.getEntry('vdo1')?.type).toBe('OrderedDictionary')
     expect(enterModePayloadVdos?.getEntry('vdo1')?.getEntry('raw')?.value).toBe('0x12345678')
   })
+
+  it('ignores trailing CRC bytes when decoding Vendor_Defined Discover Identity from SOP\'', () => {
+    const frame = Uint8Array.from([
+      0x18, 0x18, 0x06, 0x06,
+      0x8f, 0x51,
+      0x41, 0xa0, 0x00, 0xff,
+      0x00, 0x00, 0x00, 0x18,
+      0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00,
+      0x40, 0x46, 0x0a, 0x00,
+      0xc4, 0x03, 0xd9, 0x14,
+    ])
+    const message = parseUSBPDMessage(frame)
+    expect(message).toBeInstanceOf(VendorDefinedMessage)
+    const decoded = message as VendorDefinedMessage
+    expect(decoded.sop.kind).toBe('SOP_PRIME')
+    expect(decoded.header.messageHeader.numberOfDataObjects).toBe(5)
+    expect(decoded.rawDataObjects).toEqual([
+      0xff00a041,
+      0x18000000,
+      0x00000000,
+      0x00000000,
+      0x000a4640,
+    ])
+    expect(decoded.discoverIdentity?.productTypeVDOs).toHaveLength(1)
+    expect(decoded.discoverIdentity?.rawVDOs).toEqual([])
+    expect(decoded.parseErrors).toEqual([])
+  })
 })
 
 describe('USB-PD extended message decoding', () => {

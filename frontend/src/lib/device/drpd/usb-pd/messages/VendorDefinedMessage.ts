@@ -58,8 +58,15 @@ export class VendorDefinedMessage extends DataMessage {
     super(sop, header, payload, messageTypeName)
     this.parseErrors = []
     this.rawPayload = payload.subarray(this.payloadOffset)
+    const expectedCount = header.messageHeader.numberOfDataObjects
     const availableCount = Math.floor(this.rawPayload.length / 4)
-    if (availableCount < 1) {
+    const count = Math.min(expectedCount, availableCount)
+    if (expectedCount > availableCount) {
+      this.parseErrors.push(
+        `Vendor_Defined expected ${expectedCount} data objects but only ${availableCount} available`,
+      )
+    }
+    if (count < 1) {
       this.parseErrors.push('Vendor_Defined message missing VDM header')
       this.rawDataObjects = []
       this.vdmHeader = null
@@ -69,7 +76,7 @@ export class VendorDefinedMessage extends DataMessage {
       this.discoverModes = []
       return
     }
-    this.rawDataObjects = readDataObjects(payload, this.payloadOffset, availableCount)
+    this.rawDataObjects = readDataObjects(payload, this.payloadOffset, count)
     this.vdmHeader = parseVDMHeader(this.rawDataObjects[0])
     this.rawVDOs = this.rawDataObjects.slice(1)
     this.discoverIdentity = null
