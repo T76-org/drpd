@@ -12,6 +12,20 @@ const USB_PD_BMC_TOLERANCE = 0.1
 
 const formatMicroseconds = (valueUs: number | bigint): string => valueUs.toString()
 
+const formatWallClockUs = (valueUs: bigint | null): string => {
+  if (valueUs === null) {
+    return 'Unavailable'
+  }
+  const epochMs = valueUs / 1000n
+  const micros = valueUs % 1000n
+  const date = new Date(Number(epochMs))
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  const seconds = date.getSeconds().toString().padStart(2, '0')
+  const milliseconds = date.getMilliseconds().toString().padStart(3, '0')
+  return `${hours}:${minutes}:${seconds}.${milliseconds}${micros.toString().padStart(3, '0')}`
+}
+
 const formatKilohertz = (valueKhz: number): string => {
   if (!Number.isFinite(valueKhz)) {
     return 'Unavailable'
@@ -239,6 +253,8 @@ export class Message {
   public startTimestampUs: bigint | null
   ///< Optional device capture end timestamp in microseconds.
   public endTimestampUs: bigint | null
+  ///< Optional synchronized wall-clock timestamp in microseconds.
+  public wallClockUs: bigint | null
 
   /**
    * Create a USB-PD message wrapper.
@@ -268,6 +284,7 @@ export class Message {
     this.pulseWidthsNs = new Float64Array()
     this.startTimestampUs = null
     this.endTimestampUs = null
+    this.wallClockUs = null
   }
 
   /**
@@ -288,6 +305,15 @@ export class Message {
   public setCaptureTimestamps(startTimestampUs?: bigint, endTimestampUs?: bigint): void {
     this.startTimestampUs = typeof startTimestampUs === 'bigint' ? startTimestampUs : null
     this.endTimestampUs = typeof endTimestampUs === 'bigint' ? endTimestampUs : null
+  }
+
+  /**
+   * Copy synchronized wall-clock timestamp into this decoded message.
+   *
+   * @param wallClockUs - Optional synchronized wall-clock timestamp in microseconds.
+   */
+  public setWallClockTimestampUs(wallClockUs?: bigint | null): void {
+    this.wallClockUs = typeof wallClockUs === 'bigint' ? wallClockUs : null
   }
 
   /**
@@ -336,6 +362,7 @@ export class Message {
     const startTimestampUs = this.startTimestampUs ?? 0n
     const endTimestampUs =
       this.endTimestampUs ?? (this.startTimestampUs !== null ? this.startTimestampUs : 0n) + BigInt(Math.round(derivedEndTimestampUs))
+    const durationUs = endTimestampUs >= startTimestampUs ? endTimestampUs - startTimestampUs : 0n
     const bmcFrequencyKhz = computeBMCCarrierFrequencyKhz(this.pulseWidthsNs)
     const bmcCarrierValid =
       Number.isFinite(bmcFrequencyKhz) &&
@@ -350,21 +377,30 @@ export class Message {
       'startTimestamp',
       HumanReadableField.string(
         formatMicroseconds(startTimestampUs),
-        'Start Timestamp',
-        'Capture start timestamp in microseconds.',
+        'Device Timestamp',
+        'Device capture timestamp in microseconds.',
       ),
     )
     timingInformation.insertEntryAt(
       1,
-      'endTimestamp',
+      'wallClockTimestamp',
       HumanReadableField.string(
-        formatMicroseconds(endTimestampUs),
-        'End Timestamp',
-        'Capture end timestamp in microseconds.',
+        formatWallClockUs(this.wallClockUs),
+        'Wall Clock Timestamp',
+        'Estimated host wall-clock timestamp in microseconds, synchronized from the device timestamp.',
       ),
     )
     timingInformation.insertEntryAt(
       2,
+      'duration',
+      HumanReadableField.string(
+        formatMicroseconds(durationUs),
+        'Duration',
+        'Total message duration in microseconds.',
+      ),
+    )
+    timingInformation.insertEntryAt(
+      3,
       'pulseCount',
       HumanReadableField.string(
         this.pulseWidthsNs.length.toString(),
@@ -394,7 +430,7 @@ export class Message {
         'Whether the measured Biphase Mark Coding carrier frequency is within the USB-PD specification tolerance of 300 kHz +/-10%.',
       ),
     )
-    timingInformation.insertEntryAt(3, 'bmcCarrier', bmcCarrier)
+    timingInformation.insertEntryAt(4, 'bmcCarrier', bmcCarrier)
     const sop = HumanReadableField.orderedDictionary(
       'SOP',
       'Start of Packet metadata derived from the ordered-set prefix.',

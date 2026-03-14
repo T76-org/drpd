@@ -43,12 +43,11 @@ const SESSION_CLOSE_TIMEOUT_MS = 1_000 ///< Max time to wait for transport close
  *
  * @param promise - Promise to await.
  * @param timeoutMs - Timeout in milliseconds.
- * @param label - Debug label.
  */
 const awaitWithTimeout = async (
   promise: Promise<void>,
   timeoutMs: number,
-  label: string,
+  _label: string,
 ): Promise<void> => {
   await Promise.race([
     promise,

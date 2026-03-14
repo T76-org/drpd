@@ -166,7 +166,7 @@ class TestLogDriver extends EventTarget {
           : [{
               timestampUs: row.startTimestampUs,
               displayTimestampUs: row.displayTimestampUs,
-              wallClockMs: row.createdAtMs,
+              wallClockUs: BigInt(row.createdAtMs) * 1000n,
               approximate: false,
             }]
       )),
@@ -176,7 +176,7 @@ class TestLogDriver extends EventTarget {
           : [{
               timestampUs: row.timestampUs,
               displayTimestampUs: row.displayTimestampUs,
-              wallClockMs: row.createdAtMs,
+              wallClockUs: BigInt(row.createdAtMs) * 1000n,
               approximate: false,
             }]
       )),
@@ -207,7 +207,7 @@ class TestLogDriver extends EventTarget {
           row.displayTimestampUs === null
             ? null
             : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
-        wallClockMs: row.createdAtMs,
+        wallClockUs: BigInt(row.createdAtMs) * 1000n,
         sopLabel: normalizeSopType(row.sopKind),
         messageLabel: resolvePulseMessageLabel(row),
         pulseWidthsNs: row.rawPulseWidths,
@@ -215,7 +215,7 @@ class TestLogDriver extends EventTarget {
       analogPoints: this.analogRows.slice(0, query.analogPointBudget).map((row) => ({
         timestampUs: row.timestampUs,
         displayTimestampUs: row.displayTimestampUs,
-        wallClockMs: row.createdAtMs,
+        wallClockUs: BigInt(row.createdAtMs) * 1000n,
         vbusV: row.vbusV,
         ibusA: row.ibusA,
       })),
@@ -224,7 +224,7 @@ class TestLogDriver extends EventTarget {
         eventType: row.eventType,
         timestampUs: row.startTimestampUs,
         displayTimestampUs: row.displayTimestampUs,
-        wallClockMs: row.createdAtMs,
+        wallClockUs: BigInt(row.createdAtMs) * 1000n,
       })),
       timeAnchors,
     }
@@ -309,6 +309,7 @@ const buildMessage = (
   eventType: null,
   eventText: null,
   eventWallClockMs: null,
+  wallClockUs: BigInt(1_700_000_000_000_000 + index * 10),
   startTimestampUs: BigInt(1000 + index * 10),
   endTimestampUs: BigInt(1005 + index * 10),
   displayTimestampUs: BigInt(index * 10),
@@ -330,6 +331,7 @@ const buildMessage = (
 const buildAnalogSample = (index: number): LoggedAnalogSample => ({
   timestampUs: BigInt(index * 20),
   displayTimestampUs: BigInt(index * 20),
+  wallClockUs: BigInt(1_700_000_000_000_000 + index * 20),
   vbusV: 5 + index,
   ibusA: 0.5 + index * 0.1,
   role: 'SOURCE',
@@ -390,6 +392,7 @@ const buildEvent = (
   eventType,
   eventText: text,
   eventWallClockMs: 1_700_000_100_000 + index,
+  wallClockUs: BigInt(1_700_000_100_000_000 + index),
   startTimestampUs: BigInt(2000 + index),
   endTimestampUs: BigInt(2000 + index),
   displayTimestampUs: null,
@@ -431,7 +434,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       />,
     )
 
-    expect(await screen.findByText('Timestamp')).toBeInTheDocument()
+    expect(await screen.findByText('Wall time')).toBeInTheDocument()
     expect(screen.queryByTestId('drpd-usbpd-log-timestrip')).not.toBeInTheDocument()
   })
 
@@ -595,7 +598,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     )
 
     expect(
-      await screen.findByText('Capture turned off at 2026-02-28 10:00:00'),
+      await screen.findByText((content) => content.includes('Capture turned off at 2026-02-28 10:00:00')),
     ).toBeInTheDocument()
     const eventRow = container.querySelector('[class*="eventRowCapture"]')
     expect(eventRow).not.toBeNull()
@@ -653,7 +656,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       />,
     )
 
-    expect(await screen.findByText('CC role changed to SINK')).toBeInTheDocument()
+    expect(await screen.findByText((content) => content.includes('CC role changed to SINK'))).toBeInTheDocument()
 
     const appended = {
       ...buildMessage(2, 4),

@@ -13,6 +13,7 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp_us INTEGER NOT NULL,
     display_timestamp_us INTEGER,
+    wall_clock_us INTEGER,
     vbus_v REAL NOT NULL,
     ibus_a REAL NOT NULL,
     role TEXT,
@@ -24,6 +25,7 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
     event_type TEXT,
     event_text TEXT,
     event_wall_clock_ms INTEGER,
+    wall_clock_us INTEGER,
     start_timestamp_us INTEGER NOT NULL,
     end_timestamp_us INTEGER NOT NULL,
     display_timestamp_us INTEGER,
@@ -55,4 +57,4 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
 /**
  * Schema version used by the logging store.
  */
-export const LOG_SCHEMA_VERSION = 3
+export const LOG_SCHEMA_VERSION = 4

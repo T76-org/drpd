@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { AnalogMonitorChannels } from '../../../lib/device'
 import { DRPDDevice } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'

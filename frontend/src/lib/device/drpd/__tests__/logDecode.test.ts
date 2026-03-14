@@ -10,6 +10,7 @@ const buildMessageRow = (
   eventType: null,
   eventText: null,
   eventWallClockMs: null,
+  wallClockUs: 1_700_000_000_000_000n,
   startTimestampUs: 1000n,
   endTimestampUs: 1005n,
   displayTimestampUs: 0n,
@@ -43,9 +44,11 @@ describe('decodeLoggedCapturedMessage', () => {
     expect(decoded.message.pulseWidthsNs).not.toBe(row.rawPulseWidths)
     expect(decoded.message.startTimestampUs).toBe(1000n)
     expect(decoded.message.endTimestampUs).toBe(1005n)
+    expect(decoded.message.wallClockUs).toBe(1_700_000_000_000_000n)
     const timingInformation = decoded.message.humanReadableMetadata.technicalData.getEntry('timingInformation')
     expect(timingInformation?.getEntry('startTimestamp')?.value).toBe('1000')
-    expect(timingInformation?.getEntry('endTimestamp')?.value).toBe('1005')
+    expect(timingInformation?.getEntry('wallClockTimestamp')?.value).toBe('17:13:20.000000')
+    expect(timingInformation?.getEntry('duration')?.value).toBe('5')
   })
 
   it('returns event rows without decode attempt', () => {

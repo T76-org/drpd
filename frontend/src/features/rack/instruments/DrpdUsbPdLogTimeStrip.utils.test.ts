@@ -7,7 +7,7 @@ import {
   formatDeviceTimestampUs,
   formatWallClock,
   interpolateDisplayTimestampUs,
-  interpolateWallClockMs,
+  interpolateWallClockUs,
   parseLogSelectionKey,
   parseMessageSelectionKey,
   zoomWindowAroundFocusUs,
@@ -72,24 +72,24 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
       {
         timestampUs: 1_000n,
         displayTimestampUs: 100n,
-        wallClockMs: 1_700_000_000_000,
+        wallClockUs: 1_700_000_000_000_000n,
         approximate: false,
       },
       {
         timestampUs: 2_000n,
         displayTimestampUs: 1_100n,
-        wallClockMs: 1_700_000_001_000,
+        wallClockUs: 1_700_000_001_000_000n,
         approximate: true,
       },
     ]
 
     expect(interpolateDisplayTimestampUs(1_500n, anchors)).toBe(600n)
-    expect(interpolateWallClockMs(1_500n, anchors)).toBe(1_700_000_000_500)
+    expect(interpolateWallClockUs(1_500n, anchors)).toBe(1_700_000_000_500_000n)
   })
 
   it('formats axis labels for display and wall clock', () => {
     expect(formatDeviceTimestampUs(1_500n)).toBe('1500')
-    expect(formatWallClock(1_700_000_000_123)).toMatch(/\d{2}:\d{2}:\d{2}\.\d{3}/)
+    expect(formatWallClock(1_700_000_000_123_456n)).toMatch(/\d{2}:\d{2}:\d{2}\.\d{6}/)
   })
 
   it('extends the waveform end to the end of the last pulse', () => {
@@ -106,14 +106,14 @@ describe('DrpdUsbPdLogTimeStrip utils', () => {
       {
         timestampUs: 1_000n,
         displayTimestampUs: 10n,
-        wallClockMs: 1,
+        wallClockUs: 1_000n,
         vbusV: 0.5,
         ibusA: 0.02,
       },
       {
         timestampUs: 2_000n,
         displayTimestampUs: 20n,
-        wallClockMs: 2,
+        wallClockUs: 2_000n,
         vbusV: 5,
         ibusA: 0.2,
       },

@@ -13,6 +13,7 @@ const buildMessage = (index: number): LoggedCapturedMessage => ({
   eventType: null,
   eventText: null,
   eventWallClockMs: null,
+  wallClockUs: BigInt(1_700_000_000_000_000 + index),
   startTimestampUs: BigInt(1_000 + index),
   endTimestampUs: BigInt(1_010 + index),
   displayTimestampUs: BigInt(index),
@@ -42,6 +43,7 @@ const buildEvent = (index: number): LoggedCapturedMessage => ({
   eventType: 'capture_changed',
   eventText: `Capture changed at ${index}`,
   eventWallClockMs: 1_700_000_100_000 + index,
+  wallClockUs: BigInt(1_700_000_100_000_000 + index),
   startTimestampUs: BigInt(1_500 + index),
   endTimestampUs: BigInt(1_500 + index),
   displayTimestampUs: null,
@@ -73,6 +75,7 @@ describe('SQLiteWasmStore', () => {
       await store.insertAnalogSample({
         timestampUs: BigInt(index),
         displayTimestampUs: BigInt(index),
+        wallClockUs: BigInt(index),
         vbusV: 5 + index * 0.01,
         ibusA: 0.5 + index * 0.001,
         role: 'SINK',
@@ -174,7 +177,7 @@ describe('SQLiteWasmStore', () => {
       includeAnalog: false,
       includeMessages: true,
     })
-    expect(exportData.payload).toContain('entry_kind,event_type,event_text,event_wall_clock_ms')
+    expect(exportData.payload).toContain('entry_kind,event_type,event_text,event_wall_clock_ms,wall_clock_us')
     expect(exportData.payload).toContain('event,capture_changed')
   })
 
@@ -186,6 +189,7 @@ describe('SQLiteWasmStore', () => {
       await store.insertAnalogSample({
         timestampUs: BigInt(index * 100),
         displayTimestampUs: BigInt(index * 100),
+        wallClockUs: BigInt(1_700_000_000_000_000 + index * 100),
         vbusV: 5 + index,
         ibusA: 0.1 * index,
         role: 'SOURCE',
@@ -213,6 +217,7 @@ describe('SQLiteWasmStore', () => {
     await store.insertAnalogSample({
       timestampUs: 10n,
       displayTimestampUs: 10n,
+      wallClockUs: 10n,
       vbusV: 5,
       ibusA: 0.1,
       role: 'SOURCE',
@@ -221,6 +226,7 @@ describe('SQLiteWasmStore', () => {
     await store.insertAnalogSample({
       timestampUs: 50_000n,
       displayTimestampUs: 50_000n,
+      wallClockUs: 50_000n,
       vbusV: 6,
       ibusA: 0.2,
       role: 'SOURCE',
@@ -289,6 +295,7 @@ describe('SQLiteWasmStore', () => {
     await store.insertAnalogSample({
       timestampUs: 123n,
       displayTimestampUs: 3n,
+      wallClockUs: 123n,
       vbusV: 5.02,
       ibusA: 0.7,
       role: 'SOURCE',

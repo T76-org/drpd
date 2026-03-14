@@ -229,12 +229,12 @@ const mockUSB = (devices: USBDevice[]) => {
     getDevices,
     dispatchConnect(device: USBDevice) {
       act(() => {
-        dispatch('connect', { device } as Event)
+        dispatch('connect', { device } as unknown as Event)
       })
     },
     dispatchDisconnect(device: USBDevice) {
       act(() => {
-        dispatch('disconnect', { device } as Event)
+        dispatch('disconnect', { device } as unknown as Event)
       })
     },
   }

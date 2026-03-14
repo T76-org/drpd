@@ -6,8 +6,10 @@ import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import {
   findAnalogPointAtStepTimestamp,
   formatDeviceTimestampUs,
+  formatWallClock,
   findSelectedPulseSegment,
   interpolateDisplayTimestampUs,
+  interpolateWallClockUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
 const parseCssNumber = (
@@ -177,7 +179,8 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       )
       return {
         x: xScale(tick),
-        displayLabel: formatDeviceTimestampUs(displayTimestampUs),
+        displayLabel: formatWallClock(interpolateWallClockUs(timestampUs, data?.timeAnchors ?? [])),
+        deviceLabel: formatDeviceTimestampUs(displayTimestampUs),
       }
     })
   }, [data?.timeAnchors, width, xScale])
@@ -456,6 +459,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 y={axisLabelY}
                 textAnchor="middle"
               >
+                <title>{tick.deviceLabel}</title>
                 {tick.displayLabel}
               </text>
             </g>

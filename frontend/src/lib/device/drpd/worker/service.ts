@@ -256,7 +256,6 @@ export class DRPDWorkerServiceClient {
       if (!pending) {
         return
       }
-      const method = this.pendingRpcMethods.get(message.requestId) ?? 'unknown'
       this.pendingRpcs.delete(message.requestId)
       this.pendingRpcMethods.delete(message.requestId)
       if (this.isHeartbeatResult(message.result)) {
@@ -272,7 +271,6 @@ export class DRPDWorkerServiceClient {
       if (!pending) {
         return
       }
-      const method = this.pendingRpcMethods.get(message.requestId) ?? 'unknown'
       this.pendingRpcs.delete(message.requestId)
       this.pendingRpcMethods.delete(message.requestId)
       pending.reject(deserializeWorkerError(message.error))
