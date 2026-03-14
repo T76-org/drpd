@@ -632,6 +632,50 @@ export const RackView = () => {
   }, [deviceDefinitions])
 
   useEffect(() => {
+    const usb = typeof navigator === 'undefined' ? undefined : navigator.usb
+    if (
+      !usb ||
+      typeof usb.addEventListener !== 'function' ||
+      typeof usb.removeEventListener !== 'function'
+    ) {
+      return
+    }
+
+    const handleUsbDisconnect = (event: Event) => {
+      const usbEvent = event as USBConnectionEvent
+      const disconnectedDevice = usbEvent.device
+      if (!disconnectedDevice) {
+        return
+      }
+
+      const matchedStates = deviceStatesRef.current.filter(
+        (state) =>
+          state.status === 'connected' &&
+          doesRackDeviceRecordMatchUsbDevice(state.record, disconnectedDevice),
+      )
+      if (matchedStates.length === 0) {
+        return
+      }
+
+      for (const state of matchedStates) {
+        void disconnectDeviceRuntime(state, deviceDefinitions)
+      }
+      setDeviceStates((states) =>
+        states.map((state) =>
+          matchedStates.some((candidate) => candidate.record.id === state.record.id)
+            ? buildDisconnectedDeviceState(state.record)
+            : state,
+        ),
+      )
+    }
+
+    usb.addEventListener('disconnect', handleUsbDisconnect)
+    return () => {
+      usb.removeEventListener('disconnect', handleUsbDisconnect)
+    }
+  }, [deviceDefinitions])
+
+  useEffect(() => {
     if (!activeRack) {
       return
     }
@@ -1616,18 +1660,9 @@ const autoConnectDevices = async ({
     const nextStates: RackDeviceState[] = []
 
     for (const record of devices) {
-      const matchedDevice = connected.find((usbDevice) => {
-        if (usbDevice.vendorId !== record.vendorId) {
-          return false
-        }
-        if (usbDevice.productId !== record.productId) {
-          return false
-        }
-        if (record.serialNumber && usbDevice.serialNumber !== record.serialNumber) {
-          return false
-        }
-        return true
-      })
+      const matchedDevice = connected.find((usbDevice) =>
+        doesRackDeviceRecordMatchUsbDevice(record, usbDevice),
+      )
 
       if (!matchedDevice) {
         nextStates.push({ record, status: 'missing' })
@@ -1682,19 +1717,31 @@ const findUsbDeviceForRecord = (
   record: RackDeviceRecord,
 ): USBDevice | null => {
   return (
-    devices.find((usbDevice) => {
-      if (usbDevice.vendorId !== record.vendorId) {
-        return false
-      }
-      if (usbDevice.productId !== record.productId) {
-        return false
-      }
-      if (record.serialNumber && usbDevice.serialNumber !== record.serialNumber) {
-        return false
-      }
-      return true
-    }) ?? null
+    devices.find((usbDevice) => doesRackDeviceRecordMatchUsbDevice(record, usbDevice)) ?? null
   )
+}
+
+/**
+ * Check whether a persisted rack device record matches a WebUSB device.
+ *
+ * @param record - Rack device record.
+ * @param device - WebUSB device.
+ * @returns True when the record identifies the device.
+ */
+const doesRackDeviceRecordMatchUsbDevice = (
+  record: RackDeviceRecord,
+  device: USBDevice,
+): boolean => {
+  if (device.vendorId !== record.vendorId) {
+    return false
+  }
+  if (device.productId !== record.productId) {
+    return false
+  }
+  if (record.serialNumber && device.serialNumber !== record.serialNumber) {
+    return false
+  }
+  return true
 }
 
 /**
