@@ -276,7 +276,7 @@ void CCBusController::_loopObserverMode() {
                     _sourcePort = port;
                     _sourceChannel = channel;
 
-                    if (_sourceDebounceCounter++ == 10) {
+                    if (_sourceDebounceCounter++ == LOGIC_CC_BUS_CONTROLLER_DEBOUNCE_ITERATIONS) {
                         _updateState(CCBusState::SourceFound);
                         _sinkPort = (_sourcePort == CCBusPort::DUT) ? CCBusPort::USDS : CCBusPort::DUT;
                         _sinkChannel = PHY::CCChannel::CC1; // Default to CC1
