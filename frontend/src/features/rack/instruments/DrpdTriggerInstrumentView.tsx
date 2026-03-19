@@ -3,10 +3,19 @@ import {
   DRPDDevice,
   OnOffState,
   TriggerEventType,
+  TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
+  TRIGGER_MESSAGE_TYPE_FILTER_LIMIT,
+  type TriggerMessageTypeFilter,
   type TriggerInfo,
 } from '../../../lib/device'
+import {
+  CONTROL_MESSAGE_TYPES,
+  DATA_MESSAGE_TYPES,
+  EXTENDED_MESSAGE_TYPES,
+} from '../../../lib/device/drpd/usb-pd/message'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -33,6 +42,103 @@ const TRIGGER_SYNC_MODE_OPTIONS = [
   TriggerSyncMode.PULSE_LOW,
   TriggerSyncMode.TOGGLE,
 ] as const
+
+const TRIGGER_SENDER_FILTER_OPTIONS = [
+  TriggerSenderFilter.ANY,
+  TriggerSenderFilter.SOURCE,
+  TriggerSenderFilter.SINK,
+  TriggerSenderFilter.CABLE,
+] as const
+
+const FILTER_CAPABLE_EVENT_TYPES = new Set<TriggerEventType>([
+  TriggerEventType.DATA_START,
+  TriggerEventType.MESSAGE_COMPLETE,
+  TriggerEventType.INVALID_KCODE,
+  TriggerEventType.CRC_ERROR,
+  TriggerEventType.TIMEOUT_ERROR,
+  TriggerEventType.RUNT_PULSE_ERROR,
+  TriggerEventType.ANY_ERROR,
+])
+
+type TriggerMessageTypeOption = {
+  key: string
+  class: TriggerMessageTypeFilter['class']
+  messageTypeNumber: number
+  pickerLabel: string
+  chipLabel: string
+}
+
+const humanizeMessageTypeName = (value: string): string =>
+  value
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const formatMessageTypeNumberHex = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
+
+const CONTROL_FILTER_OPTIONS: TriggerMessageTypeOption[] = Object.entries(CONTROL_MESSAGE_TYPES)
+  .map(([messageTypeNumber, definition]) => {
+    const numericType = Number(messageTypeNumber)
+    const humanizedName = humanizeMessageTypeName(definition.name)
+    return {
+      key: `${TriggerMessageTypeFilterClass.CONTROL}:${numericType}`,
+      class: TriggerMessageTypeFilterClass.CONTROL,
+      messageTypeNumber: numericType,
+      pickerLabel: `${formatMessageTypeNumberHex(numericType)} • ${humanizedName}`,
+      chipLabel: `Control: ${humanizedName}`,
+    }
+  })
+  .sort((left, right) => left.messageTypeNumber - right.messageTypeNumber)
+
+const DATA_FILTER_OPTIONS: TriggerMessageTypeOption[] = (() => {
+  const groupedNames = new Map<number, string[]>()
+  for (const [messageTypeNumber, definition] of Object.entries(DATA_MESSAGE_TYPES)) {
+    const numericType = Number(messageTypeNumber)
+    const nextNames = groupedNames.get(numericType) ?? []
+    nextNames.push(humanizeMessageTypeName(definition.name))
+    groupedNames.set(numericType, nextNames)
+  }
+  for (const [messageTypeNumber, definition] of Object.entries(EXTENDED_MESSAGE_TYPES)) {
+    const numericType = Number(messageTypeNumber)
+    const nextNames = groupedNames.get(numericType) ?? []
+    nextNames.push(humanizeMessageTypeName(definition.name))
+    groupedNames.set(numericType, nextNames)
+  }
+  return Array.from(groupedNames.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([messageTypeNumber, names]) => {
+      const uniqueNames = Array.from(new Set(names))
+      const combinedNames = uniqueNames.join(' / ')
+      const label = `${formatMessageTypeNumberHex(messageTypeNumber)} • ${combinedNames}`
+      return {
+        key: `${TriggerMessageTypeFilterClass.DATA}:${messageTypeNumber}`,
+        class: TriggerMessageTypeFilterClass.DATA,
+        messageTypeNumber,
+        pickerLabel: label,
+        chipLabel: `Data: ${label}`,
+      }
+    })
+})()
+
+const findTriggerMessageTypeOption = (
+  filter: TriggerMessageTypeFilter,
+): TriggerMessageTypeOption | undefined =>
+  (filter.class === TriggerMessageTypeFilterClass.CONTROL
+    ? CONTROL_FILTER_OPTIONS
+    : DATA_FILTER_OPTIONS
+  ).find((option) => option.messageTypeNumber === filter.messageTypeNumber)
+
+const formatTriggerMessageTypeChipLabel = (filter: TriggerMessageTypeFilter): string => {
+  const option = findTriggerMessageTypeOption(filter)
+  if (option) {
+    return option.chipLabel
+  }
+  const prefix = filter.class === TriggerMessageTypeFilterClass.CONTROL ? 'Control' : 'Data'
+  return `${prefix}: ${formatMessageTypeNumberHex(filter.messageTypeNumber)}`
+}
+
+const isFilterCapableTriggerEventType = (value: TriggerEventType): boolean =>
+  FILTER_CAPABLE_EVENT_TYPES.has(value)
 
 /**
  * Run mount/unmount hooks for popover lifecycle without resetting on rerender.
@@ -148,6 +254,27 @@ const formatTriggerSyncMode = (value: TriggerInfo['syncMode'] | null | undefined
 }
 
 /**
+ * Format a trigger sender filter token into a concise label.
+ *
+ * @param value - Sender filter token.
+ * @returns Display label.
+ */
+const formatTriggerSenderFilter = (value: TriggerInfo['senderFilter'] | null | undefined): string => {
+  switch (value) {
+    case TriggerSenderFilter.ANY:
+      return 'Any sender'
+    case TriggerSenderFilter.SOURCE:
+      return 'Source'
+    case TriggerSenderFilter.SINK:
+      return 'Sink'
+    case TriggerSenderFilter.CABLE:
+      return 'Cable'
+    default:
+      return '--'
+  }
+}
+
+/**
  * Format an ON/OFF token into a display label.
  *
  * @param value - On/off token.
@@ -198,11 +325,17 @@ export const DrpdTriggerInstrumentView = ({
 }) => {
   void deviceRecord
   const driver = deviceState?.drpdDriver
+  const [resolvedTriggerInfo, setResolvedTriggerInfo] = useState<TriggerInfo | null>(null)
   const [eventTypeInput, setEventTypeInput] = useState<TriggerEventType>(TriggerEventType.OFF)
   const [eventThresholdInput, setEventThresholdInput] = useState<string>('1')
+  const [senderFilterInput, setSenderFilterInput] = useState<TriggerSenderFilter>(TriggerSenderFilter.ANY)
   const [autoRepeatInput, setAutoRepeatInput] = useState<OnOffState>(OnOffState.OFF)
   const [syncModeInput, setSyncModeInput] = useState<TriggerSyncMode>(TriggerSyncMode.OFF)
   const [syncPulseWidthUsInput, setSyncPulseWidthUsInput] = useState<string>('1')
+  const [messageTypeFiltersInput, setMessageTypeFiltersInput] = useState<TriggerMessageTypeFilter[]>([])
+  const [messageTypeFilterClassInput, setMessageTypeFilterClassInput] =
+    useState<TriggerMessageTypeFilter['class']>(TriggerMessageTypeFilterClass.CONTROL)
+  const [messageTypeFilterTypeInput, setMessageTypeFilterTypeInput] = useState<string>('0')
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingTrigger, setIsResettingTrigger] = useState(false)
@@ -238,7 +371,52 @@ export const DrpdTriggerInstrumentView = ({
     () => null,
   )
 
-  const visibleTriggerInfo = driver ? triggerInfo : null
+  useEffect(() => {
+    if (!driver) {
+      setResolvedTriggerInfo(null)
+      return
+    }
+
+    setResolvedTriggerInfo(triggerInfo)
+  }, [driver, triggerInfo])
+
+  const populateConfigureInputs = (info: TriggerInfo | null) => {
+    setEventTypeInput(info?.type ?? TriggerEventType.OFF)
+    setEventThresholdInput(String(info?.eventThreshold ?? 1))
+    setSenderFilterInput(info?.senderFilter ?? TriggerSenderFilter.ANY)
+    setAutoRepeatInput(info?.autorepeat ?? OnOffState.OFF)
+    setSyncModeInput(info?.syncMode ?? TriggerSyncMode.OFF)
+    setSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
+    setMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
+    setMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
+    setMessageTypeFilterTypeInput(String(CONTROL_FILTER_OPTIONS[0]?.messageTypeNumber ?? 0))
+  }
+
+  const visibleTriggerInfo = driver ? (resolvedTriggerInfo ?? triggerInfo) : null
+  const displayedFilterChips = visibleTriggerInfo?.messageTypeFilters ?? []
+  const filterSummaryChips = displayedFilterChips.slice(0, 2)
+  const hiddenFilterCount = Math.max(0, displayedFilterChips.length - filterSummaryChips.length)
+
+  const activeMessageTypeOptions =
+    messageTypeFilterClassInput === TriggerMessageTypeFilterClass.CONTROL
+      ? CONTROL_FILTER_OPTIONS
+      : DATA_FILTER_OPTIONS
+
+  const selectedEventSupportsFilters = isFilterCapableTriggerEventType(eventTypeInput)
+
+  useEffect(() => {
+    if (activeMessageTypeOptions.length === 0) {
+      setMessageTypeFilterTypeInput('')
+      return
+    }
+
+    const stillValid = activeMessageTypeOptions.some(
+      (option) => String(option.messageTypeNumber) === messageTypeFilterTypeInput,
+    )
+    if (!stillValid) {
+      setMessageTypeFilterTypeInput(String(activeMessageTypeOptions[0].messageTypeNumber))
+    }
+  }, [activeMessageTypeOptions, messageTypeFilterTypeInput])
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
     const configureControl: InstrumentHeaderControl = {
@@ -249,12 +427,20 @@ export const DrpdTriggerInstrumentView = ({
         <div className={styles.headerPopup}>
           <PopoverLifecycle
             onMount={() => {
-              setEventTypeInput(triggerInfo?.type ?? TriggerEventType.OFF)
-              setEventThresholdInput(String(triggerInfo?.eventThreshold ?? 1))
-              setAutoRepeatInput(triggerInfo?.autorepeat ?? OnOffState.OFF)
-              setSyncModeInput(triggerInfo?.syncMode ?? TriggerSyncMode.OFF)
-              setSyncPulseWidthUsInput(String(triggerInfo?.syncPulseWidthUs ?? 1))
+              populateConfigureInputs(visibleTriggerInfo)
               setConfigureError(null)
+              if (driver) {
+                void driver.trigger
+                  .getInfo()
+                  .then((latestTriggerInfo) => {
+                    setResolvedTriggerInfo(latestTriggerInfo)
+                    populateConfigureInputs(latestTriggerInfo)
+                  })
+                  .catch((error) => {
+                    const message = error instanceof Error ? error.message : String(error)
+                    setConfigureError(message)
+                  })
+              }
             }}
             onUnmount={() => {
               // No cleanup needed.
@@ -280,6 +466,157 @@ export const DrpdTriggerInstrumentView = ({
                 </option>
               ))}
             </select>
+          </div>
+          <div className={styles.headerPopupField}>
+            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-trigger-sender`}>
+              Sender
+            </label>
+            <select
+              id={`${instrument.id}-trigger-sender`}
+              className={styles.headerPopupSelect}
+              value={senderFilterInput}
+              onChange={(event) => {
+                setSenderFilterInput(event.currentTarget.value as TriggerSenderFilter)
+                setConfigureError(null)
+              }}
+              disabled={isApplyingConfig || !selectedEventSupportsFilters}
+            >
+              {TRIGGER_SENDER_FILTER_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {formatTriggerSenderFilter(option)}
+                </option>
+              ))}
+            </select>
+            <p className={styles.headerPopupHint}>
+              {selectedEventSupportsFilters
+                ? 'Filter by source, sink, or cable origin once the header is available.'
+                : 'Sender filtering is stored but ignored for this event type until the header is known, starting at Data Start.'}
+            </p>
+          </div>
+          <div className={styles.headerPopupSection}>
+            <div className={styles.headerPopupSectionHeader}>
+              <span className={styles.headerPopupLabel}>Message filters</span>
+              <span className={styles.headerPopupSectionMeta}>
+                {messageTypeFiltersInput.length}/{TRIGGER_MESSAGE_TYPE_FILTER_LIMIT}
+              </span>
+            </div>
+            <div className={styles.filterChipList}>
+              {messageTypeFiltersInput.length > 0 ? (
+                messageTypeFiltersInput.map((filter) => (
+                  <span key={`${filter.class}:${filter.messageTypeNumber}`} className={styles.filterChip}>
+                    <span className={styles.filterChipText}>
+                      {formatTriggerMessageTypeChipLabel(filter)}
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.filterChipRemove}
+                      onClick={() => {
+                        setMessageTypeFiltersInput((current) =>
+                          current.filter(
+                            (entry) =>
+                              !(
+                                entry.class === filter.class &&
+                                entry.messageTypeNumber === filter.messageTypeNumber
+                              ),
+                          ),
+                        )
+                        setConfigureError(null)
+                      }}
+                      disabled={isApplyingConfig || !selectedEventSupportsFilters}
+                      aria-label={`Remove ${formatTriggerMessageTypeChipLabel(filter)}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className={styles.filterChipPlaceholder}>Any message</span>
+              )}
+            </div>
+            <div className={styles.filterPickerRow}>
+              <select
+                aria-label="Message filter class"
+                className={styles.headerPopupSelect}
+                value={messageTypeFilterClassInput}
+                onChange={(event) => {
+                  setMessageTypeFilterClassInput(
+                    event.currentTarget.value as TriggerMessageTypeFilter['class'],
+                  )
+                  setConfigureError(null)
+                }}
+                disabled={isApplyingConfig || !selectedEventSupportsFilters}
+              >
+                <option value={TriggerMessageTypeFilterClass.CONTROL}>Control</option>
+                <option value={TriggerMessageTypeFilterClass.DATA}>Data-bearing</option>
+              </select>
+              <select
+                aria-label="Message filter type"
+                className={styles.headerPopupSelect}
+                value={messageTypeFilterTypeInput}
+                onChange={(event) => {
+                  setMessageTypeFilterTypeInput(event.currentTarget.value)
+                  setConfigureError(null)
+                }}
+                disabled={
+                  isApplyingConfig ||
+                  !selectedEventSupportsFilters ||
+                  activeMessageTypeOptions.length === 0
+                }
+              >
+                {activeMessageTypeOptions.map((option) => (
+                  <option key={option.key} value={String(option.messageTypeNumber)}>
+                    {option.pickerLabel}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={styles.headerPopupButton}
+                onClick={() => {
+                  const parsedTypeNumber = Number(messageTypeFilterTypeInput)
+                  if (!Number.isInteger(parsedTypeNumber) || parsedTypeNumber < 0) {
+                    setConfigureError('Select a valid message type filter before adding it.')
+                    return
+                  }
+
+                  const nextFilter: TriggerMessageTypeFilter = {
+                    class: messageTypeFilterClassInput,
+                    messageTypeNumber: parsedTypeNumber,
+                  }
+
+                  const duplicate = messageTypeFiltersInput.some(
+                    (filter) =>
+                      filter.class === nextFilter.class &&
+                      filter.messageTypeNumber === nextFilter.messageTypeNumber,
+                  )
+                  if (duplicate) {
+                    setConfigureError('That message type filter is already in the list.')
+                    return
+                  }
+                  if (messageTypeFiltersInput.length >= TRIGGER_MESSAGE_TYPE_FILTER_LIMIT) {
+                    setConfigureError(
+                      `No more than ${TRIGGER_MESSAGE_TYPE_FILTER_LIMIT} message type filters are allowed.`,
+                    )
+                    return
+                  }
+
+                  setMessageTypeFiltersInput((current) => [...current, nextFilter])
+                  setConfigureError(null)
+                }}
+                disabled={
+                  isApplyingConfig ||
+                  !selectedEventSupportsFilters ||
+                  activeMessageTypeOptions.length === 0
+                }
+              >
+                Add filter
+              </button>
+            </div>
+            <p className={styles.headerPopupHint}>
+              {selectedEventSupportsFilters
+                ? 'Choose control or data-bearing message types from the known USB-PD message list.'
+                : 'Message filters are stored but ignored for this event type until the header is known, starting at Data Start.'}
+            </p>
           </div>
           <div className={styles.headerPopupFieldRow}>
             <div className={styles.headerPopupField}>
@@ -398,11 +735,19 @@ export const DrpdTriggerInstrumentView = ({
                 void Promise.all([
                   driver.trigger.setEventType(eventTypeInput),
                   driver.trigger.setEventThreshold(parsedThreshold),
+                  driver.trigger.setSenderFilter(senderFilterInput),
                   driver.trigger.setAutoRepeat(autoRepeatInput),
                   driver.trigger.setSyncMode(syncModeInput),
                   driver.trigger.setSyncPulseWidthUs(parsedPulseWidthUs),
+                  driver.trigger.setMessageTypeFilters(messageTypeFiltersInput),
                 ])
                   .then(async () => {
+                    try {
+                      const latestTriggerInfo = await driver.trigger.getInfo()
+                      setResolvedTriggerInfo(latestTriggerInfo)
+                    } catch {
+                      // Fall back to the mirrored refresh path if direct readback fails.
+                    }
                     await driver.refreshState()
                     closePopover()
                   })
@@ -462,13 +807,20 @@ export const DrpdTriggerInstrumentView = ({
     isApplyingConfig,
     isEditMode,
     isResettingTrigger,
+    messageTypeFilterClassInput,
+    messageTypeFilterTypeInput,
+    messageTypeFiltersInput,
+    selectedEventSupportsFilters,
+    senderFilterInput,
     syncModeInput,
     syncPulseWidthUsInput,
-    triggerInfo?.autorepeat,
-    triggerInfo?.eventThreshold,
-    triggerInfo?.syncMode,
-    triggerInfo?.syncPulseWidthUs,
-    triggerInfo?.type,
+    visibleTriggerInfo?.autorepeat,
+    visibleTriggerInfo?.eventThreshold,
+    visibleTriggerInfo?.messageTypeFilters,
+    visibleTriggerInfo?.senderFilter,
+    visibleTriggerInfo?.syncMode,
+    visibleTriggerInfo?.syncPulseWidthUs,
+    visibleTriggerInfo?.type,
     visibleTriggerInfo?.status,
     configureError,
   ])
@@ -528,10 +880,48 @@ export const DrpdTriggerInstrumentView = ({
             <span className={styles.metricValue}>{formatTriggerSyncMode(visibleTriggerInfo?.syncMode)}</span>
           </div>
           <div className={styles.rightMetricRow}>
+            <span className={styles.metricLabel}>Sender</span>
+            <div className={styles.metricFilterValue}>
+              <span className={styles.metricValue}>
+                {formatTriggerSenderFilter(visibleTriggerInfo?.senderFilter)}
+              </span>
+              {!isFilterCapableTriggerEventType(visibleTriggerInfo?.type ?? TriggerEventType.OFF) ? (
+                <span className={styles.metricSubnote}>Ignored for this event</span>
+              ) : null}
+            </div>
+          </div>
+          <div className={styles.rightMetricRow}>
             <span className={styles.metricLabel}>Pulse</span>
             <span className={styles.metricValue}>
               {formatNumber(visibleTriggerInfo?.syncPulseWidthUs, ' us')}
             </span>
+          </div>
+          <div className={styles.rightMetricRow}>
+            <span className={styles.metricLabel}>Filters</span>
+            <div className={styles.metricFilterValue}>
+              {displayedFilterChips.length > 0 ? (
+                <>
+                  <div className={styles.filterChipListCompact}>
+                    {filterSummaryChips.map((filter) => (
+                      <span
+                        key={`${filter.class}:${filter.messageTypeNumber}`}
+                        className={styles.filterChipCompact}
+                      >
+                        {formatTriggerMessageTypeChipLabel(filter)}
+                      </span>
+                    ))}
+                    {hiddenFilterCount > 0 ? (
+                      <span className={styles.filterChipOverflow}>+{hiddenFilterCount} more</span>
+                    ) : null}
+                  </div>
+                  {!isFilterCapableTriggerEventType(visibleTriggerInfo?.type ?? TriggerEventType.OFF) ? (
+                    <span className={styles.metricSubnote}>Ignored for this event</span>
+                  ) : null}
+                </>
+              ) : (
+                <span className={styles.metricValue}>Any message</span>
+              )}
+            </div>
           </div>
           {configureError ? <p className={styles.inlineError}>{configureError}</p> : null}
         </section>

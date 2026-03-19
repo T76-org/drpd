@@ -45,7 +45,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   column-gap: var(--space-5);
-  align-items: baseline;
+  align-items: start;
 }
 
 .metricLabel {
@@ -121,6 +121,23 @@
   color: var(--color-text-muted);
 }
 
+.headerPopupSection {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.headerPopupSectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.headerPopupSectionMeta {
+  font-size: var(--font-size-header-popup-hint);
+  color: var(--color-text-muted);
+}
+
 .headerPopupError {
   margin: 0;
   font-size: var(--font-size-header-popup-hint);
@@ -145,4 +162,96 @@
 .headerPopupButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.filterChipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-hint);
+}
+
+.filterChipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filterChipRemove {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-input);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.filterChipRemove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.filterChipPlaceholder {
+  font-size: var(--font-size-header-popup-hint);
+  color: var(--color-text-muted);
+}
+
+.filterPickerRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.metricFilterValue {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.filterChipListCompact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.filterChipCompact {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.15rem 0.45rem;
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xs);
+}
+
+.filterChipOverflow {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.metricSubnote {
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-muted);
+  text-align: right;
 }

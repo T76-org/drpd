@@ -16,6 +16,8 @@ import {
   SinkState,
   TestCcRole,
   TriggerEventType,
+  TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
   VBusStatus,
@@ -28,6 +30,7 @@ import type {
   DeviceStatusFlags,
   SinkInfo,
   SinkPdo,
+  TriggerMessageTypeFilter,
   VBusInfo,
 } from './types'
 
@@ -304,6 +307,64 @@ export const parseTriggerSyncMode = (value: string): TriggerSyncMode => {
       return TriggerSyncMode.TOGGLE
     default:
       throw new Error(`Invalid trigger sync mode: ${value}`)
+  }
+}
+
+/**
+ * Parse a trigger sender filter token.
+ *
+ * @param value - Raw token.
+ * @returns Parsed sender filter.
+ */
+export const parseTriggerSenderFilter = (value: string): TriggerSenderFilter => {
+  const normalized = value.trim().toUpperCase()
+  switch (normalized) {
+    case TriggerSenderFilter.ANY:
+      return TriggerSenderFilter.ANY
+    case TriggerSenderFilter.SOURCE:
+      return TriggerSenderFilter.SOURCE
+    case TriggerSenderFilter.SINK:
+      return TriggerSenderFilter.SINK
+    case TriggerSenderFilter.CABLE:
+      return TriggerSenderFilter.CABLE
+    default:
+      throw new Error(`Invalid trigger sender filter: ${value}`)
+  }
+}
+
+/**
+ * Parse a trigger message-type filter token.
+ *
+ * @param value - Raw token.
+ * @returns Parsed trigger filter.
+ */
+export const parseTriggerMessageTypeFilter = (value: string): TriggerMessageTypeFilter => {
+  const normalized = value.trim().toUpperCase()
+  const separatorIndex = normalized.indexOf(':')
+  if (separatorIndex <= 0 || separatorIndex === normalized.length - 1) {
+    throw new Error(`Invalid trigger message type filter: ${value}`)
+  }
+
+  const classToken = normalized.slice(0, separatorIndex)
+  const numberToken = normalized.slice(separatorIndex + 1)
+  const parsedNumber = parseIntValue(numberToken, 'trigger message type number')
+  if (parsedNumber < 0 || parsedNumber > 0x1f) {
+    throw new Error(`Invalid trigger message type number: ${value}`)
+  }
+
+  switch (classToken) {
+    case TriggerMessageTypeFilterClass.CONTROL:
+      return {
+        class: TriggerMessageTypeFilterClass.CONTROL,
+        messageTypeNumber: parsedNumber,
+      }
+    case TriggerMessageTypeFilterClass.DATA:
+      return {
+        class: TriggerMessageTypeFilterClass.DATA,
+        messageTypeNumber: parsedNumber,
+      }
+    default:
+      throw new Error(`Invalid trigger message type filter class: ${value}`)
   }
 }
 
@@ -859,6 +920,19 @@ export const parseTriggerEventTypeResponse = (values: string[]): TriggerEventTyp
 }
 
 /**
+ * Parse trigger sender filter response values.
+ *
+ * @param values - Parsed response tokens.
+ * @returns Parsed trigger sender filter.
+ */
+export const parseTriggerSenderFilterResponse = (values: string[]): TriggerSenderFilter => {
+  if (!values.length) {
+    throw new Error('Missing trigger sender filter response')
+  }
+  return parseTriggerSenderFilter(values[0])
+}
+
+/**
  * Parse trigger sync mode response values.
  *
  * @param values - Parsed response tokens.
@@ -869,6 +943,26 @@ export const parseTriggerSyncModeResponse = (values: string[]): TriggerSyncMode 
     throw new Error('Missing trigger sync mode response')
   }
   return parseTriggerSyncMode(values[0])
+}
+
+/**
+ * Parse trigger message-type filter response values.
+ *
+ * @param values - Parsed response tokens.
+ * @returns Parsed trigger message-type filters.
+ */
+export const parseTriggerMessageTypeFiltersResponse = (
+  values: string[],
+): TriggerMessageTypeFilter[] => {
+  const combined = values.join(' ').trim()
+  if (!combined) {
+    return []
+  }
+
+  return combined
+    .split(/\s+/)
+    .filter((token) => token.length > 0)
+    .map((token) => parseTriggerMessageTypeFilter(token))
 }
 
 /**

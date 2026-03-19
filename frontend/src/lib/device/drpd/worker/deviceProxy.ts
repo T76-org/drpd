@@ -88,9 +88,12 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getInfo: () => Promise<TriggerInfo>
     setEventType: (type: TriggerEventType) => Promise<void>
     setEventThreshold: (count: number) => Promise<void>
+    setSenderFilter: (filter: TriggerInfo['senderFilter']) => Promise<void>
     setAutoRepeat: (enabled: OnOffState) => Promise<void>
     setSyncMode: (mode: TriggerSyncMode) => Promise<void>
     setSyncPulseWidthUs: (widthUs: number) => Promise<void>
+    setMessageTypeFilters: (filters: TriggerInfo['messageTypeFilters']) => Promise<void>
+    clearMessageTypeFilters: () => Promise<void>
     reset: () => Promise<void>
   } ///< Trigger command-group proxy.
   public readonly vbus: {
@@ -216,6 +219,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       setEventThreshold: async (count) => {
         await this.callGroup('trigger', 'setEventThreshold', count)
       },
+      setSenderFilter: async (filter) => {
+        await this.callGroup('trigger', 'setSenderFilter', filter)
+      },
       setAutoRepeat: async (enabled) => {
         await this.callGroup('trigger', 'setAutoRepeat', enabled)
       },
@@ -224,6 +230,12 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       },
       setSyncPulseWidthUs: async (widthUs) => {
         await this.callGroup('trigger', 'setSyncPulseWidthUs', widthUs)
+      },
+      setMessageTypeFilters: async (filters) => {
+        await this.callGroup('trigger', 'setMessageTypeFilters', filters)
+      },
+      clearMessageTypeFilters: async () => {
+        await this.callGroup('trigger', 'clearMessageTypeFilters')
       },
       reset: async () => {
         await this.callGroup('trigger', 'reset')

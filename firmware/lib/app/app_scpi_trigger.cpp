@@ -7,10 +7,100 @@
 #include "app.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <optional>
 #include <string>
+#include <vector>
 
 
 using namespace T76::DRPD;
+
+namespace {
+
+constexpr int TriggerSCPIErrorInvalidParameter = -222;
+
+bool parseMessageTypeFilterToken(
+    const std::string &token,
+    Logic::TriggerController::MessageTypeFilter &filter) {
+    const size_t separatorIndex = token.find(':');
+    if (separatorIndex == std::string::npos || separatorIndex == 0 || separatorIndex == token.size() - 1) {
+        return false;
+    }
+
+    std::string category = token.substr(0, separatorIndex);
+    std::transform(category.begin(), category.end(), category.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+
+    if (category == "CONTROL") {
+        filter.hasDataObjects = false;
+    } else if (category == "DATA") {
+        filter.hasDataObjects = true;
+    } else {
+        return false;
+    }
+
+    const std::string valueString = token.substr(separatorIndex + 1);
+    if (valueString.empty() || !std::all_of(valueString.begin(), valueString.end(), [](unsigned char ch) {
+            return std::isdigit(ch) != 0;
+        })) {
+        return false;
+    }
+
+    uint32_t rawMessageType = 0;
+    for (char ch : valueString) {
+        rawMessageType = rawMessageType * 10u + static_cast<uint32_t>(ch - '0');
+        if (rawMessageType > 0x1F) {
+            return false;
+        }
+    }
+
+    filter.rawMessageType = rawMessageType;
+    return true;
+}
+
+std::string formatMessageTypeFilterToken(const Logic::TriggerController::MessageTypeFilter &filter) {
+    return std::string(filter.hasDataObjects ? "DATA:" : "CONTROL:") + std::to_string(filter.rawMessageType);
+}
+
+std::optional<Logic::TriggerController::SenderFilter> parseSenderFilterToken(const std::string &token) {
+    std::string normalized = token;
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+
+    if (normalized == "ANY") {
+        return Logic::TriggerController::SenderFilter::Any;
+    }
+    if (normalized == "SOURCE") {
+        return Logic::TriggerController::SenderFilter::Source;
+    }
+    if (normalized == "SINK") {
+        return Logic::TriggerController::SenderFilter::Sink;
+    }
+    if (normalized == "CABLE") {
+        return Logic::TriggerController::SenderFilter::Cable;
+    }
+
+    return std::nullopt;
+}
+
+std::string formatSenderFilterToken(Logic::TriggerController::SenderFilter filter) {
+    switch (filter) {
+        case Logic::TriggerController::SenderFilter::Any:
+            return "ANY";
+        case Logic::TriggerController::SenderFilter::Source:
+            return "SOURCE";
+        case Logic::TriggerController::SenderFilter::Sink:
+            return "SINK";
+        case Logic::TriggerController::SenderFilter::Cable:
+            return "CABLE";
+    }
+
+    return "ANY";
+}
+
+}
 
 
 void App::_resetTriggerController(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -129,9 +219,79 @@ void App::_queryTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValu
     _usbInterface.sendUSBTMCBulkData(std::to_string(count));
 }
 
+void App::_setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
+    const auto filter = parseSenderFilterToken(params[0].stringValue);
+    if (!filter.has_value()) {
+        _interpreter.addError(100, "Invalid trigger sender filter");
+        return;
+    }
+
+    _triggerController.senderFilter(*filter);
+}
+
+void App::_queryTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _usbInterface.sendUSBTMCBulkData(formatSenderFilterToken(_triggerController.senderFilter()));
+}
+
 void App::_queryTriggerEventCount(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t count = _triggerController.eventCount();
     _usbInterface.sendUSBTMCBulkData(std::to_string(count));
+}
+
+void App::_setTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (params.size() != 2) {
+        _interpreter.addError(
+            TriggerSCPIErrorInvalidParameter,
+            "TRIGger:EVent:MSGType:FILTer requires slot index and filter token parameters");
+        return;
+    }
+
+    const double slotValue = params[0].numberValue;
+    if (slotValue < 0 || static_cast<double>(static_cast<size_t>(slotValue)) != slotValue) {
+        _interpreter.addError(
+            TriggerSCPIErrorInvalidParameter,
+            "Message type filter slot must be a non-negative integer");
+        return;
+    }
+    const size_t slot = static_cast<size_t>(slotValue);
+
+    Logic::TriggerController::MessageTypeFilter filter;
+    if (!parseMessageTypeFilterToken(params[1].stringValue, filter)) {
+        _interpreter.addError(
+            TriggerSCPIErrorInvalidParameter,
+            "Invalid message type filter token; use CONTROL:<n> or DATA:<n>");
+        return;
+    }
+
+    if (!_triggerController.setMessageTypeFilter(slot, filter)) {
+        _interpreter.addError(
+            TriggerSCPIErrorInvalidParameter,
+            "Message type filter slot is out of range, duplicates another slot, or uses an invalid type value");
+    }
+}
+
+void App::_queryTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
+    std::string response;
+    bool first = true;
+
+    for (size_t slot = 0; slot < _triggerController.messageTypeFilterCapacity(); ++slot) {
+        const auto filter = _triggerController.messageTypeFilter(slot);
+        if (!filter.has_value()) {
+            continue;
+        }
+
+        if (!first) {
+            response += " ";
+        }
+        response += formatMessageTypeFilterToken(*filter);
+        first = false;
+    }
+
+    _usbInterface.sendUSBTMCBulkData(response);
+}
+
+void App::_clearTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _triggerController.clearMessageTypeFilters();
 }
 
 void App::_setTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -199,4 +359,3 @@ void App::_querySyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &par
     uint32_t widthUs = _syncManager.pulseWidth();
     _usbInterface.sendUSBTMCBulkData(std::to_string(widthUs));
 }   
-

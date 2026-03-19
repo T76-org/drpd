@@ -422,7 +422,7 @@ commands:
     parameters:
       - name:        mode
         type:        enum
-        choices:     ["OFF", "PREAMBLE_START", "SOP_START", "HEADER_START", "DATA_START", "MESSAGE_COMPLETE", "INVALID_KCODE", "CRC_ERROR", "TIMEOUT_ERROR", "RUNT_PULSE_ERROR", "ANY_ERROR"]
+        choices:     ["OFF", "PREAMBLE_START", "SOP_START", "HEADER_START", "DATA_START", "MESSAGE_COMPLETE", "HARD_RESET_RECEIVED", "INVALID_KCODE", "CRC_ERROR", "TIMEOUT_ERROR", "RUNT_PULSE_ERROR", "ANY_ERROR"]
         description: "The desired trigger event type."
     handler:      _setTriggerEventType
 
@@ -441,6 +441,64 @@ commands:
   - syntax:       "TRIGger:EVent:THRESHold?"
     description:  "Query the number of events before triggering"
     handler:      _queryTriggerEventThreshold
+
+  - syntax:       "TRIGger:EVent:SENDer"
+    description:  |
+                    Set the sender filter used in addition to the selected trigger event criteria.
+                    Supported sender values are:
+                    - ANY for no sender constraint
+                    - SOURCE for source-originated messages
+                    - SINK for sink-originated messages
+                    - CABLE for cable or VPD-originated messages
+
+                    For plain SOP traffic, SOURCE and SINK are derived from the header power-role bit.
+                    For SOP' / SOP'' and debug variants, UFP_DFP maps to SOURCE and CABLE_PLUG_VPD maps to CABLE.
+                    Sender filtering is ignored until the header is known, starting at DATA_START.
+    parameters:
+      - name:        sender
+        type:        enum
+        choices:     ["ANY", "SOURCE", "SINK", "CABLE"]
+        description: "The desired sender filter."
+    handler:      _setTriggerEventSenderFilter
+
+  - syntax:       "TRIGger:EVent:SENDer?"
+    description:  "Query the configured sender filter."
+    handler:      _queryTriggerEventSenderFilter
+
+  - syntax:       "TRIGger:EVent:MSGType:FILTer"
+    description:  |
+                    Set one message type filter slot used in addition to the selected trigger event criteria.
+                    The first parameter is a zero-based slot index. The second parameter must use one of these forms:
+                    - CONTROL:<n> for messages with zero data objects (numDataObjects() == 0)
+                    - DATA:<n> for messages with one or more data objects (numDataObjects() > 0)
+
+                    Example:
+                    TRIGger:EVent:MSGType:FILTer 0, CONTROL:3
+                    TRIGger:EVent:MSGType:FILTer 1, DATA:1
+                    TRIGger:EVent:MSGType:FILTer 2, DATA:15
+
+                    If no filter slots are configured, any message type matches.
+                    Message type filters only apply once the PD header is known, starting at DATA_START and for later
+                    completion/error events where decoding already produced a header.
+    parameters:
+      - name:        slot
+        type:        number
+        description: "Zero-based message type filter slot index."
+      - name:        filter
+        type:        string
+        description: "Message type filter entry formatted as CONTROL:<n> or DATA:<n>."
+    handler:      _setTriggerEventMessageTypeFilter
+
+  - syntax:       "TRIGger:EVent:MSGType:FILTer?"
+    description:  |
+                    Query the configured message type filter list in slot order.
+                    Returns space-separated entries in CONTROL:<n> / DATA:<n> form.
+                    Returns an empty response when no message type filters are configured.
+    handler:      _queryTriggerEventMessageTypeFilter
+
+  - syntax:       "TRIGger:EVent:MSGType:FILTer:CLEAR"
+    description:  "Clear all configured message type filters. After clearing, any message type matches if the other trigger conditions are met."
+    handler:      _clearTriggerEventMessageTypeFilter
 
   - syntax:       "TRIGger:EVent:AUTOREPEAT"
     description:  "Enable or disable auto-repeating triggers"
