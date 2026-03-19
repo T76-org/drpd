@@ -53,9 +53,11 @@ void App::_loop() {
     while (true) {
         _analogMonitor.readVBusValues();
 
-        if (_interruptPending) {
-            _interruptPending = false;
-            _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
+        if (_interruptPending.exchange(false, std::memory_order_acq_rel)) {
+            const bool sent = _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
+            if (!sent) {
+                _interruptPending.store(true, std::memory_order_release);
+            }
         }
         
         vPortYield(); // Yield to other tasks, especially the USB task to ensure responsiveness

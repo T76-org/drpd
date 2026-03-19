@@ -6,6 +6,9 @@ import { CCBusRole } from '../types'
 
 class MockInterruptTransport extends EventTarget implements DRPDTransport {
   public textResponses = new Map<string, string[]>()
+  public textResponseFactories = new Map<string, () => string[]>()
+  public binaryResponses = new Map<string, Uint8Array[]>()
+  public callCounts = new Map<string, number>()
 
   public async sendCommand(command: string, ...params: DRPDSCPIParam[]): Promise<void> {
     void command
@@ -14,6 +17,11 @@ class MockInterruptTransport extends EventTarget implements DRPDTransport {
 
   public async queryText(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
     void params
+    this.callCounts.set(command, (this.callCounts.get(command) ?? 0) + 1)
+    const factory = this.textResponseFactories.get(command)
+    if (factory) {
+      return factory()
+    }
     const response = this.textResponses.get(command)
     if (!response) {
       throw new Error(`Missing response for ${command}`)
@@ -22,9 +30,13 @@ class MockInterruptTransport extends EventTarget implements DRPDTransport {
   }
 
   public async queryBinary(command: string, ...params: DRPDSCPIParam[]): Promise<Uint8Array> {
-    void command
     void params
-    return new Uint8Array()
+    this.callCounts.set(command, (this.callCounts.get(command) ?? 0) + 1)
+    const responses = this.binaryResponses.get(command)
+    if (!responses || responses.length === 0) {
+      return new Uint8Array()
+    }
+    return responses.shift() as Uint8Array
   }
 
   public emitInterrupt(): void {
@@ -54,6 +66,22 @@ const restoreTimers = (): void => {
  */
 const setDeviceConnected = (device: DRPDDevice): void => {
   ;(device as unknown as { isConnected: boolean }).isConnected = true
+}
+
+const buildCapturePayload = (): Uint8Array => {
+  const buffer = new Uint8Array(8 + 8 + 4 + 4 + 4 + 3 * 2 + 4 + 6)
+  const view = new DataView(buffer.buffer)
+  view.setBigUint64(0, 5_000n, true)
+  view.setBigUint64(8, 6_000n, true)
+  view.setUint32(16, 0, true)
+  buffer.set([0x18, 0x18, 0x18, 0x11], 20)
+  view.setUint32(24, 3, true)
+  view.setUint16(28, 0x100, true)
+  view.setUint16(30, 0x101, true)
+  view.setUint16(32, 0x102, true)
+  view.setUint32(34, 6, true)
+  buffer.set([0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d], 38)
+  return buffer
 }
 
 describe('DRPDDevice state updates', () => {
@@ -152,5 +180,32 @@ describe('DRPDDevice state updates', () => {
 
     expect(errors.length).toBe(1)
     expect(device.getState().role).toBeNull()
+  })
+
+  it('uses status polling as the message fallback path so polling clears the message flag', async () => {
+    const transport = new MockInterruptTransport()
+    transport.textResponses.set('STAT:DEV?', ['128'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    let captureCountCalls = 0
+    transport.textResponseFactories.set('BUS:CC:CAP:COUNT?', () => {
+      captureCountCalls += 1
+      return [captureCountCalls === 1 ? '1' : '0']
+    })
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [buildCapturePayload()])
+
+    const device = new DRPDDevice(transport)
+    setDeviceConnected(device)
+    const messages: unknown[] = []
+    device.addEventListener(DRPDDevice.MESSAGE_CAPTURED_EVENT, (event) => {
+      messages.push((event as CustomEvent).detail)
+    })
+
+    await (
+      device as unknown as { pollCaptureDrain: () => Promise<void> }
+    ).pollCaptureDrain()
+
+    expect(transport.callCounts.get('STAT:DEV?')).toBe(1)
+    expect(transport.callCounts.get('BUS:CC:CAP:COUNT?')).toBe(2)
+    expect(messages).toHaveLength(1)
   })
 })

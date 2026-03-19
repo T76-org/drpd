@@ -161,7 +161,7 @@ namespace T76::DRPD {
 
     protected:
         std::atomic<uint32_t> _deviceStatusRegister{0};
-        bool _interruptPending = false;
+        std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
 
         Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
