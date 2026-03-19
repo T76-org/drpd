@@ -639,10 +639,10 @@ export class DRPDDevice extends EventTarget {
   /**
    * Handle device connection events.
    */
-  public handleConnect(): void {
+  public async handleConnect(): Promise<void> {
     this.logDebug('connect: start')
     this.isConnected = true
-    void this.runConnectTasks().finally(() => {
+    await this.runConnectTasks().finally(() => {
       if (this.isConnected) {
         this.refreshClockSyncScheduling()
         this.startAnalogMonitorPolling(this.analogMonitorIntervalMs)
@@ -872,6 +872,7 @@ export class DRPDDevice extends EventTarget {
     const previousSinkInfo = this.state.sinkInfo
     const previousPdoList = this.state.sinkPdoList
     this.state = updated
+    await this.reconcileCaptureMode(updated.captureEnabled)
 
     if (changed.includes('role')) {
       this.dispatchEvent(
@@ -1188,6 +1189,7 @@ export class DRPDDevice extends EventTarget {
         return
       }
       this.state = { ...this.state, captureEnabled }
+      await this.reconcileCaptureMode(captureEnabled)
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, {
           detail: { captureEnabled },
@@ -1388,6 +1390,29 @@ export class DRPDDevice extends EventTarget {
     await this.processDeviceStatusUpdate('connect')
     await this.refreshAndDrainCapturedMessagesFromDevice()
     this.logDebug('runConnectTasks: done')
+  }
+
+  /**
+   * Align runtime capture/logging mode with the device capture state.
+   *
+   * @param captureEnabled - Current device capture state.
+   */
+  protected async reconcileCaptureMode(captureEnabled: OnOffState | null): Promise<void> {
+    if (captureEnabled === null) {
+      return
+    }
+    if (captureEnabled === OnOffStateValues.ON) {
+      if (!this.loggingConfig.enabled) {
+        await this.configureLogging({ ...this.loggingConfig, enabled: true })
+      }
+      if (!this.loggingStarted) {
+        await this.startLogging()
+      }
+      return
+    }
+    if (this.loggingStarted) {
+      await this.stopLogging()
+    }
   }
 
   /**

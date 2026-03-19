@@ -109,3 +109,42 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
     })
   })
 })
+
+describe('DRPDWorkerDeviceProxy connect flow', () => {
+  it('awaits connect-time hydration before resolving handleConnect', async () => {
+    let resolveHandleConnect: (() => void) | null = null
+    const callWorker = vi.fn((method: string, request?: { method?: string }) => {
+      if (method === 'drpdSession.call' && request?.method === 'handleConnect') {
+        return new Promise((resolve) => {
+          resolveHandleConnect = () => resolve(null)
+        })
+      }
+      return Promise.resolve(null)
+    })
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const proxy = new TestDRPDWorkerDeviceProxy(client)
+
+    let settled = false
+    const connectPromise = proxy.handleConnect().then(() => {
+      settled = true
+    })
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    expect(callWorker).toHaveBeenCalledWith('drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'device',
+      method: 'handleConnect',
+      args: [],
+    })
+
+    resolveHandleConnect?.()
+    await connectPromise
+
+    expect(settled).toBe(true)
+  })
+})

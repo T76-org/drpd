@@ -308,8 +308,8 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
   /**
    * Start connect-time worker tasks (mirrors DRPDDevice.handleConnect()).
    */
-  public handleConnect(): void {
-    void this.callDevice('handleConnect')
+  public async handleConnect(): Promise<void> {
+    await this.callDevice('handleConnect')
   }
 
   /**

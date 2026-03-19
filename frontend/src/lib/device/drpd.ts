@@ -128,7 +128,7 @@ export class DRPDDeviceDefinition extends Device {
    */
   public override async connectDevice(device: USBDevice): Promise<void> {
     await super.connectDevice(device)
-    this.driver?.handleConnect()
+    await this.driver?.handleConnect()
   }
 
   /**
