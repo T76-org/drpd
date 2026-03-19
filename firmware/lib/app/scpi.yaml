@@ -442,6 +442,29 @@ commands:
     description:  "Query the number of events before triggering"
     handler:      _queryTriggerEventThreshold
 
+  - syntax:       "TRIGger:EVent:SENDer"
+    description:  |
+                    Set the sender filter used in addition to the selected trigger event criteria.
+                    Supported sender values are:
+                    - ANY for no sender constraint
+                    - SOURCE for source-originated messages
+                    - SINK for sink-originated messages
+                    - CABLE for cable or VPD-originated messages
+
+                    For plain SOP traffic, SOURCE and SINK are derived from the header power-role bit.
+                    For SOP' / SOP'' and debug variants, UFP_DFP maps to SOURCE and CABLE_PLUG_VPD maps to CABLE.
+                    Sender filtering is ignored until the header is known, starting at DATA_START.
+    parameters:
+      - name:        sender
+        type:        enum
+        choices:     ["ANY", "SOURCE", "SINK", "CABLE"]
+        description: "The desired sender filter."
+    handler:      _setTriggerEventSenderFilter
+
+  - syntax:       "TRIGger:EVent:SENDer?"
+    description:  "Query the configured sender filter."
+    handler:      _queryTriggerEventSenderFilter
+
   - syntax:       "TRIGger:EVent:MSGType:FILTer"
     description:  |
                     Set one message type filter slot used in addition to the selected trigger event criteria.

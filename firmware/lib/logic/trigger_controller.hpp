@@ -91,6 +91,13 @@ namespace T76::DRPD::Logic {
      */
     class TriggerController {
     public:
+        enum class SenderFilter : uint32_t {
+            Any = 0,
+            Source,
+            Sink,
+            Cable
+        };
+
         struct MessageTypeFilter {
             uint32_t rawMessageType = 0;
             bool hasDataObjects = false;
@@ -206,6 +213,20 @@ namespace T76::DRPD::Logic {
         uint32_t syncPulseWidth() const;
 
         /**
+         * @brief Set the sender filter used in addition to the selected trigger event.
+         *
+         * @param filter Desired sender filter.
+         */
+        void senderFilter(SenderFilter filter);
+
+        /**
+         * @brief Return the configured sender filter.
+         *
+         * @return SenderFilter
+         */
+        SenderFilter senderFilter() const;
+
+        /**
          * @brief Configure a message-type filter at a specific slot.
          *
          * If no slots are populated, any message type is accepted as long as the
@@ -265,6 +286,7 @@ namespace T76::DRPD::Logic {
         uint32_t _eventThreshold = 1;    ///< Event threshold for triggering
         uint32_t _eventCount = 0;        ///< Current event count towards the trigger threshold
         bool _autoRepeat = false;        ///< Flag indicating if automatic repeating of triggering is enabled
+        SenderFilter _senderFilter = SenderFilter::Any; ///< Configured sender filter.
         std::array<MessageTypeFilter, LOGIC_TRIGGER_CONTROLLER_MAX_MESSAGE_TYPE_FILTERS> _messageTypeFilters{};
         std::array<bool, LOGIC_TRIGGER_CONTROLLER_MAX_MESSAGE_TYPE_FILTERS> _messageTypeFilterEnabled{};
 
@@ -279,6 +301,9 @@ namespace T76::DRPD::Logic {
         void _handleTriggerEvent(const PHY::BMCDecodedMessageEvent& event, PHY::BMCDecodedMessage& message);
 
         bool _messageHeaderKnownForEvent(const PHY::BMCDecodedMessageEvent& event, const PHY::BMCDecodedMessage& message) const;
+        bool _senderKnownForEvent(const PHY::BMCDecodedMessageEvent& event, const PHY::BMCDecodedMessage& message) const;
+        std::optional<SenderFilter> _messageSender(const PHY::BMCDecodedMessage& message) const;
+        bool _messageMatchesSenderFilter(const PHY::BMCDecodedMessage& message) const;
         bool _hasMessageTypeFiltersConfigured() const;
         bool _messageMatchesFilters(const PHY::BMCDecodedMessage& message) const;
     };

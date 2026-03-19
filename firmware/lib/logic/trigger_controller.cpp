@@ -93,6 +93,15 @@ uint32_t TriggerController::syncPulseWidth() const {
     return _syncManager.pulseWidth();
 }
 
+void TriggerController::senderFilter(SenderFilter filter) {
+    _senderFilter = filter;
+    mode(mode());
+}
+
+TriggerController::SenderFilter TriggerController::senderFilter() const {
+    return _senderFilter;
+}
+
 bool TriggerController::setMessageTypeFilter(size_t slot, const MessageTypeFilter &filter) {
     if (slot >= _messageTypeFilters.size()) {
         return false;
@@ -225,6 +234,12 @@ void TriggerController::_handleTriggerEvent(const PHY::BMCDecodedMessageEvent& e
             return;
     }
 
+    if (_senderFilter != SenderFilter::Any &&
+        _senderKnownForEvent(event, message) &&
+        !_messageMatchesSenderFilter(message)) {
+        return;
+    }
+
     if (_hasMessageTypeFiltersConfigured() &&
         _messageHeaderKnownForEvent(event, message) &&
         !_messageMatchesFilters(message)) {
@@ -262,6 +277,44 @@ bool TriggerController::_messageHeaderKnownForEvent(const PHY::BMCDecodedMessage
     }
 
     return false;
+}
+
+bool TriggerController::_senderKnownForEvent(const PHY::BMCDecodedMessageEvent& event,
+                                             const PHY::BMCDecodedMessage& message) const {
+    return _messageHeaderKnownForEvent(event, message);
+}
+
+std::optional<TriggerController::SenderFilter> TriggerController::_messageSender(const PHY::BMCDecodedMessage& message) const {
+    const auto header = message.decodedHeader();
+    const auto sopType = message.decodedSOP().type();
+
+    switch (sopType) {
+        case Proto::SOP::SOPType::SOP:
+        case Proto::SOP::SOPType::SOPDebug: {
+            const auto powerRole = header.portPowerRole();
+            if (!powerRole.has_value()) {
+                return std::nullopt;
+            }
+
+            return *powerRole == Proto::PDHeader::PortPowerRole::Source
+                ? SenderFilter::Source
+                : SenderFilter::Sink;
+        }
+
+        case Proto::SOP::SOPType::SOPPrime:
+        case Proto::SOP::SOPType::SOPDoublePrime:
+        case Proto::SOP::SOPType::SOPPrimeDebug:
+        case Proto::SOP::SOPType::SOPDoublePrimeDebug:
+            return (header.raw() & 0x0100u) != 0 ? SenderFilter::Cable : SenderFilter::Source;
+
+        default:
+            return std::nullopt;
+    }
+}
+
+bool TriggerController::_messageMatchesSenderFilter(const PHY::BMCDecodedMessage& message) const {
+    const auto sender = _messageSender(message);
+    return sender.has_value() && *sender == _senderFilter;
 }
 
 bool TriggerController::_messageMatchesFilters(const PHY::BMCDecodedMessage& message) const {

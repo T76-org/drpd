@@ -17,6 +17,7 @@ import {
   TestCcRole,
   TriggerEventType,
   TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
   VBusStatus,
@@ -306,6 +307,28 @@ export const parseTriggerSyncMode = (value: string): TriggerSyncMode => {
       return TriggerSyncMode.TOGGLE
     default:
       throw new Error(`Invalid trigger sync mode: ${value}`)
+  }
+}
+
+/**
+ * Parse a trigger sender filter token.
+ *
+ * @param value - Raw token.
+ * @returns Parsed sender filter.
+ */
+export const parseTriggerSenderFilter = (value: string): TriggerSenderFilter => {
+  const normalized = value.trim().toUpperCase()
+  switch (normalized) {
+    case TriggerSenderFilter.ANY:
+      return TriggerSenderFilter.ANY
+    case TriggerSenderFilter.SOURCE:
+      return TriggerSenderFilter.SOURCE
+    case TriggerSenderFilter.SINK:
+      return TriggerSenderFilter.SINK
+    case TriggerSenderFilter.CABLE:
+      return TriggerSenderFilter.CABLE
+    default:
+      throw new Error(`Invalid trigger sender filter: ${value}`)
   }
 }
 
@@ -894,6 +917,19 @@ export const parseTriggerEventTypeResponse = (values: string[]): TriggerEventTyp
     throw new Error('Missing trigger event type response')
   }
   return parseTriggerEventType(values[0])
+}
+
+/**
+ * Parse trigger sender filter response values.
+ *
+ * @param values - Parsed response tokens.
+ * @returns Parsed trigger sender filter.
+ */
+export const parseTriggerSenderFilterResponse = (values: string[]): TriggerSenderFilter => {
+  if (!values.length) {
+    throw new Error('Missing trigger sender filter response')
+  }
+  return parseTriggerSenderFilter(values[0])
 }
 
 /**

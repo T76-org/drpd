@@ -6,6 +6,7 @@ import {
   OnOffState,
   TriggerEventType,
   TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
   type TriggerInfo,
@@ -112,6 +113,7 @@ const buildTriggerInfo = (overrides?: Partial<TriggerInfo>): TriggerInfo => ({
   status: TriggerStatus.ARMED,
   type: TriggerEventType.MESSAGE_COMPLETE,
   eventThreshold: 3,
+  senderFilter: TriggerSenderFilter.ANY,
   autorepeat: OnOffState.ON,
   eventCount: 8,
   syncMode: TriggerSyncMode.TOGGLE,
@@ -140,6 +142,7 @@ describe('DrpdTriggerInstrumentView', () => {
     expect(screen.getByText('Armed')).toBeInTheDocument()
     expect(screen.getByText('8')).toBeInTheDocument()
     expect(screen.getByText('Message Complete')).toBeInTheDocument()
+    expect(screen.getByText('Any sender')).toBeInTheDocument()
     expect(screen.getByText('Toggle')).toBeInTheDocument()
     expect(screen.getByText('25 us')).toBeInTheDocument()
     expect(screen.getByText('Any message')).toBeInTheDocument()
@@ -178,6 +181,7 @@ describe('DrpdTriggerInstrumentView', () => {
     driver.setTriggerInfo(
       buildTriggerInfo({
         type: TriggerEventType.HEADER_START,
+        senderFilter: TriggerSenderFilter.CABLE,
         messageTypeFilters: [{ class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 1 }],
       }),
     )
@@ -191,7 +195,8 @@ describe('DrpdTriggerInstrumentView', () => {
       />,
     )
 
-    expect(screen.getByText('Ignored for this event')).toBeInTheDocument()
+    expect(screen.getAllByText('Ignored for this event')).toHaveLength(2)
+    expect(screen.getByText('Cable')).toBeInTheDocument()
   })
 
   it('opens the configure popup above the rack layer', async () => {
@@ -224,6 +229,7 @@ describe('DrpdTriggerInstrumentView', () => {
 
     const setEventTypeSpy = vi.spyOn(driver.trigger, 'setEventType').mockResolvedValue(undefined)
     const setEventThresholdSpy = vi.spyOn(driver.trigger, 'setEventThreshold').mockResolvedValue(undefined)
+    const setSenderFilterSpy = vi.spyOn(driver.trigger, 'setSenderFilter').mockResolvedValue(undefined)
     const setAutoRepeatSpy = vi.spyOn(driver.trigger, 'setAutoRepeat').mockResolvedValue(undefined)
     const setSyncModeSpy = vi.spyOn(driver.trigger, 'setSyncMode').mockResolvedValue(undefined)
     const setPulseWidthSpy = vi.spyOn(driver.trigger, 'setSyncPulseWidthUs').mockResolvedValue(undefined)
@@ -243,6 +249,7 @@ describe('DrpdTriggerInstrumentView', () => {
 
     await user.click(screen.getByRole('button', { name: 'Configure' }))
     await user.selectOptions(screen.getByLabelText(/event type/i), TriggerEventType.CRC_ERROR)
+    await user.selectOptions(screen.getByLabelText(/sender/i), TriggerSenderFilter.CABLE)
     await user.clear(screen.getByLabelText(/threshold/i))
     await user.type(screen.getByLabelText(/threshold/i), '7')
     await user.selectOptions(screen.getByLabelText(/auto-repeat/i), OnOffState.OFF)
@@ -257,6 +264,7 @@ describe('DrpdTriggerInstrumentView', () => {
     await waitFor(() => {
       expect(setEventTypeSpy).toHaveBeenCalledWith(TriggerEventType.CRC_ERROR)
       expect(setEventThresholdSpy).toHaveBeenCalledWith(7)
+      expect(setSenderFilterSpy).toHaveBeenCalledWith(TriggerSenderFilter.CABLE)
       expect(setAutoRepeatSpy).toHaveBeenCalledWith(OnOffState.OFF)
       expect(setSyncModeSpy).toHaveBeenCalledWith(TriggerSyncMode.PULSE_HIGH)
       expect(setPulseWidthSpy).toHaveBeenCalledWith(40)
@@ -277,6 +285,7 @@ describe('DrpdTriggerInstrumentView', () => {
     driver.setTriggerInfo(
       buildTriggerInfo({
         type: TriggerEventType.HEADER_START,
+        senderFilter: TriggerSenderFilter.SINK,
         messageTypeFilters: [{ class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 1 }],
       }),
     )
@@ -292,7 +301,8 @@ describe('DrpdTriggerInstrumentView', () => {
 
     await user.click(screen.getByRole('button', { name: 'Configure' }))
 
-    expect(screen.getByText(/stored but ignored for this event type/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/stored but ignored for this event type/i)).toHaveLength(2)
+    expect(screen.getByLabelText(/sender/i)).toBeDisabled()
     expect(screen.getByLabelText(/message filter class/i)).toBeDisabled()
     expect(screen.getByLabelText(/message filter type/i)).toBeDisabled()
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add filter' })).toBeDisabled()

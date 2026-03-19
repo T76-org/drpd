@@ -12,6 +12,7 @@ import {
   parseOnOffResponse,
   parseSingleInt,
   parseTriggerEventTypeResponse,
+  parseTriggerSenderFilterResponse,
   parseTriggerStatusResponse,
   parseTriggerSyncModeResponse,
 } from './parsers'
@@ -20,6 +21,7 @@ import type {
   TriggerEventType,
   TriggerInfo,
   TriggerMessageTypeFilter,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
 } from './types'
@@ -92,6 +94,25 @@ export class DRPDTrigger {
   public async getEventThreshold(): Promise<number> {
     const response = await this.transport.queryText('TRIG:EV:THRESH?')
     return parseSingleInt(response, 'trigger event threshold')
+  }
+
+  /**
+   * Set trigger sender filter.
+   *
+   * @param filter - Sender filter.
+   */
+  public async setSenderFilter(filter: TriggerSenderFilter): Promise<void> {
+    await this.transport.sendCommand('TRIG:EV:SENDER', scpiEnum(filter))
+  }
+
+  /**
+   * Query trigger sender filter.
+   *
+   * @returns Sender filter.
+   */
+  public async getSenderFilter(): Promise<TriggerSenderFilter> {
+    const response = await this.transport.queryText('TRIG:EV:SENDER?')
+    return parseTriggerSenderFilterResponse(response)
   }
 
   /**
@@ -206,11 +227,12 @@ export class DRPDTrigger {
    * @returns Trigger information structure.
    */
   public async getInfo(): Promise<TriggerInfo> {
-    const [status, type, eventThreshold, autorepeat, eventCount, syncMode, syncPulseWidthUs, messageTypeFilters] =
+    const [status, type, eventThreshold, senderFilter, autorepeat, eventCount, syncMode, syncPulseWidthUs, messageTypeFilters] =
       await Promise.all([
         this.getStatus(),
         this.getEventType(),
         this.getEventThreshold(),
+        this.getSenderFilter(),
         this.getAutoRepeat(),
         this.getEventCount(),
         this.getSyncMode(),
@@ -222,6 +244,7 @@ export class DRPDTrigger {
       status,
       type,
       eventThreshold,
+      senderFilter,
       autorepeat,
       eventCount,
       syncMode,

@@ -88,6 +88,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getInfo: () => Promise<TriggerInfo>
     setEventType: (type: TriggerEventType) => Promise<void>
     setEventThreshold: (count: number) => Promise<void>
+    setSenderFilter: (filter: TriggerInfo['senderFilter']) => Promise<void>
     setAutoRepeat: (enabled: OnOffState) => Promise<void>
     setSyncMode: (mode: TriggerSyncMode) => Promise<void>
     setSyncPulseWidthUs: (widthUs: number) => Promise<void>
@@ -217,6 +218,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       },
       setEventThreshold: async (count) => {
         await this.callGroup('trigger', 'setEventThreshold', count)
+      },
+      setSenderFilter: async (filter) => {
+        await this.callGroup('trigger', 'setSenderFilter', filter)
       },
       setAutoRepeat: async (enabled) => {
         await this.callGroup('trigger', 'setAutoRepeat', enabled)

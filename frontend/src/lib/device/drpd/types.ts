@@ -134,6 +134,21 @@ export const TriggerEventType = {
 export type TriggerEventType = (typeof TriggerEventType)[keyof typeof TriggerEventType]
 
 /**
+ * Trigger sender filter.
+ */
+export const TriggerSenderFilter = {
+  ANY: 'ANY',
+  SOURCE: 'SOURCE',
+  SINK: 'SINK',
+  CABLE: 'CABLE',
+} as const
+
+/**
+ * Trigger sender filter value.
+ */
+export type TriggerSenderFilter = (typeof TriggerSenderFilter)[keyof typeof TriggerSenderFilter]
+
+/**
  * Trigger message-type filter class.
  */
 export const TriggerMessageTypeFilterClass = {
@@ -372,6 +387,8 @@ export interface TriggerInfo {
   type: TriggerEventType
   ///< Event threshold count.
   eventThreshold: number
+  ///< Optional sender filter applied in addition to the selected event.
+  senderFilter: TriggerSenderFilter
   ///< Auto-repeat enabled state.
   autorepeat: OnOffState
   ///< Count of trigger events.

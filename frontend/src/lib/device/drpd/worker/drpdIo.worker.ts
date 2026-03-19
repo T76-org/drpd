@@ -600,6 +600,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           await session.device.trigger.setEventThreshold(args[0] as number)
           return null
         }
+        if (method === 'setSenderFilter') {
+          await session.device.trigger.setSenderFilter(args[0] as never)
+          return null
+        }
         if (method === 'setAutoRepeat') {
           await session.device.trigger.setAutoRepeat(args[0] as never)
           return null

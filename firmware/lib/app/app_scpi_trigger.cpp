@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,43 @@ bool parseMessageTypeFilterToken(
 
 std::string formatMessageTypeFilterToken(const Logic::TriggerController::MessageTypeFilter &filter) {
     return std::string(filter.hasDataObjects ? "DATA:" : "CONTROL:") + std::to_string(filter.rawMessageType);
+}
+
+std::optional<Logic::TriggerController::SenderFilter> parseSenderFilterToken(const std::string &token) {
+    std::string normalized = token;
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+
+    if (normalized == "ANY") {
+        return Logic::TriggerController::SenderFilter::Any;
+    }
+    if (normalized == "SOURCE") {
+        return Logic::TriggerController::SenderFilter::Source;
+    }
+    if (normalized == "SINK") {
+        return Logic::TriggerController::SenderFilter::Sink;
+    }
+    if (normalized == "CABLE") {
+        return Logic::TriggerController::SenderFilter::Cable;
+    }
+
+    return std::nullopt;
+}
+
+std::string formatSenderFilterToken(Logic::TriggerController::SenderFilter filter) {
+    switch (filter) {
+        case Logic::TriggerController::SenderFilter::Any:
+            return "ANY";
+        case Logic::TriggerController::SenderFilter::Source:
+            return "SOURCE";
+        case Logic::TriggerController::SenderFilter::Sink:
+            return "SINK";
+        case Logic::TriggerController::SenderFilter::Cable:
+            return "CABLE";
+    }
+
+    return "ANY";
 }
 
 }
@@ -179,6 +217,20 @@ void App::_setTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValue>
 void App::_queryTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t count = _triggerController.eventThreshold();
     _usbInterface.sendUSBTMCBulkData(std::to_string(count));
+}
+
+void App::_setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
+    const auto filter = parseSenderFilterToken(params[0].stringValue);
+    if (!filter.has_value()) {
+        _interpreter.addError(100, "Invalid trigger sender filter");
+        return;
+    }
+
+    _triggerController.senderFilter(*filter);
+}
+
+void App::_queryTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _usbInterface.sendUSBTMCBulkData(formatSenderFilterToken(_triggerController.senderFilter()));
 }
 
 void App::_queryTriggerEventCount(const std::vector<T76::SCPI::ParameterValue> &params) {

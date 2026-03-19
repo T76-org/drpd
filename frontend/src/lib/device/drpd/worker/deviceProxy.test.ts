@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  DRPDDeviceState,
   OnOffState,
   TriggerEventType,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerMessageTypeFilterClass,
   TriggerSyncMode,
 } from '../types'
+import type { DRPDDeviceState } from '../types'
 import { DRPDDevice } from '../device'
 import { DRPDWorkerDeviceProxy } from './deviceProxy'
 
@@ -56,6 +57,7 @@ describe('DRPDWorkerDeviceProxy trigger group', () => {
 
     await proxy.trigger.setEventType(TriggerEventType.CRC_ERROR)
     await proxy.trigger.setEventThreshold(5)
+    await proxy.trigger.setSenderFilter(TriggerSenderFilter.CABLE)
     await proxy.trigger.setAutoRepeat(OnOffState.ON)
     await proxy.trigger.setSyncMode(TriggerSyncMode.PULSE_LOW)
     await proxy.trigger.setSyncPulseWidthUs(18)
@@ -81,22 +83,28 @@ describe('DRPDWorkerDeviceProxy trigger group', () => {
     expect(callWorker).toHaveBeenNthCalledWith(3, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
+      method: 'setSenderFilter',
+      args: [TriggerSenderFilter.CABLE],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(4, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'trigger',
       method: 'setAutoRepeat',
       args: [OnOffState.ON],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(4, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(5, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'setSyncMode',
       args: [TriggerSyncMode.PULSE_LOW],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(5, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(6, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'setSyncPulseWidthUs',
       args: [18],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(6, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(7, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'setMessageTypeFilters',
@@ -105,13 +113,13 @@ describe('DRPDWorkerDeviceProxy trigger group', () => {
         { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
       ]],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(7, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(8, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'clearMessageTypeFilters',
       args: [],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(8, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(9, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'reset',
@@ -163,6 +171,7 @@ describe('DRPDWorkerDeviceProxy worker state mirroring', () => {
         status: TriggerStatus.ARMED,
         type: TriggerEventType.MESSAGE_COMPLETE,
         eventThreshold: 3,
+        senderFilter: TriggerSenderFilter.SOURCE,
         autorepeat: OnOffState.ON,
         eventCount: 8,
         syncMode: TriggerSyncMode.TOGGLE,
@@ -186,10 +195,14 @@ describe('DRPDWorkerDeviceProxy worker state mirroring', () => {
       { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
       { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
     ])
+    expect(proxy.getState().triggerInfo?.senderFilter).toBe(TriggerSenderFilter.SOURCE)
     expect(stateUpdatedSpy).toHaveBeenCalledTimes(1)
     expect((stateUpdatedSpy.mock.calls[0][0] as CustomEvent).detail.state.triggerInfo.messageTypeFilters).toEqual([
       { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
       { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
     ])
+    expect((stateUpdatedSpy.mock.calls[0][0] as CustomEvent).detail.state.triggerInfo.senderFilter).toBe(
+      TriggerSenderFilter.SOURCE,
+    )
   })
 })

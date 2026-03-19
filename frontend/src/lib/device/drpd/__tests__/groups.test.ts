@@ -11,6 +11,7 @@ import {
   OnOffState,
   TriggerEventType,
   TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
   TriggerSyncMode,
 } from '../types'
 
@@ -166,15 +167,28 @@ describe('DRPD command groups', () => {
     const transport = new MockTransport()
     const group = new DRPDTrigger(transport)
     await group.setEventType(TriggerEventType.MESSAGE_COMPLETE)
+    await group.setSenderFilter(TriggerSenderFilter.SOURCE)
     await group.setSyncMode(TriggerSyncMode.TOGGLE)
     expect(transport.commands[0]).toEqual({
       command: 'TRIG:EV:TYPE',
       params: [{ raw: 'MESSAGE_COMPLETE' }],
     })
     expect(transport.commands[1]).toEqual({
+      command: 'TRIG:EV:SENDER',
+      params: [{ raw: 'SOURCE' }],
+    })
+    expect(transport.commands[2]).toEqual({
       command: 'TRIG:SYNC:MODE',
       params: [{ raw: 'TOGGLE' }],
     })
+  })
+
+  it('parses trigger sender filter queries', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('TRIG:EV:SENDER?', ['CABLE'])
+    const group = new DRPDTrigger(transport)
+
+    await expect(group.getSenderFilter()).resolves.toBe(TriggerSenderFilter.CABLE)
   })
 
   it('formats trigger message type filter commands and parses queries', async () => {

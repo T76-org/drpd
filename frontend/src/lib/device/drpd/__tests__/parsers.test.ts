@@ -8,6 +8,7 @@ import {
   parseDeviceStatus,
   parseSinkPdo,
   parseTriggerMessageTypeFiltersResponse,
+  parseTriggerSenderFilterResponse,
   parseSinkStateResponse,
 } from '../parsers'
 import {
@@ -15,6 +16,7 @@ import {
   CaptureDecodeResult,
   SinkState,
   TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
 } from '../types'
 import { parseUSBPDMessage } from '../usb-pd/parser'
 import { PSRDYMessage } from '../usb-pd/message'
@@ -150,6 +152,13 @@ describe('drpd parsers', () => {
       { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
       { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 15 },
     ])
+  })
+
+  it('parses trigger sender filter responses', () => {
+    expect(parseTriggerSenderFilterResponse(['ANY'])).toBe(TriggerSenderFilter.ANY)
+    expect(parseTriggerSenderFilterResponse(['SOURCE'])).toBe(TriggerSenderFilter.SOURCE)
+    expect(parseTriggerSenderFilterResponse(['SINK'])).toBe(TriggerSenderFilter.SINK)
+    expect(parseTriggerSenderFilterResponse(['CABLE'])).toBe(TriggerSenderFilter.CABLE)
   })
 
   it('parses capture payloads', () => {

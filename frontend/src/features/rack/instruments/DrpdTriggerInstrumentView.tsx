@@ -4,6 +4,7 @@ import {
   OnOffState,
   TriggerEventType,
   TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
   TRIGGER_MESSAGE_TYPE_FILTER_LIMIT,
@@ -40,6 +41,13 @@ const TRIGGER_SYNC_MODE_OPTIONS = [
   TriggerSyncMode.PULSE_HIGH,
   TriggerSyncMode.PULSE_LOW,
   TriggerSyncMode.TOGGLE,
+] as const
+
+const TRIGGER_SENDER_FILTER_OPTIONS = [
+  TriggerSenderFilter.ANY,
+  TriggerSenderFilter.SOURCE,
+  TriggerSenderFilter.SINK,
+  TriggerSenderFilter.CABLE,
 ] as const
 
 const FILTER_CAPABLE_EVENT_TYPES = new Set<TriggerEventType>([
@@ -246,6 +254,27 @@ const formatTriggerSyncMode = (value: TriggerInfo['syncMode'] | null | undefined
 }
 
 /**
+ * Format a trigger sender filter token into a concise label.
+ *
+ * @param value - Sender filter token.
+ * @returns Display label.
+ */
+const formatTriggerSenderFilter = (value: TriggerInfo['senderFilter'] | null | undefined): string => {
+  switch (value) {
+    case TriggerSenderFilter.ANY:
+      return 'Any sender'
+    case TriggerSenderFilter.SOURCE:
+      return 'Source'
+    case TriggerSenderFilter.SINK:
+      return 'Sink'
+    case TriggerSenderFilter.CABLE:
+      return 'Cable'
+    default:
+      return '--'
+  }
+}
+
+/**
  * Format an ON/OFF token into a display label.
  *
  * @param value - On/off token.
@@ -299,6 +328,7 @@ export const DrpdTriggerInstrumentView = ({
   const [resolvedTriggerInfo, setResolvedTriggerInfo] = useState<TriggerInfo | null>(null)
   const [eventTypeInput, setEventTypeInput] = useState<TriggerEventType>(TriggerEventType.OFF)
   const [eventThresholdInput, setEventThresholdInput] = useState<string>('1')
+  const [senderFilterInput, setSenderFilterInput] = useState<TriggerSenderFilter>(TriggerSenderFilter.ANY)
   const [autoRepeatInput, setAutoRepeatInput] = useState<OnOffState>(OnOffState.OFF)
   const [syncModeInput, setSyncModeInput] = useState<TriggerSyncMode>(TriggerSyncMode.OFF)
   const [syncPulseWidthUsInput, setSyncPulseWidthUsInput] = useState<string>('1')
@@ -353,6 +383,7 @@ export const DrpdTriggerInstrumentView = ({
   const populateConfigureInputs = (info: TriggerInfo | null) => {
     setEventTypeInput(info?.type ?? TriggerEventType.OFF)
     setEventThresholdInput(String(info?.eventThreshold ?? 1))
+    setSenderFilterInput(info?.senderFilter ?? TriggerSenderFilter.ANY)
     setAutoRepeatInput(info?.autorepeat ?? OnOffState.OFF)
     setSyncModeInput(info?.syncMode ?? TriggerSyncMode.OFF)
     setSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
@@ -435,6 +466,32 @@ export const DrpdTriggerInstrumentView = ({
                 </option>
               ))}
             </select>
+          </div>
+          <div className={styles.headerPopupField}>
+            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-trigger-sender`}>
+              Sender
+            </label>
+            <select
+              id={`${instrument.id}-trigger-sender`}
+              className={styles.headerPopupSelect}
+              value={senderFilterInput}
+              onChange={(event) => {
+                setSenderFilterInput(event.currentTarget.value as TriggerSenderFilter)
+                setConfigureError(null)
+              }}
+              disabled={isApplyingConfig || !selectedEventSupportsFilters}
+            >
+              {TRIGGER_SENDER_FILTER_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {formatTriggerSenderFilter(option)}
+                </option>
+              ))}
+            </select>
+            <p className={styles.headerPopupHint}>
+              {selectedEventSupportsFilters
+                ? 'Filter by source, sink, or cable origin once the header is available.'
+                : 'Sender filtering is stored but ignored for this event type until the header is known, starting at Data Start.'}
+            </p>
           </div>
           <div className={styles.headerPopupSection}>
             <div className={styles.headerPopupSectionHeader}>
@@ -678,6 +735,7 @@ export const DrpdTriggerInstrumentView = ({
                 void Promise.all([
                   driver.trigger.setEventType(eventTypeInput),
                   driver.trigger.setEventThreshold(parsedThreshold),
+                  driver.trigger.setSenderFilter(senderFilterInput),
                   driver.trigger.setAutoRepeat(autoRepeatInput),
                   driver.trigger.setSyncMode(syncModeInput),
                   driver.trigger.setSyncPulseWidthUs(parsedPulseWidthUs),
@@ -753,11 +811,13 @@ export const DrpdTriggerInstrumentView = ({
     messageTypeFilterTypeInput,
     messageTypeFiltersInput,
     selectedEventSupportsFilters,
+    senderFilterInput,
     syncModeInput,
     syncPulseWidthUsInput,
     visibleTriggerInfo?.autorepeat,
     visibleTriggerInfo?.eventThreshold,
     visibleTriggerInfo?.messageTypeFilters,
+    visibleTriggerInfo?.senderFilter,
     visibleTriggerInfo?.syncMode,
     visibleTriggerInfo?.syncPulseWidthUs,
     visibleTriggerInfo?.type,
@@ -818,6 +878,17 @@ export const DrpdTriggerInstrumentView = ({
           <div className={styles.rightMetricRow}>
             <span className={styles.metricLabel}>Sync</span>
             <span className={styles.metricValue}>{formatTriggerSyncMode(visibleTriggerInfo?.syncMode)}</span>
+          </div>
+          <div className={styles.rightMetricRow}>
+            <span className={styles.metricLabel}>Sender</span>
+            <div className={styles.metricFilterValue}>
+              <span className={styles.metricValue}>
+                {formatTriggerSenderFilter(visibleTriggerInfo?.senderFilter)}
+              </span>
+              {!isFilterCapableTriggerEventType(visibleTriggerInfo?.type ?? TriggerEventType.OFF) ? (
+                <span className={styles.metricSubnote}>Ignored for this event</span>
+              ) : null}
+            </div>
           </div>
           <div className={styles.rightMetricRow}>
             <span className={styles.metricLabel}>Pulse</span>
