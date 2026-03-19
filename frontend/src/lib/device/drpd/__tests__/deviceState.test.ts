@@ -2,7 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import USBTMCTransport from '../../../transport/usbtmc'
 import { DRPDDevice } from '../device'
 import type { DRPDSCPIParam, DRPDTransport } from '../transport'
-import { CCBusRole } from '../types'
+import {
+  CCBusRole,
+  CCBusRoleStatus,
+  OnOffState,
+  SinkState,
+  TriggerEventType,
+  TriggerStatus,
+  TriggerSyncMode,
+  VBusStatus,
+} from '../types'
 
 class MockInterruptTransport extends EventTarget implements DRPDTransport {
   public textResponses = new Map<string, string[]>()
@@ -207,5 +216,95 @@ describe('DRPDDevice state updates', () => {
     expect(transport.callCounts.get('STAT:DEV?')).toBe(1)
     expect(transport.callCounts.get('BUS:CC:CAP:COUNT?')).toBe(2)
     expect(messages).toHaveLength(1)
+  })
+
+  it('hydrates all tracked state during handleConnect before the promise resolves', async () => {
+    const transport = new MockInterruptTransport()
+    transport.textResponses.set('SYST:TIME?', ['1000'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
+    transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
+    transport.textResponses.set('MEAS:ALL?', [
+      '1000',
+      '5.0',
+      '0.1',
+      '0.2',
+      '0.3',
+      '0.4',
+      '0.5',
+      '1.2',
+      '0.0',
+      '0.6',
+      '2500',
+      '12',
+      '34',
+    ])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
+    transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
+    transport.textResponses.set('BUS:CC:CAP:EN?', ['ON'])
+    transport.textResponses.set('TRIG:STAT?', ['ARMED'])
+    transport.textResponses.set('TRIG:EV:TYPE?', ['MESSAGE_COMPLETE'])
+    transport.textResponses.set('TRIG:EV:THRESH?', ['2'])
+    transport.textResponses.set('TRIG:EV:AUTOREPEAT?', ['ON'])
+    transport.textResponses.set('TRIG:EV:COUNT?', ['7'])
+    transport.textResponses.set('TRIG:SYNC:MODE?', ['TOGGLE'])
+    transport.textResponses.set('TRIG:SYNC:PULSEWIDTH?', ['25'])
+    transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
+    transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('SINK:STATUS:VOLTAGE?', ['5'])
+    transport.textResponses.set('SINK:STATUS:CURRENT?', ['2'])
+    transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
+    transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
+    transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('STAT:DEV?', ['0'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
+
+    const device = new DRPDDevice(transport, {
+      createLogStore: () =>
+        ({
+          init: async () => undefined,
+          close: async () => undefined,
+        }) as never,
+    })
+
+    await device.handleConnect()
+
+    expect(device.getState()).toMatchObject({
+      role: CCBusRole.SINK,
+      ccBusRoleStatus: CCBusRoleStatus.ATTACHED,
+      captureEnabled: OnOffState.ON,
+      vbusInfo: {
+        status: VBusStatus.ENABLED,
+        ovpThresholdMv: 21000,
+        ocpThresholdMa: 3500,
+      },
+      triggerInfo: {
+        status: TriggerStatus.ARMED,
+        type: TriggerEventType.MESSAGE_COMPLETE,
+        eventThreshold: 2,
+        autorepeat: OnOffState.ON,
+        eventCount: 7,
+        syncMode: TriggerSyncMode.TOGGLE,
+        syncPulseWidthUs: 25,
+      },
+      sinkInfo: {
+        status: SinkState.PE_SNK_READY,
+        negotiatedVoltageMv: 5000,
+        negotiatedCurrentMa: 2000,
+        error: false,
+      },
+      sinkPdoList: [
+        {
+          type: 'FIXED',
+          voltageV: 5,
+          maxCurrentA: 3,
+        },
+      ],
+    })
+    expect(device.getState().analogMonitor?.vbus).toBe(5)
+    expect(device.getState().analogMonitor?.ibus).toBe(0.1)
+    expect(transport.callCounts.get('STAT:DEV?')).toBe(1)
+    device.handleDisconnect()
   })
 })

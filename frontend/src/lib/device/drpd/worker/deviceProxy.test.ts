@@ -156,9 +156,17 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
   })
 })
 
-describe('DRPDWorkerDeviceProxy worker state mirroring', () => {
-  it('preserves trigger message type filters from stateupdated events', () => {
-    const callWorker = vi.fn(async () => null)
+describe('DRPDWorkerDeviceProxy connect flow', () => {
+  it('awaits connect-time hydration before resolving handleConnect', async () => {
+    let resolveHandleConnect: (() => void) | null = null
+    const callWorker = vi.fn((method: string, request?: { method?: string }) => {
+      if (method === 'drpdSession.call' && request?.method === 'handleConnect') {
+        return new Promise((resolve) => {
+          resolveHandleConnect = () => resolve(null)
+        })
+      }
+      return Promise.resolve(null)
+    })
     const client: ProxyClientStub = {
       callWorker,
       registerDRPDSessionEvents: vi.fn(),
