@@ -238,8 +238,6 @@ void BMCDecoder::loopCore1() {
         BMCDecodedMessageEvent messageEvent = _currentMessage->feedPulse(pulseWidth);
 
         if (messageEvent != BMCDecodedMessageEvent::None) {
-            BMCDecoder::MessageEventCallback messageEventCallback = nullptr;
-
             if (_messageEventCallback) {
                 _messageEventCallback(messageEvent, *_currentMessage);
             }
