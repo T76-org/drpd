@@ -115,6 +115,19 @@ describe('DRPDDeviceDefinition', () => {
     })
   })
 
+  it('normalizes invalid message fallback polling interval to the default', async () => {
+    const device = new DRPDDeviceDefinition()
+    await device.loadConfig({
+      logging: {
+        messagePollFallbackIntervalMs: 0,
+      },
+    })
+    const saved = await device.saveConfig()
+    expect(saved).toEqual({
+      logging: buildDefaultLoggingConfig(),
+    })
+  })
+
   it('emits connect and disconnect events', async () => {
     const device = new DRPDDeviceDefinition()
     const usbDevice = createUsbDevice()
