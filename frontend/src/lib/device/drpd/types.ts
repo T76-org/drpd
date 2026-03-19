@@ -134,6 +134,25 @@ export const TriggerEventType = {
 export type TriggerEventType = (typeof TriggerEventType)[keyof typeof TriggerEventType]
 
 /**
+ * Trigger message-type filter class.
+ */
+export const TriggerMessageTypeFilterClass = {
+  CONTROL: 'CONTROL',
+  DATA: 'DATA',
+} as const
+
+/**
+ * Trigger message-type filter class value.
+ */
+export type TriggerMessageTypeFilterClass =
+  (typeof TriggerMessageTypeFilterClass)[keyof typeof TriggerMessageTypeFilterClass]
+
+/**
+ * Maximum number of trigger message-type filters supported by firmware.
+ */
+export const TRIGGER_MESSAGE_TYPE_FILTER_LIMIT = 8
+
+/**
  * Trigger sync output mode.
  */
 export const TriggerSyncMode = {
@@ -361,6 +380,18 @@ export interface TriggerInfo {
   syncMode: TriggerSyncMode
   ///< Sync pulse width in microseconds.
   syncPulseWidthUs: number
+  ///< Optional message-type filters applied in addition to the selected event.
+  messageTypeFilters: TriggerMessageTypeFilter[]
+}
+
+/**
+ * Trigger message-type filter.
+ */
+export interface TriggerMessageTypeFilter {
+  ///< Filter class matching firmware CONTROL:<n> / DATA:<n> tokens.
+  class: TriggerMessageTypeFilterClass
+  ///< Raw USB-PD message type number.
+  messageTypeNumber: number
 }
 
 /**

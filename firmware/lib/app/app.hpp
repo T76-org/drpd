@@ -146,6 +146,9 @@ namespace T76::DRPD {
         void _setTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryTriggerEventCount(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &);
+        void _clearTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &);

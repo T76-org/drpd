@@ -5,6 +5,7 @@ import {
   DRPDDevice,
   OnOffState,
   TriggerEventType,
+  TriggerMessageTypeFilterClass,
   TriggerStatus,
   TriggerSyncMode,
   type TriggerInfo,
@@ -115,6 +116,7 @@ const buildTriggerInfo = (overrides?: Partial<TriggerInfo>): TriggerInfo => ({
   eventCount: 8,
   syncMode: TriggerSyncMode.TOGGLE,
   syncPulseWidthUs: 25,
+  messageTypeFilters: [],
   ...overrides,
 })
 
@@ -140,6 +142,56 @@ describe('DrpdTriggerInstrumentView', () => {
     expect(screen.getByText('Message Complete')).toBeInTheDocument()
     expect(screen.getByText('Toggle')).toBeInTheDocument()
     expect(screen.getByText('25 us')).toBeInTheDocument()
+    expect(screen.getByText('Any message')).toBeInTheDocument()
+  })
+
+  it('renders configured message type filter chips in the instrument body', () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setTriggerInfo(
+      buildTriggerInfo({
+        messageTypeFilters: [
+          { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 1 },
+          { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+          { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 15 },
+        ],
+      }),
+    )
+
+    render(
+      <DrpdTriggerInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sync Trigger"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByText('Control: GoodCRC')).toBeInTheDocument()
+    expect(screen.getByText('Data: 0x02 • Request / Status')).toBeInTheDocument()
+    expect(screen.getByText('+1 more')).toBeInTheDocument()
+  })
+
+  it('shows when message filters are ignored for a pre-header event', () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setTriggerInfo(
+      buildTriggerInfo({
+        type: TriggerEventType.HEADER_START,
+        messageTypeFilters: [{ class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 1 }],
+      }),
+    )
+
+    render(
+      <DrpdTriggerInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sync Trigger"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByText('Ignored for this event')).toBeInTheDocument()
   })
 
   it('opens the configure popup above the rack layer', async () => {
@@ -175,6 +227,9 @@ describe('DrpdTriggerInstrumentView', () => {
     const setAutoRepeatSpy = vi.spyOn(driver.trigger, 'setAutoRepeat').mockResolvedValue(undefined)
     const setSyncModeSpy = vi.spyOn(driver.trigger, 'setSyncMode').mockResolvedValue(undefined)
     const setPulseWidthSpy = vi.spyOn(driver.trigger, 'setSyncPulseWidthUs').mockResolvedValue(undefined)
+    const setMessageTypeFiltersSpy = vi
+      .spyOn(driver.trigger, 'setMessageTypeFilters')
+      .mockResolvedValue(undefined)
     const refreshSpy = vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)
 
     render(
@@ -194,6 +249,9 @@ describe('DrpdTriggerInstrumentView', () => {
     await user.selectOptions(screen.getByLabelText(/sync mode/i), TriggerSyncMode.PULSE_HIGH)
     await user.clear(screen.getByLabelText(/pulse width \(us\)/i))
     await user.type(screen.getByLabelText(/pulse width \(us\)/i), '40')
+    await user.selectOptions(screen.getByLabelText(/message filter class/i), TriggerMessageTypeFilterClass.DATA)
+    await user.selectOptions(screen.getByLabelText(/message filter type/i), '2')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add filter' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => {
@@ -202,11 +260,45 @@ describe('DrpdTriggerInstrumentView', () => {
       expect(setAutoRepeatSpy).toHaveBeenCalledWith(OnOffState.OFF)
       expect(setSyncModeSpy).toHaveBeenCalledWith(TriggerSyncMode.PULSE_HIGH)
       expect(setPulseWidthSpy).toHaveBeenCalledWith(40)
+      expect(setMessageTypeFiltersSpy).toHaveBeenCalledWith([
+        { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+      ])
     })
     expect(refreshSpy).toHaveBeenCalled()
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
+  })
+
+  it('disables message filter editing for events before the header is available', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setTriggerInfo(
+      buildTriggerInfo({
+        type: TriggerEventType.HEADER_START,
+        messageTypeFilters: [{ class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 1 }],
+      }),
+    )
+
+    render(
+      <DrpdTriggerInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sync Trigger"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Configure' }))
+
+    expect(screen.getByText(/stored but ignored for this event type/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/message filter class/i)).toBeDisabled()
+    expect(screen.getByLabelText(/message filter type/i)).toBeDisabled()
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add filter' })).toBeDisabled()
+    expect(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove Control: GoodCRC' }),
+    ).toBeDisabled()
   })
 
   it('keeps reset disabled unless the trigger is triggered', async () => {

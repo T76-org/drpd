@@ -91,6 +91,8 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     setAutoRepeat: (enabled: OnOffState) => Promise<void>
     setSyncMode: (mode: TriggerSyncMode) => Promise<void>
     setSyncPulseWidthUs: (widthUs: number) => Promise<void>
+    setMessageTypeFilters: (filters: TriggerInfo['messageTypeFilters']) => Promise<void>
+    clearMessageTypeFilters: () => Promise<void>
     reset: () => Promise<void>
   } ///< Trigger command-group proxy.
   public readonly vbus: {
@@ -224,6 +226,12 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       },
       setSyncPulseWidthUs: async (widthUs) => {
         await this.callGroup('trigger', 'setSyncPulseWidthUs', widthUs)
+      },
+      setMessageTypeFilters: async (filters) => {
+        await this.callGroup('trigger', 'setMessageTypeFilters', filters)
+      },
+      clearMessageTypeFilters: async () => {
+        await this.callGroup('trigger', 'clearMessageTypeFilters')
       },
       reset: async () => {
         await this.callGroup('trigger', 'reset')

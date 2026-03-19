@@ -22,7 +22,11 @@
 
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <functional>
+#include <optional>
+#include <span>
 #include "../phy/bmc_decoder.hpp"
 #include "../phy/sync_manager.hpp"
 
@@ -87,6 +91,13 @@ namespace T76::DRPD::Logic {
      */
     class TriggerController {
     public:
+        struct MessageTypeFilter {
+            uint32_t rawMessageType = 0;
+            bool hasDataObjects = false;
+
+            bool operator==(const MessageTypeFilter &other) const = default;
+        };
+
 
         /**
          * @brief Construct a new TriggerController object
@@ -195,6 +206,49 @@ namespace T76::DRPD::Logic {
         uint32_t syncPulseWidth() const;
 
         /**
+         * @brief Configure a message-type filter at a specific slot.
+         *
+         * If no slots are populated, any message type is accepted as long as the
+         * other trigger conditions are met.
+         *
+         * @param slot Zero-based slot index.
+         * @param filter Filter value to store in that slot.
+         * @return true if the filter was accepted.
+         * @return false if the slot is out of range, the value is invalid, or it duplicates another slot.
+         */
+        bool setMessageTypeFilter(size_t slot, const MessageTypeFilter &filter);
+
+        /**
+         * @brief Clear one configured message-type filter slot.
+         *
+         * @param slot Zero-based slot index.
+         * @return true if the slot exists.
+         * @return false if the slot is out of range.
+         */
+        bool clearMessageTypeFilter(size_t slot);
+
+        /**
+         * @brief Clear all configured message-type filters.
+         *
+         */
+        void clearMessageTypeFilters();
+
+        /**
+         * @brief Return the configured message-type filter for one slot.
+         *
+         * @param slot Zero-based slot index.
+         * @return std::optional<MessageTypeFilter> Slot contents when populated.
+         */
+        std::optional<MessageTypeFilter> messageTypeFilter(size_t slot) const;
+
+        /**
+         * @brief Return the total number of available filter slots.
+         *
+         * @return size_t
+         */
+        size_t messageTypeFilterCapacity() const;
+
+        /**
          * @brief Set a callback to be invoked when the controller's status changes
          * 
          * @param callback The callback function to invoke on status changes
@@ -211,6 +265,8 @@ namespace T76::DRPD::Logic {
         uint32_t _eventThreshold = 1;    ///< Event threshold for triggering
         uint32_t _eventCount = 0;        ///< Current event count towards the trigger threshold
         bool _autoRepeat = false;        ///< Flag indicating if automatic repeating of triggering is enabled
+        std::array<MessageTypeFilter, LOGIC_TRIGGER_CONTROLLER_MAX_MESSAGE_TYPE_FILTERS> _messageTypeFilters{};
+        std::array<bool, LOGIC_TRIGGER_CONTROLLER_MAX_MESSAGE_TYPE_FILTERS> _messageTypeFilterEnabled{};
 
         TriggerStatusChangedCallback _statusChangedCallback;  ///< Callback for status change notifications
 
@@ -221,6 +277,10 @@ namespace T76::DRPD::Logic {
          * @param message The associated BMCDecodedMessage
          */
         void _handleTriggerEvent(const PHY::BMCDecodedMessageEvent& event, PHY::BMCDecodedMessage& message);
+
+        bool _messageHeaderKnownForEvent(const PHY::BMCDecodedMessageEvent& event, const PHY::BMCDecodedMessage& message) const;
+        bool _hasMessageTypeFiltersConfigured() const;
+        bool _messageMatchesFilters(const PHY::BMCDecodedMessage& message) const;
     };
     
 } // namespace T76::DRPD::Logic

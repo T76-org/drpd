@@ -322,7 +322,7 @@ describe('USBTMCTransport', () => {
     const transport = new TestTransport(device)
     await transport.open()
 
-    await expect(transport.checkError()).rejects.toThrow('USBTMC device error 5')
+    await expect(transport.checkError('TEST:CMD')).rejects.toThrow('USBTMC device error 5')
   })
 
   it('requestDevice requires WebUSB', async () => {

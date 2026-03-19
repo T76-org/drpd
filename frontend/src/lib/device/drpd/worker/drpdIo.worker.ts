@@ -612,6 +612,14 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           await session.device.trigger.setSyncPulseWidthUs(args[0] as number)
           return null
         }
+        if (method === 'setMessageTypeFilters') {
+          await session.device.trigger.setMessageTypeFilters(args[0] as never)
+          return null
+        }
+        if (method === 'clearMessageTypeFilters') {
+          await session.device.trigger.clearMessageTypeFilters()
+          return null
+        }
         if (method === 'reset') {
           await session.device.trigger.reset()
           return null

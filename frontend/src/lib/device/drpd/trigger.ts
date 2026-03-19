@@ -8,6 +8,7 @@
 import { scpiEnum } from '../../transport/usbtmc'
 import type { DRPDTransport } from './transport'
 import {
+  parseTriggerMessageTypeFiltersResponse,
   parseOnOffResponse,
   parseSingleInt,
   parseTriggerEventTypeResponse,
@@ -18,6 +19,7 @@ import type {
   OnOffState,
   TriggerEventType,
   TriggerInfo,
+  TriggerMessageTypeFilter,
   TriggerStatus,
   TriggerSyncMode,
 } from './types'
@@ -122,6 +124,45 @@ export class DRPDTrigger {
   }
 
   /**
+   * Replace the full trigger message-type filter list.
+   *
+   * @param filters - Trigger message-type filters.
+   */
+  public async setMessageTypeFilters(filters: TriggerMessageTypeFilter[]): Promise<void> {
+    await this.clearMessageTypeFilters()
+
+    if (filters.length === 0) {
+      return
+    }
+
+    for (let slot = 0; slot < filters.length; slot += 1) {
+      const filter = filters[slot]
+      await this.transport.sendCommand(
+        'TRIG:EV:MSGTYPE:FILTER',
+        slot,
+        `${filter.class}:${filter.messageTypeNumber}`,
+      )
+    }
+  }
+
+  /**
+   * Query the trigger message-type filter list.
+   *
+   * @returns Trigger message-type filters.
+   */
+  public async getMessageTypeFilters(): Promise<TriggerMessageTypeFilter[]> {
+    const response = await this.transport.queryText('TRIG:EV:MSGTYPE:FILTER?')
+    return parseTriggerMessageTypeFiltersResponse(response)
+  }
+
+  /**
+   * Clear all trigger message-type filters.
+   */
+  public async clearMessageTypeFilters(): Promise<void> {
+    await this.transport.sendCommand('TRIG:EV:MSGTYPE:FILTER:CLEAR')
+  }
+
+  /**
    * Set sync output mode.
    *
    * @param mode - Sync output mode.
@@ -165,7 +206,7 @@ export class DRPDTrigger {
    * @returns Trigger information structure.
    */
   public async getInfo(): Promise<TriggerInfo> {
-    const [status, type, eventThreshold, autorepeat, eventCount, syncMode, syncPulseWidthUs] =
+    const [status, type, eventThreshold, autorepeat, eventCount, syncMode, syncPulseWidthUs, messageTypeFilters] =
       await Promise.all([
         this.getStatus(),
         this.getEventType(),
@@ -174,6 +215,7 @@ export class DRPDTrigger {
         this.getEventCount(),
         this.getSyncMode(),
         this.getSyncPulseWidthUs(),
+        this.getMessageTypeFilters(),
       ])
 
     return {
@@ -184,6 +226,7 @@ export class DRPDTrigger {
       eventCount,
       syncMode,
       syncPulseWidthUs,
+      messageTypeFilters,
     }
   }
 }
