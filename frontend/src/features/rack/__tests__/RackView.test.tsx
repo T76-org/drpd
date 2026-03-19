@@ -10,6 +10,7 @@ import { RackView } from '../RackView'
 const mockTransportState = vi.hoisted(() => ({
   ///< Force the mock transport to fail on open.
   shouldFailOpen: false,
+  statusRegisterResponse: ['0'],
   analogResponse: [
     '1000',
     '5.00',
@@ -25,7 +26,28 @@ const mockTransportState = vi.hoisted(() => ({
     '12',
     '34',
   ],
-  roleResponse: ['DISABLED'],
+  roleResponse: ['SINK'],
+  roleStatusResponse: ['ATTACHED'],
+  vbusStatusResponse: ['ENABLED'],
+  ovpThresholdResponse: ['21'],
+  ocpThresholdResponse: ['3.5'],
+  captureEnabledResponse: ['ON'],
+  captureCycleTimeResponse: ['10'],
+  triggerStatusResponse: ['ARMED'],
+  triggerEventTypeResponse: ['MESSAGE_COMPLETE'],
+  triggerEventThresholdResponse: ['2'],
+  triggerAutoRepeatResponse: ['ON'],
+  triggerEventCountResponse: ['7'],
+  triggerSyncModeResponse: ['TOGGLE'],
+  triggerSyncPulseWidthResponse: ['25'],
+  sinkPdoCountResponse: ['1'],
+  sinkPdoResponse: ['FIXED,5.00,3.00'],
+  sinkStatusResponse: ['PE_SNK_READY'],
+  sinkNegotiatedPdoResponse: ['FIXED,5.00,3.00'],
+  sinkVoltageResponse: ['5'],
+  sinkCurrentResponse: ['2'],
+  sinkErrorResponse: ['0'],
+  timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
   captureCountResponse: ['0']
 }))
@@ -74,14 +96,80 @@ vi.mock('../../../lib/transport/usbtmc', () => {
       if (command === '*IDN?') {
         return mockTransportState.idnResponse
       }
+      if (command === 'SYST:TIME?') {
+        return mockTransportState.timestampResponse
+      }
+      if (command === 'STAT:DEV?') {
+        return mockTransportState.statusRegisterResponse
+      }
       if (command === 'MEAS:ALL?') {
         return mockTransportState.analogResponse
       }
       if (command === 'BUS:CC:ROLE?') {
         return mockTransportState.roleResponse
       }
+      if (command === 'BUS:CC:ROLE:STAT?') {
+        return mockTransportState.roleStatusResponse
+      }
+      if (command === 'BUS:VBUS:STAT?') {
+        return mockTransportState.vbusStatusResponse
+      }
+      if (command === 'BUS:VBUS:OVPT?') {
+        return mockTransportState.ovpThresholdResponse
+      }
+      if (command === 'BUS:VBUS:OCPT?') {
+        return mockTransportState.ocpThresholdResponse
+      }
+      if (command === 'BUS:CC:CAP:EN?') {
+        return mockTransportState.captureEnabledResponse
+      }
+      if (command === 'BUS:CC:CAP:CYCLETIME?') {
+        return mockTransportState.captureCycleTimeResponse
+      }
       if (command === 'BUS:CC:CAP:COUNT?') {
         return mockTransportState.captureCountResponse
+      }
+      if (command === 'TRIG:STAT?') {
+        return mockTransportState.triggerStatusResponse
+      }
+      if (command === 'TRIG:EV:TYPE?') {
+        return mockTransportState.triggerEventTypeResponse
+      }
+      if (command === 'TRIG:EV:THRESH?') {
+        return mockTransportState.triggerEventThresholdResponse
+      }
+      if (command === 'TRIG:EV:AUTOREPEAT?') {
+        return mockTransportState.triggerAutoRepeatResponse
+      }
+      if (command === 'TRIG:EV:COUNT?') {
+        return mockTransportState.triggerEventCountResponse
+      }
+      if (command === 'TRIG:SYNC:MODE?') {
+        return mockTransportState.triggerSyncModeResponse
+      }
+      if (command === 'TRIG:SYNC:PULSEWIDTH?') {
+        return mockTransportState.triggerSyncPulseWidthResponse
+      }
+      if (command === 'SINK:PDO:COUNT?') {
+        return mockTransportState.sinkPdoCountResponse
+      }
+      if (command === 'SINK:PDO?') {
+        return mockTransportState.sinkPdoResponse
+      }
+      if (command === 'SINK:STATUS?') {
+        return mockTransportState.sinkStatusResponse
+      }
+      if (command === 'SINK:STATUS:PDO?') {
+        return mockTransportState.sinkNegotiatedPdoResponse
+      }
+      if (command === 'SINK:STATUS:VOLTAGE?') {
+        return mockTransportState.sinkVoltageResponse
+      }
+      if (command === 'SINK:STATUS:CURRENT?') {
+        return mockTransportState.sinkCurrentResponse
+      }
+      if (command === 'SINK:STATUS:ERROR?') {
+        return mockTransportState.sinkErrorResponse
       }
       return []
     }
@@ -184,6 +272,119 @@ const createUSBDevice = (): USBDevice =>
 
 const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
 
+const buildHydratedRackDocument = (): RackDocument =>
+  buildRackDocument({
+    racks: [
+      {
+        id: 'bench-rack-a',
+        name: 'Bench Rack A',
+        totalUnits: 9,
+        devices: [],
+        rows: [
+          {
+            id: 'row-1',
+            instruments: [
+              {
+                id: 'inst-status',
+                instrumentIdentifier: 'com.mta.drpd.device-status-panel',
+              },
+            ],
+          },
+          {
+            id: 'row-2',
+            instruments: [
+              {
+                id: 'inst-vbus',
+                instrumentIdentifier: 'com.mta.drpd.vbus',
+              },
+            ],
+          },
+          {
+            id: 'row-3',
+            instruments: [
+              {
+                id: 'inst-trigger',
+                instrumentIdentifier: 'com.mta.drpd.trigger',
+              },
+            ],
+          },
+          {
+            id: 'row-4',
+            instruments: [
+              {
+                id: 'inst-sink',
+                instrumentIdentifier: 'com.mta.drpd.sink-control',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  })
+
+const buildBoundHydratedRackDocument = (): RackDocument => ({
+  racks: [
+    {
+      id: 'bench-rack-a',
+      name: 'Bench Rack A',
+      totalUnits: 9,
+      devices: [
+        {
+          id: 'device-1',
+          identifier: 'com.mta.drpd',
+          displayName: 'Dr. PD',
+          vendorId: 0x2e8a,
+          productId: 0x000a,
+          serialNumber: 'DRPD-TEST-001',
+          productName: 'Dr. PD',
+        },
+      ],
+      rows: [
+        {
+          id: 'row-1',
+          instruments: [
+            {
+              id: 'inst-status',
+              instrumentIdentifier: 'com.mta.drpd.device-status-panel',
+              deviceRecordId: 'device-1',
+            },
+          ],
+        },
+        {
+          id: 'row-2',
+          instruments: [
+            {
+              id: 'inst-vbus',
+              instrumentIdentifier: 'com.mta.drpd.vbus',
+              deviceRecordId: 'device-1',
+            },
+          ],
+        },
+        {
+          id: 'row-3',
+          instruments: [
+            {
+              id: 'inst-trigger',
+              instrumentIdentifier: 'com.mta.drpd.trigger',
+              deviceRecordId: 'device-1',
+            },
+          ],
+        },
+        {
+          id: 'row-4',
+          instruments: [
+            {
+              id: 'inst-sink',
+              instrumentIdentifier: 'com.mta.drpd.sink-control',
+              deviceRecordId: 'device-1',
+            },
+          ],
+        },
+      ],
+    },
+  ],
+})
+
 /**
  * Stub the navigator.usb API.
  */
@@ -238,6 +439,15 @@ const mockUSB = (devices: USBDevice[]) => {
       })
     },
   }
+}
+
+const expectHydratedDrpdPanels = async (): Promise<void> => {
+  expect(await screen.findByText('Sink')).toBeInTheDocument()
+  expect(await screen.findByText('Attached')).toBeInTheDocument()
+  expect(await screen.findAllByText('On')).not.toHaveLength(0)
+  expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
+  expect(await screen.findByText('Armed')).toBeInTheDocument()
+  expect(await screen.findByText('Connected')).toBeInTheDocument()
 }
 
 /**
@@ -810,7 +1020,7 @@ describe('RackView', () => {
   })
 
   it('connects and persists a device added by the user', async () => {
-    saveRackDocument(buildRackDocument())
+    saveRackDocument(buildHydratedRackDocument())
     const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
@@ -829,7 +1039,7 @@ describe('RackView', () => {
   })
 
   it('disconnects a device without removing it', async () => {
-    saveRackDocument(buildRackDocument())
+    saveRackDocument(buildHydratedRackDocument())
     const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
@@ -859,6 +1069,32 @@ describe('RackView', () => {
     expect(await screen.findByText('connected')).toBeInTheDocument()
   })
 
+  it('hydrates bound DRPD panels when reconnecting a persisted device', async () => {
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const menuButton = await screen.findByRole('button', {
+      name: /devices/i,
+    })
+    await userEvent.click(menuButton)
+    expect(await screen.findByText('connected')).toBeInTheDocument()
+
+    const disconnectButton = await screen.findByRole('button', {
+      name: /disconnect/i,
+    })
+    await userEvent.click(disconnectButton)
+    expect(await screen.findByText('disconnected')).toBeInTheDocument()
+
+    const reconnectButton = await screen.findByRole('button', {
+      name: /connect/i,
+    })
+    await userEvent.click(reconnectButton)
+
+    expect(await screen.findByText('connected')).toBeInTheDocument()
+    await expectHydratedDrpdPanels()
+  })
+
   it('marks a connected device disconnected when WebUSB reports an unplug', async () => {
     saveRackDocument(buildRackDocument())
     const usbDevice = createUSBDevice()
@@ -886,39 +1122,7 @@ describe('RackView', () => {
   })
 
   it('auto-connects a previously paired device when WebUSB reports it connected', async () => {
-    saveRackDocument(
-      buildRackDocument({
-        racks: [
-          {
-            id: 'bench-rack-a',
-            name: 'Bench Rack A',
-            totalUnits: 9,
-            devices: [
-              {
-                id: 'device-1',
-                identifier: 'com.mta.drpd',
-                displayName: 'Dr. PD',
-                vendorId: 0x2e8a,
-                productId: 0x000a,
-                serialNumber: 'DRPD-TEST-001',
-                productName: 'Dr. PD'
-              }
-            ],
-            rows: [
-              {
-                id: 'row-1',
-                instruments: [
-                  {
-                    id: 'inst-1',
-                    instrumentIdentifier: 'com.mta.drpd.device-status-panel'
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }),
-    )
+    saveRackDocument(buildBoundHydratedRackDocument())
     const usbDevice = createUSBDevice()
     const { dispatchConnect } = mockUSB([])
     render(<RackView />)
@@ -933,6 +1137,7 @@ describe('RackView', () => {
 
     expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
     expect(await screen.findByText('connected')).toBeInTheDocument()
+    await expectHydratedDrpdPanels()
   })
 
   it('removes a device when remove is clicked', async () => {

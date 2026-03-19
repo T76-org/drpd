@@ -498,7 +498,7 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             await session.device.setCaptureEnabled(args[0] as never)
             return null
           case 'handleConnect':
-            session.device.handleConnect()
+            await session.device.handleConnect()
             return null
           case 'handleDisconnect':
             session.device.handleDisconnect()
