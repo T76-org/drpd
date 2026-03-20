@@ -223,6 +223,12 @@ export class DRPDDevice extends EventTarget {
    */
   public async configureLogging(config: DRPDLoggingConfig): Promise<void> {
     this.loggingConfig = this.normalizeLoggingConfig(config)
+    if (
+      this.state.captureEnabled === OnOffStateValues.ON &&
+      !this.loggingConfig.enabled
+    ) {
+      this.loggingConfig = { ...this.loggingConfig, enabled: true }
+    }
     this.setCaptureDrainPollingInterval(this.loggingConfig.messagePollFallbackIntervalMs)
     this.refreshClockSyncScheduling()
     if (this.loggingStarted) {

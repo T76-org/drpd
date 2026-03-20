@@ -11,7 +11,23 @@ import { parseDeviceIdentity } from './drpd/parsers'
 import { DRPDDevice } from './drpd/device'
 import type { DRPDTransport } from './drpd/transport'
 import { buildDefaultLoggingConfig, normalizeLoggingConfig, SQLiteWasmStore } from './drpd/logging'
-import type { DRPDDeviceConfig, DRPDLoggingConfig } from './drpd/types'
+import type {
+  CCBusRole,
+  DRPDDeviceConfig,
+  DRPDLoggingConfig,
+  DRPDSinkRequestConfig,
+  DRPDTriggerConfig,
+  OnOffState,
+  TriggerMessageTypeFilter,
+} from './drpd/types'
+import {
+  CCBusRole as CCBusRoleValues,
+  OnOffState as OnOffStateValues,
+  TriggerEventType as TriggerEventTypeValues,
+  TriggerMessageTypeFilterClass as TriggerMessageTypeFilterClassValues,
+  TriggerSenderFilter as TriggerSenderFilterValues,
+  TriggerSyncMode as TriggerSyncModeValues,
+} from './drpd/types'
 import {
   DRPDWorkerDeviceProxy,
   DRPDWorkerLogStoreProxy,
@@ -31,6 +47,129 @@ export interface DRPDConnectedRuntime {
 }
 
 const LEGACY_CAPTURE_LIMIT = 50
+
+const isEnumValue = <T extends string>(
+  value: unknown,
+  options: Record<string, T>,
+): value is T => typeof value === 'string' && Object.values(options).includes(value as T)
+
+const normalizeInteger = (value: unknown, minimum = 0): number | undefined => {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < minimum) {
+    return undefined
+  }
+  return value
+}
+
+const normalizeMessageTypeFilters = (value: unknown): TriggerMessageTypeFilter[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return []
+    }
+    const filter = entry as Partial<TriggerMessageTypeFilter>
+    if (
+      !isEnumValue(filter.class, TriggerMessageTypeFilterClassValues) ||
+      typeof filter.messageTypeNumber !== 'number' ||
+      !Number.isInteger(filter.messageTypeNumber) ||
+      filter.messageTypeNumber < 0
+    ) {
+      return []
+    }
+    return [{
+      class: filter.class,
+      messageTypeNumber: filter.messageTypeNumber,
+    }]
+  })
+}
+
+const normalizeRole = (value: unknown): CCBusRole | undefined =>
+  isEnumValue(value, CCBusRoleValues) ? value : undefined
+
+const normalizeCaptureEnabled = (value: unknown): OnOffState | undefined =>
+  isEnumValue(value, OnOffStateValues) ? value : undefined
+
+const normalizeSinkRequestConfig = (value: unknown): DRPDSinkRequestConfig | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const probe = value as Partial<DRPDSinkRequestConfig>
+  const index = normalizeInteger(probe.index, 0)
+  const voltageMv = normalizeInteger(probe.voltageMv, 0)
+  const currentMa = normalizeInteger(probe.currentMa, 0)
+  if (index == null || voltageMv == null || currentMa == null) {
+    return undefined
+  }
+  return { index, voltageMv, currentMa }
+}
+
+const normalizeTriggerConfig = (value: unknown): DRPDTriggerConfig | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  const probe = value as Partial<DRPDTriggerConfig>
+  const eventThreshold = normalizeInteger(probe.eventThreshold, 1)
+  const syncPulseWidthUs = normalizeInteger(probe.syncPulseWidthUs, 1)
+  if (
+    !isEnumValue(probe.type, TriggerEventTypeValues) ||
+    !isEnumValue(probe.senderFilter, TriggerSenderFilterValues) ||
+    !isEnumValue(probe.autorepeat, OnOffStateValues) ||
+    !isEnumValue(probe.syncMode, TriggerSyncModeValues) ||
+    eventThreshold == null ||
+    syncPulseWidthUs == null
+  ) {
+    return undefined
+  }
+  return {
+    type: probe.type,
+    eventThreshold,
+    senderFilter: probe.senderFilter,
+    autorepeat: probe.autorepeat,
+    syncMode: probe.syncMode,
+    syncPulseWidthUs,
+    messageTypeFilters: normalizeMessageTypeFilters(probe.messageTypeFilters),
+  }
+}
+
+export const normalizeDRPDDeviceConfig = (config: unknown): DRPDDeviceConfig => {
+  const logging = extractLoggingConfig(config)
+  if (!config || typeof config !== 'object') {
+    return { logging }
+  }
+  const value = config as {
+    role?: unknown
+    captureEnabled?: unknown
+    sinkRequest?: unknown
+    trigger?: unknown
+  }
+  const role = normalizeRole(value.role)
+  const captureEnabled = normalizeCaptureEnabled(value.captureEnabled)
+  const sinkRequest = normalizeSinkRequestConfig(value.sinkRequest)
+  const trigger = normalizeTriggerConfig(value.trigger)
+  return {
+    logging,
+    ...(role ? { role } : {}),
+    ...(captureEnabled ? { captureEnabled } : {}),
+    ...(sinkRequest ? { sinkRequest } : {}),
+    ...(trigger ? { trigger } : {}),
+  }
+}
+
+const extractLoggingConfig = (config: unknown): DRPDLoggingConfig => {
+  if (!config || typeof config !== 'object') {
+    return buildDefaultLoggingConfig()
+  }
+  const value = config as { logging?: Partial<DRPDLoggingConfig> }
+  const normalized = normalizeLoggingConfig(value.logging)
+  if (value.logging?.maxCapturedMessages === LEGACY_CAPTURE_LIMIT) {
+    return {
+      ...normalized,
+      maxCapturedMessages: buildDefaultLoggingConfig().maxCapturedMessages,
+    }
+  }
+  return normalized
+}
 
 /**
  * DRPD device definition.
@@ -92,7 +231,7 @@ export class DRPDDeviceDefinition extends Device {
     })
     this.driver.setDebugLoggingEnabled(false)
     const config = this.getStoredConfig()
-    const loggingConfig = this.extractLoggingConfig(config)
+    const loggingConfig = extractLoggingConfig(config)
     void this.driver.configureLogging(loggingConfig)
     return this.driver
   }
@@ -108,7 +247,7 @@ export class DRPDDeviceDefinition extends Device {
       const driver = await DRPDWorkerDeviceProxy.create(device)
       driver.setDebugLoggingEnabled(false)
       const config = this.getStoredConfig()
-      const loggingConfig = this.extractLoggingConfig(config)
+      const loggingConfig = extractLoggingConfig(config)
       await driver.configureLogging(loggingConfig)
       this.driver = driver
       return { driver, transport: driver }
@@ -145,11 +284,10 @@ export class DRPDDeviceDefinition extends Device {
    * @param config - Configuration payload.
    */
   public async loadConfig(config: unknown): Promise<void> {
-    const logging = this.extractLoggingConfig(config)
-    const stored: DRPDDeviceConfig = { logging }
+    const stored = normalizeDRPDDeviceConfig(config)
     this.setStoredConfig(stored)
     if (this.driver) {
-      await this.driver.configureLogging(logging)
+      await this.driver.configureLogging(stored.logging)
     }
   }
 
@@ -159,30 +297,7 @@ export class DRPDDeviceDefinition extends Device {
    * @returns Serialized configuration payload.
    */
   public async saveConfig(): Promise<unknown> {
-    return this.getStoredConfig() ?? { logging: buildDefaultLoggingConfig() }
-  }
-
-  /**
-   * Extract and normalize logging config from arbitrary payload.
-   *
-   * @param config - Serialized config payload.
-   * @returns Normalized logging config.
-   */
-  protected extractLoggingConfig(config: unknown): DRPDLoggingConfig {
-    if (!config || typeof config !== 'object') {
-      return buildDefaultLoggingConfig()
-    }
-    const value = config as { logging?: Partial<DRPDLoggingConfig> }
-    const normalized = normalizeLoggingConfig(value.logging)
-    // Migrate legacy persisted cap (50 rows) that causes early rollover and
-    // makes the USB-PD table appear to stop updating after a short period.
-    if (value.logging?.maxCapturedMessages === LEGACY_CAPTURE_LIMIT) {
-      return {
-        ...normalized,
-        maxCapturedMessages: buildDefaultLoggingConfig().maxCapturedMessages,
-      }
-    }
-    return normalized
+    return this.getStoredConfig() ?? normalizeDRPDDeviceConfig(undefined)
   }
 
   protected driver?: DRPDDriverRuntime ///< Cached driver instance.
