@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   CCBusRole,
   OnOffState,
+  SinkState,
   TriggerEventType,
   TriggerMessageTypeFilterClass,
   TriggerSenderFilter,
@@ -68,8 +69,18 @@ describe('applyRecordConfigToRuntime', () => {
       getState: vi.fn(() => state),
       refreshState: vi.fn(async () => {
         calls.push('refreshState')
+        if (state.role === CCBusRole.SINK && state.sinkInfo == null) {
+          state.sinkInfo = {
+            status: SinkState.PE_SNK_READY,
+            negotiatedPdo: null,
+            negotiatedVoltageMv: 0,
+            negotiatedCurrentMa: 0,
+            error: false,
+          }
+        }
       }),
       ccBus: {
+        getRole: vi.fn(async () => state.role),
         setRole: vi.fn(async (role: CCBusRole) => {
           calls.push(`setRole:${role}`)
           state.role = role
@@ -80,10 +91,12 @@ describe('applyRecordConfigToRuntime', () => {
         state.captureEnabled = captureEnabled
       }),
       sink: {
+        getSinkInfo: vi.fn(async () => state.sinkInfo),
+        getAvailablePdoCount: vi.fn(async () => 1),
         requestPdo: vi.fn(async (index: number, voltageMv: number, currentMa: number) => {
           calls.push(`requestPdo:${index}:${voltageMv}:${currentMa}`)
           state.sinkInfo = {
-            status: 'PE_SNK_READY',
+            status: SinkState.PE_SNK_READY,
             negotiatedPdo: null,
             negotiatedVoltageMv: voltageMv,
             negotiatedCurrentMa: currentMa,
@@ -156,5 +169,73 @@ describe('applyRecordConfigToRuntime', () => {
       'setMessageTypeFilters:1',
       'refreshState',
     ])
+  })
+
+  it('waits for sink mode readiness before replaying the stored sink request', async () => {
+    vi.useFakeTimers()
+    const state = {
+      role: CCBusRole.OBSERVER,
+      captureEnabled: OnOffState.OFF,
+      sinkInfo: null,
+      triggerInfo: null,
+      sinkPdoList: null as null | unknown[],
+    }
+    let roleChecks = 0
+    let pdoChecks = 0
+    const driver = {
+      configureLogging: vi.fn(async () => undefined),
+      getState: vi.fn(() => state),
+      refreshState: vi.fn(async () => {
+        if (roleChecks >= 2) {
+          state.role = CCBusRole.SINK
+          state.sinkPdoList = [{}]
+          state.sinkInfo = {
+            status: SinkState.PE_SNK_READY,
+            negotiatedPdo: null,
+            negotiatedVoltageMv: 0,
+            negotiatedCurrentMa: 0,
+            error: false,
+          }
+        }
+      }),
+      ccBus: {
+        getRole: vi.fn(async () => {
+          roleChecks += 1
+          return state.role
+        }),
+        setRole: vi.fn(async (role: CCBusRole) => {
+          state.role = roleChecks >= 2 ? role : CCBusRole.OBSERVER
+        }),
+      },
+      setCaptureEnabled: vi.fn(async () => undefined),
+      sink: {
+        getAvailablePdoCount: vi.fn(async () => {
+          pdoChecks += 1
+          return state.role === CCBusRole.SINK ? 1 : 0
+        }),
+        getSinkInfo: vi.fn(async () => state.sinkInfo),
+        requestPdo: vi.fn(async () => undefined),
+      },
+      trigger: {
+        setEventType: vi.fn(async () => undefined),
+        setEventThreshold: vi.fn(async () => undefined),
+        setSenderFilter: vi.fn(async () => undefined),
+        setAutoRepeat: vi.fn(async () => undefined),
+        setSyncMode: vi.fn(async () => undefined),
+        setSyncPulseWidthUs: vi.fn(async () => undefined),
+        setMessageTypeFilters: vi.fn(async () => undefined),
+      },
+    }
+
+    const task = applyRecordConfigToRuntime(buildRecord(), {
+      drpdDriver: driver as never,
+    })
+    await vi.runAllTimersAsync()
+    await task
+
+    expect(roleChecks).toBeGreaterThanOrEqual(2)
+    expect(pdoChecks).toBeGreaterThanOrEqual(1)
+    expect(driver.sink.requestPdo).toHaveBeenCalledWith(0, 5000, 2000)
+    vi.useRealTimers()
   })
 })

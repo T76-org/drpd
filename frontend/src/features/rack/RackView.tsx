@@ -6,6 +6,7 @@ import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
   DRPDDeviceDefinition,
+  SinkState,
   buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
   decodeLoggedCapturedMessage,
@@ -177,6 +178,40 @@ const areTriggerMessageTypeFiltersEqual = (
     entry.messageTypeNumber === right[index]?.messageTypeNumber,
   )
 
+const sleep = async (ms: number): Promise<void> =>
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+
+const isSinkReplayReadyState = (status: unknown): boolean =>
+  status === SinkState.PE_SNK_READY || status === SinkState.PE_SNK_EPR_KEEPALIVE
+
+const waitForSinkReplayReady = async (
+  driver: DRPDDriverRuntime,
+  requestedIndex: number,
+): Promise<boolean> => {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const role =
+      (await driver.ccBus.getRole().catch(() => driver.getState().role)) ??
+      driver.getState().role
+    if (role === CCBusRole.SINK) {
+      const sinkInfo =
+        (await driver.sink.getSinkInfo().catch(() => driver.getState().sinkInfo)) ??
+        driver.getState().sinkInfo
+      const pdoCount =
+        (await driver.sink.getAvailablePdoCount().catch(() => null)) ??
+        driver.getState().sinkPdoList?.length ??
+        0
+      if (pdoCount > requestedIndex && isSinkReplayReadyState(sinkInfo?.status)) {
+        return true
+      }
+    }
+    await driver.refreshState().catch(() => undefined)
+    await sleep(150)
+  }
+  return false
+}
+
 export const applyRecordConfigToRuntime = async (
   record: RackDeviceRecord,
   runtime: DeviceRuntime | null | undefined,
@@ -206,17 +241,20 @@ export const applyRecordConfigToRuntime = async (
     config.sinkRequest &&
     (config.role ?? currentRole) === CCBusRole.SINK
   ) {
-    const currentSinkInfo = driver.getState().sinkInfo
-    if (
-      currentSinkInfo?.negotiatedVoltageMv !== config.sinkRequest.voltageMv ||
-      currentSinkInfo?.negotiatedCurrentMa !== config.sinkRequest.currentMa
-    ) {
-      await driver.sink.requestPdo(
-        config.sinkRequest.index,
-        config.sinkRequest.voltageMv,
-        config.sinkRequest.currentMa,
-      )
-      await driver.refreshState()
+    const sinkReady = await waitForSinkReplayReady(driver, config.sinkRequest.index)
+    if (sinkReady) {
+      const currentSinkInfo = driver.getState().sinkInfo
+      if (
+        currentSinkInfo?.negotiatedVoltageMv !== config.sinkRequest.voltageMv ||
+        currentSinkInfo?.negotiatedCurrentMa !== config.sinkRequest.currentMa
+      ) {
+        await driver.sink.requestPdo(
+          config.sinkRequest.index,
+          config.sinkRequest.voltageMv,
+          config.sinkRequest.currentMa,
+        )
+        await driver.refreshState()
+      }
     }
   }
 
