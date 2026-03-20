@@ -191,13 +191,17 @@ describe('DrpdSinkControlInstrumentView', () => {
 
     const requestSpy = vi.spyOn(driver.sink, 'requestPdo').mockResolvedValue(undefined)
     const refreshSpy = vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)
+    const updateDeviceConfig = vi.fn(async () => undefined)
+    const deviceRecord = buildDeviceRecord()
 
     render(
       <DrpdSinkControlInstrumentView
         instrument={buildInstrument()}
         displayName="Sink Control"
-        deviceState={buildDeviceState(driver)}
+        deviceRecord={deviceRecord}
+        deviceState={{ ...buildDeviceState(driver), record: deviceRecord }}
         isEditMode={false}
+        onUpdateDeviceConfig={updateDeviceConfig}
       />,
     )
 
@@ -220,6 +224,19 @@ describe('DrpdSinkControlInstrumentView', () => {
       expect(requestSpy).toHaveBeenCalledWith(1, 12000, 2000)
     })
     expect(refreshSpy).toHaveBeenCalled()
+    expect(updateDeviceConfig).toHaveBeenCalledTimes(1)
+    expect(updateDeviceConfig.mock.calls[0]?.[0]).toBe(deviceRecord.id)
+    expect(
+      (updateDeviceConfig.mock.calls[0]?.[1] as (
+        current: Record<string, unknown> | undefined,
+      ) => Record<string, unknown>)({}),
+    ).toEqual({
+      sinkRequest: {
+        index: 1,
+        voltageMv: 12000,
+        currentMa: 2000,
+      },
+    })
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
     })
