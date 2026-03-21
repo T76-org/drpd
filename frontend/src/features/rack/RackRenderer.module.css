@@ -33,6 +33,7 @@
 .rackCanvasFrame {
   position: relative;
   overflow: hidden;
+  border-radius: var(--radius-md);
 }
 
 .rackCanvas {
@@ -40,10 +41,10 @@
   flex-direction: column;
   gap: var(--space-0);
   padding: var(--space-0);
-  border-radius: var(--radius-none);
+  border-radius: var(--radius-md);
   border: none;
   background: var(--color-surface-panel);
-  box-shadow: none;
+  box-shadow: var(--shadow-rack-canvas);
   transform-origin: top left;
   position: relative;
 }
@@ -70,8 +71,9 @@
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-xl);
   color: var(--color-text-muted);
-  border: var(--border-thin) dashed var(--color-border-instrument);
-  background: color-mix(in srgb, var(--color-surface-panel) 85%, transparent);
+  border: var(--border-thin) dashed var(--color-border-panel);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-panel) 80%, transparent);
 }
 
 .fullScreenOverlay {
@@ -79,11 +81,12 @@
   inset: 0;
   padding: var(--space-0);
   background: var(--color-overlay);
-  border-radius: var(--radius-none);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: stretch;
   justify-content: stretch;
   z-index: 2;
+  backdrop-filter: blur(2px);
 }
 
 .fullScreenFrame {

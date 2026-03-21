@@ -153,14 +153,14 @@
   min-width: calc(26px * var(--ui-scale));
   padding: calc(3px * var(--ui-scale)) calc(5px * var(--ui-scale));
   border: var(--border-thin) solid var(--timestrip-tooltip-border);
-  border-radius: calc(4px * var(--ui-scale));
+  border-radius: var(--radius-sm);
   background: var(--timestrip-tooltip-bg);
   color: var(--timestrip-tooltip-text);
   font-size: var(--timestrip-tooltip-font-size);
   line-height: 1.2;
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 calc(2px * var(--ui-scale)) calc(10px * var(--ui-scale)) color-mix(in srgb, black 28%, transparent);
+  box-shadow: var(--shadow-instrument);
 }
 
 .hoverTooltipVoltage {

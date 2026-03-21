@@ -263,7 +263,7 @@
 .pdoListItemSelected,
 .pdoListItem[aria-selected='true'] {
   background: color-mix(in srgb, var(--color-surface-instrument) 55%, var(--color-status-info) 45%);
-  box-shadow: inset 2px 0 0 var(--color-status-info);
+  box-shadow: inset calc(2px * var(--ui-scale)) 0 0 var(--color-status-info);
 }
 
 .pdoListItemTitle {

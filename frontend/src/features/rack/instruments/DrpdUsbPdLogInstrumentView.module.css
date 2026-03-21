@@ -96,18 +96,18 @@
 }
 
 :root[data-theme='light'] .headerRow {
-  --log-header-divider: color-mix(in srgb, rgba(28, 31, 42, 0.22) 90%, transparent);
-  border-bottom-color: color-mix(in srgb, rgba(28, 31, 42, 0.2) 100%, transparent);
+  --log-header-divider: color-mix(in srgb, var(--color-text-primary) 22%, transparent);
+  border-bottom-color: var(--color-border-panel);
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, white 84%, var(--color-surface-header) 16%),
-    color-mix(in srgb, #eef3fa 82%, var(--color-surface-panel-accent) 18%)
+    color-mix(in srgb, var(--color-surface-panel) 84%, var(--color-surface-header) 16%),
+    color-mix(in srgb, var(--color-surface-panel) 82%, var(--color-surface-panel-accent) 18%)
   );
   box-shadow:
     inset 0 var(--border-thin) 0 rgba(255, 255, 255, 0.72),
-    inset 0 calc(-1 * var(--border-thin)) 0 rgba(28, 31, 42, 0.08),
-    0 calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale)) rgba(28, 31, 42, 0.06);
-  color: rgba(28, 31, 42, 0.86);
+    inset 0 calc(-1 * var(--border-thin)) 0 var(--color-border-panel),
+    var(--shadow-header);
+  color: var(--color-text-primary);
 }
 
 .viewport {
