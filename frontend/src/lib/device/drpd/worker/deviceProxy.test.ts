@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { OnOffState, TriggerEventType, TriggerSyncMode } from '../types'
+import {
+  OnOffState,
+  TriggerEventType,
+  TriggerSenderFilter,
+  TriggerStatus,
+  TriggerMessageTypeFilterClass,
+  TriggerSyncMode,
+} from '../types'
+import type { DRPDDeviceState } from '../types'
+import { DRPDDevice } from '../device'
 import { DRPDWorkerDeviceProxy } from './deviceProxy'
 
 /**
@@ -24,6 +33,16 @@ class TestDRPDWorkerDeviceProxy extends DRPDWorkerDeviceProxy {
   public constructor(client: ProxyClientStub, sessionId = 'session-1') {
     super(client as never, sessionId)
   }
+
+  /**
+   * Deliver a worker-forwarded device event to the proxy.
+   *
+   * @param eventName - Event name.
+   * @param detail - Event detail payload.
+   */
+  public emitWorkerDeviceEvent(eventName: string, detail: unknown): void {
+    this.handleWorkerDeviceEvent(eventName, detail)
+  }
 }
 
 describe('DRPDWorkerDeviceProxy trigger group', () => {
@@ -38,9 +57,15 @@ describe('DRPDWorkerDeviceProxy trigger group', () => {
 
     await proxy.trigger.setEventType(TriggerEventType.CRC_ERROR)
     await proxy.trigger.setEventThreshold(5)
+    await proxy.trigger.setSenderFilter(TriggerSenderFilter.CABLE)
     await proxy.trigger.setAutoRepeat(OnOffState.ON)
     await proxy.trigger.setSyncMode(TriggerSyncMode.PULSE_LOW)
     await proxy.trigger.setSyncPulseWidthUs(18)
+    await proxy.trigger.setMessageTypeFilters([
+      { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
+      { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+    ])
+    await proxy.trigger.clearMessageTypeFilters()
     await proxy.trigger.reset()
 
     expect(callWorker).toHaveBeenNthCalledWith(1, 'drpdSession.call', {
@@ -58,22 +83,43 @@ describe('DRPDWorkerDeviceProxy trigger group', () => {
     expect(callWorker).toHaveBeenNthCalledWith(3, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
+      method: 'setSenderFilter',
+      args: [TriggerSenderFilter.CABLE],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(4, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'trigger',
       method: 'setAutoRepeat',
       args: [OnOffState.ON],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(4, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(5, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'setSyncMode',
       args: [TriggerSyncMode.PULSE_LOW],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(5, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(6, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'setSyncPulseWidthUs',
       args: [18],
     })
-    expect(callWorker).toHaveBeenNthCalledWith(6, 'drpdSession.call', {
+    expect(callWorker).toHaveBeenNthCalledWith(7, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'trigger',
+      method: 'setMessageTypeFilters',
+      args: [[
+        { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
+        { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+      ]],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(8, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'trigger',
+      method: 'clearMessageTypeFilters',
+      args: [],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(9, 'drpdSession.call', {
       sessionId: 'session-1',
       target: 'trigger',
       method: 'reset',
@@ -107,5 +153,64 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
       method: 'resetAccumulatedMeasurements',
       args: [],
     })
+  })
+})
+
+describe('DRPDWorkerDeviceProxy connect flow', () => {
+  it('awaits connect-time hydration before resolving handleConnect', async () => {
+    let resolveHandleConnect: (() => void) | null = null
+    const callWorker = vi.fn((method: string, request?: { method?: string }) => {
+      if (method === 'drpdSession.call' && request?.method === 'handleConnect') {
+        return new Promise((resolve) => {
+          resolveHandleConnect = () => resolve(null)
+        })
+      }
+      return Promise.resolve(null)
+    })
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const proxy = new TestDRPDWorkerDeviceProxy(client)
+    const nextState: DRPDDeviceState = {
+      ...proxy.getState(),
+      triggerInfo: {
+        status: TriggerStatus.ARMED,
+        type: TriggerEventType.MESSAGE_COMPLETE,
+        eventThreshold: 3,
+        senderFilter: TriggerSenderFilter.SOURCE,
+        autorepeat: OnOffState.ON,
+        eventCount: 8,
+        syncMode: TriggerSyncMode.TOGGLE,
+        syncPulseWidthUs: 25,
+        messageTypeFilters: [
+          { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
+          { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+        ],
+      },
+    }
+
+    const stateUpdatedSpy = vi.fn()
+    proxy.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, stateUpdatedSpy)
+
+    proxy.emitWorkerDeviceEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+      state: nextState,
+      changed: ['triggerInfo'],
+    })
+
+    expect(proxy.getState().triggerInfo?.messageTypeFilters).toEqual([
+      { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
+      { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+    ])
+    expect(proxy.getState().triggerInfo?.senderFilter).toBe(TriggerSenderFilter.SOURCE)
+    expect(stateUpdatedSpy).toHaveBeenCalledTimes(1)
+    expect((stateUpdatedSpy.mock.calls[0][0] as CustomEvent).detail.state.triggerInfo.messageTypeFilters).toEqual([
+      { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
+      { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+    ])
+    expect((stateUpdatedSpy.mock.calls[0][0] as CustomEvent).detail.state.triggerInfo.senderFilter).toBe(
+      TriggerSenderFilter.SOURCE,
+    )
   })
 })

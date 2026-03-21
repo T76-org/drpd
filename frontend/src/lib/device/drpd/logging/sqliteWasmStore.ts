@@ -48,6 +48,7 @@ let sqlite3ModulePromise: Promise<Sqlite3Static> | null = null
 export const buildDefaultLoggingConfig = (): DRPDLoggingConfig => ({
   enabled: false,
   autoStartOnConnect: true,
+  messagePollFallbackIntervalMs: 1_000,
   clockSyncEnabled: true,
   clockSyncResyncIntervalMs: 30_000,
   maxAnalogSamples: 1_000_000,
@@ -68,6 +69,12 @@ export const normalizeLoggingConfig = (
   return {
     enabled: input?.enabled ?? defaults.enabled,
     autoStartOnConnect: input?.autoStartOnConnect ?? defaults.autoStartOnConnect,
+    messagePollFallbackIntervalMs:
+      typeof input?.messagePollFallbackIntervalMs === 'number' &&
+      Number.isFinite(input.messagePollFallbackIntervalMs) &&
+      input.messagePollFallbackIntervalMs > 0
+        ? Math.floor(input.messagePollFallbackIntervalMs)
+        : defaults.messagePollFallbackIntervalMs,
     clockSyncEnabled: input?.clockSyncEnabled ?? defaults.clockSyncEnabled,
     clockSyncResyncIntervalMs:
       typeof input?.clockSyncResyncIntervalMs === 'number' &&

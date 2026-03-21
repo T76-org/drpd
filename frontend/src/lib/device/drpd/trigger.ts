@@ -8,9 +8,11 @@
 import { scpiEnum } from '../../transport/usbtmc'
 import type { DRPDTransport } from './transport'
 import {
+  parseTriggerMessageTypeFiltersResponse,
   parseOnOffResponse,
   parseSingleInt,
   parseTriggerEventTypeResponse,
+  parseTriggerSenderFilterResponse,
   parseTriggerStatusResponse,
   parseTriggerSyncModeResponse,
 } from './parsers'
@@ -18,6 +20,8 @@ import type {
   OnOffState,
   TriggerEventType,
   TriggerInfo,
+  TriggerMessageTypeFilter,
+  TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
 } from './types'
@@ -93,6 +97,25 @@ export class DRPDTrigger {
   }
 
   /**
+   * Set trigger sender filter.
+   *
+   * @param filter - Sender filter.
+   */
+  public async setSenderFilter(filter: TriggerSenderFilter): Promise<void> {
+    await this.transport.sendCommand('TRIG:EV:SENDER', scpiEnum(filter))
+  }
+
+  /**
+   * Query trigger sender filter.
+   *
+   * @returns Sender filter.
+   */
+  public async getSenderFilter(): Promise<TriggerSenderFilter> {
+    const response = await this.transport.queryText('TRIG:EV:SENDER?')
+    return parseTriggerSenderFilterResponse(response)
+  }
+
+  /**
    * Set trigger auto-repeat state.
    *
    * @param state - Auto-repeat state.
@@ -119,6 +142,45 @@ export class DRPDTrigger {
   public async getEventCount(): Promise<number> {
     const response = await this.transport.queryText('TRIG:EV:COUNT?')
     return parseSingleInt(response, 'trigger event count')
+  }
+
+  /**
+   * Replace the full trigger message-type filter list.
+   *
+   * @param filters - Trigger message-type filters.
+   */
+  public async setMessageTypeFilters(filters: TriggerMessageTypeFilter[]): Promise<void> {
+    await this.clearMessageTypeFilters()
+
+    if (filters.length === 0) {
+      return
+    }
+
+    for (let slot = 0; slot < filters.length; slot += 1) {
+      const filter = filters[slot]
+      await this.transport.sendCommand(
+        'TRIG:EV:MSGTYPE:FILTER',
+        slot,
+        `${filter.class}:${filter.messageTypeNumber}`,
+      )
+    }
+  }
+
+  /**
+   * Query the trigger message-type filter list.
+   *
+   * @returns Trigger message-type filters.
+   */
+  public async getMessageTypeFilters(): Promise<TriggerMessageTypeFilter[]> {
+    const response = await this.transport.queryText('TRIG:EV:MSGTYPE:FILTER?')
+    return parseTriggerMessageTypeFiltersResponse(response)
+  }
+
+  /**
+   * Clear all trigger message-type filters.
+   */
+  public async clearMessageTypeFilters(): Promise<void> {
+    await this.transport.sendCommand('TRIG:EV:MSGTYPE:FILTER:CLEAR')
   }
 
   /**
@@ -165,25 +227,29 @@ export class DRPDTrigger {
    * @returns Trigger information structure.
    */
   public async getInfo(): Promise<TriggerInfo> {
-    const [status, type, eventThreshold, autorepeat, eventCount, syncMode, syncPulseWidthUs] =
+    const [status, type, eventThreshold, senderFilter, autorepeat, eventCount, syncMode, syncPulseWidthUs, messageTypeFilters] =
       await Promise.all([
         this.getStatus(),
         this.getEventType(),
         this.getEventThreshold(),
+        this.getSenderFilter(),
         this.getAutoRepeat(),
         this.getEventCount(),
         this.getSyncMode(),
         this.getSyncPulseWidthUs(),
+        this.getMessageTypeFilters(),
       ])
 
     return {
       status,
       type,
       eventThreshold,
+      senderFilter,
       autorepeat,
       eventCount,
       syncMode,
       syncPulseWidthUs,
+      messageTypeFilters,
     }
   }
 }

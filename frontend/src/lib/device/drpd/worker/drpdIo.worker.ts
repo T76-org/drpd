@@ -498,7 +498,7 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             await session.device.setCaptureEnabled(args[0] as never)
             return null
           case 'handleConnect':
-            session.device.handleConnect()
+            await session.device.handleConnect()
             return null
           case 'handleDisconnect':
             session.device.handleDisconnect()
@@ -600,6 +600,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           await session.device.trigger.setEventThreshold(args[0] as number)
           return null
         }
+        if (method === 'setSenderFilter') {
+          await session.device.trigger.setSenderFilter(args[0] as never)
+          return null
+        }
         if (method === 'setAutoRepeat') {
           await session.device.trigger.setAutoRepeat(args[0] as never)
           return null
@@ -610,6 +614,14 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         }
         if (method === 'setSyncPulseWidthUs') {
           await session.device.trigger.setSyncPulseWidthUs(args[0] as number)
+          return null
+        }
+        if (method === 'setMessageTypeFilters') {
+          await session.device.trigger.setMessageTypeFilters(args[0] as never)
+          return null
+        }
+        if (method === 'clearMessageTypeFilters') {
+          await session.device.trigger.clearMessageTypeFilters()
           return null
         }
         if (method === 'reset') {

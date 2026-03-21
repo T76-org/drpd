@@ -6,6 +6,8 @@
 
 #include "trigger_controller.hpp"
 
+#include <algorithm>
+#include <optional>
 
 using namespace T76::DRPD;
 using namespace T76::DRPD::Logic;
@@ -32,9 +34,10 @@ void TriggerController::mode(TriggerControllerMode mode) {
     TriggerStatus newStatus = (mode == TriggerControllerMode::Off) ? TriggerStatus::Idle : TriggerStatus::Armed;
     if (newStatus != _status) {
         _status = newStatus;
-        if (_statusChangedCallback) {
-            _statusChangedCallback(_status);
-        }
+    }
+    
+    if (_statusChangedCallback) {
+        _statusChangedCallback(_status);
     }
 }
 
@@ -90,6 +93,66 @@ uint32_t TriggerController::syncPulseWidth() const {
     return _syncManager.pulseWidth();
 }
 
+void TriggerController::senderFilter(SenderFilter filter) {
+    _senderFilter = filter;
+    mode(mode());
+}
+
+TriggerController::SenderFilter TriggerController::senderFilter() const {
+    return _senderFilter;
+}
+
+bool TriggerController::setMessageTypeFilter(size_t slot, const MessageTypeFilter &filter) {
+    if (slot >= _messageTypeFilters.size()) {
+        return false;
+    }
+
+    if (filter.rawMessageType > 0x1F) {
+        return false;
+    }
+
+    for (size_t index = 0; index < _messageTypeFilters.size(); ++index) {
+        if (index == slot || !_messageTypeFilterEnabled[index]) {
+            continue;
+        }
+
+        if (_messageTypeFilters[index] == filter) {
+            return false;
+        }
+    }
+
+    _messageTypeFilters[slot] = filter;
+    _messageTypeFilterEnabled[slot] = true;
+    return true;
+}
+
+bool TriggerController::clearMessageTypeFilter(size_t slot) {
+    if (slot >= _messageTypeFilters.size()) {
+        return false;
+    }
+
+    _messageTypeFilters[slot] = MessageTypeFilter{};
+    _messageTypeFilterEnabled[slot] = false;
+    return true;
+}
+
+void TriggerController::clearMessageTypeFilters() {
+    std::fill(_messageTypeFilters.begin(), _messageTypeFilters.end(), MessageTypeFilter{});
+    std::fill(_messageTypeFilterEnabled.begin(), _messageTypeFilterEnabled.end(), false);
+}
+
+std::optional<TriggerController::MessageTypeFilter> TriggerController::messageTypeFilter(size_t slot) const {
+    if (slot >= _messageTypeFilters.size() || !_messageTypeFilterEnabled[slot]) {
+        return std::nullopt;
+    }
+
+    return _messageTypeFilters[slot];
+}
+
+size_t TriggerController::messageTypeFilterCapacity() const {
+    return _messageTypeFilters.size();
+}
+
 void TriggerController::statusChangedCallback(TriggerStatusChangedCallback callback) {
     _statusChangedCallback = callback;
 }
@@ -131,6 +194,12 @@ void TriggerController::_handleTriggerEvent(const PHY::BMCDecodedMessageEvent& e
             }
             break;
 
+        case TriggerControllerMode::HardResetReceived:
+            if (event != PHY::BMCDecodedMessageEvent::HardResetReceived) {
+                return;
+            }
+            break;
+
         case TriggerControllerMode::RuntPulseError:
             if (event != PHY::BMCDecodedMessageEvent::RuntPulseError) {
                 return;
@@ -165,20 +234,112 @@ void TriggerController::_handleTriggerEvent(const PHY::BMCDecodedMessageEvent& e
             return;
     }
 
+    if (_senderFilter != SenderFilter::Any &&
+        _senderKnownForEvent(event, message) &&
+        !_messageMatchesSenderFilter(message)) {
+        return;
+    }
+
+    if (_hasMessageTypeFiltersConfigured() &&
+        _messageHeaderKnownForEvent(event, message) &&
+        !_messageMatchesFilters(message)) {
+        return;
+    }
+
     _eventCount++;
 
-    if (_eventCount == _eventThreshold) {
-        if (_autoRepeat) {
-            _eventCount = 0;
-        } else {
+    if ((_autoRepeat && (_eventCount % _eventThreshold == 0)) || (!_autoRepeat && _eventCount == _eventThreshold)) {
+        if (!_autoRepeat) {
             _status = TriggerStatus::Triggered;
-            if (_statusChangedCallback) {
-                _statusChangedCallback(_status);
-            }
         }
 
         _syncManager.performSync();
-
-        return;
     }
+
+    // Notify that the status has changed (since at least the event count has changed, and possibly the status as well)
+
+    if (_statusChangedCallback) {
+        _statusChangedCallback(_status);
+    }
+}
+
+bool TriggerController::_messageHeaderKnownForEvent(const PHY::BMCDecodedMessageEvent& event,
+                                                    const PHY::BMCDecodedMessage& message) const {
+    // Message-type filtering is only meaningful once the PD header exists.
+    // DATA_START is the first event where that is guaranteed; later completion
+    // or error events may also carry a decoded header if decode progressed far enough.
+    if (event == PHY::BMCDecodedMessageEvent::DataStart) {
+        return true;
+    }
+
+    if (BMC_DECODED_MESSAGE_EVENT_IS_COMPLETION(event) || BMC_DECODED_MESSAGE_EVENT_IS_ERROR(event)) {
+        return message.rawHeader().size() >= 2;
+    }
+
+    return false;
+}
+
+bool TriggerController::_senderKnownForEvent(const PHY::BMCDecodedMessageEvent& event,
+                                             const PHY::BMCDecodedMessage& message) const {
+    return _messageHeaderKnownForEvent(event, message);
+}
+
+std::optional<TriggerController::SenderFilter> TriggerController::_messageSender(const PHY::BMCDecodedMessage& message) const {
+    const auto header = message.decodedHeader();
+    const auto sopType = message.decodedSOP().type();
+
+    switch (sopType) {
+        case Proto::SOP::SOPType::SOP:
+        case Proto::SOP::SOPType::SOPDebug: {
+            const auto powerRole = header.portPowerRole();
+            if (!powerRole.has_value()) {
+                return std::nullopt;
+            }
+
+            return *powerRole == Proto::PDHeader::PortPowerRole::Source
+                ? SenderFilter::Source
+                : SenderFilter::Sink;
+        }
+
+        case Proto::SOP::SOPType::SOPPrime:
+        case Proto::SOP::SOPType::SOPDoublePrime:
+        case Proto::SOP::SOPType::SOPPrimeDebug:
+        case Proto::SOP::SOPType::SOPDoublePrimeDebug:
+            return (header.raw() & 0x0100u) != 0 ? SenderFilter::Cable : SenderFilter::Source;
+
+        default:
+            return std::nullopt;
+    }
+}
+
+bool TriggerController::_messageMatchesSenderFilter(const PHY::BMCDecodedMessage& message) const {
+    const auto sender = _messageSender(message);
+    return sender.has_value() && *sender == _senderFilter;
+}
+
+bool TriggerController::_messageMatchesFilters(const PHY::BMCDecodedMessage& message) const {
+    const auto header = message.decodedHeader();
+    const MessageTypeFilter candidate{
+        .rawMessageType = header.rawMessageType(),
+        .hasDataObjects = header.numDataObjects() > 0,
+    };
+
+    for (size_t index = 0; index < _messageTypeFilters.size(); ++index) {
+        if (!_messageTypeFilterEnabled[index]) {
+            continue;
+        }
+
+        if (_messageTypeFilters[index] == candidate) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool TriggerController::_hasMessageTypeFiltersConfigured() const {
+    return std::any_of(
+        _messageTypeFilterEnabled.begin(),
+        _messageTypeFilterEnabled.end(),
+        [](bool enabled) { return enabled; });
 }

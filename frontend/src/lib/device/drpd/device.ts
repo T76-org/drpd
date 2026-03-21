@@ -88,6 +88,7 @@ export class DRPDDevice extends EventTarget {
   protected state: DRPDDeviceState ///< Current device state.
   protected interruptSource?: EventTarget ///< Interrupt event source.
   protected interruptInFlight?: Promise<void> ///< In-flight interrupt handler.
+  protected interruptPending: boolean ///< True when another interrupt arrives mid-refresh.
   protected readonly interruptHandler: () => void ///< Interrupt handler.
   protected readonly interruptErrorHandler: (event: Event) => void ///< Interrupt error handler.
   protected analogMonitorTimer?: ReturnType<typeof setInterval> ///< Analog monitor polling timer.
@@ -153,6 +154,7 @@ export class DRPDDevice extends EventTarget {
     this.isConnected = false
     this.debugLoggingEnabled = false
     this.loggingConfig = buildDefaultLoggingConfig()
+    this.captureDrainIntervalMs = this.loggingConfig.messagePollFallbackIntervalMs
     this.loggingStarted = false
     this.createLogStore = options?.createLogStore ?? ((config) => new SQLiteWasmStore(config))
     this.activeDisplayEpochStartUs = null
@@ -160,11 +162,13 @@ export class DRPDDevice extends EventTarget {
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
+    this.interruptPending = false
     this.interruptHandler = () => {
       if (this.interruptInFlight) {
+        this.interruptPending = true
         return
       }
-      const task = this.handleInterrupt()
+      const task = this.flushPendingInterrupts()
       this.interruptInFlight = task
       void task.finally(() => {
         if (this.interruptInFlight === task) {
@@ -219,6 +223,13 @@ export class DRPDDevice extends EventTarget {
    */
   public async configureLogging(config: DRPDLoggingConfig): Promise<void> {
     this.loggingConfig = this.normalizeLoggingConfig(config)
+    if (
+      this.state.captureEnabled === OnOffStateValues.ON &&
+      !this.loggingConfig.enabled
+    ) {
+      this.loggingConfig = { ...this.loggingConfig, enabled: true }
+    }
+    this.setCaptureDrainPollingInterval(this.loggingConfig.messagePollFallbackIntervalMs)
     this.refreshClockSyncScheduling()
     if (this.loggingStarted) {
       await this.stopLogging()
@@ -634,10 +645,10 @@ export class DRPDDevice extends EventTarget {
   /**
    * Handle device connection events.
    */
-  public handleConnect(): void {
+  public async handleConnect(): Promise<void> {
     this.logDebug('connect: start')
     this.isConnected = true
-    void this.runConnectTasks().finally(() => {
+    await this.runConnectTasks().finally(() => {
       if (this.isConnected) {
         this.refreshClockSyncScheduling()
         this.startAnalogMonitorPolling(this.analogMonitorIntervalMs)
@@ -867,6 +878,7 @@ export class DRPDDevice extends EventTarget {
     const previousSinkInfo = this.state.sinkInfo
     const previousPdoList = this.state.sinkPdoList
     this.state = updated
+    await this.reconcileCaptureMode(updated.captureEnabled)
 
     if (changed.includes('role')) {
       this.dispatchEvent(
@@ -975,7 +987,26 @@ export class DRPDDevice extends EventTarget {
    * Handle an interrupt event by querying the device status register.
    */
   protected async handleInterrupt(): Promise<void> {
-    this.logDebug('interrupt: start')
+    await this.processDeviceStatusUpdate('interrupt')
+  }
+
+  /**
+   * Flush all pending interrupts before returning to idle.
+   */
+  protected async flushPendingInterrupts(): Promise<void> {
+    do {
+      this.interruptPending = false
+      await this.handleInterrupt()
+    } while (this.interruptPending)
+  }
+
+  /**
+   * Process a device-status refresh from an interrupt or fallback poll.
+   *
+   * @param source - Trigger source for debug logging.
+   */
+  protected async processDeviceStatusUpdate(source: 'connect' | 'interrupt' | 'poll'): Promise<void> {
+    this.logDebug(`${source}: status refresh start`)
     try {
       const statusFlags = await this.status.readDeviceStatus()
       const tasks: Promise<void>[] = []
@@ -1002,14 +1033,17 @@ export class DRPDDevice extends EventTarget {
       }
       await Promise.all(tasks)
       if (statusFlags.messageReceived) {
+        if (source === 'interrupt') {
+          console.log('Retrieving captured message(s) in response to interrupt')
+        }
         await this.refreshAndDrainCapturedMessagesFromDevice()
       }
-      this.logDebug('interrupt: done')
+      this.logDebug(`${source}: status refresh done`)
     } catch (error) {
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
       )
-      this.logDebug(`interrupt: error=${String(error)}`)
+      this.logDebug(`${source}: status refresh error=${String(error)}`)
     }
   }
 
@@ -1161,6 +1195,7 @@ export class DRPDDevice extends EventTarget {
         return
       }
       this.state = { ...this.state, captureEnabled }
+      await this.reconcileCaptureMode(captureEnabled)
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, {
           detail: { captureEnabled },
@@ -1358,8 +1393,32 @@ export class DRPDDevice extends EventTarget {
       this.logDebug(`runConnectTasks: cycle time error=${String(error)}`)
     }
     await this.refreshState()
+    await this.processDeviceStatusUpdate('connect')
     await this.refreshAndDrainCapturedMessagesFromDevice()
     this.logDebug('runConnectTasks: done')
+  }
+
+  /**
+   * Align runtime capture/logging mode with the device capture state.
+   *
+   * @param captureEnabled - Current device capture state.
+   */
+  protected async reconcileCaptureMode(captureEnabled: OnOffState | null): Promise<void> {
+    if (captureEnabled === null) {
+      return
+    }
+    if (captureEnabled === OnOffStateValues.ON) {
+      if (!this.loggingConfig.enabled) {
+        await this.configureLogging({ ...this.loggingConfig, enabled: true })
+      }
+      if (!this.loggingStarted) {
+        await this.startLogging()
+      }
+      return
+    }
+    if (this.loggingStarted) {
+      await this.stopLogging()
+    }
   }
 
   /**
@@ -1568,7 +1627,11 @@ export class DRPDDevice extends EventTarget {
     }
     this.captureDrainInFlight = true
     try {
-      await this.refreshAndDrainCapturedMessagesFromDevice()
+      if (this.interruptInFlight) {
+        this.logDebug('pollCaptureDrain: skip (interrupt in flight)')
+        return
+      }
+      await this.processDeviceStatusUpdate('poll')
     } finally {
       this.captureDrainInFlight = false
     }
@@ -1714,6 +1777,13 @@ export class DRPDDevice extends EventTarget {
    */
   protected normalizeLoggingConfig(config: DRPDLoggingConfig): DRPDLoggingConfig {
     const normalized: DRPDLoggingConfig = { ...config }
+    if (
+      !Number.isFinite(normalized.messagePollFallbackIntervalMs) ||
+      normalized.messagePollFallbackIntervalMs <= 0
+    ) {
+      normalized.messagePollFallbackIntervalMs =
+        buildDefaultLoggingConfig().messagePollFallbackIntervalMs
+    }
     if (normalized.maxCapturedMessages <= LEGACY_CAPTURE_RETENTION) {
       normalized.maxCapturedMessages = buildDefaultLoggingConfig().maxCapturedMessages
     }

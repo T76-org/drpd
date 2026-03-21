@@ -409,7 +409,7 @@ export class USBTMCTransport extends EventTarget {
         'write',
         line,
       )
-      await this._checkErrorUnlocked()
+      await this._checkErrorUnlocked(line)
     })
   }
 
@@ -467,7 +467,7 @@ export class USBTMCTransport extends EventTarget {
         return this._parseARBData(response)
       } catch (error) {
         if (error instanceof USBTMCTimeoutError) {
-          await this._checkErrorUnlocked()
+          await this._checkErrorUnlocked(line)
         }
         throw error
       }
@@ -480,16 +480,16 @@ export class USBTMCTransport extends EventTarget {
    * @returns Promise that resolves when no error is reported.
    * @throws Error when the instrument reports a non-zero error code.
    */
-  async checkError(): Promise<void> {
+  async checkError(command: string): Promise<void> {
     await this._withLock(async () => {
-      await this._checkErrorUnlocked()
+      await this._checkErrorUnlocked(command)
     })
   }
 
   /**
    * Query the instrument error queue without acquiring the transport lock.
    */
-  protected async _checkErrorUnlocked(): Promise<void> {
+  protected async _checkErrorUnlocked(command: string): Promise<void> {
     this.device.clearHalt("in", this.endpointIn!)
     this.device.clearHalt("out", this.endpointOut!)
 
@@ -497,14 +497,16 @@ export class USBTMCTransport extends EventTarget {
     const combined = response.join(' ')
     const match = combined.match(/^\s*([+-]?\d+)\s*,?\s*(.*)$/)
     if (!match) {
-      throw new Error(`USBTMC error query returned unrecognized response: ${combined}`)
+      console.warn(`Unrecognized SYST:ERR? response for "${command}": ${combined}`)
+      throw new Error(`USBTMC error query returned unrecognized response for "${command}": ${combined}`)
     }
 
     const code = Number.parseInt(match[1], 10)
     const message = match[2]?.trim() ?? ''
     if (code !== 0) {
       const cleaned = message.replace(/^"|"$/g, '')
-      throw new Error(`USBTMC device error ${code}: ${cleaned || 'Unknown error'}`)
+      console.warn(`USBTMC device error ${code} for "${command}": ${cleaned || 'Unknown error'}`)
+      throw new Error(`USBTMC device error ${code} for "${command}": ${cleaned || 'Unknown error'}`)
     }
   }
 
@@ -564,7 +566,7 @@ export class USBTMCTransport extends EventTarget {
       ) {
         try {
           console.warn(`Checking error queue after read timeout for "${line}"`)
-          await this._checkErrorUnlocked()
+          await this._checkErrorUnlocked(line)
         } catch (checkError) {
           console.warn(
             `USBTMC error check failed after timeout for "${line}": ${String(checkError)}`,

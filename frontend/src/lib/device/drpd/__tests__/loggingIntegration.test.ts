@@ -137,6 +137,136 @@ const setRoleStatusSnapshot = (
 }
 
 describe('DRPD logging integration', () => {
+  it('enters capture mode immediately when connect hydration finds capture already on', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SYST:TIME?', ['1000'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
+    transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
+    transport.textResponses.set('MEAS:ALL?', [
+      '1000',
+      '5.0',
+      '0.2',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+      '2500',
+      '12',
+      '34',
+    ])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
+    transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
+    transport.textResponses.set('BUS:CC:CAP:EN?', ['ON'])
+    transport.textResponses.set('TRIG:STAT?', ['IDLE'])
+    transport.textResponses.set('TRIG:EV:TYPE?', ['OFF'])
+    transport.textResponses.set('TRIG:EV:THRESH?', ['1'])
+    transport.textResponses.set('TRIG:EV:AUTOREPEAT?', ['OFF'])
+    transport.textResponses.set('TRIG:EV:COUNT?', ['0'])
+    transport.textResponses.set('TRIG:SYNC:MODE?', ['OFF'])
+    transport.textResponses.set('TRIG:SYNC:PULSEWIDTH?', ['1'])
+    transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
+    transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('SINK:STATUS:VOLTAGE?', ['5'])
+    transport.textResponses.set('SINK:STATUS:CURRENT?', ['2'])
+    transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
+    transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
+    transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('STAT:DEV?', ['0'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+
+    await device.handleConnect()
+
+    expect(device.getState().captureEnabled).toBe(OnOffState.ON)
+    expect(device.isLoggingEnabled()).toBe(true)
+    expect(device.getLoggingDiagnostics().loggingConfigured).toBe(true)
+
+    device.handleDisconnect()
+  })
+
+  it('keeps logging active when saved logging config is applied after hydration finds capture already on', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SYST:TIME?', ['1000'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
+    transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
+    transport.textResponses.set('MEAS:ALL?', [
+      '1000',
+      '5.0',
+      '0.2',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+      '2500',
+      '12',
+      '34',
+    ])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
+    transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
+    transport.textResponses.set('BUS:CC:CAP:EN?', ['ON'])
+    transport.textResponses.set('TRIG:STAT?', ['IDLE'])
+    transport.textResponses.set('TRIG:EV:TYPE?', ['OFF'])
+    transport.textResponses.set('TRIG:EV:THRESH?', ['1'])
+    transport.textResponses.set('TRIG:EV:AUTOREPEAT?', ['OFF'])
+    transport.textResponses.set('TRIG:EV:COUNT?', ['0'])
+    transport.textResponses.set('TRIG:SYNC:MODE?', ['OFF'])
+    transport.textResponses.set('TRIG:SYNC:PULSEWIDTH?', ['1'])
+    transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
+    transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('SINK:STATUS:VOLTAGE?', ['5'])
+    transport.textResponses.set('SINK:STATUS:CURRENT?', ['2'])
+    transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
+    transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
+    transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('STAT:DEV?', ['0'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+
+    await device.handleConnect()
+    expect(device.getState().captureEnabled).toBe(OnOffState.ON)
+    expect(device.isLoggingEnabled()).toBe(true)
+
+    await device.configureLogging(buildLoggingConfig({
+      enabled: false,
+      autoStartOnConnect: true,
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    }))
+
+    expect(device.getState().captureEnabled).toBe(OnOffState.ON)
+    expect(device.isLoggingEnabled()).toBe(true)
+    expect(device.getLoggingDiagnostics().loggingConfigured).toBe(true)
+
+    device.handleDisconnect()
+  })
+
   it('can query existing log rows even when logging has not been started', async () => {
     const transport = new MockTransport()
     const expectedRow: LoggedCapturedMessage = {

@@ -6,7 +6,14 @@ import { DRPDSink } from '../sink'
 import { DRPDTrigger } from '../trigger'
 import { DRPDVBus } from '../vbus'
 import type { DRPDTransport, DRPDSCPIParam } from '../transport'
-import { CCBusRole, OnOffState, TriggerEventType, TriggerSyncMode } from '../types'
+import {
+  CCBusRole,
+  OnOffState,
+  TriggerEventType,
+  TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
+  TriggerSyncMode,
+} from '../types'
 
 /**
  * Mock transport for group tests.
@@ -160,14 +167,62 @@ describe('DRPD command groups', () => {
     const transport = new MockTransport()
     const group = new DRPDTrigger(transport)
     await group.setEventType(TriggerEventType.MESSAGE_COMPLETE)
+    await group.setSenderFilter(TriggerSenderFilter.SOURCE)
     await group.setSyncMode(TriggerSyncMode.TOGGLE)
     expect(transport.commands[0]).toEqual({
       command: 'TRIG:EV:TYPE',
       params: [{ raw: 'MESSAGE_COMPLETE' }],
     })
     expect(transport.commands[1]).toEqual({
+      command: 'TRIG:EV:SENDER',
+      params: [{ raw: 'SOURCE' }],
+    })
+    expect(transport.commands[2]).toEqual({
       command: 'TRIG:SYNC:MODE',
       params: [{ raw: 'TOGGLE' }],
+    })
+  })
+
+  it('parses trigger sender filter queries', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('TRIG:EV:SENDER?', ['CABLE'])
+    const group = new DRPDTrigger(transport)
+
+    await expect(group.getSenderFilter()).resolves.toBe(TriggerSenderFilter.CABLE)
+  })
+
+  it('formats trigger message type filter commands and parses queries', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('TRIG:EV:MSGTYPE:FILTER?', ['CONTROL:3 DATA:2 DATA:15'])
+    const group = new DRPDTrigger(transport)
+
+    await group.setMessageTypeFilters([
+      { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
+      { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+    ])
+    const filters = await group.getMessageTypeFilters()
+    await group.clearMessageTypeFilters()
+
+    expect(transport.commands[0]).toEqual({
+      command: 'TRIG:EV:MSGTYPE:FILTER:CLEAR',
+      params: [],
+    })
+    expect(transport.commands[1]).toEqual({
+      command: 'TRIG:EV:MSGTYPE:FILTER',
+      params: [0, 'CONTROL:3'],
+    })
+    expect(transport.commands[2]).toEqual({
+      command: 'TRIG:EV:MSGTYPE:FILTER',
+      params: [1, 'DATA:2'],
+    })
+    expect(filters).toEqual([
+      { class: TriggerMessageTypeFilterClass.CONTROL, messageTypeNumber: 3 },
+      { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+      { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 15 },
+    ])
+    expect(transport.commands[3]).toEqual({
+      command: 'TRIG:EV:MSGTYPE:FILTER:CLEAR',
+      params: [],
     })
   })
 

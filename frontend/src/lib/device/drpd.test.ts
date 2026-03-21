@@ -49,7 +49,7 @@ vi.mock('../transport/usbtmc', () => {
   return { default: MockUSBTMCTransport }
 })
 
-import { DRPDDeviceDefinition } from './drpd'
+import { CCBusRole, OnOffState, TriggerEventType, TriggerSenderFilter, TriggerSyncMode, DRPDDeviceDefinition } from './drpd'
 import { buildDefaultLoggingConfig } from './drpd/logging'
 
 /**
@@ -70,13 +70,47 @@ describe('DRPDDeviceDefinition', () => {
 
   it('stores configuration on load/save', async () => {
     const device = new DRPDDeviceDefinition()
-    await device.loadConfig({ logging: { enabled: true, maxAnalogSamples: 25 } })
+    await device.loadConfig({
+      logging: { enabled: true, maxAnalogSamples: 25 },
+      role: CCBusRole.SINK,
+      captureEnabled: OnOffState.ON,
+      sinkRequest: {
+        index: 1,
+        voltageMv: 9000,
+        currentMa: 2000,
+      },
+      trigger: {
+        type: TriggerEventType.CRC_ERROR,
+        eventThreshold: 3,
+        senderFilter: TriggerSenderFilter.CABLE,
+        autorepeat: OnOffState.OFF,
+        syncMode: TriggerSyncMode.PULSE_HIGH,
+        syncPulseWidthUs: 10,
+        messageTypeFilters: [],
+      },
+    })
     const saved = await device.saveConfig()
     expect(saved).toEqual({
       logging: {
         ...buildDefaultLoggingConfig(),
         enabled: true,
         maxAnalogSamples: 25,
+      },
+      role: CCBusRole.SINK,
+      captureEnabled: OnOffState.ON,
+      sinkRequest: {
+        index: 1,
+        voltageMv: 9000,
+        currentMa: 2000,
+      },
+      trigger: {
+        type: TriggerEventType.CRC_ERROR,
+        eventThreshold: 3,
+        senderFilter: TriggerSenderFilter.CABLE,
+        autorepeat: OnOffState.OFF,
+        syncMode: TriggerSyncMode.PULSE_HIGH,
+        syncPulseWidthUs: 10,
+        messageTypeFilters: [],
       },
     })
   })
@@ -112,6 +146,19 @@ describe('DRPDDeviceDefinition', () => {
         ...buildDefaultLoggingConfig(),
         clockSyncEnabled: false,
       },
+    })
+  })
+
+  it('normalizes invalid message fallback polling interval to the default', async () => {
+    const device = new DRPDDeviceDefinition()
+    await device.loadConfig({
+      logging: {
+        messagePollFallbackIntervalMs: 0,
+      },
+    })
+    const saved = await device.saveConfig()
+    expect(saved).toEqual({
+      logging: buildDefaultLoggingConfig(),
     })
   })
 

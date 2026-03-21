@@ -143,9 +143,14 @@ namespace T76::DRPD {
         void _queryTriggerEventType(const std::vector<T76::SCPI::ParameterValue> &);
         void _setTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &);
         void _setTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryTriggerEventCount(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &);
+        void _clearTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &);
@@ -161,7 +166,7 @@ namespace T76::DRPD {
 
     protected:
         std::atomic<uint32_t> _deviceStatusRegister{0};
-        bool _interruptPending = false;
+        std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
 
         Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.

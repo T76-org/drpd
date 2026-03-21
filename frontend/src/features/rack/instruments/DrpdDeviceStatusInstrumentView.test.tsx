@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CCBusRole, CCBusRoleStatus, DRPDDevice, OnOffState } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
@@ -122,5 +122,52 @@ describe('DrpdDeviceStatusInstrumentView', () => {
 
     expect(screen.getByRole('menu')).toHaveStyle({ zIndex: '10000' })
     expect(screen.getByRole('menuitemradio', { name: 'Sink' })).toBeInTheDocument()
+  })
+
+  it('persists role and capture changes after successful device updates', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setStatusState(
+      CCBusRole.SOURCE,
+      CCBusRoleStatus.ATTACHED,
+      OnOffState.OFF,
+    )
+    const setRoleSpy = vi.spyOn(driver.ccBus, 'setRole').mockResolvedValue(undefined)
+    const setCaptureEnabledSpy = vi.spyOn(driver, 'setCaptureEnabled').mockResolvedValue(undefined)
+    const updateDeviceConfig = vi.fn(async () => undefined)
+    const deviceRecord = buildDeviceRecord()
+
+    render(
+      <DrpdDeviceStatusInstrumentView
+        instrument={buildInstrument()}
+        displayName="Device Status"
+        deviceRecord={deviceRecord}
+        deviceState={{
+          record: deviceRecord,
+          status: 'connected',
+          drpdDriver: driver,
+        }}
+        isEditMode={false}
+        onUpdateDeviceConfig={updateDeviceConfig}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Set' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'Sink' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle' }))
+
+    expect(setRoleSpy).toHaveBeenCalledWith(CCBusRole.SINK)
+    expect(setCaptureEnabledSpy).toHaveBeenCalledWith(OnOffState.ON)
+    expect(updateDeviceConfig).toHaveBeenCalledTimes(2)
+
+    const roleUpdater = updateDeviceConfig.mock.calls[0]?.[1] as (current: Record<string, unknown> | undefined) => Record<string, unknown>
+    expect(roleUpdater({})).toEqual({ role: CCBusRole.SINK })
+
+    const captureUpdater = updateDeviceConfig.mock.calls[1]?.[1] as (current: Record<string, unknown> | undefined) => Record<string, unknown>
+    expect(captureUpdater({ role: CCBusRole.SINK })).toEqual({
+      role: CCBusRole.SINK,
+      captureEnabled: OnOffState.ON,
+    })
   })
 })

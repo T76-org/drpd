@@ -343,7 +343,10 @@ export class DRPDWorkerServiceClient {
           result = await registration.transport.queryBinary(message.command, ...(message.params ?? []))
           break
         case 'checkError':
-          await registration.transport.checkError()
+          if (!message.command) {
+            throw new Error('Host transport checkError missing command')
+          }
+          await registration.transport.checkError(message.command)
           result = null
           break
       }

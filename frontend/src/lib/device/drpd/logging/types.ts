@@ -13,6 +13,8 @@ export interface DRPDLoggingConfig {
   enabled: boolean
   ///< True to auto-start logging when a device connects.
   autoStartOnConnect: boolean
+  ///< Periodic fallback interval for message retrieval when interrupts are missed.
+  messagePollFallbackIntervalMs: number
   ///< True to synchronize device timestamps to host wall clock.
   clockSyncEnabled: boolean
   ///< Periodic resynchronization interval in milliseconds.

@@ -286,6 +286,7 @@ const renderInstrument = ({
           deviceState={deviceState}
           isEditMode={isEditMode}
           onRemove={onRemove}
+          onUpdateDeviceConfig={onUpdateDeviceConfig}
         />
       )
     case 'com.mta.drpd.trigger':
@@ -297,6 +298,7 @@ const renderInstrument = ({
           deviceState={deviceState}
           isEditMode={isEditMode}
           onRemove={onRemove}
+          onUpdateDeviceConfig={onUpdateDeviceConfig}
         />
       )
     case 'com.mta.drpd.usbpd-log':
@@ -352,6 +354,7 @@ const renderInstrument = ({
           deviceState={deviceState}
           isEditMode={isEditMode}
           onRemove={onRemove}
+          onUpdateDeviceConfig={onUpdateDeviceConfig}
         />
       )
     case 'com.mta.drpd.charge-energy':
