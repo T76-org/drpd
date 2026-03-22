@@ -73,6 +73,10 @@ namespace T76::DRPD {
 
         void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) override;
 
+        void _onUSBTMCAbortBulkIn() override;
+        void _onUSBTMCAbortBulkOut() override;
+        void _onUSBTMCClear() override;
+
         void _queryIDN(const std::vector<T76::SCPI::ParameterValue> &params);
         void _resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params);
         void _querySystemError(const std::vector<T76::SCPI::ParameterValue> &params);

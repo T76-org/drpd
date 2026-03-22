@@ -17,6 +17,16 @@ const encoder = new TextEncoder()
 
 const USBTMC_MSG_DEV_DEP_OUT = 0x01
 const USBTMC_MSG_DEV_DEP_IN = 0x02
+const USBTMC_REQ_INITIATE_ABORT_BULK_OUT = 0x01
+const USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS = 0x02
+const USBTMC_REQ_INITIATE_ABORT_BULK_IN = 0x03
+const USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS = 0x04
+const USBTMC_REQ_INITIATE_CLEAR = 0x05
+const USBTMC_REQ_CHECK_CLEAR_STATUS = 0x06
+
+const USBTMC_STATUS_SUCCESS = 0x01
+const USBTMC_STATUS_PENDING = 0x02
+const USBTMC_STATUS_FAILED = 0x80
 
 const createUsbTmcConfig = (options?: { interfaceNumber?: number }) => {
   const interfaceNumber = options?.interfaceNumber ?? 0
@@ -86,6 +96,24 @@ const createMockDevice = (): MockDevice => {
     }),
     claimInterface: vi.fn(async () => undefined),
     clearHalt: vi.fn(async () => undefined),
+    controlTransferIn: vi.fn(async (setup: USBControlTransferParameters, length: number) => {
+      const data = new Uint8Array(length)
+      if (
+        setup.request === USBTMC_REQ_INITIATE_ABORT_BULK_OUT ||
+        setup.request === USBTMC_REQ_INITIATE_ABORT_BULK_IN
+      ) {
+        data[0] = USBTMC_STATUS_FAILED
+      } else if (setup.request === USBTMC_REQ_INITIATE_CLEAR) {
+        data[0] = USBTMC_STATUS_SUCCESS
+      } else if (
+        setup.request === USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS ||
+        setup.request === USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS ||
+        setup.request === USBTMC_REQ_CHECK_CLEAR_STATUS
+      ) {
+        data[0] = USBTMC_STATUS_SUCCESS
+      }
+      return { data: new DataView(data.buffer) }
+    }),
     transferOut: vi.fn(async (_endpoint: number, data: BufferSource) => {
       const view =
         data instanceof ArrayBuffer
@@ -228,6 +256,113 @@ describe('USBTMCTransport', () => {
     const writeBuffer = device.__written[device.__written.length - 1]
     expect(writeBuffer[0]).toBe(USBTMC_MSG_DEV_DEP_OUT)
     expect(Array.from(writeBuffer.subarray(12, 14))).toEqual([65, 66])
+  })
+
+  it('open aborts bulk transfers and waits for completion', async () => {
+    const device = createMockDevice()
+    const drainTransfers = [
+      { data: new DataView(new Uint8Array(64).buffer) },
+      { data: new DataView(new Uint8Array(0).buffer) },
+    ]
+    let bulkInDrainIndex = 0
+    let checkAbortBulkOutCount = 0
+    let checkAbortBulkInCount = 0
+    let checkClearCount = 0
+
+    ;(device.controlTransferIn as ReturnType<typeof vi.fn>).mockImplementation(
+      async (setup: USBControlTransferParameters, length: number) => {
+        const data = new Uint8Array(length)
+        switch (setup.request) {
+          case USBTMC_REQ_INITIATE_ABORT_BULK_OUT:
+            data[0] = USBTMC_STATUS_SUCCESS
+            data[1] = 0x07
+            break
+          case USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS:
+            data[0] = checkAbortBulkOutCount === 0 ? USBTMC_STATUS_PENDING : USBTMC_STATUS_SUCCESS
+            checkAbortBulkOutCount += 1
+            break
+          case USBTMC_REQ_INITIATE_ABORT_BULK_IN:
+            data[0] = USBTMC_STATUS_SUCCESS
+            data[1] = 0x08
+            break
+          case USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS:
+            data[0] = checkAbortBulkInCount === 0 ? USBTMC_STATUS_PENDING : USBTMC_STATUS_SUCCESS
+            checkAbortBulkInCount += 1
+            data[1] = data[0] === USBTMC_STATUS_PENDING ? 0x01 : 0x00
+            break
+          case USBTMC_REQ_INITIATE_CLEAR:
+            data[0] = USBTMC_STATUS_SUCCESS
+            break
+          case USBTMC_REQ_CHECK_CLEAR_STATUS:
+            data[0] = checkClearCount === 0 ? USBTMC_STATUS_PENDING : USBTMC_STATUS_SUCCESS
+            checkClearCount += 1
+            data[1] = data[0] === USBTMC_STATUS_PENDING ? 0x01 : 0x00
+            break
+          default:
+            break
+        }
+        return { data: new DataView(data.buffer) }
+      },
+    )
+
+    ;(device.transferIn as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      const next = drainTransfers[bulkInDrainIndex]
+      if (next) {
+        bulkInDrainIndex += 1
+        return next
+      }
+      return { data: new DataView(buildInResponse(new Uint8Array(), 1).buffer) }
+    })
+
+    const transport = new TestTransport(device)
+    await transport.open()
+
+    expect(device.controlTransferIn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: USBTMC_REQ_INITIATE_ABORT_BULK_OUT,
+        index: 0x01,
+      }),
+      2,
+    )
+    expect(device.controlTransferIn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS,
+        index: 0x01,
+      }),
+      8,
+    )
+    expect(device.controlTransferIn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: USBTMC_REQ_INITIATE_ABORT_BULK_IN,
+        index: 0x82,
+      }),
+      2,
+    )
+    expect(device.controlTransferIn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS,
+        index: 0x82,
+      }),
+      8,
+    )
+    expect(device.controlTransferIn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: USBTMC_REQ_INITIATE_CLEAR,
+        recipient: 'interface',
+        index: 0,
+      }),
+      1,
+    )
+    expect(device.controlTransferIn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: USBTMC_REQ_CHECK_CLEAR_STATUS,
+        recipient: 'interface',
+        index: 0,
+      }),
+      2,
+    )
+    expect(device.transferIn).toHaveBeenCalledWith(2, 64)
+    expect(device.clearHalt).toHaveBeenCalledWith('out', 1)
   })
 
   it('queryText sends SCPI and parses response', async () => {

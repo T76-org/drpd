@@ -33,6 +33,19 @@ void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_
     }
 }
 
+void App::_onUSBTMCAbortBulkIn() {
+    _interpreter.reset(); // Reset the interpreter state on abort to ensure clean state for next command
+}
+
+void App::_onUSBTMCAbortBulkOut() {
+    _interpreter.reset(); // Reset the interpreter state on abort to ensure clean state for next command
+}
+
+void App::_onUSBTMCClear() {
+    printf("R\n");
+    _interpreter.reset(); // Reset the interpreter state on clear to ensure clean state for next command
+}
+
 bool App::activate() {
     return true;
 }
