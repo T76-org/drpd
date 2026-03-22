@@ -157,6 +157,44 @@ void TriggerController::statusChangedCallback(TriggerStatusChangedCallback callb
     _statusChangedCallback = callback;
 }
 
+void TriggerController::applyPersistentConfig(const T76::DRPD::TriggerPersistentConfig &config) {
+    _autoRepeat = config.autoRepeat;
+    _senderFilter = static_cast<SenderFilter>(config.senderFilter);
+    clearMessageTypeFilters();
+
+    for (size_t index = 0; index < _messageTypeFilters.size() && index < config.messageTypeFilters.size(); ++index) {
+        if (!config.messageTypeFilters[index].enabled) {
+            continue;
+        }
+
+        _messageTypeFilters[index] = MessageTypeFilter{
+            .rawMessageType = config.messageTypeFilters[index].rawMessageType,
+            .hasDataObjects = config.messageTypeFilters[index].hasDataObjects,
+        };
+        _messageTypeFilterEnabled[index] = true;
+    }
+
+    _eventThreshold = config.eventThreshold;
+    mode(static_cast<TriggerControllerMode>(config.mode));
+}
+
+T76::DRPD::TriggerPersistentConfig TriggerController::exportPersistentConfig() const {
+    T76::DRPD::TriggerPersistentConfig config{
+        .mode = static_cast<uint32_t>(_mode),
+        .eventThreshold = _eventThreshold,
+        .autoRepeat = _autoRepeat,
+        .senderFilter = static_cast<uint32_t>(_senderFilter),
+    };
+
+    for (size_t index = 0; index < _messageTypeFilters.size() && index < config.messageTypeFilters.size(); ++index) {
+        config.messageTypeFilters[index].rawMessageType = _messageTypeFilters[index].rawMessageType;
+        config.messageTypeFilters[index].hasDataObjects = _messageTypeFilters[index].hasDataObjects;
+        config.messageTypeFilters[index].enabled = _messageTypeFilterEnabled[index];
+    }
+
+    return config;
+}
+
 void TriggerController::_handleTriggerEvent(const PHY::BMCDecodedMessageEvent& event, PHY::BMCDecodedMessage& message) {
     // Handle trigger events based on the current mode
     if (_mode == TriggerControllerMode::Off) {

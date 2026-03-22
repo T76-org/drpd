@@ -8,6 +8,8 @@
 #include "app.hpp"
 
 #include <FreeRTOS.h>
+#include <pico/flash.h>
+#include <pico/stdlib.h>
 #include <task.h>
 #include <tusb.h>
 
@@ -56,9 +58,12 @@ void App::makeSafe() {
 const char* App::getComponentName() const {
     return "App";
 }
-    
+
+
+
 void App::_init() {
     stdio_init_all();
+    PersistentConfig::instance().init();
 }
 
 void App::_loop() {
@@ -80,6 +85,9 @@ void App::_initCore0() {
     _analogMonitor.init();
     _ccBusController.init();
     _bmcDecoder.initCore0();
+    _vbusManager.applyPersistentConfig(PersistentConfig::instance().current().vbus);
+    _syncManager.applyPersistentConfig(PersistentConfig::instance().current().sync);
+    _triggerController.applyPersistentConfig(PersistentConfig::instance().current().trigger);
     _bmcDecoder.messageReceivedCallbackCore0(std::bind(&App::_messageReceivedCallback, this, std::placeholders::_1));
     _ccBusController.addStateChangedCallback(std::bind(&App::_ccBusStateChangedCallback, this, std::placeholders::_1));
     _ccBusController.addRoleChangedCallback(std::bind(&App::_ccBusRoleChangedCallback, this, std::placeholders::_1));
@@ -107,6 +115,9 @@ void App::_startCore1() {
     _vbusManager.initCore1();
 
     for(;;) {
+        // Give PersistentConfig a chance to park core 1 in RAM before any
+        // flash erase/program operation so XIP is not used concurrently.
+        PersistentConfig::instance().serviceCore1FlashWriteHandshake();
         T76::Core::Safety::feedWatchdogFromCore1();
         _bmcDecoder.loopCore1();
         _bmcEncoder.loopCore1();
@@ -170,4 +181,14 @@ void App::_sinkInfoChangedCallback(Logic::SinkInfoChange change) {
     }
 
     deviceStatus(DeviceStatusFlag::SinkStatusChanged);
+}
+
+void App::_savePersistentConfig() {
+    auto &config = PersistentConfig::instance();
+    config.update([this](PersistentConfigDataCurrent &data) {
+        data.vbus = _vbusManager.exportPersistentConfig();
+        data.trigger = _triggerController.exportPersistentConfig();
+        data.sync = _syncManager.exportPersistentConfig();
+    });
+    (void)config.save();
 }

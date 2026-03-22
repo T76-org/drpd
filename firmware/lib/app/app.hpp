@@ -29,6 +29,7 @@
 #include "lib/logic/trigger_controller.hpp"
 
 #include "lib/util/circular_array.hpp"
+#include "lib/util/persistent_config.hpp"
 
 
 namespace T76::DRPD {
@@ -198,6 +199,14 @@ namespace T76::DRPD {
         void _ccBusRoleChangedCallback(Logic::CCBusRole role);
         void _vbusManagerChangedCallback();
         void _sinkInfoChangedCallback(Logic::SinkInfoChange change);
+
+        /**
+         * @brief Export persisted slices from each owner and save them to flash.
+         *
+         * This is called after runtime configuration changes have been accepted
+         * so the flash store tracks the latest owner-managed settings.
+         */
+        void _savePersistentConfig();
 
     }; // class App
 

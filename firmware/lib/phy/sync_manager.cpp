@@ -138,6 +138,18 @@ void SyncManager::performSync() {
     }
 }
 
+void SyncManager::applyPersistentConfig(const T76::DRPD::SyncPersistentConfig &config) {
+    pulseWidth(config.pulseWidthUs);
+    mode(static_cast<SyncManagerMode>(config.mode));
+}
+
+T76::DRPD::SyncPersistentConfig SyncManager::exportPersistentConfig() const {
+    return T76::DRPD::SyncPersistentConfig{
+        .mode = static_cast<uint32_t>(_mode),
+        .pulseWidthUs = _pulseWidthUs,
+    };
+}
+
 bool SyncManager::activate() {
     gpio_set_function(PHY_SYNC_MANAGER_SYNC_PIN, GPIO_FUNC_SIO);
     gpio_init(PHY_SYNC_MANAGER_SYNC_PIN);
