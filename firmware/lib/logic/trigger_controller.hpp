@@ -11,9 +11,9 @@
  * 
  * The TriggerController integrates with the SyncManager to generate synchronization pulses
  * when a trigger event occurs, allowing for external systems to be synchronized with the detected events
- * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or being 
- * disabled, in which case no sync signal is generated even if a trigger event occurs. For modes that
- * generate a sync pulse, the pulse width can be configured in microseconds.
+ * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or enabling
+ * an internal pull-down pulse from an otherwise high-Z idle state. For modes that generate a timed
+ * pulse, the pulse width can be configured in microseconds.
  * 
  * The state of the TriggerController can be queried to determine if it is idle, armed and waiting for an event,
  * or if a trigger event has occurred. Note that, if auto-repeat is enabled, the controller will 
@@ -81,9 +81,9 @@ namespace T76::DRPD::Logic {
      * 
      * The TriggerController integrates with the SyncManager to generate synchronization pulses
      * when a trigger event occurs, allowing for external systems to be synchronized with the detected events
-     * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or being 
-     * disabled, in which case no sync signal is generated even if a trigger event occurs. For modes that
-     * generate a sync pulse, the pulse width can be configured in microseconds.
+     * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or enabling
+     * an internal pull-down pulse from an otherwise high-Z idle state. For modes that generate a timed
+     * pulse, the pulse width can be configured in microseconds.
      * 
      * The state of the TriggerController can be queried to determine if it is idle, armed and waiting for an event,
      * or if a trigger event has occurred. Note that, if auto-repeat is enabled, the controller will 

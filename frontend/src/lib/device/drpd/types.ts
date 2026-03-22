@@ -171,10 +171,10 @@ export const TRIGGER_MESSAGE_TYPE_FILTER_LIMIT = 8
  * Trigger sync output mode.
  */
 export const TriggerSyncMode = {
-  OFF: 'OFF',
   PULSE_HIGH: 'PULSE_HIGH',
   PULSE_LOW: 'PULSE_LOW',
   TOGGLE: 'TOGGLE',
+  PULL_DOWN: 'PULL_DOWN',
 } as const
 
 /**

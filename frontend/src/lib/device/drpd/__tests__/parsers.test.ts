@@ -9,6 +9,7 @@ import {
   parseSinkPdo,
   parseTriggerMessageTypeFiltersResponse,
   parseTriggerSenderFilterResponse,
+  parseTriggerSyncMode,
   parseSinkStateResponse,
 } from '../parsers'
 import {
@@ -17,6 +18,7 @@ import {
   SinkState,
   TriggerMessageTypeFilterClass,
   TriggerSenderFilter,
+  TriggerSyncMode,
 } from '../types'
 import { parseUSBPDMessage } from '../usb-pd/parser'
 import { PSRDYMessage } from '../usb-pd/message'
@@ -159,6 +161,11 @@ describe('drpd parsers', () => {
     expect(parseTriggerSenderFilterResponse(['SOURCE'])).toBe(TriggerSenderFilter.SOURCE)
     expect(parseTriggerSenderFilterResponse(['SINK'])).toBe(TriggerSenderFilter.SINK)
     expect(parseTriggerSenderFilterResponse(['CABLE'])).toBe(TriggerSenderFilter.CABLE)
+  })
+
+  it('parses trigger sync mode values and rejects removed OFF', () => {
+    expect(parseTriggerSyncMode('PULL_DOWN')).toBe(TriggerSyncMode.PULL_DOWN)
+    expect(() => parseTriggerSyncMode('OFF')).toThrow('Invalid trigger sync mode')
   })
 
   it('parses capture payloads', () => {

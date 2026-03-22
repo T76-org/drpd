@@ -36,8 +36,10 @@ const mockTransportState = vi.hoisted(() => ({
   triggerStatusResponse: ['ARMED'],
   triggerEventTypeResponse: ['MESSAGE_COMPLETE'],
   triggerEventThresholdResponse: ['2'],
+  triggerSenderFilterResponse: ['ANY'],
   triggerAutoRepeatResponse: ['ON'],
   triggerEventCountResponse: ['7'],
+  triggerMessageTypeFiltersResponse: [''],
   triggerSyncModeResponse: ['TOGGLE'],
   triggerSyncPulseWidthResponse: ['25'],
   sinkPdoCountResponse: ['1'],
@@ -138,11 +140,17 @@ vi.mock('../../../lib/transport/usbtmc', () => {
       if (command === 'TRIG:EV:THRESH?') {
         return mockTransportState.triggerEventThresholdResponse
       }
+      if (command === 'TRIG:EV:SENDER?') {
+        return mockTransportState.triggerSenderFilterResponse
+      }
       if (command === 'TRIG:EV:AUTOREPEAT?') {
         return mockTransportState.triggerAutoRepeatResponse
       }
       if (command === 'TRIG:EV:COUNT?') {
         return mockTransportState.triggerEventCountResponse
+      }
+      if (command === 'TRIG:EV:MSGTYPE:FILTER?') {
+        return mockTransportState.triggerMessageTypeFiltersResponse
       }
       if (command === 'TRIG:SYNC:MODE?') {
         return mockTransportState.triggerSyncModeResponse

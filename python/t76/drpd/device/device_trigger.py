@@ -81,7 +81,7 @@ class DeviceTrigger:
             try:
                 await self.set_sync_mode(TriggerSyncMode.from_string(config[self.SYNC_MODE_CONFIG_KEY]))
             except ValueError:
-                await self.set_sync_mode(TriggerSyncMode.OFF)
+                await self.set_sync_mode(TriggerSyncMode.PULSE_HIGH)
 
         if self.SYNC_PULSE_LENGTH_CONFIG_KEY in config:
             try:

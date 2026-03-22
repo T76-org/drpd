@@ -168,7 +168,7 @@ describe('DRPD command groups', () => {
     const group = new DRPDTrigger(transport)
     await group.setEventType(TriggerEventType.MESSAGE_COMPLETE)
     await group.setSenderFilter(TriggerSenderFilter.SOURCE)
-    await group.setSyncMode(TriggerSyncMode.TOGGLE)
+    await group.setSyncMode(TriggerSyncMode.PULL_DOWN)
     expect(transport.commands[0]).toEqual({
       command: 'TRIG:EV:TYPE',
       params: [{ raw: 'MESSAGE_COMPLETE' }],
@@ -179,7 +179,7 @@ describe('DRPD command groups', () => {
     })
     expect(transport.commands[2]).toEqual({
       command: 'TRIG:SYNC:MODE',
-      params: [{ raw: 'TOGGLE' }],
+      params: [{ raw: 'PULL_DOWN' }],
     })
   })
 
