@@ -48,7 +48,7 @@ class TriggerSetupModal(ModalScreen):
                 yield Static(" Sync mode")
                 with RadioSet(id="sync_mode_radio_set"):
                     for sync_mode in TriggerSyncMode:
-                        yield RadioButton(sync_mode.name.capitalize(), id=sync_mode.value)
+                        yield RadioButton(sync_mode.value.replace("_", "-").title(), id=sync_mode.value)
 
                 yield Static("  Pulse length (µs)")
                 yield Input(id="pulse_length_input", type="integer", restrict="[0-9]+", placeholder="Pulse Length (µs)")

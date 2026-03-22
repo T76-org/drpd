@@ -103,10 +103,10 @@ namespace T76::SCPI {
  * Command System:
  *   - Commands: 73 (876 bytes)
  *   - Parameter descriptors: 352 bytes
- *   - String literals: 399 bytes
+ *   - String literals: 405 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 10467 bytes (0.25% of 2MB)
+ *   - Code/Data (Flash): 10473 bytes (0.25% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
@@ -154,10 +154,10 @@ namespace T76::SCPI {
     };
 
     const char* const command_57_param_0_choices[] = {
-        "OFF",
         "PULSE_HIGH",
         "PULSE_LOW",
         "TOGGLE",
+        "PULL_DOWN",
     };
 
     const char* const command_61_param_0_choices[] = {

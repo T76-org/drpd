@@ -297,14 +297,14 @@ export const parseTriggerEventType = (value: string): TriggerEventType => {
 export const parseTriggerSyncMode = (value: string): TriggerSyncMode => {
   const normalized = value.trim().toUpperCase()
   switch (normalized) {
-    case TriggerSyncMode.OFF:
-      return TriggerSyncMode.OFF
     case TriggerSyncMode.PULSE_HIGH:
       return TriggerSyncMode.PULSE_HIGH
     case TriggerSyncMode.PULSE_LOW:
       return TriggerSyncMode.PULSE_LOW
     case TriggerSyncMode.TOGGLE:
       return TriggerSyncMode.TOGGLE
+    case TriggerSyncMode.PULL_DOWN:
+      return TriggerSyncMode.PULL_DOWN
     default:
       throw new Error(`Invalid trigger sync mode: ${value}`)
   }

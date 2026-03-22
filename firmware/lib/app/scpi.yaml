@@ -528,7 +528,7 @@ commands:
     parameters:
       - name:        mode
         type:        enum
-        choices:     ["OFF", "PULSE_HIGH", "PULSE_LOW", "TOGGLE"]
+        choices:     ["PULSE_HIGH", "PULSE_LOW", "TOGGLE", "PULL_DOWN"]
         description: "The desired sync output mode."
     handler:      _setSyncOutputMode
 

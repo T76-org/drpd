@@ -310,14 +310,14 @@ void App::_setSyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &param
     std::string modeStr = params[0].stringValue;
     std::transform(modeStr.begin(), modeStr.end(), modeStr.begin(), ::toupper);
 
-    if (modeStr == "OFF") {
-        _syncManager.mode(PHY::SyncManagerMode::Off);
-    } else if (modeStr == "PULSE_HIGH") {
+    if (modeStr == "PULSE_HIGH") {
         _syncManager.mode(PHY::SyncManagerMode::PulseHigh);
     } else if (modeStr == "PULSE_LOW") {
         _syncManager.mode(PHY::SyncManagerMode::PulseLow);
     } else if (modeStr == "TOGGLE") {
         _syncManager.mode(PHY::SyncManagerMode::Toggle);
+    } else if (modeStr == "PULL_DOWN") {
+        _syncManager.mode(PHY::SyncManagerMode::PullDown);
     } else {
         // Invalid parameter, handle error as needed
         _interpreter.addError(100, "Invalid sync output mode");
@@ -329,9 +329,6 @@ void App::_querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &par
     std::string modeStr;
 
     switch (mode) {
-        case PHY::SyncManagerMode::Off:
-            modeStr = "OFF";
-            break;
         case PHY::SyncManagerMode::PulseHigh:
             modeStr = "PULSE_HIGH";
             break;
@@ -340,6 +337,9 @@ void App::_querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &par
             break;
         case PHY::SyncManagerMode::Toggle:
             modeStr = "TOGGLE";
+            break;
+        case PHY::SyncManagerMode::PullDown:
+            modeStr = "PULL_DOWN";
             break;
     }
 
