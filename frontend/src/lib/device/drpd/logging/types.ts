@@ -59,6 +59,7 @@ export type LoggedCapturedEventType =
   | 'capture_changed'
   | 'cc_role_changed'
   | 'cc_status_changed'
+  | 'mark'
   | 'vbus_ovp'
   | 'vbus_ocp'
 

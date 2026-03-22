@@ -520,6 +520,9 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             return await session.device.queryCapturedMessages(args[0] as never)
           case 'queryMessageLogTimeStripWindow':
             return await session.device.queryMessageLogTimeStripWindow(args[0] as never)
+          case 'markLog':
+            await session.device.markLog()
+            return null
           case 'getLogSelectionState':
             return session.device.getLogSelectionState()
           case 'setLogSelectionState':

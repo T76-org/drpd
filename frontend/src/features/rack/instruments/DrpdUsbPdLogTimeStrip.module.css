@@ -43,6 +43,7 @@
   --timestrip-event-capture-stroke: var(--color-log-event-capture);
   --timestrip-event-role-stroke: var(--color-log-event-role);
   --timestrip-event-status-stroke: var(--color-log-event-status);
+  --timestrip-event-mark-stroke: var(--color-log-event-mark);
   --timestrip-event-ovp-stroke: var(--color-log-event-ovp);
   --timestrip-event-ocp-stroke: var(--color-log-event-ocp);
   --timestrip-analog-top-inset: calc(8px * var(--ui-scale));

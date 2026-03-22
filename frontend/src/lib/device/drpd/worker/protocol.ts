@@ -153,6 +153,7 @@ export type WorkerRpcRequest =
               | 'queryAnalogSamples'
               | 'queryCapturedMessages'
               | 'queryMessageLogTimeStripWindow'
+              | 'markLog'
               | 'getLogSelectionState'
               | 'setLogSelectionState'
               | 'clearLogSelection'

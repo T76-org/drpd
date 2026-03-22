@@ -521,6 +521,22 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
+   * Insert a manual mark into the captured-message log stream.
+   */
+  public async markLog(): Promise<void> {
+    if (!this.logStore) {
+      await this.ensureLogStoreOpen()
+    }
+    if (!this.logStore) {
+      return
+    }
+    await this.logSignificantEvent('mark', 'Mark', {
+      resetDisplayEpoch: false,
+      allowWithoutLoggingStarted: true,
+    })
+  }
+
+  /**
    * Clear logged rows.
    *
    * @param scope - Clear scope.
@@ -1713,14 +1729,15 @@ export class DRPDDevice extends EventTarget {
    * @param eventSummary - Human-readable summary text.
    */
   protected async logSignificantEvent(
-    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'vbus_ovp' | 'vbus_ocp',
+    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'mark' | 'vbus_ovp' | 'vbus_ocp',
     eventSummary: string,
     options?: {
       timestampUs?: bigint
       resetDisplayEpoch?: boolean
+      allowWithoutLoggingStarted?: boolean
     },
   ): Promise<void> {
-    if (!this.loggingStarted || !this.logStore) {
+    if ((!this.loggingStarted && options?.allowWithoutLoggingStarted !== true) || !this.logStore) {
       return
     }
     try {
@@ -1732,9 +1749,12 @@ export class DRPDDevice extends EventTarget {
         wallClockUs === null
           ? null
           : Number(wallClockUs / 1000n)
-      const eventText = eventWallClockMs === null
-        ? eventSummary
-        : `${eventSummary} at ${new Date(eventWallClockMs).toLocaleString()}`
+      const eventText =
+        eventType === 'mark'
+          ? eventSummary
+          : eventWallClockMs === null
+            ? eventSummary
+            : `${eventSummary} at ${new Date(eventWallClockMs).toLocaleString()}`
       const eventTimestampUs = explicitTimestampUs ?? this.nextSyntheticStreamTimestampUs()
       if (
         explicitTimestampUs !== null &&

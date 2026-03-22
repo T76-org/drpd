@@ -61,6 +61,8 @@ const resolveEventStroke = (eventType: LoggedCapturedEventType): string => {
       return 'var(--timestrip-event-role-stroke)'
     case 'cc_status_changed':
       return 'var(--timestrip-event-status-stroke)'
+    case 'mark':
+      return 'var(--timestrip-event-mark-stroke)'
     case 'vbus_ovp':
       return 'var(--timestrip-event-ovp-stroke)'
     case 'vbus_ocp':

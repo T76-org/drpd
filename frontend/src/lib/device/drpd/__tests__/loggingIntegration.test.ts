@@ -797,6 +797,41 @@ describe('DRPD logging integration', () => {
     expect(analog[0].displayTimestampUs).toBe(20n)
   })
 
+  it('inserts a manual mark event even while capture is off without starting logging', async () => {
+    const transport = new MockTransport()
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    const addedKinds: string[] = []
+    device.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, (event) => {
+      const detail = (event as CustomEvent<{ kind: string }>).detail
+      addedKinds.push(detail.kind)
+    })
+
+    expect(device.isLoggingEnabled()).toBe(false)
+    await device.markLog()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: BigInt('9223372036854775807'),
+      sortOrder: 'asc',
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].entryKind).toBe('event')
+    expect(rows[0].eventType).toBe('mark')
+    expect(rows[0].eventText).toBe('Mark')
+    expect(device.isLoggingEnabled()).toBe(false)
+    expect(addedKinds).toEqual(['event'])
+  })
+
   it('keeps logging role/status events after capture is toggled off then on', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])

@@ -427,8 +427,9 @@ describe('DrpdTimeStripInstrumentView', () => {
       buildEvent(1, 'Capture turned off', 'capture_changed'),
       buildEvent(2, 'CC role changed', 'cc_role_changed'),
       buildEvent(3, 'Device status changed', 'cc_status_changed'),
-      buildEvent(4, 'VBUS OVP event', 'vbus_ovp'),
-      buildEvent(5, 'VBUS OCP event', 'vbus_ocp'),
+      buildEvent(4, 'Mark', 'mark'),
+      buildEvent(5, 'VBUS OVP event', 'vbus_ovp'),
+      buildEvent(6, 'VBUS OCP event', 'vbus_ocp'),
     ])
 
     const { container } = renderTimeStrip(driver)
@@ -437,10 +438,11 @@ describe('DrpdTimeStripInstrumentView', () => {
       const eventMarkers = Array.from(
         container.querySelectorAll('line[stroke^="var(--timestrip-event-"]'),
       )
-      expect(eventMarkers).toHaveLength(10)
+      expect(eventMarkers).toHaveLength(12)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-capture-stroke)')).toHaveLength(2)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-role-stroke)')).toHaveLength(2)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-status-stroke)')).toHaveLength(2)
+      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-mark-stroke)')).toHaveLength(2)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-ovp-stroke)')).toHaveLength(2)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-ocp-stroke)')).toHaveLength(2)
     })
