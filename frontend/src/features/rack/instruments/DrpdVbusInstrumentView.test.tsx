@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AnalogMonitorChannels, VBusInfo } from '../../../lib/device'
 import { DRPDDevice, VBusStatus } from '../../../lib/device'
@@ -269,5 +269,83 @@ describe('DrpdVbusInstrumentView', () => {
       )
     })
     expect(screen.getByText('Triggered')).toBeInTheDocument()
+  })
+
+  it('hydrates protection state when the driver attaches after the first render', async () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setVBusInfo({
+      status: VBusStatus.ENABLED,
+      ovpThresholdMv: 20000,
+      ocpThresholdMa: 4500,
+    })
+
+    const { rerender } = render(
+      <DrpdVbusInstrumentView
+        instrument={buildInstrument()}
+        displayName="VBUS"
+        deviceState={undefined}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByTestId('vbus-protection')).toHaveAttribute('data-protection-state', 'off')
+    expect(screen.getAllByText('----')).toHaveLength(2)
+
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver,
+    }
+
+    rerender(
+      <DrpdVbusInstrumentView
+        instrument={buildInstrument()}
+        displayName="VBUS"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('vbus-protection')).toHaveAttribute('data-protection-state', 'on')
+    })
+    expect(screen.getByText('20.00V')).toBeInTheDocument()
+    expect(screen.getByText('4.50A')).toBeInTheDocument()
+  })
+
+  it('resets triggered protection directly from the header button without a popup', async () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setVBusInfo({
+      status: VBusStatus.OCP,
+      ovpThresholdMv: 15000,
+      ocpThresholdMa: 3000,
+    })
+    const resetFaultSpy = vi.spyOn(driver.vbus, 'resetFault').mockResolvedValue(undefined)
+    const refreshStateSpy = vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)
+
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver,
+    }
+
+    render(
+      <DrpdVbusInstrumentView
+        instrument={buildInstrument()}
+        displayName="VBUS"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'RESET' }))
+
+    await waitFor(() => {
+      expect(resetFaultSpy).toHaveBeenCalledTimes(1)
+    })
+    expect(refreshStateSpy).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
