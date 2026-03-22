@@ -176,6 +176,27 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(batteryOption).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('disables the header SET PDO button when the device is not in sink mode', () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setSinkSnapshot(
+      CCBusRole.SOURCE,
+      null,
+      [{ type: 'FIXED', voltageV: 5, maxCurrentA: 3 }],
+    )
+
+    render(
+      <DrpdSinkControlInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sink Control"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /^set pdo$/i })).toBeDisabled()
+  })
+
   it('converts battery voltage/current request into SCPI arguments and auto-closes', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()

@@ -754,7 +754,7 @@ export const DrpdSinkControlInstrumentView = ({
     {
       id: 'set-pdo',
       label: 'Set PDO',
-      disabled: !driver || isEditMode,
+      disabled: !driver || isEditMode || role !== CCBusRole.SINK,
       onClick: () => {
         prepareAdvancedPopover()
       },
