@@ -27,6 +27,7 @@ import type {
   LoggedAnalogSample,
   LoggedCapturedMessage,
   OnOffState,
+  VBusInfo,
 } from './types'
 import type {
   DRPDClockSyncSnapshot,
@@ -116,6 +117,9 @@ export class DRPDDevice extends EventTarget {
   protected clockSyncTimer?: ReturnType<typeof setInterval> ///< Periodic clock-sync timer.
   protected clockSyncInFlight?: Promise<void> ///< In-flight clock-sync task.
   protected clockSync: DRPDClockSyncSnapshot | null ///< Active device-to-host clock-sync snapshot.
+  protected lastSeenVBusOvpEventTimestampUs: bigint | null ///< Most recent observed OVP event timestamp.
+  protected lastSeenVBusOcpEventTimestampUs: bigint | null ///< Most recent observed OCP event timestamp.
+  protected hasSeenInitialVBusEventTimestamps: boolean ///< True once connect-time VBUS event timestamps are baselined.
 
   /**
    * Create a DRPD device driver.
@@ -170,6 +174,9 @@ export class DRPDDevice extends EventTarget {
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
+    this.lastSeenVBusOvpEventTimestampUs = null
+    this.lastSeenVBusOcpEventTimestampUs = null
+    this.hasSeenInitialVBusEventTimestamps = false
     this.interruptPending = false
     this.interruptHandler = () => {
       if (this.interruptInFlight) {
@@ -671,6 +678,9 @@ export class DRPDDevice extends EventTarget {
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
+    this.lastSeenVBusOvpEventTimestampUs = null
+    this.lastSeenVBusOcpEventTimestampUs = null
+    this.hasSeenInitialVBusEventTimestamps = false
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -804,6 +814,7 @@ export class DRPDDevice extends EventTarget {
     }
 
     if (vbusResult.status === 'fulfilled') {
+      await this.observeVBusEventTimestamps(vbusResult.value)
       if (updated.vbusInfo !== vbusResult.value) {
         updated.vbusInfo = vbusResult.value
         changed.push('vbusInfo')
@@ -1160,6 +1171,7 @@ export class DRPDDevice extends EventTarget {
   protected async refreshVBusFromDevice(): Promise<void> {
     try {
       const vbusInfo = await this.vbus.getInfo()
+      await this.observeVBusEventTimestamps(vbusInfo)
       if (this.state.vbusInfo === vbusInfo) {
         return
       }
@@ -1701,26 +1713,47 @@ export class DRPDDevice extends EventTarget {
    * @param eventSummary - Human-readable summary text.
    */
   protected async logSignificantEvent(
-    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed',
+    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'vbus_ovp' | 'vbus_ocp',
     eventSummary: string,
+    options?: {
+      timestampUs?: bigint
+      resetDisplayEpoch?: boolean
+    },
   ): Promise<void> {
     if (!this.loggingStarted || !this.logStore) {
       return
     }
     try {
-      const nowMs = Date.now()
-      const eventText = `${eventSummary} at ${new Date(nowMs).toLocaleString()}`
-      const syntheticTimestampUs = this.nextSyntheticStreamTimestampUs()
-      const wallClockUs = BigInt(nowMs) * 1000n
+      const explicitTimestampUs = options?.timestampUs ?? null
+      const wallClockUs = explicitTimestampUs === null
+        ? BigInt(Date.now()) * 1000n
+        : this.resolveWallClockUs(explicitTimestampUs)
+      const eventWallClockMs =
+        wallClockUs === null
+          ? null
+          : Number(wallClockUs / 1000n)
+      const eventText = eventWallClockMs === null
+        ? eventSummary
+        : `${eventSummary} at ${new Date(eventWallClockMs).toLocaleString()}`
+      const eventTimestampUs = explicitTimestampUs ?? this.nextSyntheticStreamTimestampUs()
+      if (
+        explicitTimestampUs !== null &&
+        (this.lastKnownDeviceTimestampUs === null || explicitTimestampUs > this.lastKnownDeviceTimestampUs)
+      ) {
+        this.lastKnownDeviceTimestampUs = explicitTimestampUs
+      }
       const row: LoggedCapturedMessage = {
         entryKind: 'event',
         eventType,
         eventText,
-        eventWallClockMs: nowMs,
+        eventWallClockMs,
         wallClockUs,
-        startTimestampUs: syntheticTimestampUs,
-        endTimestampUs: syntheticTimestampUs,
-        displayTimestampUs: null,
+        startTimestampUs: eventTimestampUs,
+        endTimestampUs: eventTimestampUs,
+        displayTimestampUs:
+          this.activeDisplayEpochStartUs === null || options?.resetDisplayEpoch === true
+            ? null
+            : eventTimestampUs - this.activeDisplayEpochStartUs,
         decodeResult: 0,
         sopKind: null,
         messageKind: null,
@@ -1733,10 +1766,12 @@ export class DRPDDevice extends EventTarget {
         rawSop: new Uint8Array(),
         rawDecodedData: new Uint8Array(),
         parseError: null,
-        createdAtMs: nowMs,
+        createdAtMs: eventWallClockMs ?? Date.now(),
       }
       await this.logStore.insertCapturedMessage(row)
-      this.pendingDisplayEpochReset = true
+      if (options?.resetDisplayEpoch !== false) {
+        this.pendingDisplayEpochReset = true
+      }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
           detail: { kind: 'event', row },
@@ -1757,6 +1792,44 @@ export class DRPDDevice extends EventTarget {
     const next = (this.lastKnownDeviceTimestampUs ?? 0n) + 1n
     this.lastKnownDeviceTimestampUs = next
     return next
+  }
+
+  /**
+   * Observe device-originated VBUS event timestamps and log newly-seen events once.
+   *
+   * @param vbusInfo - Latest VBUS snapshot.
+   */
+  protected async observeVBusEventTimestamps(vbusInfo: VBusInfo): Promise<void> {
+    if (!this.hasSeenInitialVBusEventTimestamps) {
+      this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
+      this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
+      this.hasSeenInitialVBusEventTimestamps = true
+      return
+    }
+
+    const previousOvp = this.lastSeenVBusOvpEventTimestampUs
+    const previousOcp = this.lastSeenVBusOcpEventTimestampUs
+
+    this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
+    this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
+
+    if (!this.loggingStarted || this.state.captureEnabled !== OnOffStateValues.ON) {
+      return
+    }
+
+    if (vbusInfo.ovpEventTimestampUs !== null && vbusInfo.ovpEventTimestampUs !== previousOvp) {
+      await this.logSignificantEvent('vbus_ovp', 'VBUS OVP event', {
+        timestampUs: vbusInfo.ovpEventTimestampUs,
+        resetDisplayEpoch: false,
+      })
+    }
+
+    if (vbusInfo.ocpEventTimestampUs !== null && vbusInfo.ocpEventTimestampUs !== previousOcp) {
+      await this.logSignificantEvent('vbus_ocp', 'VBUS OCP event', {
+        timestampUs: vbusInfo.ocpEventTimestampUs,
+        resetDisplayEpoch: false,
+      })
+    }
   }
 
   /**

@@ -581,6 +581,8 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
       buildEvent(2, 'CC role changed to SOURCE at 2026-02-28 10:00:01', 'cc_role_changed'),
       buildEvent(3, 'Device status changed to ATTACHED at 2026-02-28 10:00:02', 'cc_status_changed'),
+      buildEvent(4, 'VBUS OVP event at 2026-02-28 10:00:03', 'vbus_ovp'),
+      buildEvent(5, 'VBUS OCP event at 2026-02-28 10:00:04', 'vbus_ocp'),
     ])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -602,6 +604,8 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     ).toBeInTheDocument()
     const eventRow = container.querySelector('[class*="eventRowCapture"]')
     expect(eventRow).not.toBeNull()
+    expect(container.querySelector('[class*="eventRowOvp"]')).not.toBeNull()
+    expect(container.querySelector('[class*="eventRowOcp"]')).not.toBeNull()
     const eventLabel = container.querySelector('[class*="eventLabel"]')
     expect(eventLabel).not.toBeNull()
   })

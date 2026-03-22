@@ -34,7 +34,12 @@ void App::_queryVBusStatus(const std::vector<T76::SCPI::ParameterValue> &) {
             break;
     }
 
-    _usbInterface.sendUSBTMCBulkData(status);
+    const uint64_t ovpTimestampUs = _vbusManager.lastOvpEventTimestampUs();
+    const uint64_t ocpTimestampUs = _vbusManager.lastOcpEventTimestampUs();
+    const std::string ovpField = ovpTimestampUs == 0 ? "NONE" : std::to_string(ovpTimestampUs);
+    const std::string ocpField = ocpTimestampUs == 0 ? "NONE" : std::to_string(ocpTimestampUs);
+
+    _usbInterface.sendUSBTMCBulkData(status + "," + ovpField + "," + ocpField);
 }
 
 void App::_resetVBus(const std::vector<T76::SCPI::ParameterValue> &) {
@@ -82,4 +87,3 @@ void App::_queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &)
     float threshold = _vbusManager.ocpThreshold();
     _usbInterface.sendUSBTMCBulkData(std::to_string(threshold));
 }
-

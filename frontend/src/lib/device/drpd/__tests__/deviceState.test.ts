@@ -239,17 +239,19 @@ describe('DRPDDevice state updates', () => {
       '12',
       '34',
     ])
-    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED', 'NONE', 'NONE'])
     transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
     transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
     transport.textResponses.set('BUS:CC:CAP:EN?', ['ON'])
     transport.textResponses.set('TRIG:STAT?', ['ARMED'])
     transport.textResponses.set('TRIG:EV:TYPE?', ['MESSAGE_COMPLETE'])
     transport.textResponses.set('TRIG:EV:THRESH?', ['2'])
+    transport.textResponses.set('TRIG:EV:SENDER?', ['ANY'])
     transport.textResponses.set('TRIG:EV:AUTOREPEAT?', ['ON'])
     transport.textResponses.set('TRIG:EV:COUNT?', ['7'])
     transport.textResponses.set('TRIG:SYNC:MODE?', ['TOGGLE'])
     transport.textResponses.set('TRIG:SYNC:PULSEWIDTH?', ['25'])
+    transport.textResponses.set('TRIG:EV:MSGTYPE:FILTER?', [''])
     transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
     transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.00,3.00'])
     transport.textResponses.set('SINK:STATUS:VOLTAGE?', ['5'])
@@ -278,15 +280,19 @@ describe('DRPDDevice state updates', () => {
         status: VBusStatus.ENABLED,
         ovpThresholdMv: 21000,
         ocpThresholdMa: 3500,
+        ovpEventTimestampUs: null,
+        ocpEventTimestampUs: null,
       },
       triggerInfo: {
         status: TriggerStatus.ARMED,
         type: TriggerEventType.MESSAGE_COMPLETE,
         eventThreshold: 2,
+        senderFilter: 'ANY',
         autorepeat: OnOffState.ON,
         eventCount: 7,
         syncMode: TriggerSyncMode.TOGGLE,
         syncPulseWidthUs: 25,
+        messageTypeFilters: [],
       },
       sinkInfo: {
         status: SinkState.PE_SNK_READY,

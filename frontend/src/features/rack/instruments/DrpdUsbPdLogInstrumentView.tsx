@@ -1057,6 +1057,8 @@ export const DrpdUsbPdLogInstrumentView = ({
                   row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
                   row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
                   row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
+                  row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
+                  row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}

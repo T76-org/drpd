@@ -225,7 +225,13 @@ commands:
     handler:      _clearCCBusCapturedMessages
 
   - syntax:       "BUS:VBUS:STATus?"
-    description:  "Query the VBUS status. Returns one of ENABLED, DISABLED, OVP, OCP. If OVP or OCP is returned, the VBUS controller is in a FAULT state and must be reset."
+    description:  |
+                    Query the VBUS status and latched protection event timestamps.
+                    Returns three comma-separated fields:
+                    - Status token: ENABLED, DISABLED, OVP, or OCP
+                    - Most recent OVP event timestamp in microseconds, or NONE
+                    - Most recent OCP event timestamp in microseconds, or NONE
+                    If OVP or OCP is returned, the VBUS controller is in a FAULT state and must be reset.
     handler:      _queryVBusStatus
 
   - syntax:       "BUS:VBUS:RESET"

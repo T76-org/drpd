@@ -28,7 +28,7 @@ const mockTransportState = vi.hoisted(() => ({
   ],
   roleResponse: ['SINK'],
   roleStatusResponse: ['ATTACHED'],
-  vbusStatusResponse: ['ENABLED'],
+  vbusStatusResponse: ['ENABLED', 'NONE', 'NONE'],
   ovpThresholdResponse: ['21'],
   ocpThresholdResponse: ['3.5'],
   captureEnabledResponse: ['ON'],

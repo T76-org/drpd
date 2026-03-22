@@ -224,7 +224,9 @@ describe('DrpdVbusInstrumentView', () => {
     driver.setVBusInfo({
       status: VBusStatus.ENABLED,
       ovpThresholdMv: 15000,
-      ocpThresholdMa: 3000
+      ocpThresholdMa: 3000,
+      ovpEventTimestampUs: null,
+      ocpEventTimestampUs: null,
     })
 
     const deviceState: RackDeviceState = {
@@ -253,7 +255,9 @@ describe('DrpdVbusInstrumentView', () => {
       driver.setVBusInfo({
         status: VBusStatus.OVP,
         ovpThresholdMv: 15000,
-        ocpThresholdMa: 3000
+        ocpThresholdMa: 3000,
+        ovpEventTimestampUs: 1234n,
+        ocpEventTimestampUs: null,
       })
       driver.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
@@ -278,6 +282,8 @@ describe('DrpdVbusInstrumentView', () => {
       status: VBusStatus.ENABLED,
       ovpThresholdMv: 20000,
       ocpThresholdMa: 4500,
+      ovpEventTimestampUs: null,
+      ocpEventTimestampUs: null,
     })
 
     const { rerender } = render(
@@ -321,6 +327,8 @@ describe('DrpdVbusInstrumentView', () => {
       status: VBusStatus.OCP,
       ovpThresholdMv: 15000,
       ocpThresholdMa: 3000,
+      ovpEventTimestampUs: null,
+      ocpEventTimestampUs: 5678n,
     })
     const resetFaultSpy = vi.spyOn(driver.vbus, 'resetFault').mockResolvedValue(undefined)
     const refreshStateSpy = vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)

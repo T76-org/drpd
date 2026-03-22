@@ -88,6 +88,9 @@ namespace T76::DRPD::PHY {
          */
         VBusState state();
 
+        uint64_t lastOvpEventTimestampUs() const;
+        uint64_t lastOcpEventTimestampUs() const;
+
         /**
          * @brief Reset the VBusManager from a fault state
          * 
@@ -140,6 +143,8 @@ namespace T76::DRPD::PHY {
 
         float _ovpThreshold = 48.0f;  ///< Overvoltage protection threshold in volts
         float _ocpThreshold = 5.0f;  ///< Overcurrent protection threshold in amps
+        uint64_t _lastOvpEventTimestampUs = 0; ///< Latched timestamp of the most recent OVP event.
+        uint64_t _lastOcpEventTimestampUs = 0; ///< Latched timestamp of the most recent OCP event.
 
         std::function<void()> _managerChangedCallback; ///< Callback for state or settings changes
 

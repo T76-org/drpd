@@ -228,7 +228,7 @@ describe('DRPD command groups', () => {
 
   it('queries VBUS thresholds from firmware float V/A responses', async () => {
     const transport = new MockTransport()
-    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED', '1234', 'NONE'])
     transport.textResponses.set('BUS:VBUS:OVPT?', ['12.000000'])
     transport.textResponses.set('BUS:VBUS:OCPT?', ['3.000000'])
     const group = new DRPDVBus(transport)
@@ -236,6 +236,8 @@ describe('DRPD command groups', () => {
     expect(info.status).toBe('ENABLED')
     expect(info.ovpThresholdMv).toBe(12000)
     expect(info.ocpThresholdMa).toBe(3000)
+    expect(info.ovpEventTimestampUs).toBe(1234n)
+    expect(info.ocpEventTimestampUs).toBeNull()
   })
 
   it('sends VBUS thresholds in firmware V/A units while keeping frontend mV/mA API', async () => {

@@ -59,6 +59,8 @@ export type LoggedCapturedEventType =
   | 'capture_changed'
   | 'cc_role_changed'
   | 'cc_status_changed'
+  | 'vbus_ovp'
+  | 'vbus_ocp'
 
 /**
  * Logged captured USB-PD message row.

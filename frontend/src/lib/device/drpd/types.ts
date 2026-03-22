@@ -375,6 +375,10 @@ export interface VBusInfo {
   ovpThresholdMv: number
   ///< OCP threshold in milliamps.
   ocpThresholdMa: number
+  ///< Most recent OVP event timestamp in microseconds.
+  ovpEventTimestampUs: bigint | null
+  ///< Most recent OCP event timestamp in microseconds.
+  ocpEventTimestampUs: bigint | null
 }
 
 /**
