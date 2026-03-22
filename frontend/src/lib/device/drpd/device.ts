@@ -1059,9 +1059,6 @@ export class DRPDDevice extends EventTarget {
       }
       await Promise.all(tasks)
       if (statusFlags.messageReceived) {
-        if (source === 'interrupt') {
-          console.log('Retrieving captured message(s) in response to interrupt')
-        }
         await this.refreshAndDrainCapturedMessagesFromDevice()
       }
       this.logDebug(`${source}: status refresh done`)
