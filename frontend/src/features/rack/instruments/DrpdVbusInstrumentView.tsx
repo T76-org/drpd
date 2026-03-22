@@ -204,8 +204,10 @@ export const DrpdVbusInstrumentView = ({
 
   useEffect(() => {
     const initialAnalogMonitor = driver ? driver.getState().analogMonitor ?? null : null
+    const initialVBusInfo = driver ? driver.getState().vbusInfo ?? null : null
     setAnalogMonitor(initialAnalogMonitor)
     setDisplayMeasurements(buildDisplayMeasurements(initialAnalogMonitor))
+    setVbusInfo(initialVBusInfo)
   }, [driver])
 
   useEffect(() => {
@@ -313,37 +315,25 @@ export const DrpdVbusInstrumentView = ({
       id: 'reset-vbus',
       label: 'RESET',
       disabled: !driver || isEditMode || isResettingProtection,
-      renderPopover: ({ closePopover }) => (
-        <div className={`${styles.headerPopup} ${styles.headerResetPopup}`}>
-          <button
-            type="button"
-            className={styles.headerPopupButton}
-            onClick={() => {
-              if (!driver || !isProtectionTriggered) {
-                return
-              }
-              setIsResettingProtection(true)
-              setConfigureError(null)
-              void driver.vbus
-                .resetFault()
-                .then(async () => {
-                  await driver.refreshState()
-                  closePopover()
-                })
-                .catch((error) => {
-                  const message = error instanceof Error ? error.message : String(error)
-                  setConfigureError(message)
-                })
-                .finally(() => {
-                  setIsResettingProtection(false)
-                })
-            }}
-            disabled={!isProtectionTriggered || isResettingProtection}
-          >
-            {isResettingProtection ? 'Resetting Protection...' : 'Reset Protection'}
-          </button>
-        </div>
-      )
+      onClick: () => {
+        if (!driver || !isProtectionTriggered) {
+          return
+        }
+        setIsResettingProtection(true)
+        setConfigureError(null)
+        void driver.vbus
+          .resetFault()
+          .then(async () => {
+            await driver.refreshState()
+          })
+          .catch((error) => {
+            const message = error instanceof Error ? error.message : String(error)
+            setConfigureError(message)
+          })
+          .finally(() => {
+            setIsResettingProtection(false)
+          })
+      },
     }
 
     const configureControl: InstrumentHeaderControl = {
