@@ -42,7 +42,6 @@ void App::_onUSBTMCAbortBulkOut() {
 }
 
 void App::_onUSBTMCClear() {
-    printf("R\n");
     _interpreter.reset(); // Reset the interpreter state on clear to ensure clean state for next command
 }
 
