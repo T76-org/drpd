@@ -7,6 +7,8 @@
  * and handling binary data transfers.
  */
 
+import { DebugLogRegistry, DebugLogger } from '../debugLogger'
+
 /**
  * Payload types accepted by the USBTMC transport.
  */
@@ -103,6 +105,7 @@ export interface USBTMCOptions {
   interfaceNumber?: number ///< Interface number to claim; auto-discovered if omitted.
   readTimeoutMs?: number ///< Read timeout in milliseconds.
   writeTimeoutMs?: number ///< Write timeout in milliseconds.
+  debugLogRegistry?: DebugLogRegistry ///< Shared debug logging registry.
 }
 
 /**
@@ -110,7 +113,7 @@ export interface USBTMCOptions {
  */
 type ResolvedUSBTMCOptions = Omit<
   Required<USBTMCOptions>,
-  'interfaceNumber'
+  'interfaceNumber' | 'debugLogRegistry'
 > & {
   interfaceNumber?: number
 }
@@ -256,6 +259,8 @@ export class USBTMCTimeoutError extends Error {
 export class USBTMCTransport extends EventTarget {
   private readonly device: USBDevice ///< WebUSB device instance.
   private readonly options: ResolvedUSBTMCOptions ///< Resolved transport options.
+  public readonly debugLogs: DebugLogRegistry ///< Shared debug logging registry.
+  private readonly debugLogger: DebugLogger ///< Debug logging helper.
   private readonly encoder = new TextEncoder() ///< Text encoder for string payloads.
   private readonly decoder = new TextDecoder() ///< Text decoder for string responses.
   private tagCounter = 1 ///< Rolling tag counter for USBTMC transactions.
@@ -288,6 +293,8 @@ export class USBTMCTransport extends EventTarget {
   constructor(device: USBDevice, options: USBTMCOptions = {}) {
     super()
     this.device = device
+    this.debugLogs = options.debugLogRegistry ?? new DebugLogRegistry()
+    this.debugLogger = this.debugLogs.getLogger('drpd.transport.usbtmc')
     this.options = {
       interfaceNumber: options.interfaceNumber,
       readTimeoutMs: options.readTimeoutMs ?? DEFAULT_OPTIONS.readTimeoutMs,
@@ -441,7 +448,7 @@ export class USBTMCTransport extends EventTarget {
   async sendCommand(command: string, ...params: SCPIParam[]): Promise<void> {
     await this._withLock(async () => {
       const line = this._formatSCPI(command, params)
-      console.debug(`Command: ${line}`)
+      this.debugLogger.debug(`Command: ${line}`)
       await this._withTimeout(
         this._write(`${line}\n`),
         this.options.writeTimeoutMs,
@@ -497,7 +504,7 @@ export class USBTMCTransport extends EventTarget {
    */
   async queryBinary(command: string, ...params: SCPIParam[]): Promise<Uint8Array> {
     return await this._withLock(async () => {
-      console.debug(`Binary Query: ${this._formatSCPI(command, params)}`)
+      this.debugLogger.debug(`Binary Query: ${this._formatSCPI(command, params)}`)
       const line = this._formatSCPI(command, params)
       const data = this._normalizePayload(`${line}\n`)
       try {
@@ -595,7 +602,7 @@ export class USBTMCTransport extends EventTarget {
         line,
       )
       const response = await this._readUntilTerminator(line)
-      console.debug(`Query: "${line}" - Response ${response}`)
+      this.debugLogger.debug(`Query: "${line}" - Response ${response}`)
       return this._parseSCPIResponse(response)
     } catch (error) {
       if (

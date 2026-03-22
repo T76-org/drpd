@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { DebugLogRegistry } from '../debugLogger'
 import USBTMCTransport, {
   scpiEnum,
   USBTMCTimeoutError,
@@ -525,5 +526,31 @@ describe('USBTMCTransport', () => {
       .mockRejectedValue(new USBTMCTimeoutError('read', 1))
     await expect(transport.queryText('*IDN?')).rejects.toBeInstanceOf(USBTMCTimeoutError)
     expect(checkErrorSpy).toHaveBeenCalled()
+  })
+
+  it('suppresses transport debug logs by default', async () => {
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
+    const device = createMockDevice()
+    device.__setPayloads([encoder.encode('IDN,MODEL\n')])
+
+    const transport = new TestTransport(device)
+    await transport.open()
+    await transport.queryText('*IDN?')
+
+    expect(consoleDebug).not.toHaveBeenCalled()
+  })
+
+  it('emits transport debug logs when the parent scope is enabled', async () => {
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined)
+    const debugLogs = new DebugLogRegistry()
+    debugLogs.setScopeEnabled('drpd', true)
+    const device = createMockDevice()
+    device.__setPayloads([encoder.encode('IDN,MODEL\n')])
+
+    const transport = new TestTransport(device, { debugLogRegistry: debugLogs })
+    await transport.open()
+    await transport.queryText('*IDN?')
+
+    expect(consoleDebug).toHaveBeenCalledWith('[drpd.transport.usbtmc] Query: "*IDN?" - Response IDN,MODEL')
   })
 })

@@ -6,6 +6,7 @@
  * Worker that serializes DRPD transport calls and owns log stores.
  */
 
+import { DebugLogRegistry } from '../../../debugLogger'
 import { SQLiteWasmStore } from '../logging/sqliteWasmStore'
 import type { DRPDLogStore } from '../logging/types'
 import { DRPDDevice } from '../device'
@@ -147,6 +148,7 @@ class HostBridgeTransport extends EventTarget implements DRPDTransport {
 type WorkerDRPDSession = {
   transport: USBTMCTransport ///< Worker-owned USBTMC transport.
   device: DRPDDevice ///< Worker-owned DRPD device driver.
+  debugLogs: DebugLogRegistry ///< Worker-owned debug logging controller.
   eventForwarders: Array<{ eventName: string; handler: (event: Event) => void }> ///< Event listener registrations for cleanup.
 }
 
@@ -420,10 +422,15 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         return null
       }
       const usbDevice = await resolveWorkerUSBDevice(request.params.deviceSelection)
-      const transport = new USBTMCTransport(usbDevice)
+      const debugLogs = new DebugLogRegistry()
+      for (const rule of request.params.debugLogRules ?? []) {
+        debugLogs.setScopeEnabled(rule.scope, rule.enabled)
+      }
+      const transport = new USBTMCTransport(usbDevice, { debugLogRegistry: debugLogs })
       await transport.open()
       const device = new DRPDDevice(transport, {
         createLogStore: (config) => new SQLiteWasmStore(config),
+        debugLogRegistry: debugLogs,
       })
       const eventForwarders: WorkerDRPDSession['eventForwarders'] = DRPD_EVENT_NAMES.map((eventName) => {
         const handler = (event: Event): void => {
@@ -441,6 +448,7 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
       drpdSessions.set(request.params.sessionId, {
         transport,
         device,
+        debugLogs,
         eventForwarders,
       })
       if (request.params.loggingConfig) {
@@ -484,9 +492,6 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         switch (method) {
           case 'getState':
             return session.device.getState()
-          case 'setDebugLoggingEnabled':
-            session.device.setDebugLoggingEnabled(Boolean(args[0]))
-            return null
           case 'configureLogging':
             await session.device.configureLogging(args[0] as never)
             return null
@@ -535,6 +540,17 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           default:
             throw new Error(`Unsupported DRPD device method: ${String(method)}`)
         }
+      }
+      if (target === 'debugLog') {
+        if (method === 'setScopeEnabled') {
+          session.debugLogs.setScopeEnabled(String(args[0]), Boolean(args[1]))
+          return null
+        }
+        if (method === 'clearScope') {
+          session.debugLogs.clearScope(String(args[0]))
+          return null
+        }
+        throw new Error(`Unsupported debugLog method: ${method}`)
       }
       if (target === 'analogMonitor') {
         if (method === 'getStatus') {

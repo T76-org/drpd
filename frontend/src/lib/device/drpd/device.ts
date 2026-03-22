@@ -6,6 +6,7 @@
  */
 
 import USBTMCTransport from '../../transport/usbtmc'
+import { DebugLogRegistry, DebugLogger } from '../../debugLogger'
 import type { DRPDTransport } from './transport'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
@@ -54,6 +55,8 @@ const CLOCK_SYNC_SAMPLE_COUNT = 5
 export interface DRPDDeviceOptions {
   ///< Optional log store factory.
   createLogStore?: (config: DRPDLoggingConfig) => DRPDLogStore
+  ///< Optional shared debug logging registry.
+  debugLogRegistry?: DebugLogRegistry
 }
 
 /**
@@ -100,7 +103,8 @@ export class DRPDDevice extends EventTarget {
   protected captureDrainPollingActive: boolean ///< Capture drain polling active flag.
   protected captureDrainInFlight: boolean ///< Capture drain polling in flight flag.
   protected isConnected: boolean ///< True when the device is connected.
-  protected debugLoggingEnabled: boolean ///< Debug logging flag.
+  public readonly debugLogs: DebugLogRegistry ///< Shared debug logging registry.
+  protected readonly debugLogger: DebugLogger ///< Debug logging helper.
   protected loggingConfig: DRPDLoggingConfig ///< Active logging configuration.
   protected logStore?: DRPDLogStore ///< Active log store instance.
   protected loggingStarted: boolean ///< True when logging is started.
@@ -152,7 +156,11 @@ export class DRPDDevice extends EventTarget {
     this.captureDrainPollingActive = false
     this.captureDrainInFlight = false
     this.isConnected = false
-    this.debugLoggingEnabled = false
+    this.debugLogs =
+      options?.debugLogRegistry ??
+      (transport instanceof USBTMCTransport ? transport.debugLogs : undefined) ??
+      new DebugLogRegistry()
+    this.debugLogger = this.debugLogs.getLogger('drpd.device')
     this.loggingConfig = buildDefaultLoggingConfig()
     this.captureDrainIntervalMs = this.loggingConfig.messagePollFallbackIntervalMs
     this.loggingStarted = false
@@ -205,15 +213,6 @@ export class DRPDDevice extends EventTarget {
         activeIndex: this.state.logSelection.activeIndex,
       },
     }
-  }
-
-  /**
-   * Enable or disable debug logging.
-   *
-   * @param enabled - True to enable debug logs.
-   */
-  public setDebugLoggingEnabled(enabled: boolean): void {
-    this.debugLoggingEnabled = enabled
   }
 
   /**
@@ -1982,9 +1981,6 @@ export class DRPDDevice extends EventTarget {
    * @param message - Debug message.
    */
   protected logDebug(message: string): void {
-    if (!this.debugLoggingEnabled) {
-      return
-    }
-    console.debug(`[DRPDDevice] ${message}`)
+    this.debugLogger.debug(message)
   }
 }

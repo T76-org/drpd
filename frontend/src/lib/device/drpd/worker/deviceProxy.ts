@@ -5,6 +5,7 @@
  * Main-thread proxy for a DRPDDevice instance owned by the DRPD worker.
  */
 
+import { DebugLogRegistry } from '../../../debugLogger'
 import type {
   AccumulatedMeasurements,
   AnalogMonitorChannels,
@@ -104,8 +105,10 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
 
   protected readonly client: DRPDWorkerServiceClient ///< Shared worker client.
   protected readonly sessionId: string ///< Worker DRPD session id.
+  public readonly debugLogs: DebugLogRegistry ///< Shared debug logging controller.
   protected state: DRPDDeviceState ///< Last mirrored device state.
   protected closed: boolean ///< True after close().
+  protected unsubscribeDebugLogs?: () => void ///< Debug logging subscription cleanup.
 
   /**
    * Create and initialize a worker-backed DRPD session proxy.
@@ -113,13 +116,16 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    * @param device - Selected WebUSB device.
    * @returns Ready proxy instance.
    */
-  public static async create(device: USBDevice): Promise<DRPDWorkerDeviceProxy> {
+  public static async create(
+    device: USBDevice,
+    debugLogs = new DebugLogRegistry(),
+  ): Promise<DRPDWorkerDeviceProxy> {
     let lastError: unknown
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const client = DRPDWorkerServiceClient.getShared()
       const suffix = workerDeviceSessionCounter++
       const sessionId = `drpd-session-${suffix}`
-      const proxy = new DRPDWorkerDeviceProxy(client, sessionId)
+      const proxy = new DRPDWorkerDeviceProxy(client, sessionId, debugLogs)
       try {
         client.registerDRPDSessionEvents(sessionId, (eventName, detail) => {
           proxy.handleWorkerDeviceEvent(eventName, detail)
@@ -135,6 +141,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
           client.callWorker('drpdSession.create', {
             sessionId,
             deviceSelection,
+            debugLogRules: debugLogs.getScopeRules(),
           }),
           WORKER_CREATE_TIMEOUT_MS,
           'drpdSession.create',
@@ -160,10 +167,15 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    * @param client - Shared worker client.
    * @param sessionId - Worker session id.
    */
-  protected constructor(client: DRPDWorkerServiceClient, sessionId: string) {
+  protected constructor(
+    client: DRPDWorkerServiceClient,
+    sessionId: string,
+    debugLogs = new DebugLogRegistry(),
+  ) {
     super()
     this.client = client
     this.sessionId = sessionId
+    this.debugLogs = debugLogs
     this.state = {
       role: null,
       ccBusRoleStatus: null,
@@ -180,6 +192,14 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       },
     }
     this.closed = false
+    this.unsubscribeDebugLogs = this.debugLogs.subscribe((scope, enabled) => {
+      void this.client.callWorker('drpdSession.call', {
+        sessionId: this.sessionId,
+        target: 'debugLog',
+        method: enabled == null ? 'clearScope' : 'setScopeEnabled',
+        args: enabled == null ? [scope] : [scope, enabled],
+      }).catch(() => undefined)
+    })
 
     this.analogMonitor = {
       getStatus: async () => (await this.callGroup('analogMonitor', 'getStatus')) as AnalogMonitorChannels,
@@ -268,15 +288,6 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
         activeIndex: this.state.logSelection.activeIndex,
       },
     }
-  }
-
-  /**
-   * Set worker-side DRPD debug logging.
-   *
-   * @param enabled - True to enable worker-side debug logs.
-   */
-  public setDebugLoggingEnabled(enabled: boolean): void {
-    void this.callDevice('setDebugLoggingEnabled', enabled)
   }
 
   /**
@@ -448,6 +459,8 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       return
     }
     this.closed = true
+    this.unsubscribeDebugLogs?.()
+    this.unsubscribeDebugLogs = undefined
     this.client.unregisterDRPDSessionEvents(this.sessionId)
     try {
       await this.client.callWorker('drpdSession.dispose', { sessionId: this.sessionId })

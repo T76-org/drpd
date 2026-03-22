@@ -6,6 +6,7 @@
  */
 
 import { Device } from './base'
+import { DebugLogRegistry } from '../debugLogger'
 import USBTMCTransport from '../transport/usbtmc'
 import { parseDeviceIdentity } from './drpd/parsers'
 import { DRPDDevice } from './drpd/device'
@@ -28,6 +29,7 @@ export type DRPDDriverRuntime = DRPDDevice | DRPDWorkerDeviceProxy
 export interface DRPDConnectedRuntime {
   driver: DRPDDriverRuntime ///< DRPD driver runtime instance.
   transport: { close(): Promise<void> } ///< Closable transport/runtime resource.
+  debugLogs: DebugLogRegistry ///< Shared debug logging controller for this runtime.
 }
 
 const LEGACY_CAPTURE_LIMIT = 50
@@ -90,7 +92,6 @@ export class DRPDDeviceDefinition extends Device {
           ? new DRPDWorkerLogStoreProxy(config)
           : new SQLiteWasmStore(config),
     })
-    this.driver.setDebugLoggingEnabled(false)
     const config = this.getStoredConfig()
     const loggingConfig = this.extractLoggingConfig(config)
     void this.driver.configureLogging(loggingConfig)
@@ -105,20 +106,21 @@ export class DRPDDeviceDefinition extends Device {
    */
   public async createConnectedRuntime(device: USBDevice): Promise<DRPDConnectedRuntime> {
     if (typeof Worker !== 'undefined') {
-      const driver = await DRPDWorkerDeviceProxy.create(device)
-      driver.setDebugLoggingEnabled(false)
+      const debugLogs = new DebugLogRegistry()
+      const driver = await DRPDWorkerDeviceProxy.create(device, debugLogs)
       const config = this.getStoredConfig()
       const loggingConfig = this.extractLoggingConfig(config)
       await driver.configureLogging(loggingConfig)
       this.driver = driver
-      return { driver, transport: driver }
+      return { driver, transport: driver, debugLogs }
     }
 
     // Capability fallback for test/non-browser environments without Worker.
-    const transport = new USBTMCTransport(device)
+    const debugLogs = new DebugLogRegistry()
+    const transport = new USBTMCTransport(device, { debugLogRegistry: debugLogs })
     await transport.open()
     const driver = this.createDriver(transport)
-    return { driver, transport }
+    return { driver, transport, debugLogs }
   }
 
   /**

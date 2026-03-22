@@ -6,6 +6,7 @@
  */
 
 import type { DRPDSCPIParam } from '../transport'
+import type { DebugLogScopeRule } from '../../../debugLogger'
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
@@ -122,6 +123,7 @@ export type WorkerRpcRequest =
         sessionId: string
         deviceSelection: WorkerUSBDeviceSelection
         loggingConfig?: Partial<DRPDLoggingConfig>
+        debugLogRules?: DebugLogScopeRule[]
       }
     }
   | {
@@ -140,7 +142,6 @@ export type WorkerRpcRequest =
             target: 'device'
             method:
               | 'getState'
-              | 'setDebugLoggingEnabled'
               | 'configureLogging'
               | 'getLoggingDiagnostics'
               | 'getLogCounts'
@@ -164,6 +165,12 @@ export type WorkerRpcRequest =
             sessionId: string
             target: 'analogMonitor' | 'ccBus' | 'capture' | 'sink' | 'system' | 'trigger' | 'vbus'
             method: string
+            args: unknown[]
+          }
+        | {
+            sessionId: string
+            target: 'debugLog'
+            method: 'setScopeEnabled' | 'clearScope'
             args: unknown[]
           }
     }
