@@ -24,6 +24,7 @@ class TestLogDriver extends EventTarget {
   public clearScopes: string[]
   public logSelection: DRPDLogSelectionState
   public timeStripQueries: Array<{ windowStartUs: bigint; windowDurationUs: bigint; analogPointBudget: number }>
+  public markCalls: number
 
   public constructor(rows: LoggedCapturedMessage[], analogRows: LoggedAnalogSample[] = []) {
     super()
@@ -31,6 +32,7 @@ class TestLogDriver extends EventTarget {
     this.rows = rows
     this.clearScopes = []
     this.timeStripQueries = []
+    this.markCalls = 0
     this.logSelection = {
       selectedKeys: [],
       anchorIndex: null,
@@ -254,6 +256,17 @@ class TestLogDriver extends EventTarget {
       }),
     )
   }
+
+  public async markLog(): Promise<void> {
+    this.markCalls += 1
+    const markRow = buildEvent(this.rows.length + 1, 'Mark', 'mark')
+    this.rows = [...this.rows, markRow]
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: { kind: 'event', row: markRow },
+      }),
+    )
+  }
 }
 
 const normalizeSopType = (value: string | null): string | null => {
@@ -338,6 +351,34 @@ const buildAnalogSample = (index: number): LoggedAnalogSample => ({
   createdAtMs: 1_700_000_000_000 + index * 10,
 })
 
+const buildEvent = (
+  index: number,
+  text: string,
+  eventType: LoggedCapturedMessage['eventType'] = 'capture_changed',
+): LoggedCapturedMessage => ({
+  entryKind: 'event',
+  eventType,
+  eventText: text,
+  eventWallClockMs: 1_700_000_100_000 + index,
+  wallClockUs: BigInt(1_700_000_100_000_000 + index),
+  startTimestampUs: BigInt(2000 + index),
+  endTimestampUs: BigInt(2000 + index),
+  displayTimestampUs: null,
+  decodeResult: 0,
+  sopKind: null,
+  messageKind: null,
+  messageType: null,
+  messageId: null,
+  senderPowerRole: null,
+  senderDataRole: null,
+  pulseCount: 0,
+  rawPulseWidths: new Float64Array(),
+  rawSop: new Uint8Array(),
+  rawDecodedData: new Uint8Array(),
+  parseError: null,
+  createdAtMs: 1_700_000_100_000 + index,
+})
+
 const stubResizeObserver = (): void => {
   class ResizeObserverMock {
     public callback: ResizeObserverCallback
@@ -382,34 +423,6 @@ const stubResizeObserver = (): void => {
 
   vi.stubGlobal('ResizeObserver', ResizeObserverMock)
 }
-
-const buildEvent = (
-  index: number,
-  text: string,
-  eventType: LoggedCapturedMessage['eventType'] = 'capture_changed',
-): LoggedCapturedMessage => ({
-  entryKind: 'event',
-  eventType,
-  eventText: text,
-  eventWallClockMs: 1_700_000_100_000 + index,
-  wallClockUs: BigInt(1_700_000_100_000_000 + index),
-  startTimestampUs: BigInt(2000 + index),
-  endTimestampUs: BigInt(2000 + index),
-  displayTimestampUs: null,
-  decodeResult: 0,
-  sopKind: null,
-  messageKind: null,
-  messageType: null,
-  messageId: null,
-  senderPowerRole: null,
-  senderDataRole: null,
-  pulseCount: 0,
-  rawPulseWidths: new Float64Array(),
-  rawSop: new Uint8Array(),
-  rawDecodedData: new Uint8Array(),
-  parseError: null,
-  createdAtMs: 1_700_000_100_000 + index,
-})
 
 afterEach(() => {
   vi.useRealTimers()
@@ -581,8 +594,9 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
       buildEvent(2, 'CC role changed to SOURCE at 2026-02-28 10:00:01', 'cc_role_changed'),
       buildEvent(3, 'Device status changed to ATTACHED at 2026-02-28 10:00:02', 'cc_status_changed'),
-      buildEvent(4, 'VBUS OVP event at 2026-02-28 10:00:03', 'vbus_ovp'),
-      buildEvent(5, 'VBUS OCP event at 2026-02-28 10:00:04', 'vbus_ocp'),
+      buildEvent(4, 'Mark', 'mark'),
+      buildEvent(5, 'VBUS OVP event at 2026-02-28 10:00:03', 'vbus_ovp'),
+      buildEvent(6, 'VBUS OCP event at 2026-02-28 10:00:04', 'vbus_ocp'),
     ])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -604,10 +618,37 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     ).toBeInTheDocument()
     const eventRow = container.querySelector('[class*="eventRowCapture"]')
     expect(eventRow).not.toBeNull()
+    expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOvp"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOcp"]')).not.toBeNull()
     const eventLabel = container.querySelector('[class*="eventLabel"]')
     expect(eventLabel).not.toBeNull()
+  })
+
+  it('adds a mark event from the header button', async () => {
+    const user = userEvent.setup()
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Mark' }))
+
+    expect(driver.markCalls).toBe(1)
+    await waitFor(() => {
+      expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
+    })
   })
 
   it('resets delta display after an event row', async () => {
@@ -661,6 +702,47 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     )
 
     expect(await screen.findByText((content) => content.includes('CC role changed to SINK'))).toBeInTheDocument()
+
+    const appended = {
+      ...buildMessage(2, 4),
+      startTimestampUs: 5000n,
+      endTimestampUs: 5005n,
+      displayTimestampUs: 0n,
+    } satisfies LoggedCapturedMessage
+    await act(async () => {
+      driver.rows = [...driver.rows, appended]
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'message', row: appended },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Reject')).toBeInTheDocument()
+    })
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    expect(rows[2]?.textContent ?? '').toContain('--')
+  })
+
+  it('resets delta display to -- for messages appended after a mark row', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildEvent(1, 'Mark', 'mark')])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText((content) => content.includes('Mark'))).toBeInTheDocument()
 
     const appended = {
       ...buildMessage(2, 4),
