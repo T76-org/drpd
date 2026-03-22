@@ -151,7 +151,8 @@ extern "C" {
 #ifdef NDEBUG           /* required by ANSI standard */
 #  define configASSERT(__e) ((void)0)
 #else
-void t76_assert_func(const char* file, int line, const char* func, const char* expr); // Forward declaration to avoid import loops
+void my_assert_func(const char* file, int line, const char* func, const char* expr); // Forward declaration to avoid import loops
+#define t76_assert_func my_assert_func
 #  define configASSERT(__e) ((__e) ? (void)0 : t76_assert_func(__FILE__, __LINE__, __func__, #__e))
 #endif
 

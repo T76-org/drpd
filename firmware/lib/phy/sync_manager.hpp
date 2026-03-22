@@ -19,6 +19,8 @@
 
 #include <t76/safety.hpp>
 
+#include "../util/persistent_config.hpp"
+
 
 namespace T76::DRPD::PHY {
 
@@ -91,6 +93,20 @@ namespace T76::DRPD::PHY {
          * the appropriate SYNC signal based on the configured mode and pulse width.
          */
         void performSync();
+
+        /**
+         * @brief Apply the persisted SYNC configuration owned by this manager.
+         *
+         * @param config Persisted SYNC settings to apply.
+         */
+        void applyPersistentConfig(const T76::DRPD::SyncPersistentConfig &config);
+
+        /**
+         * @brief Export the SYNC settings that should be persisted in flash.
+         *
+         * @return T76::DRPD::SyncPersistentConfig Current persisted SYNC slice.
+         */
+        T76::DRPD::SyncPersistentConfig exportPersistentConfig() const;
 
     protected:
         /**

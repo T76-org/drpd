@@ -29,6 +29,7 @@
 #include <t76/safety.hpp>
 
 #include "analog_monitor.hpp"
+#include "../util/persistent_config.hpp"
 
 
 namespace T76::DRPD::PHY {
@@ -133,6 +134,20 @@ namespace T76::DRPD::PHY {
          * @param callback The callback function to be called when state or settings change.
          */
         void managerChangedCallback(std::function<void()> callback);
+
+        /**
+         * @brief Apply the persisted VBUS protection settings owned by this manager.
+         *
+         * @param config Persisted VBUS settings to apply.
+         */
+        void applyPersistentConfig(const T76::DRPD::VBusPersistentConfig &config);
+
+        /**
+         * @brief Export the VBUS settings that should be persisted in flash.
+         *
+         * @return T76::DRPD::VBusPersistentConfig Current persisted VBUS slice.
+         */
+        T76::DRPD::VBusPersistentConfig exportPersistentConfig() const;
         
     protected:
         AnalogMonitor &_analogMonitor; ///< Reference to the AnalogMonitor instance for voltage/current readings

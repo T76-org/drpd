@@ -131,6 +131,18 @@ void VBusManager::managerChangedCallback(std::function<void()> callback) {
     _managerChangedCallback = std::move(callback);
 }
 
+void VBusManager::applyPersistentConfig(const T76::DRPD::VBusPersistentConfig &config) {
+    ovpThreshold(config.ovpThresholdVolts);
+    ocpThreshold(config.ocpThresholdAmps);
+}
+
+T76::DRPD::VBusPersistentConfig VBusManager::exportPersistentConfig() const {
+    return T76::DRPD::VBusPersistentConfig{
+        .ovpThresholdVolts = _ovpThreshold,
+        .ocpThresholdAmps = _ocpThreshold,
+    };
+}
+
 bool VBusManager::_timerCallback(repeating_timer_t *rt) {
     // Get the VBusManager instance from the timer's user_data
     VBusManager* manager = static_cast<VBusManager*>(rt->user_data);

@@ -60,6 +60,7 @@ void App::_setVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &par
     }
 
     _vbusManager.ovpThreshold(threshold);
+    _savePersistentConfig();
 }
 
 void App::_queryVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &) {
@@ -81,6 +82,7 @@ void App::_setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &par
     }
 
     _vbusManager.ocpThreshold(threshold);
+    _savePersistentConfig();
 }
 
 void App::_queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &) {
