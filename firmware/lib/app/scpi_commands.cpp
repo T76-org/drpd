@@ -48,6 +48,8 @@ namespace T76::DRPD {
         void _queryVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkAvailablePDOCount(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &);
@@ -95,22 +97,22 @@ namespace T76::SCPI {
  * Memory Usage Estimate:
  * 
  * Trie Structure:
- *   - Total nodes: 1105
- *   - Children arrays: 924
+ *   - Total nodes: 1109
+ *   - Children arrays: 927
  *   - Node size: 8 bytes each
- *   - Trie memory: 8840 bytes
+ *   - Trie memory: 8872 bytes
  * 
  * Command System:
- *   - Commands: 73 (876 bytes)
- *   - Parameter descriptors: 352 bytes
+ *   - Commands: 75 (900 bytes)
+ *   - Parameter descriptors: 368 bytes
  *   - String literals: 405 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 10473 bytes (0.25% of 2MB)
+ *   - Code/Data (Flash): 10545 bytes (0.25% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
- *   - Average lookup depth: ~18.7 character comparisons
+ *   - Average lookup depth: ~18.6 character comparisons
  *   - Memory access pattern: Sequential (cache-friendly)
  *   - Space complexity: O(total_command_chars)
  */    // Parameter descriptors for each command
@@ -126,7 +128,7 @@ namespace T76::SCPI {
         "OFF",
     };
 
-    const char* const command_45_param_0_choices[] = {
+    const char* const command_47_param_0_choices[] = {
         "OFF",
         "PREAMBLE_START",
         "SOP_START",
@@ -141,37 +143,27 @@ namespace T76::SCPI {
         "ANY_ERROR",
     };
 
-    const char* const command_49_param_0_choices[] = {
+    const char* const command_51_param_0_choices[] = {
         "ANY",
         "SOURCE",
         "SINK",
         "CABLE",
     };
 
-    const char* const command_54_param_0_choices[] = {
+    const char* const command_56_param_0_choices[] = {
         "ON",
         "OFF",
     };
 
-    const char* const command_57_param_0_choices[] = {
+    const char* const command_59_param_0_choices[] = {
         "PULSE_HIGH",
         "PULSE_LOW",
         "TOGGLE",
         "PULL_DOWN",
     };
 
-    const char* const command_61_param_0_choices[] = {
-        "ON",
-        "OFF",
-    };
-
     const char* const command_63_param_0_choices[] = {
-        "SOURCE_DEFAULT",
-        "SOURCE_15",
-        "SOURCE_30",
-        "SINK",
-        "EMARKER",
-        "VCONN",
+        "ON",
         "OFF",
     };
 
@@ -186,8 +178,13 @@ namespace T76::SCPI {
     };
 
     const char* const command_67_param_0_choices[] = {
-        "CC1",
-        "CC2",
+        "SOURCE_DEFAULT",
+        "SOURCE_15",
+        "SOURCE_30",
+        "SINK",
+        "EMARKER",
+        "VCONN",
+        "OFF",
     };
 
     const char* const command_69_param_0_choices[] = {
@@ -196,6 +193,11 @@ namespace T76::SCPI {
     };
 
     const char* const command_71_param_0_choices[] = {
+        "CC1",
+        "CC2",
+    };
+
+    const char* const command_73_param_0_choices[] = {
         "ON",
         "OFF",
     };
@@ -245,19 +247,7 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_37_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
+    const ParameterDescriptor command_38_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -266,17 +256,38 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_45_params[] = {
+    const ParameterDescriptor command_39_params[] = {
         {
-            .type = ParameterType::Enum,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 12,
-            .choices = command_45_param_0_choices
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
         },
     };
 
     const ParameterDescriptor command_47_params[] = {
         {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 12,
+            .choices = command_47_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_49_params[] = {
+        {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 0,
@@ -284,16 +295,16 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_49_params[] = {
+    const ParameterDescriptor command_51_params[] = {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 4,
-            .choices = command_49_param_0_choices
+            .choices = command_51_param_0_choices
         },
     };
 
-    const ParameterDescriptor command_51_params[] = {
+    const ParameterDescriptor command_53_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -308,25 +319,25 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_54_params[] = {
+    const ParameterDescriptor command_56_params[] = {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 2,
-            .choices = command_54_param_0_choices
-        },
-    };
-
-    const ParameterDescriptor command_57_params[] = {
-        {
-            .type = ParameterType::Enum,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 4,
-            .choices = command_57_param_0_choices
+            .choices = command_56_param_0_choices
         },
     };
 
     const ParameterDescriptor command_59_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 4,
+            .choices = command_59_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_61_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -335,20 +346,11 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_61_params[] = {
-        {
-            .type = ParameterType::Enum,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 2,
-            .choices = command_61_param_0_choices
-        },
-    };
-
     const ParameterDescriptor command_63_params[] = {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 7,
+            .choiceCount = 2,
             .choices = command_63_param_0_choices
         },
     };
@@ -366,7 +368,7 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 2,
+            .choiceCount = 7,
             .choices = command_67_param_0_choices
         },
     };
@@ -386,6 +388,15 @@ namespace T76::SCPI {
             .defaultValue = {.numberValue = 0},
             .choiceCount = 2,
             .choices = command_71_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_73_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 2,
+            .choices = command_73_param_0_choices
         },
     };
 
@@ -622,6 +633,15 @@ namespace T76::SCPI {
     const TrieNode _node_BUS_colonC_children[] = {
         { 'C', 0, 1, _node_BUS_colonCC_children, 0 }
     };
+    const TrieNode _node_BUS_colonVBUS_colonCAL_children[] = {
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 35 } // Terminal: BUS:VBUS:CAL?
+    };
+    const TrieNode _node_BUS_colonVBUS_colonCA_children[] = {
+        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_children, 36 } // Terminal: BUS:VBUS:CAL
+    };
+    const TrieNode _node_BUS_colonVBUS_colonC_children[] = {
+        { 'A', 0, 1, _node_BUS_colonVBUS_colonCA_children, 0 }
+    };
     const TrieNode _node_BUS_colonVBUS_colonOCPTHRESHOLD_children[] = {
         { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 34 } // Terminal: BUS:VBUS:OCPThreshold?
     };
@@ -726,12 +746,13 @@ namespace T76::SCPI {
         { 'T', 0, 1, _node_BUS_colonVBUS_colonST_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colon_children[] = {
+        { 'C', 0, 1, _node_BUS_colonVBUS_colonC_children, 0 },
         { 'O', 0, 2, _node_BUS_colonVBUS_colonO_children, 0 },
         { 'R', 0, 1, _node_BUS_colonVBUS_colonR_children, 0 },
         { 'S', 0, 1, _node_BUS_colonVBUS_colonS_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_children[] = {
-        { ':', 0, 3, _node_BUS_colonVBUS_colon_children, 0 }
+        { ':', 0, 4, _node_BUS_colonVBUS_colon_children, 0 }
     };
     const TrieNode _node_BUS_colonVBU_children[] = {
         { 'S', 0, 1, _node_BUS_colonVBUS_children, 0 }
@@ -1546,7 +1567,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_ME_children, 0 }
     };
     const TrieNode _node_SINK_colonPDO_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 35 } // Terminal: SINK:PDO:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 37 } // Terminal: SINK:PDO:COUNT?
     };
     const TrieNode _node_SINK_colonPDO_colonCOUN_children[] = {
         { 'T', 0, 1, _node_SINK_colonPDO_colonCOUNT_children, 0 }
@@ -1565,16 +1586,16 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonPDO_children[] = {
         { ':', 0, 1, _node_SINK_colonPDO_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 36 } // Terminal: SINK:PDO?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 38 } // Terminal: SINK:PDO?
     };
     const TrieNode _node_SINK_colonPD_children[] = {
-        { 'O', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonPDO_children, 37 } // Terminal: SINK:PDO
+        { 'O', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonPDO_children, 39 } // Terminal: SINK:PDO
     };
     const TrieNode _node_SINK_colonP_children[] = {
         { 'D', 0, 1, _node_SINK_colonPD_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonCURRENT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 41 } // Terminal: SINK:STATUS:CURRENT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 43 } // Terminal: SINK:STATUS:CURRENT?
     };
     const TrieNode _node_SINK_colonSTATUS_colonCURREN_children[] = {
         { 'T', 0, 1, _node_SINK_colonSTATUS_colonCURRENT_children, 0 }
@@ -1595,7 +1616,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_SINK_colonSTATUS_colonCU_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonERROR_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 42 } // Terminal: SINK:STATUS:ERROR?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: SINK:STATUS:ERROR?
     };
     const TrieNode _node_SINK_colonSTATUS_colonERRO_children[] = {
         { 'R', 0, 1, _node_SINK_colonSTATUS_colonERROR_children, 0 }
@@ -1610,7 +1631,7 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_SINK_colonSTATUS_colonER_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonPDO_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 39 } // Terminal: SINK:STATUS:PDO?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 41 } // Terminal: SINK:STATUS:PDO?
     };
     const TrieNode _node_SINK_colonSTATUS_colonPD_children[] = {
         { 'O', 0, 1, _node_SINK_colonSTATUS_colonPDO_children, 0 }
@@ -1619,7 +1640,7 @@ namespace T76::SCPI {
         { 'D', 0, 1, _node_SINK_colonSTATUS_colonPD_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonVOLTAGE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 40 } // Terminal: SINK:STATUS:VOLTAGE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 42 } // Terminal: SINK:STATUS:VOLTAGE?
     };
     const TrieNode _node_SINK_colonSTATUS_colonVOLTAG_children[] = {
         { 'E', 0, 1, _node_SINK_colonSTATUS_colonVOLTAGE_children, 0 }
@@ -1647,7 +1668,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonSTATUS_children[] = {
         { ':', 0, 4, _node_SINK_colonSTATUS_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 38 } // Terminal: SINK:STATUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 40 } // Terminal: SINK:STATUS?
     };
     const TrieNode _node_SINK_colonSTATU_children[] = {
         { 'S', 0, 2, _node_SINK_colonSTATUS_children, 0 }
@@ -1969,10 +1990,10 @@ namespace T76::SCPI {
         { 'Y', 0, 1, _node_SY_children, 0 }
     };
     const TrieNode _node_TEST_colonCCBUS_colonDUT_colonCHANNEL_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 68 } // Terminal: TEST:CCBUS:DUT:CHANNEL?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 } // Terminal: TEST:CCBUS:DUT:CHANNEL?
     };
     const TrieNode _node_TEST_colonCCBUS_colonDUT_colonCHANNE_children[] = {
-        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonDUT_colonCHANNEL_children, 67 } // Terminal: TEST:CCBUS:DUT:CHANNEL
+        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonDUT_colonCHANNEL_children, 69 } // Terminal: TEST:CCBUS:DUT:CHANNEL
     };
     const TrieNode _node_TEST_colonCCBUS_colonDUT_colonCHANN_children[] = {
         { 'E', 0, 1, _node_TEST_colonCCBUS_colonDUT_colonCHANNE_children, 0 }
@@ -2002,19 +2023,19 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TEST_colonCCBUS_colonDU_children, 0 }
     };
     const TrieNode _node_TEST_colonCCBUS_colonMUX_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TEST:CCBUS:MUX?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TEST:CCBUS:MUX?
     };
     const TrieNode _node_TEST_colonCCBUS_colonMU_children[] = {
-        { 'X', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonMUX_children, 71 } // Terminal: TEST:CCBUS:MUX
+        { 'X', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonMUX_children, 73 } // Terminal: TEST:CCBUS:MUX
     };
     const TrieNode _node_TEST_colonCCBUS_colonM_children[] = {
         { 'U', 0, 1, _node_TEST_colonCCBUS_colonMU_children, 0 }
     };
     const TrieNode _node_TEST_colonCCBUS_colonUSDS_colonCHANNEL_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 } // Terminal: TEST:CCBUS:USDS:CHANNEL?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TEST:CCBUS:USDS:CHANNEL?
     };
     const TrieNode _node_TEST_colonCCBUS_colonUSDS_colonCHANNE_children[] = {
-        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonUSDS_colonCHANNEL_children, 69 } // Terminal: TEST:CCBUS:USDS:CHANNEL
+        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonUSDS_colonCHANNEL_children, 71 } // Terminal: TEST:CCBUS:USDS:CHANNEL
     };
     const TrieNode _node_TEST_colonCCBUS_colonUSDS_colonCHANN_children[] = {
         { 'E', 0, 1, _node_TEST_colonCCBUS_colonUSDS_colonCHANNE_children, 0 }
@@ -2061,14 +2082,14 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TEST_colonCCBU_children, 0 }
     };
     const TrieNode _node_TEST_colonCCROLE_colonCC1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 64 } // Terminal: TEST:CCROLE:CC1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 66 } // Terminal: TEST:CCROLE:CC1?
     };
     const TrieNode _node_TEST_colonCCROLE_colonCC2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 66 } // Terminal: TEST:CCROLE:CC2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 68 } // Terminal: TEST:CCROLE:CC2?
     };
     const TrieNode _node_TEST_colonCCROLE_colonCC_children[] = {
-        { '1', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC1_children, 63 }, // Terminal: TEST:CCROLE:CC1
-        { '2', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC2_children, 65 } // Terminal: TEST:CCROLE:CC2
+        { '1', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC1_children, 65 }, // Terminal: TEST:CCROLE:CC1
+        { '2', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC2_children, 67 } // Terminal: TEST:CCROLE:CC2
     };
     const TrieNode _node_TEST_colonCCROLE_colonC_children[] = {
         { 'C', 0, 2, _node_TEST_colonCCROLE_colonCC_children, 0 }
@@ -2096,10 +2117,10 @@ namespace T76::SCPI {
         { 'C', 0, 2, _node_TEST_colonCC_children, 0 }
     };
     const TrieNode _node_TEST_colonVBUSMAN_colonEN_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 62 } // Terminal: TEST:VBUSMAN:EN?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 64 } // Terminal: TEST:VBUSMAN:EN?
     };
     const TrieNode _node_TEST_colonVBUSMAN_colonE_children[] = {
-        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonVBUSMAN_colonEN_children, 61 } // Terminal: TEST:VBUSMAN:EN
+        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonVBUSMAN_colonEN_children, 63 } // Terminal: TEST:VBUSMAN:EN
     };
     const TrieNode _node_TEST_colonVBUSMAN_colon_children[] = {
         { 'E', 0, 1, _node_TEST_colonVBUSMAN_colonE_children, 0 }
@@ -2139,10 +2160,10 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TES_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 57 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIG_colonEV_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonAUTOREPEAT_children, 54 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonAUTOREPEAT_children, 56 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIG_colonEV_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonAUTOREPEA_children, 0 }
@@ -2169,7 +2190,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIG_colonEV_colonAU_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 56 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 58 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIG_colonEV_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIG_colonEV_colonCOUNT_children, 0 }
@@ -2184,7 +2205,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIG_colonEV_colonCO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -2199,7 +2220,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -2215,18 +2236,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGT_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGT_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGT_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGT_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFIL_children, 0 }
@@ -2238,7 +2259,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIG_colonEV_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -2253,7 +2274,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -2269,18 +2290,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFIL_children, 0 }
@@ -2314,17 +2335,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIG_colonEV_colonMS_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIG_colonEV_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonSENDER_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonSENDER_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEV_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIG_colonEV_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonSEND_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonSEND_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEV_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIG_colonEV_colonSEN_children, 0 }
@@ -2333,20 +2354,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIG_colonEV_colonSE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTHRESHOLD_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTHRESHOLD_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEV_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIG_colonEV_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonTHRESH_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonTHRESH_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEV_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIG_colonEV_colonTHRES_children, 0 }
@@ -2358,10 +2379,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIG_colonEV_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIG_colonEV_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTYPE_children, 45 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTYPE_children, 47 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIG_colonEV_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIG_colonEV_colonTYP_children, 0 }
@@ -2378,10 +2399,10 @@ namespace T76::SCPI {
         { 'T', 0, 2, _node_TRIG_colonEV_colonT_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 57 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIG_colonEVENT_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonAUTOREPEAT_children, 54 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonAUTOREPEAT_children, 56 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIG_colonEVENT_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonAUTOREPEA_children, 0 }
@@ -2408,7 +2429,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIG_colonEVENT_colonAU_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 56 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 58 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIG_colonEVENT_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIG_colonEVENT_colonCOUNT_children, 0 }
@@ -2423,7 +2444,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIG_colonEVENT_colonCO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -2438,7 +2459,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -2454,18 +2475,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGT_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGT_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFIL_children, 0 }
@@ -2477,7 +2498,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -2492,7 +2513,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -2508,18 +2529,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFIL_children, 0 }
@@ -2553,17 +2574,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIG_colonEVENT_colonMS_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIG_colonEVENT_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonSENDER_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonSENDER_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEVENT_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonSEND_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonSEND_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEVENT_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIG_colonEVENT_colonSEN_children, 0 }
@@ -2572,20 +2593,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonSE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTHRESHOLD_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTHRESHOLD_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEVENT_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIG_colonEVENT_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonTHRESH_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonTHRESH_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIG_colonEVENT_colonTHRES_children, 0 }
@@ -2597,10 +2618,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIG_colonEVENT_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIG_colonEVENT_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTYPE_children, 45 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTYPE_children, 47 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIG_colonEVENT_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIG_colonEVENT_colonTYP_children, 0 }
@@ -2633,7 +2654,7 @@ namespace T76::SCPI {
         { 'V', 0, 2, _node_TRIG_colonEV_children, 0 }
     };
     const TrieNode _node_TRIG_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 43 } // Terminal: TRIGger:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 45 } // Terminal: TRIGger:RESET
     };
     const TrieNode _node_TRIG_colonRES_children[] = {
         { 'E', 0, 1, _node_TRIG_colonRESE_children, 0 }
@@ -2645,13 +2666,13 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIG_colonRE_children, 0 }
     };
     const TrieNode _node_TRIG_colonSTATUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: TRIGger:STATus?
     };
     const TrieNode _node_TRIG_colonSTATU_children[] = {
         { 'S', 0, 1, _node_TRIG_colonSTATUS_children, 0 }
     };
     const TrieNode _node_TRIG_colonSTAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 }, // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 }, // Terminal: TRIGger:STATus?
         { 'U', 0, 1, _node_TRIG_colonSTATU_children, 0 }
     };
     const TrieNode _node_TRIG_colonSTA_children[] = {
@@ -2661,10 +2682,10 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_TRIG_colonSTA_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonMODE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 58 } // Terminal: TRIGger:SYNC:MODE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 } // Terminal: TRIGger:SYNC:MODE?
     };
     const TrieNode _node_TRIG_colonSYNC_colonMOD_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonMODE_children, 57 } // Terminal: TRIGger:SYNC:MODE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonMODE_children, 59 } // Terminal: TRIGger:SYNC:MODE
     };
     const TrieNode _node_TRIG_colonSYNC_colonMO_children[] = {
         { 'D', 0, 1, _node_TRIG_colonSYNC_colonMOD_children, 0 }
@@ -2673,10 +2694,10 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIG_colonSYNC_colonMO_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSEWIDTH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 } // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 62 } // Terminal: TRIGger:SYNC:PULSEwidth?
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSEWIDT_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonPULSEWIDTH_children, 59 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonPULSEWIDTH_children, 61 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSEWID_children[] = {
         { 'T', 0, 1, _node_TRIG_colonSYNC_colonPULSEWIDT_children, 0 }
@@ -2688,11 +2709,11 @@ namespace T76::SCPI {
         { 'I', 0, 1, _node_TRIG_colonSYNC_colonPULSEWI_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 }, // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 62 }, // Terminal: TRIGger:SYNC:PULSEwidth?
         { 'W', 0, 1, _node_TRIG_colonSYNC_colonPULSEW_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULS_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonSYNC_colonPULSE_children, 59 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonSYNC_colonPULSE_children, 61 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIG_colonSYNC_colonPUL_children[] = {
         { 'S', 0, 1, _node_TRIG_colonSYNC_colonPULS_children, 0 }
@@ -2726,10 +2747,10 @@ namespace T76::SCPI {
         { 'S', 0, 2, _node_TRIG_colonS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 57 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIGGER_colonEV_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonAUTOREPEAT_children, 54 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonAUTOREPEAT_children, 56 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIGGER_colonEV_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonAUTOREPEA_children, 0 }
@@ -2756,7 +2777,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIGGER_colonEV_colonAU_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 56 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 58 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIGGER_colonEV_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIGGER_colonEV_colonCOUNT_children, 0 }
@@ -2771,7 +2792,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIGGER_colonEV_colonCO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -2786,7 +2807,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -2802,18 +2823,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGT_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGT_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFIL_children, 0 }
@@ -2825,7 +2846,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -2840,7 +2861,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -2856,18 +2877,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFIL_children, 0 }
@@ -2901,17 +2922,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIGGER_colonEV_colonMS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIGGER_colonEV_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonSENDER_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonSENDER_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEV_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonSEND_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonSEND_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEV_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIGGER_colonEV_colonSEN_children, 0 }
@@ -2920,20 +2941,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonSE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTHRESHOLD_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTHRESHOLD_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEV_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIGGER_colonEV_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonTHRESH_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonTHRESH_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonEV_colonTHRES_children, 0 }
@@ -2945,10 +2966,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIGGER_colonEV_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIGGER_colonEV_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTYPE_children, 45 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTYPE_children, 47 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIGGER_colonEV_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIGGER_colonEV_colonTYP_children, 0 }
@@ -2965,10 +2986,10 @@ namespace T76::SCPI {
         { 'T', 0, 2, _node_TRIGGER_colonEV_colonT_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 57 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonAUTOREPEAT_children, 54 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonAUTOREPEAT_children, 56 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonAUTOREPEA_children, 0 }
@@ -2995,7 +3016,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIGGER_colonEVENT_colonAU_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 56 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 58 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIGGER_colonEVENT_colonCOUNT_children, 0 }
@@ -3010,7 +3031,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIGGER_colonEVENT_colonCO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -3025,7 +3046,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -3041,18 +3062,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFIL_children, 0 }
@@ -3064,7 +3085,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -3079,7 +3100,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -3095,18 +3116,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_children, 51 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_children, 53 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFIL_children, 0 }
@@ -3140,17 +3161,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIGGER_colonEVENT_colonMS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonSENDER_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonSENDER_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonSEND_children, 49 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonSEND_children, 51 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIGGER_colonEVENT_colonSEN_children, 0 }
@@ -3159,20 +3180,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonSE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTHRESHOLD_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTHRESHOLD_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEVENT_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIGGER_colonEVENT_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonTHRESH_children, 47 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonTHRESH_children, 49 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonEVENT_colonTHRES_children, 0 }
@@ -3184,10 +3205,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIGGER_colonEVENT_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTYPE_children, 45 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTYPE_children, 47 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIGGER_colonEVENT_colonTYP_children, 0 }
@@ -3220,7 +3241,7 @@ namespace T76::SCPI {
         { 'V', 0, 2, _node_TRIGGER_colonEV_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 43 } // Terminal: TRIGger:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 45 } // Terminal: TRIGger:RESET
     };
     const TrieNode _node_TRIGGER_colonRES_children[] = {
         { 'E', 0, 1, _node_TRIGGER_colonRESE_children, 0 }
@@ -3232,13 +3253,13 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIGGER_colonRE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSTATUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: TRIGger:STATus?
     };
     const TrieNode _node_TRIGGER_colonSTATU_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonSTATUS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSTAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 }, // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 }, // Terminal: TRIGger:STATus?
         { 'U', 0, 1, _node_TRIGGER_colonSTATU_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSTA_children[] = {
@@ -3248,10 +3269,10 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_TRIGGER_colonSTA_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonMODE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 58 } // Terminal: TRIGger:SYNC:MODE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 } // Terminal: TRIGger:SYNC:MODE?
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonMOD_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonMODE_children, 57 } // Terminal: TRIGger:SYNC:MODE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonMODE_children, 59 } // Terminal: TRIGger:SYNC:MODE
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonMO_children[] = {
         { 'D', 0, 1, _node_TRIGGER_colonSYNC_colonMOD_children, 0 }
@@ -3260,10 +3281,10 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIGGER_colonSYNC_colonMO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSEWIDTH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 } // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 62 } // Terminal: TRIGger:SYNC:PULSEwidth?
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSEWIDT_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonPULSEWIDTH_children, 59 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonPULSEWIDTH_children, 61 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSEWID_children[] = {
         { 'T', 0, 1, _node_TRIGGER_colonSYNC_colonPULSEWIDT_children, 0 }
@@ -3275,11 +3296,11 @@ namespace T76::SCPI {
         { 'I', 0, 1, _node_TRIGGER_colonSYNC_colonPULSEWI_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 }, // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 62 }, // Terminal: TRIGger:SYNC:PULSEwidth?
         { 'W', 0, 1, _node_TRIGGER_colonSYNC_colonPULSEW_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULS_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonSYNC_colonPULSE_children, 59 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonSYNC_colonPULSE_children, 61 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPUL_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonSYNC_colonPULS_children, 0 }
@@ -3383,9 +3404,11 @@ namespace T76::SCPI {
         { &T76::DRPD::App::_queryVBusOVPThreshold, 0, nullptr }, // BUS:VBUS:OVPThreshold?
         { &T76::DRPD::App::_setVBusOCPThreshold, 1, command_33_params }, // BUS:VBUS:OCPThreshold
         { &T76::DRPD::App::_queryVBusOCPThreshold, 0, nullptr }, // BUS:VBUS:OCPThreshold?
+        { &T76::DRPD::App::_queryVBusCalibration, 0, nullptr }, // BUS:VBUS:CAL?
+        { &T76::DRPD::App::_setVBusCalibrationPoint, 1, command_36_params }, // BUS:VBUS:CAL
         { &T76::DRPD::App::_querySinkAvailablePDOCount, 0, nullptr }, // SINK:PDO:COUNT?
-        { &T76::DRPD::App::_querySinkRequestedPDOAtIndex, 1, command_36_params }, // SINK:PDO?
-        { &T76::DRPD::App::_setSinkPDO, 3, command_37_params }, // SINK:PDO
+        { &T76::DRPD::App::_querySinkRequestedPDOAtIndex, 1, command_38_params }, // SINK:PDO?
+        { &T76::DRPD::App::_setSinkPDO, 3, command_39_params }, // SINK:PDO
         { &T76::DRPD::App::_querySinkStatus, 0, nullptr }, // SINK:STATUS?
         { &T76::DRPD::App::_querySinkNegotiatedPDO, 0, nullptr }, // SINK:STATUS:PDO?
         { &T76::DRPD::App::_querySinkNegotiatedVoltage, 0, nullptr }, // SINK:STATUS:VOLTAGE?
@@ -3393,38 +3416,38 @@ namespace T76::SCPI {
         { &T76::DRPD::App::_querySinkErrorStatus, 0, nullptr }, // SINK:STATUS:ERROR?
         { &T76::DRPD::App::_resetTriggerController, 0, nullptr }, // TRIGger:RESET
         { &T76::DRPD::App::_queryTriggerControllerStatus, 0, nullptr }, // TRIGger:STATus?
-        { &T76::DRPD::App::_setTriggerEventType, 1, command_45_params }, // TRIGger:EVent:TYPE
+        { &T76::DRPD::App::_setTriggerEventType, 1, command_47_params }, // TRIGger:EVent:TYPE
         { &T76::DRPD::App::_queryTriggerEventType, 0, nullptr }, // TRIGger:EVent:TYPE?
-        { &T76::DRPD::App::_setTriggerEventThreshold, 1, command_47_params }, // TRIGger:EVent:THRESHold
+        { &T76::DRPD::App::_setTriggerEventThreshold, 1, command_49_params }, // TRIGger:EVent:THRESHold
         { &T76::DRPD::App::_queryTriggerEventThreshold, 0, nullptr }, // TRIGger:EVent:THRESHold?
-        { &T76::DRPD::App::_setTriggerEventSenderFilter, 1, command_49_params }, // TRIGger:EVent:SENDer
+        { &T76::DRPD::App::_setTriggerEventSenderFilter, 1, command_51_params }, // TRIGger:EVent:SENDer
         { &T76::DRPD::App::_queryTriggerEventSenderFilter, 0, nullptr }, // TRIGger:EVent:SENDer?
-        { &T76::DRPD::App::_setTriggerEventMessageTypeFilter, 2, command_51_params }, // TRIGger:EVent:MSGType:FILTer
+        { &T76::DRPD::App::_setTriggerEventMessageTypeFilter, 2, command_53_params }, // TRIGger:EVent:MSGType:FILTer
         { &T76::DRPD::App::_queryTriggerEventMessageTypeFilter, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer?
         { &T76::DRPD::App::_clearTriggerEventMessageTypeFilter, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer:CLEAR
-        { &T76::DRPD::App::_setTriggerAutoRepeatState, 1, command_54_params }, // TRIGger:EVent:AUTOREPEAT
+        { &T76::DRPD::App::_setTriggerAutoRepeatState, 1, command_56_params }, // TRIGger:EVent:AUTOREPEAT
         { &T76::DRPD::App::_queryTriggerAutoRepeatState, 0, nullptr }, // TRIGger:EVent:AUTOREPEAT?
         { &T76::DRPD::App::_queryTriggerEventCount, 0, nullptr }, // TRIGger:EVent:COUNT?
-        { &T76::DRPD::App::_setSyncOutputMode, 1, command_57_params }, // TRIGger:SYNC:MODE
+        { &T76::DRPD::App::_setSyncOutputMode, 1, command_59_params }, // TRIGger:SYNC:MODE
         { &T76::DRPD::App::_querySyncOutputMode, 0, nullptr }, // TRIGger:SYNC:MODE?
-        { &T76::DRPD::App::_setSyncPulseWidth, 1, command_59_params }, // TRIGger:SYNC:PULSEwidth
+        { &T76::DRPD::App::_setSyncPulseWidth, 1, command_61_params }, // TRIGger:SYNC:PULSEwidth
         { &T76::DRPD::App::_querySyncPulseWidth, 0, nullptr }, // TRIGger:SYNC:PULSEwidth?
-        { &T76::DRPD::App::_setVBusManagerState, 1, command_61_params }, // TEST:VBUSMAN:EN
+        { &T76::DRPD::App::_setVBusManagerState, 1, command_63_params }, // TEST:VBUSMAN:EN
         { &T76::DRPD::App::_queryVBusManagerState, 0, nullptr }, // TEST:VBUSMAN:EN?
-        { &T76::DRPD::App::_setCC1Role, 1, command_63_params }, // TEST:CCROLE:CC1
+        { &T76::DRPD::App::_setCC1Role, 1, command_65_params }, // TEST:CCROLE:CC1
         { &T76::DRPD::App::_queryCC1Role, 0, nullptr }, // TEST:CCROLE:CC1?
-        { &T76::DRPD::App::_setCC2Role, 1, command_65_params }, // TEST:CCROLE:CC2
+        { &T76::DRPD::App::_setCC2Role, 1, command_67_params }, // TEST:CCROLE:CC2
         { &T76::DRPD::App::_queryCC2Role, 0, nullptr }, // TEST:CCROLE:CC2?
-        { &T76::DRPD::App::_setDUTChannel, 1, command_67_params }, // TEST:CCBUS:DUT:CHANNEL
+        { &T76::DRPD::App::_setDUTChannel, 1, command_69_params }, // TEST:CCBUS:DUT:CHANNEL
         { &T76::DRPD::App::_queryDUTChannel, 0, nullptr }, // TEST:CCBUS:DUT:CHANNEL?
-        { &T76::DRPD::App::_setUSDSChannel, 1, command_69_params }, // TEST:CCBUS:USDS:CHANNEL
+        { &T76::DRPD::App::_setUSDSChannel, 1, command_71_params }, // TEST:CCBUS:USDS:CHANNEL
         { &T76::DRPD::App::_queryUSDSChannel, 0, nullptr }, // TEST:CCBUS:USDS:CHANNEL?
-        { &T76::DRPD::App::_setCCMuxState, 1, command_71_params }, // TEST:CCBUS:MUX
+        { &T76::DRPD::App::_setCCMuxState, 1, command_73_params }, // TEST:CCBUS:MUX
         { &T76::DRPD::App::_queryCCMuxState, 0, nullptr }, // TEST:CCBUS:MUX?
     };
 
     template<>
-    const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_commandCount = 73;
+    const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_commandCount = 75;
 
     template<>
     const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_maxParameterCount = 3;

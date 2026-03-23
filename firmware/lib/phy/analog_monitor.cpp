@@ -195,6 +195,15 @@ std::array<float, AnalogMonitor::VBusCorrectionPointCount> AnalogMonitor::defaul
     return {};
 }
 
+const std::array<float, AnalogMonitor::VBusCorrectionPointCount> &AnalogMonitor::vBusVoltageCorrectionByRawVolt() const {
+    return _vBusVoltageCorrectionByRawVolt;
+}
+
+void AnalogMonitor::vBusVoltageCorrectionByRawVolt(size_t bucket, float correctionVolts) {
+    assert(bucket < _vBusVoltageCorrectionByRawVolt.size());
+    _vBusVoltageCorrectionByRawVolt[bucket] = correctionVolts;
+}
+
 float AnalogMonitor::vBusVoltage() const {
     return std::trunc(_readings.vBusVoltageAverager.average() * 100.0f) / 100.0f;
 }

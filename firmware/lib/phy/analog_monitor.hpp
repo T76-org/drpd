@@ -150,6 +150,21 @@ namespace T76::DRPD::PHY {
         static std::array<float, VBusCorrectionPointCount> defaultVBusVoltageCorrection();
 
         /**
+         * @brief Return the full persisted VBUS correction table.
+         *
+         * @return const std::array<float, VBusCorrectionPointCount> & Correction values ordered by raw bucket 0..60V.
+         */
+        const std::array<float, VBusCorrectionPointCount> &vBusVoltageCorrectionByRawVolt() const;
+
+        /**
+         * @brief Update one VBUS correction entry by raw bucket index.
+         *
+         * @param bucket Raw integer-voltage bucket in the range 0..60.
+         * @param correctionVolts Additive correction in volts for the bucket.
+         */
+        void vBusVoltageCorrectionByRawVolt(size_t bucket, float correctionVolts);
+
+        /**
          * @brief Get the VBUS voltage reading
          * 
          * @return float 
