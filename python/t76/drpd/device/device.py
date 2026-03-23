@@ -8,7 +8,7 @@ over USB using SCPI commands.
 import asyncio
 import logging
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import usb
 
@@ -53,11 +53,6 @@ class Device:
     :param usb_device: The USB device object representing the DRPD device.
     :type usb_device: usb.core.Device
     """
-
-    MODE_CONFIG_KEY = "device_mode"
-    CAPTURE_CONFIG_KEY = "device_capture"
-    TRIGGER_CONFIG_KEY = "device_trigger"
-    VBUS_CONFIG_KEY = "device_vbus"
 
     def __init__(self, usb_device: usb.core.Device):
         self.events = DeviceEvents()
@@ -221,34 +216,6 @@ class Device:
         """
         logging.warning("Unregistering observer: %s", observer)
         self.events.unregister_event_observer(observer)
-
-    async def save_config(self) -> Dict[str, Any]:
-        """
-        Save the current device configuration.
-
-        :return: A dictionary representing the device configuration.
-        :rtype: Dict[str, Any]
-        """
-        config: Dict[str, Any] = {}
-
-        config[self.MODE_CONFIG_KEY] = await self.mode.save_config()
-        config[self.CAPTURE_CONFIG_KEY] = await self.capture.save_config()
-        config[self.TRIGGER_CONFIG_KEY] = await self.trigger.save_config()
-        config[self.VBUS_CONFIG_KEY] = await self.vbus.save_config()
-
-        return config
-
-    async def load_config(self, config: Dict[str, Any]) -> None:
-        """
-        Load a device configuration from a dictionary.
-
-        :param config: A dictionary representing the device configuration.
-        :type config: Dict[str, Any]
-        """
-        await self.mode.load_config(config[self.MODE_CONFIG_KEY] if self.MODE_CONFIG_KEY in config else {})
-        await self.capture.load_config(config[self.CAPTURE_CONFIG_KEY] if self.CAPTURE_CONFIG_KEY in config else {})
-        await self.trigger.load_config(config[self.TRIGGER_CONFIG_KEY] if self.TRIGGER_CONFIG_KEY in config else {})
-        await self.vbus.load_config(config[self.VBUS_CONFIG_KEY] if self.VBUS_CONFIG_KEY in config else {})
 
     # Encoder commands
 

@@ -25,38 +25,9 @@ class DeviceCapture:
     :type internal: DeviceInternal
     """
 
-    ENABLED_CONFIG_KEY = "enabled"
-
     def __init__(self, internal: DeviceInternal, capture_fetched_callback: Callable[[BMCSequence], None]):
         self._internal = internal
         self._capture_fetched_callback = capture_fetched_callback
-
-    async def load_config(self, config: dict) -> None:
-        """
-        Load capture configuration from a dictionary.
-
-        :param config: A dictionary containing capture configuration.
-        :type config: dict
-        """
-        if self.ENABLED_CONFIG_KEY in config:
-            if OnOffStatus.from_string(config[self.ENABLED_CONFIG_KEY]) == OnOffStatus.ON:
-                await self.start()
-            else:
-                await self.stop()
-        else:
-            await self.stop()
-
-    async def save_config(self) -> dict:
-        """
-        Save the current capture configuration to a dictionary.
-
-        :return: A dictionary containing the current capture configuration.
-        :rtype: dict
-        """
-        status = await self.get_status()
-        return {
-            self.ENABLED_CONFIG_KEY: status.name
-        }
 
     async def start(self) -> None:
         """
