@@ -19,8 +19,6 @@ from textual.widgets import Input, RadioSet, RadioButton, Static
 from t76.drpd.device.device import Device
 from t76.drpd.device.types import OnOffStatus, TriggerSyncMode, TriggerType
 
-from ..app import config
-
 
 class TriggerSetupModal(ModalScreen):
 
@@ -87,7 +85,6 @@ class TriggerSetupModal(ModalScreen):
         if self.device is not None and event.pressed.id is not None:
             trigger_type = TriggerType(event.pressed.id)
             await self.device.trigger.set_type(trigger_type)
-            await config.save(self.device)
 
     @on(Input.Submitted, "#event_threshold_input")
     async def on_event_threshold_submitted(self, event: Input.Submitted) -> None:
@@ -96,7 +93,6 @@ class TriggerSetupModal(ModalScreen):
             try:
                 threshold = int(event.value)
                 await self.device.trigger.set_event_threshold(threshold)
-                await config.save(self.device)
             except ValueError:
                 logging.error("Invalid event threshold input.")
 
@@ -106,7 +102,6 @@ class TriggerSetupModal(ModalScreen):
         if self.device is not None:
             status = OnOffStatus.ON if event.value else OnOffStatus.OFF
             await self.device.trigger.set_autorepeat(status)
-            await config.save(self.device)
 
     @on(RadioSet.Changed, "#sync_mode_radio_set")
     async def on_sync_mode_selected(self, event: RadioSet.Changed) -> None:
@@ -114,7 +109,6 @@ class TriggerSetupModal(ModalScreen):
         if self.device is not None and event.pressed.id is not None:
             sync_mode = TriggerSyncMode.from_string(event.pressed.id)
             await self.device.trigger.set_sync_mode(sync_mode)
-            await config.save(self.device)
 
     @on(Input.Submitted, "#pulse_length_input")
     async def on_pulse_length_submitted(self, event: Input.Submitted) -> None:
@@ -123,7 +117,6 @@ class TriggerSetupModal(ModalScreen):
             try:
                 length_us = int(event.value)
                 await self.device.trigger.set_sync_pulse_length(length_us)
-                await config.save(self.device)
             except ValueError:
                 logging.error("Invalid pulse length input.")
 

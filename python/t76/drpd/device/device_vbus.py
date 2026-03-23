@@ -32,9 +32,6 @@ class DeviceVBus:
     Represents the VBus system of the DRPD device.
     """
 
-    OVP_KEY = "vbus_ovp_threshold"
-    OCP_KEY = "vbus_ocp_threshold"
-
     def __init__(self, device_internal: DeviceInternal):
         """
         Initialize the DeviceVBus with the given DeviceInternal.
@@ -43,38 +40,6 @@ class DeviceVBus:
         :type device_internal: DeviceInternal
         """
         self._internal = device_internal
-
-    async def load_config(self, config: dict) -> None:
-        """
-        Load the VBus configuration from a dictionary.
-        :param config: A dictionary representing the VBus configuration.
-        :type config: dict
-        """
-        if self.OVP_KEY in config:
-            try:
-                await self.set_ovp_threshold(float(config[self.OVP_KEY]))
-            except ValueError:
-                await self.set_ovp_threshold(60.0)
-
-        if self.OCP_KEY in config:
-            try:
-                await self.set_ocp_threshold(float(config[self.OCP_KEY]))
-            except ValueError:
-                await self.set_ocp_threshold(6.0)
-
-    async def save_config(self) -> dict:
-        """
-        Save the current trigger configuration to a dictionary.
-
-        :return: A dictionary representing the trigger configuration.
-        :rtype: dict
-        """
-        config = {
-            self.OVP_KEY: await self.get_ovp_threshold(),
-            self.OCP_KEY: await self.get_ocp_threshold(),
-        }
-
-        return config
 
     async def reset(self) -> None:
         """

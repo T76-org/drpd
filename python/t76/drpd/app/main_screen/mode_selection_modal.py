@@ -17,8 +17,6 @@ from textual.widgets.option_list import Option
 from t76.drpd.device.device import Device
 from t76.drpd.device.types import Mode
 
-from ..app import config
-
 
 class ModeSelectionModal(ModalScreen):
 
@@ -51,5 +49,4 @@ class ModeSelectionModal(ModalScreen):
             mode = Mode(event.option.id)
             await self.device.mode.set(mode)
 
-        await config.save(self.device)
         self.app.pop_screen()

@@ -14,42 +14,12 @@ class DeviceMode:
     Represents the device mode-related commands for a DRPD device.
     """
 
-    MODE_CONFIG_KEY = "device_mode"
-
     def __init__(self, internal: DeviceInternal):
         """Initialize the DeviceMode with the given internal device interface.
         :param internal: The internal device interface.
         :type internal: DeviceInternal
         """
         self._internal = internal
-
-    async def load_config(self, config: dict) -> None:
-        """
-        Load the device mode configuration from the given config dictionary.
-
-        :param config: The configuration dictionary.
-        :type config: dict
-        """
-        if self.MODE_CONFIG_KEY in config:
-            mode_str = config[self.MODE_CONFIG_KEY]
-
-            try:
-                mode = Mode.from_string(mode_str)
-                await self.set(mode)
-            except ValueError:
-                await self.set(Mode.DISABLED)
-        else:
-            await self.set(Mode.DISABLED)
-
-    async def save_config(self) -> dict:
-        """
-        Save the current device mode configuration to a dictionary.
-
-        :return: The configuration dictionary.
-        :rtype: dict
-        """
-        mode = await self.get()
-        return {self.MODE_CONFIG_KEY: mode.value}
 
     async def get(self) -> Mode:
         """

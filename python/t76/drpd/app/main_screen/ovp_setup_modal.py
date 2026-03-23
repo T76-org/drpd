@@ -19,8 +19,6 @@ from textual.widgets import Input, Static, Button
 
 from t76.drpd.device.device import Device
 
-from ..app import config
-
 
 class OvpSetupModal(ModalScreen):
     """Modal screen for configuring OVP (Over-Voltage Protection) and OCP (Over-Current Protection) thresholds."""
@@ -123,7 +121,6 @@ class OvpSetupModal(ModalScreen):
         try:
             await self.device.vbus.set_ovp_threshold(ovp_threshold)
             await self.device.vbus.set_ocp_threshold(ocp_threshold)
-            await config.save(self.device)
             self.app.pop_screen()
         except (RuntimeError, ValueError, TypeError) as error:
             logging.exception("Failed to set thresholds: %s", error)
