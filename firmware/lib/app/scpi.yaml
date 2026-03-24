@@ -262,6 +262,31 @@ commands:
     description:  "Query the VBUS overcurrent protection threshold in milliamps"
     handler:      _queryVBusOCPThreshold
 
+  - syntax:       "BUS:VBUS:CALibrate?"
+    description:  |-
+                    Query the full VBUS correction table.
+                    Returns 61 comma-separated correction values ordered by
+                    raw VBUS bucket from 0V through 60V.
+    handler:      _queryVBusCalibration
+
+  - syntax:       "BUS:VBUS:CALibrate"
+    description:  |-
+                    Capture the current live VBUS reading and store the
+                    resulting correction for the specified raw VBUS bucket.
+                    The command stores bucket - measured_vbus for the selected
+                    integer raw bucket and persists the updated correction table.
+    parameters:
+      - name:        bucket
+        type:        number
+        description: "Raw integer-voltage VBUS bucket to update, from 0 to 60."
+    handler:      _setVBusCalibrationPoint
+
+  - syntax:       "BUS:VBUS:CALibrate:DEFault"
+    description:  |-
+                    Restore the full VBUS correction table to its default
+                    firmware-defined values and persist the updated table.
+    handler:      _resetVBusCalibration
+
   ############################
   # Sink commands
   ############################

@@ -88,11 +88,20 @@
 namespace T76::DRPD {
 
     /**
-     * @brief Persisted VBUS protection settings.
+     * @brief Persisted VBUS protection settings owned by VBusManager.
      */
     struct VBusPersistentConfig {
         float ovpThresholdVolts = 48.0f;   ///< Over-voltage threshold in volts.
         float ocpThresholdAmps = 5.0f;     ///< Over-current threshold in amps.
+    };
+
+    /**
+     * @brief Persisted analog-monitor calibration settings.
+     */
+    struct AnalogMonitorPersistentConfig {
+        static constexpr size_t VBusCorrectionPointCount = 61; ///< Raw VBUS buckets from 0V through 60V.
+
+        std::array<float, VBusCorrectionPointCount> vbusVoltageCorrectionByRawVolt{}; ///< Additive VBUS correction in volts for each raw integer-voltage bucket; runtime interpolation begins at 1V and readings below 1V bypass the table.
     };
 
     /**
@@ -134,7 +143,8 @@ namespace T76::DRPD {
      * payload type for any future format additions.
      */
     struct PersistentConfigDataV1 {
-        VBusPersistentConfig vbus{};       ///< Persisted VBUS settings.
+        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
+        AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
         TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
         SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
     };

@@ -6,11 +6,12 @@
 
 #include "app.hpp"
 
+#include <cmath>
+
 #include "../phy/vbus_manager.hpp"
 
 
 using namespace T76::DRPD;
-
 
 void App::_queryVBusStatus(const std::vector<T76::SCPI::ParameterValue> &) {
     PHY::VBusState state = _vbusManager.state();
@@ -88,4 +89,50 @@ void App::_setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &par
 void App::_queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &) {
     float threshold = _vbusManager.ocpThreshold();
     _usbInterface.sendUSBTMCBulkData(std::to_string(threshold));
+}
+
+void App::_setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (params.empty()) {
+        _interpreter.addError(-222, "Calibration bucket is required");
+        return;
+    }
+
+    double bucketValue = params[0].numberValue;
+    if (std::trunc(bucketValue) != bucketValue) {
+        _interpreter.addError(-222, "Calibration bucket must be an integer from 0 to 60");
+        return;
+    }
+
+    if (bucketValue < 0.0 || bucketValue > 60.0) {
+        _interpreter.addError(-222, "Calibration bucket must be in the range 0 to 60");
+        return;
+    }
+
+    size_t bucket = static_cast<size_t>(bucketValue);
+    float measuredVBus = _analogMonitor.vBusVoltage();
+    float correctionVolts = static_cast<float>(bucket) - measuredVBus;
+
+    _analogMonitor.vBusVoltageCorrectionByRawVolt(bucket, correctionVolts);
+    _savePersistentConfig();
+}
+
+void App::_queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
+    const auto &corrections = _analogMonitor.vBusVoltageCorrectionByRawVolt();
+    std::string response;
+
+    for (size_t index = 0; index < corrections.size(); ++index) {
+        response += _formatAnalogValue(corrections[index]);
+        if (index < corrections.size() - 1) {
+            response += ",";
+        }
+    }
+
+    _usbInterface.sendUSBTMCBulkData(response);
+}
+
+void App::_resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
+    _analogMonitor.applyPersistentConfig(T76::DRPD::AnalogMonitorPersistentConfig{
+        .vbusVoltageCorrectionByRawVolt = PHY::AnalogMonitor::defaultVBusVoltageCorrection(),
+    });
+    _savePersistentConfig();
 }

@@ -19,6 +19,7 @@ This project is a C++ implementation of a USB Power Delivery (USB-PD) controller
   - Use `//` for single-line comments and `/* ... */` for multi-line comments.
   - Write comments in English and ensure they are clear and concise.
   - Use Doxygen-style comments for documenting classes and functions.
+  - Do not introduce anonymous namespaces in `.cpp` files. If logic is shared across handlers in a module, put it on the owning class or in a named namespace/module where ownership is explicit.
   - Ensure that all functions and classes have appropriate comments explaining their purpose and usage.
   - Every header file that declares a class must include a module-level file docblock (at the top of the file) that explains, in plain language, what the module/class is responsible for, how it fits in the architecture, and key behavior/developer expectations.
   - When adding a new feature or persistence mechanism, the file-level docblock must also explain the operational model, important safety/runtime constraints, and the maintenance workflow for extending it later.

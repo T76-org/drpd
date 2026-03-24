@@ -11,20 +11,18 @@
 
 using namespace T76::DRPD;
 
-namespace {
-    std::string formatAnalogValue(float value) {
-        float truncatedValue = std::trunc(value * 100.0f) / 100.0f;
-        char buffer[20];
-        int written = std::snprintf(
-            buffer, sizeof(buffer), "%.2f", static_cast<double>(truncatedValue));
-        if (written < 0) {
-            return "0.00";
-        }
-        if (written >= static_cast<int>(sizeof(buffer))) {
-            return std::string(buffer, sizeof(buffer) - 1);
-        }
-        return std::string(buffer);
+std::string App::_formatAnalogValue(float value) {
+    float truncatedValue = std::trunc(value * 100.0f) / 100.0f;
+    char buffer[20];
+    int written = std::snprintf(
+        buffer, sizeof(buffer), "%.2f", static_cast<double>(truncatedValue));
+    if (written < 0) {
+        return "0.00";
     }
+    if (written >= static_cast<int>(sizeof(buffer))) {
+        return std::string(buffer, sizeof(buffer) - 1);
+    }
+    return std::string(buffer);
 }
 
 void App::_measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &) {
@@ -39,15 +37,15 @@ void App::_measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &
 
     std::string response = 
         std::to_string(readings.captureTimestampUs) + "," +
-        formatAnalogValue(_analogMonitor.vBusVoltage()) + "," +
-        formatAnalogValue(_analogMonitor.vBusCurrent()) + "," +
-        formatAnalogValue(readings.dutCC1Voltage) + "," +
-        formatAnalogValue(readings.dutCC2Voltage) + "," +
-        formatAnalogValue(readings.usdsCC1Voltage) + "," +
-        formatAnalogValue(readings.usdsCC2Voltage) + "," +
-        formatAnalogValue(readings.adcVRefVoltage) + "," +
-        formatAnalogValue(readings.groundRefVoltage) + "," +
-        formatAnalogValue(readings.currentRefVoltage) + "," +
+        _formatAnalogValue(_analogMonitor.vBusVoltage()) + "," +
+        _formatAnalogValue(_analogMonitor.vBusCurrent()) + "," +
+        _formatAnalogValue(readings.dutCC1Voltage) + "," +
+        _formatAnalogValue(readings.dutCC2Voltage) + "," +
+        _formatAnalogValue(readings.usdsCC1Voltage) + "," +
+        _formatAnalogValue(readings.usdsCC2Voltage) + "," +
+        _formatAnalogValue(readings.adcVRefVoltage) + "," +
+        _formatAnalogValue(readings.groundRefVoltage) + "," +
+        _formatAnalogValue(readings.currentRefVoltage) + "," +
         std::to_string(accumulationElapsedTimeUs) + "," +
         std::to_string(readings.accumulatedChargeMah) + "," +
         std::to_string(readings.accumulatedEnergyMwh);
@@ -56,39 +54,39 @@ void App::_measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &
 }
 
 void App::_measureVBusVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.vBusVoltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.vBusVoltage()));
 }
 
 void App::_measureVBusCurrent(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.vBusCurrent()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.vBusCurrent()));
 }
 
 void App::_measureDUTCC1Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.dutCC1Voltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.dutCC1Voltage()));
 }
 
 void App::_measureDUTCC2Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.dutCC2Voltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.dutCC2Voltage()));
 }
 
 void App::_measureUSDSCC1Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.usdsCC1Voltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.usdsCC1Voltage()));
 }
 
 void App::_measureUSDSCC2Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.usdsCC2Voltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.usdsCC2Voltage()));
 }
 
 void App::_measureADCRefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.adcVRefVoltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.adcVRefVoltage()));
 }
 
 void App::_measureCurrentRefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.currentRefVoltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.currentRefVoltage()));
 }
 
 void App::_measureGroundRefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(formatAnalogValue(_analogMonitor.groundRefVoltage()));
+    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.groundRefVoltage()));
 }
 
 void App::_measureAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &) {

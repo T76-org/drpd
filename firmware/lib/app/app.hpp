@@ -115,6 +115,9 @@ namespace T76::DRPD {
         void _queryVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
+        void _resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
 
         void _setVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &params);
         void _queryVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &params);
@@ -170,6 +173,17 @@ namespace T76::DRPD {
         const char* getComponentName() const;
 
     protected:
+        /**
+         * @brief Format an analog floating-point value for SCPI responses.
+         *
+         * Values are truncated to two decimal places before formatting to keep
+         * response output stable across analog-related SCPI commands.
+         *
+         * @param value Analog value to format.
+         * @return std::string Two-decimal SCPI-ready string representation.
+         */
+        static std::string _formatAnalogValue(float value);
+
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.

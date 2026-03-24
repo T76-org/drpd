@@ -13,6 +13,8 @@
 #include <hardware/regs/addressmap.h>
 #include <pico/time.h>
 
+#include "../phy/analog_monitor.hpp"
+
 using namespace T76::DRPD;
 
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV1>);
@@ -76,6 +78,9 @@ PersistentConfigDataCurrent PersistentConfig::_defaultConfig() const {
         .vbus = VBusPersistentConfig{
             .ovpThresholdVolts = 48.0f,
             .ocpThresholdAmps = 5.0f,
+        },
+        .analogMonitor = AnalogMonitorPersistentConfig{
+            .vbusVoltageCorrectionByRawVolt = T76::DRPD::PHY::AnalogMonitor::defaultVBusVoltageCorrection(),
         },
         .trigger = TriggerPersistentConfig{
             .mode = 0,
