@@ -110,7 +110,7 @@ void App::_setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> 
 
     size_t bucket = static_cast<size_t>(bucketValue);
     float measuredVBus = _analogMonitor.vBusVoltage();
-    float correctionVolts = measuredVBus - static_cast<float>(bucket);
+    float correctionVolts = static_cast<float>(bucket) - measuredVBus;
 
     _analogMonitor.vBusVoltageCorrectionByRawVolt(bucket, correctionVolts);
     _savePersistentConfig();
@@ -128,4 +128,11 @@ void App::_queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) 
     }
 
     _usbInterface.sendUSBTMCBulkData(response);
+}
+
+void App::_resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
+    _analogMonitor.applyPersistentConfig(T76::DRPD::AnalogMonitorPersistentConfig{
+        .vbusVoltageCorrectionByRawVolt = PHY::AnalogMonitor::defaultVBusVoltageCorrection(),
+    });
+    _savePersistentConfig();
 }

@@ -101,7 +101,7 @@ namespace T76::DRPD {
     struct AnalogMonitorPersistentConfig {
         static constexpr size_t VBusCorrectionPointCount = 61; ///< Raw VBUS buckets from 0V through 60V.
 
-        std::array<float, VBusCorrectionPointCount> vbusVoltageCorrectionByRawVolt{}; ///< Additive VBUS correction in volts for each raw integer-voltage bucket.
+        std::array<float, VBusCorrectionPointCount> vbusVoltageCorrectionByRawVolt{}; ///< Additive VBUS correction in volts for each raw integer-voltage bucket; runtime interpolation begins at 1V and readings below 1V bypass the table.
     };
 
     /**

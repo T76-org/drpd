@@ -284,9 +284,13 @@ float inline AnalogMonitor::_readVoltageFromCCLineChannel(ADCChannel channel) {
 }
 
 float AnalogMonitor::_applyVBusVoltageCalibration(float rawScaledVoltage) const {
+    if (rawScaledVoltage < MinimumCalibratedVBusVoltage) {
+        return rawScaledVoltage;
+    }
+
     float clampedRawVoltage = std::clamp(
         rawScaledVoltage,
-        0.0f,
+        MinimumCalibratedVBusVoltage,
         static_cast<float>(VBusCorrectionSegmentCount)
     );
     size_t lowerIndex = static_cast<size_t>(clampedRawVoltage);
@@ -294,6 +298,8 @@ float AnalogMonitor::_applyVBusVoltageCalibration(float rawScaledVoltage) const 
     if (lowerIndex >= VBusCorrectionSegmentCount) {
         return clampedRawVoltage + _vBusVoltageCorrectionByRawVolt.back();
     }
+
+    lowerIndex = std::max<size_t>(lowerIndex, static_cast<size_t>(MinimumCalibratedVBusVoltage));
 
     float fraction = clampedRawVoltage - static_cast<float>(lowerIndex);
     float lowerCorrection = _vBusVoltageCorrectionByRawVolt[lowerIndex];

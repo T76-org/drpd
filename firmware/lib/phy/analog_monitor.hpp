@@ -23,11 +23,14 @@
  * VBUS voltage calibration uses a persisted per-bucket correction table with
  * one point for each raw integer-voltage bucket from 0V through 60V. Each
  * entry stores the additive correction, in volts, that should be applied near
- * that raw bucket. At runtime the monitor clamps the raw scaled VBUS value to
- * the table range, linearly interpolates between the two adjacent correction
- * entries, and adds the interpolated correction to the raw value. This keeps
- * the high-frequency sampling path fixed-cost and avoids the inverse transfer
- * lookup previously required.
+ * that raw bucket. Runtime interpolation intentionally starts at 1V, because
+ * the available calibration fixture cannot source a reliable 0V point. Raw
+ * scaled VBUS readings below 1V therefore bypass the correction table and are
+ * reported directly from the ADC-derived transfer function. For readings from
+ * 1V upward, the monitor clamps to the table range, linearly interpolates
+ * between the two adjacent correction entries, and adds the interpolated
+ * correction to the raw value. This keeps the high-frequency sampling path
+ * fixed-cost and avoids the inverse transfer lookup previously required.
  *
  * Note that the VBUS voltage value is also oversampled and decimated to
  * increase resolution, since the ADC is only 12 bits and the voltage
@@ -101,6 +104,7 @@ namespace T76::DRPD::PHY {
     public:
         static constexpr size_t VBusCorrectionPointCount = T76::DRPD::AnalogMonitorPersistentConfig::VBusCorrectionPointCount;
         static constexpr size_t VBusCorrectionSegmentCount = VBusCorrectionPointCount - 1;
+        static constexpr float MinimumCalibratedVBusVoltage = 1.0f; ///< Lowest raw VBUS value, in volts, where correction interpolation is applied.
 
         SemaphoreHandle_t _adcAccessMutex; ///< Mutex to protect access to the ADC
 
@@ -289,7 +293,7 @@ namespace T76::DRPD::PHY {
         AnalogMonitorReadings _readings; ///< Struct holding all current readings
         uint64_t _chargeAccumulationResidue = 0; ///< Sub-mAh charge numerator residue in centiamp-microseconds
         uint64_t _energyAccumulationResidue = 0; ///< Sub-mWh energy numerator residue in centivolt-centiamp-microseconds
-        std::array<float, VBusCorrectionPointCount> _vBusVoltageCorrectionByRawVolt = defaultVBusVoltageCorrection(); ///< Additive correction in volts for each raw integer-voltage bucket from 0V through 60V.
+        std::array<float, VBusCorrectionPointCount> _vBusVoltageCorrectionByRawVolt = defaultVBusVoltageCorrection(); ///< Additive correction in volts for each raw integer-voltage bucket from 0V through 60V; bucket 0 is retained for persistence symmetry but runtime interpolation begins at 1V.
 
         /**
          * @brief Read the voltage from a specific ADC channel

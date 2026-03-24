@@ -6,7 +6,7 @@ over USB using SCPI commands.
 """
 
 import asyncio
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from async_lru import alru_cache
 
@@ -22,6 +22,8 @@ class DeviceAnalogMonitor:
     """
     Represents the analog monitor-related commands for a DRPD device.
     """
+
+    VBUS_CALIBRATION_POINT_COUNT = 61
 
     def __init__(self, internal: DeviceInternal, device: Optional["Device"] = None):
         """Initialize the DeviceAnalogMonitor with the given internal
@@ -88,6 +90,51 @@ class DeviceAnalogMonitor:
             accumulated_charge_mah=accumulated_charge_mah,
             accumulated_energy_mwh=accumulated_energy_mwh,
         )
+
+    async def get_vbus_calibration_table(self) -> List[float]:
+        """
+        Return the persisted VBUS calibration correction table.
+
+        :return: A list of 61 correction entries ordered by bucket index.
+        :rtype: List[float]
+        """
+        response = await self._internal.query_ascii_values_and_check(
+            "BUS:VBUS:CAL?",
+            "f",
+        )
+
+        if len(response) != self.VBUS_CALIBRATION_POINT_COUNT:
+            raise ValueError(
+                "Invalid BUS:VBUS:CAL? response. Expected "
+                f"{self.VBUS_CALIBRATION_POINT_COUNT} fields, got "
+                f"{len(response)}"
+            )
+
+        return [float(value) for value in response]
+
+    async def calibrate_vbus_bucket(self, bucket: int) -> None:
+        """
+        Capture a calibration point for the specified raw-voltage bucket.
+
+        :param bucket: The raw VBUS bucket to calibrate.
+        :type bucket: int
+        """
+        if not isinstance(bucket, int) or isinstance(bucket, bool):
+            raise ValueError("bucket must be an integer")
+
+        if bucket < 0 or bucket >= self.VBUS_CALIBRATION_POINT_COUNT:
+            raise ValueError(
+                "bucket must be in range [0, "
+                f"{self.VBUS_CALIBRATION_POINT_COUNT - 1}]"
+            )
+
+        await self._internal.write_ascii_and_check(f"BUS:VBUS:CAL {bucket}")
+
+    async def reset_vbus_calibration_to_defaults(self) -> None:
+        """
+        Restore the persisted VBUS calibration table to firmware defaults.
+        """
+        await self._internal.write_ascii_and_check("BUS:VBUS:CAL:DEF")
 
     async def start_recurring_status_updates(
             self,
