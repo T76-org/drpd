@@ -11,9 +11,26 @@
 export type DRPDSCPIParam = string | number | boolean | { raw: string }
 
 /**
+ * Shared interrupt event name emitted by DRPD USB transports.
+ */
+export const DRPD_TRANSPORT_INTERRUPT_EVENT = 'interrupt'
+
+/**
+ * Shared interrupt error event name emitted by DRPD USB transports.
+ */
+export const DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT = 'interrupterror'
+
+/**
+ * Transport identity exposed for diagnostics and selection logging.
+ */
+export type DRPDTransportKind = 'usbtmc' | 'winusb'
+
+/**
  * Transport interface used by DRPD drivers.
  */
 export interface DRPDTransport {
+  readonly kind: DRPDTransportKind
+
   /**
    * Send a SCPI command.
    *

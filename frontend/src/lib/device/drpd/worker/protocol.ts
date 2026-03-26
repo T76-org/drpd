@@ -6,6 +6,7 @@
  */
 
 import type { DRPDSCPIParam } from '../transport'
+import type { DRPDTransportKind } from '../transport'
 import type { DebugLogScopeRule } from '../../../debugLogger'
 import type {
   AnalogSampleQuery,
@@ -52,7 +53,7 @@ export type WorkerRpcRequest =
       type: 'worker-rpc'
       requestId: number
       method: 'transport.create'
-      params: { transportId: string }
+      params: { transportId: string; kind: DRPDTransportKind }
     }
   | {
       type: 'worker-rpc'

@@ -5,9 +5,12 @@
  * DRPD device driver root.
  */
 
-import USBTMCTransport from '../../transport/usbtmc'
 import { DebugLogRegistry, DebugLogger } from '../../debugLogger'
-import type { DRPDTransport } from './transport'
+import {
+  DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
+  DRPD_TRANSPORT_INTERRUPT_EVENT,
+  type DRPDTransport,
+} from './transport'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
 import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './types'
@@ -162,7 +165,7 @@ export class DRPDDevice extends EventTarget {
     this.isConnected = false
     this.debugLogs =
       options?.debugLogRegistry ??
-      (transport instanceof USBTMCTransport ? transport.debugLogs : undefined) ??
+      ((transport as DRPDTransport & { debugLogs?: DebugLogRegistry }).debugLogs ?? undefined) ??
       new DebugLogRegistry()
     this.debugLogger = this.debugLogs.getLogger('drpd.device')
     this.loggingConfig = buildDefaultLoggingConfig()
@@ -201,8 +204,8 @@ export class DRPDDevice extends EventTarget {
     if ('addEventListener' in transport) {
       const target = transport as unknown as EventTarget
       this.interruptSource = target
-      target.addEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
-      target.addEventListener(USBTMCTransport.INTERRUPT_ERROR_EVENT, this.interruptErrorHandler)
+      target.addEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, this.interruptHandler)
+      target.addEventListener(DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT, this.interruptErrorHandler)
     }
   }
 
@@ -1001,9 +1004,9 @@ export class DRPDDevice extends EventTarget {
     if (!this.interruptSource) {
       return
     }
-    this.interruptSource.removeEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
+    this.interruptSource.removeEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, this.interruptHandler)
     this.interruptSource.removeEventListener(
-      USBTMCTransport.INTERRUPT_ERROR_EVENT,
+      DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
       this.interruptErrorHandler,
     )
     this.interruptSource = undefined

@@ -18,6 +18,14 @@
 
 using namespace T76::DRPD;
 
+namespace {
+constexpr size_t kWinUSBFrameHeaderSize = 12;
+constexpr uint8_t kWinUSBFrameMagic0 = 'W';
+constexpr uint8_t kWinUSBFrameMagic1 = 'U';
+constexpr uint8_t kWinUSBFrameVersion = 1;
+constexpr uint8_t kWinUSBNotificationStatusChanged = 0x01;
+}
+
 App::App() : 
     _interpreter(*this),
     _vbusManager(_analogMonitor),
@@ -26,6 +34,18 @@ App::App() :
 }
 
 void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) {
+    _activeCommandTransport = CommandTransport::USBTMC;
+    _activeWinUSBTag = 0;
+    _pendingTextResponse.clear();
+    _processSCPIInput(data, transfer_complete);
+}
+
+void App::_onWinUSBBulkDataReceived(const std::vector<uint8_t> &data) {
+    _winusbRxBuffer.insert(_winusbRxBuffer.end(), data.begin(), data.end());
+    _drainWinUSBRxBuffer();
+}
+
+void App::_processSCPIInput(const std::vector<uint8_t> &data, bool transfer_complete) {
     for (const auto &byte : data) {
         _interpreter.processInputCharacter(byte);
     }
@@ -36,15 +56,141 @@ void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_
 }
 
 void App::_onUSBTMCAbortBulkIn() {
-    _interpreter.reset(); // Reset the interpreter state on abort to ensure clean state for next command
+    _resetCommandState();
 }
 
 void App::_onUSBTMCAbortBulkOut() {
-    _interpreter.reset(); // Reset the interpreter state on abort to ensure clean state for next command
+    _resetCommandState();
 }
 
 void App::_onUSBTMCClear() {
-    _interpreter.reset(); // Reset the interpreter state on clear to ensure clean state for next command
+    _resetCommandState();
+}
+
+void App::_sendTransportTextResponse(const std::string &data, bool addNewline) {
+    if (_activeCommandTransport == CommandTransport::USBTMC) {
+        _usbInterface.sendUSBTMCBulkData(data, addNewline);
+        return;
+    }
+
+    _pendingTextResponse += data;
+    if (!addNewline) {
+        return;
+    }
+
+    _pendingTextResponse.push_back('\n');
+    std::vector<uint8_t> payload(_pendingTextResponse.begin(), _pendingTextResponse.end());
+    _sendWinUSBFrame(WinUSBFrameType::TextResponse, _activeWinUSBTag, payload);
+    _pendingTextResponse.clear();
+}
+
+void App::_sendTransportBinaryResponse(const std::vector<uint8_t> &data) {
+    if (_activeCommandTransport == CommandTransport::USBTMC) {
+        _usbInterface.sendUSBTMCBulkData(data);
+        return;
+    }
+
+    _sendWinUSBFrame(WinUSBFrameType::BinaryResponse, _activeWinUSBTag, data);
+}
+
+bool App::_sendTransportNotification() {
+    if (_activeCommandTransport == CommandTransport::WinUSB) {
+        std::vector<uint8_t> payload = {kWinUSBNotificationStatusChanged};
+        _usbInterface.sendWinUSBInterruptData(payload);
+        return true;
+    }
+
+    return _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
+}
+
+void App::_resetCommandState() {
+    _interpreter.reset();
+    _pendingTextResponse.clear();
+    _winusbRxBuffer.clear();
+}
+
+void App::_resetWinUSBSession(uint8_t tag) {
+    _activeCommandTransport = CommandTransport::WinUSB;
+    _activeWinUSBTag = tag;
+    _resetCommandState();
+    _sendWinUSBFrame(WinUSBFrameType::SessionResetAck, tag, {});
+}
+
+uint32_t App::_readLE32(const std::vector<uint8_t> &data, size_t offset) {
+    return static_cast<uint32_t>(data[offset]) |
+           (static_cast<uint32_t>(data[offset + 1]) << 8) |
+           (static_cast<uint32_t>(data[offset + 2]) << 16) |
+           (static_cast<uint32_t>(data[offset + 3]) << 24);
+}
+
+void App::_sendWinUSBFrame(WinUSBFrameType type, uint8_t tag, const std::vector<uint8_t> &payload) {
+    std::vector<uint8_t> frame(kWinUSBFrameHeaderSize + payload.size(), 0);
+    frame[0] = kWinUSBFrameMagic0;
+    frame[1] = kWinUSBFrameMagic1;
+    frame[2] = kWinUSBFrameVersion;
+    frame[3] = static_cast<uint8_t>(type);
+    frame[4] = tag;
+    const uint32_t payloadLength = static_cast<uint32_t>(payload.size());
+    frame[8] = static_cast<uint8_t>(payloadLength & 0xff);
+    frame[9] = static_cast<uint8_t>((payloadLength >> 8) & 0xff);
+    frame[10] = static_cast<uint8_t>((payloadLength >> 16) & 0xff);
+    frame[11] = static_cast<uint8_t>((payloadLength >> 24) & 0xff);
+    std::copy(payload.begin(), payload.end(), frame.begin() + static_cast<std::ptrdiff_t>(kWinUSBFrameHeaderSize));
+
+    _usbInterface.sendWinUSBBulkData(frame);
+}
+
+void App::_drainWinUSBRxBuffer() {
+    while (_winusbRxBuffer.size() >= kWinUSBFrameHeaderSize) {
+        if (_winusbRxBuffer[0] != kWinUSBFrameMagic0 ||
+            _winusbRxBuffer[1] != kWinUSBFrameMagic1 ||
+            _winusbRxBuffer[2] != kWinUSBFrameVersion) {
+            _resetCommandState();
+            return;
+        }
+
+        const WinUSBFrameType type = static_cast<WinUSBFrameType>(_winusbRxBuffer[3]);
+        const uint8_t tag = _winusbRxBuffer[4];
+        const uint32_t payloadLength = _readLE32(_winusbRxBuffer, 8);
+        const size_t frameLength = kWinUSBFrameHeaderSize + payloadLength;
+
+        if (_winusbRxBuffer.size() < frameLength) {
+            return;
+        }
+
+        std::vector<uint8_t> payload(
+            _winusbRxBuffer.begin() + static_cast<std::ptrdiff_t>(kWinUSBFrameHeaderSize),
+            _winusbRxBuffer.begin() + static_cast<std::ptrdiff_t>(frameLength)
+        );
+        _winusbRxBuffer.erase(
+            _winusbRxBuffer.begin(),
+            _winusbRxBuffer.begin() + static_cast<std::ptrdiff_t>(frameLength)
+        );
+
+        switch (type) {
+            case WinUSBFrameType::CommandRequest:
+                _activeCommandTransport = CommandTransport::WinUSB;
+                _activeWinUSBTag = tag;
+                _pendingTextResponse.clear();
+                _processSCPIInput(payload, true);
+                break;
+
+            case WinUSBFrameType::SessionResetRequest:
+                _resetWinUSBSession(tag);
+                break;
+
+            default:
+                _activeCommandTransport = CommandTransport::WinUSB;
+                _activeWinUSBTag = tag;
+                _pendingTextResponse.clear();
+                _sendWinUSBFrame(
+                    WinUSBFrameType::ErrorResponse,
+                    tag,
+                    std::vector<uint8_t>{'U', 'n', 's', 'u', 'p', 'p', 'o', 'r', 't', 'e', 'd', ' ', 'f', 'r', 'a', 'm', 'e'}
+                );
+                break;
+        }
+    }
 }
 
 bool App::activate() {
@@ -71,8 +217,7 @@ void App::_loop() {
         _analogMonitor.readVBusValues();
 
         if (_interruptPending.exchange(false, std::memory_order_acq_rel)) {
-            const bool sent = _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
-            if (!sent) {
+            if (!_sendTransportNotification()) {
                 _interruptPending.store(true, std::memory_order_release);
             }
         }

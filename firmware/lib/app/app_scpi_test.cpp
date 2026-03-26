@@ -40,9 +40,9 @@ void App::_queryVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &p
     BAIL_IF_TEST_SCPI_COMMANDS_NOT_ENABLED();
     
     if (_vbusManager.enabled()) {
-        _usbInterface.sendUSBTMCBulkData("ON");
+        _sendTransportTextResponse("ON");
     } else {
-        _usbInterface.sendUSBTMCBulkData("OFF");
+        _sendTransportTextResponse("OFF");
     }
 }
 
@@ -79,35 +79,35 @@ void App::_queryCC1Role(const std::vector<T76::SCPI::ParameterValue> &params) {
 
     switch(role) {
         case PHY::CCRole::Off:
-            _usbInterface.sendUSBTMCBulkData("OFF");
+            _sendTransportTextResponse("OFF");
             break;
 
         case PHY::CCRole::Sink:
-            _usbInterface.sendUSBTMCBulkData("SINK");
+            _sendTransportTextResponse("SINK");
             break;
 
         case PHY::CCRole::EMarker:
-            _usbInterface.sendUSBTMCBulkData("EMARKER");
+            _sendTransportTextResponse("EMARKER");
             break;
 
         case PHY::CCRole::SourceDefault:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_DEFAULT");
+            _sendTransportTextResponse("SOURCE_DEFAULT");
             break;
 
         case PHY::CCRole::Source1_5A:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_1_5A");
+            _sendTransportTextResponse("SOURCE_1_5A");
             break;
 
         case PHY::CCRole::Source3_0A:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_3_0A");
+            _sendTransportTextResponse("SOURCE_3_0A");
             break;
 
         case PHY::CCRole::VConn:
-            _usbInterface.sendUSBTMCBulkData("VCONN");
+            _sendTransportTextResponse("VCONN");
             break;
 
         default:
-            _usbInterface.sendUSBTMCBulkData("UNKNOWN");
+            _sendTransportTextResponse("UNKNOWN");
             break;
     }
 }
@@ -145,35 +145,35 @@ void App::_queryCC2Role(const std::vector<T76::SCPI::ParameterValue> &params) {
 
     switch(role) {
         case PHY::CCRole::Off:
-            _usbInterface.sendUSBTMCBulkData("OFF");
+            _sendTransportTextResponse("OFF");
             break;
 
         case PHY::CCRole::Sink:
-            _usbInterface.sendUSBTMCBulkData("SINK");
+            _sendTransportTextResponse("SINK");
             break;
 
         case PHY::CCRole::EMarker:
-            _usbInterface.sendUSBTMCBulkData("EMARKER");
+            _sendTransportTextResponse("EMARKER");
             break;
 
         case PHY::CCRole::SourceDefault:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_DEFAULT");
+            _sendTransportTextResponse("SOURCE_DEFAULT");
             break;
 
         case PHY::CCRole::Source1_5A:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_1_5A");
+            _sendTransportTextResponse("SOURCE_1_5A");
             break;
 
         case PHY::CCRole::Source3_0A:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_3_0A");
+            _sendTransportTextResponse("SOURCE_3_0A");
             break;
 
         case PHY::CCRole::VConn:
-            _usbInterface.sendUSBTMCBulkData("VCONN");
+            _sendTransportTextResponse("VCONN");
             break;
 
         default:
-            _usbInterface.sendUSBTMCBulkData("UNKNOWN");
+            _sendTransportTextResponse("UNKNOWN");
             break;
     }
 }
@@ -201,15 +201,15 @@ void App::_queryDUTChannel(const std::vector<T76::SCPI::ParameterValue> &params)
 
     switch(channel) {
         case PHY::CCChannel::CC1:
-            _usbInterface.sendUSBTMCBulkData("CC1");
+            _sendTransportTextResponse("CC1");
             break;
 
         case PHY::CCChannel::CC2:
-            _usbInterface.sendUSBTMCBulkData("CC2");
+            _sendTransportTextResponse("CC2");
             break;
 
         default:
-            _usbInterface.sendUSBTMCBulkData("UNKNOWN");
+            _sendTransportTextResponse("UNKNOWN");
             break;
     }
 }
@@ -237,15 +237,15 @@ void App::_queryUSDSChannel(const std::vector<T76::SCPI::ParameterValue> &params
 
     switch(channel) {
         case PHY::CCChannel::CC1:
-            _usbInterface.sendUSBTMCBulkData("CC1");
+            _sendTransportTextResponse("CC1");
             break;
 
         case PHY::CCChannel::CC2:
-            _usbInterface.sendUSBTMCBulkData("CC2");
+            _sendTransportTextResponse("CC2");
             break;
 
         default:
-            _usbInterface.sendUSBTMCBulkData("UNKNOWN");
+            _sendTransportTextResponse("UNKNOWN");
             break;
     }
 }
@@ -269,9 +269,9 @@ void App::_queryCCMuxState(const std::vector<T76::SCPI::ParameterValue> &params)
     BAIL_IF_TEST_SCPI_COMMANDS_NOT_ENABLED();
 
     if (_ccBusManager.muxActive()) {
-        _usbInterface.sendUSBTMCBulkData("ON");
+        _sendTransportTextResponse("ON");
     } else {
-        _usbInterface.sendUSBTMCBulkData("OFF");
+        _sendTransportTextResponse("OFF");
     }
 }
 

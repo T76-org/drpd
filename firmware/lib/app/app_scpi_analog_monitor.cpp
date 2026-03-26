@@ -50,43 +50,43 @@ void App::_measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &
         std::to_string(readings.accumulatedChargeMah) + "," +
         std::to_string(readings.accumulatedEnergyMwh);
 
-    _usbInterface.sendUSBTMCBulkData(response);
+    _sendTransportTextResponse(response);
 }
 
 void App::_measureVBusVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.vBusVoltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.vBusVoltage()));
 }
 
 void App::_measureVBusCurrent(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.vBusCurrent()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.vBusCurrent()));
 }
 
 void App::_measureDUTCC1Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.dutCC1Voltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.dutCC1Voltage()));
 }
 
 void App::_measureDUTCC2Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.dutCC2Voltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.dutCC2Voltage()));
 }
 
 void App::_measureUSDSCC1Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.usdsCC1Voltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.usdsCC1Voltage()));
 }
 
 void App::_measureUSDSCC2Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.usdsCC2Voltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.usdsCC2Voltage()));
 }
 
 void App::_measureADCRefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.adcVRefVoltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.adcVRefVoltage()));
 }
 
 void App::_measureCurrentRefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.currentRefVoltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.currentRefVoltage()));
 }
 
 void App::_measureGroundRefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
-    _usbInterface.sendUSBTMCBulkData(_formatAnalogValue(_analogMonitor.groundRefVoltage()));
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.groundRefVoltage()));
 }
 
 void App::_measureAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &) {
@@ -95,7 +95,7 @@ void App::_measureAccumulatedValues(const std::vector<T76::SCPI::ParameterValue>
         std::to_string(_analogMonitor.accumulatedChargeMah()) + "," +
         std::to_string(_analogMonitor.accumulatedEnergyMwh());
 
-    _usbInterface.sendUSBTMCBulkData(response);
+    _sendTransportTextResponse(response);
 }
 
 void App::_resetAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &) {

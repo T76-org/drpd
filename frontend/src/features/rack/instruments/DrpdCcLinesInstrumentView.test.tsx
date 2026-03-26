@@ -8,6 +8,7 @@ import type { RackDeviceState } from '../RackRenderer'
 import { DrpdCcLinesInstrumentView } from './DrpdCcLinesInstrumentView'
 
 class TestTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   public async sendCommand(): Promise<void> {
     return undefined
   }

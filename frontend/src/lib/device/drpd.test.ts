@@ -3,11 +3,12 @@ import { Device } from './base'
 
 const mockState = vi.hoisted(() => ({ nextResponse: [] as string[] }))
 
-vi.mock('../transport/usbtmc', () => {
+vi.mock('../transport/drpdUsb', () => {
   /**
-   * Mock USBTMC transport for device definition tests.
+   * Mock preferred DRPD transport for device definition tests.
    */
-  class MockUSBTMCTransport {
+  class MockDRPDTransport {
+    public readonly kind = 'winusb' as const
     ///< Track open/close state for verification.
     public opened = false
 
@@ -46,7 +47,13 @@ vi.mock('../transport/usbtmc', () => {
     }
   }
 
-  return { default: MockUSBTMCTransport }
+  return {
+    openPreferredDRPDTransport: async (device: USBDevice) => {
+      const transport = new MockDRPDTransport(device)
+      await transport.open()
+      return transport
+    },
+  }
 })
 
 import { DRPDDeviceDefinition } from './drpd'

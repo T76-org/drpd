@@ -20,6 +20,7 @@ import { DrpdTriggerInstrumentView } from './DrpdTriggerInstrumentView'
  * Minimal DRPD transport stub for tests.
  */
 class TestTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   /**
    * Stub SCPI send method.
    */

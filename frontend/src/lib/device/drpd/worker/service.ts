@@ -5,7 +5,11 @@
  * Main-thread client for the DRPD worker-backed transport/logging service.
  */
 
-import USBTMCTransport from '../../../transport/usbtmc'
+import type { DRPDUSBTransport } from '../../../transport/drpdUsb'
+import {
+  DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
+  DRPD_TRANSPORT_INTERRUPT_EVENT,
+} from '../transport'
 import type {
   HostTransportRpcRequest,
   MainToWorkerMessage,
@@ -31,7 +35,7 @@ type PendingRpc = {
  * Registered host transport and interrupt listeners.
  */
 type HostTransportRegistration = {
-  transport: USBTMCTransport ///< Main-thread USBTMC transport.
+  transport: DRPDUSBTransport ///< Main-thread DRPD USB transport.
   onInterrupt: (event: Event) => void ///< Interrupt listener.
   onInterruptError: (event: Event) => void ///< Interrupt error listener.
 }
@@ -131,15 +135,15 @@ export class DRPDWorkerServiceClient {
   }
 
   /**
-   * Register a main-thread host USBTMC transport and forward interrupt events to the worker.
+   * Register a main-thread host DRPD USB transport and forward interrupt events to the worker.
    *
    * @param transportId - Worker transport id.
-   * @param transport - Main-thread USBTMC transport.
+   * @param transport - Main-thread DRPD USB transport.
    * @param onWorkerEvent - Callback for worker transport events mirrored back to the proxy.
    */
   public async registerHostTransport(
     transportId: string,
-    transport: USBTMCTransport,
+    transport: DRPDUSBTransport,
     onWorkerEvent: (eventName: 'interrupt' | 'interrupterror', detail: unknown) => void,
   ): Promise<void> {
     this.transportEventHandlers.set(transportId, onWorkerEvent)
@@ -162,8 +166,8 @@ export class DRPDWorkerServiceClient {
         detail,
       })
     }
-    transport.addEventListener(USBTMCTransport.INTERRUPT_EVENT, onInterrupt)
-    transport.addEventListener(USBTMCTransport.INTERRUPT_ERROR_EVENT, onInterruptError)
+    transport.addEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, onInterrupt)
+    transport.addEventListener(DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT, onInterruptError)
     this.hostTransports.set(transportId, {
       transport,
       onInterrupt,
@@ -171,7 +175,7 @@ export class DRPDWorkerServiceClient {
     })
 
     try {
-      await this.callWorker('transport.create', { transportId })
+      await this.callWorker('transport.create', { transportId, kind: transport.kind })
     } catch (error) {
       this.unregisterHostTransport(transportId)
       throw error
@@ -186,9 +190,9 @@ export class DRPDWorkerServiceClient {
   public unregisterHostTransport(transportId: string): void {
     const registration = this.hostTransports.get(transportId)
     if (registration) {
-      registration.transport.removeEventListener(USBTMCTransport.INTERRUPT_EVENT, registration.onInterrupt)
+      registration.transport.removeEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, registration.onInterrupt)
       registration.transport.removeEventListener(
-        USBTMCTransport.INTERRUPT_ERROR_EVENT,
+        DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
         registration.onInterruptError,
       )
     }
