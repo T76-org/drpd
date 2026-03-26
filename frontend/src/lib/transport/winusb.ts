@@ -24,6 +24,7 @@ const WINUSB_FRAME_HEADER_SIZE = 12
 
 const WINUSB_COMMAND_REQUEST = 0x01
 const WINUSB_SESSION_RESET_REQUEST = 0x02
+const WINUSB_QUERY_REQUEST = 0x03
 const WINUSB_COMMAND_ACK = 0x80
 const WINUSB_TEXT_RESPONSE = 0x81
 const WINUSB_BINARY_RESPONSE = 0x82
@@ -217,7 +218,7 @@ export class WinUSBTransport extends EventTarget {
     return await this.withLock(async () => {
       const line = this.formatSCPI(command, params)
       const tag = await this.withTimeout(
-        this.writeFrame(WINUSB_COMMAND_REQUEST, this.normalizePayload(line)),
+        this.writeFrame(WINUSB_QUERY_REQUEST, this.normalizePayload(line)),
         this.options.writeTimeoutMs,
         'write',
         line,
@@ -240,7 +241,7 @@ export class WinUSBTransport extends EventTarget {
       const line = this.formatSCPI(command, params)
       this.debugLogger.debug(`Binary Query: ${line}`)
       const tag = await this.withTimeout(
-        this.writeFrame(WINUSB_COMMAND_REQUEST, this.normalizePayload(line)),
+        this.writeFrame(WINUSB_QUERY_REQUEST, this.normalizePayload(line)),
         this.options.writeTimeoutMs,
         'write',
         line,
@@ -281,7 +282,7 @@ export class WinUSBTransport extends EventTarget {
   protected async queryTextUnlocked(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
     const line = this.formatSCPI(command, params)
     const tag = await this.withTimeout(
-      this.writeFrame(WINUSB_COMMAND_REQUEST, this.normalizePayload(line)),
+      this.writeFrame(WINUSB_QUERY_REQUEST, this.normalizePayload(line)),
       this.options.writeTimeoutMs,
       'write',
       line,

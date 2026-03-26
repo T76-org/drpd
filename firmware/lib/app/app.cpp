@@ -38,8 +38,11 @@ App::App() :
 void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) {
     _activeCommandTransport = CommandTransport::USBTMC;
     _activeWinUSBTag = 0;
+    _activeWinUSBQueryRequest = false;
     _pendingTextResponse.clear();
     _winusbResponseSent = false;
+    _winusbDataResponseSent = false;
+    _winusbProtocolMismatch = false;
     _processSCPIInput(data, transfer_complete);
 }
 
@@ -76,6 +79,11 @@ void App::_sendTransportTextResponse(const std::string &data, bool addNewline) {
         return;
     }
 
+    if (!_activeWinUSBQueryRequest) {
+        _winusbProtocolMismatch = true;
+        return;
+    }
+
     _pendingTextResponse += data;
     if (!addNewline) {
         return;
@@ -86,6 +94,7 @@ void App::_sendTransportTextResponse(const std::string &data, bool addNewline) {
     _sendWinUSBFrame(WinUSBFrameType::TextResponse, _activeWinUSBTag, payload);
     _pendingTextResponse.clear();
     _winusbResponseSent = true;
+    _winusbDataResponseSent = true;
 }
 
 void App::_sendTransportBinaryResponse(const std::vector<uint8_t> &data) {
@@ -94,8 +103,14 @@ void App::_sendTransportBinaryResponse(const std::vector<uint8_t> &data) {
         return;
     }
 
+    if (!_activeWinUSBQueryRequest) {
+        _winusbProtocolMismatch = true;
+        return;
+    }
+
     _sendWinUSBFrame(WinUSBFrameType::BinaryResponse, _activeWinUSBTag, data);
     _winusbResponseSent = true;
+    _winusbDataResponseSent = true;
 }
 
 bool App::_sendTransportNotification() {
@@ -112,11 +127,14 @@ void App::_resetCommandState() {
     _pendingTextResponse.clear();
     _winusbRxBuffer.clear();
     _winusbResponseSent = false;
+    _winusbDataResponseSent = false;
+    _winusbProtocolMismatch = false;
 }
 
 void App::_resetWinUSBSession(uint8_t tag) {
     _activeCommandTransport = CommandTransport::WinUSB;
     _activeWinUSBTag = tag;
+    _activeWinUSBQueryRequest = false;
     _resetCommandState();
     _sendWinUSBFrame(WinUSBFrameType::SessionResetAck, tag, {});
 }
@@ -176,8 +194,17 @@ void App::_drainWinUSBRxBuffer() {
             case WinUSBFrameType::CommandRequest:
                 _activeCommandTransport = CommandTransport::WinUSB;
                 _activeWinUSBTag = tag;
+                _activeWinUSBQueryRequest = false;
                 _pendingTextResponse.clear();
-                _processWinUSBCommand(payload);
+                _processWinUSBRequest(payload, false);
+                break;
+
+            case WinUSBFrameType::QueryRequest:
+                _activeCommandTransport = CommandTransport::WinUSB;
+                _activeWinUSBTag = tag;
+                _activeWinUSBQueryRequest = true;
+                _pendingTextResponse.clear();
+                _processWinUSBRequest(payload, true);
                 break;
 
             case WinUSBFrameType::SessionResetRequest:
@@ -198,22 +225,10 @@ void App::_drainWinUSBRxBuffer() {
     }
 }
 
-bool App::_isQueryCommand(const std::vector<uint8_t> &payload) {
-    for (const uint8_t byte : payload) {
-        if (byte == '?' ) {
-            return true;
-        }
-        if (byte == ' ' || byte == '\t' || byte == '\r' || byte == '\n') {
-            return false;
-        }
-    }
-
-    return false;
-}
-
-void App::_processWinUSBCommand(const std::vector<uint8_t> &payload) {
+void App::_processWinUSBRequest(const std::vector<uint8_t> &payload, bool expectsQuery) {
     _winusbResponseSent = false;
-    const bool isQuery = _isQueryCommand(payload);
+    _winusbDataResponseSent = false;
+    _winusbProtocolMismatch = false;
 
     _processSCPIInput(payload, true);
 
@@ -226,11 +241,22 @@ void App::_processWinUSBCommand(const std::vector<uint8_t> &payload) {
         return;
     }
 
-    if (_winusbResponseSent) {
+    if (_winusbProtocolMismatch) {
+        static const std::vector<uint8_t> commandProducedDataResponse = {
+            'C', 'o', 'm', 'm', 'a', 'n', 'd', ' ', 'r', 'e', 'q', 'u', 'e', 's', 't', ' ',
+            'p', 'r', 'o', 'd', 'u', 'c', 'e', 'd', ' ', 'd', 'a', 't', 'a', ' ', 'r', 'e',
+            's', 'p', 'o', 'n', 's', 'e'
+        };
+        _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, _activeWinUSBTag, commandProducedDataResponse);
+        _winusbResponseSent = true;
         return;
     }
 
-    if (!isQuery) {
+    if (_winusbResponseSent && expectsQuery && _winusbDataResponseSent) {
+        return;
+    }
+
+    if (!expectsQuery) {
         _sendWinUSBFrame(WinUSBFrameType::CommandAck, _activeWinUSBTag, {});
         _winusbResponseSent = true;
         return;

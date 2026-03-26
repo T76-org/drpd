@@ -14,8 +14,10 @@ const WINUSB_FRAME_MAGIC1 = 0x55
 const WINUSB_FRAME_VERSION = 0x01
 const WINUSB_FRAME_HEADER_SIZE = 12
 const WINUSB_COMMAND_REQUEST = 0x01
+const WINUSB_QUERY_REQUEST = 0x03
 const WINUSB_COMMAND_ACK = 0x80
 const WINUSB_TEXT_RESPONSE = 0x81
+const WINUSB_BINARY_RESPONSE = 0x82
 const WINUSB_ERROR_RESPONSE = 0x83
 const WINUSB_SESSION_RESET_ACK = 0x84
 
@@ -172,7 +174,24 @@ describe('WinUSBTransport', () => {
     const response = await transport.queryText('*IDN?')
     expect(response).toEqual(['IDN', 'MODEL'])
 
-    const requestFrames = device.__written.filter((frame) => frame[3] === WINUSB_COMMAND_REQUEST)
+    const requestFrames = device.__written.filter((frame) => frame[3] === WINUSB_QUERY_REQUEST)
+    expect(requestFrames).toHaveLength(1)
+  })
+
+  it('queryBinary writes a query request frame', async () => {
+    const device = createMockDevice()
+    device.__setResponses([
+      buildFrame(WINUSB_SESSION_RESET_ACK, 1, new Uint8Array()),
+      buildFrame(WINUSB_BINARY_RESPONSE, 2, encoder.encode('#14TEST')),
+    ])
+
+    const transport = new TestTransport(device)
+    await transport.open()
+
+    const response = await transport.queryBinary('READ:BIN?')
+    expect(Array.from(response)).toEqual(Array.from(encoder.encode('TEST')))
+
+    const requestFrames = device.__written.filter((frame) => frame[3] === WINUSB_QUERY_REQUEST)
     expect(requestFrames).toHaveLength(1)
   })
 

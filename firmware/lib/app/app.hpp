@@ -42,6 +42,7 @@ namespace T76::DRPD {
     enum class WinUSBFrameType : uint8_t {
         CommandRequest = 0x01,
         SessionResetRequest = 0x02,
+        QueryRequest = 0x03,
         CommandAck = 0x80,
         TextResponse = 0x81,
         BinaryResponse = 0x82,
@@ -248,20 +249,13 @@ namespace T76::DRPD {
         void _drainWinUSBRxBuffer();
 
         /**
-         * @brief Process a complete WinUSB command payload and emit a single
-         * completion frame for non-query commands.
+         * @brief Process a complete WinUSB request payload using explicit host
+         * request intent and emit the matching completion frame.
          *
          * @param payload Raw SCPI command payload bytes.
+         * @param expectsQuery True when the host sent a query request frame.
          */
-        void _processWinUSBCommand(const std::vector<uint8_t> &payload);
-
-        /**
-         * @brief Determine whether a raw SCPI command payload is a query.
-         *
-         * @param payload Raw SCPI command payload bytes.
-         * @return true when the command token contains a query marker.
-         */
-        static bool _isQueryCommand(const std::vector<uint8_t> &payload);
+        void _processWinUSBRequest(const std::vector<uint8_t> &payload, bool expectsQuery);
 
         /**
          * @brief Send a WinUSB bulk response frame.
@@ -286,9 +280,12 @@ namespace T76::DRPD {
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
         CommandTransport _activeCommandTransport{CommandTransport::USBTMC}; ///< Transport used for the active request/response flow.
         uint8_t _activeWinUSBTag{0}; ///< Correlation tag for the active WinUSB request.
+        bool _activeWinUSBQueryRequest{false}; ///< True when the active WinUSB request expects text/binary query data.
         std::string _pendingTextResponse; ///< Accumulates partial text responses until they are terminated.
         std::vector<uint8_t> _winusbRxBuffer; ///< Accumulates raw WinUSB bulk OUT bytes until complete frames are available.
         bool _winusbResponseSent{false}; ///< True when the current WinUSB request has emitted a response frame.
+        bool _winusbDataResponseSent{false}; ///< True when the current WinUSB request emitted text or binary data.
+        bool _winusbProtocolMismatch{false}; ///< True when request intent and response shape do not match.
 
         Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
 
