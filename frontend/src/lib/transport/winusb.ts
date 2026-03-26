@@ -7,7 +7,6 @@
 
 import { DebugLogRegistry, DebugLogger } from '../debugLogger'
 import {
-  DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
   DRPD_TRANSPORT_INTERRUPT_EVENT,
   type DRPDSCPIParam,
 } from '../device/drpd/transport'
@@ -31,6 +30,7 @@ const WINUSB_BINARY_RESPONSE = 0x82
 const WINUSB_ERROR_RESPONSE = 0x83
 const WINUSB_SESSION_RESET_ACK = 0x84
 const WINUSB_READ_TRANSFER_SIZE = 4096
+const WINUSB_STATUS_FLAG_SRQ_PENDING = 0x01
 
 export interface WinUSBTransportOptions {
   interfaceNumber?: number
@@ -51,12 +51,11 @@ const DEFAULT_OPTIONS: ResolvedWinUSBTransportOptions = {
   writeTimeoutMs: 500,
 }
 
-const isWindowsPlatform = (): boolean =>
-  typeof navigator !== 'undefined' && /Win/i.test(navigator.userAgent)
-
 type ParsedWinUSBFrame = {
   type: number
   tag: number
+  statusFlags: number
+  srqPending: boolean
   payload: Uint8Array
 }
 
@@ -75,19 +74,16 @@ export class WinUSBTransport extends EventTarget {
   protected interfaceNumber?: number
   protected endpointOut?: number
   protected endpointIn?: number
-  protected endpointInterrupt?: number
   protected bulkOutPacketSize = 64
   protected bulkInPacketSize = 64
   protected bulkInReadSize = WINUSB_READ_TRANSFER_SIZE
-  protected interruptPacketSize = 8
   protected tagCounter = 1
   protected requestQueue: Promise<void> = Promise.resolve()
-  protected interruptAbort?: AbortController
   protected rxBuffer = new Uint8Array(0)
   protected pendingFrames: ParsedWinUSBFrame[] = []
+  protected winusbInterruptLatched = false
 
   public static readonly INTERRUPT_EVENT = DRPD_TRANSPORT_INTERRUPT_EVENT
-  public static readonly INTERRUPT_ERROR_EVENT = DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT
 
   public constructor(device: USBDevice, options: WinUSBTransportOptions = {}) {
     super()
@@ -159,17 +155,12 @@ export class WinUSBTransport extends EventTarget {
 
     this.endpointIn = endpoints.endpointIn
     this.endpointOut = endpoints.endpointOut
-    this.endpointInterrupt = endpoints.endpointInterrupt
     this.bulkInPacketSize = endpoints.bulkInPacketSize
     this.bulkInReadSize = Math.max(endpoints.bulkInPacketSize, WINUSB_READ_TRANSFER_SIZE)
     this.bulkOutPacketSize = endpoints.bulkOutPacketSize
-    this.interruptPacketSize = endpoints.interruptPacketSize
     this.rxBuffer = new Uint8Array(0)
     this.pendingFrames = []
-
-    if (!isWindowsPlatform()) {
-      this.startInterruptListener()
-    }
+    this.winusbInterruptLatched = false
     await this.withLock(async () => {
       const tag = await this.withTimeout(
         this.writeFrame(WINUSB_SESSION_RESET_REQUEST, new Uint8Array(0)),
@@ -185,9 +176,7 @@ export class WinUSBTransport extends EventTarget {
   }
 
   public async close(): Promise<void> {
-    if (!isWindowsPlatform()) {
-      this.stopInterruptListener()
-    }
+    this.winusbInterruptLatched = false
     if (this.device.opened) {
       await this.device.close()
     }
@@ -217,6 +206,9 @@ export class WinUSBTransport extends EventTarget {
   public async queryText(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
     return await this.withLock(async () => {
       const line = this.formatSCPI(command, params)
+      if (this.isStatusQuery(line)) {
+        this.winusbInterruptLatched = false
+      }
       const tag = await this.withTimeout(
         this.writeFrame(WINUSB_QUERY_REQUEST, this.normalizePayload(line)),
         this.options.writeTimeoutMs,
@@ -281,6 +273,9 @@ export class WinUSBTransport extends EventTarget {
 
   protected async queryTextUnlocked(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
     const line = this.formatSCPI(command, params)
+    if (this.isStatusQuery(line)) {
+      this.winusbInterruptLatched = false
+    }
     const tag = await this.withTimeout(
       this.writeFrame(WINUSB_QUERY_REQUEST, this.normalizePayload(line)),
       this.options.writeTimeoutMs,
@@ -366,8 +361,11 @@ export class WinUSBTransport extends EventTarget {
       const frame: ParsedWinUSBFrame = {
         type: this.rxBuffer[3],
         tag: this.rxBuffer[4],
+        statusFlags: this.rxBuffer[5],
+        srqPending: (this.rxBuffer[5] & WINUSB_STATUS_FLAG_SRQ_PENDING) !== 0,
         payload: this.rxBuffer.slice(WINUSB_FRAME_HEADER_SIZE, frameLength),
       }
+      this.maybeDispatchSyntheticInterrupt(frame)
       this.pendingFrames.push(frame)
       this.rxBuffer = this.rxBuffer.slice(frameLength)
     }
@@ -409,6 +407,18 @@ export class WinUSBTransport extends EventTarget {
       return new Uint8Array(payload)
     }
     return new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength)
+  }
+
+  protected maybeDispatchSyntheticInterrupt(frame: ParsedWinUSBFrame): void {
+    if (!frame.srqPending || this.winusbInterruptLatched) {
+      return
+    }
+    this.winusbInterruptLatched = true
+    this.dispatchEvent(new CustomEvent(DRPD_TRANSPORT_INTERRUPT_EVENT, { detail: new Uint8Array() }))
+  }
+
+  protected isStatusQuery(commandLine: string): boolean {
+    return commandLine.trim().toUpperCase() === 'STAT:DEV?'
   }
 
   protected async withLock<T>(action: () => Promise<T>): Promise<T> {
@@ -560,10 +570,8 @@ export class WinUSBTransport extends EventTarget {
   protected findWinUSBEndpoints(): {
     endpointIn: number
     endpointOut: number
-    endpointInterrupt: number
     bulkInPacketSize: number
     bulkOutPacketSize: number
-    interruptPacketSize: number
   } | null {
     const configuration = this.device.configuration
     if (!configuration) {
@@ -578,10 +586,8 @@ export class WinUSBTransport extends EventTarget {
 
       let endpointIn: number | undefined
       let endpointOut: number | undefined
-      let endpointInterrupt: number | undefined
       let bulkInPacketSize = 64
       let bulkOutPacketSize = 64
-      let interruptPacketSize = 8
 
       for (const endpoint of alternate.endpoints) {
         if (endpoint.type === 'bulk' && endpoint.direction === 'in') {
@@ -590,20 +596,15 @@ export class WinUSBTransport extends EventTarget {
         } else if (endpoint.type === 'bulk' && endpoint.direction === 'out') {
           endpointOut = endpoint.endpointNumber
           bulkOutPacketSize = endpoint.packetSize
-        } else if (endpoint.type === 'interrupt' && endpoint.direction === 'in') {
-          endpointInterrupt = endpoint.endpointNumber
-          interruptPacketSize = endpoint.packetSize
         }
       }
 
-      if (endpointIn != null && endpointOut != null && endpointInterrupt != null) {
+      if (endpointIn != null && endpointOut != null) {
         return {
           endpointIn,
           endpointOut,
-          endpointInterrupt,
           bulkInPacketSize,
           bulkOutPacketSize,
-          interruptPacketSize,
         }
       }
     }
@@ -655,46 +656,6 @@ export class WinUSBTransport extends EventTarget {
       }
     }
     return null
-  }
-
-  protected startInterruptListener(): void {
-    if (this.endpointInterrupt == null) {
-      return
-    }
-
-    this.stopInterruptListener()
-    const abortController = new AbortController()
-    this.interruptAbort = abortController
-
-    const poll = async () => {
-      while (!abortController.signal.aborted) {
-        try {
-          const result = await this.device.transferIn(this.endpointInterrupt!, this.interruptPacketSize)
-          if (result.data && result.data.byteLength > 0) {
-            const payload = new Uint8Array(result.data.buffer.slice(0, result.data.byteLength))
-            this.dispatchEvent(
-              new CustomEvent(DRPD_TRANSPORT_INTERRUPT_EVENT, { detail: payload }),
-            )
-          }
-        } catch (error) {
-          if (abortController.signal.aborted) {
-            return
-          }
-          this.dispatchEvent(
-            new CustomEvent(DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT, { detail: error }),
-          )
-        }
-      }
-    }
-
-    void poll()
-  }
-
-  protected stopInterruptListener(): void {
-    if (this.interruptAbort) {
-      this.interruptAbort.abort()
-      this.interruptAbort = undefined
-    }
   }
 
 }

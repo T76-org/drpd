@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WinUSBTransport from './winusb'
+import { DRPD_TRANSPORT_INTERRUPT_EVENT } from '../device/drpd/transport'
 
 type MockDevice = USBDevice & {
   __written: Uint8Array[]
@@ -38,7 +39,6 @@ const createWinUSBConfig = (options?: { interfaceNumber?: number; packetSize?: n
             endpoints: [
               { type: 'bulk', direction: 'out', endpointNumber: 6, packetSize },
               { type: 'bulk', direction: 'in', endpointNumber: 6, packetSize },
-              { type: 'interrupt', direction: 'in', endpointNumber: 7, packetSize: 8 },
             ],
           },
         ],
@@ -47,13 +47,19 @@ const createWinUSBConfig = (options?: { interfaceNumber?: number; packetSize?: n
   }
 }
 
-const buildFrame = (type: number, tag: number, payload: Uint8Array): Uint8Array => {
+const buildFrame = (
+  type: number,
+  tag: number,
+  payload: Uint8Array,
+  statusFlags = 0,
+): Uint8Array => {
   const frame = new Uint8Array(WINUSB_FRAME_HEADER_SIZE + payload.length)
   frame[0] = WINUSB_FRAME_MAGIC0
   frame[1] = WINUSB_FRAME_MAGIC1
   frame[2] = WINUSB_FRAME_VERSION
   frame[3] = type
   frame[4] = tag
+  frame[5] = statusFlags
   frame[8] = payload.length & 0xff
   frame[9] = (payload.length >> 8) & 0xff
   frame[10] = (payload.length >> 16) & 0xff
@@ -112,15 +118,7 @@ const createMockDevice = (): MockDevice => {
   return device
 }
 
-class TestTransport extends WinUSBTransport {
-  protected startInterruptListener(): void {
-    // No-op in tests to avoid continuous polling.
-  }
-
-  protected stopInterruptListener(): void {
-    // No-op in tests.
-  }
-}
+class TestTransport extends WinUSBTransport {}
 
 describe('WinUSBTransport', () => {
   beforeEach(() => {
@@ -225,5 +223,45 @@ describe('WinUSBTransport', () => {
     await transport.open()
 
     await expect(transport.queryText('*IDN?')).rejects.toThrow('WinUSB device error')
+  })
+
+  it('emits one synthetic interrupt when srqPending is set on a response frame', async () => {
+    const device = createMockDevice()
+    device.__setResponses([
+      buildFrame(WINUSB_SESSION_RESET_ACK, 1, new Uint8Array()),
+      buildFrame(WINUSB_TEXT_RESPONSE, 2, encoder.encode('IDN,MODEL\n'), 0x01),
+      buildFrame(WINUSB_TEXT_RESPONSE, 3, encoder.encode('IDN,MODEL\n'), 0x01),
+    ])
+
+    const transport = new TestTransport(device)
+    const interruptSpy = vi.fn()
+    transport.addEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, interruptSpy)
+    await transport.open()
+
+    await transport.queryText('*IDN?')
+    await transport.queryText('*IDN?')
+
+    expect(interruptSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-arms synthetic interrupt emission after STAT:DEV?', async () => {
+    const device = createMockDevice()
+    device.__setResponses([
+      buildFrame(WINUSB_SESSION_RESET_ACK, 1, new Uint8Array()),
+      buildFrame(WINUSB_TEXT_RESPONSE, 2, encoder.encode('IDN,MODEL\n'), 0x01),
+      buildFrame(WINUSB_TEXT_RESPONSE, 3, encoder.encode('0\n')),
+      buildFrame(WINUSB_TEXT_RESPONSE, 4, encoder.encode('IDN,MODEL\n'), 0x01),
+    ])
+
+    const transport = new TestTransport(device)
+    const interruptSpy = vi.fn()
+    transport.addEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, interruptSpy)
+    await transport.open()
+
+    await transport.queryText('*IDN?')
+    await transport.queryText('STAT:DEV?')
+    await transport.queryText('*IDN?')
+
+    expect(interruptSpy).toHaveBeenCalledTimes(2)
   })
 })

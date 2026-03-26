@@ -25,7 +25,7 @@ constexpr size_t kWinUSBFrameHeaderSize = 12;
 constexpr uint8_t kWinUSBFrameMagic0 = 'W';
 constexpr uint8_t kWinUSBFrameMagic1 = 'U';
 constexpr uint8_t kWinUSBFrameVersion = 1;
-constexpr uint8_t kWinUSBNotificationStatusChanged = 0x01;
+constexpr uint8_t kWinUSBStatusFlagSRQPending = 0x01;
 }
 
 App::App() : 
@@ -114,11 +114,6 @@ void App::_sendTransportBinaryResponse(const std::vector<uint8_t> &data) {
 }
 
 bool App::_sendTransportNotification() {
-    if (_activeCommandTransport == CommandTransport::WinUSB) {
-        std::vector<uint8_t> payload = {kWinUSBNotificationStatusChanged};
-        return _usbInterface.sendWinUSBInterruptData(payload);
-    }
-
     return _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
 }
 
@@ -153,6 +148,7 @@ void App::_sendWinUSBFrame(WinUSBFrameType type, uint8_t tag, const std::vector<
     frame[2] = kWinUSBFrameVersion;
     frame[3] = static_cast<uint8_t>(type);
     frame[4] = tag;
+    frame[5] = deviceStatus() != 0u ? kWinUSBStatusFlagSRQPending : 0u;
     const uint32_t payloadLength = static_cast<uint32_t>(payload.size());
     frame[8] = static_cast<uint8_t>(payloadLength & 0xff);
     frame[9] = static_cast<uint8_t>((payloadLength >> 8) & 0xff);
