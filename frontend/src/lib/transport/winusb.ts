@@ -24,10 +24,12 @@ const WINUSB_FRAME_HEADER_SIZE = 12
 
 const WINUSB_COMMAND_REQUEST = 0x01
 const WINUSB_SESSION_RESET_REQUEST = 0x02
+const WINUSB_COMMAND_ACK = 0x80
 const WINUSB_TEXT_RESPONSE = 0x81
 const WINUSB_BINARY_RESPONSE = 0x82
 const WINUSB_ERROR_RESPONSE = 0x83
 const WINUSB_SESSION_RESET_ACK = 0x84
+const WINUSB_READ_TRANSFER_SIZE = 4096
 
 export interface WinUSBTransportOptions {
   interfaceNumber?: number
@@ -47,6 +49,9 @@ const DEFAULT_OPTIONS: ResolvedWinUSBTransportOptions = {
   readTimeoutMs: 500,
   writeTimeoutMs: 500,
 }
+
+const isWindowsPlatform = (): boolean =>
+  typeof navigator !== 'undefined' && /Win/i.test(navigator.userAgent)
 
 type ParsedWinUSBFrame = {
   type: number
@@ -72,6 +77,7 @@ export class WinUSBTransport extends EventTarget {
   protected endpointInterrupt?: number
   protected bulkOutPacketSize = 64
   protected bulkInPacketSize = 64
+  protected bulkInReadSize = WINUSB_READ_TRANSFER_SIZE
   protected interruptPacketSize = 8
   protected tagCounter = 1
   protected requestQueue: Promise<void> = Promise.resolve()
@@ -154,12 +160,15 @@ export class WinUSBTransport extends EventTarget {
     this.endpointOut = endpoints.endpointOut
     this.endpointInterrupt = endpoints.endpointInterrupt
     this.bulkInPacketSize = endpoints.bulkInPacketSize
+    this.bulkInReadSize = Math.max(endpoints.bulkInPacketSize, WINUSB_READ_TRANSFER_SIZE)
     this.bulkOutPacketSize = endpoints.bulkOutPacketSize
     this.interruptPacketSize = endpoints.interruptPacketSize
     this.rxBuffer = new Uint8Array(0)
     this.pendingFrames = []
 
-    this.startInterruptListener()
+    if (!isWindowsPlatform()) {
+      this.startInterruptListener()
+    }
     await this.withLock(async () => {
       const tag = await this.withTimeout(
         this.writeFrame(WINUSB_SESSION_RESET_REQUEST, new Uint8Array(0)),
@@ -175,7 +184,9 @@ export class WinUSBTransport extends EventTarget {
   }
 
   public async close(): Promise<void> {
-    this.stopInterruptListener()
+    if (!isWindowsPlatform()) {
+      this.stopInterruptListener()
+    }
     if (this.device.opened) {
       await this.device.close()
     }
@@ -185,13 +196,20 @@ export class WinUSBTransport extends EventTarget {
     await this.withLock(async () => {
       const line = this.formatSCPI(command, params)
       this.debugLogger.debug(`Command: ${line}`)
-      await this.withTimeout(
+      const tag = await this.withTimeout(
         this.writeFrame(WINUSB_COMMAND_REQUEST, this.normalizePayload(line)),
         this.options.writeTimeoutMs,
         'write',
         line,
       )
-      await this.checkErrorUnlocked(line)
+      const response = await this.awaitResponseFrame(tag, line)
+      if (response.type === WINUSB_COMMAND_ACK) {
+        return
+      }
+      if (response.type === WINUSB_ERROR_RESPONSE) {
+        throw new Error(`WinUSB device error: ${this.decoder.decode(response.payload)}`)
+      }
+      throw new Error(`Unexpected WinUSB command response type 0x${response.type.toString(16)}`)
     })
   }
 
@@ -304,7 +322,7 @@ export class WinUSBTransport extends EventTarget {
 
       const remaining = deadline - Date.now()
       const result = await this.withTimeout(
-        this.device.transferIn(this.endpointIn!, this.bulkInPacketSize),
+        this.device.transferIn(this.endpointIn!, this.bulkInReadSize),
         remaining,
         'read',
         command,
@@ -677,6 +695,7 @@ export class WinUSBTransport extends EventTarget {
       this.interruptAbort = undefined
     }
   }
+
 }
 
 export default WinUSBTransport

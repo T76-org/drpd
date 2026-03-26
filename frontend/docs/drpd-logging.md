@@ -37,6 +37,22 @@ OPFS support in the sqlite-wasm worker path requires cross-origin isolation:
 
 The local Vite dev server is configured with these headers in `vite.config.ts`. Production hosting must also send them for OPFS persistence to work.
 
+When you access the dev server through a LAN IP such as `192.168.199.1`, plain HTTP is not a trustworthy origin, so Chrome will ignore COOP/COEP headers. For local network testing, run the Vite dev server over HTTPS with a trusted local certificate.
+
+Example using `mkcert`:
+
+```bash
+cd frontend
+mkcert -install
+mkdir -p .cert
+mkcert -key-file .cert/dev-key.pem -cert-file .cert/dev-cert.pem localhost 127.0.0.1 ::1 192.168.199.1
+VITE_DEV_HTTPS_KEY=.cert/dev-key.pem \
+VITE_DEV_HTTPS_CERT=.cert/dev-cert.pem \
+npm run dev
+```
+
+The Vite config reads `VITE_DEV_HTTPS_KEY` and `VITE_DEV_HTTPS_CERT` and enables HTTPS automatically when both are set.
+
 ## Log lifecycle behavior
 
 ### Backend creation

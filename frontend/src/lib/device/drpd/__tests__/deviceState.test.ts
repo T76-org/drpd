@@ -167,6 +167,7 @@ describe('DRPDDevice state updates', () => {
 
     transport.emitInterrupt()
     await tick()
+    await tick()
 
     expect(device.getState().role).toBe(CCBusRole.SINK)
     expect(roleChanges).toEqual([CCBusRole.SINK])
@@ -186,6 +187,7 @@ describe('DRPDDevice state updates', () => {
     })
 
     transport.emitInterrupt()
+    await tick()
     await tick()
 
     expect(errors.length).toBe(1)

@@ -7,6 +7,8 @@
 
 #include "app.hpp"
 
+#include <algorithm>
+
 #include <FreeRTOS.h>
 #include <pico/flash.h>
 #include <pico/stdlib.h>
@@ -37,6 +39,7 @@ void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_
     _activeCommandTransport = CommandTransport::USBTMC;
     _activeWinUSBTag = 0;
     _pendingTextResponse.clear();
+    _winusbResponseSent = false;
     _processSCPIInput(data, transfer_complete);
 }
 
@@ -82,6 +85,7 @@ void App::_sendTransportTextResponse(const std::string &data, bool addNewline) {
     std::vector<uint8_t> payload(_pendingTextResponse.begin(), _pendingTextResponse.end());
     _sendWinUSBFrame(WinUSBFrameType::TextResponse, _activeWinUSBTag, payload);
     _pendingTextResponse.clear();
+    _winusbResponseSent = true;
 }
 
 void App::_sendTransportBinaryResponse(const std::vector<uint8_t> &data) {
@@ -91,13 +95,13 @@ void App::_sendTransportBinaryResponse(const std::vector<uint8_t> &data) {
     }
 
     _sendWinUSBFrame(WinUSBFrameType::BinaryResponse, _activeWinUSBTag, data);
+    _winusbResponseSent = true;
 }
 
 bool App::_sendTransportNotification() {
     if (_activeCommandTransport == CommandTransport::WinUSB) {
         std::vector<uint8_t> payload = {kWinUSBNotificationStatusChanged};
-        _usbInterface.sendWinUSBInterruptData(payload);
-        return true;
+        return _usbInterface.sendWinUSBInterruptData(payload);
     }
 
     return _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
@@ -107,6 +111,7 @@ void App::_resetCommandState() {
     _interpreter.reset();
     _pendingTextResponse.clear();
     _winusbRxBuffer.clear();
+    _winusbResponseSent = false;
 }
 
 void App::_resetWinUSBSession(uint8_t tag) {
@@ -172,7 +177,7 @@ void App::_drainWinUSBRxBuffer() {
                 _activeCommandTransport = CommandTransport::WinUSB;
                 _activeWinUSBTag = tag;
                 _pendingTextResponse.clear();
-                _processSCPIInput(payload, true);
+                _processWinUSBCommand(payload);
                 break;
 
             case WinUSBFrameType::SessionResetRequest:
@@ -191,6 +196,52 @@ void App::_drainWinUSBRxBuffer() {
                 break;
         }
     }
+}
+
+bool App::_isQueryCommand(const std::vector<uint8_t> &payload) {
+    for (const uint8_t byte : payload) {
+        if (byte == '?' ) {
+            return true;
+        }
+        if (byte == ' ' || byte == '\t' || byte == '\r' || byte == '\n') {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+void App::_processWinUSBCommand(const std::vector<uint8_t> &payload) {
+    _winusbResponseSent = false;
+    const bool isQuery = _isQueryCommand(payload);
+
+    _processSCPIInput(payload, true);
+
+    if (!_interpreter.errorQueue.empty()) {
+        const std::string error = _interpreter.errorQueue.front();
+        _interpreter.errorQueue.pop();
+        const std::vector<uint8_t> errorPayload(error.begin(), error.end());
+        _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, _activeWinUSBTag, errorPayload);
+        _winusbResponseSent = true;
+        return;
+    }
+
+    if (_winusbResponseSent) {
+        return;
+    }
+
+    if (!isQuery) {
+        _sendWinUSBFrame(WinUSBFrameType::CommandAck, _activeWinUSBTag, {});
+        _winusbResponseSent = true;
+        return;
+    }
+
+    static const std::vector<uint8_t> missingQueryResponse = {
+        'M', 'i', 's', 's', 'i', 'n', 'g', ' ', 'q', 'u', 'e', 'r', 'y', ' ',
+        'r', 'e', 's', 'p', 'o', 'n', 's', 'e'
+    };
+    _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, _activeWinUSBTag, missingQueryResponse);
+    _winusbResponseSent = true;
 }
 
 bool App::activate() {

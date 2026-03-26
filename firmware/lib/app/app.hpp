@@ -42,6 +42,7 @@ namespace T76::DRPD {
     enum class WinUSBFrameType : uint8_t {
         CommandRequest = 0x01,
         SessionResetRequest = 0x02,
+        CommandAck = 0x80,
         TextResponse = 0x81,
         BinaryResponse = 0x82,
         ErrorResponse = 0x83,
@@ -247,6 +248,22 @@ namespace T76::DRPD {
         void _drainWinUSBRxBuffer();
 
         /**
+         * @brief Process a complete WinUSB command payload and emit a single
+         * completion frame for non-query commands.
+         *
+         * @param payload Raw SCPI command payload bytes.
+         */
+        void _processWinUSBCommand(const std::vector<uint8_t> &payload);
+
+        /**
+         * @brief Determine whether a raw SCPI command payload is a query.
+         *
+         * @param payload Raw SCPI command payload bytes.
+         * @return true when the command token contains a query marker.
+         */
+        static bool _isQueryCommand(const std::vector<uint8_t> &payload);
+
+        /**
          * @brief Send a WinUSB bulk response frame.
          *
          * @param type Frame type to emit.
@@ -271,6 +288,7 @@ namespace T76::DRPD {
         uint8_t _activeWinUSBTag{0}; ///< Correlation tag for the active WinUSB request.
         std::string _pendingTextResponse; ///< Accumulates partial text responses until they are terminated.
         std::vector<uint8_t> _winusbRxBuffer; ///< Accumulates raw WinUSB bulk OUT bytes until complete frames are available.
+        bool _winusbResponseSent{false}; ///< True when the current WinUSB request has emitted a response frame.
 
         Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
 
