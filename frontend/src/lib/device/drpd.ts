@@ -41,37 +41,10 @@ export class DRPDDeviceDefinition extends Device {
    * Optional post-connect verification to confirm compatibility.
    */
   public static verifyConnectedDevice = async (device: USBDevice): Promise<boolean> => {
-    if (device.vendorId !== 0x2e8a || device.productId !== 0x000a) {
-      return false
-    }
-
-    const configurations = device.configuration
-      ? [device.configuration]
-      : device.configurations ?? []
-
-    if (configurations.length === 0) {
-      return true
-    }
-
-    for (const configuration of configurations) {
-      for (const usbInterface of configuration.interfaces) {
-        for (const alternate of usbInterface.alternates) {
-          const isWinUSB =
-            alternate.interfaceClass === 0xff &&
-            alternate.interfaceSubclass === 0x01 &&
-            alternate.interfaceProtocol === 0x02
-          const isUSBTMC =
-            alternate.interfaceClass === 0xfe &&
-            alternate.interfaceSubclass === 0x03 &&
-            alternate.interfaceProtocol === 0x01
-          if (isWinUSB || isUSBTMC) {
-            return true
-          }
-        }
-      }
-    }
-
-    return false
+    return (
+      (device.manufacturerName ?? '').trim() === 'MTA Inc.' &&
+      (device.productName ?? '').trim() === 'Dr. PD'
+    )
   }
 
   /**

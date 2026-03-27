@@ -39,6 +39,12 @@ namespace T76::DRPD {
         WinUSB,
     };
 
+    enum class CommandOwner : uint8_t {
+        None,
+        USBTMC,
+        WinUSB,
+    };
+
     enum class WinUSBFrameType : uint8_t {
         CommandRequest = 0x01,
         SessionResetRequest = 0x02,
@@ -258,6 +264,21 @@ namespace T76::DRPD {
         void _processWinUSBRequest(const std::vector<uint8_t> &payload, bool expectsQuery);
 
         /**
+         * @brief Try to claim exclusive ownership of the shared SCPI interpreter.
+         *
+         * @param owner Transport requesting ownership.
+         * @return true if the owner now holds the interpreter, false otherwise.
+         */
+        bool _tryAcquireCommandOwner(CommandOwner owner);
+
+        /**
+         * @brief Release interpreter ownership when held by the given transport.
+         *
+         * @param owner Transport releasing ownership.
+         */
+        void _releaseCommandOwner(CommandOwner owner);
+
+        /**
          * @brief Send a WinUSB bulk response frame.
          *
          * @param type Frame type to emit.
@@ -278,6 +299,7 @@ namespace T76::DRPD {
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
+        CommandOwner _commandOwner{CommandOwner::None}; ///< Current owner of the shared SCPI interpreter.
         CommandTransport _activeCommandTransport{CommandTransport::USBTMC}; ///< Transport used for the active request/response flow.
         uint8_t _activeWinUSBTag{0}; ///< Correlation tag for the active WinUSB request.
         bool _activeWinUSBQueryRequest{false}; ///< True when the active WinUSB request expects text/binary query data.

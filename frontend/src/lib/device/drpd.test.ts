@@ -67,6 +67,8 @@ import { buildDefaultLoggingConfig } from './drpd/logging'
 const createUsbDevice = () => ({
   productId: 0x000a,
   vendorId: 0x2e8a,
+  manufacturerName: 'MTA Inc.',
+  productName: 'Dr. PD',
 }) as USBDevice
 
 describe('DRPDDeviceDefinition', () => {
@@ -151,8 +153,7 @@ describe('DRPDDeviceDefinition', () => {
     expect(disconnectSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('verifies connected device via *IDN?', async () => {
-    mockState.nextResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
+  it('verifies connected device via the USB device strings', async () => {
     const usbDevice = createUsbDevice()
     const verified = await DRPDDeviceDefinition.verifyConnectedDevice(usbDevice)
     expect(verified).toBe(true)

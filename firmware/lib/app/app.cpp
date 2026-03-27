@@ -26,6 +26,9 @@ constexpr uint8_t kWinUSBFrameMagic0 = 'W';
 constexpr uint8_t kWinUSBFrameMagic1 = 'U';
 constexpr uint8_t kWinUSBFrameVersion = 1;
 constexpr uint8_t kWinUSBStatusFlagSRQPending = 0x01;
+const std::vector<uint8_t> kWinUSBBusyResponse = {
+    'D', 'e', 'v', 'i', 'c', 'e', ' ', 'b', 'u', 's', 'y'
+};
 }
 
 App::App() : 
@@ -36,6 +39,10 @@ App::App() :
 }
 
 void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) {
+    if (!_tryAcquireCommandOwner(CommandOwner::USBTMC)) {
+        return;
+    }
+
     _activeCommandTransport = CommandTransport::USBTMC;
     _activeWinUSBTag = 0;
     _activeWinUSBQueryRequest = false;
@@ -44,6 +51,10 @@ void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_
     _winusbDataResponseSent = false;
     _winusbProtocolMismatch = false;
     _processSCPIInput(data, transfer_complete);
+
+    if (transfer_complete) {
+        _releaseCommandOwner(CommandOwner::USBTMC);
+    }
 }
 
 void App::_onWinUSBBulkDataReceived(const std::vector<uint8_t> &data) {
@@ -62,15 +73,24 @@ void App::_processSCPIInput(const std::vector<uint8_t> &data, bool transfer_comp
 }
 
 void App::_onUSBTMCAbortBulkIn() {
-    _resetCommandState();
+    if (_commandOwner != CommandOwner::WinUSB) {
+        _resetCommandState();
+        _releaseCommandOwner(CommandOwner::USBTMC);
+    }
 }
 
 void App::_onUSBTMCAbortBulkOut() {
-    _resetCommandState();
+    if (_commandOwner != CommandOwner::WinUSB) {
+        _resetCommandState();
+        _releaseCommandOwner(CommandOwner::USBTMC);
+    }
 }
 
 void App::_onUSBTMCClear() {
-    _resetCommandState();
+    if (_commandOwner != CommandOwner::WinUSB) {
+        _resetCommandState();
+        _releaseCommandOwner(CommandOwner::USBTMC);
+    }
 }
 
 void App::_sendTransportTextResponse(const std::string &data, bool addNewline) {
@@ -127,11 +147,17 @@ void App::_resetCommandState() {
 }
 
 void App::_resetWinUSBSession(uint8_t tag) {
+    if (!_tryAcquireCommandOwner(CommandOwner::WinUSB)) {
+        _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
+        return;
+    }
+
     _activeCommandTransport = CommandTransport::WinUSB;
     _activeWinUSBTag = tag;
     _activeWinUSBQueryRequest = false;
     _resetCommandState();
     _sendWinUSBFrame(WinUSBFrameType::SessionResetAck, tag, {});
+    _releaseCommandOwner(CommandOwner::WinUSB);
 }
 
 uint32_t App::_readLE32(const std::vector<uint8_t> &data, size_t offset) {
@@ -188,19 +214,29 @@ void App::_drainWinUSBRxBuffer() {
 
         switch (type) {
             case WinUSBFrameType::CommandRequest:
+                if (!_tryAcquireCommandOwner(CommandOwner::WinUSB)) {
+                    _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
+                    break;
+                }
                 _activeCommandTransport = CommandTransport::WinUSB;
                 _activeWinUSBTag = tag;
                 _activeWinUSBQueryRequest = false;
                 _pendingTextResponse.clear();
                 _processWinUSBRequest(payload, false);
+                _releaseCommandOwner(CommandOwner::WinUSB);
                 break;
 
             case WinUSBFrameType::QueryRequest:
+                if (!_tryAcquireCommandOwner(CommandOwner::WinUSB)) {
+                    _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
+                    break;
+                }
                 _activeCommandTransport = CommandTransport::WinUSB;
                 _activeWinUSBTag = tag;
                 _activeWinUSBQueryRequest = true;
                 _pendingTextResponse.clear();
                 _processWinUSBRequest(payload, true);
+                _releaseCommandOwner(CommandOwner::WinUSB);
                 break;
 
             case WinUSBFrameType::SessionResetRequest:
@@ -264,6 +300,21 @@ void App::_processWinUSBRequest(const std::vector<uint8_t> &payload, bool expect
     };
     _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, _activeWinUSBTag, missingQueryResponse);
     _winusbResponseSent = true;
+}
+
+bool App::_tryAcquireCommandOwner(CommandOwner owner) {
+    if (_commandOwner == CommandOwner::None || _commandOwner == owner) {
+        _commandOwner = owner;
+        return true;
+    }
+
+    return false;
+}
+
+void App::_releaseCommandOwner(CommandOwner owner) {
+    if (_commandOwner == owner) {
+        _commandOwner = CommandOwner::None;
+    }
 }
 
 bool App::activate() {
