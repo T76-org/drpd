@@ -37,6 +37,8 @@ OPFS support in the sqlite-wasm worker path requires cross-origin isolation:
 
 The local Vite dev server is configured with these headers in `vite.config.ts`. Production hosting must also send them for OPFS persistence to work.
 
+When you access the dev server through a LAN IP such as `192.168.199.1`, plain HTTP is not a trustworthy origin, so Chrome will ignore COOP/COEP headers there. Use `localhost` during local development if you need those headers to take effect.
+
 ## Log lifecycle behavior
 
 ### Backend creation

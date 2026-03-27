@@ -5,9 +5,12 @@
  * DRPD device driver root.
  */
 
-import USBTMCTransport from '../../transport/usbtmc'
 import { DebugLogRegistry, DebugLogger } from '../../debugLogger'
-import type { DRPDTransport } from './transport'
+import {
+  DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
+  DRPD_TRANSPORT_INTERRUPT_EVENT,
+  type DRPDTransport,
+} from './transport'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
 import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './types'
@@ -49,6 +52,7 @@ import { DRPDVBus } from './vbus'
 
 const LEGACY_CAPTURE_RETENTION = 50
 const CLOCK_SYNC_SAMPLE_COUNT = 5
+const CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS = 64
 
 /**
  * Optional DRPD device constructor overrides.
@@ -92,6 +96,7 @@ export class DRPDDevice extends EventTarget {
   protected state: DRPDDeviceState ///< Current device state.
   protected interruptSource?: EventTarget ///< Interrupt event source.
   protected interruptInFlight?: Promise<void> ///< In-flight interrupt handler.
+  protected interruptRescheduleTimer?: ReturnType<typeof setTimeout> ///< Deferred interrupt rerun timer.
   protected interruptPending: boolean ///< True when another interrupt arrives mid-refresh.
   protected readonly interruptHandler: () => void ///< Interrupt handler.
   protected readonly interruptErrorHandler: (event: Event) => void ///< Interrupt error handler.
@@ -162,7 +167,7 @@ export class DRPDDevice extends EventTarget {
     this.isConnected = false
     this.debugLogs =
       options?.debugLogRegistry ??
-      (transport instanceof USBTMCTransport ? transport.debugLogs : undefined) ??
+      ((transport as DRPDTransport & { debugLogs?: DebugLogRegistry }).debugLogs ?? undefined) ??
       new DebugLogRegistry()
     this.debugLogger = this.debugLogs.getLogger('drpd.device')
     this.loggingConfig = buildDefaultLoggingConfig()
@@ -178,18 +183,10 @@ export class DRPDDevice extends EventTarget {
     this.lastSeenVBusOcpEventTimestampUs = null
     this.hasSeenInitialVBusEventTimestamps = false
     this.interruptPending = false
+    this.interruptRescheduleTimer = undefined
     this.interruptHandler = () => {
-      if (this.interruptInFlight) {
-        this.interruptPending = true
-        return
-      }
-      const task = this.flushPendingInterrupts()
-      this.interruptInFlight = task
-      void task.finally(() => {
-        if (this.interruptInFlight === task) {
-          this.interruptInFlight = undefined
-        }
-      })
+      this.interruptPending = true
+      this.scheduleInterruptRefresh()
     }
     this.interruptErrorHandler = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : event
@@ -201,8 +198,8 @@ export class DRPDDevice extends EventTarget {
     if ('addEventListener' in transport) {
       const target = transport as unknown as EventTarget
       this.interruptSource = target
-      target.addEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
-      target.addEventListener(USBTMCTransport.INTERRUPT_ERROR_EVENT, this.interruptErrorHandler)
+      target.addEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, this.interruptHandler)
+      target.addEventListener(DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT, this.interruptErrorHandler)
     }
   }
 
@@ -688,6 +685,10 @@ export class DRPDDevice extends EventTarget {
     this.stopClockSyncPolling()
     this.stopAnalogMonitorPolling()
     this.stopCaptureDrainPolling()
+    if (this.interruptRescheduleTimer) {
+      clearTimeout(this.interruptRescheduleTimer)
+      this.interruptRescheduleTimer = undefined
+    }
     void this.stopLogging().finally(() => this.closeLogStore())
     this.activeDisplayEpochStartUs = null
     this.pendingDisplayEpochReset = false
@@ -1001,9 +1002,9 @@ export class DRPDDevice extends EventTarget {
     if (!this.interruptSource) {
       return
     }
-    this.interruptSource.removeEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
+    this.interruptSource.removeEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, this.interruptHandler)
     this.interruptSource.removeEventListener(
-      USBTMCTransport.INTERRUPT_ERROR_EVENT,
+      DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
       this.interruptErrorHandler,
     )
     this.interruptSource = undefined
@@ -1017,13 +1018,30 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
-   * Flush all pending interrupts before returning to idle.
+   * Schedule interrupt processing without monopolizing the event loop.
    */
-  protected async flushPendingInterrupts(): Promise<void> {
-    do {
+  protected scheduleInterruptRefresh(): void {
+    if (this.interruptInFlight) {
+      return
+    }
+
+    const task = (async () => {
       this.interruptPending = false
       await this.handleInterrupt()
-    } while (this.interruptPending)
+    })()
+    this.interruptInFlight = task
+    void task.finally(() => {
+      if (this.interruptInFlight === task) {
+        this.interruptInFlight = undefined
+      }
+      if (!this.interruptPending || this.interruptRescheduleTimer) {
+        return
+      }
+      this.interruptRescheduleTimer = setTimeout(() => {
+        this.interruptRescheduleTimer = undefined
+        this.scheduleInterruptRefresh()
+      }, 0)
+    })
   }
 
   /**
@@ -1345,6 +1363,7 @@ export class DRPDDevice extends EventTarget {
    */
   protected async refreshAndDrainCapturedMessagesFromDevice(): Promise<void> {
     this.logDebug('refreshAndDrainCapturedMessages: start')
+    let processedMessages = 0
     if (this.captureCycleTimeNs === null) {
       try {
         this.captureCycleTimeNs = await this.capture.getCycleTimeNs()
@@ -1384,7 +1403,15 @@ export class DRPDDevice extends EventTarget {
               detail: { message },
             }),
           )
+          processedMessages += 1
           this.logDebug('refreshAndDrainCapturedMessages: message')
+          if (processedMessages >= CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS) {
+            this.interruptPending = true
+            this.logDebug(
+              `refreshAndDrainCapturedMessages: yielding after ${processedMessages} messages`,
+            )
+            return
+          }
         } catch (error) {
           this.dispatchEvent(
             new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),

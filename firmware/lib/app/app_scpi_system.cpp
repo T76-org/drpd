@@ -13,7 +13,7 @@ void App::_queryIDN(const std::vector<T76::SCPI::ParameterValue> &params) {
         sizeof(serialBuffer));
     std::string response = "\"MTA Inc.\",Dr.PD," +
         std::string(serialBuffer) + ",1.0";
-    _usbInterface.sendUSBTMCBulkData(response);
+    _sendTransportTextResponse(response);
 }
 
 void App::_resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -22,31 +22,30 @@ void App::_resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params)
 
 void App::_querySystemError(const std::vector<T76::SCPI::ParameterValue> &params) {
     if (!_interpreter.errorQueue.empty()) {
-        _usbInterface.sendUSBTMCBulkData(_interpreter.errorQueue.front(), true);
+        _sendTransportTextResponse(_interpreter.errorQueue.front(), true);
         _interpreter.errorQueue.pop();
     } else {
-        _usbInterface.sendUSBTMCBulkData("0,\"No Error\"", true);
+        _sendTransportTextResponse("0,\"No Error\"", true);
     }
 }
 
 void App::_querySystemMemory(const std::vector<T76::SCPI::ParameterValue> &params) {
     size_t freeHeapSize = xPortGetFreeHeapSize();
     size_t totalHeapSize = configTOTAL_HEAP_SIZE;
-    _usbInterface.sendUSBTMCBulkData(std::to_string(totalHeapSize) + "," + std::to_string(freeHeapSize));
+    _sendTransportTextResponse(std::to_string(totalHeapSize) + "," + std::to_string(freeHeapSize));
 }
 
 void App::_querySystemSpeed(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t clockFreq = clock_get_hz(clk_sys);
-    _usbInterface.sendUSBTMCBulkData(std::to_string(clockFreq));
+    _sendTransportTextResponse(std::to_string(clockFreq));
 }
 
 void App::_querySystemUptime(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint64_t uptimeMicros = time_us_64();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(uptimeMicros));
+    _sendTransportTextResponse(std::to_string(uptimeMicros));
 }
 
 void App::_querySystemTimestamp(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint64_t timestampMicros = time_us_64();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(timestampMicros));
+    _sendTransportTextResponse(std::to_string(timestampMicros));
 }
-

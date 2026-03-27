@@ -257,6 +257,7 @@ export class USBTMCTimeoutError extends Error {
  * and error mapping still need to be implemented.
  */
 export class USBTMCTransport extends EventTarget {
+  public readonly kind = 'usbtmc' as const
   private readonly device: USBDevice ///< WebUSB device instance.
   private readonly options: ResolvedUSBTMCOptions ///< Resolved transport options.
   public readonly debugLogs: DebugLogRegistry ///< Shared debug logging registry.
@@ -300,6 +301,10 @@ export class USBTMCTransport extends EventTarget {
       readTimeoutMs: options.readTimeoutMs ?? DEFAULT_OPTIONS.readTimeoutMs,
       writeTimeoutMs: options.writeTimeoutMs ?? DEFAULT_OPTIONS.writeTimeoutMs,
     }
+  }
+
+  public get claimedInterfaceNumber(): number | undefined {
+    return this.interfaceNumber
   }
 
   /**

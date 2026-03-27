@@ -7,11 +7,11 @@
  */
 
 import { DebugLogRegistry } from '../../../debugLogger'
+import { openPreferredDRPDTransport, type DRPDUSBTransport } from '../../../transport/drpdUsb'
 import { SQLiteWasmStore } from '../logging/sqliteWasmStore'
 import type { DRPDLogStore } from '../logging/types'
 import { DRPDDevice } from '../device'
-import type { DRPDTransport } from '../transport'
-import USBTMCTransport from '../../../transport/usbtmc'
+import type { DRPDTransport, DRPDTransportKind } from '../transport'
 import type {
   HostTransportRpcRequest,
   MainToWorkerMessage,
@@ -65,15 +65,18 @@ const awaitWithTimeout = async (
  */
 class HostBridgeTransport extends EventTarget implements DRPDTransport {
   public readonly transportId: string ///< Host transport identifier.
+  public readonly kind: DRPDTransportKind ///< Host-selected transport kind.
 
   /**
    * Create a host-bridged transport.
    *
    * @param transportId - Host transport identifier.
+   * @param kind - Host-selected transport kind.
    */
-  public constructor(transportId: string) {
+  public constructor(transportId: string, kind: DRPDTransportKind) {
     super()
     this.transportId = transportId
+    this.kind = kind
   }
 
   /**
@@ -146,7 +149,7 @@ class HostBridgeTransport extends EventTarget implements DRPDTransport {
  * Worker-owned DRPD session resources.
  */
 type WorkerDRPDSession = {
-  transport: USBTMCTransport ///< Worker-owned USBTMC transport.
+  transport: DRPDUSBTransport ///< Worker-owned DRPD USB transport.
   device: DRPDDevice ///< Worker-owned DRPD device driver.
   debugLogs: DebugLogRegistry ///< Worker-owned debug logging controller.
   eventForwarders: Array<{ eventName: string; handler: (event: Event) => void }> ///< Event listener registrations for cleanup.
@@ -328,7 +331,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
     }
     case 'transport.create':
       transportQueues.set(request.params.transportId, Promise.resolve())
-      bridgeTransports.set(request.params.transportId, new HostBridgeTransport(request.params.transportId))
+      bridgeTransports.set(
+        request.params.transportId,
+        new HostBridgeTransport(request.params.transportId, request.params.kind),
+      )
       return null
     case 'transport.close':
       transportQueues.delete(request.params.transportId)
@@ -426,8 +432,7 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
       for (const rule of request.params.debugLogRules ?? []) {
         debugLogs.setScopeEnabled(rule.scope, rule.enabled)
       }
-      const transport = new USBTMCTransport(usbDevice, { debugLogRegistry: debugLogs })
-      await transport.open()
+      const transport = await openPreferredDRPDTransport(usbDevice, { debugLogRegistry: debugLogs })
       const device = new DRPDDevice(transport, {
         createLogStore: (config) => new SQLiteWasmStore(config),
         debugLogRegistry: debugLogs,

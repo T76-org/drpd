@@ -2,11 +2,17 @@
  * @file transportProxy.ts
  * @copyright Copyright (c) 2026 MTA, Inc.
  *
- * Worker-backed DRPD transport proxy that preserves USBTMC request serialization.
+ * Worker-backed DRPD transport proxy that preserves DRPD USB request serialization.
  */
 
-import USBTMCTransport from '../../../transport/usbtmc'
-import type { DRPDSCPIParam, DRPDTransport } from '../transport'
+import type { DRPDUSBTransport } from '../../../transport/drpdUsb'
+import {
+  DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
+  DRPD_TRANSPORT_INTERRUPT_EVENT,
+  type DRPDSCPIParam,
+  type DRPDTransport,
+  type DRPDTransportKind,
+} from '../transport'
 import { DRPDWorkerServiceClient } from './service'
 
 let transportProxyCounter = 1
@@ -15,6 +21,7 @@ let transportProxyCounter = 1
  * Worker-backed transport proxy that forwards commands through the DRPD worker.
  */
 export class DRPDWorkerTransportProxy extends EventTarget implements DRPDTransport {
+  public readonly kind: DRPDTransportKind
   protected readonly id: string ///< Worker transport id.
   protected readonly client: DRPDWorkerServiceClient ///< Shared worker client.
   protected closed: boolean ///< True after close().
@@ -22,31 +29,33 @@ export class DRPDWorkerTransportProxy extends EventTarget implements DRPDTranspo
   /**
    * Create a worker-backed transport proxy.
    *
+   * @param kind - Underlying transport kind.
    * @param id - Worker transport id.
    * @param client - Shared worker client.
    */
-  protected constructor(id: string, client: DRPDWorkerServiceClient) {
+  protected constructor(kind: DRPDTransportKind, id: string, client: DRPDWorkerServiceClient) {
     super()
+    this.kind = kind
     this.id = id
     this.client = client
     this.closed = false
   }
 
   /**
-   * Register a main-thread USBTMC transport with the worker and create a proxy.
+   * Register a main-thread DRPD USB transport with the worker and create a proxy.
    *
-   * @param hostTransport - Opened USBTMC transport instance.
+   * @param hostTransport - Opened DRPD USB transport instance.
    * @returns Worker-backed transport proxy.
    */
-  public static async create(hostTransport: USBTMCTransport): Promise<DRPDWorkerTransportProxy> {
+  public static async create(hostTransport: DRPDUSBTransport): Promise<DRPDWorkerTransportProxy> {
     const client = DRPDWorkerServiceClient.getShared()
     const id = `transport-${transportProxyCounter++}`
-    const proxy = new DRPDWorkerTransportProxy(id, client)
+    const proxy = new DRPDWorkerTransportProxy(hostTransport.kind, id, client)
     await client.registerHostTransport(id, hostTransport, (eventName, detail) => {
       const mappedName =
         eventName === 'interrupt'
-          ? USBTMCTransport.INTERRUPT_EVENT
-          : USBTMCTransport.INTERRUPT_ERROR_EVENT
+          ? DRPD_TRANSPORT_INTERRUPT_EVENT
+          : DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT
       proxy.dispatchEvent(new CustomEvent(mappedName, { detail }))
     })
     return proxy
@@ -126,4 +135,3 @@ export class DRPDWorkerTransportProxy extends EventTarget implements DRPDTranspo
     }
   }
 }
-

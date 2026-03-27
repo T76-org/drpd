@@ -54,11 +54,12 @@ const mockTransportState = vi.hoisted(() => ({
   captureCountResponse: ['0']
 }))
 
-vi.mock('../../../lib/transport/usbtmc', () => {
+vi.mock('../../../lib/transport/drpdUsb', () => {
   /**
-   * Mock USBTMC transport for RackView tests.
+   * Mock preferred DRPD transport for RackView tests.
    */
-  class MockUSBTMCTransport {
+  class MockDRPDTransport {
+    public readonly kind = 'winusb' as const
     ///< Track open/close state for verification.
     public opened = false
 
@@ -199,7 +200,13 @@ vi.mock('../../../lib/transport/usbtmc', () => {
     }
   }
 
-  return { default: MockUSBTMCTransport }
+  return {
+    openPreferredDRPDTransport: async (device: USBDevice) => {
+      const transport = new MockDRPDTransport(device)
+      await transport.open()
+      return transport
+    },
+  }
 })
 
 /**

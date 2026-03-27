@@ -7,11 +7,13 @@
 
 import { Device } from './base'
 import { DebugLogRegistry } from '../debugLogger'
-import USBTMCTransport from '../transport/usbtmc'
-import { parseDeviceIdentity } from './drpd/parsers'
+import { openPreferredDRPDTransport } from '../transport/drpdUsb'
 import { DRPDDevice } from './drpd/device'
 import type { DRPDTransport } from './drpd/transport'
 import { buildDefaultLoggingConfig, normalizeLoggingConfig, SQLiteWasmStore } from './drpd/logging'
+
+const DRPD_MANUFACTURER_NAME = 'MTA Inc.'
+const DRPD_PRODUCT_NAME = 'Dr. PD'
 import type { DRPDDeviceConfig, DRPDLoggingConfig } from './drpd/types'
 import {
   DRPDWorkerDeviceProxy,
@@ -42,21 +44,10 @@ export class DRPDDeviceDefinition extends Device {
    * Optional post-connect verification to confirm compatibility.
    */
   public static verifyConnectedDevice = async (device: USBDevice): Promise<boolean> => {
-    const transport = new USBTMCTransport(device)
-    try {
-      await transport.open()
-      const response = await transport.queryText('*IDN?')
-      const identity = parseDeviceIdentity(response)
-      return identity.manufacturer === 'MTA Inc.' && identity.model === 'Dr. PD'
-    } catch {
-      return false
-    } finally {
-      try {
-        await transport.close()
-      } catch {
-        // Ignore close errors in verification.
-      }
-    }
+    return (
+      (device.manufacturerName ?? '').trim() === DRPD_MANUFACTURER_NAME &&
+      (device.productName ?? '').trim() === DRPD_PRODUCT_NAME
+    )
   }
 
   /**
@@ -68,6 +59,13 @@ export class DRPDDeviceDefinition extends Device {
       displayName: 'Dr. PD',
       usbSearch: [
         { vendorId: 0x2e8a, productId: 0x000a, note: 'Dr.PD VID/PID' },
+        {
+          vendorId: 0x2e8a,
+          classCode: 0xff,
+          subclassCode: 0x01,
+          protocolCode: 0x02,
+          note: 'WinUSB transport interface',
+        },
         {
           vendorId: 0x2e8a,
           classCode: 0xfe,
@@ -117,8 +115,7 @@ export class DRPDDeviceDefinition extends Device {
 
     // Capability fallback for test/non-browser environments without Worker.
     const debugLogs = new DebugLogRegistry()
-    const transport = new USBTMCTransport(device, { debugLogRegistry: debugLogs })
-    await transport.open()
+    const transport = await openPreferredDRPDTransport(device, { debugLogRegistry: debugLogs })
     const driver = this.createDriver(transport)
     return { driver, transport, debugLogs }
   }

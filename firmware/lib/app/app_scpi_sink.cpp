@@ -28,7 +28,7 @@ void App::_querySinkAvailablePDOCount(const std::vector<T76::SCPI::ParameterValu
     }
 
     size_t count = sink->pdoCount();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(count), true);
+    _sendTransportTextResponse(std::to_string(count), true);
 }
 
 void App::_querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -62,42 +62,42 @@ void App::_querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterVa
             std::string response = "FIXED,";
             response += std::to_string(pdo.voltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f) + ",";
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::VariableSupplyPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_CURRENT
             std::string response = "VARIABLE,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f) + ",";
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::BatterySupplyPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
             std::string response = "BATTERY,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f) + ",";
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::SPRPPSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_CURRENT
             std::string response = "SPR_PPS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f) + ",";
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::SPRAVSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
             std::string response = "SPR_AVS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f) + ",";
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::EPRAVSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
             std::string response = "EPR_AVS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f) + ",";
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         }
     }, pdoOpt.value());
 }
@@ -153,49 +153,49 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
     
     switch(state) {
         case Logic::SinkState::Disconnected:
-            _usbInterface.sendUSBTMCBulkData("DISCONNECTED", true);
+            _sendTransportTextResponse("DISCONNECTED", true);
             break;
         case Logic::SinkState::PE_SNK_Startup:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_STARTUP", true);
+            _sendTransportTextResponse("PE_SNK_STARTUP", true);
             break;
         case Logic::SinkState::PE_SNK_Discovery:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_DISCOVERY", true);
+            _sendTransportTextResponse("PE_SNK_DISCOVERY", true);
             break;
         case Logic::SinkState::PE_SNK_Wait_for_Capabilities:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_WAIT_FOR_CAPABILITIES", true);
+            _sendTransportTextResponse("PE_SNK_WAIT_FOR_CAPABILITIES", true);
             break;
         case Logic::SinkState::PE_SNK_Evaluate_Capability:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_EVALUATE_CAPABILITY", true);
+            _sendTransportTextResponse("PE_SNK_EVALUATE_CAPABILITY", true);
             break;
         case Logic::SinkState::PE_SNK_Select_Capability:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_SELECT_CAPABILITY", true);
+            _sendTransportTextResponse("PE_SNK_SELECT_CAPABILITY", true);
             break;
         case Logic::SinkState::PE_SNK_Transition_Sink:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_TRANSITION_SINK", true);
+            _sendTransportTextResponse("PE_SNK_TRANSITION_SINK", true);
             break;
         case Logic::SinkState::PE_SNK_Ready:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_READY", true);
+            _sendTransportTextResponse("PE_SNK_READY", true);
             break;
         case Logic::SinkState::PE_SNK_EPR_Mode_Entry:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_EPR_MODE_ENTRY", true);
+            _sendTransportTextResponse("PE_SNK_EPR_MODE_ENTRY", true);
             break;
         case Logic::SinkState::PE_SNK_Give_Sink_Cap:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_GIVE_SINK_CAP", true);
+            _sendTransportTextResponse("PE_SNK_GIVE_SINK_CAP", true);
             break;
         case Logic::SinkState::PE_SNK_Get_Source_Cap:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_GET_SOURCE_CAP", true);
+            _sendTransportTextResponse("PE_SNK_GET_SOURCE_CAP", true);
             break;
         case Logic::SinkState::PE_SNK_EPR_Keepalive:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_EPR_KEEPALIVE", true);
+            _sendTransportTextResponse("PE_SNK_EPR_KEEPALIVE", true);
             break;
         case Logic::SinkState::PE_SNK_Hard_Reset:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_HARD_RESET", true);
+            _sendTransportTextResponse("PE_SNK_HARD_RESET", true);
             break;
         case Logic::SinkState::PE_SNK_Transition_To_Default:
-            _usbInterface.sendUSBTMCBulkData("PE_SNK_TRANSITION_TO_DEFAULT", true);
+            _sendTransportTextResponse("PE_SNK_TRANSITION_TO_DEFAULT", true);
             break;
         case Logic::SinkState::Error:
-            _usbInterface.sendUSBTMCBulkData("ERROR", true);
+            _sendTransportTextResponse("ERROR", true);
             break;
     }
 }
@@ -215,7 +215,7 @@ void App::_querySinkNegotiatedPDO(const std::vector<T76::SCPI::ParameterValue> &
 
     std::optional<Proto::PDOVariant> pdoOpt = sink->negotiatedPDO();
     if (!pdoOpt.has_value()) {
-        _usbInterface.sendUSBTMCBulkData("NONE", true);
+        _sendTransportTextResponse("NONE", true);
         return;
     }
 
@@ -228,42 +228,42 @@ void App::_querySinkNegotiatedPDO(const std::vector<T76::SCPI::ParameterValue> &
             std::string response = "FIXED,";
             response += std::to_string(pdo.voltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f);
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::VariableSupplyPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_CURRENT
             std::string response = "VARIABLE,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f);
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::BatterySupplyPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
             std::string response = "BATTERY,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f);
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::SPRPPSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_CURRENT
             std::string response = "SPR_PPS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f);
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::SPRAVSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
             std::string response = "SPR_AVS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f);
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::EPRAVSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
             std::string response = "EPR_AVS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f);
-            _usbInterface.sendUSBTMCBulkData(response, true);
+            _sendTransportTextResponse(response, true);
         }
     }, pdoOpt.value());
 }
@@ -282,7 +282,7 @@ void App::_querySinkNegotiatedVoltage(const std::vector<T76::SCPI::ParameterValu
     }
 
     float voltage = sink->negotiatedVoltage();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(voltage), true);
+    _sendTransportTextResponse(std::to_string(voltage), true);
 }
 
 void App::_querySinkNegotiatedCurrent(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -299,7 +299,7 @@ void App::_querySinkNegotiatedCurrent(const std::vector<T76::SCPI::ParameterValu
     }
 
     float current = sink->negotiatedCurrent();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(current), true);
+    _sendTransportTextResponse(std::to_string(current), true);
 }
 
 void App::_querySinkErrorStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -318,8 +318,8 @@ void App::_querySinkErrorStatus(const std::vector<T76::SCPI::ParameterValue> &pa
     // Check if sink is in error state
     Logic::SinkState state = sink->state();
     if (state == Logic::SinkState::Error) {
-        _usbInterface.sendUSBTMCBulkData("1", true);
+        _sendTransportTextResponse("1", true);
     } else {
-        _usbInterface.sendUSBTMCBulkData("0", true);
+        _sendTransportTextResponse("0", true);
     }
 }

@@ -4,6 +4,7 @@ import { DRPDDevice } from '../device'
 import type { DRPDTransport } from '../transport'
 
 class TestTransport extends EventTarget implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   async sendCommand(): Promise<void> {}
   async queryText(): Promise<string[]> {
     return []

@@ -15,65 +15,65 @@ using namespace T76::DRPD;
 void App::_queryCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &params) {
     switch(_ccBusController.role()) {
         case Logic::CCBusRole::Disabled:
-            _usbInterface.sendUSBTMCBulkData("DISABLED,", false);
+            _sendTransportTextResponse("DISABLED,", false);
             break;
         case Logic::CCBusRole::Observer:
-            _usbInterface.sendUSBTMCBulkData("OBSERVER,", false);
+            _sendTransportTextResponse("OBSERVER,", false);
             break;
         case Logic::CCBusRole::Source:
-            _usbInterface.sendUSBTMCBulkData("SOURCE,", false);
+            _sendTransportTextResponse("SOURCE,", false);
             break;
         case Logic::CCBusRole::Sink:
-            _usbInterface.sendUSBTMCBulkData("SINK,", false);
+            _sendTransportTextResponse("SINK,", false);
             break;
     }
 
     switch(_ccBusController.state()) {
         case Logic::CCBusState::Unattached:
-            _usbInterface.sendUSBTMCBulkData("UNATTACHED,", false);
+            _sendTransportTextResponse("UNATTACHED,", false);
             break;
         case Logic::CCBusState::SourceFound:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_FOUND,", false);
+            _sendTransportTextResponse("SOURCE_FOUND,", false);
             break;
         case Logic::CCBusState::Attached:
-            _usbInterface.sendUSBTMCBulkData("ATTACHED,", false);
+            _sendTransportTextResponse("ATTACHED,", false);
             break;
     }
 
     switch(_ccBusController.sourcePort()) {
         case Logic::CCBusPort::DUT:
-            _usbInterface.sendUSBTMCBulkData("DUT,", false);
+            _sendTransportTextResponse("DUT,", false);
             break;
         case Logic::CCBusPort::USDS:
-            _usbInterface.sendUSBTMCBulkData("USDS,", false);
+            _sendTransportTextResponse("USDS,", false);
             break;
     }
 
     switch(_ccBusController.sourceChannel()) {
         case PHY::CCChannel::CC1:
-            _usbInterface.sendUSBTMCBulkData("CC1,", false);
+            _sendTransportTextResponse("CC1,", false);
             break;
         case PHY::CCChannel::CC2:
-            _usbInterface.sendUSBTMCBulkData("CC2,", false);
+            _sendTransportTextResponse("CC2,", false);
             break;
     }
 
     switch(_ccBusController.sinkPort()) {
         case Logic::CCBusPort::DUT:
-            _usbInterface.sendUSBTMCBulkData("DUT,", false);
+            _sendTransportTextResponse("DUT,", false);
             break;
 
         case Logic::CCBusPort::USDS:
-            _usbInterface.sendUSBTMCBulkData("USDS,", false);
+            _sendTransportTextResponse("USDS,", false);
             break;
     }
 
     switch(_ccBusController.sinkChannel()) {
         case PHY::CCChannel::CC1:
-            _usbInterface.sendUSBTMCBulkData("CC1", true);
+            _sendTransportTextResponse("CC1", true);
             break;
         case PHY::CCChannel::CC2:
-            _usbInterface.sendUSBTMCBulkData("CC2", true);
+            _sendTransportTextResponse("CC2", true);
             break;
     }
 }
@@ -103,25 +103,25 @@ void App::_setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &
 void App::_queryCCBusControllerRoleStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
     switch(_ccBusController.state()) {
         case Logic::CCBusState::Unattached:
-            _usbInterface.sendUSBTMCBulkData("UNATTACHED", true);
+            _sendTransportTextResponse("UNATTACHED", true);
             break;
         case Logic::CCBusState::SourceFound:
-            _usbInterface.sendUSBTMCBulkData("SOURCE_FOUND", true);
+            _sendTransportTextResponse("SOURCE_FOUND", true);
             break;
         case Logic::CCBusState::Attached:
-            _usbInterface.sendUSBTMCBulkData("ATTACHED", true);
+            _sendTransportTextResponse("ATTACHED", true);
             break;
     }
 }
 
 void App::_queryCCBusCaptureCycleTime(const std::vector<T76::SCPI::ParameterValue> &params) {
-    _usbInterface.sendUSBTMCBulkData(std::to_string(_bmcDecoder.nsPerPulseWidthPIOCycle()), true);
+    _sendTransportTextResponse(std::to_string(_bmcDecoder.nsPerPulseWidthPIOCycle()), true);
 }
 
 void App::_queryCCBusCapturedMessageCount(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t count = _receivedMessages.size();
     
-    _usbInterface.sendUSBTMCBulkData(std::to_string(count), true);
+    _sendTransportTextResponse(std::to_string(count), true);
 }
 
 void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -203,7 +203,7 @@ void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterV
     // Newline to terminate the block
     messageBytes.push_back('\n');
 
-    _usbInterface.sendUSBTMCBulkData(messageBytes);
+    _sendTransportBinaryResponse(messageBytes);
 }
 
 void App::_setCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -226,9 +226,9 @@ void App::_setCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterVal
 void App::_queryCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterValue> &params) {
     bool enabled = _captureEnabled.load(std::memory_order_relaxed);
     if (enabled) {
-        _usbInterface.sendUSBTMCBulkData("ON", true);
+        _sendTransportTextResponse("ON", true);
     } else {
-        _usbInterface.sendUSBTMCBulkData("OFF", true);
+        _sendTransportTextResponse("OFF", true);
     }
 }
 

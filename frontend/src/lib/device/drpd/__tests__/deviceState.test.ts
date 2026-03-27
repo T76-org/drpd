@@ -14,6 +14,7 @@ import {
 } from '../types'
 
 class MockInterruptTransport extends EventTarget implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   public textResponses = new Map<string, string[]>()
   public textResponseFactories = new Map<string, () => string[]>()
   public binaryResponses = new Map<string, Uint8Array[]>()
@@ -166,6 +167,7 @@ describe('DRPDDevice state updates', () => {
 
     transport.emitInterrupt()
     await tick()
+    await tick()
 
     expect(device.getState().role).toBe(CCBusRole.SINK)
     expect(roleChanges).toEqual([CCBusRole.SINK])
@@ -185,6 +187,7 @@ describe('DRPDDevice state updates', () => {
     })
 
     transport.emitInterrupt()
+    await tick()
     await tick()
 
     expect(errors.length).toBe(1)

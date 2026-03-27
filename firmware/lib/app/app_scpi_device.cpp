@@ -26,6 +26,5 @@ void App::clearStatus() {
 
 void App::_queryDeviceStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
     const uint32_t status = _deviceStatusRegister.exchange(0u, std::memory_order_acq_rel);
-    _usbInterface.sendUSBTMCBulkData(std::to_string(status));
+    _sendTransportTextResponse(std::to_string(status));
 }
-

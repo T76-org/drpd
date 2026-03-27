@@ -46,6 +46,7 @@ const buildCapturePayload = (
  * Mock transport for logging integration tests.
  */
 class MockTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   public textResponses = new Map<string, string[]>()
   public binaryResponses = new Map<string, Uint8Array[]>()
 

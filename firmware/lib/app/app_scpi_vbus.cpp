@@ -40,7 +40,7 @@ void App::_queryVBusStatus(const std::vector<T76::SCPI::ParameterValue> &) {
     const std::string ovpField = ovpTimestampUs == 0 ? "NONE" : std::to_string(ovpTimestampUs);
     const std::string ocpField = ocpTimestampUs == 0 ? "NONE" : std::to_string(ocpTimestampUs);
 
-    _usbInterface.sendUSBTMCBulkData(status + "," + ovpField + "," + ocpField);
+    _sendTransportTextResponse(status + "," + ovpField + "," + ocpField);
 }
 
 void App::_resetVBus(const std::vector<T76::SCPI::ParameterValue> &) {
@@ -66,7 +66,7 @@ void App::_setVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &par
 
 void App::_queryVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &) {
     float threshold = _vbusManager.ovpThreshold();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(threshold));
+    _sendTransportTextResponse(std::to_string(threshold));
 }
 
 void App::_setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -88,7 +88,7 @@ void App::_setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &par
 
 void App::_queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &) {
     float threshold = _vbusManager.ocpThreshold();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(threshold));
+    _sendTransportTextResponse(std::to_string(threshold));
 }
 
 void App::_setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -127,7 +127,7 @@ void App::_queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) 
         }
     }
 
-    _usbInterface.sendUSBTMCBulkData(response);
+    _sendTransportTextResponse(response);
 }
 
 void App::_resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) {

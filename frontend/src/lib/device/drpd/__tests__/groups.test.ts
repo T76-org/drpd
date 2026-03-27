@@ -19,6 +19,7 @@ import {
  * Mock transport for group tests.
  */
 class MockTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   ///< Captured command history.
   public readonly commands: Array<{ command: string; params: DRPDSCPIParam[] }> = []
   ///< Preloaded text responses by command.
