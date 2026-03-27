@@ -73,24 +73,15 @@ void App::_processSCPIInput(const std::vector<uint8_t> &data, bool transfer_comp
 }
 
 void App::_onUSBTMCAbortBulkIn() {
-    if (_commandOwner != CommandOwner::WinUSB) {
-        _resetCommandState();
-        _releaseCommandOwner(CommandOwner::USBTMC);
-    }
+    _resetUSBTMCRequestStateIfOwned();
 }
 
 void App::_onUSBTMCAbortBulkOut() {
-    if (_commandOwner != CommandOwner::WinUSB) {
-        _resetCommandState();
-        _releaseCommandOwner(CommandOwner::USBTMC);
-    }
+    _resetUSBTMCRequestStateIfOwned();
 }
 
 void App::_onUSBTMCClear() {
-    if (_commandOwner != CommandOwner::WinUSB) {
-        _resetCommandState();
-        _releaseCommandOwner(CommandOwner::USBTMC);
-    }
+    _resetUSBTMCRequestStateIfOwned();
 }
 
 void App::_sendTransportTextResponse(const std::string &data, bool addNewline) {
@@ -137,6 +128,15 @@ bool App::_sendTransportNotification() {
     return _usbInterface.sendUSBTMCSRQInterrupt(0x40); // Set RQS/MSS bit in status byte
 }
 
+void App::_resetUSBTMCRequestStateIfOwned() {
+    if (_commandOwner == CommandOwner::WinUSB) {
+        return;
+    }
+
+    _resetCommandState();
+    _releaseCommandOwner(CommandOwner::USBTMC);
+}
+
 void App::_resetCommandState() {
     _interpreter.reset();
     _pendingTextResponse.clear();
@@ -158,6 +158,13 @@ void App::_resetWinUSBSession(uint8_t tag) {
     _resetCommandState();
     _sendWinUSBFrame(WinUSBFrameType::SessionResetAck, tag, {});
     _releaseCommandOwner(CommandOwner::WinUSB);
+}
+
+void App::_prepareWinUSBRequest(uint8_t tag, bool expectsQuery) {
+    _activeCommandTransport = CommandTransport::WinUSB;
+    _activeWinUSBTag = tag;
+    _activeWinUSBQueryRequest = expectsQuery;
+    _pendingTextResponse.clear();
 }
 
 uint32_t App::_readLE32(const std::vector<uint8_t> &data, size_t offset) {
@@ -218,10 +225,7 @@ void App::_drainWinUSBRxBuffer() {
                     _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
                     break;
                 }
-                _activeCommandTransport = CommandTransport::WinUSB;
-                _activeWinUSBTag = tag;
-                _activeWinUSBQueryRequest = false;
-                _pendingTextResponse.clear();
+                _prepareWinUSBRequest(tag, false);
                 _processWinUSBRequest(payload, false);
                 _releaseCommandOwner(CommandOwner::WinUSB);
                 break;
@@ -231,10 +235,7 @@ void App::_drainWinUSBRxBuffer() {
                     _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
                     break;
                 }
-                _activeCommandTransport = CommandTransport::WinUSB;
-                _activeWinUSBTag = tag;
-                _activeWinUSBQueryRequest = true;
-                _pendingTextResponse.clear();
+                _prepareWinUSBRequest(tag, true);
                 _processWinUSBRequest(payload, true);
                 _releaseCommandOwner(CommandOwner::WinUSB);
                 break;

@@ -24,11 +24,15 @@ const describeDevice = (device: USBDevice): string => {
 const logSelection = (
   transport: DRPDUSBTransport,
   device: USBDevice,
-  interfaceNumber: number | undefined,
 ): void => {
   console.info(
-    `[drpd] selected transport=${transport.kind} device="${describeDevice(device)}"${interfaceNumber != null ? ` interface=${interfaceNumber}` : ''}`,
+    `[drpd] selected transport=${transport.kind} device="${describeDevice(device)}"${transport.claimedInterfaceNumber != null ? ` interface=${transport.claimedInterfaceNumber}` : ''}`,
   )
+}
+
+const tryOpenTransport = async <T extends DRPDUSBTransport>(transport: T): Promise<T> => {
+  await transport.open()
+  return transport
 }
 
 export const openPreferredDRPDTransport = async (
@@ -37,9 +41,9 @@ export const openPreferredDRPDTransport = async (
 ): Promise<DRPDUSBTransport> => {
   const winusb = new WinUSBTransport(device, options)
   try {
-    await winusb.open()
-    logSelection(winusb, device, winusb.claimedInterfaceNumber)
-    return winusb
+    const transport = await tryOpenTransport(winusb)
+    logSelection(transport, device)
+    return transport
   } catch (winusbError) {
     try {
       await winusb.close()
@@ -49,9 +53,9 @@ export const openPreferredDRPDTransport = async (
 
     const usbtmc = new USBTMCTransport(device, options)
     try {
-      await usbtmc.open()
-      logSelection(usbtmc, device, usbtmc.claimedInterfaceNumber)
-      return usbtmc
+      const transport = await tryOpenTransport(usbtmc)
+      logSelection(transport, device)
+      return transport
     } catch (usbtmcError) {
       throw new Error(
         `Failed to open DRPD transport (WinUSB: ${String(winusbError)}; USBTMC: ${String(usbtmcError)})`,

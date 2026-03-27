@@ -30,6 +30,7 @@ export type DRPDTransportKind = 'usbtmc' | 'winusb'
  */
 export interface DRPDTransport {
   readonly kind: DRPDTransportKind
+  readonly claimedInterfaceNumber?: number
 
   /**
    * Send a SCPI command.

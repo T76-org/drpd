@@ -238,6 +238,11 @@ namespace T76::DRPD {
         bool _sendTransportNotification();
 
         /**
+         * @brief Reset shared command state for a USBTMC-owned request and release ownership.
+         */
+        void _resetUSBTMCRequestStateIfOwned();
+
+        /**
          * @brief Reset per-transport command parsing and response state.
          */
         void _resetCommandState();
@@ -262,6 +267,14 @@ namespace T76::DRPD {
          * @param expectsQuery True when the host sent a query request frame.
          */
         void _processWinUSBRequest(const std::vector<uint8_t> &payload, bool expectsQuery);
+
+        /**
+         * @brief Prepare common WinUSB request state before processing one frame.
+         *
+         * @param tag Correlation tag from the host.
+         * @param expectsQuery True when the request expects data rather than an ACK.
+         */
+        void _prepareWinUSBRequest(uint8_t tag, bool expectsQuery);
 
         /**
          * @brief Try to claim exclusive ownership of the shared SCPI interpreter.

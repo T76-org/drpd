@@ -54,7 +54,6 @@ const DEFAULT_OPTIONS: ResolvedWinUSBTransportOptions = {
 type ParsedWinUSBFrame = {
   type: number
   tag: number
-  statusFlags: number
   srqPending: boolean
   payload: Uint8Array
 }
@@ -206,25 +205,7 @@ export class WinUSBTransport extends EventTarget {
   public async queryText(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
     return await this.withLock(async () => {
       const line = this.formatSCPI(command, params)
-      if (this.isStatusQuery(line)) {
-        this.winusbInterruptLatched = false
-      }
-      const tag = await this.withTimeout(
-        this.writeFrame(WINUSB_QUERY_REQUEST, this.normalizePayload(line)),
-        this.options.writeTimeoutMs,
-        'write',
-        line,
-      )
-      const response = await this.awaitResponseFrame(tag, line)
-      if (response.type === WINUSB_ERROR_RESPONSE) {
-        throw new Error(`WinUSB device error: ${this.decoder.decode(response.payload)}`)
-      }
-      if (response.type !== WINUSB_TEXT_RESPONSE) {
-        throw new Error(`Unexpected WinUSB response type 0x${response.type.toString(16)}`)
-      }
-      const text = this.decoder.decode(response.payload).replace(/\r?\n$/, '')
-      this.debugLogger.debug(`Query: "${line}" - Response ${text}`)
-      return this.parseSCPIResponse(text)
+      return this.queryTextFrame(line)
     })
   }
 
@@ -256,7 +237,7 @@ export class WinUSBTransport extends EventTarget {
   }
 
   protected async checkErrorUnlocked(command: string): Promise<void> {
-    const response = await this.queryTextUnlocked('SYST:ERR?')
+    const response = await this.queryTextFrame('SYST:ERR?')
     const combined = response.join(' ')
     const match = combined.match(/^\s*([+-]?\d+)\s*,?\s*(.*)$/)
     if (!match) {
@@ -271,8 +252,7 @@ export class WinUSBTransport extends EventTarget {
     }
   }
 
-  protected async queryTextUnlocked(command: string, ...params: DRPDSCPIParam[]): Promise<string[]> {
-    const line = this.formatSCPI(command, params)
+  protected async queryTextFrame(line: string): Promise<string[]> {
     if (this.isStatusQuery(line)) {
       this.winusbInterruptLatched = false
     }
@@ -361,7 +341,6 @@ export class WinUSBTransport extends EventTarget {
       const frame: ParsedWinUSBFrame = {
         type: this.rxBuffer[3],
         tag: this.rxBuffer[4],
-        statusFlags: this.rxBuffer[5],
         srqPending: (this.rxBuffer[5] & WINUSB_STATUS_FLAG_SRQ_PENDING) !== 0,
         payload: this.rxBuffer.slice(WINUSB_FRAME_HEADER_SIZE, frameLength),
       }

@@ -11,6 +11,9 @@ import { openPreferredDRPDTransport } from '../transport/drpdUsb'
 import { DRPDDevice } from './drpd/device'
 import type { DRPDTransport } from './drpd/transport'
 import { buildDefaultLoggingConfig, normalizeLoggingConfig, SQLiteWasmStore } from './drpd/logging'
+
+const DRPD_MANUFACTURER_NAME = 'MTA Inc.'
+const DRPD_PRODUCT_NAME = 'Dr. PD'
 import type { DRPDDeviceConfig, DRPDLoggingConfig } from './drpd/types'
 import {
   DRPDWorkerDeviceProxy,
@@ -42,8 +45,8 @@ export class DRPDDeviceDefinition extends Device {
    */
   public static verifyConnectedDevice = async (device: USBDevice): Promise<boolean> => {
     return (
-      (device.manufacturerName ?? '').trim() === 'MTA Inc.' &&
-      (device.productName ?? '').trim() === 'Dr. PD'
+      (device.manufacturerName ?? '').trim() === DRPD_MANUFACTURER_NAME &&
+      (device.productName ?? '').trim() === DRPD_PRODUCT_NAME
     )
   }
 
