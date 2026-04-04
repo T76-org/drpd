@@ -315,6 +315,7 @@ export const DrpdTriggerInstrumentView = ({
   deviceState,
   isEditMode,
   onRemove,
+  onUpdateDeviceConfig,
 }: {
   instrument: RackInstrument
   displayName: string
@@ -322,8 +323,11 @@ export const DrpdTriggerInstrumentView = ({
   deviceState?: RackDeviceState
   isEditMode: boolean
   onRemove?: (instrumentId: string) => void
+  onUpdateDeviceConfig?: (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => Promise<void> | void
 }) => {
-  void deviceRecord
   const driver = deviceState?.drpdDriver
   const [resolvedTriggerInfo, setResolvedTriggerInfo] = useState<TriggerInfo | null>(null)
   const [eventTypeInput, setEventTypeInput] = useState<TriggerEventType>(TriggerEventType.OFF)
@@ -748,6 +752,23 @@ export const DrpdTriggerInstrumentView = ({
                     } catch {
                       // Fall back to the mirrored refresh path if direct readback fails.
                     }
+                    if (deviceRecord && onUpdateDeviceConfig) {
+                      await onUpdateDeviceConfig(deviceRecord.id, (current) => {
+                        const source = current && typeof current === 'object' ? current : {}
+                        return {
+                          ...source,
+                          trigger: {
+                            type: eventTypeInput,
+                            eventThreshold: parsedThreshold,
+                            senderFilter: senderFilterInput,
+                            autorepeat: autoRepeatInput,
+                            syncMode: syncModeInput,
+                            syncPulseWidthUs: parsedPulseWidthUs,
+                            messageTypeFilters: messageTypeFiltersInput,
+                          },
+                        }
+                      })
+                    }
                     await driver.refreshState()
                     closePopover()
                   })
@@ -815,10 +836,12 @@ export const DrpdTriggerInstrumentView = ({
     messageTypeFilterClassInput,
     messageTypeFilterTypeInput,
     messageTypeFiltersInput,
+    onUpdateDeviceConfig,
     selectedEventSupportsFilters,
     senderFilterInput,
     syncModeInput,
     syncPulseWidthUsInput,
+    deviceRecord,
     visibleTriggerInfo?.autorepeat,
     visibleTriggerInfo?.eventThreshold,
     visibleTriggerInfo?.messageTypeFilters,

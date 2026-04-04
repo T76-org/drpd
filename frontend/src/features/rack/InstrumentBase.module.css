@@ -8,9 +8,9 @@
   border: var(--border-thin) solid var(--color-border-instrument);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
-  border-radius: var(--radius-none);
+  border-radius: var(--radius-instrument);
   overflow: hidden;
-  box-shadow: none;
+  box-shadow: var(--shadow-instrument);
 }
 
 .editMode {
@@ -41,7 +41,15 @@
   justify-content: space-between;
   min-width: 0;
   padding: var(--space-4) var(--space-8);
-  background: var(--color-surface-panel-accent);
+  background-color: transparent;
+  background-image: var(--texture-instrument-header),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-text-primary) 11%, transparent) 0%,
+      color-mix(in srgb, var(--color-text-primary) 5%, transparent) 100%
+    );
+  background-repeat: repeat, no-repeat;
+  background-size: auto, 100% 100%;
   border-bottom: var(--border-thin) solid var(--color-border-panel);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-md);
@@ -59,7 +67,7 @@
 .badge {
   font-size: var(--font-size-xs);
   padding: var(--space-1) var(--space-4);
-  border-radius: var(--radius-none);
+  border-radius: var(--radius-control);
   background: var(--color-surface-chip);
 }
 
@@ -84,6 +92,12 @@
   line-height: var(--line-height-tight);
   cursor: pointer;
   padding: var(--space-0);
+  border-radius: var(--radius-control);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.closeButton:hover {
+  background: var(--color-surface-panel-accent);
 }
 
 .headerControl {
@@ -101,6 +115,12 @@
   cursor: pointer;
   line-height: var(--line-height-tight);
   min-width: var(--rack-header-control-min-width);
+  border-radius: var(--radius-control);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.headerControlButton:hover:not(:disabled) {
+  background: var(--color-surface-panel-accent);
 }
 
 .headerControlButton:disabled {
@@ -115,6 +135,7 @@
   max-width: min(620px, calc(100vw - var(--space-16)));
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm);
   box-shadow: var(--shadow-strong);
   padding: var(--space-16);
   z-index: 10000;

@@ -416,6 +416,26 @@ export interface TriggerMessageTypeFilter {
 }
 
 /**
+ * Persisted trigger configuration payload.
+ */
+export interface DRPDTriggerConfig {
+  ///< Trigger event type.
+  type: TriggerEventType
+  ///< Event threshold count.
+  eventThreshold: number
+  ///< Optional sender filter applied in addition to the selected event.
+  senderFilter: TriggerSenderFilter
+  ///< Auto-repeat enabled state.
+  autorepeat: OnOffState
+  ///< Sync output mode.
+  syncMode: TriggerSyncMode
+  ///< Sync pulse width in microseconds.
+  syncPulseWidthUs: number
+  ///< Optional message-type filters applied in addition to the selected event.
+  messageTypeFilters: TriggerMessageTypeFilter[]
+}
+
+/**
  * Fixed supply sink PDO.
  */
 export interface FixedSinkPdo {
@@ -526,6 +546,18 @@ export interface SinkInfo {
 }
 
 /**
+ * Persisted sink request payload.
+ */
+export interface DRPDSinkRequestConfig {
+  ///< Requested PDO index (0-based).
+  index: number
+  ///< Requested voltage in millivolts.
+  voltageMv: number
+  ///< Requested current in milliamps.
+  currentMa: number
+}
+
+/**
  * Captured CC bus message.
  */
 export interface CapturedMessage {
@@ -608,6 +640,14 @@ export interface DRPDDeviceState {
 export interface DRPDDeviceConfig {
   ///< DRPD logging configuration block.
   logging: DRPDLoggingConfig
+  ///< Desired CC bus role.
+  role?: CCBusRole
+  ///< Desired capture state.
+  captureEnabled?: OnOffState
+  ///< Desired sink request parameters for sink mode.
+  sinkRequest?: DRPDSinkRequestConfig
+  ///< Desired trigger configuration.
+  trigger?: DRPDTriggerConfig
 }
 
 export type {

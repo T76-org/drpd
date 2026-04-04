@@ -157,11 +157,13 @@ An instrument instance can be marked `fullScreen: true`. When that happens, `Rac
 
 `src/index.css` is the foundation. It defines:
 
-- typography tokens
+- typography tokens (UI font: **Inter** via Google Fonts, with system-ui fallbacks in `--font-family-base`)
 - spacing tokens
-- radius and border tokens
+- radius and border tokens (including `--radius-instrument` for instrument panels, `--radius-control` for buttons and controls)
 - rack sizing tokens
 - light and dark theme colors
+- elevation shadows: `--shadow-instrument` (instrument panels; dark uses inset top highlight + outer shadow), `--shadow-rack-canvas` (rack canvas), `--shadow-header` (page header; light theme)
+- dark default look: charcoal / neomorphic-inspired surfaces (`#121212` page, `#1e1e1e` panels, instrument body uses `--color-surface-instrument` gradient only); instrument **title bars** use `--texture-instrument-header` (subtle diagonal stripes) plus a light gradient; light theme restores a larger `--radius-instrument`
 
 Most dimensions are expressed through CSS custom properties multiplied by `var(--ui-scale)`. That is the key pattern to preserve.
 
@@ -261,6 +263,8 @@ The rack document is stored in local storage under `drpd:rack:document`. If a la
 ### Theme support
 
 The app supports dark and light themes through root-level CSS variables in `src/index.css`. Theme switching happens in `RackView.tsx` by setting `data-theme` on the document root.
+
+The **dark (default)** palette layers neomorphic-style elevation (inset highlight + drop shadow) on instruments and the rack canvas; instrument **headers** use `--texture-instrument-header` (subtle stripes). **Light** theme uses a larger `--radius-instrument`. You can archive reference mockups alongside the repo under `docs/assets/` if useful.
 
 ### Current design bias
 

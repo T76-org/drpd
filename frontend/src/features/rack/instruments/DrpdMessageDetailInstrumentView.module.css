@@ -294,7 +294,7 @@
 .byteDataSegment {
   display: inline-block;
   padding: 0.1rem 0.35rem;
-  border-radius: var(--radius-xs, 4px);
+  border-radius: var(--radius-sm);
   word-break: break-word;
 }
 

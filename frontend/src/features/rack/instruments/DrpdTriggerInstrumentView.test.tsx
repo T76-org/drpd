@@ -238,13 +238,17 @@ describe('DrpdTriggerInstrumentView', () => {
       .spyOn(driver.trigger, 'setMessageTypeFilters')
       .mockResolvedValue(undefined)
     const refreshSpy = vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)
+    const updateDeviceConfig = vi.fn(async () => undefined)
+    const deviceRecord = buildDeviceRecord()
 
     render(
       <DrpdTriggerInstrumentView
         instrument={buildInstrument()}
         displayName="Sync Trigger"
-        deviceState={buildDeviceState(driver)}
+        deviceRecord={deviceRecord}
+        deviceState={{ ...buildDeviceState(driver), record: deviceRecord }}
         isEditMode={false}
+        onUpdateDeviceConfig={updateDeviceConfig}
       />,
     )
 
@@ -274,6 +278,25 @@ describe('DrpdTriggerInstrumentView', () => {
       ])
     })
     expect(refreshSpy).toHaveBeenCalled()
+    expect(updateDeviceConfig).toHaveBeenCalledTimes(1)
+    expect(updateDeviceConfig.mock.calls[0]?.[0]).toBe(deviceRecord.id)
+    expect(
+      (updateDeviceConfig.mock.calls[0]?.[1] as (
+        current: Record<string, unknown> | undefined,
+      ) => Record<string, unknown>)({}),
+    ).toEqual({
+      trigger: {
+        type: TriggerEventType.CRC_ERROR,
+        eventThreshold: 7,
+        senderFilter: TriggerSenderFilter.CABLE,
+        autorepeat: OnOffState.OFF,
+        syncMode: TriggerSyncMode.PULSE_HIGH,
+        syncPulseWidthUs: 40,
+        messageTypeFilters: [
+          { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+        ],
+      },
+    })
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })

@@ -84,7 +84,8 @@ export const DrpdDeviceStatusInstrumentView = ({
   deviceRecord,
   deviceState,
   isEditMode,
-  onRemove
+  onRemove,
+  onUpdateDeviceConfig,
 }: {
   instrument: RackInstrument
   displayName: string
@@ -92,6 +93,10 @@ export const DrpdDeviceStatusInstrumentView = ({
   deviceState?: RackDeviceState
   isEditMode: boolean
   onRemove?: (instrumentId: string) => void
+  onUpdateDeviceConfig?: (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => Promise<void> | void
 }) => {
   const driver = deviceState?.drpdDriver
   const [role, setRole] = useState<CCBusRole | null>(
@@ -279,6 +284,16 @@ export const DrpdDeviceStatusInstrumentView = ({
     try {
       await driver.ccBus.setRole(nextRole)
       setRole(nextRole)
+      if (deviceRecord && onUpdateDeviceConfig) {
+        await onUpdateDeviceConfig(deviceRecord.id, (current) => {
+          const source = current && typeof current === 'object' ? current : {}
+          return {
+            ...source,
+            role: nextRole,
+            ...(nextRole === CCBusRole.SINK ? {} : { sinkRequest: undefined }),
+          }
+        })
+      }
     } finally {
       setIsRoleUpdating(false)
     }
@@ -294,6 +309,15 @@ export const DrpdDeviceStatusInstrumentView = ({
     try {
       await driver.setCaptureEnabled(nextState)
       setCaptureEnabled(nextState)
+      if (deviceRecord && onUpdateDeviceConfig) {
+        await onUpdateDeviceConfig(deviceRecord.id, (current) => {
+          const source = current && typeof current === 'object' ? current : {}
+          return {
+            ...source,
+            captureEnabled: nextState,
+          }
+        })
+      }
     } finally {
       setIsCaptureUpdating(false)
     }

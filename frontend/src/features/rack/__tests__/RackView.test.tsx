@@ -51,7 +51,7 @@ const mockTransportState = vi.hoisted(() => ({
   sinkErrorResponse: ['0'],
   timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
-  captureCountResponse: ['0']
+  captureCountResponse: ['0'],
 }))
 
 vi.mock('../../../lib/transport/drpdUsb', () => {
@@ -489,16 +489,61 @@ const mockMatchMedia = (matchesDark: boolean) => {
 
 let originalVerifier: typeof DRPDDeviceDefinition.verifyConnectedDevice
 
+const resetMockTransportState = (): void => {
+  mockTransportState.shouldFailOpen = false
+  mockTransportState.statusRegisterResponse = ['0']
+  mockTransportState.analogResponse = [
+    '1000',
+    '5.00',
+    '0.12',
+    '0.33',
+    '0.00',
+    '0.33',
+    '0.00',
+    '1.20',
+    '0.00',
+    '0.60',
+    '2500',
+    '12',
+    '34',
+  ]
+  mockTransportState.roleResponse = ['SINK']
+  mockTransportState.roleStatusResponse = ['ATTACHED']
+  mockTransportState.vbusStatusResponse = ['ENABLED']
+  mockTransportState.ovpThresholdResponse = ['21']
+  mockTransportState.ocpThresholdResponse = ['3.5']
+  mockTransportState.captureEnabledResponse = ['ON']
+  mockTransportState.captureCycleTimeResponse = ['10']
+  mockTransportState.triggerStatusResponse = ['ARMED']
+  mockTransportState.triggerEventTypeResponse = ['MESSAGE_COMPLETE']
+  mockTransportState.triggerEventThresholdResponse = ['2']
+  mockTransportState.triggerAutoRepeatResponse = ['ON']
+  mockTransportState.triggerEventCountResponse = ['7']
+  mockTransportState.triggerSyncModeResponse = ['TOGGLE']
+  mockTransportState.triggerSyncPulseWidthResponse = ['25']
+  mockTransportState.sinkPdoCountResponse = ['1']
+  mockTransportState.sinkPdoResponse = ['FIXED,5.00,3.00']
+  mockTransportState.sinkStatusResponse = ['PE_SNK_READY']
+  mockTransportState.sinkNegotiatedPdoResponse = ['FIXED,5.00,3.00']
+  mockTransportState.sinkVoltageResponse = ['5']
+  mockTransportState.sinkCurrentResponse = ['2']
+  mockTransportState.sinkErrorResponse = ['0']
+  mockTransportState.timestampResponse = ['1000']
+  mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
+  mockTransportState.captureCountResponse = ['0']
+}
+
 beforeEach(() => {
   originalVerifier = DRPDDeviceDefinition.verifyConnectedDevice
   DRPDDeviceDefinition.verifyConnectedDevice = async () => true
+  resetMockTransportState()
   vi.stubGlobal('localStorage', createStorage())
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 afterEach(() => {
   DRPDDeviceDefinition.verifyConnectedDevice = originalVerifier
-  mockTransportState.shouldFailOpen = false
+  resetMockTransportState()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -1109,6 +1154,7 @@ describe('RackView', () => {
     expect(await screen.findByText('connected')).toBeInTheDocument()
     await expectHydratedDrpdPanels()
   })
+
 
   it('marks a connected device disconnected when WebUSB reports an unplug', async () => {
     saveRackDocument(buildRackDocument())

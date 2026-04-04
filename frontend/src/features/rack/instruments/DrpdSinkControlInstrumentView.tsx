@@ -520,7 +520,8 @@ export const DrpdSinkControlInstrumentView = ({
   deviceRecord,
   deviceState,
   isEditMode,
-  onRemove
+  onRemove,
+  onUpdateDeviceConfig,
 }: {
   instrument: RackInstrument
   displayName: string
@@ -528,6 +529,10 @@ export const DrpdSinkControlInstrumentView = ({
   deviceState?: RackDeviceState
   isEditMode: boolean
   onRemove?: (instrumentId: string) => void
+  onUpdateDeviceConfig?: (
+    deviceRecordId: string,
+    updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
+  ) => Promise<void> | void
 }) => {
   const driver = deviceState?.drpdDriver
   const [sinkInfo, setSinkInfo] = useState<SinkInfo | null>(
@@ -706,6 +711,19 @@ export const DrpdSinkControlInstrumentView = ({
     setRequestErrorMessage(null)
     try {
       await driver.sink.requestPdo(selectedIndex, parsed.voltageMv, parsed.currentMa)
+      if (deviceRecord && onUpdateDeviceConfig) {
+        await onUpdateDeviceConfig(deviceRecord.id, (current) => {
+          const source = current && typeof current === 'object' ? current : {}
+          return {
+            ...source,
+            sinkRequest: {
+              index: selectedIndex,
+              voltageMv: parsed.voltageMv,
+              currentMa: parsed.currentMa,
+            },
+          }
+        })
+      }
       await driver.refreshState()
       await loadSinkData()
       setRequestStatus('success')

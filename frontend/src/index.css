@@ -1,7 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
 
 :root {
-  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color: var(--color-text-primary);
@@ -15,9 +14,12 @@
 
   --ui-scale: 1;
 
-  --font-family-base: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-family-mono: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
+
+  font-family: var(--font-family-base);
 
   --font-size-4xs: calc(0.3rem * var(--ui-scale));
   --font-size-3xs: calc(0.4rem * var(--ui-scale));
@@ -70,8 +72,11 @@
   --space-32: calc(32px * var(--ui-scale));
 
   --radius-none: 0;
-  --radius-sm: calc(10px * var(--ui-scale));
-  --radius-md: calc(18px * var(--ui-scale));
+  --radius-sm: calc(8px * var(--ui-scale));
+  --radius-md: calc(12px * var(--ui-scale));
+  /* Dark theme: tighter tile radius (reference blend); light overrides below. */
+  --radius-instrument: calc(5px * var(--ui-scale));
+  --radius-control: var(--radius-sm);
 
   --border-thin: calc(1px * max(1, var(--ui-scale)));
 
@@ -104,25 +109,34 @@
 
   --opacity-disabled: 0.5;
 
-  --color-page-bg: #0d0f14;
-  --color-text-primary: #eef0f6;
-  --color-text-muted: rgba(255, 255, 255, 0.6);
-  --color-surface-panel: #12141a;
+  --color-page-bg: #121212;
+  --color-text-primary: #f0f0f0;
+  --color-text-muted: rgba(255, 255, 255, 0.52);
+  --color-surface-panel: #1e1e1e;
   --color-border-panel: rgba(255, 255, 255, 0.1);
-  --color-surface-panel-accent: rgba(255, 255, 255, 0.08);
-  --color-surface-instrument: linear-gradient(160deg, #1e1f24, #15161a);
-  --color-border-instrument: #2c2c2c;
-  --color-surface-chip: rgba(255, 255, 255, 0.2);
-  --color-border-divider: rgba(255, 255, 255, 0.08);
-  --color-surface-rack: radial-gradient(circle at top, #1f222b, #0f1013 70%);
-  --color-surface-header: linear-gradient(120deg, rgba(20, 24, 34, 0.95), #0d0f14);
-  --color-overlay: rgba(10, 11, 14, 0.92);
+  --color-surface-panel-accent: rgba(255, 255, 255, 0.07);
+  --color-surface-instrument: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+  --color-border-instrument: rgba(255, 255, 255, 0.11);
+  --color-surface-chip: rgba(255, 255, 255, 0.18);
+  --color-border-divider: rgba(255, 255, 255, 0.09);
+  --color-surface-rack: radial-gradient(ellipse 120% 100% at 50% 0%, #181818 0%, #121212 65%);
+  --color-surface-header: linear-gradient(120deg, #1a1a1a 0%, #141414 100%);
+  --color-overlay: rgba(8, 8, 8, 0.92);
 
-  --color-status-error: #e26a5c;
-  --color-status-success: #5db7a2;
-  --color-status-warning: #e3b250;
-  --color-status-info: #1aa8ff;
-  --color-status-ok: #33c2a0;
+  /* Fine diagonal stripes on instrument title bars only (InstrumentBase .header). */
+  --texture-instrument-header: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent calc(4px * var(--ui-scale)),
+    rgba(255, 255, 255, 0.045) calc(4px * var(--ui-scale)),
+    rgba(255, 255, 255, 0.045) calc(4.5px * var(--ui-scale))
+  );
+
+  --color-status-error: #F42917;
+  --color-status-success: #01A804;
+  --color-status-warning: #F6941F;
+  --color-status-info: #05BAFA;
+  --color-status-ok: #01A804;
   --color-status-muted: #a5a7b0;
   --color-status-highlight: #d2a24c;
   --color-status-charge: #c86bff;
@@ -146,10 +160,22 @@
   --color-edit-glow: #4cc7ff;
   --color-edit-glow-strong: #6fd6ff;
 
-  --shadow-strong: 0 12px 24px rgba(0, 0, 0, 0.25);
-  --shadow-elevated: 0 18px 35px rgba(0, 0, 0, 0.35);
+  --shadow-strong: 0 12px 24px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 18px 35px rgba(0, 0, 0, 0.45);
+  /* Neomorphic blend: inset top highlight + layered outer elevation (less flat). */
+  --shadow-instrument:
+    inset 0 var(--border-thin) 0 rgba(255, 255, 255, 0.09),
+    0 calc(1px * var(--ui-scale)) calc(2px * var(--ui-scale)) rgba(0, 0, 0, 0.5),
+    0 calc(4px * var(--ui-scale)) calc(12px * var(--ui-scale)) rgba(0, 0, 0, 0.45),
+    0 calc(8px * var(--ui-scale)) calc(22px * var(--ui-scale)) rgba(0, 0, 0, 0.38),
+    0 calc(2px * var(--ui-scale)) calc(6px * var(--ui-scale)) rgba(0, 0, 0, 0.28);
+  --shadow-rack-canvas:
+    inset 0 var(--border-thin) 0 rgba(255, 255, 255, 0.06),
+    0 calc(2px * var(--ui-scale)) calc(6px * var(--ui-scale)) rgba(0, 0, 0, 0.38),
+    0 calc(8px * var(--ui-scale)) calc(22px * var(--ui-scale)) rgba(0, 0, 0, 0.35);
   --shadow-edit-soft: 0 0 6px rgba(76, 199, 255, 0.15);
   --shadow-edit-strong: 0 0 14px rgba(111, 214, 255, 0.35);
+  --shadow-header: none;
 
   --page-bg: var(--color-page-bg);
   --text-primary: var(--color-text-primary);
@@ -169,16 +195,24 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
+  --texture-instrument-header: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent calc(4px * var(--ui-scale)),
+    rgba(28, 31, 42, 0.04) calc(4px * var(--ui-scale)),
+    rgba(28, 31, 42, 0.04) calc(4.5px * var(--ui-scale))
+  );
+  --radius-instrument: var(--radius-sm);
   --color-page-bg: #f4f6fa;
   --color-text-primary: #1c1f2a;
   --color-text-muted: rgba(28, 31, 42, 0.6);
   --color-surface-panel: #ffffff;
-  --color-border-panel: rgba(28, 31, 42, 0.12);
-  --color-surface-panel-accent: rgba(28, 31, 42, 0.08);
+  --color-border-panel: rgba(28, 31, 42, 0.1);
+  --color-surface-panel-accent: rgba(28, 31, 42, 0.06);
   --color-surface-instrument: linear-gradient(160deg, #ffffff, #f2f4f8);
-  --color-border-instrument: rgba(28, 31, 42, 0.2);
+  --color-border-instrument: rgba(28, 31, 42, 0.14);
   --color-surface-chip: rgba(28, 31, 42, 0.12);
-  --color-border-divider: rgba(28, 31, 42, 0.15);
+  --color-border-divider: rgba(28, 31, 42, 0.12);
   --color-surface-rack: radial-gradient(circle at top, #f2f5fb, #e6eaf2 70%);
   --color-surface-header: linear-gradient(120deg, #ffffff, #e9edf6);
   --color-edit-glow: #1a73e8;
@@ -187,14 +221,18 @@
 
   --shadow-strong: 0 10px 24px rgba(28, 31, 42, 0.18);
   --shadow-elevated: 0 18px 35px rgba(28, 31, 42, 0.2);
+  --shadow-instrument: 0 calc(2px * var(--ui-scale)) calc(12px * var(--ui-scale)) rgba(28, 31, 42, 0.08);
+  --shadow-rack-canvas: 0 calc(4px * var(--ui-scale)) calc(20px * var(--ui-scale)) rgba(28, 31, 42, 0.08);
   --shadow-edit-soft: 0 0 6px rgba(26, 115, 232, 0.18);
   --shadow-edit-strong: 0 0 14px rgba(47, 134, 242, 0.32);
+  --shadow-header: 0 calc(1px * var(--ui-scale)) calc(4px * var(--ui-scale)) rgba(28, 31, 42, 0.06);
 
   --empty-text: rgba(28, 31, 42, 0.45);
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+  /* Softer instrument border and elevation shadow already set in :root defaults. */
 }
 
 * {

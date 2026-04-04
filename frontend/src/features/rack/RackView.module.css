@@ -13,6 +13,7 @@
   overflow-y: hidden;
   background: var(--color-surface-header);
   border-bottom: var(--border-thin) solid var(--color-border-divider);
+  box-shadow: var(--shadow-header);
 }
 
 .headerScroll {
@@ -76,7 +77,7 @@
 
 .notice {
   padding: var(--space-16);
-  border-radius: var(--radius-none);
+  border-radius: var(--radius-sm);
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
   color: var(--color-text-muted);
@@ -106,14 +107,24 @@
   cursor: pointer;
   font-size: var(--font-size-3xs);
   padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-control);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .editButton {
   background: transparent;
 }
 
+.editButton:hover:not(:disabled) {
+  background: var(--color-surface-panel-accent);
+}
+
 .editButtonSecondary {
   background: transparent;
+}
+
+.editButtonSecondary:hover:not(:disabled) {
+  background: var(--color-surface-panel-accent);
 }
 
 .editButtonPrimary {
@@ -125,8 +136,16 @@
   background: var(--color-surface-panel);
 }
 
+.themeButton:hover:not(:disabled) {
+  background: var(--color-surface-panel-accent);
+}
+
 .deviceMenuButton {
   background: var(--color-surface-panel);
+}
+
+.deviceMenuButton:hover:not(:disabled) {
+  background: var(--color-surface-panel-accent);
 }
 
 .deviceMenuButton:disabled {
@@ -143,6 +162,7 @@
   max-width: min(620px, calc(100vw - var(--space-16)));
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-strong);
   display: grid;
   gap: var(--space-6);
@@ -159,6 +179,7 @@
   left: 0;
   background: var(--color-surface-instrument);
   border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   padding: var(--space-4) var(--space-0);
@@ -296,6 +317,10 @@
   background: transparent;
   padding: var(--space-4) var(--space-8);
   font-size: inherit;
+}
+
+.deviceActionButton:hover:not(:disabled) {
+  background: var(--color-surface-panel-accent);
 }
 
 .deviceMenu, .instrumentMenu {
