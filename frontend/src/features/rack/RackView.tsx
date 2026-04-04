@@ -837,6 +837,7 @@ export const RackView = () => {
     void autoConnectDevices({
       devices: activeRack.devices ?? [],
       definitions: deviceDefinitions,
+      existingStates: deviceStatesRef.current,
       onUpdate: setDeviceStates,
       onError: setDeviceError
     })
@@ -1825,11 +1826,13 @@ const cleanupDeviceRuntimes = async (
 const autoConnectDevices = async ({
   devices,
   definitions,
+  existingStates,
   onUpdate,
   onError
 }: {
   devices: RackDeviceRecord[]
   definitions: Device[]
+  existingStates: RackDeviceState[]
   onUpdate: (state: RackDeviceState[]) => void
   onError: (message: string | null) => void
 }): Promise<void> => {
@@ -1847,6 +1850,12 @@ const autoConnectDevices = async ({
     const nextStates: RackDeviceState[] = []
 
     for (const record of devices) {
+      const existingState = existingStates.find((state) => state.record.id === record.id)
+      if (existingState?.status === 'connected' && existingState.transport) {
+        nextStates.push(existingState)
+        continue
+      }
+
       const matchedDevice = connected.find((usbDevice) =>
         doesRackDeviceRecordMatchUsbDevice(record, usbDevice),
       )

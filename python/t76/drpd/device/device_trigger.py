@@ -37,12 +37,6 @@ class DeviceTrigger:
     Represents the trigger system of the DRPD device.
     """
 
-    TYPE_CONFIG_KEY = "trigger_type"
-    EVENT_THRESHOLD_CONFIG_KEY = "event_threshold"
-    AUTOREPEAT_CONFIG_KEY = "autorepeat"
-    SYNC_MODE_CONFIG_KEY = "sync_mode"
-    SYNC_PULSE_LENGTH_CONFIG_KEY = "sync_pulse_length"
-
     def __init__(self, device_internal: DeviceInternal):
         """
         Initialize the DeviceTrigger with the given DeviceInternal.
@@ -51,69 +45,6 @@ class DeviceTrigger:
         :type device_internal: DeviceInternal
         """
         self._internal = device_internal
-
-    async def load_config(self, config: dict) -> None:
-        """
-        Load the trigger configuration from a dictionary.
-
-        :param config: A dictionary representing the trigger configuration.
-        :type config: dict
-        """
-        if self.TYPE_CONFIG_KEY in config:
-            try:
-                await self.set_type(TriggerType(config[self.TYPE_CONFIG_KEY]))
-            except ValueError:
-                await self.set_type(TriggerType.OFF)
-
-        if self.EVENT_THRESHOLD_CONFIG_KEY in config:
-            try:
-                await self.set_event_threshold(config[self.EVENT_THRESHOLD_CONFIG_KEY])
-            except ValueError:
-                await self.set_event_threshold(1)
-
-        if self.AUTOREPEAT_CONFIG_KEY in config:
-            try:
-                await self.set_autorepeat(OnOffStatus.from_string(config[self.AUTOREPEAT_CONFIG_KEY]))
-            except ValueError:
-                await self.set_autorepeat(OnOffStatus.OFF)
-
-        if self.SYNC_MODE_CONFIG_KEY in config:
-            try:
-                await self.set_sync_mode(TriggerSyncMode.from_string(config[self.SYNC_MODE_CONFIG_KEY]))
-            except ValueError:
-                await self.set_sync_mode(TriggerSyncMode.OFF)
-
-        if self.SYNC_PULSE_LENGTH_CONFIG_KEY in config:
-            try:
-                await self.set_sync_pulse_length(config[self.SYNC_PULSE_LENGTH_CONFIG_KEY])
-            except ValueError:
-                await self.set_sync_pulse_length(1000)
-
-    async def save_config(self) -> dict:
-        """
-        Save the current trigger configuration to a dictionary.
-
-        :return: A dictionary representing the trigger configuration.
-        :rtype: dict
-        """
-        config = {}
-
-        trigger_type = await self.get_type()
-        config[self.TYPE_CONFIG_KEY] = trigger_type.value
-
-        event_threshold = await self.get_event_threshold()
-        config[self.EVENT_THRESHOLD_CONFIG_KEY] = event_threshold
-
-        autorepeat = await self.get_autorepeat()
-        config[self.AUTOREPEAT_CONFIG_KEY] = autorepeat.name
-
-        sync_mode = await self.get_sync_mode()
-        config[self.SYNC_MODE_CONFIG_KEY] = sync_mode.value
-
-        sync_pulse_length = await self.get_sync_pulse_length()
-        config[self.SYNC_PULSE_LENGTH_CONFIG_KEY] = sync_pulse_length
-
-        return config
 
     async def reset(self) -> None:
         """

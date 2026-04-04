@@ -29,9 +29,33 @@
 #include "lib/logic/trigger_controller.hpp"
 
 #include "lib/util/circular_array.hpp"
+#include "lib/util/persistent_config.hpp"
 
 
 namespace T76::DRPD {
+
+    enum class CommandTransport : uint8_t {
+        USBTMC,
+        WinUSB,
+    };
+
+    enum class CommandOwner : uint8_t {
+        None,
+        USBTMC,
+        WinUSB,
+    };
+
+    enum class WinUSBFrameType : uint8_t {
+        CommandRequest = 0x01,
+        SessionResetRequest = 0x02,
+        QueryRequest = 0x03,
+        CommandAck = 0x80,
+        TextResponse = 0x81,
+        BinaryResponse = 0x82,
+        ErrorResponse = 0x83,
+        SessionResetAck = 0x84,
+        Notification = 0x90,
+    };
 
     /**
      * @brief Compact app-layer snapshot of a decoded CC message.
@@ -72,6 +96,11 @@ namespace T76::DRPD {
         App();
 
         void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) override;
+        void _onWinUSBBulkDataReceived(const std::vector<uint8_t> &data) override;
+
+        void _onUSBTMCAbortBulkIn() override;
+        void _onUSBTMCAbortBulkOut() override;
+        void _onUSBTMCClear() override;
 
         void _queryIDN(const std::vector<T76::SCPI::ParameterValue> &params);
         void _resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params);
@@ -110,6 +139,9 @@ namespace T76::DRPD {
         void _queryVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
+        void _resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
 
         void _setVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &params);
         void _queryVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &params);
@@ -165,9 +197,130 @@ namespace T76::DRPD {
         const char* getComponentName() const;
 
     protected:
+        /**
+         * @brief Format an analog floating-point value for SCPI responses.
+         *
+         * Values are truncated to two decimal places before formatting to keep
+         * response output stable across analog-related SCPI commands.
+         *
+         * @param value Analog value to format.
+         * @return std::string Two-decimal SCPI-ready string representation.
+         */
+        static std::string _formatAnalogValue(float value);
+
+        /**
+         * @brief Process raw SCPI input bytes from the active command transport.
+         *
+         * @param data Command payload bytes to feed into the interpreter.
+         * @param transferComplete True when the current command is complete and
+         * should be finalized with a newline.
+         */
+        void _processSCPIInput(const std::vector<uint8_t> &data, bool transferComplete);
+
+        /**
+         * @brief Queue a text response on the currently active command transport.
+         *
+         * @param data UTF-8 response fragment to append.
+         * @param addNewline True to terminate and flush the response.
+         */
+        void _sendTransportTextResponse(const std::string &data, bool addNewline = true);
+
+        /**
+         * @brief Queue a binary response on the currently active command transport.
+         *
+         * @param data Raw binary response bytes, including any SCPI block framing.
+         */
+        void _sendTransportBinaryResponse(const std::vector<uint8_t> &data);
+
+        /**
+         * @brief Notify the host that asynchronous status is available.
+         */
+        bool _sendTransportNotification();
+
+        /**
+         * @brief Reset shared command state for a USBTMC-owned request and release ownership.
+         */
+        void _resetUSBTMCRequestStateIfOwned();
+
+        /**
+         * @brief Reset per-transport command parsing and response state.
+         */
+        void _resetCommandState();
+
+        /**
+         * @brief Reset WinUSB session state and acknowledge the reset request.
+         *
+         * @param tag Correlation tag supplied by the host.
+         */
+        void _resetWinUSBSession(uint8_t tag);
+
+        /**
+         * @brief Parse and dispatch any complete WinUSB frames in the RX buffer.
+         */
+        void _drainWinUSBRxBuffer();
+
+        /**
+         * @brief Process a complete WinUSB request payload using explicit host
+         * request intent and emit the matching completion frame.
+         *
+         * @param payload Raw SCPI command payload bytes.
+         * @param expectsQuery True when the host sent a query request frame.
+         */
+        void _processWinUSBRequest(const std::vector<uint8_t> &payload, bool expectsQuery);
+
+        /**
+         * @brief Prepare common WinUSB request state before processing one frame.
+         *
+         * @param tag Correlation tag from the host.
+         * @param expectsQuery True when the request expects data rather than an ACK.
+         */
+        void _prepareWinUSBRequest(uint8_t tag, bool expectsQuery);
+
+        /**
+         * @brief Try to claim exclusive ownership of the shared SCPI interpreter.
+         *
+         * @param owner Transport requesting ownership.
+         * @return true if the owner now holds the interpreter, false otherwise.
+         */
+        bool _tryAcquireCommandOwner(CommandOwner owner);
+
+        /**
+         * @brief Release interpreter ownership when held by the given transport.
+         *
+         * @param owner Transport releasing ownership.
+         */
+        void _releaseCommandOwner(CommandOwner owner);
+
+        /**
+         * @brief Send a WinUSB bulk response frame.
+         *
+         * @param type Frame type to emit.
+         * @param tag Correlation tag for the request.
+         * @param payload Frame payload bytes.
+         */
+        void _sendWinUSBFrame(WinUSBFrameType type, uint8_t tag, const std::vector<uint8_t> &payload);
+
+        /**
+         * @brief Read a little-endian 32-bit integer from a byte buffer.
+         *
+         * @param data Backing byte buffer.
+         * @param offset Offset of the first byte to read.
+         * @return uint32_t Parsed 32-bit value.
+         */
+        static uint32_t _readLE32(const std::vector<uint8_t> &data, size_t offset);
+
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
+        CommandOwner _commandOwner{CommandOwner::None}; ///< Current owner of the shared SCPI interpreter.
+        CommandTransport _activeCommandTransport{CommandTransport::USBTMC}; ///< Transport used for the active request/response flow.
+        uint8_t _activeWinUSBTag{0}; ///< Correlation tag for the active WinUSB request.
+        bool _activeWinUSBQueryRequest{false}; ///< True when the active WinUSB request expects text/binary query data.
+        std::string _pendingTextResponse; ///< Accumulates partial text responses until they are terminated.
+        std::vector<uint8_t> _winusbRxBuffer; ///< Accumulates raw WinUSB bulk OUT bytes until complete frames are available.
+        bool _winusbResponseSent{false}; ///< True when the current WinUSB request has emitted a response frame.
+        bool _winusbDataResponseSent{false}; ///< True when the current WinUSB request emitted text or binary data.
+        bool _winusbProtocolMismatch{false}; ///< True when request intent and response shape do not match.
 
         Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
 
@@ -194,6 +347,14 @@ namespace T76::DRPD {
         void _ccBusRoleChangedCallback(Logic::CCBusRole role);
         void _vbusManagerChangedCallback();
         void _sinkInfoChangedCallback(Logic::SinkInfoChange change);
+
+        /**
+         * @brief Export persisted slices from each owner and save them to flash.
+         *
+         * This is called after runtime configuration changes have been accepted
+         * so the flash store tracks the latest owner-managed settings.
+         */
+        void _savePersistentConfig();
 
     }; // class App
 

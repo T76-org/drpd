@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { DebugLogRegistry } from '../../../debugLogger'
 import {
   OnOffState,
   TriggerEventType,
@@ -30,8 +31,12 @@ class TestDRPDWorkerDeviceProxy extends DRPDWorkerDeviceProxy {
    * @param client - Stubbed worker client.
    * @param sessionId - Session identifier.
    */
-  public constructor(client: ProxyClientStub, sessionId = 'session-1') {
-    super(client as never, sessionId)
+  public constructor(
+    client: ProxyClientStub,
+    sessionId = 'session-1',
+    debugLogs = new DebugLogRegistry(),
+  ) {
+    super(client as never, sessionId, debugLogs)
   }
 
   /**
@@ -158,11 +163,10 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
 
 describe('DRPDWorkerDeviceProxy connect flow', () => {
   it('awaits connect-time hydration before resolving handleConnect', async () => {
-    let resolveHandleConnect: (() => void) | null = null
     const callWorker = vi.fn((method: string, request?: { method?: string }) => {
       if (method === 'drpdSession.call' && request?.method === 'handleConnect') {
         return new Promise((resolve) => {
-          resolveHandleConnect = () => resolve(null)
+          resolve(null)
         })
       }
       return Promise.resolve(null)
@@ -212,5 +216,38 @@ describe('DRPDWorkerDeviceProxy connect flow', () => {
     expect((stateUpdatedSpy.mock.calls[0][0] as CustomEvent).detail.state.triggerInfo.senderFilter).toBe(
       TriggerSenderFilter.SOURCE,
     )
+  })
+})
+
+describe('DRPDWorkerDeviceProxy debug logging', () => {
+  it('forwards debug scope updates to the worker session RPC', async () => {
+    const callWorker = vi.fn(async () => null)
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const debugLogs = new DebugLogRegistry()
+    const proxy = new TestDRPDWorkerDeviceProxy(client, 'session-1', debugLogs)
+
+    debugLogs.setScopeEnabled('drpd', true)
+    debugLogs.clearScope('drpd')
+
+    expect(callWorker).toHaveBeenNthCalledWith(1, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'debugLog',
+      method: 'setScopeEnabled',
+      args: ['drpd', true],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(2, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'debugLog',
+      method: 'clearScope',
+      args: ['drpd'],
+    })
+
+    await proxy.close()
+    debugLogs.setScopeEnabled('drpd.device', true)
+    expect(callWorker).toHaveBeenCalledTimes(3)
   })
 })

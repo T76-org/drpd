@@ -171,10 +171,10 @@ export const TRIGGER_MESSAGE_TYPE_FILTER_LIMIT = 8
  * Trigger sync output mode.
  */
 export const TriggerSyncMode = {
-  OFF: 'OFF',
   PULSE_HIGH: 'PULSE_HIGH',
   PULSE_LOW: 'PULSE_LOW',
   TOGGLE: 'TOGGLE',
+  PULL_DOWN: 'PULL_DOWN',
 } as const
 
 /**
@@ -375,6 +375,10 @@ export interface VBusInfo {
   ovpThresholdMv: number
   ///< OCP threshold in milliamps.
   ocpThresholdMa: number
+  ///< Most recent OVP event timestamp in microseconds.
+  ovpEventTimestampUs: bigint | null
+  ///< Most recent OCP event timestamp in microseconds.
+  ocpEventTimestampUs: bigint | null
 }
 
 /**

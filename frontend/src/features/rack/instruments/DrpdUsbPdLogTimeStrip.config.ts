@@ -6,9 +6,9 @@
  */
 export const DRPD_USB_PD_LOG_CONFIG = {
   window: {
-    defaultWindowUs: 100_000n, ///< Default visible strip width in microseconds.
+    defaultWindowUs: 60_000_000n, ///< Default visible strip width in microseconds.
     minWindowUs: 250n, ///< Minimum allowed strip width in microseconds.
-    maxWindowUs: 5_000_000n, ///< Maximum allowed strip width in microseconds.
+    maxWindowUs: 60_000_000n, ///< Maximum allowed strip width in microseconds.
     zoomFactor: 2n, ///< Zoom multiplier for each in/out step.
   },
   stripLayout: {

@@ -6,8 +6,8 @@
  */
 
 import { Device } from './base'
-import USBTMCTransport from '../transport/usbtmc'
-import { parseDeviceIdentity } from './drpd/parsers'
+import { DebugLogRegistry } from '../debugLogger'
+import { openPreferredDRPDTransport } from '../transport/drpdUsb'
 import { DRPDDevice } from './drpd/device'
 import type { DRPDTransport } from './drpd/transport'
 import { buildDefaultLoggingConfig, normalizeLoggingConfig, SQLiteWasmStore } from './drpd/logging'
@@ -28,6 +28,8 @@ import {
   TriggerSenderFilter as TriggerSenderFilterValues,
   TriggerSyncMode as TriggerSyncModeValues,
 } from './drpd/types'
+const DRPD_MANUFACTURER_NAME = 'MTA Inc.'
+const DRPD_PRODUCT_NAME = 'Dr. PD'
 import {
   DRPDWorkerDeviceProxy,
   DRPDWorkerLogStoreProxy,
@@ -44,6 +46,7 @@ export type DRPDDriverRuntime = DRPDDevice | DRPDWorkerDeviceProxy
 export interface DRPDConnectedRuntime {
   driver: DRPDDriverRuntime ///< DRPD driver runtime instance.
   transport: { close(): Promise<void> } ///< Closable transport/runtime resource.
+  debugLogs: DebugLogRegistry ///< Shared debug logging controller for this runtime.
 }
 
 const LEGACY_CAPTURE_LIMIT = 50
@@ -179,21 +182,10 @@ export class DRPDDeviceDefinition extends Device {
    * Optional post-connect verification to confirm compatibility.
    */
   public static verifyConnectedDevice = async (device: USBDevice): Promise<boolean> => {
-    const transport = new USBTMCTransport(device)
-    try {
-      await transport.open()
-      const response = await transport.queryText('*IDN?')
-      const identity = parseDeviceIdentity(response)
-      return identity.manufacturer === 'MTA Inc.' && identity.model === 'Dr. PD'
-    } catch {
-      return false
-    } finally {
-      try {
-        await transport.close()
-      } catch {
-        // Ignore close errors in verification.
-      }
-    }
+    return (
+      (device.manufacturerName ?? '').trim() === DRPD_MANUFACTURER_NAME &&
+      (device.productName ?? '').trim() === DRPD_PRODUCT_NAME
+    )
   }
 
   /**
@@ -205,6 +197,13 @@ export class DRPDDeviceDefinition extends Device {
       displayName: 'Dr. PD',
       usbSearch: [
         { vendorId: 0x2e8a, productId: 0x000a, note: 'Dr.PD VID/PID' },
+        {
+          vendorId: 0x2e8a,
+          classCode: 0xff,
+          subclassCode: 0x01,
+          protocolCode: 0x02,
+          note: 'WinUSB transport interface',
+        },
         {
           vendorId: 0x2e8a,
           classCode: 0xfe,
@@ -229,7 +228,6 @@ export class DRPDDeviceDefinition extends Device {
           ? new DRPDWorkerLogStoreProxy(config)
           : new SQLiteWasmStore(config),
     })
-    this.driver.setDebugLoggingEnabled(false)
     const config = this.getStoredConfig()
     const loggingConfig = extractLoggingConfig(config)
     void this.driver.configureLogging(loggingConfig)
@@ -244,20 +242,20 @@ export class DRPDDeviceDefinition extends Device {
    */
   public async createConnectedRuntime(device: USBDevice): Promise<DRPDConnectedRuntime> {
     if (typeof Worker !== 'undefined') {
-      const driver = await DRPDWorkerDeviceProxy.create(device)
-      driver.setDebugLoggingEnabled(false)
+      const debugLogs = new DebugLogRegistry()
+      const driver = await DRPDWorkerDeviceProxy.create(device, debugLogs)
       const config = this.getStoredConfig()
       const loggingConfig = extractLoggingConfig(config)
       await driver.configureLogging(loggingConfig)
       this.driver = driver
-      return { driver, transport: driver }
+      return { driver, transport: driver, debugLogs }
     }
 
     // Capability fallback for test/non-browser environments without Worker.
-    const transport = new USBTMCTransport(device)
-    await transport.open()
+    const debugLogs = new DebugLogRegistry()
+    const transport = await openPreferredDRPDTransport(device, { debugLogRegistry: debugLogs })
     const driver = this.createDriver(transport)
-    return { driver, transport }
+    return { driver, transport, debugLogs }
   }
 
   /**

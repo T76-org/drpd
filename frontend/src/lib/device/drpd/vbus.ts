@@ -8,6 +8,7 @@
 import type { DRPDTransport } from './transport'
 import {
   buildVBusInfo,
+  parseVBusStatusFields,
   parseSingleScaledMilliInt,
   parseVBusStatusResponse,
 } from './parsers'
@@ -18,6 +19,15 @@ import type { VBusInfo, VBusStatus } from './types'
  */
 export class DRPDVBus {
   protected readonly transport: DRPDTransport ///< Transport instance.
+
+  protected async getStatusFields(): Promise<{
+    status: VBusStatus
+    ovpEventTimestampUs: bigint | null
+    ocpEventTimestampUs: bigint | null
+  }> {
+    const response = await this.transport.queryText('BUS:VBUS:STAT?')
+    return parseVBusStatusFields(response)
+  }
 
   /**
    * Create a VBUS command group.
@@ -89,11 +99,17 @@ export class DRPDVBus {
    * @returns VBUS info structure.
    */
   public async getInfo(): Promise<VBusInfo> {
-    const [status, ovpThresholdMv, ocpThresholdMa] = await Promise.all([
-      this.getStatus(),
+    const [{ status, ovpEventTimestampUs, ocpEventTimestampUs }, ovpThresholdMv, ocpThresholdMa] = await Promise.all([
+      this.getStatusFields(),
       this.getOvpThresholdMv(),
       this.getOcpThresholdMa(),
     ])
-    return buildVBusInfo(status, ovpThresholdMv, ocpThresholdMa)
+    return buildVBusInfo(
+      status,
+      ovpThresholdMv,
+      ocpThresholdMa,
+      ovpEventTimestampUs,
+      ocpEventTimestampUs,
+    )
   }
 }

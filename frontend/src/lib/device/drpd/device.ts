@@ -5,8 +5,12 @@
  * DRPD device driver root.
  */
 
-import USBTMCTransport from '../../transport/usbtmc'
-import type { DRPDTransport } from './transport'
+import { DebugLogRegistry, DebugLogger } from '../../debugLogger'
+import {
+  DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
+  DRPD_TRANSPORT_INTERRUPT_EVENT,
+  type DRPDTransport,
+} from './transport'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
 import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './types'
@@ -26,6 +30,7 @@ import type {
   LoggedAnalogSample,
   LoggedCapturedMessage,
   OnOffState,
+  VBusInfo,
 } from './types'
 import type {
   DRPDClockSyncSnapshot,
@@ -47,6 +52,7 @@ import { DRPDVBus } from './vbus'
 
 const LEGACY_CAPTURE_RETENTION = 50
 const CLOCK_SYNC_SAMPLE_COUNT = 5
+const CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS = 64
 
 /**
  * Optional DRPD device constructor overrides.
@@ -54,6 +60,8 @@ const CLOCK_SYNC_SAMPLE_COUNT = 5
 export interface DRPDDeviceOptions {
   ///< Optional log store factory.
   createLogStore?: (config: DRPDLoggingConfig) => DRPDLogStore
+  ///< Optional shared debug logging registry.
+  debugLogRegistry?: DebugLogRegistry
 }
 
 /**
@@ -88,6 +96,7 @@ export class DRPDDevice extends EventTarget {
   protected state: DRPDDeviceState ///< Current device state.
   protected interruptSource?: EventTarget ///< Interrupt event source.
   protected interruptInFlight?: Promise<void> ///< In-flight interrupt handler.
+  protected interruptRescheduleTimer?: ReturnType<typeof setTimeout> ///< Deferred interrupt rerun timer.
   protected interruptPending: boolean ///< True when another interrupt arrives mid-refresh.
   protected readonly interruptHandler: () => void ///< Interrupt handler.
   protected readonly interruptErrorHandler: (event: Event) => void ///< Interrupt error handler.
@@ -100,7 +109,8 @@ export class DRPDDevice extends EventTarget {
   protected captureDrainPollingActive: boolean ///< Capture drain polling active flag.
   protected captureDrainInFlight: boolean ///< Capture drain polling in flight flag.
   protected isConnected: boolean ///< True when the device is connected.
-  protected debugLoggingEnabled: boolean ///< Debug logging flag.
+  public readonly debugLogs: DebugLogRegistry ///< Shared debug logging registry.
+  protected readonly debugLogger: DebugLogger ///< Debug logging helper.
   protected loggingConfig: DRPDLoggingConfig ///< Active logging configuration.
   protected logStore?: DRPDLogStore ///< Active log store instance.
   protected loggingStarted: boolean ///< True when logging is started.
@@ -112,6 +122,9 @@ export class DRPDDevice extends EventTarget {
   protected clockSyncTimer?: ReturnType<typeof setInterval> ///< Periodic clock-sync timer.
   protected clockSyncInFlight?: Promise<void> ///< In-flight clock-sync task.
   protected clockSync: DRPDClockSyncSnapshot | null ///< Active device-to-host clock-sync snapshot.
+  protected lastSeenVBusOvpEventTimestampUs: bigint | null ///< Most recent observed OVP event timestamp.
+  protected lastSeenVBusOcpEventTimestampUs: bigint | null ///< Most recent observed OCP event timestamp.
+  protected hasSeenInitialVBusEventTimestamps: boolean ///< True once connect-time VBUS event timestamps are baselined.
 
   /**
    * Create a DRPD device driver.
@@ -152,7 +165,11 @@ export class DRPDDevice extends EventTarget {
     this.captureDrainPollingActive = false
     this.captureDrainInFlight = false
     this.isConnected = false
-    this.debugLoggingEnabled = false
+    this.debugLogs =
+      options?.debugLogRegistry ??
+      ((transport as DRPDTransport & { debugLogs?: DebugLogRegistry }).debugLogs ?? undefined) ??
+      new DebugLogRegistry()
+    this.debugLogger = this.debugLogs.getLogger('drpd.device')
     this.loggingConfig = buildDefaultLoggingConfig()
     this.captureDrainIntervalMs = this.loggingConfig.messagePollFallbackIntervalMs
     this.loggingStarted = false
@@ -162,19 +179,14 @@ export class DRPDDevice extends EventTarget {
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
+    this.lastSeenVBusOvpEventTimestampUs = null
+    this.lastSeenVBusOcpEventTimestampUs = null
+    this.hasSeenInitialVBusEventTimestamps = false
     this.interruptPending = false
+    this.interruptRescheduleTimer = undefined
     this.interruptHandler = () => {
-      if (this.interruptInFlight) {
-        this.interruptPending = true
-        return
-      }
-      const task = this.flushPendingInterrupts()
-      this.interruptInFlight = task
-      void task.finally(() => {
-        if (this.interruptInFlight === task) {
-          this.interruptInFlight = undefined
-        }
-      })
+      this.interruptPending = true
+      this.scheduleInterruptRefresh()
     }
     this.interruptErrorHandler = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : event
@@ -186,8 +198,8 @@ export class DRPDDevice extends EventTarget {
     if ('addEventListener' in transport) {
       const target = transport as unknown as EventTarget
       this.interruptSource = target
-      target.addEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
-      target.addEventListener(USBTMCTransport.INTERRUPT_ERROR_EVENT, this.interruptErrorHandler)
+      target.addEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, this.interruptHandler)
+      target.addEventListener(DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT, this.interruptErrorHandler)
     }
   }
 
@@ -205,15 +217,6 @@ export class DRPDDevice extends EventTarget {
         activeIndex: this.state.logSelection.activeIndex,
       },
     }
-  }
-
-  /**
-   * Enable or disable debug logging.
-   *
-   * @param enabled - True to enable debug logs.
-   */
-  public setDebugLoggingEnabled(enabled: boolean): void {
-    this.debugLoggingEnabled = enabled
   }
 
   /**
@@ -515,6 +518,22 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
+   * Insert a manual mark into the captured-message log stream.
+   */
+  public async markLog(): Promise<void> {
+    if (!this.logStore) {
+      await this.ensureLogStoreOpen()
+    }
+    if (!this.logStore) {
+      return
+    }
+    await this.logSignificantEvent('mark', 'Mark', {
+      resetDisplayEpoch: false,
+      allowWithoutLoggingStarted: true,
+    })
+  }
+
+  /**
    * Clear logged rows.
    *
    * @param scope - Clear scope.
@@ -666,12 +685,19 @@ export class DRPDDevice extends EventTarget {
     this.stopClockSyncPolling()
     this.stopAnalogMonitorPolling()
     this.stopCaptureDrainPolling()
+    if (this.interruptRescheduleTimer) {
+      clearTimeout(this.interruptRescheduleTimer)
+      this.interruptRescheduleTimer = undefined
+    }
     void this.stopLogging().finally(() => this.closeLogStore())
     this.activeDisplayEpochStartUs = null
     this.pendingDisplayEpochReset = false
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
+    this.lastSeenVBusOvpEventTimestampUs = null
+    this.lastSeenVBusOcpEventTimestampUs = null
+    this.hasSeenInitialVBusEventTimestamps = false
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -805,6 +831,7 @@ export class DRPDDevice extends EventTarget {
     }
 
     if (vbusResult.status === 'fulfilled') {
+      await this.observeVBusEventTimestamps(vbusResult.value)
       if (updated.vbusInfo !== vbusResult.value) {
         updated.vbusInfo = vbusResult.value
         changed.push('vbusInfo')
@@ -975,9 +1002,9 @@ export class DRPDDevice extends EventTarget {
     if (!this.interruptSource) {
       return
     }
-    this.interruptSource.removeEventListener(USBTMCTransport.INTERRUPT_EVENT, this.interruptHandler)
+    this.interruptSource.removeEventListener(DRPD_TRANSPORT_INTERRUPT_EVENT, this.interruptHandler)
     this.interruptSource.removeEventListener(
-      USBTMCTransport.INTERRUPT_ERROR_EVENT,
+      DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
       this.interruptErrorHandler,
     )
     this.interruptSource = undefined
@@ -991,13 +1018,30 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
-   * Flush all pending interrupts before returning to idle.
+   * Schedule interrupt processing without monopolizing the event loop.
    */
-  protected async flushPendingInterrupts(): Promise<void> {
-    do {
+  protected scheduleInterruptRefresh(): void {
+    if (this.interruptInFlight) {
+      return
+    }
+
+    const task = (async () => {
       this.interruptPending = false
       await this.handleInterrupt()
-    } while (this.interruptPending)
+    })()
+    this.interruptInFlight = task
+    void task.finally(() => {
+      if (this.interruptInFlight === task) {
+        this.interruptInFlight = undefined
+      }
+      if (!this.interruptPending || this.interruptRescheduleTimer) {
+        return
+      }
+      this.interruptRescheduleTimer = setTimeout(() => {
+        this.interruptRescheduleTimer = undefined
+        this.scheduleInterruptRefresh()
+      }, 0)
+    })
   }
 
   /**
@@ -1033,9 +1077,6 @@ export class DRPDDevice extends EventTarget {
       }
       await Promise.all(tasks)
       if (statusFlags.messageReceived) {
-        if (source === 'interrupt') {
-          console.log('Retrieving captured message(s) in response to interrupt')
-        }
         await this.refreshAndDrainCapturedMessagesFromDevice()
       }
       this.logDebug(`${source}: status refresh done`)
@@ -1161,6 +1202,7 @@ export class DRPDDevice extends EventTarget {
   protected async refreshVBusFromDevice(): Promise<void> {
     try {
       const vbusInfo = await this.vbus.getInfo()
+      await this.observeVBusEventTimestamps(vbusInfo)
       if (this.state.vbusInfo === vbusInfo) {
         return
       }
@@ -1321,6 +1363,7 @@ export class DRPDDevice extends EventTarget {
    */
   protected async refreshAndDrainCapturedMessagesFromDevice(): Promise<void> {
     this.logDebug('refreshAndDrainCapturedMessages: start')
+    let processedMessages = 0
     if (this.captureCycleTimeNs === null) {
       try {
         this.captureCycleTimeNs = await this.capture.getCycleTimeNs()
@@ -1360,7 +1403,15 @@ export class DRPDDevice extends EventTarget {
               detail: { message },
             }),
           )
+          processedMessages += 1
           this.logDebug('refreshAndDrainCapturedMessages: message')
+          if (processedMessages >= CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS) {
+            this.interruptPending = true
+            this.logDebug(
+              `refreshAndDrainCapturedMessages: yielding after ${processedMessages} messages`,
+            )
+            return
+          }
         } catch (error) {
           this.dispatchEvent(
             new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
@@ -1702,26 +1753,51 @@ export class DRPDDevice extends EventTarget {
    * @param eventSummary - Human-readable summary text.
    */
   protected async logSignificantEvent(
-    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed',
+    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'mark' | 'vbus_ovp' | 'vbus_ocp',
     eventSummary: string,
+    options?: {
+      timestampUs?: bigint
+      resetDisplayEpoch?: boolean
+      allowWithoutLoggingStarted?: boolean
+    },
   ): Promise<void> {
-    if (!this.loggingStarted || !this.logStore) {
+    if ((!this.loggingStarted && options?.allowWithoutLoggingStarted !== true) || !this.logStore) {
       return
     }
     try {
-      const nowMs = Date.now()
-      const eventText = `${eventSummary} at ${new Date(nowMs).toLocaleString()}`
-      const syntheticTimestampUs = this.nextSyntheticStreamTimestampUs()
-      const wallClockUs = BigInt(nowMs) * 1000n
+      const explicitTimestampUs = options?.timestampUs ?? null
+      const wallClockUs = explicitTimestampUs === null
+        ? BigInt(Date.now()) * 1000n
+        : this.resolveWallClockUs(explicitTimestampUs)
+      const eventWallClockMs =
+        wallClockUs === null
+          ? null
+          : Number(wallClockUs / 1000n)
+      const eventText =
+        eventType === 'mark'
+          ? eventSummary
+          : eventWallClockMs === null
+            ? eventSummary
+            : `${eventSummary} at ${new Date(eventWallClockMs).toLocaleString()}`
+      const eventTimestampUs = explicitTimestampUs ?? this.nextSyntheticStreamTimestampUs()
+      if (
+        explicitTimestampUs !== null &&
+        (this.lastKnownDeviceTimestampUs === null || explicitTimestampUs > this.lastKnownDeviceTimestampUs)
+      ) {
+        this.lastKnownDeviceTimestampUs = explicitTimestampUs
+      }
       const row: LoggedCapturedMessage = {
         entryKind: 'event',
         eventType,
         eventText,
-        eventWallClockMs: nowMs,
+        eventWallClockMs,
         wallClockUs,
-        startTimestampUs: syntheticTimestampUs,
-        endTimestampUs: syntheticTimestampUs,
-        displayTimestampUs: null,
+        startTimestampUs: eventTimestampUs,
+        endTimestampUs: eventTimestampUs,
+        displayTimestampUs:
+          this.activeDisplayEpochStartUs === null || options?.resetDisplayEpoch === true
+            ? null
+            : eventTimestampUs - this.activeDisplayEpochStartUs,
         decodeResult: 0,
         sopKind: null,
         messageKind: null,
@@ -1734,10 +1810,12 @@ export class DRPDDevice extends EventTarget {
         rawSop: new Uint8Array(),
         rawDecodedData: new Uint8Array(),
         parseError: null,
-        createdAtMs: nowMs,
+        createdAtMs: eventWallClockMs ?? Date.now(),
       }
       await this.logStore.insertCapturedMessage(row)
-      this.pendingDisplayEpochReset = true
+      if (options?.resetDisplayEpoch !== false) {
+        this.pendingDisplayEpochReset = true
+      }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
           detail: { kind: 'event', row },
@@ -1758,6 +1836,44 @@ export class DRPDDevice extends EventTarget {
     const next = (this.lastKnownDeviceTimestampUs ?? 0n) + 1n
     this.lastKnownDeviceTimestampUs = next
     return next
+  }
+
+  /**
+   * Observe device-originated VBUS event timestamps and log newly-seen events once.
+   *
+   * @param vbusInfo - Latest VBUS snapshot.
+   */
+  protected async observeVBusEventTimestamps(vbusInfo: VBusInfo): Promise<void> {
+    if (!this.hasSeenInitialVBusEventTimestamps) {
+      this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
+      this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
+      this.hasSeenInitialVBusEventTimestamps = true
+      return
+    }
+
+    const previousOvp = this.lastSeenVBusOvpEventTimestampUs
+    const previousOcp = this.lastSeenVBusOcpEventTimestampUs
+
+    this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
+    this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
+
+    if (!this.loggingStarted || this.state.captureEnabled !== OnOffStateValues.ON) {
+      return
+    }
+
+    if (vbusInfo.ovpEventTimestampUs !== null && vbusInfo.ovpEventTimestampUs !== previousOvp) {
+      await this.logSignificantEvent('vbus_ovp', 'VBUS OVP event', {
+        timestampUs: vbusInfo.ovpEventTimestampUs,
+        resetDisplayEpoch: false,
+      })
+    }
+
+    if (vbusInfo.ocpEventTimestampUs !== null && vbusInfo.ocpEventTimestampUs !== previousOcp) {
+      await this.logSignificantEvent('vbus_ocp', 'VBUS OCP event', {
+        timestampUs: vbusInfo.ocpEventTimestampUs,
+        resetDisplayEpoch: false,
+      })
+    }
   }
 
   /**
@@ -1982,9 +2098,6 @@ export class DRPDDevice extends EventTarget {
    * @param message - Debug message.
    */
   protected logDebug(message: string): void {
-    if (!this.debugLoggingEnabled) {
-      return
-    }
-    console.debug(`[DRPDDevice] ${message}`)
+    this.debugLogger.debug(message)
   }
 }

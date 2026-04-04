@@ -11,9 +11,9 @@
  * 
  * The TriggerController integrates with the SyncManager to generate synchronization pulses
  * when a trigger event occurs, allowing for external systems to be synchronized with the detected events
- * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or being 
- * disabled, in which case no sync signal is generated even if a trigger event occurs. For modes that
- * generate a sync pulse, the pulse width can be configured in microseconds.
+ * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or enabling
+ * an internal pull-down pulse from an otherwise high-Z idle state. For modes that generate a timed
+ * pulse, the pulse width can be configured in microseconds.
  * 
  * The state of the TriggerController can be queried to determine if it is idle, armed and waiting for an event,
  * or if a trigger event has occurred. Note that, if auto-repeat is enabled, the controller will 
@@ -29,6 +29,7 @@
 #include <span>
 #include "../phy/bmc_decoder.hpp"
 #include "../phy/sync_manager.hpp"
+#include "../util/persistent_config.hpp"
 
 
 namespace T76::DRPD::Logic {
@@ -81,9 +82,9 @@ namespace T76::DRPD::Logic {
      * 
      * The TriggerController integrates with the SyncManager to generate synchronization pulses
      * when a trigger event occurs, allowing for external systems to be synchronized with the detected events
-     * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or being 
-     * disabled, in which case no sync signal is generated even if a trigger event occurs. For modes that
-     * generate a sync pulse, the pulse width can be configured in microseconds.
+     * through the SYNC port. The SyncManager supports pulsing high, pulsing low, toggling, or enabling
+     * an internal pull-down pulse from an otherwise high-Z idle state. For modes that generate a timed
+     * pulse, the pulse width can be configured in microseconds.
      * 
      * The state of the TriggerController can be queried to determine if it is idle, armed and waiting for an event,
      * or if a trigger event has occurred. Note that, if auto-repeat is enabled, the controller will 
@@ -276,6 +277,25 @@ namespace T76::DRPD::Logic {
          */
         void statusChangedCallback(TriggerStatusChangedCallback callback);
 
+        /**
+         * @brief Apply the persisted trigger settings owned by this controller.
+         *
+         * The controller updates its local trigger mode, threshold, sender
+         * filter, auto-repeat state, and message-type filter table from the
+         * provided persisted slice.
+         *
+         * @param config Persisted trigger configuration to apply.
+         */
+        void applyPersistentConfig(const T76::DRPD::TriggerPersistentConfig &config);
+
+        /**
+         * @brief Export the trigger settings that should be persisted in flash.
+         *
+         * @return T76::DRPD::TriggerPersistentConfig Current persisted trigger
+         * slice derived from the controller state.
+         */
+        T76::DRPD::TriggerPersistentConfig exportPersistentConfig() const;
+
     protected:
         PHY::BMCDecoder& _bmcDecoder;     ///< Reference to the BMCDecoder instance being monitored
         PHY::SyncManager& _syncManager;   ///< Reference to the SyncManager instance for SYNC output
@@ -300,11 +320,58 @@ namespace T76::DRPD::Logic {
          */
         void _handleTriggerEvent(const PHY::BMCDecodedMessageEvent& event, PHY::BMCDecodedMessage& message);
 
+        /**
+         * @brief Return true when the event guarantees a decoded PD header.
+         *
+         * @param event Decoder event being evaluated.
+         * @param message Associated decoded message state.
+         * @return true if message-type filtering can safely inspect the header.
+         * @return false otherwise.
+         */
         bool _messageHeaderKnownForEvent(const PHY::BMCDecodedMessageEvent& event, const PHY::BMCDecodedMessage& message) const;
+
+        /**
+         * @brief Return true when the event guarantees sender inference is valid.
+         *
+         * @param event Decoder event being evaluated.
+         * @param message Associated decoded message state.
+         * @return true if sender filtering may be evaluated.
+         * @return false otherwise.
+         */
         bool _senderKnownForEvent(const PHY::BMCDecodedMessageEvent& event, const PHY::BMCDecodedMessage& message) const;
+
+        /**
+         * @brief Infer the logical sender of a decoded PD message.
+         *
+         * @param message Decoded message to inspect.
+         * @return std::optional<SenderFilter> Sender classification when known.
+         */
         std::optional<SenderFilter> _messageSender(const PHY::BMCDecodedMessage& message) const;
+
+        /**
+         * @brief Return true when the decoded message passes the sender filter.
+         *
+         * @param message Decoded message to inspect.
+         * @return true if the message sender matches the configured filter.
+         * @return false otherwise.
+         */
         bool _messageMatchesSenderFilter(const PHY::BMCDecodedMessage& message) const;
+
+        /**
+         * @brief Return true when any message-type filter slot is active.
+         *
+         * @return true if at least one message-type filter is enabled.
+         * @return false otherwise.
+         */
         bool _hasMessageTypeFiltersConfigured() const;
+
+        /**
+         * @brief Return true when the decoded message matches an enabled filter slot.
+         *
+         * @param message Decoded message to inspect.
+         * @return true if any enabled message-type filter matches.
+         * @return false otherwise.
+         */
         bool _messageMatchesFilters(const PHY::BMCDecodedMessage& message) const;
     };
     

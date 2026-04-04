@@ -19,6 +19,7 @@ import {
  * Mock transport for group tests.
  */
 class MockTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   ///< Captured command history.
   public readonly commands: Array<{ command: string; params: DRPDSCPIParam[] }> = []
   ///< Preloaded text responses by command.
@@ -168,7 +169,7 @@ describe('DRPD command groups', () => {
     const group = new DRPDTrigger(transport)
     await group.setEventType(TriggerEventType.MESSAGE_COMPLETE)
     await group.setSenderFilter(TriggerSenderFilter.SOURCE)
-    await group.setSyncMode(TriggerSyncMode.TOGGLE)
+    await group.setSyncMode(TriggerSyncMode.PULL_DOWN)
     expect(transport.commands[0]).toEqual({
       command: 'TRIG:EV:TYPE',
       params: [{ raw: 'MESSAGE_COMPLETE' }],
@@ -179,7 +180,7 @@ describe('DRPD command groups', () => {
     })
     expect(transport.commands[2]).toEqual({
       command: 'TRIG:SYNC:MODE',
-      params: [{ raw: 'TOGGLE' }],
+      params: [{ raw: 'PULL_DOWN' }],
     })
   })
 
@@ -228,7 +229,7 @@ describe('DRPD command groups', () => {
 
   it('queries VBUS thresholds from firmware float V/A responses', async () => {
     const transport = new MockTransport()
-    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED', '1234', 'NONE'])
     transport.textResponses.set('BUS:VBUS:OVPT?', ['12.000000'])
     transport.textResponses.set('BUS:VBUS:OCPT?', ['3.000000'])
     const group = new DRPDVBus(transport)
@@ -236,6 +237,8 @@ describe('DRPD command groups', () => {
     expect(info.status).toBe('ENABLED')
     expect(info.ovpThresholdMv).toBe(12000)
     expect(info.ocpThresholdMa).toBe(3000)
+    expect(info.ovpEventTimestampUs).toBe(1234n)
+    expect(info.ocpEventTimestampUs).toBeNull()
   })
 
   it('sends VBUS thresholds in firmware V/A units while keeping frontend mV/mA API', async () => {

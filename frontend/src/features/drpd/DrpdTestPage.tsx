@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import USBTMCTransport from '../../lib/transport/usbtmc'
 import {
   DRPDDevice,
   DRPDDeviceDefinition,
   buildUSBFilters,
   type AnalogMonitorChannels,
 } from '../../lib/device'
+import type { DRPDUSBTransport } from '../../lib/transport/drpdUsb'
+import { openPreferredDRPDTransport } from '../../lib/transport/drpdUsb'
 import styles from './DrpdTestPage.module.css'
 
 /**
@@ -29,7 +30,7 @@ export const DrpdTestPage = () => {
   const [status, setStatus] = useState('Disconnected')
   const [error, setError] = useState<string | null>(null)
   const [device, setDevice] = useState<USBDevice | null>(null)
-  const [transport, setTransport] = useState<USBTMCTransport | null>(null)
+  const [transport, setTransport] = useState<DRPDUSBTransport | null>(null)
   const [driver, setDriver] = useState<DRPDDevice | null>(null)
   const [analogStats, setAnalogStats] = useState<AnalogMonitorChannels | null>(null)
 
@@ -46,8 +47,7 @@ export const DrpdTestPage = () => {
       setStatus('Requesting device...')
       const filters = buildUSBFilters([deviceDefinition])
       const selected = await navigator.usb.requestDevice({ filters })
-      const nextTransport = new USBTMCTransport(selected)
-      await nextTransport.open()
+      const nextTransport = await openPreferredDRPDTransport(selected)
       await deviceDefinition.connectDevice(selected)
       setDevice(selected)
       setTransport(nextTransport)

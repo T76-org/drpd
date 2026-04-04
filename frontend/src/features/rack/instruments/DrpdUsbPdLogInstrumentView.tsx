@@ -272,6 +272,8 @@ export const DrpdUsbPdLogInstrumentView = ({
   )
   const [bufferError, setBufferError] = useState<string | null>(null)
   const [isApplyingBuffer, setIsApplyingBuffer] = useState(false)
+  const [isMarking, setIsMarking] = useState(false)
+  const [markError, setMarkError] = useState<string | null>(null)
   const [isClearing, setIsClearing] = useState(false)
   const [clearError, setClearError] = useState<string | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -746,6 +748,28 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [driver, firstVisibleRow, lastVisibleRow, pages, totalRows])
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
+    const markControl: InstrumentHeaderControl = {
+      id: 'mark-log',
+      label: isMarking ? 'Marking...' : 'Mark',
+      disabled: !driver || isEditMode || isMarking,
+      onClick: () => {
+        if (!driver) {
+          return
+        }
+        setIsMarking(true)
+        setMarkError(null)
+        void driver
+          .markLog()
+          .catch((error) => {
+            const message = error instanceof Error ? error.message : String(error)
+            setMarkError(message)
+          })
+          .finally(() => {
+            setIsMarking(false)
+          })
+      },
+    }
+
     const clearControl: InstrumentHeaderControl = {
       id: 'clear-log',
       label: 'Clear',
@@ -897,7 +921,7 @@ export const DrpdUsbPdLogInstrumentView = ({
       ),
     }
 
-    return [clearControl, configureControl]
+    return [markControl, clearControl, configureControl]
   }, [
     bufferInput,
     clearError,
@@ -907,6 +931,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     isApplyingBuffer,
     isClearing,
     isEditMode,
+    isMarking,
     onUpdateDeviceConfig,
     parseBufferInput,
     bufferError,
@@ -1018,6 +1043,11 @@ export const DrpdUsbPdLogInstrumentView = ({
         className={styles.wrapper}
         data-testid="drpd-usbpd-log"
       >
+        {markError ? (
+          <div className={styles.headerErrorBanner} role="alert">
+            {markError}
+          </div>
+        ) : null}
         <div className={styles.headerRow}>
           <span>Wall time</span>
           <span>Length</span>
@@ -1057,6 +1087,9 @@ export const DrpdUsbPdLogInstrumentView = ({
                   row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
                   row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
                   row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
+                  row?.eventType === 'mark' ? styles.eventRowMark : '',
+                  row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
+                  row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}

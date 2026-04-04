@@ -63,8 +63,44 @@ VBusState VBusManager::state() {
     return _state;
 }
 
+/**
+ * @brief Return the most recently latched OVP event timestamp.
+ *
+ * The timestamp is captured in microseconds using the device monotonic
+ * timebase at the moment the OVP watchdog condition is detected. A value
+ * of 0 indicates that no OVP event is currently latched.
+ *
+ * @return uint64_t Latched OVP event timestamp in microseconds, or 0.
+ */
+uint64_t VBusManager::lastOvpEventTimestampUs() const {
+    return _lastOvpEventTimestampUs;
+}
+
+/**
+ * @brief Return the most recently latched OCP event timestamp.
+ *
+ * The timestamp is captured in microseconds using the device monotonic
+ * timebase at the moment the OCP watchdog condition is detected. A value
+ * of 0 indicates that no OCP event is currently latched.
+ *
+ * @return uint64_t Latched OCP event timestamp in microseconds, or 0.
+ */
+uint64_t VBusManager::lastOcpEventTimestampUs() const {
+    return _lastOcpEventTimestampUs;
+}
+
+/**
+ * @brief Clear the current VBUS fault state and any latched event timestamps.
+ *
+ * Reset removes both the active fault latch and the retained OVP/OCP event
+ * timestamps so subsequent SCPI status queries report no stored protection
+ * event until a new fault is observed. The previously requested enable state
+ * is then re-applied through enabled().
+ */
 void VBusManager::reset() {
     _fault = false;
+    _lastOvpEventTimestampUs = 0;
+    _lastOcpEventTimestampUs = 0;
 
     enabled(_enabled); // Re-apply the enabled state (will trigger notification)
 }
@@ -95,6 +131,18 @@ void VBusManager::managerChangedCallback(std::function<void()> callback) {
     _managerChangedCallback = std::move(callback);
 }
 
+void VBusManager::applyPersistentConfig(const T76::DRPD::VBusPersistentConfig &config) {
+    ovpThreshold(config.ovpThresholdVolts);
+    ocpThreshold(config.ocpThresholdAmps);
+}
+
+T76::DRPD::VBusPersistentConfig VBusManager::exportPersistentConfig() const {
+    return T76::DRPD::VBusPersistentConfig{
+        .ovpThresholdVolts = _ovpThreshold,
+        .ocpThresholdAmps = _ocpThreshold,
+    };
+}
+
 bool VBusManager::_timerCallback(repeating_timer_t *rt) {
     // Get the VBusManager instance from the timer's user_data
     VBusManager* manager = static_cast<VBusManager*>(rt->user_data);
@@ -113,10 +161,12 @@ bool VBusManager::_timerCallback(repeating_timer_t *rt) {
 
     if (manager->_enabled) {
         if (voltage > manager->_ovpThreshold) {
+            manager->_lastOvpEventTimestampUs = time_us_64();
             manager->_state = VBusState::OverVoltage;
             manager->_fault = true;
             manager->enabled(false); // Disable VBUS on fault (will trigger notification)
         } else if (current > manager->_ocpThreshold) {
+            manager->_lastOcpEventTimestampUs = time_us_64();
             manager->_state = VBusState::OverCurrent;
             manager->_fault = true;
             manager->enabled(false); // Disable VBUS on fault (will trigger notification)

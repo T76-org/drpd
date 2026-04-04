@@ -124,7 +124,7 @@ void App::_queryTriggerControllerStatus(const std::vector<T76::SCPI::ParameterVa
     }
 
     // Send the status string as a response
-    _usbInterface.sendUSBTMCBulkData(statusStr);
+    _sendTransportTextResponse(statusStr);
 }
 
 void App::_setTriggerEventType(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -158,7 +158,10 @@ void App::_setTriggerEventType(const std::vector<T76::SCPI::ParameterValue> &par
     } else {
         // Invalid parameter, handle error as needed
         _interpreter.addError(100, "Invalid trigger event type");
+        return;
     }
+
+    _savePersistentConfig();
 }
 
 void App::_queryTriggerEventType(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -206,17 +209,18 @@ void App::_queryTriggerEventType(const std::vector<T76::SCPI::ParameterValue> &p
 
     // Send the mode string as a response
 
-    _usbInterface.sendUSBTMCBulkData(modeStr);
+    _sendTransportTextResponse(modeStr);
 }
 
 void App::_setTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t count = static_cast<uint32_t>(params[0].numberValue);
     _triggerController.eventThreshold(count);
+    _savePersistentConfig();
 }
 
 void App::_queryTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t count = _triggerController.eventThreshold();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(count));
+    _sendTransportTextResponse(std::to_string(count));
 }
 
 void App::_setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -227,15 +231,16 @@ void App::_setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterVal
     }
 
     _triggerController.senderFilter(*filter);
+    _savePersistentConfig();
 }
 
 void App::_queryTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
-    _usbInterface.sendUSBTMCBulkData(formatSenderFilterToken(_triggerController.senderFilter()));
+    _sendTransportTextResponse(formatSenderFilterToken(_triggerController.senderFilter()));
 }
 
 void App::_queryTriggerEventCount(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t count = _triggerController.eventCount();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(count));
+    _sendTransportTextResponse(std::to_string(count));
 }
 
 void App::_setTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -267,7 +272,10 @@ void App::_setTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::Paramet
         _interpreter.addError(
             TriggerSCPIErrorInvalidParameter,
             "Message type filter slot is out of range, duplicates another slot, or uses an invalid type value");
+        return;
     }
+
+    _savePersistentConfig();
 }
 
 void App::_queryTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -287,11 +295,12 @@ void App::_queryTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::Param
         first = false;
     }
 
-    _usbInterface.sendUSBTMCBulkData(response);
+    _sendTransportTextResponse(response);
 }
 
 void App::_clearTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
     _triggerController.clearMessageTypeFilters();
+    _savePersistentConfig();
 }
 
 void App::_setTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -299,29 +308,33 @@ void App::_setTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue
     std::transform(enable.begin(), enable.end(), enable.begin(), ::toupper);
 
     _triggerController.autoRepeat(enable == "ON");
+    _savePersistentConfig();
 }
 
 void App::_queryTriggerAutoRepeatState(const std::vector<T76::SCPI::ParameterValue> &params) {
     bool enable = _triggerController.autoRepeat();
-    _usbInterface.sendUSBTMCBulkData(enable ? "ON" : "OFF");
+    _sendTransportTextResponse(enable ? "ON" : "OFF");
 }
 
 void App::_setSyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &params) {
     std::string modeStr = params[0].stringValue;
     std::transform(modeStr.begin(), modeStr.end(), modeStr.begin(), ::toupper);
 
-    if (modeStr == "OFF") {
-        _syncManager.mode(PHY::SyncManagerMode::Off);
-    } else if (modeStr == "PULSE_HIGH") {
+    if (modeStr == "PULSE_HIGH") {
         _syncManager.mode(PHY::SyncManagerMode::PulseHigh);
     } else if (modeStr == "PULSE_LOW") {
         _syncManager.mode(PHY::SyncManagerMode::PulseLow);
     } else if (modeStr == "TOGGLE") {
         _syncManager.mode(PHY::SyncManagerMode::Toggle);
+    } else if (modeStr == "PULL_DOWN") {
+        _syncManager.mode(PHY::SyncManagerMode::PullDown);
     } else {
         // Invalid parameter, handle error as needed
         _interpreter.addError(100, "Invalid sync output mode");
+        return;
     }
+
+    _savePersistentConfig();
 }
 
 void App::_querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -329,9 +342,6 @@ void App::_querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &par
     std::string modeStr;
 
     switch (mode) {
-        case PHY::SyncManagerMode::Off:
-            modeStr = "OFF";
-            break;
         case PHY::SyncManagerMode::PulseHigh:
             modeStr = "PULSE_HIGH";
             break;
@@ -341,21 +351,25 @@ void App::_querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &par
         case PHY::SyncManagerMode::Toggle:
             modeStr = "TOGGLE";
             break;
+        case PHY::SyncManagerMode::PullDown:
+            modeStr = "PULL_DOWN";
+            break;
     }
 
     // Send the mode string as a response
 
-    _usbInterface.sendUSBTMCBulkData(modeStr);
+    _sendTransportTextResponse(modeStr);
 }
 
 
 void App::_setSyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t widthUs = static_cast<uint32_t>(params[0].numberValue);
     _syncManager.pulseWidth(widthUs);
+    _savePersistentConfig();
 }
 
 
 void App::_querySyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t widthUs = _syncManager.pulseWidth();
-    _usbInterface.sendUSBTMCBulkData(std::to_string(widthUs));
+    _sendTransportTextResponse(std::to_string(widthUs));
 }   

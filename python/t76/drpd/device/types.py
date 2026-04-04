@@ -355,10 +355,10 @@ class TriggerSyncMode(enum.Enum):
     """
     Represents the trigger output modes of the device.
     """
-    OFF = "OFF"
     PULSE_HIGH = "PULSE_HIGH"
     PULSE_LOW = "PULSE_LOW"
     TOGGLE = "TOGGLE"
+    PULL_DOWN = "PULL_DOWN"
 
     @classmethod
     def from_string(cls, mode_str: str) -> 'TriggerSyncMode':

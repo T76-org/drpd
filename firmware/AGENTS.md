@@ -19,12 +19,16 @@ This project is a C++ implementation of a USB Power Delivery (USB-PD) controller
   - Use `//` for single-line comments and `/* ... */` for multi-line comments.
   - Write comments in English and ensure they are clear and concise.
   - Use Doxygen-style comments for documenting classes and functions.
+  - Do not introduce anonymous namespaces in `.cpp` files. If logic is shared across handlers in a module, put it on the owning class or in a named namespace/module where ownership is explicit.
   - Ensure that all functions and classes have appropriate comments explaining their purpose and usage.
   - Every header file that declares a class must include a module-level file docblock (at the top of the file) that explains, in plain language, what the module/class is responsible for, how it fits in the architecture, and key behavior/developer expectations.
+  - When adding a new feature or persistence mechanism, the file-level docblock must also explain the operational model, important safety/runtime constraints, and the maintenance workflow for extending it later.
   - For all class methods (public, protected, and private), Doxygen docblocks must include `@param` entries for every parameter and `@return` entries for non-`void` methods.
+  - New methods added during a change must be documented in the same patch as the method declaration. Do not leave newly introduced methods, helpers, or persistence hooks undocumented.
   - Keep method docblocks synchronized with signatures; remove stale parameter descriptions when signatures change.
   - Avoid redundant comments that do not add value.
   - Add ///< comments for member variables to describe their purpose.
+  - Before considering a change complete, review every newly added class member, method, and top-level constant in the touched headers and add docblocks or `///<` comments where applicable.
 
 ## File organization
 

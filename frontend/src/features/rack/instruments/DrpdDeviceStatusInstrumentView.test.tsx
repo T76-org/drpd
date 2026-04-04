@@ -11,6 +11,7 @@ import { DrpdDeviceStatusInstrumentView } from './DrpdDeviceStatusInstrumentView
  * Minimal DRPD transport stub for tests.
  */
 class TestTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   public async sendCommand(): Promise<void> {
     return undefined
   }

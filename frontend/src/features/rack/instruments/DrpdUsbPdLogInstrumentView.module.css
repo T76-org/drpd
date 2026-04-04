@@ -28,6 +28,15 @@
   -webkit-user-select: none;
 }
 
+.headerErrorBanner {
+  padding: var(--space-2) var(--space-8);
+  color: var(--color-status-error);
+  background: color-mix(in srgb, var(--color-status-error) 10%, transparent);
+  border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-status-error) 26%, transparent);
+  font-size: var(--font-size-xs);
+  line-height: 1.2;
+}
+
 .headerRow {
   --log-header-divider: color-mix(in srgb, var(--color-border-panel) 88%, transparent);
   display: grid;
@@ -212,6 +221,21 @@
 .eventRowStatus {
   color: var(--color-log-event-status);
   background: var(--color-log-event-status-bg);
+}
+
+.eventRowMark {
+  color: var(--color-log-event-mark);
+  background: var(--color-log-event-mark-bg);
+}
+
+.eventRowOvp {
+  color: var(--color-log-event-ovp);
+  background: var(--color-log-event-ovp-bg);
+}
+
+.eventRowOcp {
+  color: var(--color-log-event-ocp);
+  background: var(--color-log-event-ocp-bg);
 }
 
 .selectedRow {

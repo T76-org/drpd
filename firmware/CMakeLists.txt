@@ -40,6 +40,17 @@ project(drpd-firmware C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+set(DRPD_PERSISTENT_CONFIG_FLASH_SIZE 4096)
+if(DEFINED PICO_FLASH_SIZE_BYTES)
+    set(DRPD_FLASH_SIZE_BYTES ${PICO_FLASH_SIZE_BYTES})
+else()
+    set(DRPD_FLASH_SIZE_BYTES ${PICO_DEFAULT_FLASH_SIZE_BYTES})
+endif()
+# Reserve the final flash sector for PersistentConfig so the linked firmware
+# image does not overwrite persisted settings during normal reflashing.
+math(EXPR DRPD_LINK_FLASH_SIZE_BYTES "${DRPD_FLASH_SIZE_BYTES} - ${DRPD_PERSISTENT_CONFIG_FLASH_SIZE}")
+set(PICO_FLASH_SIZE_BYTES ${DRPD_LINK_FLASH_SIZE_BYTES})
+
 # USB Settings
 
 set(T76_IC_USB_URL "t76.org/drpd" CACHE STRING "URL string for the USB WebUSB descriptor" FORCE)
@@ -104,6 +115,7 @@ add_executable(drpd-firmware
         lib/proto/pd_messages/pdo/pdo_augmented.cpp
         lib/proto/pd_messages/request.cpp
         lib/proto/pd_messages/source_capabilities.cpp
+        lib/util/persistent_config.cpp
         main.cpp
         freertos/rp2350.c
 )
@@ -160,8 +172,10 @@ target_compile_definitions(drpd-firmware PUBLIC
 target_link_libraries(drpd-firmware
         hardware_adc
         hardware_dma
+        hardware_flash
         hardware_pio
         hardware_pwm
+        hardware_sync
         t76_ic
 )
 

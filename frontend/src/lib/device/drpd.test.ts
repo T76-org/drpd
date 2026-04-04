@@ -3,11 +3,12 @@ import { Device } from './base'
 
 const mockState = vi.hoisted(() => ({ nextResponse: [] as string[] }))
 
-vi.mock('../transport/usbtmc', () => {
+vi.mock('../transport/drpdUsb', () => {
   /**
-   * Mock USBTMC transport for device definition tests.
+   * Mock preferred DRPD transport for device definition tests.
    */
-  class MockUSBTMCTransport {
+  class MockDRPDTransport {
+    public readonly kind = 'winusb' as const
     ///< Track open/close state for verification.
     public opened = false
 
@@ -46,7 +47,13 @@ vi.mock('../transport/usbtmc', () => {
     }
   }
 
-  return { default: MockUSBTMCTransport }
+  return {
+    openPreferredDRPDTransport: async (device: USBDevice) => {
+      const transport = new MockDRPDTransport(device)
+      await transport.open()
+      return transport
+    },
+  }
 })
 
 import { CCBusRole, OnOffState, TriggerEventType, TriggerSenderFilter, TriggerSyncMode, DRPDDeviceDefinition } from './drpd'
@@ -60,6 +67,8 @@ import { buildDefaultLoggingConfig } from './drpd/logging'
 const createUsbDevice = () => ({
   productId: 0x000a,
   vendorId: 0x2e8a,
+  manufacturerName: 'MTA Inc.',
+  productName: 'Dr. PD',
 }) as USBDevice
 
 describe('DRPDDeviceDefinition', () => {
@@ -178,8 +187,7 @@ describe('DRPDDeviceDefinition', () => {
     expect(disconnectSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('verifies connected device via *IDN?', async () => {
-    mockState.nextResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
+  it('verifies connected device via the USB device strings', async () => {
     const usbDevice = createUsbDevice()
     const verified = await DRPDDeviceDefinition.verifyConnectedDevice(usbDevice)
     expect(verified).toBe(true)

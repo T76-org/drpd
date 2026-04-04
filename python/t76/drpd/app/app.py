@@ -20,14 +20,10 @@ from t76.drpd.device_reconciliation import (
 )
 from t76.drpd.device.types import Mode, OnOffStatus
 
-from .config import config
 from .device_selection_screen import DeviceSelectionScreen, DeviceSelectedMessage
 from .main_screen import MainScreen
 
 
-CONFIG_APP_SECTION_KEY = "app"
-CONFIG_ENABLE_CAPTURE_KEY = "enable_capture"
-CONFIG_CC_BUS_MODE_KEY = "cc_bus_mode"
 DISCOVERY_INTERVAL_SECONDS = 1.0
 
 
@@ -178,7 +174,6 @@ class DRPDApp(App):
                 logging.info('Connecting to device %s', new_device)
                 await new_device.connect()
                 await new_device.capture.fetch_extant_captures()
-                await config.load(new_device)
                 await new_device.analog_monitor.start_recurring_status_updates(
                     0.5)
             except Exception as e:
@@ -217,8 +212,6 @@ class DRPDApp(App):
         else:
             logging.info("Starting packet capture...")
             await self.device.capture.start()
-
-        await config.save(self.device)
 
     async def on_device_selected_message(self, message: DeviceSelectedMessage) -> None:
         """Handle the DeviceSelectedMessage event."""

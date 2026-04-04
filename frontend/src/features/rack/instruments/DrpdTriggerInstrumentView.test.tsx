@@ -20,6 +20,7 @@ import { DrpdTriggerInstrumentView } from './DrpdTriggerInstrumentView'
  * Minimal DRPD transport stub for tests.
  */
 class TestTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   /**
    * Stub SCPI send method.
    */
@@ -337,7 +338,7 @@ describe('DrpdTriggerInstrumentView', () => {
   it('keeps reset disabled unless the trigger is triggered', async () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
-    driver.setTriggerInfo(buildTriggerInfo({ status: TriggerStatus.IDLE }))
+    driver.setTriggerInfo(buildTriggerInfo({ status: TriggerStatus.IDLE, autorepeat: OnOffState.OFF }))
 
     render(
       <DrpdTriggerInstrumentView
@@ -349,6 +350,23 @@ describe('DrpdTriggerInstrumentView', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled()
+  })
+
+  it('enables reset when auto-repeat is on even if the trigger is not triggered', () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setTriggerInfo(buildTriggerInfo({ status: TriggerStatus.ARMED, autorepeat: OnOffState.ON }))
+
+    render(
+      <DrpdTriggerInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sync Trigger"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeEnabled()
   })
 
   it('resets the trigger and refreshes state when triggered', async () => {

@@ -297,14 +297,14 @@ export const parseTriggerEventType = (value: string): TriggerEventType => {
 export const parseTriggerSyncMode = (value: string): TriggerSyncMode => {
   const normalized = value.trim().toUpperCase()
   switch (normalized) {
-    case TriggerSyncMode.OFF:
-      return TriggerSyncMode.OFF
     case TriggerSyncMode.PULSE_HIGH:
       return TriggerSyncMode.PULSE_HIGH
     case TriggerSyncMode.PULSE_LOW:
       return TriggerSyncMode.PULSE_LOW
     case TriggerSyncMode.TOGGLE:
       return TriggerSyncMode.TOGGLE
+    case TriggerSyncMode.PULL_DOWN:
+      return TriggerSyncMode.PULL_DOWN
     default:
       throw new Error(`Invalid trigger sync mode: ${value}`)
   }
@@ -714,10 +714,14 @@ export const buildVBusInfo = (
   status: VBusStatus,
   ovpThresholdMv: number,
   ocpThresholdMa: number,
+  ovpEventTimestampUs: bigint | null = null,
+  ocpEventTimestampUs: bigint | null = null,
 ): VBusInfo => ({
   status,
   ovpThresholdMv,
   ocpThresholdMa,
+  ovpEventTimestampUs,
+  ocpEventTimestampUs,
 })
 
 /**
@@ -813,7 +817,15 @@ export const parseVBusInfo = (
   status: VBusStatus,
   ovpThresholdMv: number,
   ocpThresholdMa: number,
-): VBusInfo => buildVBusInfo(status, ovpThresholdMv, ocpThresholdMa)
+  ovpEventTimestampUs: bigint | null = null,
+  ocpEventTimestampUs: bigint | null = null,
+): VBusInfo => buildVBusInfo(
+  status,
+  ovpThresholdMv,
+  ocpThresholdMa,
+  ovpEventTimestampUs,
+  ocpEventTimestampUs,
+)
 
 /**
  * Parse CC channel response values.
@@ -891,6 +903,32 @@ export const parseVBusStatusResponse = (values: string[]): VBusStatus => {
     throw new Error('Missing VBUS status response')
   }
   return parseVBusStatus(values[0])
+}
+
+export const parseOptionalVBusEventTimestamp = (
+  value: string,
+  label: string,
+): bigint | null => {
+  const normalized = value.trim().toUpperCase()
+  if (normalized === 'NONE') {
+    return null
+  }
+  return parseBigIntValue(value, label)
+}
+
+export const parseVBusStatusFields = (values: string[]): {
+  status: VBusStatus
+  ovpEventTimestampUs: bigint | null
+  ocpEventTimestampUs: bigint | null
+} => {
+  if (values.length < 3) {
+    throw new Error(`Invalid VBUS status response: expected 3 fields, got ${values.length}`)
+  }
+  return {
+    status: parseVBusStatus(values[0]),
+    ovpEventTimestampUs: parseOptionalVBusEventTimestamp(values[1], 'OVP event timestamp'),
+    ocpEventTimestampUs: parseOptionalVBusEventTimestamp(values[2], 'OCP event timestamp'),
+  }
 }
 
 /**

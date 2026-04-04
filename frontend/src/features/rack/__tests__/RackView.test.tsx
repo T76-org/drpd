@@ -28,7 +28,7 @@ const mockTransportState = vi.hoisted(() => ({
   ],
   roleResponse: ['SINK'],
   roleStatusResponse: ['ATTACHED'],
-  vbusStatusResponse: ['ENABLED'],
+  vbusStatusResponse: ['ENABLED', 'NONE', 'NONE'],
   ovpThresholdResponse: ['21'],
   ocpThresholdResponse: ['3.5'],
   captureEnabledResponse: ['ON'],
@@ -36,8 +36,10 @@ const mockTransportState = vi.hoisted(() => ({
   triggerStatusResponse: ['ARMED'],
   triggerEventTypeResponse: ['MESSAGE_COMPLETE'],
   triggerEventThresholdResponse: ['2'],
+  triggerSenderFilterResponse: ['ANY'],
   triggerAutoRepeatResponse: ['ON'],
   triggerEventCountResponse: ['7'],
+  triggerMessageTypeFiltersResponse: [''],
   triggerSyncModeResponse: ['TOGGLE'],
   triggerSyncPulseWidthResponse: ['25'],
   sinkPdoCountResponse: ['1'],
@@ -52,11 +54,12 @@ const mockTransportState = vi.hoisted(() => ({
   captureCountResponse: ['0'],
 }))
 
-vi.mock('../../../lib/transport/usbtmc', () => {
+vi.mock('../../../lib/transport/drpdUsb', () => {
   /**
-   * Mock USBTMC transport for RackView tests.
+   * Mock preferred DRPD transport for RackView tests.
    */
-  class MockUSBTMCTransport {
+  class MockDRPDTransport {
+    public readonly kind = 'winusb' as const
     ///< Track open/close state for verification.
     public opened = false
 
@@ -138,11 +141,17 @@ vi.mock('../../../lib/transport/usbtmc', () => {
       if (command === 'TRIG:EV:THRESH?') {
         return mockTransportState.triggerEventThresholdResponse
       }
+      if (command === 'TRIG:EV:SENDER?') {
+        return mockTransportState.triggerSenderFilterResponse
+      }
       if (command === 'TRIG:EV:AUTOREPEAT?') {
         return mockTransportState.triggerAutoRepeatResponse
       }
       if (command === 'TRIG:EV:COUNT?') {
         return mockTransportState.triggerEventCountResponse
+      }
+      if (command === 'TRIG:EV:MSGTYPE:FILTER?') {
+        return mockTransportState.triggerMessageTypeFiltersResponse
       }
       if (command === 'TRIG:SYNC:MODE?') {
         return mockTransportState.triggerSyncModeResponse
@@ -191,7 +200,13 @@ vi.mock('../../../lib/transport/usbtmc', () => {
     }
   }
 
-  return { default: MockUSBTMCTransport }
+  return {
+    openPreferredDRPDTransport: async (device: USBDevice) => {
+      const transport = new MockDRPDTransport(device)
+      await transport.open()
+      return transport
+    },
+  }
 })
 
 /**

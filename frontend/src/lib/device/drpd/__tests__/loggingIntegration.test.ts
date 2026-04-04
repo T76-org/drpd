@@ -46,6 +46,7 @@ const buildCapturePayload = (
  * Mock transport for logging integration tests.
  */
 class MockTransport implements DRPDTransport {
+  public readonly kind = 'winusb' as const
   public textResponses = new Map<string, string[]>()
   public binaryResponses = new Map<string, Uint8Array[]>()
 
@@ -158,7 +159,7 @@ describe('DRPD logging integration', () => {
       '12',
       '34',
     ])
-    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED', 'NONE', 'NONE'])
     transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
     transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
     transport.textResponses.set('BUS:CC:CAP:EN?', ['ON'])
@@ -167,7 +168,7 @@ describe('DRPD logging integration', () => {
     transport.textResponses.set('TRIG:EV:THRESH?', ['1'])
     transport.textResponses.set('TRIG:EV:AUTOREPEAT?', ['OFF'])
     transport.textResponses.set('TRIG:EV:COUNT?', ['0'])
-    transport.textResponses.set('TRIG:SYNC:MODE?', ['OFF'])
+    transport.textResponses.set('TRIG:SYNC:MODE?', ['PULSE_HIGH'])
     transport.textResponses.set('TRIG:SYNC:PULSEWIDTH?', ['1'])
     transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
     transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.00,3.00'])
@@ -218,7 +219,7 @@ describe('DRPD logging integration', () => {
       '12',
       '34',
     ])
-    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED'])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['ENABLED', 'NONE', 'NONE'])
     transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
     transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
     transport.textResponses.set('BUS:CC:CAP:EN?', ['ON'])
@@ -227,7 +228,7 @@ describe('DRPD logging integration', () => {
     transport.textResponses.set('TRIG:EV:THRESH?', ['1'])
     transport.textResponses.set('TRIG:EV:AUTOREPEAT?', ['OFF'])
     transport.textResponses.set('TRIG:EV:COUNT?', ['0'])
-    transport.textResponses.set('TRIG:SYNC:MODE?', ['OFF'])
+    transport.textResponses.set('TRIG:SYNC:MODE?', ['PULSE_HIGH'])
     transport.textResponses.set('TRIG:SYNC:PULSEWIDTH?', ['1'])
     transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
     transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.00,3.00'])
@@ -797,6 +798,41 @@ describe('DRPD logging integration', () => {
     expect(analog[0].displayTimestampUs).toBe(20n)
   })
 
+  it('inserts a manual mark event even while capture is off without starting logging', async () => {
+    const transport = new MockTransport()
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    const addedKinds: string[] = []
+    device.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, (event) => {
+      const detail = (event as CustomEvent<{ kind: string }>).detail
+      addedKinds.push(detail.kind)
+    })
+
+    expect(device.isLoggingEnabled()).toBe(false)
+    await device.markLog()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: BigInt('9223372036854775807'),
+      sortOrder: 'asc',
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].entryKind).toBe('event')
+    expect(rows[0].eventType).toBe('mark')
+    expect(rows[0].eventText).toBe('Mark')
+    expect(device.isLoggingEnabled()).toBe(false)
+    expect(addedKinds).toEqual(['event'])
+  })
+
   it('keeps logging role/status events after capture is toggled off then on', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
@@ -889,5 +925,105 @@ describe('DRPD logging integration', () => {
         }
       ).resolveWallClockUs(1_025n),
     ).toBe(1_700_000_000_000_525n)
+  })
+
+  it('logs one VBUS OVP event for one newly-observed device timestamp', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:VBUS:STAT?', ['OVP', '12000', 'NONE'])
+    transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
+    transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    ;(device as unknown as { hasSeenInitialVBusEventTimestamps: boolean }).hasSeenInitialVBusEventTimestamps = true
+    await (
+      device as unknown as { refreshVBusFromDevice: () => Promise<void> }
+    ).refreshVBusFromDevice()
+    await (
+      device as unknown as { refreshVBusFromDevice: () => Promise<void> }
+    ).refreshVBusFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 20_000n,
+      sortOrder: 'asc',
+    })
+
+    const ovpEvents = rows.filter((row) => row.entryKind === 'event' && row.eventType === 'vbus_ovp')
+    expect(ovpEvents).toHaveLength(1)
+    expect(ovpEvents[0]?.startTimestampUs).toBe(12000n)
+    expect(ovpEvents[0]?.endTimestampUs).toBe(12000n)
+  })
+
+  it('does not backfill stale VBUS event timestamps when logging starts after connect', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SYST:TIME?', ['1000'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
+    transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
+    transport.textResponses.set('MEAS:ALL?', [
+      '1000',
+      '5.0',
+      '0.2',
+      '0.0',
+      '0.0',
+      '0.0',
+      '0.0',
+      '1.2',
+      '0.0',
+      '0.6',
+      '2500',
+      '12',
+      '34',
+    ])
+    transport.textResponses.set('BUS:VBUS:STAT?', ['OVP', '9000', 'NONE'])
+    transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
+    transport.textResponses.set('BUS:VBUS:OCPT?', ['3.5'])
+    transport.textResponses.set('BUS:CC:CAP:EN?', ['OFF'])
+    transport.textResponses.set('TRIG:STAT?', ['IDLE'])
+    transport.textResponses.set('TRIG:EV:TYPE?', ['OFF'])
+    transport.textResponses.set('TRIG:EV:THRESH?', ['1'])
+    transport.textResponses.set('TRIG:EV:AUTOREPEAT?', ['OFF'])
+    transport.textResponses.set('TRIG:EV:COUNT?', ['0'])
+    transport.textResponses.set('TRIG:SYNC:MODE?', ['PULSE_HIGH'])
+    transport.textResponses.set('TRIG:SYNC:PULSEWIDTH?', ['1'])
+    transport.textResponses.set('SINK:STATUS?', ['PE_SNK_READY'])
+    transport.textResponses.set('SINK:STATUS:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('SINK:STATUS:VOLTAGE?', ['5'])
+    transport.textResponses.set('SINK:STATUS:CURRENT?', ['2'])
+    transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
+    transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
+    transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('STAT:DEV?', ['0'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+
+    await device.handleConnect()
+    await device.setCaptureEnabled(OnOffState.ON)
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 20_000n,
+      sortOrder: 'asc',
+    })
+
+    expect(rows.filter((row) => row.entryKind === 'event' && row.eventType === 'vbus_ovp')).toHaveLength(0)
   })
 })

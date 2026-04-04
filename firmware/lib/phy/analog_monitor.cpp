@@ -59,6 +59,7 @@ void AnalogMonitor::init() {
     gpio_init(PHY_ANALOG_MONITOR_CC_SENSE_SEL_2_PIN);
     gpio_put(PHY_ANALOG_MONITOR_CC_SENSE_SEL_2_PIN, 0);
     gpio_set_dir(PHY_ANALOG_MONITOR_CC_SENSE_SEL_2_PIN, GPIO_OUT);
+
 }
 
 void AnalogMonitor::readVBusValues() {
@@ -71,10 +72,11 @@ void AnalogMonitor::readVBusValues() {
 
     // Read voltage, scale and accumulate in averager
     SELECT_PIN_MASK_FOR_CHANNEL(PHY_ANALOG_MONITOR_VBUS_SENSE_ADC_CHANNEL);
-    float vbusVoltage = std::max(
+    float rawScaledVBusVoltage = std::max(
         0.0f, 
         _readVoltageFromADCChannel(PHY_ANALOG_MONITOR_VBUS_SENSE_ADC_CHANNEL) - groundReference) * 
         PHY_ANALOG_MONITOR_VBUS_SENSE_SCALE_FACTOR;
+    float vbusVoltage = _applyVBusVoltageCalibration(rawScaledVBusVoltage);
     int32_t truncatedVBusVoltageCentiV = static_cast<int32_t>(std::trunc(vbusVoltage * 100.0f));
     float truncatedVBusVoltage = static_cast<float>(truncatedVBusVoltageCentiV) / 100.0f;
 
@@ -179,6 +181,29 @@ void AnalogMonitor::resetAccumulatedMeasurements() {
     xSemaphoreGive(_adcAccessMutex);
 }
 
+void AnalogMonitor::applyPersistentConfig(const T76::DRPD::AnalogMonitorPersistentConfig &config) {
+    _vBusVoltageCorrectionByRawVolt = config.vbusVoltageCorrectionByRawVolt;
+}
+
+T76::DRPD::AnalogMonitorPersistentConfig AnalogMonitor::exportPersistentConfig() const {
+    return T76::DRPD::AnalogMonitorPersistentConfig{
+        .vbusVoltageCorrectionByRawVolt = _vBusVoltageCorrectionByRawVolt,
+    };
+}
+
+std::array<float, AnalogMonitor::VBusCorrectionPointCount> AnalogMonitor::defaultVBusVoltageCorrection() {
+    return {};
+}
+
+const std::array<float, AnalogMonitor::VBusCorrectionPointCount> &AnalogMonitor::vBusVoltageCorrectionByRawVolt() const {
+    return _vBusVoltageCorrectionByRawVolt;
+}
+
+void AnalogMonitor::vBusVoltageCorrectionByRawVolt(size_t bucket, float correctionVolts) {
+    assert(bucket < _vBusVoltageCorrectionByRawVolt.size());
+    _vBusVoltageCorrectionByRawVolt[bucket] = correctionVolts;
+}
+
 float AnalogMonitor::vBusVoltage() const {
     return std::trunc(_readings.vBusVoltageAverager.average() * 100.0f) / 100.0f;
 }
@@ -256,4 +281,31 @@ float inline AnalogMonitor::_readVoltageFromCCLineChannel(ADCChannel channel) {
     // select the desired channel
     SELECT_PIN_MASK_FOR_CHANNEL(channel);
     return std::max(0.0f, _readVoltageFromADCChannel(PHY_ANALOG_MONITOR_CC_SENSE_ADC_CHANNEL)) * PHY_ANALOG_MONITOR_CC_SENSE_SCALE_FACTOR;
+}
+
+float AnalogMonitor::_applyVBusVoltageCalibration(float rawScaledVoltage) const {
+    if (rawScaledVoltage < MinimumCalibratedVBusVoltage) {
+        return rawScaledVoltage;
+    }
+
+    float clampedRawVoltage = std::clamp(
+        rawScaledVoltage,
+        MinimumCalibratedVBusVoltage,
+        static_cast<float>(VBusCorrectionSegmentCount)
+    );
+    size_t lowerIndex = static_cast<size_t>(clampedRawVoltage);
+
+    if (lowerIndex >= VBusCorrectionSegmentCount) {
+        return clampedRawVoltage + _vBusVoltageCorrectionByRawVolt.back();
+    }
+
+    lowerIndex = std::max<size_t>(lowerIndex, static_cast<size_t>(MinimumCalibratedVBusVoltage));
+
+    float fraction = clampedRawVoltage - static_cast<float>(lowerIndex);
+    float lowerCorrection = _vBusVoltageCorrectionByRawVolt[lowerIndex];
+    float upperCorrection = _vBusVoltageCorrectionByRawVolt[lowerIndex + 1];
+    float interpolatedCorrection =
+        lowerCorrection + fraction * (upperCorrection - lowerCorrection);
+
+    return clampedRawVoltage + interpolatedCorrection;
 }

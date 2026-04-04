@@ -7,6 +7,8 @@
  * and handling binary data transfers.
  */
 
+import { DebugLogRegistry, DebugLogger } from '../debugLogger'
+
 /**
  * Payload types accepted by the USBTMC transport.
  */
@@ -23,6 +25,26 @@ const USBTMC_INTERFACE_PROTOCOL = 0x01
 const USBTMC_MSG_DEV_DEP_OUT = 0x01
 /** USBTMC DEV_DEP_MSG_IN message ID. */
 const USBTMC_MSG_DEV_DEP_IN = 0x02
+/** USBTMC class request: INITIATE_ABORT_BULK_OUT. */
+const USBTMC_REQ_INITIATE_ABORT_BULK_OUT = 0x01
+/** USBTMC class request: CHECK_ABORT_BULK_OUT_STATUS. */
+const USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS = 0x02
+/** USBTMC class request: INITIATE_ABORT_BULK_IN. */
+const USBTMC_REQ_INITIATE_ABORT_BULK_IN = 0x03
+/** USBTMC class request: CHECK_ABORT_BULK_IN_STATUS. */
+const USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS = 0x04
+/** USBTMC class request: INITIATE_CLEAR. */
+const USBTMC_REQ_INITIATE_CLEAR = 0x05
+/** USBTMC class request: CHECK_CLEAR_STATUS. */
+const USBTMC_REQ_CHECK_CLEAR_STATUS = 0x06
+/** USBTMC status: SUCCESS. */
+const USBTMC_STATUS_SUCCESS = 0x01
+/** USBTMC status: PENDING. */
+const USBTMC_STATUS_PENDING = 0x02
+/** USBTMC status: FAILED. */
+const USBTMC_STATUS_FAILED = 0x80
+/** USBTMC status: TRANSFER_NOT_IN_PROGRESS. */
+const USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS = 0x81
 
 /**
  * Supported SCPI parameter types.
@@ -83,6 +105,7 @@ export interface USBTMCOptions {
   interfaceNumber?: number ///< Interface number to claim; auto-discovered if omitted.
   readTimeoutMs?: number ///< Read timeout in milliseconds.
   writeTimeoutMs?: number ///< Write timeout in milliseconds.
+  debugLogRegistry?: DebugLogRegistry ///< Shared debug logging registry.
 }
 
 /**
@@ -90,9 +113,24 @@ export interface USBTMCOptions {
  */
 type ResolvedUSBTMCOptions = Omit<
   Required<USBTMCOptions>,
-  'interfaceNumber'
+  'interfaceNumber' | 'debugLogRegistry'
 > & {
   interfaceNumber?: number
+}
+
+type USBTMCControlPollSpec = {
+  initiateRequest: number
+  initiateLength: number
+  initiateLabel: string
+  checkRequest: number
+  checkLength: number
+  checkLabel: string
+  setup: Pick<USBControlTransferParameters, 'recipient' | 'value' | 'index'>
+  allowTransferNotInProgress?: boolean
+  drainBeforePolling?: boolean
+  drainOnPending?: boolean
+  clearHaltDirection?: USBDirection
+  clearHaltEndpoint?: number
 }
 
 /**
@@ -219,13 +257,17 @@ export class USBTMCTimeoutError extends Error {
  * and error mapping still need to be implemented.
  */
 export class USBTMCTransport extends EventTarget {
+  public readonly kind = 'usbtmc' as const
   private readonly device: USBDevice ///< WebUSB device instance.
   private readonly options: ResolvedUSBTMCOptions ///< Resolved transport options.
+  public readonly debugLogs: DebugLogRegistry ///< Shared debug logging registry.
+  private readonly debugLogger: DebugLogger ///< Debug logging helper.
   private readonly encoder = new TextEncoder() ///< Text encoder for string payloads.
   private readonly decoder = new TextDecoder() ///< Text decoder for string responses.
   private tagCounter = 1 ///< Rolling tag counter for USBTMC transactions.
   private lastOutTag?: number ///< Last transmitted bTag for validation.
   private interruptAbort?: AbortController ///< Abort controller for interrupt polling.
+  private interfaceNumber?: number ///< Claimed USBTMC interface number.
   private endpointOut?: number ///< Bulk OUT endpoint number.
   private endpointIn?: number ///< Bulk IN endpoint number.
   private endpointInterrupt?: number ///< Interrupt IN endpoint number.
@@ -252,11 +294,17 @@ export class USBTMCTransport extends EventTarget {
   constructor(device: USBDevice, options: USBTMCOptions = {}) {
     super()
     this.device = device
+    this.debugLogs = options.debugLogRegistry ?? new DebugLogRegistry()
+    this.debugLogger = this.debugLogs.getLogger('drpd.transport.usbtmc')
     this.options = {
       interfaceNumber: options.interfaceNumber,
       readTimeoutMs: options.readTimeoutMs ?? DEFAULT_OPTIONS.readTimeoutMs,
       writeTimeoutMs: options.writeTimeoutMs ?? DEFAULT_OPTIONS.writeTimeoutMs,
     }
+  }
+
+  public get claimedInterfaceNumber(): number | undefined {
+    return this.interfaceNumber
   }
 
   /**
@@ -321,6 +369,7 @@ export class USBTMCTransport extends EventTarget {
     }
 
     await this.device.claimInterface(interfaceNumber)
+    this.interfaceNumber = interfaceNumber
 
     const endpoints = this._findUSBTMCEndpoints()
 
@@ -333,6 +382,8 @@ export class USBTMCTransport extends EventTarget {
     this.endpointInterrupt = endpoints.endpointInterrupt
     this.bulkOutPacketSize = endpoints.bulkOutPacketSize
     this.bulkInPacketSize = endpoints.bulkInPacketSize
+
+    await this._abortPendingTransfers()
 
     this._startInterruptListener(endpoints.interruptPacketSize)
   }
@@ -402,7 +453,7 @@ export class USBTMCTransport extends EventTarget {
   async sendCommand(command: string, ...params: SCPIParam[]): Promise<void> {
     await this._withLock(async () => {
       const line = this._formatSCPI(command, params)
-      console.debug(`Command: ${line}`)
+      this.debugLogger.debug(`Command: ${line}`)
       await this._withTimeout(
         this._write(`${line}\n`),
         this.options.writeTimeoutMs,
@@ -458,7 +509,7 @@ export class USBTMCTransport extends EventTarget {
    */
   async queryBinary(command: string, ...params: SCPIParam[]): Promise<Uint8Array> {
     return await this._withLock(async () => {
-      console.debug(`Binary Query: ${this._formatSCPI(command, params)}`)
+      this.debugLogger.debug(`Binary Query: ${this._formatSCPI(command, params)}`)
       const line = this._formatSCPI(command, params)
       const data = this._normalizePayload(`${line}\n`)
       try {
@@ -556,7 +607,7 @@ export class USBTMCTransport extends EventTarget {
         line,
       )
       const response = await this._readUntilTerminator(line)
-      console.debug(`Query: "${line}" - Response ${response}`)
+      this.debugLogger.debug(`Query: "${line}" - Response ${response}`)
       return this._parseSCPIResponse(response)
     } catch (error) {
       if (
@@ -717,6 +768,202 @@ export class USBTMCTransport extends EventTarget {
       offset += chunk.length
     }
     return merged
+  }
+
+  /**
+   * Best-effort USBTMC bulk resynchronization during open().
+   */
+  protected async _abortPendingTransfers(): Promise<void> {
+    await this._abortBulkOut()
+    await this._abortBulkIn()
+    await this._clearBuffers()
+  }
+
+  /**
+   * Abort any in-progress Bulk-OUT transfer and wait for completion.
+   */
+  protected async _abortBulkOut(): Promise<void> {
+    if (this.endpointOut == null) {
+      throw new Error('USBTMC endpoint OUT not initialized')
+    }
+
+    await this._runControlTransferPoll({
+      initiateRequest: USBTMC_REQ_INITIATE_ABORT_BULK_OUT,
+      initiateLength: 2,
+      initiateLabel: 'INITIATE_ABORT_BULK_OUT',
+      checkRequest: USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS,
+      checkLength: 8,
+      checkLabel: 'CHECK_ABORT_BULK_OUT_STATUS',
+      setup: {
+        recipient: 'endpoint',
+        value: this.lastOutTag ?? 0,
+        index: this._getEndpointAddress('out', this.endpointOut),
+      },
+      allowTransferNotInProgress: true,
+      clearHaltDirection: 'out',
+      clearHaltEndpoint: this.endpointOut,
+    })
+  }
+
+  /**
+   * Abort any in-progress Bulk-IN transfer and wait for completion.
+   */
+  protected async _abortBulkIn(): Promise<void> {
+    if (this.endpointIn == null) {
+      throw new Error('USBTMC endpoint IN not initialized')
+    }
+
+    await this._runControlTransferPoll({
+      initiateRequest: USBTMC_REQ_INITIATE_ABORT_BULK_IN,
+      initiateLength: 2,
+      initiateLabel: 'INITIATE_ABORT_BULK_IN',
+      checkRequest: USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS,
+      checkLength: 8,
+      checkLabel: 'CHECK_ABORT_BULK_IN_STATUS',
+      setup: {
+        recipient: 'endpoint',
+        value: this.lastOutTag ?? 0,
+        index: this._getEndpointAddress('in', this.endpointIn),
+      },
+      allowTransferNotInProgress: true,
+      drainBeforePolling: true,
+      drainOnPending: true,
+    })
+  }
+
+  /**
+   * Issue USBTMC INITIATE_CLEAR and poll until the device reports completion.
+   */
+  protected async _clearBuffers(): Promise<void> {
+    if (this.interfaceNumber == null) {
+      throw new Error('USBTMC interface not initialized')
+    }
+    if (this.endpointOut == null) {
+      throw new Error('USBTMC endpoint OUT not initialized')
+    }
+
+    await this._runControlTransferPoll({
+      initiateRequest: USBTMC_REQ_INITIATE_CLEAR,
+      initiateLength: 1,
+      initiateLabel: 'INITIATE_CLEAR',
+      checkRequest: USBTMC_REQ_CHECK_CLEAR_STATUS,
+      checkLength: 2,
+      checkLabel: 'CHECK_CLEAR_STATUS',
+      setup: {
+        recipient: 'interface',
+        value: 0,
+        index: this.interfaceNumber,
+      },
+      drainOnPending: true,
+      clearHaltDirection: 'out',
+      clearHaltEndpoint: this.endpointOut,
+    })
+  }
+
+  /**
+   * Read Bulk-IN packets until the device terminates the transfer with a short packet.
+   */
+  protected async _drainBulkInToShortPacket(): Promise<void> {
+    if (this.endpointIn == null) {
+      throw new Error('USBTMC endpoint IN not initialized')
+    }
+
+    const packetSize = this.bulkInPacketSize ?? 64
+    for (;;) {
+      const result = await this.device.transferIn(this.endpointIn, packetSize)
+      const received = result.data?.byteLength ?? 0
+      if (received < packetSize) {
+        return
+      }
+    }
+  }
+
+  /**
+   * Issue a USBTMC class-specific control read and validate the response length.
+   */
+  protected async _controlTransferIn(
+    setup: USBControlTransferParameters,
+    length: number,
+  ): Promise<DataView> {
+    const result = await this.device.controlTransferIn(setup, length)
+    if (!result.data || result.data.byteLength < length) {
+      throw new Error(`USBTMC control transfer returned ${result.data?.byteLength ?? 0} bytes, expected ${length}`)
+    }
+    return result.data
+  }
+
+  /**
+   * Run a USBTMC initiate/check control-transfer sequence until the device reports completion.
+   */
+  protected async _runControlTransferPoll(spec: USBTMCControlPollSpec): Promise<void> {
+    const initiate = await this._controlTransferIn(
+      {
+        requestType: 'class',
+        recipient: spec.setup.recipient,
+        request: spec.initiateRequest,
+        value: spec.setup.value,
+        index: spec.setup.index,
+      },
+      spec.initiateLength,
+    )
+
+    const initiateStatus = initiate.getUint8(0)
+    if (
+      spec.allowTransferNotInProgress &&
+      (
+        initiateStatus === USBTMC_STATUS_FAILED ||
+        initiateStatus === USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS
+      )
+    ) {
+      return
+    }
+    if (initiateStatus !== USBTMC_STATUS_SUCCESS) {
+      throw new Error(
+        `USBTMC ${spec.initiateLabel} failed with status 0x${initiateStatus.toString(16)}`,
+      )
+    }
+
+    if (spec.drainBeforePolling) {
+      await this._drainBulkInToShortPacket()
+    }
+
+    for (;;) {
+      const check = await this._controlTransferIn(
+        {
+          requestType: 'class',
+          recipient: spec.setup.recipient,
+          request: spec.checkRequest,
+          value: 0,
+          index: spec.setup.index,
+        },
+        spec.checkLength,
+      )
+      const checkStatus = check.getUint8(0)
+      const bulkInFifoBytes = check.byteLength > 1 && (check.getUint8(1) & 0x01) !== 0
+
+      if (checkStatus === USBTMC_STATUS_PENDING) {
+        if (spec.drainOnPending && bulkInFifoBytes) {
+          await this._drainBulkInToShortPacket()
+        }
+        continue
+      }
+      if (checkStatus !== USBTMC_STATUS_SUCCESS) {
+        throw new Error(
+          `USBTMC ${spec.checkLabel} failed with status 0x${checkStatus.toString(16)}`,
+        )
+      }
+      if (spec.clearHaltDirection && spec.clearHaltEndpoint != null) {
+        await this.device.clearHalt(spec.clearHaltDirection, spec.clearHaltEndpoint)
+      }
+      return
+    }
+  }
+
+  /**
+   * Convert an endpoint number and direction into the endpoint address used by control requests.
+   */
+  protected _getEndpointAddress(direction: 'in' | 'out', endpointNumber: number): number {
+    return direction === 'in' ? (0x80 | endpointNumber) : endpointNumber
   }
 
   /**

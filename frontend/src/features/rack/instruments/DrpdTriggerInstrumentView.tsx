@@ -37,10 +37,10 @@ const TRIGGER_EVENT_OPTIONS = [
 ] as const
 
 const TRIGGER_SYNC_MODE_OPTIONS = [
-  TriggerSyncMode.OFF,
   TriggerSyncMode.PULSE_HIGH,
   TriggerSyncMode.PULSE_LOW,
   TriggerSyncMode.TOGGLE,
+  TriggerSyncMode.PULL_DOWN,
 ] as const
 
 const TRIGGER_SENDER_FILTER_OPTIONS = [
@@ -240,14 +240,14 @@ const formatTriggerEventType = (value: TriggerInfo['type'] | null | undefined): 
  */
 const formatTriggerSyncMode = (value: TriggerInfo['syncMode'] | null | undefined): string => {
   switch (value) {
-    case TriggerSyncMode.OFF:
-      return 'Off'
     case TriggerSyncMode.PULSE_HIGH:
       return 'Pulse High'
     case TriggerSyncMode.PULSE_LOW:
       return 'Pulse Low'
     case TriggerSyncMode.TOGGLE:
       return 'Toggle'
+    case TriggerSyncMode.PULL_DOWN:
+      return 'Pull-Down'
     default:
       return '--'
   }
@@ -334,7 +334,7 @@ export const DrpdTriggerInstrumentView = ({
   const [eventThresholdInput, setEventThresholdInput] = useState<string>('1')
   const [senderFilterInput, setSenderFilterInput] = useState<TriggerSenderFilter>(TriggerSenderFilter.ANY)
   const [autoRepeatInput, setAutoRepeatInput] = useState<OnOffState>(OnOffState.OFF)
-  const [syncModeInput, setSyncModeInput] = useState<TriggerSyncMode>(TriggerSyncMode.OFF)
+  const [syncModeInput, setSyncModeInput] = useState<TriggerSyncMode>(TriggerSyncMode.PULSE_HIGH)
   const [syncPulseWidthUsInput, setSyncPulseWidthUsInput] = useState<string>('1')
   const [messageTypeFiltersInput, setMessageTypeFiltersInput] = useState<TriggerMessageTypeFilter[]>([])
   const [messageTypeFilterClassInput, setMessageTypeFilterClassInput] =
@@ -389,7 +389,7 @@ export const DrpdTriggerInstrumentView = ({
     setEventThresholdInput(String(info?.eventThreshold ?? 1))
     setSenderFilterInput(info?.senderFilter ?? TriggerSenderFilter.ANY)
     setAutoRepeatInput(info?.autorepeat ?? OnOffState.OFF)
-    setSyncModeInput(info?.syncMode ?? TriggerSyncMode.OFF)
+    setSyncModeInput(info?.syncMode ?? TriggerSyncMode.PULSE_HIGH)
     setSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
     setMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
     setMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
@@ -796,9 +796,14 @@ export const DrpdTriggerInstrumentView = ({
         !driver ||
         isEditMode ||
         isResettingTrigger ||
-        visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED,
+        (visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED &&
+          visibleTriggerInfo?.autorepeat !== OnOffState.ON),
       onClick: () => {
-        if (!driver || visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED) {
+        if (
+          !driver ||
+          (visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED &&
+            visibleTriggerInfo?.autorepeat !== OnOffState.ON)
+        ) {
           return
         }
         setConfigureError(null)

@@ -61,6 +61,12 @@ const resolveEventStroke = (eventType: LoggedCapturedEventType): string => {
       return 'var(--timestrip-event-role-stroke)'
     case 'cc_status_changed':
       return 'var(--timestrip-event-status-stroke)'
+    case 'mark':
+      return 'var(--timestrip-event-mark-stroke)'
+    case 'vbus_ovp':
+      return 'var(--timestrip-event-ovp-stroke)'
+    case 'vbus_ocp':
+      return 'var(--timestrip-event-ocp-stroke)'
   }
 }
 
@@ -167,23 +173,27 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       .range([plotLeftX, plotRightX])
   }, [data?.windowEndUs, data?.windowStartUs, plotLeftX, plotRightX])
   const ticks = useMemo(() => {
-    const targetCount = Math.max(
-      2,
-      Math.floor(width / DRPD_USB_PD_LOG_CONFIG.stripAxis.tickTargetSpacingPx),
-    )
-    return xScale.ticks(targetCount).map((tick) => {
-      const timestampUs = BigInt(Math.round(tick))
+    const tickSpacingPx = Math.max(1, DRPD_USB_PD_LOG_CONFIG.stripAxis.tickTargetSpacingPx)
+    const tickXs: number[] = []
+    for (let x = plotLeftX; x <= plotRightX; x += tickSpacingPx) {
+      tickXs.push(x)
+    }
+    if (tickXs.length === 0 || tickXs[tickXs.length - 1] !== plotRightX) {
+      tickXs.push(plotRightX)
+    }
+    return tickXs.map((x) => {
+      const timestampUs = BigInt(Math.round(xScale.invert(x)))
       const displayTimestampUs = interpolateDisplayTimestampUs(
         timestampUs,
         data?.timeAnchors ?? [],
       )
       return {
-        x: xScale(tick),
+        x,
         displayLabel: formatWallClock(interpolateWallClockUs(timestampUs, data?.timeAnchors ?? [])),
         deviceLabel: formatDeviceTimestampUs(displayTimestampUs),
       }
     })
-  }, [data?.timeAnchors, width, xScale])
+  }, [data?.timeAnchors, plotLeftX, plotRightX, xScale])
   const pulseGeometry = useMemo(() => {
     const lowY = pulseHeightPx - pulseLowInsetBottom
     if (!data) {

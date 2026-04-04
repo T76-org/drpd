@@ -427,6 +427,9 @@ describe('DrpdTimeStripInstrumentView', () => {
       buildEvent(1, 'Capture turned off', 'capture_changed'),
       buildEvent(2, 'CC role changed', 'cc_role_changed'),
       buildEvent(3, 'Device status changed', 'cc_status_changed'),
+      buildEvent(4, 'Mark', 'mark'),
+      buildEvent(5, 'VBUS OVP event', 'vbus_ovp'),
+      buildEvent(6, 'VBUS OCP event', 'vbus_ocp'),
     ])
 
     const { container } = renderTimeStrip(driver)
@@ -435,10 +438,13 @@ describe('DrpdTimeStripInstrumentView', () => {
       const eventMarkers = Array.from(
         container.querySelectorAll('line[stroke^="var(--timestrip-event-"]'),
       )
-      expect(eventMarkers).toHaveLength(6)
+      expect(eventMarkers).toHaveLength(12)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-capture-stroke)')).toHaveLength(2)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-role-stroke)')).toHaveLength(2)
       expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-status-stroke)')).toHaveLength(2)
+      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-mark-stroke)')).toHaveLength(2)
+      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-ovp-stroke)')).toHaveLength(2)
+      expect(eventMarkers.filter((line) => line.getAttribute('stroke') === 'var(--timestrip-event-ocp-stroke)')).toHaveLength(2)
     })
   })
 
@@ -446,22 +452,22 @@ describe('DrpdTimeStripInstrumentView', () => {
     stubResizeObserver()
     const driver = new TestLogDriver([buildMessage(0, 1)], [
       { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 200_000n, displayTimestampUs: 200_000n },
+      { ...buildAnalogSample(1), timestampUs: 80_000_000n, displayTimestampUs: 80_000_000n },
     ])
 
     renderTimeStrip(driver)
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 100_000n)).toBe(true)
+      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 20_000_000n)).toBe(true)
     })
 
     fireEvent.wheel(screen.getByTestId('drpd-usbpd-log-timestrip'), { deltaY: -320 })
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 50_000n)).toBe(true)
+      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 0n)).toBe(true)
     })
 
-    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 210_000n, displayTimestampUs: 210_000n }
+    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 81_000_000n, displayTimestampUs: 81_000_000n }
     driver.analogRows = [...driver.analogRows, nextAnalog]
     await act(async () => {
       driver.dispatchEvent(
@@ -472,7 +478,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(50_000n)
+      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(0n)
     })
   })
 
@@ -480,16 +486,16 @@ describe('DrpdTimeStripInstrumentView', () => {
     stubResizeObserver()
     const driver = new TestLogDriver([buildMessage(0, 1)], [
       { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 200_000n, displayTimestampUs: 200_000n },
+      { ...buildAnalogSample(1), timestampUs: 80_000_000n, displayTimestampUs: 80_000_000n },
     ])
 
     renderTimeStrip(driver)
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 100_000n)).toBe(true)
+      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 20_000_000n)).toBe(true)
     })
 
-    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 210_000n, displayTimestampUs: 210_000n }
+    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 81_000_000n, displayTimestampUs: 81_000_000n }
     driver.analogRows = [...driver.analogRows, nextAnalog]
     await act(async () => {
       driver.dispatchEvent(
@@ -500,7 +506,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(110_000n)
+      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(21_000_000n)
     })
   })
 
@@ -516,7 +522,7 @@ describe('DrpdTimeStripInstrumentView', () => {
       { ...buildMessage(1, 3), startTimestampUs: 20_000n, endTimestampUs: 20_005n },
     ], [
       { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 200_000n, displayTimestampUs: 200_000n },
+      { ...buildAnalogSample(1), timestampUs: 100_000_000n, displayTimestampUs: 100_000_000n },
     ])
 
     renderTimeStrip(driver)
@@ -536,10 +542,10 @@ describe('DrpdTimeStripInstrumentView', () => {
     fireEvent.wheel(screen.getByTestId('drpd-usbpd-log-timestrip'), { deltaY: 320 })
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 50_000n)).toBe(true)
+      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 30_000_000n)).toBe(true)
     })
 
-    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 210_000n, displayTimestampUs: 210_000n }
+    const nextAnalog = { ...buildAnalogSample(2), timestampUs: 101_000_000n, displayTimestampUs: 101_000_000n }
     driver.analogRows = [...driver.analogRows, nextAnalog]
     await act(async () => {
       driver.dispatchEvent(
@@ -550,7 +556,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(50_000n)
+      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(30_000_000n)
     })
   })
 
@@ -593,17 +599,17 @@ describe('DrpdTimeStripInstrumentView', () => {
     stubResizeObserver()
     const selectedMessage = {
       ...buildMessage(1, 3),
-      startTimestampUs: 120_000n,
-      endTimestampUs: 120_005n,
-      displayTimestampUs: 120_000n,
+      startTimestampUs: 40_000_000n,
+      endTimestampUs: 40_000_005n,
+      displayTimestampUs: 40_000_000n,
     } satisfies LoggedCapturedMessage
     const driver = new TestLogDriver([
       { ...buildMessage(0, 1), startTimestampUs: 0n, endTimestampUs: 5n, displayTimestampUs: 0n },
       selectedMessage,
-      { ...buildMessage(2, 4), startTimestampUs: 260_000n, endTimestampUs: 260_005n, displayTimestampUs: 260_000n },
+      { ...buildMessage(2, 4), startTimestampUs: 80_000_000n, endTimestampUs: 80_000_005n, displayTimestampUs: 80_000_000n },
     ], [
       { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 260_000n, displayTimestampUs: 260_000n },
+      { ...buildAnalogSample(1), timestampUs: 80_000_000n, displayTimestampUs: 80_000_000n },
     ])
 
     renderTimeStrip(driver)
@@ -617,7 +623,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(70_000n)
+      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(10_000_000n)
     })
   })
 
@@ -625,13 +631,13 @@ describe('DrpdTimeStripInstrumentView', () => {
     stubResizeObserver()
     const driver = new TestLogDriver([buildMessage(0, 1)], [
       { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
-      { ...buildAnalogSample(1), timestampUs: 200_000n, displayTimestampUs: 200_000n },
+      { ...buildAnalogSample(1), timestampUs: 80_000_000n, displayTimestampUs: 80_000_000n },
     ])
 
     renderTimeStrip(driver)
 
     await waitFor(() => {
-      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 100_000n)).toBe(true)
+      expect(driver.timeStripQueries.some((query) => query.windowStartUs === 20_000_000n)).toBe(true)
     })
 
     await act(async () => {
