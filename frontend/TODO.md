@@ -1,7 +1,3 @@
-## Bugs
-
-- [ ] Sink control should be disabled when the device is not in sink mode
-
 ## Improvements
 
 - [ ] Make sure that the logging database is versioned and can be migrated when the log format changes
