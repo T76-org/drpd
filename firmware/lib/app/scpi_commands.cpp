@@ -106,10 +106,10 @@ namespace T76::SCPI {
  * Command System:
  *   - Commands: 76 (912 bytes)
  *   - Parameter descriptors: 368 bytes
- *   - String literals: 405 bytes
+ *   - String literals: 398 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 10741 bytes (0.26% of 2MB)
+ *   - Code/Data (Flash): 10734 bytes (0.26% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
@@ -206,7 +206,7 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 4,
+            .choiceCount = 3,
             .choices = command_21_param_0_choices
         },
     };
