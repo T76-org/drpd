@@ -4,52 +4,14 @@
  */
 
 #include "sink.hpp"
+#include "sink_raw_pd_message.hpp"
 
 #include <algorithm>
 #include <array>
 
 #include "../cc_bus_controller.hpp"
 
-
-using namespace T76::DRPD::Logic;
-
-namespace {
-
-    class RawPDMessage : public T76::DRPD::Proto::PDMessage {
-    public:
-        RawPDMessage(
-            std::span<const uint8_t> rawBody,
-            uint32_t numDataObjects,
-            uint32_t rawMessageType) :
-            _rawBody(),
-            _rawBodyLength(std::min(rawBody.size(), _rawBody.size())),
-            _numDataObjects(numDataObjects),
-            _rawMessageType(rawMessageType) {
-            for (size_t i = 0; i < _rawBodyLength; ++i) {
-                _rawBody[i] = rawBody[i];
-            }
-        }
-
-        std::span<const uint8_t> raw() const override {
-            return std::span<const uint8_t>(_rawBody.data(), _rawBodyLength);
-        }
-
-        uint32_t numDataObjects() const override {
-            return _numDataObjects;
-        }
-
-        uint32_t rawMessageType() const override {
-            return _rawMessageType;
-        }
-
-    protected:
-        std::array<uint8_t, LOGIC_SINK_RAW_PD_MESSAGE_MAX_BODY_BYTES> _rawBody;
-        size_t _rawBodyLength;
-        uint32_t _numDataObjects;
-        uint32_t _rawMessageType;
-    };
-
-} // namespace
+namespace T76::DRPD::Logic {
 
 void Sink::reset(SinkResetType resetType) {
     _context.performReset(resetType);
@@ -113,7 +75,7 @@ void Sink::_sendExtendedChunkRequest(
         0
     };
 
-    const RawPDMessage rawMessage(
+    const SinkRawPDMessage rawMessage(
         std::span<const uint8_t>(rawBody.data(), rawBody.size()),
         1,
         static_cast<uint32_t>(type)
@@ -133,3 +95,5 @@ void Sink::_sendExtendedChunkRequest(
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
+
+} // namespace T76::DRPD::Logic

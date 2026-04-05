@@ -197,6 +197,13 @@ namespace T76::DRPD {
         const char* getComponentName() const;
 
     protected:
+        static constexpr size_t _winUSBFrameHeaderSize = 12; ///< Encoded WinUSB frame header length in bytes.
+        static constexpr uint8_t _winUSBFrameMagic0 = 'W'; ///< First WinUSB frame sync byte.
+        static constexpr uint8_t _winUSBFrameMagic1 = 'U'; ///< Second WinUSB frame sync byte.
+        static constexpr uint8_t _winUSBFrameVersion = 1; ///< Supported WinUSB frame protocol version.
+        static constexpr uint8_t _winUSBStatusFlagSRQPending = 0x01; ///< WinUSB frame status bit for pending SRQ.
+        static constexpr int _triggerSCPIErrorInvalidParameter = -222; ///< SCPI error code used for invalid trigger parameters.
+
         /**
          * @brief Format an analog floating-point value for SCPI responses.
          *
@@ -207,6 +214,51 @@ namespace T76::DRPD {
          * @return std::string Two-decimal SCPI-ready string representation.
          */
         static std::string _formatAnalogValue(float value);
+
+        /**
+         * @brief Return the WinUSB busy-response payload.
+         *
+         * @return const std::vector<uint8_t> & Static payload bytes for a busy response.
+         */
+        static const std::vector<uint8_t> &_winUSBBusyResponse();
+
+        /**
+         * @brief Parse one trigger message-type filter token.
+         *
+         * @param token Raw token string in `CONTROL:<n>` or `DATA:<n>` format.
+         * @param filter Output filter populated on success.
+         * @return true if parsing succeeded, false otherwise.
+         */
+        static bool _parseMessageTypeFilterToken(
+            const std::string &token,
+            Logic::TriggerController::MessageTypeFilter &filter);
+
+        /**
+         * @brief Format one trigger message-type filter token.
+         *
+         * @param filter Filter value to serialize.
+         * @return std::string SCPI token representing the filter.
+         */
+        static std::string _formatMessageTypeFilterToken(
+            const Logic::TriggerController::MessageTypeFilter &filter);
+
+        /**
+         * @brief Parse one trigger sender-filter token.
+         *
+         * @param token Raw token string from the host.
+         * @return std::optional<Logic::TriggerController::SenderFilter> Parsed sender filter on success.
+         */
+        static std::optional<Logic::TriggerController::SenderFilter> _parseSenderFilterToken(
+            const std::string &token);
+
+        /**
+         * @brief Format one trigger sender-filter token.
+         *
+         * @param filter Sender filter to serialize.
+         * @return std::string SCPI token representing the sender filter.
+         */
+        static std::string _formatSenderFilterToken(
+            Logic::TriggerController::SenderFilter filter);
 
         /**
          * @brief Process raw SCPI input bytes from the active command transport.

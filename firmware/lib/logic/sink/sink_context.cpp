@@ -4,6 +4,7 @@
  */
 
 #include "sink_context.hpp"
+#include "sink_raw_pd_message.hpp"
 
 #include <algorithm>
 #include <array>
@@ -17,46 +18,7 @@
 #include "state_handlers/transition_sink.hpp"
 #include "state_handlers/wait_for_capabilities.hpp"
 
-
-using namespace T76::DRPD::Logic;
-
-namespace {
-
-    class RawPDMessage : public T76::DRPD::Proto::PDMessage {
-    public:
-        RawPDMessage(
-            std::span<const uint8_t> rawBody,
-            uint32_t numDataObjects,
-            uint32_t rawMessageType) :
-            _rawBody(),
-            _rawBodyLength(std::min(rawBody.size(), _rawBody.size())),
-            _numDataObjects(numDataObjects),
-            _rawMessageType(rawMessageType) {
-            for (size_t i = 0; i < _rawBodyLength; ++i) {
-                _rawBody[i] = rawBody[i];
-            }
-        }
-
-        std::span<const uint8_t> raw() const override {
-            return std::span<const uint8_t>(_rawBody.data(), _rawBodyLength);
-        }
-
-        uint32_t numDataObjects() const override {
-            return _numDataObjects;
-        }
-
-        uint32_t rawMessageType() const override {
-            return _rawMessageType;
-        }
-
-    protected:
-        std::array<uint8_t, LOGIC_SINK_RAW_PD_MESSAGE_MAX_BODY_BYTES> _rawBody;
-        size_t _rawBodyLength;
-        uint32_t _numDataObjects;
-        uint32_t _rawMessageType;
-    };
-
-} // namespace
+namespace T76::DRPD::Logic {
 
 SinkContext::SinkContext(
     SinkRuntimeState& runtimeState,
@@ -304,7 +266,7 @@ void SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGood
     };
 
     const uint32_t numDataObjects = 1;
-    const RawPDMessage rawMessage(
+    const SinkRawPDMessage rawMessage(
         std::span<const uint8_t>(rawBody.data(), rawBody.size()),
         numDataObjects,
         static_cast<uint32_t>(Proto::ExtendedMessageType::Extended_Control)
@@ -384,3 +346,5 @@ void SinkContext::_notifySinkInfoChanged(SinkInfoChange change) {
         _sinkInfoChangedCallback(change);
     }
 }
+
+} // namespace T76::DRPD::Logic

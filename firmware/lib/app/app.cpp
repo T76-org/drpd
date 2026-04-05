@@ -17,18 +17,13 @@
 
 #include "lib/proto/pd_messages/source_capabilities.hpp"
 
+namespace T76::DRPD {
 
-using namespace T76::DRPD;
-
-namespace {
-constexpr size_t kWinUSBFrameHeaderSize = 12;
-constexpr uint8_t kWinUSBFrameMagic0 = 'W';
-constexpr uint8_t kWinUSBFrameMagic1 = 'U';
-constexpr uint8_t kWinUSBFrameVersion = 1;
-constexpr uint8_t kWinUSBStatusFlagSRQPending = 0x01;
-const std::vector<uint8_t> kWinUSBBusyResponse = {
-    'D', 'e', 'v', 'i', 'c', 'e', ' ', 'b', 'u', 's', 'y'
-};
+const std::vector<uint8_t> &App::_winUSBBusyResponse() {
+    static const std::vector<uint8_t> response = {
+        'D', 'e', 'v', 'i', 'c', 'e', ' ', 'b', 'u', 's', 'y'
+    };
+    return response;
 }
 
 App::App() : 
@@ -148,7 +143,7 @@ void App::_resetCommandState() {
 
 void App::_resetWinUSBSession(uint8_t tag) {
     if (!_tryAcquireCommandOwner(CommandOwner::WinUSB)) {
-        _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
+        _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, _winUSBBusyResponse());
         return;
     }
 
@@ -175,28 +170,28 @@ uint32_t App::_readLE32(const std::vector<uint8_t> &data, size_t offset) {
 }
 
 void App::_sendWinUSBFrame(WinUSBFrameType type, uint8_t tag, const std::vector<uint8_t> &payload) {
-    std::vector<uint8_t> frame(kWinUSBFrameHeaderSize + payload.size(), 0);
-    frame[0] = kWinUSBFrameMagic0;
-    frame[1] = kWinUSBFrameMagic1;
-    frame[2] = kWinUSBFrameVersion;
+    std::vector<uint8_t> frame(_winUSBFrameHeaderSize + payload.size(), 0);
+    frame[0] = _winUSBFrameMagic0;
+    frame[1] = _winUSBFrameMagic1;
+    frame[2] = _winUSBFrameVersion;
     frame[3] = static_cast<uint8_t>(type);
     frame[4] = tag;
-    frame[5] = deviceStatus() != 0u ? kWinUSBStatusFlagSRQPending : 0u;
+    frame[5] = deviceStatus() != 0u ? _winUSBStatusFlagSRQPending : 0u;
     const uint32_t payloadLength = static_cast<uint32_t>(payload.size());
     frame[8] = static_cast<uint8_t>(payloadLength & 0xff);
     frame[9] = static_cast<uint8_t>((payloadLength >> 8) & 0xff);
     frame[10] = static_cast<uint8_t>((payloadLength >> 16) & 0xff);
     frame[11] = static_cast<uint8_t>((payloadLength >> 24) & 0xff);
-    std::copy(payload.begin(), payload.end(), frame.begin() + static_cast<std::ptrdiff_t>(kWinUSBFrameHeaderSize));
+    std::copy(payload.begin(), payload.end(), frame.begin() + static_cast<std::ptrdiff_t>(_winUSBFrameHeaderSize));
 
     _usbInterface.sendWinUSBBulkData(frame);
 }
 
 void App::_drainWinUSBRxBuffer() {
-    while (_winusbRxBuffer.size() >= kWinUSBFrameHeaderSize) {
-        if (_winusbRxBuffer[0] != kWinUSBFrameMagic0 ||
-            _winusbRxBuffer[1] != kWinUSBFrameMagic1 ||
-            _winusbRxBuffer[2] != kWinUSBFrameVersion) {
+    while (_winusbRxBuffer.size() >= _winUSBFrameHeaderSize) {
+        if (_winusbRxBuffer[0] != _winUSBFrameMagic0 ||
+            _winusbRxBuffer[1] != _winUSBFrameMagic1 ||
+            _winusbRxBuffer[2] != _winUSBFrameVersion) {
             _resetCommandState();
             return;
         }
@@ -204,14 +199,14 @@ void App::_drainWinUSBRxBuffer() {
         const WinUSBFrameType type = static_cast<WinUSBFrameType>(_winusbRxBuffer[3]);
         const uint8_t tag = _winusbRxBuffer[4];
         const uint32_t payloadLength = _readLE32(_winusbRxBuffer, 8);
-        const size_t frameLength = kWinUSBFrameHeaderSize + payloadLength;
+        const size_t frameLength = _winUSBFrameHeaderSize + payloadLength;
 
         if (_winusbRxBuffer.size() < frameLength) {
             return;
         }
 
         std::vector<uint8_t> payload(
-            _winusbRxBuffer.begin() + static_cast<std::ptrdiff_t>(kWinUSBFrameHeaderSize),
+            _winusbRxBuffer.begin() + static_cast<std::ptrdiff_t>(_winUSBFrameHeaderSize),
             _winusbRxBuffer.begin() + static_cast<std::ptrdiff_t>(frameLength)
         );
         _winusbRxBuffer.erase(
@@ -222,7 +217,7 @@ void App::_drainWinUSBRxBuffer() {
         switch (type) {
             case WinUSBFrameType::CommandRequest:
                 if (!_tryAcquireCommandOwner(CommandOwner::WinUSB)) {
-                    _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
+                    _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, _winUSBBusyResponse());
                     break;
                 }
                 _prepareWinUSBRequest(tag, false);
@@ -232,7 +227,7 @@ void App::_drainWinUSBRxBuffer() {
 
             case WinUSBFrameType::QueryRequest:
                 if (!_tryAcquireCommandOwner(CommandOwner::WinUSB)) {
-                    _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, kWinUSBBusyResponse);
+                    _sendWinUSBFrame(WinUSBFrameType::ErrorResponse, tag, _winUSBBusyResponse());
                     break;
                 }
                 _prepareWinUSBRequest(tag, true);
@@ -464,3 +459,5 @@ void App::_savePersistentConfig() {
     });
     (void)config.save();
 }
+
+} // namespace T76::DRPD

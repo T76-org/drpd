@@ -260,6 +260,9 @@ namespace T76::DRPD::PHY {
         AnalogMonitorReadings allReadings() const;
 
     protected:
+        static constexpr uint64_t _chargeMahDenominator = 360000000ULL; ///< Scale factor converting centiamp-microseconds into milliamp-hours.
+        static constexpr uint64_t _energyMwhDenominator = 36000000000ULL; ///< Scale factor converting centivolt-centiamp-microseconds into milliwatt-hours.
+
         /**
          * @brief Enumeration of ADC channels for CC line voltage sensing
          * 
