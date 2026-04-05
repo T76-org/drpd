@@ -212,14 +212,14 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
 /**
  * Build a sample rack document for tests.
  */
-const buildRackDocument = (overrides?: Partial<RackDocument>): RackDocument => {
+const buildRackDocument = (overrides?: Partial<RackDocument> & { racks?: unknown[] }): RackDocument => {
   const base: RackDocument = {
+    pairedDevices: [],
     racks: [
       {
         id: 'bench-rack-a',
         name: 'Bench Rack A',
         totalUnits: 9,
-        devices: [],
         rows: [
           {
             id: 'row-1',
@@ -247,7 +247,7 @@ const buildRackDocument = (overrides?: Partial<RackDocument>): RackDocument => {
   return {
     ...base,
     ...overrides,
-    racks: overrides?.racks ?? base.racks
+    racks: (overrides?.racks ?? base.racks) as RackDocument['racks']
   }
 }
 
@@ -277,24 +277,24 @@ const createStorage = (): Storage => {
 /**
  * Create a minimal USBDevice stub.
  */
-const createUSBDevice = (): USBDevice =>
+const createUSBDevice = (serialNumber = 'DRPD-TEST-001', productName = 'Dr. PD'): USBDevice =>
   ({
     vendorId: 0x2e8a,
     productId: 0x000a,
-    serialNumber: 'DRPD-TEST-001',
-    productName: 'Dr. PD'
+    serialNumber,
+    productName
   }) as USBDevice
 
 const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
 
 const buildHydratedRackDocument = (): RackDocument =>
   buildRackDocument({
+    pairedDevices: [],
     racks: [
       {
         id: 'bench-rack-a',
         name: 'Bench Rack A',
         totalUnits: 9,
-        devices: [],
         rows: [
           {
             id: 'row-1',
@@ -338,22 +338,22 @@ const buildHydratedRackDocument = (): RackDocument =>
   })
 
 const buildBoundHydratedRackDocument = (): RackDocument => ({
+  pairedDevices: [
+    {
+      id: 'device-1',
+      identifier: 'com.mta.drpd',
+      displayName: 'Dr. PD',
+      vendorId: 0x2e8a,
+      productId: 0x000a,
+      serialNumber: 'DRPD-TEST-001',
+      productName: 'Dr. PD',
+    },
+  ],
   racks: [
     {
       id: 'bench-rack-a',
       name: 'Bench Rack A',
       totalUnits: 9,
-      devices: [
-        {
-          id: 'device-1',
-          identifier: 'com.mta.drpd',
-          displayName: 'Dr. PD',
-          vendorId: 0x2e8a,
-          productId: 0x000a,
-          serialNumber: 'DRPD-TEST-001',
-          productName: 'Dr. PD',
-        },
-      ],
       rows: [
         {
           id: 'row-1',
@@ -361,7 +361,6 @@ const buildBoundHydratedRackDocument = (): RackDocument => ({
             {
               id: 'inst-status',
               instrumentIdentifier: 'com.mta.drpd.device-status-panel',
-              deviceRecordId: 'device-1',
             },
           ],
         },
@@ -371,7 +370,6 @@ const buildBoundHydratedRackDocument = (): RackDocument => ({
             {
               id: 'inst-vbus',
               instrumentIdentifier: 'com.mta.drpd.vbus',
-              deviceRecordId: 'device-1',
             },
           ],
         },
@@ -381,7 +379,6 @@ const buildBoundHydratedRackDocument = (): RackDocument => ({
             {
               id: 'inst-trigger',
               instrumentIdentifier: 'com.mta.drpd.trigger',
-              deviceRecordId: 'device-1',
             },
           ],
         },
@@ -391,7 +388,6 @@ const buildBoundHydratedRackDocument = (): RackDocument => ({
             {
               id: 'inst-sink',
               instrumentIdentifier: 'com.mta.drpd.sink-control',
-              deviceRecordId: 'device-1',
             },
           ],
         },
@@ -404,7 +400,12 @@ const buildBoundHydratedRackDocument = (): RackDocument => ({
  * Stub the navigator.usb API.
  */
 const mockUSB = (devices: USBDevice[]) => {
-  const requestDevice = vi.fn(async () => devices[0])
+  let requestIndex = 0
+  const requestDevice = vi.fn(async () => {
+    const selected = devices[Math.min(requestIndex, Math.max(devices.length - 1, 0))]
+    requestIndex += 1
+    return selected
+  })
   const getDevices = vi.fn(async () => devices)
   const listeners = new Map<string, Set<EventListener>>()
   const listenerLookup = new WeakMap<EventListenerOrEventListenerObject, EventListener>()
@@ -763,7 +764,7 @@ describe('RackView', () => {
     render(<RackView />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
-    expect(screen.getByRole('button', { name: 'Devices' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Paired Devices' })).toBeDisabled()
   })
 
   it('saves edits and persists layout changes', async () => {
@@ -1199,6 +1200,106 @@ describe('RackView', () => {
     expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
     expect(await screen.findByText('connected')).toBeInTheDocument()
     await expectHydratedDrpdPanels()
+  })
+
+  it('auto-connects the most recently connected paired device at startup', async () => {
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,,1.0']
+    saveRackDocument({
+      pairedDevices: [
+        {
+          id: 'com.mta.drpd:DRPD-TEST-001',
+          identifier: 'com.mta.drpd',
+          displayName: 'Dr. PD',
+          vendorId: 0x2e8a,
+          productId: 0x000a,
+          serialNumber: 'DRPD-TEST-001',
+          productName: 'Dr. PD',
+          lastConnectedAtMs: 100,
+        },
+        {
+          id: 'com.mta.drpd:DRPD-TEST-002',
+          identifier: 'com.mta.drpd',
+          displayName: 'Dr. PD',
+          vendorId: 0x2e8a,
+          productId: 0x000a,
+          serialNumber: 'DRPD-TEST-002',
+          productName: 'Dr. PD',
+          lastConnectedAtMs: 200,
+        },
+      ],
+      racks: buildHydratedRackDocument().racks,
+    })
+    mockUSB([createUSBDevice('DRPD-TEST-001'), createUSBDevice('DRPD-TEST-002')])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /paired devices/i }))
+
+    const newerRow = (await screen.findByText('Dr. PD 1.0 #DRPD-TEST-002')).closest('li')
+    const olderRow = (await screen.findByText('Dr. PD #DRPD-TEST-001')).closest('li')
+    expect(newerRow).toHaveTextContent('connected')
+    expect(olderRow).toHaveTextContent('disconnected')
+    expect(screen.getAllByRole('button', { name: /disconnect/i })).toHaveLength(1)
+  })
+
+  it('does not auto-connect a plugged paired device when another device is already connected', async () => {
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,,1.0']
+    const firstDevice = createUSBDevice('DRPD-TEST-001')
+    const secondDevice = createUSBDevice('DRPD-TEST-002')
+    saveRackDocument({
+      pairedDevices: [
+        {
+          id: 'com.mta.drpd:DRPD-TEST-001',
+          identifier: 'com.mta.drpd',
+          displayName: 'Dr. PD',
+          vendorId: 0x2e8a,
+          productId: 0x000a,
+          serialNumber: 'DRPD-TEST-001',
+          productName: 'Dr. PD',
+          lastConnectedAtMs: 100,
+        },
+        {
+          id: 'com.mta.drpd:DRPD-TEST-002',
+          identifier: 'com.mta.drpd',
+          displayName: 'Dr. PD',
+          vendorId: 0x2e8a,
+          productId: 0x000a,
+          serialNumber: 'DRPD-TEST-002',
+          productName: 'Dr. PD',
+          lastConnectedAtMs: 50,
+        },
+      ],
+      racks: buildHydratedRackDocument().racks,
+    })
+    const { dispatchConnect } = mockUSB([firstDevice])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /paired devices/i }))
+    expect((await screen.findByText('Dr. PD 1.0 #DRPD-TEST-001')).closest('li')).toHaveTextContent('connected')
+
+    dispatchConnect(secondDevice)
+
+    expect((await screen.findByText('Dr. PD #DRPD-TEST-002')).closest('li')).toHaveTextContent('missing')
+    expect(screen.getAllByRole('button', { name: /disconnect/i })).toHaveLength(1)
+  })
+
+  it('pairs an additional device without connecting it when another device is already active', async () => {
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,,1.0']
+    const firstDevice = createUSBDevice('DRPD-TEST-001')
+    const secondDevice = createUSBDevice('DRPD-TEST-002')
+    mockUSB([firstDevice, secondDevice])
+    saveRackDocument(buildHydratedRackDocument())
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /paired devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    expect((await screen.findByText('Dr. PD 1.0 #DRPD-TEST-001')).closest('li')).toHaveTextContent('connected')
+
+    await userEvent.click(screen.getByRole('button', { name: /pair device/i }))
+
+    expect((await screen.findByText('Dr. PD #DRPD-TEST-002')).closest('li')).toHaveTextContent('disconnected')
+    expect(screen.getAllByRole('button', { name: /disconnect/i })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: /^connect$/i })).toHaveLength(1)
   })
 
   it('removes a device when remove is clicked', async () => {

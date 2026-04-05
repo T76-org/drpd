@@ -38,12 +38,12 @@ afterEach(() => {
 describe('App', () => {
   it('renders the app viewport around the rack view without a scale shell', async () => {
     saveRackDocument({
+      pairedDevices: [],
       racks: [
         {
           id: 'bench-rack-a',
           name: 'Bench Rack A',
           totalUnits: 8,
-          devices: [],
           rows: []
         }
       ]

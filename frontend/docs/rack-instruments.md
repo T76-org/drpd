@@ -4,13 +4,13 @@ This document explains how the Rack and Instrument system works in this repo and
 
 ## Overview
 
-A Rack is the top-level spatial container. It owns a list of Devices and a list of instrument rows. Devices describe physical hardware connections (reverse-domain identifiers like `com.mta.drpd`). Instruments are UI implementations that declare which Device identifiers they support. The Rack UI filters available Instruments based on the Devices currently registered in the Rack.
+A Rack is the top-level spatial container. It owns instrument rows only. Paired devices are stored globally at the document level and are not bound to a specific rack or instrument instance. Instruments declare which Device identifiers they support, and any compatible instrument automatically talks to the single active connected device when one exists.
 
-The Rack JSON is the source of truth for layout, devices, and instruments. It is stored in localStorage so users can add devices and instruments during runtime and have those changes persist between sessions.
+The Rack JSON is the source of truth for layout, paired devices, and instrument persistence. It is stored in localStorage so users can add devices and instruments during runtime and have those changes persist between sessions.
 
 ## Key files
 
-- `src/lib/rack/types.ts`: Rack data model (devices, rows, instruments).
+- `src/lib/rack/types.ts`: Rack data model (paired devices, rows, instruments).
 - `src/lib/rack/loadRack.ts`: localStorage load/save of Rack JSON.
 - `src/lib/device/base/types.ts`: Device base class and identifiers.
 - `src/lib/instrument/types.ts`: Instrument base class and identifiers.
@@ -22,17 +22,16 @@ The Rack JSON is the source of truth for layout, devices, and instruments. It is
 
 ## Rack JSON shape
 
-The Rack document is stored in localStorage under `drpd:rack:document` via `loadRackDocument` and `saveRackDocument`. The stored document has a `racks` array; the UI currently uses the first rack entry. A Rack entry includes:
+The Rack document is stored in localStorage under `drpd:rack:document` via `loadRackDocument` and `saveRackDocument`. The stored document has a document-level `pairedDevices` array plus a `racks` array; the UI currently uses the first rack entry. A Rack entry includes:
 
 - `id`: stable rack id.
 - `name`: displayed in the header.
 - `hideHeader`: optional, hides the header when true.
 - `totalUnits`: vertical height in units (1 unit = 100 px).
 - Horizontal width units are derived by instrument definitions (1 width unit = 20 px).
-- `devices`: list of device records associated with the rack.
 - `rows`: list of rows, each row holding instruments.
 
-Each row contains `instruments`, which store an `instrumentIdentifier` plus instance-specific fields (`fullScreen`, `resizable`) and an optional `deviceRecordId`. Horizontal width is defined by the Instrument definition, not the rack JSON. If any instrument has `fullScreen: true`, the rack renderer shows a full-screen overlay instead of the row layout.
+Each row contains `instruments`, which store an `instrumentIdentifier` plus instance-specific fields (`fullScreen`, `resizable`). Horizontal width is defined by the Instrument definition, not the rack JSON. If any instrument has `fullScreen: true`, the rack renderer shows a full-screen overlay instead of the row layout.
 
 ## How compatibility works
 
@@ -45,16 +44,16 @@ Each Instrument definition exposes:
 
 Rows use a maximum width budget (`MAX_ROW_WIDTH_UNITS`, currently 60). Fixed-width instruments consume their configured width first. Flex-width instruments split any remaining space equally. If a row has no remaining width, flex instruments cannot be inserted into that row.
 
-The Rack UI gathers the rack’s device identifiers and filters the instrument catalog to only those that list compatible device identifiers. If a Rack has no devices, the Add Instrument button is hidden.
+The Rack UI exposes the supported instrument catalog independently of paired-device state. When a compatible paired device is connected, matching instruments receive that active device runtime. Otherwise they render in an unassigned or disconnected state.
 
 ## How device binding works
 
-When an instrument is added, it is bound to a specific rack device record via `deviceRecordId` on the `RackInstrument`. This is a stable id for the device entry in the rack JSON, not the device definition identifier. The row renderer uses this id to look up the device record and its runtime connection status and passes that data down to the instrument view.
+Instrument instances are not bound to a specific paired device. The row renderer resolves the single active connected paired device at render time and passes that record and runtime state down to compatible instrument views.
 
 In practice:
 
-- Rack JSON stores `deviceRecordId` on each instrument instance.
-- `RowRenderer` maps `deviceRecordId` to a `RackDeviceRecord` and `RackDeviceState`.
+- Rack JSON stores paired devices at the document level and instrument instances remain device-agnostic.
+- `RowRenderer` resolves the active compatible `RackDeviceRecord` and `RackDeviceState` from the current global connection state.
 - Instrument views receive those values as props so they can talk to (or display info about) the bound device.
 
 ## Adding a new Instrument

@@ -12,10 +12,8 @@ import {
   decodeLoggedCapturedMessage,
   normalizeDRPDDeviceConfig,
   normalizeLoggingConfig,
-  OnOffState,
   type DRPDLoggingConfig,
   type DRPDDriverRuntime,
-  type DRPDDeviceConfig,
   type LoggedCapturedMessage,
   type TriggerMessageTypeFilter,
   buildUSBFilters,
@@ -50,6 +48,7 @@ type ThemeMode = 'system' | 'light' | 'dark'
 const THEME_STORAGE_KEY = 'drpd:theme'
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const HEADER_MENU_POPOVER_Z_INDEX = 11000
+const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
 
 interface DRPDLogsConsoleHelper {
   devices(): Array<{ id: string; name: string; status: string }>
@@ -357,6 +356,12 @@ export const RackView = () => {
     },
     [instrumentDefinitions],
   )
+  const pairedDevices = rackDocument?.pairedDevices ?? EMPTY_PAIRED_DEVICES
+  const activeConnectedDeviceState = useMemo(
+    () => deviceStates.find((state) => state.status === 'connected'),
+    [deviceStates],
+  )
+  const activeDeviceRecord = activeConnectedDeviceState?.record
 
   useEffect(() => {
     let isMounted = true
@@ -767,21 +772,19 @@ export const RackView = () => {
         return
       }
 
-      const matchedStates = deviceStatesRef.current.filter(
+      const connectedState = deviceStatesRef.current.find(
         (state) =>
           state.status === 'connected' &&
           doesRackDeviceRecordMatchUsbDevice(state.record, disconnectedDevice),
       )
-      if (matchedStates.length === 0) {
+      if (!connectedState) {
         return
       }
 
-      for (const state of matchedStates) {
-        void disconnectDeviceRuntime(state, deviceDefinitions)
-      }
+      void disconnectDeviceRuntime(connectedState, deviceDefinitions)
       setDeviceStates((states) =>
         states.map((state) =>
-          matchedStates.some((candidate) => candidate.record.id === state.record.id)
+          state.record.id === connectedState.record.id
             ? buildDisconnectedDeviceState(state.record)
             : state,
         ),
@@ -794,32 +797,41 @@ export const RackView = () => {
       if (!connectedDevice) {
         return
       }
+      if (deviceStatesRef.current.some((state) => state.status === 'connected')) {
+        return
+      }
 
-      const matchedStates = deviceStatesRef.current.filter(
+      const matchedState = deviceStatesRef.current.find(
         (state) =>
           state.status !== 'connected' &&
           doesRackDeviceRecordMatchUsbDevice(state.record, connectedDevice),
       )
-
-      if (matchedStates.length === 0) {
+      if (!matchedState) {
         return
       }
-
-      for (const state of matchedStates) {
-        const definition = deviceDefinitions.find(
-          (candidate) => candidate.identifier === state.record.identifier,
-        )
-        if (!definition) {
-          continue
-        }
-        void reconnectRackDeviceRecord({
-          record: state.record,
-          definition,
-          device: connectedDevice,
-          onUpdate: setDeviceStates,
-          onError: setDeviceError,
-        })
+      const definition = deviceDefinitions.find(
+        (candidate) => candidate.identifier === matchedState.record.identifier,
+      )
+      if (!definition) {
+        return
       }
+      void reconnectRackDeviceRecord({
+        record: matchedState.record,
+        definition,
+        device: connectedDevice,
+        onUpdate: setDeviceStates,
+        onPersistRecord: (nextRecord) => {
+          setRackDocument((current) => {
+            if (!current) {
+              return current
+            }
+            const nextDocument = upsertPairedDeviceDocument(current, nextRecord)
+            saveRackDocument(nextDocument)
+            return nextDocument
+          })
+        },
+        onError: setDeviceError,
+      })
     }
 
     usb.addEventListener('connect', handleUsbConnect)
@@ -831,17 +843,24 @@ export const RackView = () => {
   }, [deviceDefinitions])
 
   useEffect(() => {
-    if (!activeRack) {
-      return
-    }
     void autoConnectDevices({
-      devices: activeRack.devices ?? [],
+      devices: pairedDevices,
       definitions: deviceDefinitions,
       existingStates: deviceStatesRef.current,
       onUpdate: setDeviceStates,
+      onPersistDevices: (nextDevices) => {
+        setRackDocument((current) => {
+          if (!current) {
+            return current
+          }
+          const nextDocument = replacePairedDevices(current, nextDevices)
+          saveRackDocument(nextDocument)
+          return nextDocument
+        })
+      },
       onError: setDeviceError
     })
-  }, [activeRack, deviceDefinitions])
+  }, [pairedDevices, deviceDefinitions])
 
   /** Cycle through the available theme modes. */
   const handleThemeToggle = () => {
@@ -879,27 +898,37 @@ export const RackView = () => {
         return
       }
 
-      const runtime = await connectDeviceRuntime(deviceDefinition, selected)
       const baseRecord = buildRackDeviceRecord(deviceDefinition, selected)
-      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
-      const record = mergeRackDeviceIdentity(baseRecord, identity)
-      await applyRecordConfigToRuntime(record, runtime)
-      setDeviceStates((states) =>
-        upsertDeviceState(states, buildRackDeviceState(record, runtime)),
-      )
-      if (activeRack && rackDocument) {
-        const nextRack = {
-          ...activeRack,
-          devices: upsertDevice(activeRack.devices ?? [], record)
-        }
-        const nextDocument = replaceRack(rackDocument, nextRack)
-        setRackDocument(nextDocument)
-        setActiveRack(nextRack)
-        if (isEditMode && draftRack) {
-          setDraftRack({ ...draftRack, devices: nextRack.devices })
-        }
-        saveRackDocument(nextDocument)
+      const shouldConnectNow = !deviceStatesRef.current.some((state) => state.status === 'connected')
+
+      if (shouldConnectNow) {
+        const runtime = await connectDeviceRuntime(deviceDefinition, selected)
+        const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+        const record = stampDeviceConnection(mergeRackDeviceIdentity(baseRecord, identity))
+        await applyRecordConfigToRuntime(record, runtime)
+        setDeviceStates((states) =>
+          upsertDeviceState(states, buildRackDeviceState(record, runtime)),
+        )
+        setRackDocument((current) => {
+          if (!current) {
+            return current
+          }
+          const nextDocument = upsertPairedDeviceDocument(current, record)
+          saveRackDocument(nextDocument)
+          return nextDocument
+        })
+        return
       }
+
+      setDeviceStates((states) => upsertDeviceState(states, buildDisconnectedDeviceState(baseRecord)))
+      setRackDocument((current) => {
+        if (!current) {
+          return current
+        }
+        const nextDocument = upsertPairedDeviceDocument(current, baseRecord)
+        saveRackDocument(nextDocument)
+        return nextDocument
+      })
     } catch (connectError) {
       if (isUserCancelError(connectError)) {
         return
@@ -925,12 +954,10 @@ export const RackView = () => {
 
   /** Remove a device record from the rack. */
   const handleRemoveDevice = async (recordId: string) => {
-    if (!activeRack || !rackDocument) {
+    if (!rackDocument) {
       return
     }
-    const record = (activeRack.devices ?? []).find(
-      (device) => device.id === recordId,
-    )
+    const record = pairedDevices.find((device) => device.id === recordId)
     if (!record) {
       return
     }
@@ -949,16 +976,9 @@ export const RackView = () => {
     ) {
       await disconnectDeviceRuntime(existingState, deviceDefinitions)
     }
-    const nextDevices = (activeRack.devices ?? []).filter(
-      (device) => device.id !== recordId,
-    )
-    const nextRack = { ...activeRack, devices: nextDevices }
-    const nextDocument = replaceRack(rackDocument, nextRack)
+    const nextDevices = pairedDevices.filter((device) => device.id !== recordId)
+    const nextDocument = replacePairedDevices(rackDocument, nextDevices)
     setRackDocument(nextDocument)
-    setActiveRack(nextRack)
-    if (isEditMode && draftRack) {
-      setDraftRack({ ...draftRack, devices: nextDevices })
-    }
     saveRackDocument(nextDocument)
     setDeviceStates((states) =>
       states.filter((state) => state.record.id !== recordId),
@@ -968,16 +988,14 @@ export const RackView = () => {
   /** Reconnect a previously disconnected device. */
   const handleReconnectDevice = async (recordId: string) => {
     setDeviceError(null)
-    if (!activeRack) {
-      return
-    }
     if (typeof navigator === 'undefined' || !navigator.usb) {
       setDeviceError('WebUSB is not available in this browser.')
       return
     }
-    const record = (activeRack.devices ?? []).find(
-      (device) => device.id === recordId,
-    )
+    if (deviceStatesRef.current.some((state) => state.status === 'connected')) {
+      return
+    }
+    const record = pairedDevices.find((device) => device.id === recordId)
     if (!record) {
       return
     }
@@ -992,6 +1010,16 @@ export const RackView = () => {
       record,
       definition,
       onUpdate: setDeviceStates,
+      onPersistRecord: (nextRecord) => {
+        setRackDocument((current) => {
+          if (!current) {
+            return current
+          }
+          const nextDocument = upsertPairedDeviceDocument(current, nextRecord)
+          saveRackDocument(nextDocument)
+          return nextDocument
+        })
+      },
       onError: setDeviceError,
     })
   }
@@ -1017,12 +1045,12 @@ export const RackView = () => {
     deviceRecordId: string,
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
   ) => {
-    if (!activeRack || !rackDocument) {
+    if (!rackDocument) {
       return
     }
 
     let updatedRecord: RackDeviceRecord | null = null
-    const nextDevices = (activeRack.devices ?? []).map((device) => {
+    const nextDevices = pairedDevices.map((device) => {
       if (device.id !== deviceRecordId) {
         return device
       }
@@ -1036,18 +1064,8 @@ export const RackView = () => {
       return
     }
 
-    const nextRack = { ...activeRack, devices: nextDevices }
-    const nextDocument = replaceRack(rackDocument, nextRack)
+    const nextDocument = replacePairedDevices(rackDocument, nextDevices)
     setRackDocument(nextDocument)
-    setActiveRack(nextRack)
-    if (draftRack) {
-      setDraftRack({
-        ...draftRack,
-        devices: (draftRack.devices ?? []).map((device) =>
-          device.id === deviceRecordId ? updatedRecord as RackDeviceRecord : device,
-        ),
-      })
-    }
     saveRackDocument(nextDocument)
 
     setDeviceStates((states) =>
@@ -1084,12 +1102,6 @@ export const RackView = () => {
     if (!instrumentDefinition) {
       return
     }
-    const compatibleDevice = (currentRack.devices ?? []).find((device) =>
-      instrumentDefinition.supportedDeviceIdentifiers.includes(device.identifier),
-    )
-    if (!compatibleDevice) {
-      return
-    }
     const newRowId = `row-${Date.now()}`
     const newInstrumentId = `inst-${Date.now()}`
     const nextRow = {
@@ -1098,7 +1110,6 @@ export const RackView = () => {
         {
           id: newInstrumentId,
           instrumentIdentifier,
-          deviceRecordId: compatibleDevice.id
         }
       ]
     }
@@ -1242,13 +1253,7 @@ export const RackView = () => {
   }
 
   const compatibleInstruments = currentRack
-    ? instrumentDefinitions.filter((instrument) =>
-        instrument.supportedDeviceIdentifiers.some((identifier) =>
-          (currentRack.devices ?? []).some(
-            (device) => device.identifier === identifier,
-          ),
-        ),
-      )
+    ? instrumentDefinitions
     : []
   const rackCanvasWidthPx = currentRack
     ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
@@ -1305,8 +1310,7 @@ export const RackView = () => {
                   Theme: {themeLabel}
                 </button>
                 {currentRack &&
-                !currentRack.hideHeader &&
-                (currentRack.devices ?? []).length > 0 ? (
+                !currentRack.hideHeader ? (
                   <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
                     <button
                       type="button"
@@ -1370,7 +1374,7 @@ export const RackView = () => {
                     onClick={() => setIsDeviceMenuOpen((open) => !open)}
                     disabled={isEditMode}
                   >
-                    Devices
+                    Paired Devices
                   </button>
                   {isDeviceMenuOpen ? (
                     typeof document !== 'undefined'
@@ -1393,7 +1397,7 @@ export const RackView = () => {
                             </button>
                             <div className={styles.deviceMenuSeparator} />
                             {deviceStates.length === 0 ? (
-                              <div className={styles.deviceMenuEmpty}>No devices</div>
+                              <div className={styles.deviceMenuEmpty}>No paired devices</div>
                             ) : (
                               <ul className={styles.deviceMenuList}>
                                 {deviceStates.map((device) => (
@@ -1480,6 +1484,7 @@ export const RackView = () => {
             rack={currentRack}
             instruments={instrumentDefinitions}
             deviceStates={deviceStates}
+            activeDeviceRecord={activeDeviceRecord}
             isEditMode={isEditMode}
             onRemoveInstrument={handleRemoveInstrument}
             onInstrumentDragStart={handleInstrumentDragStart}
@@ -1585,6 +1590,19 @@ const upsertDevice = (
   next.push(record)
   return next
 }
+
+const replacePairedDevices = (
+  document: RackDocument,
+  pairedDevices: RackDeviceRecord[],
+): RackDocument => ({
+  ...document,
+  pairedDevices,
+})
+
+const upsertPairedDeviceDocument = (
+  document: RackDocument,
+  record: RackDeviceRecord,
+): RackDocument => replacePairedDevices(document, upsertDevice(document.pairedDevices ?? [], record))
 
 /**
  * Replace a rack in the rack document.
@@ -1694,6 +1712,11 @@ const upsertDeviceState = (
   return next
 }
 
+const stampDeviceConnection = (record: RackDeviceRecord): RackDeviceRecord => ({
+  ...record,
+  lastConnectedAtMs: Date.now(),
+})
+
 /**
  * Connect a device and return its runtime details.
  *
@@ -1725,12 +1748,14 @@ const reconnectRackDeviceRecord = async ({
   definition,
   device,
   onUpdate,
+  onPersistRecord,
   onError,
 }: {
   record: RackDeviceRecord
   definition: Device
   device?: USBDevice
   onUpdate: (updater: (states: RackDeviceState[]) => RackDeviceState[]) => void
+  onPersistRecord?: (record: RackDeviceRecord) => void
   onError: (message: string | null) => void
 }): Promise<void> => {
   onError(null)
@@ -1752,9 +1777,10 @@ const reconnectRackDeviceRecord = async ({
 
     const runtime = await connectDeviceRuntime(definition, matchedDevice)
     const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
-    const nextRecord = mergeRackDeviceIdentity(record, identity)
+    const nextRecord = stampDeviceConnection(mergeRackDeviceIdentity(record, identity))
 
     await applyRecordConfigToRuntime(nextRecord, runtime)
+    onPersistRecord?.(nextRecord)
     onUpdate((states) =>
       upsertDeviceState(states, buildRackDeviceState(nextRecord, runtime)),
     )
@@ -1828,12 +1854,14 @@ const autoConnectDevices = async ({
   definitions,
   existingStates,
   onUpdate,
+  onPersistDevices,
   onError
 }: {
   devices: RackDeviceRecord[]
   definitions: Device[]
   existingStates: RackDeviceState[]
   onUpdate: (state: RackDeviceState[]) => void
+  onPersistDevices?: (devices: RackDeviceRecord[]) => void
   onError: (message: string | null) => void
 }): Promise<void> => {
   if (devices.length === 0) {
@@ -1846,53 +1874,104 @@ const autoConnectDevices = async ({
   }
 
   try {
-    const connected = await navigator.usb.getDevices()
-    const nextStates: RackDeviceState[] = []
-
-    for (const record of devices) {
+    const connectedUsbDevices = await navigator.usb.getDevices()
+    const nextStates = devices.map((record) => {
       const existingState = existingStates.find((state) => state.record.id === record.id)
       if (existingState?.status === 'connected' && existingState.transport) {
-        nextStates.push(existingState)
-        continue
+        return existingState
       }
-
-      const matchedDevice = connected.find((usbDevice) =>
+      const matchedDevice = connectedUsbDevices.find((usbDevice) =>
         doesRackDeviceRecordMatchUsbDevice(record, usbDevice),
       )
-
       if (!matchedDevice) {
-        nextStates.push({ record, status: 'missing' })
-        continue
+        return { record, status: 'missing' } satisfies RackDeviceState
       }
+      return buildDisconnectedDeviceState(record)
+    })
 
-      const matchingDefinitions = findMatchingDevices(
-        definitions,
-        matchedDevice,
-      ).filter((definition) => definition.identifier === record.identifier)
-      const verified = await verifyMatchingDevices(
-        matchingDefinitions,
-        matchedDevice,
-      )
-      const target = verified[0] ?? matchingDefinitions[0]
-      if (!target) {
-        nextStates.push({ record, status: 'error', error: 'No matching device.' })
-        continue
-      }
-
-      try {
-        const runtime = await connectDeviceRuntime(target, matchedDevice)
-        const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
-        const nextRecord = mergeRackDeviceIdentity(record, identity)
-        await applyRecordConfigToRuntime(nextRecord, runtime)
-        nextStates.push(buildRackDeviceState(nextRecord, runtime))
-      } catch (connectError) {
-        const message =
-          connectError instanceof Error ? connectError.message : String(connectError)
-        nextStates.push({ record, status: 'error', error: message })
-      }
+    if (existingStates.some((state) => state.status === 'connected')) {
+      onUpdate(nextStates)
+      onError(null)
+      return
     }
 
-    onUpdate(nextStates)
+    const availableCandidates = devices
+      .map((record, index) => ({
+        record,
+        index,
+        matchedDevice: connectedUsbDevices.find((usbDevice) =>
+          doesRackDeviceRecordMatchUsbDevice(record, usbDevice),
+        ) ?? null,
+      }))
+      .filter((candidate) => candidate.matchedDevice)
+      .sort((left, right) => {
+        const leftTs = left.record.lastConnectedAtMs ?? Number.NEGATIVE_INFINITY
+        const rightTs = right.record.lastConnectedAtMs ?? Number.NEGATIVE_INFINITY
+        if (leftTs !== rightTs) {
+          return rightTs - leftTs
+        }
+        return left.index - right.index
+      })
+
+    const selectedCandidate = availableCandidates[0]
+    if (!selectedCandidate?.matchedDevice) {
+      onUpdate(nextStates)
+      onError(null)
+      return
+    }
+
+    const matchingDefinitions = findMatchingDevices(
+      definitions,
+      selectedCandidate.matchedDevice,
+    ).filter((definition) => definition.identifier === selectedCandidate.record.identifier)
+    const verified = await verifyMatchingDevices(
+      matchingDefinitions,
+      selectedCandidate.matchedDevice,
+    )
+    const target = verified[0] ?? matchingDefinitions[0]
+    if (!target) {
+      onUpdate(
+        nextStates.map((state) =>
+          state.record.id === selectedCandidate.record.id
+            ? { record: state.record, status: 'error', error: 'No matching device.' }
+            : state,
+        ),
+      )
+      onError(null)
+      return
+    }
+
+    try {
+      const runtime = await connectDeviceRuntime(target, selectedCandidate.matchedDevice)
+      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+      const connectedRecord = stampDeviceConnection(
+        mergeRackDeviceIdentity(selectedCandidate.record, identity),
+      )
+      await applyRecordConfigToRuntime(connectedRecord, runtime)
+      onPersistDevices?.(
+        devices.map((device) =>
+          device.id === connectedRecord.id ? connectedRecord : device,
+        ),
+      )
+      onUpdate(
+        nextStates.map((state) =>
+          state.record.id === connectedRecord.id
+            ? buildRackDeviceState(connectedRecord, runtime)
+            : state,
+        ),
+      )
+    } catch (connectError) {
+      const message =
+        connectError instanceof Error ? connectError.message : String(connectError)
+      onUpdate(
+        nextStates.map((state) =>
+          state.record.id === selectedCandidate.record.id
+            ? { record: state.record, status: 'error', error: message }
+            : state,
+        ),
+      )
+    }
+
     onError(null)
   } catch (autoError) {
     const message =

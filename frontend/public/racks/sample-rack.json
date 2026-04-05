@@ -1,10 +1,10 @@
 {
+  "pairedDevices": [],
   "racks": [
     {
       "id": "bench-rack-a",
       "name": "Bench Rack A",
       "hideHeader": false,
-      "devices": [],
       "totalUnits": 9,
       "rows": [
         {

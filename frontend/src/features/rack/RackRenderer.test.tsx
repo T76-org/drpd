@@ -68,7 +68,6 @@ describe('RackRenderer', () => {
       id: 'rack-a',
       name: 'Rack A',
       totalUnits: 8,
-      devices: [],
       rows: [
         {
           id: 'row-1',
@@ -108,7 +107,6 @@ describe('RackRenderer', () => {
       id: 'rack-a',
       name: 'Rack A',
       totalUnits: 8,
-      devices: [],
       rows: [
         {
           id: 'row-1',
@@ -163,7 +161,6 @@ describe('RackRenderer', () => {
       id: 'rack-a',
       name: 'Rack A',
       totalUnits: 8,
-      devices: [],
       rows: [
         {
           id: 'row-1',
@@ -217,7 +214,6 @@ describe('RackRenderer', () => {
       id: 'rack-a',
       name: 'Rack A',
       totalUnits: 8,
-      devices: [],
       rows: [
         {
           id: 'row-1',

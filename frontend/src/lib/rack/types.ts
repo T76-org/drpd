@@ -23,8 +23,6 @@ export interface RackInstrument {
   id: string
   ///< Instrument definition identifier.
   instrumentIdentifier: InstrumentIdentifier
-  ///< Bound rack device record id for this instrument instance.
-  deviceRecordId?: string
   ///< Render this instrument as a full-screen overlay when true.
   fullScreen?: boolean
   ///< Resizable configuration for future UI.
@@ -55,6 +53,8 @@ export interface RackDeviceRecord {
   firmwareVersion?: string
   ///< Optional USB product name.
   productName?: string
+  ///< Unix timestamp in milliseconds for the most recent successful connection.
+  lastConnectedAtMs?: number
   ///< Optional device-specific persisted configuration.
   config?: Record<string, unknown>
 }
@@ -79,8 +79,6 @@ export interface RackDefinition {
   name: string
   ///< Toggle to hide the header for this rack.
   hideHeader?: boolean
-  ///< Devices associated with this rack.
-  devices?: RackDeviceRecord[]
   ///< Total vertical units available in the rack.
   totalUnits: number
   ///< Rows in the rack.
@@ -93,4 +91,6 @@ export interface RackDefinition {
 export interface RackDocument {
   ///< Full document of racks.
   racks: RackDefinition[]
+  ///< Globally paired devices known to the system.
+  pairedDevices?: RackDeviceRecord[]
 }
