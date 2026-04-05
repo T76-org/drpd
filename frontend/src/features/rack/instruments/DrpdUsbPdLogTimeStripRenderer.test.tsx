@@ -141,4 +141,29 @@ describe('DrpdUsbPdLogTimeStripRenderer', () => {
     expect(tickTransforms).toHaveLength(5)
     expect(tickTransforms).not.toContain('translate(622,0)')
   })
+
+  it('exposes clickable hit areas for messages and events', () => {
+    const { container } = render(
+      <DrpdUsbPdLogTimeStripRenderer
+        width={640}
+        data={buildTimeStripData({
+          events: [
+            {
+              selectionKey: 'event:300:1:mark',
+              eventType: 'mark',
+              timestampUs: 300n,
+              displayTimestampUs: 300n,
+              wallClockUs: 1_300n,
+            },
+          ],
+        })}
+        hoverPosition={null}
+        selectedKey={null}
+        onSelectSelectionKey={() => undefined}
+      />,
+    )
+
+    expect(container.querySelector('[data-selection-key="message:100:120:1"]')).not.toBeNull()
+    expect(container.querySelector('[data-selection-key="event:300:1:mark"]')).not.toBeNull()
+  })
 })

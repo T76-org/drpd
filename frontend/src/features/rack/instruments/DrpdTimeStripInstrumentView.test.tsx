@@ -448,6 +448,99 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
+  it('selects a message when its pulse is clicked in the timestrip', async () => {
+    stubResizeObserver()
+    const message = buildMessage(0, 1)
+    const driver = new TestLogDriver([message])
+    const selectionKey = buildCapturedLogSelectionKey(message)
+
+    const { container } = renderTimeStrip(driver)
+
+    await waitFor(() => {
+      expect(driver.timeStripQueries.length).toBeGreaterThan(0)
+    })
+
+    const hitArea = container.querySelector(`[data-selection-key="${selectionKey}"]`)
+    expect(hitArea).not.toBeNull()
+
+    fireEvent.click(hitArea as Element)
+
+    await waitFor(() => {
+      expect(driver.logSelection).toEqual({
+        selectedKeys: [selectionKey],
+        anchorIndex: null,
+        activeIndex: null,
+      })
+    })
+  })
+
+  it('selects an event when its marker is clicked in the timestrip', async () => {
+    stubResizeObserver()
+    const eventRow = buildEvent(1, 'Mark', 'mark')
+    const driver = new TestLogDriver([buildMessage(0, 1), eventRow])
+    const selectionKey = buildCapturedLogSelectionKey(eventRow)
+
+    const { container } = renderTimeStrip(driver)
+
+    await waitFor(() => {
+      expect(driver.timeStripQueries.length).toBeGreaterThan(0)
+    })
+
+    const hitArea = container.querySelector(`[data-selection-key="${selectionKey}"]`)
+    expect(hitArea).not.toBeNull()
+
+    fireEvent.click(hitArea as Element)
+
+    await waitFor(() => {
+      expect(driver.logSelection).toEqual({
+        selectedKeys: [selectionKey],
+        anchorIndex: null,
+        activeIndex: null,
+      })
+    })
+  })
+
+  it('does not recenter the strip when selection comes from clicking the timestrip', async () => {
+    stubResizeObserver()
+    const selectedMessage = {
+      ...buildMessage(1, 3),
+      startTimestampUs: 40_000_000n,
+      endTimestampUs: 40_000_005n,
+      displayTimestampUs: 40_000_000n,
+    } satisfies LoggedCapturedMessage
+    const driver = new TestLogDriver([
+      { ...buildMessage(0, 1), startTimestampUs: 0n, endTimestampUs: 5n, displayTimestampUs: 0n },
+      selectedMessage,
+      { ...buildMessage(2, 4), startTimestampUs: 80_000_000n, endTimestampUs: 80_000_005n, displayTimestampUs: 80_000_000n },
+    ], [
+      { ...buildAnalogSample(0), timestampUs: 0n, displayTimestampUs: 0n },
+      { ...buildAnalogSample(1), timestampUs: 80_000_000n, displayTimestampUs: 80_000_000n },
+    ])
+    const selectionKey = buildCapturedLogSelectionKey(selectedMessage)
+
+    const { container } = renderTimeStrip(driver)
+
+    await waitFor(() => {
+      expect(driver.timeStripQueries.length).toBeGreaterThan(0)
+    })
+    const windowStartBeforeClick = driver.timeStripQueries.at(-1)?.windowStartUs
+    expect(windowStartBeforeClick).not.toBeUndefined()
+
+    const hitArea = container.querySelector(`[data-selection-key="${selectionKey}"]`)
+    expect(hitArea).not.toBeNull()
+
+    fireEvent.click(hitArea as Element)
+
+    await waitFor(() => {
+      expect(driver.logSelection).toEqual({
+        selectedKeys: [selectionKey],
+        anchorIndex: null,
+        activeIndex: null,
+      })
+      expect(driver.timeStripQueries.at(-1)?.windowStartUs).toBe(windowStartBeforeClick)
+    })
+  })
+
   it('keeps the current window while new logs arrive when scrolled away from the live end', async () => {
     stubResizeObserver()
     const driver = new TestLogDriver([buildMessage(0, 1)], [
