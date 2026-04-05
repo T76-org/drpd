@@ -118,7 +118,6 @@ class Mode(enum.Enum):
     UNKNOWN = "UNKNOWN"
     DISABLED = "DISABLED"
     OBSERVER = "OBSERVER"
-    SOURCE = "SOURCE"
     SINK = "SINK"
 
     @classmethod

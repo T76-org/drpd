@@ -130,7 +130,7 @@ describe('DrpdDeviceStatusInstrumentView', () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
     driver.setStatusState(
-      CCBusRole.SOURCE,
+      CCBusRole.OBSERVER,
       CCBusRoleStatus.ATTACHED,
       OnOffState.OFF,
     )

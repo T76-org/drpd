@@ -168,7 +168,7 @@ commands:
     parameters:
       - name:        role
         type:        enum
-        choices:     ["DISABLED", "OBSERVER", "SOURCE", "SINK"]
+        choices:     ["DISABLED", "OBSERVER", "SINK"]
         description: "The desired role for the CC bus controller."
     handler:      _setCCBusControllerRole
 

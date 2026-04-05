@@ -40,7 +40,6 @@ export type OnOffState = (typeof OnOffState)[keyof typeof OnOffState]
 export const CCBusRole = {
   DISABLED: 'DISABLED',
   OBSERVER: 'OBSERVER',
-  SOURCE: 'SOURCE',
   SINK: 'SINK',
 } as const
 
