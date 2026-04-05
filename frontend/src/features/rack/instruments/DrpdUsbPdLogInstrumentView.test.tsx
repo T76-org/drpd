@@ -347,7 +347,7 @@ const buildAnalogSample = (index: number): LoggedAnalogSample => ({
   wallClockUs: BigInt(1_700_000_000_000_000 + index * 20),
   vbusV: 5 + index,
   ibusA: 0.5 + index * 0.1,
-  role: 'SOURCE',
+  role: 'OBSERVER',
   createdAtMs: 1_700_000_000_000 + index * 10,
 })
 
@@ -592,7 +592,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1),
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
-      buildEvent(2, 'CC role changed to SOURCE at 2026-02-28 10:00:01', 'cc_role_changed'),
+      buildEvent(2, 'CC role changed to OBSERVER at 2026-02-28 10:00:01', 'cc_role_changed'),
       buildEvent(3, 'Device status changed to ATTACHED at 2026-02-28 10:00:02', 'cc_status_changed'),
       buildEvent(4, 'Mark', 'mark'),
       buildEvent(5, 'VBUS OVP event at 2026-02-28 10:00:03', 'vbus_ovp'),

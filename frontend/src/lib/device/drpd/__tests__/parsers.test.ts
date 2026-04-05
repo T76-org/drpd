@@ -3,6 +3,7 @@ import {
   analogMonitorCCStatusFromVoltage,
   parseAccumulatedMeasurements,
   parseAnalogMonitorChannels,
+  parseCCBusRole,
   parseCapturedMessage,
   parseDeviceIdentity,
   parseDeviceStatus,
@@ -161,6 +162,10 @@ describe('drpd parsers', () => {
     expect(parseTriggerSenderFilterResponse(['SOURCE'])).toBe(TriggerSenderFilter.SOURCE)
     expect(parseTriggerSenderFilterResponse(['SINK'])).toBe(TriggerSenderFilter.SINK)
     expect(parseTriggerSenderFilterResponse(['CABLE'])).toBe(TriggerSenderFilter.CABLE)
+  })
+
+  it('rejects removed SOURCE CC bus role values', () => {
+    expect(() => parseCCBusRole('SOURCE')).toThrow('Invalid CC bus role')
   })
 
   it('parses trigger sync mode values and rejects removed OFF', () => {

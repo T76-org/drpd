@@ -20,9 +20,6 @@ void App::_queryCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue>
         case Logic::CCBusRole::Observer:
             _sendTransportTextResponse("OBSERVER,", false);
             break;
-        case Logic::CCBusRole::Source:
-            _sendTransportTextResponse("SOURCE,", false);
-            break;
         case Logic::CCBusRole::Sink:
             _sendTransportTextResponse("SINK,", false);
             break;
@@ -91,8 +88,6 @@ void App::_setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &
         _ccBusController.role(Logic::CCBusRole::Disabled);
     } else if (roleStr == "OBSERVER") {
         _ccBusController.role(Logic::CCBusRole::Observer);
-    } else if (roleStr == "SOURCE") {
-        _ccBusController.role(Logic::CCBusRole::Source);
     } else if (roleStr == "SINK") {
         _ccBusController.role(Logic::CCBusRole::Sink);
     } else {

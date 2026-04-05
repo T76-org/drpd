@@ -192,7 +192,7 @@ describe('SQLiteWasmStore', () => {
         wallClockUs: BigInt(1_700_000_000_000_000 + index * 100),
         vbusV: 5 + index,
         ibusA: 0.1 * index,
-        role: 'SOURCE',
+        role: 'OBSERVER',
         createdAtMs: 1_700_000_000_000 + index * 10,
       })
     }
@@ -220,7 +220,7 @@ describe('SQLiteWasmStore', () => {
       wallClockUs: 10n,
       vbusV: 5,
       ibusA: 0.1,
-      role: 'SOURCE',
+      role: 'OBSERVER',
       createdAtMs: 1,
     })
     await store.insertAnalogSample({
@@ -229,7 +229,7 @@ describe('SQLiteWasmStore', () => {
       wallClockUs: 50_000n,
       vbusV: 6,
       ibusA: 0.2,
-      role: 'SOURCE',
+      role: 'OBSERVER',
       createdAtMs: 2,
     })
     await store.insertCapturedMessage({
@@ -298,7 +298,7 @@ describe('SQLiteWasmStore', () => {
       wallClockUs: 123n,
       vbusV: 5.02,
       ibusA: 0.7,
-      role: 'SOURCE',
+      role: 'OBSERVER',
       createdAtMs: 42,
     })
     await store.insertCapturedMessage(buildMessage(2))

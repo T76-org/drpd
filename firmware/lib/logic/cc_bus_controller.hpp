@@ -12,10 +12,7 @@
  * and the other port is monitored for a sink connection. Once both source
  * and sink are detected, the controller enters the Attached state.
  * 
- * Source and Sink modes are currently unimplemented and behave the same
- * as Observer mode.
- * 
- * TODO: Implement Source and Sink modes
+ * Sink mode is implemented separately from the passive Observer mode.
  * 
  */
 
@@ -44,7 +41,6 @@ namespace T76::DRPD::Logic {
     enum class CCBusRole : uint32_t {
         Disabled,
         Observer,
-        Source,
         Sink,
     };
 

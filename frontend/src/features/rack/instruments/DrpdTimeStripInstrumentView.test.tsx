@@ -288,7 +288,7 @@ const buildAnalogSample = (index: number): LoggedAnalogSample => ({
   wallClockUs: BigInt(1_700_000_000_000_000 + index * 20),
   vbusV: 5 + index,
   ibusA: 0.5 + index * 0.1,
-  role: 'SOURCE',
+  role: 'OBSERVER',
   createdAtMs: 1_700_000_000_000 + index * 10,
 })
 

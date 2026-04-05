@@ -45,18 +45,6 @@ class TestDeviceSinkModeValidation(unittest.IsolatedAsyncioTestCase):
         self.assertIn("SINK mode", str(context.exception))
         self.assertIn("DISABLED", str(context.exception))
 
-    async def test_validate_sink_mode_fails_when_source(self) -> None:
-        """Test validation fails when device is in SOURCE mode."""
-        self.mock_internal.query_ascii_values_and_check.return_value = [
-            "SOURCE"
-        ]
-
-        with self.assertRaises(RuntimeError) as context:
-            await self.device_sink._validate_sink_mode()
-
-        self.assertIn("SINK mode", str(context.exception))
-        self.assertIn("SOURCE", str(context.exception))
-
     async def test_validate_sink_mode_fails_when_observer(self) -> None:
         """Test validation fails when device is in OBSERVER mode."""
         self.mock_internal.query_ascii_values_and_check.return_value = [
@@ -119,7 +107,7 @@ class TestDeviceSinkPDOQueries(unittest.IsolatedAsyncioTestCase):
     async def test_get_pdo_count_mode_validation(self) -> None:
         """Test PDO count fails if device not in SINK mode."""
         self.mock_internal.query_ascii_values_and_check.return_value = [
-            "SOURCE"
+            "OBSERVER"
         ]
 
         with self.assertRaises(RuntimeError):
@@ -230,7 +218,7 @@ class TestDeviceSinkPDORequest(unittest.IsolatedAsyncioTestCase):
     async def test_set_pdo_mode_validation(self) -> None:
         """Test PDO request fails if device not in SINK mode."""
         self.mock_internal.query_ascii_values_and_check.return_value = [
-            "SOURCE"
+            "OBSERVER"
         ]
 
         with self.assertRaises(RuntimeError):
@@ -359,7 +347,7 @@ class TestDeviceSinkStatusQueries(unittest.IsolatedAsyncioTestCase):
     async def test_get_negotiated_voltage_mode_validation(self) -> None:
         """Test voltage query fails if device not in SINK mode."""
         self.mock_internal.query_ascii_values_and_check.return_value = [
-            "SOURCE"
+            "OBSERVER"
         ]
 
         with self.assertRaises(RuntimeError):

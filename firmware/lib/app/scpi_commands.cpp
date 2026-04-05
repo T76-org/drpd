@@ -120,7 +120,6 @@ namespace T76::SCPI {
     const char* const command_21_param_0_choices[] = {
         "DISABLED",
         "OBSERVER",
-        "SOURCE",
         "SINK",
     };
 

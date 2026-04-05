@@ -29,8 +29,6 @@ const formatRoleLabel = (role: CCBusRole | null): string => {
       return 'Disabled'
     case CCBusRole.OBSERVER:
       return 'Observer'
-    case CCBusRole.SOURCE:
-      return 'Source'
     case CCBusRole.SINK:
       return 'Sink'
     default:

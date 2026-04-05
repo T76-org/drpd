@@ -121,10 +121,10 @@ describe('DRPD command groups', () => {
   it('sends CC bus role updates with raw enum tokens', async () => {
     const transport = new MockTransport()
     const group = new DRPDCCBus(transport)
-    await group.setRole(CCBusRole.SOURCE)
+    await group.setRole(CCBusRole.OBSERVER)
     expect(transport.commands[0]).toEqual({
       command: 'BUS:CC:ROLE',
-      params: [{ raw: 'SOURCE' }],
+      params: [{ raw: 'OBSERVER' }],
     })
   })
 

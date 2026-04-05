@@ -33,7 +33,6 @@ class ModeSelectionModal(ModalScreen):
                 yield OptionList(
                     Option("Disabled", id=Mode.DISABLED.value),
                     Option("Observer", id=Mode.OBSERVER.value),
-                    Option("Source", id=Mode.SOURCE.value),
                     Option("Sink", id=Mode.SINK.value),
                 )
 

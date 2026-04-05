@@ -99,7 +99,7 @@ These are thin wrappers over `USBTMCTransport.sendCommand`, `queryText`, and `qu
 
 `DRPDDevice` maintains a `DRPDDeviceState` snapshot with the following fields:
 
-- `role`: current CC bus role (`DISABLED`, `OBSERVER`, `SOURCE`, `SINK`), or `null` if unknown
+- `role`: current CC bus role (`DISABLED`, `OBSERVER`, `SINK`), or `null` if unknown
 - `ccBusRoleStatus`: role status (`UNATTACHED`, `SOURCE_FOUND`, `ATTACHED`), or `null` if unknown
 - `analogMonitor`: latest analog monitor channels, or `null` if unknown
 - `vbusInfo`: VBUS status + thresholds, or `null` if unknown

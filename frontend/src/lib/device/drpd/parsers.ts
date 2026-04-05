@@ -188,8 +188,6 @@ export const parseCCBusRole = (value: string): CCBusRole => {
       return CCBusRole.DISABLED
     case CCBusRole.OBSERVER:
       return CCBusRole.OBSERVER
-    case CCBusRole.SOURCE:
-      return CCBusRole.SOURCE
     case CCBusRole.SINK:
       return CCBusRole.SINK
     default:

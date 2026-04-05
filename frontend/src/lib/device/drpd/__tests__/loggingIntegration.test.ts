@@ -96,10 +96,10 @@ const setConnected = (device: DRPDDevice): void => {
  * @param device - Device to update.
  * @param role - Role to set.
  */
-const setRoleSnapshot = (device: DRPDDevice, role: 'SOURCE' | 'SINK'): void => {
+const setRoleSnapshot = (device: DRPDDevice, role: 'DISABLED' | 'OBSERVER' | 'SINK'): void => {
   const asAny = device as unknown as {
     state: {
-      role: 'SOURCE' | 'SINK' | null
+      role: 'DISABLED' | 'OBSERVER' | 'SINK' | null
       ccBusRoleStatus: unknown
       analogMonitor: unknown
       vbusInfo: unknown
@@ -124,7 +124,7 @@ const setRoleStatusSnapshot = (
 ): void => {
   const asAny = device as unknown as {
     state: {
-      role: 'SOURCE' | 'SINK' | null
+      role: 'DISABLED' | 'OBSERVER' | 'SINK' | null
       ccBusRoleStatus: 'UNATTACHED' | 'SOURCE_FOUND' | 'ATTACHED' | null
       analogMonitor: unknown
       vbusInfo: unknown
