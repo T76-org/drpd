@@ -17,6 +17,8 @@ BMCEncoder::BMCEncoder() {
 }
 
 void BMCEncoder::initCore1() {
+    // Claim the state machine before issuing any SM-specific pin operations.
+    _stateMachine = pio_claim_unused_sm(PHY_BMC_ENCODER_PIO, true);
 
     // Init the output pin and set it to input (high-Z) initially
 
@@ -39,7 +41,6 @@ void BMCEncoder::initCore1() {
 
     // Load the PIO program and configure the state machine.
 
-    _stateMachine = pio_claim_unused_sm(PHY_BMC_ENCODER_PIO, true);
     _programOffset = pio_add_program(PHY_BMC_ENCODER_PIO, &bmc_encoder_program);
     _pioConfig = bmc_encoder_program_get_default_config(_programOffset);
 

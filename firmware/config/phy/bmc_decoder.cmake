@@ -4,7 +4,7 @@
 
 target_compile_definitions(drpd-firmware PUBLIC
     PHY_BMC_DECODER_INPUT_PIN=${PIN_CC_IN}                      # Input pin for BMC decoder
-    PHY_BMC_DECODER_PIO=pio0                                    # PIO instance for BMC decoder
+    PHY_BMC_DECODER_PIO=pio1                                    # PIO instance for BMC decoder
 
     PHY_BMC_DECODER_CC_VREF_PWM_PIN=${PIN_CC_VREF_PWM}          # CC_VREF_PWM pin for voltage reference
     PHY_BMC_DECODER_CC_VREF_DEFAULT=0.6f                        # Default CC voltage reference in volts    
