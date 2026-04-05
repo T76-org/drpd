@@ -29,7 +29,7 @@ export const RowRenderer = ({
   unitHeightPx,
   maxRowWidthUnits = MAX_ROW_WIDTH_UNITS,
   instruments,
-  rackDevices,
+  activeDeviceRecord,
   deviceStates,
   isEditMode = false,
   onRemoveInstrument,
@@ -45,7 +45,7 @@ export const RowRenderer = ({
   unitHeightPx: number
   maxRowWidthUnits?: number
   instruments: Instrument[]
-  rackDevices: RackDeviceRecord[]
+  activeDeviceRecord?: RackDeviceRecord
   deviceStates: RackDeviceState[]
   isEditMode?: boolean
   onRemoveInstrument?: (instrumentId: string) => void
@@ -64,7 +64,6 @@ export const RowRenderer = ({
     // Legacy identifier support for saved rack documents created before the rename.
     instrumentMap.set('com.mta.drpd.device-status', drpdVbusInstrument)
   }
-  const deviceMap = new Map(rackDevices.map((device) => [device.id, device]))
   const deviceStateMap = new Map(
     deviceStates.map((state) => [state.record.id, state]),
   )
@@ -149,12 +148,14 @@ export const RowRenderer = ({
     >
       {row.instruments.map((instrument) => {
         const definition = instrumentMap.get(instrument.instrumentIdentifier)
-        const deviceRecord = instrument.deviceRecordId
-          ? deviceMap.get(instrument.deviceRecordId)
-          : undefined
-        const deviceState = instrument.deviceRecordId
-          ? deviceStateMap.get(instrument.deviceRecordId)
-          : undefined
+        const supportsActiveDevice = activeDeviceRecord
+          ? definition?.supportedDeviceIdentifiers.includes(activeDeviceRecord.identifier) ?? false
+          : false
+        const deviceRecord = supportsActiveDevice ? activeDeviceRecord : undefined
+        const deviceState =
+          supportsActiveDevice && activeDeviceRecord
+            ? deviceStateMap.get(activeDeviceRecord.id)
+            : undefined
         const allocation = allocationMap.get(instrument.id)
         const allocatedWidthUnits = allocation?.widthUnits ?? 1
         const allocatedHeightUnits = definition?.defaultUnits ?? 1
