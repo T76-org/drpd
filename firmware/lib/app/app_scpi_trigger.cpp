@@ -12,14 +12,9 @@
 #include <string>
 #include <vector>
 
+namespace T76::DRPD {
 
-using namespace T76::DRPD;
-
-namespace {
-
-constexpr int TriggerSCPIErrorInvalidParameter = -222;
-
-bool parseMessageTypeFilterToken(
+bool App::_parseMessageTypeFilterToken(
     const std::string &token,
     Logic::TriggerController::MessageTypeFilter &filter) {
     const size_t separatorIndex = token.find(':');
@@ -59,11 +54,13 @@ bool parseMessageTypeFilterToken(
     return true;
 }
 
-std::string formatMessageTypeFilterToken(const Logic::TriggerController::MessageTypeFilter &filter) {
+std::string App::_formatMessageTypeFilterToken(
+    const Logic::TriggerController::MessageTypeFilter &filter) {
     return std::string(filter.hasDataObjects ? "DATA:" : "CONTROL:") + std::to_string(filter.rawMessageType);
 }
 
-std::optional<Logic::TriggerController::SenderFilter> parseSenderFilterToken(const std::string &token) {
+std::optional<Logic::TriggerController::SenderFilter> App::_parseSenderFilterToken(
+    const std::string &token) {
     std::string normalized = token;
     std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
         return static_cast<char>(std::toupper(ch));
@@ -85,7 +82,7 @@ std::optional<Logic::TriggerController::SenderFilter> parseSenderFilterToken(con
     return std::nullopt;
 }
 
-std::string formatSenderFilterToken(Logic::TriggerController::SenderFilter filter) {
+std::string App::_formatSenderFilterToken(Logic::TriggerController::SenderFilter filter) {
     switch (filter) {
         case Logic::TriggerController::SenderFilter::Any:
             return "ANY";
@@ -99,9 +96,6 @@ std::string formatSenderFilterToken(Logic::TriggerController::SenderFilter filte
 
     return "ANY";
 }
-
-}
-
 
 void App::_resetTriggerController(const std::vector<T76::SCPI::ParameterValue> &params) {
     _triggerController.reset();
@@ -224,7 +218,7 @@ void App::_queryTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValu
 }
 
 void App::_setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
-    const auto filter = parseSenderFilterToken(params[0].stringValue);
+    const auto filter = _parseSenderFilterToken(params[0].stringValue);
     if (!filter.has_value()) {
         _interpreter.addError(100, "Invalid trigger sender filter");
         return;
@@ -235,7 +229,7 @@ void App::_setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterVal
 }
 
 void App::_queryTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
-    _sendTransportTextResponse(formatSenderFilterToken(_triggerController.senderFilter()));
+    _sendTransportTextResponse(_formatSenderFilterToken(_triggerController.senderFilter()));
 }
 
 void App::_queryTriggerEventCount(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -246,7 +240,7 @@ void App::_queryTriggerEventCount(const std::vector<T76::SCPI::ParameterValue> &
 void App::_setTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
     if (params.size() != 2) {
         _interpreter.addError(
-            TriggerSCPIErrorInvalidParameter,
+            _triggerSCPIErrorInvalidParameter,
             "TRIGger:EVent:MSGType:FILTer requires slot index and filter token parameters");
         return;
     }
@@ -254,23 +248,23 @@ void App::_setTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::Paramet
     const double slotValue = params[0].numberValue;
     if (slotValue < 0 || static_cast<double>(static_cast<size_t>(slotValue)) != slotValue) {
         _interpreter.addError(
-            TriggerSCPIErrorInvalidParameter,
+            _triggerSCPIErrorInvalidParameter,
             "Message type filter slot must be a non-negative integer");
         return;
     }
     const size_t slot = static_cast<size_t>(slotValue);
 
     Logic::TriggerController::MessageTypeFilter filter;
-    if (!parseMessageTypeFilterToken(params[1].stringValue, filter)) {
+    if (!_parseMessageTypeFilterToken(params[1].stringValue, filter)) {
         _interpreter.addError(
-            TriggerSCPIErrorInvalidParameter,
+            _triggerSCPIErrorInvalidParameter,
             "Invalid message type filter token; use CONTROL:<n> or DATA:<n>");
         return;
     }
 
     if (!_triggerController.setMessageTypeFilter(slot, filter)) {
         _interpreter.addError(
-            TriggerSCPIErrorInvalidParameter,
+            _triggerSCPIErrorInvalidParameter,
             "Message type filter slot is out of range, duplicates another slot, or uses an invalid type value");
         return;
     }
@@ -291,7 +285,7 @@ void App::_queryTriggerEventMessageTypeFilter(const std::vector<T76::SCPI::Param
         if (!first) {
             response += " ";
         }
-        response += formatMessageTypeFilterToken(*filter);
+        response += _formatMessageTypeFilterToken(*filter);
         first = false;
     }
 
@@ -361,7 +355,6 @@ void App::_querySyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &par
     _sendTransportTextResponse(modeStr);
 }
 
-
 void App::_setSyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t widthUs = static_cast<uint32_t>(params[0].numberValue);
     _syncManager.pulseWidth(widthUs);
@@ -372,4 +365,6 @@ void App::_setSyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &param
 void App::_querySyncPulseWidth(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t widthUs = _syncManager.pulseWidth();
     _sendTransportTextResponse(std::to_string(widthUs));
-}   
+}
+
+} // namespace T76::DRPD

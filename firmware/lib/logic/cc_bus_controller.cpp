@@ -10,26 +10,7 @@
 #include <FreeRTOS.h>
 #include <timers.h>
 
-
-using namespace T76::DRPD::Logic;
-
-namespace {
-    class SpinLockGuard {
-    public:
-        explicit SpinLockGuard(std::atomic_flag &lock) : _lock(lock) {
-            while (_lock.test_and_set(std::memory_order_acquire)) {
-            }
-        }
-
-        ~SpinLockGuard() {
-            _lock.clear(std::memory_order_release);
-        }
-
-    private:
-        std::atomic_flag &_lock;
-    };
-} // namespace
-
+namespace T76::DRPD::Logic {
 
 void CCBusController::init() {
     // Turn off the mux
@@ -463,3 +444,5 @@ void CCBusController::_updateRole(CCBusRole newRole) {
         }
     }
 }
+
+} // namespace T76::DRPD::Logic

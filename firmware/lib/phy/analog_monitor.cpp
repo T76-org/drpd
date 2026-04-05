@@ -14,20 +14,13 @@
 #include <pico/stdlib.h>
 #include <hardware/adc.h>
 
-
-using namespace T76::DRPD::PHY;
-
+namespace T76::DRPD::PHY {
 
 #define ANALOG_MONITOR_CC_SEL_PIN_MASK ((1 << PHY_ANALOG_MONITOR_CC_SENSE_SEL_0_PIN) | \
                                         (1 << PHY_ANALOG_MONITOR_CC_SENSE_SEL_1_PIN) | \
                                         (1 << PHY_ANALOG_MONITOR_CC_SENSE_SEL_2_PIN))
 
 #define SELECT_PIN_MASK_FOR_CHANNEL(channel) gpio_put_masked(ANALOG_MONITOR_CC_SEL_PIN_MASK, _CCLinePinMaskMap[static_cast<size_t>(channel)])
-
-namespace {
-    constexpr uint64_t ChargeMahDenominator = 360000000ULL;
-    constexpr uint64_t EnergyMwhDenominator = 36000000000ULL;
-}
 
 void AnalogMonitor::init() {
     adc_init(); // Initialize ADC hardware
@@ -108,8 +101,8 @@ void AnalogMonitor::readVBusValues() {
 
         if (_readings.accumulatedChargeMah < std::numeric_limits<uint32_t>::max()) {
             _chargeAccumulationResidue += absoluteCurrentCentiA * deltaUs;
-            uint64_t additionalChargeMah = _chargeAccumulationResidue / ChargeMahDenominator;
-            _chargeAccumulationResidue %= ChargeMahDenominator;
+            uint64_t additionalChargeMah = _chargeAccumulationResidue / _chargeMahDenominator;
+            _chargeAccumulationResidue %= _chargeMahDenominator;
 
             if (additionalChargeMah > 0) {
                 uint64_t remainingChargeMah =
@@ -125,8 +118,8 @@ void AnalogMonitor::readVBusValues() {
 
         if (_readings.accumulatedEnergyMwh < std::numeric_limits<uint32_t>::max()) {
             _energyAccumulationResidue += voltageCentiV * absoluteCurrentCentiA * deltaUs;
-            uint64_t additionalEnergyMwh = _energyAccumulationResidue / EnergyMwhDenominator;
-            _energyAccumulationResidue %= EnergyMwhDenominator;
+            uint64_t additionalEnergyMwh = _energyAccumulationResidue / _energyMwhDenominator;
+            _energyAccumulationResidue %= _energyMwhDenominator;
 
             if (additionalEnergyMwh > 0) {
                 uint64_t remainingEnergyMwh =
@@ -309,3 +302,5 @@ float AnalogMonitor::_applyVBusVoltageCalibration(float rawScaledVoltage) const 
 
     return clampedRawVoltage + interpolatedCorrection;
 }
+
+} // namespace T76::DRPD::PHY

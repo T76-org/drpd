@@ -251,6 +251,32 @@ namespace T76::DRPD::Logic {
         void sinkInfoChanged(SinkInfoChangedCallback callback);
 
     protected:
+        /**
+         * @brief Simple spin-lock guard for short callback-registry critical sections.
+         */
+        class SpinLockGuard {
+        public:
+            /**
+             * @brief Acquire the supplied atomic-flag lock.
+             *
+             * @param lock Atomic flag used as the lock primitive.
+             */
+            explicit SpinLockGuard(std::atomic_flag &lock) : _lock(lock) {
+                while (_lock.test_and_set(std::memory_order_acquire)) {
+                }
+            }
+
+            /**
+             * @brief Release the held atomic-flag lock.
+             */
+            ~SpinLockGuard() {
+                _lock.clear(std::memory_order_release);
+            }
+
+        protected:
+            std::atomic_flag &_lock; ///< Referenced callback-registry lock.
+        };
+
         PHY::AnalogMonitor &_analogMonitor;     ///< Reference to the AnalogMonitor instance
         PHY::CCBusManager &_ccBusManager;       ///< Reference to the CCBusManager instance
         PHY::CCRoleManager &_ccRoleManager;     ///< Reference to the CCRoleManager instance
