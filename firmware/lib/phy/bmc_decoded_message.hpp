@@ -193,6 +193,7 @@ namespace T76::DRPD::PHY {
         uint64_t _startTimestamp;                                               ///< Timestamp of the message reception. Timed to the first preamble pulse.
         uint64_t _endTimestamp;                                                 ///< Timestamp of the end of the message reception.
         bool _hasIngressTimestamp;                                              ///< True when frame-start metadata was attached to this decode attempt.
+        uint64_t _capturedPulseWidthPIOCycles;                                  ///< Sum of captured pulse widths for the current receive attempt.
 
         uint32_t _carrierPulseLength;                                           ///< Carrier pulse length in PIO cycles
         uint32_t _carrierPulseHighBitThreshold;                                 ///< Threshold to distinguish between high and low bits
@@ -235,6 +236,7 @@ namespace T76::DRPD::PHY {
          * @return true if a full K-code has been accumulated, false otherwise
          */
         bool _processBit(uint32_t edge);
+        void _markEndTimestampFromCapturedPulses();
 
         /**
          * @brief Process an edge in the ReadingPreamble state
