@@ -2,6 +2,29 @@
 ; Copyright (c) 2025 MTA, Inc.
 ;
 ; BMC decoder PIO program
+;
+; This state machine measures the time between CC-line transitions by loading
+; X from the timeout value in Y, decrementing X while waiting for the next
+; edge, and pushing the remaining count into the RX FIFO when the edge is
+; observed. Software later converts that remaining-count value back into a
+; pulse width.
+;
+; The program starts in an idle-detect state (`start`) that waits for the line
+; to return low, then waits for the first high transition of a new frame. That
+; first post-idle edge is treated specially:
+;
+; - `IRQ 1` notifies the CPU immediately so Core 1 can latch an ingress
+;   timestamp with low and stable latency.
+; - `MOV ISR, ~NULL` / `PUSH` emits an all-ones frame-start marker into the RX
+;   FIFO so the software decoder can align the latched timestamp with the next
+;   decode attempt.
+; - The measured first pulse width is then pushed like any other edge.
+;
+; After that special first edge, the state machine alternates between
+; `wait_for_low` and `wait_for_high`, pushing one timing sample per observed
+; transition. If no transition arrives before X counts down to zero, the
+; program pushes 0 as a timeout sentinel and jumps back to `start`, which marks
+; the next detected edge as a new frame start again.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 .program bmc_decoder
@@ -10,24 +33,28 @@ start:
     WAIT 1 PIN 0                ; Wait for pin to go low
     WAIT 0 PIN 0                ; Wait for pin to go low
 
-.wrap_target
     MOV X, Y                    ; Load X with max count for timeout
 
-wait_for_high:
-    JMP PIN, high_detected      ; If pin is high, we detected a high
-    JMP X--, wait_for_high      ; Otherwise, decrement X and loop
+wait_for_first_high:
+    JMP PIN, first_high_detected ; If pin is high, we detected frame start
+    JMP X--, wait_for_first_high ; Otherwise, decrement X and loop
 
-high_wait_overflow:
+first_high_wait_overflow:
 
     MOV ISR, NULL
     PUSH                        ; Push 0 if timeout occurred
 
     JMP start                   ; Restart waiting for high
 
-high_detected:
+first_high_detected:
+    IRQ 1                       ; Latch frame start timestamp in CPU interrupt path
+    MOV ISR, ~NULL
+    PUSH                        ; Push frame-start marker into the DMA stream
+
     MOV ISR, X                  ; Store remaining count in ISR
     PUSH                        ; Push to FIFO, then wait for low
 
+.wrap_target
     MOV X, Y                    ; Load X with max count for timeout 
 
 wait_for_low:
@@ -45,3 +72,20 @@ check_low:
 low_detected:
     MOV ISR, X                  ; Store remaining count in ISR    
     PUSH                        ; Push to FIFO, then wait for high
+
+    MOV X, Y                    ; Load X with max count for timeout
+
+wait_for_high:
+    JMP PIN, high_detected      ; If pin is high, we detected a high
+    JMP X--, wait_for_high      ; Otherwise, decrement X and loop
+
+high_wait_overflow:
+    MOV ISR, NULL
+    PUSH                        ; Push 0 if timeout occurred
+
+    JMP start                   ; Restart waiting for high
+
+high_detected:
+    MOV ISR, X                  ; Store remaining count in ISR
+    PUSH                        ; Push to FIFO, then wait for low
+.wrap

@@ -21,6 +21,10 @@ BMCDecodedMessage::BMCDecodedMessage() {
 
 void BMCDecodedMessage::reset() {
     _result = BMCDecodedMessageResult::Incomplete;
+    _startTimestamp = InvalidTimestamp;
+    _endTimestamp = InvalidTimestamp;
+    _hasIngressTimestamp = false;
+    _capturedPulseWidthPIOCycles = 0;
 
     _carrierPulseLength = 0;
     _carrierPulseHighBitThreshold = 0;
@@ -53,9 +57,10 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
     // First, invert the pulse width, since the PIO program counts downwards
 
     pulseWidth = TimeoutPulseWidthPIOCycles - pulseWidth; 
+    _capturedPulseWidthPIOCycles += pulseWidth;
 
     if (_pulseBufferLength >= PHY_BMC_DECODER_MAX_MESSAGE_PULSE_BUFFER_SIZE) {
-        _endTimestamp = time_us_64();
+        _markEndTimestampFromCapturedPulses();
         _result = BMCDecodedMessageResult::InvalidKCode;
         return BMCDecodedMessageEvent::InvalidKCodeError;
     }
@@ -63,6 +68,7 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
     _pulseBuffer[_pulseBufferLength++] = pulseWidth;
 
     if (pulseWidth >= TimeoutPulseWidthPIOCycles) {
+        _markEndTimestampFromCapturedPulses();
         _result = BMCDecodedMessageResult::Timeout;
 
         if (_dataLength == 0) {
@@ -71,6 +77,7 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
 
         return BMCDecodedMessageEvent::TimeoutError;
     } else if (pulseWidth < RuntPulseWidthPIOCycles) {
+        _markEndTimestampFromCapturedPulses();
         _result = BMCDecodedMessageResult::RuntPulse;
         return BMCDecodedMessageEvent::RuntPulseError;
     } else {
@@ -92,6 +99,15 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
 
 BMCDecodedMessageResult BMCDecodedMessage::decodingResult() const {
     return _result;
+}
+
+void BMCDecodedMessage::ingressTimestamp(uint64_t timestamp) {
+    _startTimestamp = timestamp;
+    _hasIngressTimestamp = true;
+}
+
+bool BMCDecodedMessage::hasIngressTimestamp() const {
+    return _hasIngressTimestamp;
 }
 
 const uint8_t (&BMCDecodedMessage::sop() const)[4] {
@@ -200,7 +216,6 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInPreambleState(uin
     }
 
     if (_decoderState.carrierEntryCount == 1) {
-        _startTimestamp = time_us_64();
         return BMCDecodedMessageEvent::PreambleStart;
     }
 
@@ -221,7 +236,7 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInReadingSOPState(u
             // Check if we're dealing with a hard reset
 
             if (_decodedSOP.type() == Proto::SOP::SOPType::HardReset) {
-                _endTimestamp = time_us_64();
+                _markEndTimestampFromCapturedPulses();
                 _result = BMCDecodedMessageResult::Success;
                 return BMCDecodedMessageEvent::HardResetReceived;
             }
@@ -243,7 +258,7 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInReadingSOPState(u
         if (_decoderState.kCodeAccumulator == EOP_5B_VALUE) {
             // End of Packet detected, finalize message
 
-            _endTimestamp = time_us_64();
+            _markEndTimestampFromCapturedPulses();
 
             // Check the CRC
             if (!_validateCRC()) {
@@ -259,7 +274,7 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInReadingSOPState(u
 
         if (decodedNibble == INVALID_5B_VALUE) {
             // Invalid K-code detected
-            _endTimestamp = time_us_64();
+            _markEndTimestampFromCapturedPulses();
             _result = BMCDecodedMessageResult::InvalidKCode;
 
             return BMCDecodedMessageEvent::InvalidKCodeError;
@@ -275,7 +290,7 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInReadingSOPState(u
             _decoderState.processingLSNibble = false;
         } else {
             if (_dataLength >= PHY_BMC_DECODER_MAX_MESSAGE_DATA_SIZE) {
-                _endTimestamp = time_us_64();
+                _markEndTimestampFromCapturedPulses();
                 _result = BMCDecodedMessageResult::InvalidKCode;
                 return BMCDecodedMessageEvent::InvalidKCodeError;
             }
@@ -322,4 +337,17 @@ bool BMCDecodedMessage::_validateCRC() const {
     }
 
     return (crc ^ 0xffffffff) == receivedCRC;
+}
+
+void BMCDecodedMessage::_markEndTimestampFromCapturedPulses() {
+    if (!_hasIngressTimestamp || _startTimestamp == InvalidTimestamp) {
+        _endTimestamp = time_us_64();
+        return;
+    }
+
+    const uint64_t totalNanoseconds =
+        (_capturedPulseWidthPIOCycles * 2ull * 1'000'000'000ull) /
+        static_cast<uint64_t>(PHY_BMC_DECODER_PIO_CLOCK_HZ);
+    const uint64_t durationMicros = totalNanoseconds / 1'000ull;
+    _endTimestamp = _startTimestamp + durationMicros;
 }

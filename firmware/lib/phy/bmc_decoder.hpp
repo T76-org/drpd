@@ -9,11 +9,32 @@
  * from a specified input pin and writes it to its RX FIFO. The high-level
  * threshold is determined by a PWM-generated reference voltage on a separate pin.
  * 
- * Separately, we set up a chained DMA configuration to transfer the pulse
- * timing data from the PIO RX FIFO to a circular buffer in RAM.
+ * The receive path is split into two parts:
  * 
- * At regular intervals, a timer callback processes the data in the circular
- * buffer, feeding pulse timings to a BMCDecodedMessage instance for decoding.
+ * 1. The PIO state machine measures successive high/low pulse widths and
+ *    pushes those widths into its RX FIFO.
+ * 2. A chained DMA configuration continuously copies FIFO entries into a
+ *    circular buffer in RAM for later software decoding.
+ * 
+ * To improve message start timestamps, the PIO program emits a dedicated
+ * frame-start marker on the first edge seen after an idle period and raises
+ * a PIO IRQ at the same moment. The IRQ handler runs immediately on Core 1,
+ * latches a monotonic timestamp, and pushes that timestamp into a small
+ * metadata ring. The marker itself is carried through the same DMA-backed
+ * pulse stream as normal edge widths.
+ * 
+ * Later, when the decoder loop drains the DMA circular buffer, it consumes
+ * frame-start markers before handing pulse widths to BMCDecodedMessage. Each
+ * marker causes the next latched ingress timestamp to be attached to the
+ * current decode attempt. This keeps startTimestamp aligned with the first
+ * physical edge of the receive attempt instead of the later moment when
+ * software notices preamble start.
+ * 
+ * The timestamp is bound to the decode attempt, not just to successful
+ * messages. As a result, runt pulses, timeouts, CRC errors, and other terminal
+ * decode outcomes preserve the original ingress timestamp. If the timestamp
+ * ring overflows, the decoder injects an invalid-timestamp placeholder so later
+ * messages remain aligned with their own frame-start markers.
  * 
  */
 
@@ -50,6 +71,12 @@ namespace T76::DRPD::PHY {
      */
     class BMCDecoder {
     public:
+        struct IngressTimestampDiagnostics {
+            uint32_t rxFrameStartEvents = 0;
+            uint32_t rxTimestampFifoOverflow = 0;
+            uint32_t rxTimestampMissing = 0;
+        };
+
         typedef std::function<void(const BMCDecodedMessage &)> MessageReceivedCallback;
         typedef std::function<void(const BMCDecodedMessage *)> MessageReceivedCallbackByPointer;
         typedef std::function<void(const BMCDecodedMessageEvent &, BMCDecodedMessage&)> MessageEventCallback;
@@ -161,6 +188,13 @@ namespace T76::DRPD::PHY {
         float ccThresholdVoltage() const;
 
         /**
+         * @brief Return current ingress timestamp diagnostics counters.
+         *
+         * @return IngressTimestampDiagnostics Snapshot of decoder counters.
+         */
+        IngressTimestampDiagnostics ingressTimestampDiagnostics() const;
+
+        /**
          * @brief Run one Core-1 decoding iteration.
          *
          * Processes unread pulse widths from the DMA circular buffer and
@@ -169,6 +203,9 @@ namespace T76::DRPD::PHY {
         void loopCore1();
 
     protected:
+        static constexpr uint32_t FrameStartMarker = 0xffff'ffffu;
+        static constexpr uint8_t IngressTimestampQueueLength = 16;
+
         float _ccThresholdVoltage = PHY_BMC_DECODER_CC_VREF_DEFAULT; ///< Carrier CC threshold voltage
         uint16_t _pwmWrapValue; ///< Wrap value for the PWM channel; used to update the CC threshold voltage
 
@@ -189,6 +226,12 @@ namespace T76::DRPD::PHY {
 
         BMCDecodedMessage* _currentMessage = nullptr; ///< Pointer to the current message being processed
 
+        uint64_t _ingressTimestampQueue[IngressTimestampQueueLength] = {}; ///< Queue of latched frame-start timestamps.
+        volatile uint8_t _ingressTimestampHead = 0; ///< Producer index for ingress timestamp queue.
+        volatile uint8_t _ingressTimestampTail = 0; ///< Consumer index for ingress timestamp queue.
+        volatile uint32_t _pendingMissingIngressTimestamps = 0; ///< Count of invalid placeholders injected after queue overflow.
+        volatile IngressTimestampDiagnostics _ingressTimestampDiagnostics = {}; ///< Ingress timestamp diagnostics counters.
+
         MessageReceivedCallback _messageReceivedCallbackCore0 = nullptr; ///< Callback function for received messages on core 0
         MessageReceivedCallbackByPointer _messageReceivedCallbackCore1 = nullptr; ///< Callback function for received messages on core 1
         MessageEventCallback _messageEventCallback = nullptr; ///< Callback function for message events
@@ -201,6 +244,9 @@ namespace T76::DRPD::PHY {
          * a user-defined callback function when a message is received.
          */
         void _processingTask();
+
+        void _handleFrameStartIRQ();
+        bool _consumeFrameStartTimestamp(uint64_t &timestamp);
     };
 
 } // namespace T76::DRPD::PHY

@@ -154,9 +154,9 @@ namespace T76::DRPD::PHY {
 
     protected:
         pio_sm_config _pioConfig;   ///< PIO state machine configuration
-        uint _stateMachine;         ///< PIO state machine index
-        uint _programOffset;        ///< Offset of the BMC encoder program in PIO memory
-        int _dmaChannel;            ///< DMA channel used for data transfer
+        uint _stateMachine = 0;     ///< PIO state machine index
+        uint _programOffset = 0;    ///< Offset of the BMC encoder program in PIO memory
+        int _dmaChannel = -1;       ///< DMA channel used for data transfer
 
         queue_t _messageQueue; ///< Thread-safe queue of outgoing encoded messages.
         repeating_timer_t _transmissionTimer; ///< Repeating timer for managing transmissions
