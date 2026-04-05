@@ -21,6 +21,9 @@ BMCDecodedMessage::BMCDecodedMessage() {
 
 void BMCDecodedMessage::reset() {
     _result = BMCDecodedMessageResult::Incomplete;
+    _startTimestamp = InvalidTimestamp;
+    _endTimestamp = InvalidTimestamp;
+    _hasIngressTimestamp = false;
 
     _carrierPulseLength = 0;
     _carrierPulseHighBitThreshold = 0;
@@ -63,6 +66,7 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
     _pulseBuffer[_pulseBufferLength++] = pulseWidth;
 
     if (pulseWidth >= TimeoutPulseWidthPIOCycles) {
+        _endTimestamp = time_us_64();
         _result = BMCDecodedMessageResult::Timeout;
 
         if (_dataLength == 0) {
@@ -71,6 +75,7 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
 
         return BMCDecodedMessageEvent::TimeoutError;
     } else if (pulseWidth < RuntPulseWidthPIOCycles) {
+        _endTimestamp = time_us_64();
         _result = BMCDecodedMessageResult::RuntPulse;
         return BMCDecodedMessageEvent::RuntPulseError;
     } else {
@@ -92,6 +97,15 @@ BMCDecodedMessageEvent BMCDecodedMessage::feedPulse(uint32_t pulseWidth) {
 
 BMCDecodedMessageResult BMCDecodedMessage::decodingResult() const {
     return _result;
+}
+
+void BMCDecodedMessage::ingressTimestamp(uint64_t timestamp) {
+    _startTimestamp = timestamp;
+    _hasIngressTimestamp = true;
+}
+
+bool BMCDecodedMessage::hasIngressTimestamp() const {
+    return _hasIngressTimestamp;
 }
 
 const uint8_t (&BMCDecodedMessage::sop() const)[4] {
@@ -200,7 +214,6 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInPreambleState(uin
     }
 
     if (_decoderState.carrierEntryCount == 1) {
-        _startTimestamp = time_us_64();
         return BMCDecodedMessageEvent::PreambleStart;
     }
 

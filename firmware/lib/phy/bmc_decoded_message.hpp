@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <span>
 
 #include "../proto/pd_header.hpp"
@@ -94,6 +95,20 @@ namespace T76::DRPD::PHY {
             return _endTimestamp;
         }
 
+        /**
+         * @brief Attach the ingress timestamp latched at frame start.
+         *
+         * @param timestamp Timestamp in microseconds, or InvalidTimestamp.
+         */
+        void ingressTimestamp(uint64_t timestamp);
+
+        /**
+         * @brief Check whether frame-start metadata was attached to this message.
+         *
+         * @return true if frame-start metadata is attached, even if the timestamp is invalid.
+         */
+        bool hasIngressTimestamp() const;
+
         /** 
          * @brief Get the Start of Packet (SOP) bytes
          * 
@@ -159,6 +174,8 @@ namespace T76::DRPD::PHY {
         // Same thing, but for runt pulses
         static const uint32_t RuntPulseWidthPIOCycles = uint32_t(PHY_BMC_DECODER_RUNT_PULSE_WIDTH_NS * PHY_BMC_DECODER_PIO_CLOCK_HZ / 1'000'000'000 / 2);
 
+        static constexpr uint64_t InvalidTimestamp = std::numeric_limits<uint64_t>::max();
+
     protected:
         /** 
          * @brief Internal state of the decoder
@@ -175,6 +192,7 @@ namespace T76::DRPD::PHY {
 
         uint64_t _startTimestamp;                                               ///< Timestamp of the message reception. Timed to the first preamble pulse.
         uint64_t _endTimestamp;                                                 ///< Timestamp of the end of the message reception.
+        bool _hasIngressTimestamp;                                              ///< True when frame-start metadata was attached to this decode attempt.
 
         uint32_t _carrierPulseLength;                                           ///< Carrier pulse length in PIO cycles
         uint32_t _carrierPulseHighBitThreshold;                                 ///< Threshold to distinguish between high and low bits
@@ -257,4 +275,3 @@ namespace T76::DRPD::PHY {
     };
 
 } // namespace T76::DRPD::PHY
-

@@ -12,8 +12,10 @@
 #include <task.h>
 
 #include <hardware/dma.h>
+#include <hardware/irq.h>
 #include <hardware/pio.h>
 #include <hardware/pwm.h>
+#include <hardware/sync.h>
 #include <stdio.h>
 
 #include "bmc_decoder.pio.h"
@@ -21,6 +23,10 @@
 
 
 using namespace T76::DRPD::PHY;
+
+namespace {
+    BMCDecoder *g_bmcDecoderIRQOwner = nullptr;
+}
 
 
 BMCDecoder::BMCDecoder() : 
@@ -107,6 +113,18 @@ void BMCDecoder::initCore1() {
     pio_sm_put_blocking(PHY_BMC_DECODER_PIO, _stateMachine, BMCDecodedMessage::TimeoutPulseWidthPIOCycles);
     pio_sm_exec_wait_blocking(PHY_BMC_DECODER_PIO, _stateMachine, pio_encode_pull(false, true));
     pio_sm_exec_wait_blocking(PHY_BMC_DECODER_PIO, _stateMachine, pio_encode_mov(pio_y, pio_osr));
+
+    g_bmcDecoderIRQOwner = this;
+    pio_interrupt_clear(PHY_BMC_DECODER_PIO, 1);
+    pio_set_irq1_source_enabled(PHY_BMC_DECODER_PIO, pis_interrupt1, true);
+
+    uint irqNum = pio_get_irq_num(PHY_BMC_DECODER_PIO, 1);
+    irq_set_exclusive_handler(irqNum, []() {
+        if (g_bmcDecoderIRQOwner) {
+            g_bmcDecoderIRQOwner->_handleFrameStartIRQ();
+        }
+    });
+    irq_set_enabled(irqNum, true);
 
     // Set up a circular buffer using chained DMA channels. The PIO program 
     // writes pulse timing information to the data buffer via the data DMA 
@@ -229,11 +247,31 @@ float BMCDecoder::ccThresholdVoltage() const {
     return _ccThresholdVoltage;
 }
 
+BMCDecoder::IngressTimestampDiagnostics BMCDecoder::ingressTimestampDiagnostics() const {
+    IngressTimestampDiagnostics diagnostics;
+    diagnostics.rxFrameStartEvents = _ingressTimestampDiagnostics.rxFrameStartEvents;
+    diagnostics.rxTimestampFifoOverflow = _ingressTimestampDiagnostics.rxTimestampFifoOverflow;
+    diagnostics.rxTimestampMissing = _ingressTimestampDiagnostics.rxTimestampMissing;
+    return diagnostics;
+}
+
 void BMCDecoder::loopCore1() {
     uint32_t completedTransferCount = (PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE - dma_hw->ch[_dataDMAChannel].transfer_count) % PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE;
 
     while (_transferCount != completedTransferCount) {
         uint32_t pulseWidth = _circularBuffer[_transferCount];
+
+        if (pulseWidth == FrameStartMarker) {
+            uint64_t ingressTimestamp = BMCDecodedMessage::InvalidTimestamp;
+            if (_consumeFrameStartTimestamp(ingressTimestamp)) {
+                _currentMessage->ingressTimestamp(ingressTimestamp);
+            } else {
+                _currentMessage->ingressTimestamp(BMCDecodedMessage::InvalidTimestamp);
+            }
+
+            _transferCount = (_transferCount + 1) % PHY_BMC_DECODER_CIRCULAR_BUFFER_SIZE;
+            continue;
+        }
 
         BMCDecodedMessageEvent messageEvent = _currentMessage->feedPulse(pulseWidth);
 
@@ -244,10 +282,10 @@ void BMCDecoder::loopCore1() {
         }
 
         if (BMC_DECODED_MESSAGE_EVENT_IS_COMPLETION(messageEvent)) {
-            if (_currentMessage->data().size() > 0) {
+            const bool shouldPublish = _currentMessage->hasIngressTimestamp() || _currentMessage->data().size() > 0;
+            if (shouldPublish) {
                 if (messageEvent == BMCDecodedMessageEvent::MessageComplete ||
                     messageEvent == BMCDecodedMessageEvent::HardResetReceived) {
-                    BMCDecoder::MessageReceivedCallbackByPointer messageReceivedCallback = nullptr;
                     if (_messageReceivedCallbackCore1) {
                         _messageReceivedCallbackCore1(_currentMessage);
                     }
@@ -289,4 +327,45 @@ void BMCDecoder::_processingTask() {
             _messageReceivedCallbackCore0(*messagePtr);
         }
     }
+}
+
+void BMCDecoder::_handleFrameStartIRQ() {
+    pio_interrupt_clear(PHY_BMC_DECODER_PIO, 1);
+
+    _ingressTimestampDiagnostics.rxFrameStartEvents++;
+
+    const uint64_t timestamp = time_us_64();
+    const uint8_t nextHead = static_cast<uint8_t>((_ingressTimestampHead + 1) % IngressTimestampQueueLength);
+
+    if (nextHead == _ingressTimestampTail) {
+        _ingressTimestampTail = static_cast<uint8_t>((_ingressTimestampTail + 1) % IngressTimestampQueueLength);
+        _pendingMissingIngressTimestamps++;
+        _ingressTimestampDiagnostics.rxTimestampFifoOverflow++;
+    }
+
+    _ingressTimestampQueue[_ingressTimestampHead] = timestamp;
+    _ingressTimestampHead = nextHead;
+}
+
+bool BMCDecoder::_consumeFrameStartTimestamp(uint64_t &timestamp) {
+    const uint32_t irqState = save_and_disable_interrupts();
+
+    if (_pendingMissingIngressTimestamps > 0) {
+        _pendingMissingIngressTimestamps--;
+        _ingressTimestampDiagnostics.rxTimestampMissing++;
+        restore_interrupts(irqState);
+        return false;
+    }
+
+    if (_ingressTimestampHead == _ingressTimestampTail) {
+        _ingressTimestampDiagnostics.rxTimestampMissing++;
+        restore_interrupts(irqState);
+        return false;
+    }
+
+    timestamp = _ingressTimestampQueue[_ingressTimestampTail];
+    _ingressTimestampTail = static_cast<uint8_t>((_ingressTimestampTail + 1) % IngressTimestampQueueLength);
+
+    restore_interrupts(irqState);
+    return true;
 }
