@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend</title>
+    <style>
+        html, body {
+            background: #000;
+        }
+        #root {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding:20px;
+        }
+
+        .widget-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 1rem;
+        }
+
+        @media (max-width: 940px) {
+            .widget-container {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+
+            .widget-container .widget-container {
+                grid-template-columns: repeat(2, minmax(100px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .widget-container {
+                grid-template-columns: repeat(4, minmax(100px, 1fr));
+            }
+
+            .widget-container .widget-container {
+                grid-template-columns: repeat(1, minmax(100px, 1fr));
+            }
+        }
+      
+        @media (max-width: 480px) {
+            .widget-container {
+                grid-template-columns: repeat(2, minmax(100px, 1fr));
+            }
+
+            .widget-container .widget-container {
+                grid-template-columns: repeat(1, minmax(100px, 1fr));
+            }
+        }
+
+        .widget {
+            container-type: inline-size;
+            container-name: widget;
+            width: 100%;
+            height: 100%;
+            border: none;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(4px, 3cqw, 16px);
+            box-sizing: border-box;
+            background-color: #fff;
+            color: #000;
+        }
+    
+        .widget-header {
+            width: 100%;
+            text-align: center;
+        }
+
+        .widget-header h2 {
+            /* Scales with widget width; clamp keeps readable bounds */
+            font-size: clamp(0.75rem, 25cqw, 4rem);
+            font-weight: bold;
+            margin: 0;
+            line-height: 1.1;
+        }
+
+        .widget-content {
+            width: 100%;
+            text-align: center;
+        }
+
+        .widget-content p {
+            font-size: clamp(1rem, 10cqw, 2rem);
+            margin: 0.5em 0 0;
+            line-height: 1.3;
+        }
+
+        .widget-state-alert {
+            background-color: red;
+        }
+        .widget-state-warning {
+            background-color: yellow;
+        }
+        .widget-state-ok {
+            background-color: green;
+        }
+        .widget.widget-state-ok,
+        .widget.widget-state-alert { 
+            color: #fff;
+        }
+code {
+    font-size: 12px;
+    font-family: monospace;
+    text-align: left;
+}
+.log-console-line {
+    display: block;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+</style>
+</head>
+
+<body>
+    <div id="root">
+
+        <div class="widget-container">
+            <div class="widget widget-wide">
+                <div class="widget-header">
+                    <h2>10%</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-tall">
+                <div class="widget-header">
+                    <h2>100V @ 10A</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-square widget-state-ok">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-square widget-state-ok">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-square widget-state-ok">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+
+            <div class="widget widget-square widget-state-ok">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-square widget-state-ok">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="widget-container">
+            <div class="widget widget-wide">
+                <div class="widget-header">
+                    <h2>Log Console</h2>
+                </div>
+                <div class="widget-content">
+                     <code>
+                            <span class="log-console-line">2026-04-08 12:00:00</span>
+                            <span class="log-console-line">This is a log message</span>
+                            <span class="log-console-line">This is a log message</span>
+                            <span class="log-console-line">This is a log message</span>
+                            <span class="log-console-line">This is a log message</span>
+                            <span class="log-console-line">This is a log message</span>
+                            <span class="log-console-line">This is a log message</span>
+                    </code>
+                </div>
+            </div>
+        </div>
+
+        <div class="widget-container">
+            <div class="widget-container">
+                <div class="widget widget-wide widget-state-warning">
+                    <div class="widget-header">
+                        <h2>50%</h2>
+                    </div>
+                    <div class="widget-content">
+                        <p>This is a widget</p>
+                    </div>
+                </div>
+                <div class="widget widget-wide">
+                    <div class="widget-header">
+                        <h2>100V @ 10A</h2>
+                    </div>
+                    <div class="widget-content">
+                        <p>This is a widget</p>
+                    </div>
+                </div>
+                <div class="widget widget-square widget-state-alert">
+                    <div class="widget-header">
+                        <h2>40V @ 10A</h2>
+                    </div>
+                    <div class="widget-content">
+                        <p>This is a widget</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="widget-container">
+            <div class="widget widget-wide">
+                <div class="widget-header">
+                    <h2>10%</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-tall">
+                <div class="widget-header">
+                    <h2>100V @ 10A</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            </div>
+                       <div class="widget widget-square">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-square">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-square">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+
+            <div class="widget widget-square">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+            <div class="widget widget-square">
+                <div class="widget-header">
+                    <h2>UP</h2>
+                </div>
+                <div class="widget-content">
+                    <p>This is a widget</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

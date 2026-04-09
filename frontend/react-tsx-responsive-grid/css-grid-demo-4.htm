@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend</title>
+    
+    <style>
+  html, body {
+            background: #000;
+        }
+
+#root {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 20px;
+  }
+  .grid {
+  display: grid;
+  grid-gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(250px,1fr));
+  grid-auto-rows: 20px;
+}
+
+/* Non-grid specific CSS */  
+body {
+  margin: 10px;
+  color: #374046;
+  background-color: #374046;
+  font-family: 'Open Sans Condensed', sans-serif;
+  font-size: 1.15em;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.item {
+  background-color: #ffffff;
+}
+
+.photothumb{
+  width: 100%;
+}
+
+.title {
+  padding: 20px;
+ }
+
+.title h3{
+  font-size: 1.2em;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.project .title{
+  background-color: #607D8B;
+}
+
+.blog .title{
+  background-color: #ff9800;
+}
+
+.photo .title{
+  background-color: #f44336;
+}
+
+.desc{
+  padding: 10px 10px 5px 10px;
+}
+
+.desc img{
+  width: 50%;
+  margin: 0 10px 10px 0;
+  float: left;
+}
+
+.desc p{
+  margin-bottom: 10px;
+}
+</style>
+</head>
+
+<body>
+
+    <div id="root">
+
+<div class="grid">
+  <div class="item blog">
+    <div class="content">
+      <div class="title">
+        <h3>UP</h3>
+      </div>
+      <div class="desc">
+        Service is up and running.
+      </div>
+    </div>
+  </div>
+  <div class="item photo">
+    <div class="content">
+      <div class="title">
+        <h3>CPU Usage</h3>
+      </div>
+      <img class="photothumb" src="https://assets.codepen.io/881020/dog1.jpg">
+      <div class="desc">
+        CPU usage is 50%.
+        Add some more text here to see how it looks.
+        Add some more text here to see how it looks.
+        Add some more text here to see how it looks.
+      </div>
+    </div>
+  </div>
+  <div class="item photo">
+    <div class="content">
+      <div class="title">
+        <h3>3: Photo</h3>
+      </div>
+      
+      <div class="desc">
+        Memory usage is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item project">
+    <div class="content">
+      <div class="title">
+        <h3>Disk Usage</h3>
+      </div>
+      <div class="desc">
+        
+        Disk usage is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item project">
+    <div class="content">
+      <div class="title">
+        <h3>Network Usage</h3>
+      </div>
+      <div class="desc">
+        Network usage is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item blog">
+    <div class="content">
+      <div class="title">
+        <h3>Temperature</h3>
+      </div>
+      <div class="desc">
+        Temperature is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item project">
+    <div class="content">
+      <div class="title">
+        <h3>Humidity</h3>
+      </div>
+      <div class="desc">
+        Humidity is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item blog">
+    <div class="content">
+      <div class="title">
+        <h3>Pressure</h3>
+      </div>
+      <div class="desc">
+        Pressure is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item photo">
+    <div class="content">
+      <div class="title">
+        <h3>Voltage</h3>
+      </div>
+      
+      <div class="desc">
+        Voltage is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item blog">
+    <div class="content">
+      <div class="title">
+        <h3>Current</h3>
+      </div>
+      <div class="desc">
+        Current is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item photo">
+    <div class="content">
+      <div class="title">
+        <h3>Power</h3>
+      </div>
+      
+      <div class="desc">
+        Power is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item project">
+    <div class="content">
+      <div class="title">
+        <h3>Energy</h3>
+      </div>
+      <div class="desc">
+        
+        Energy is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item blog">
+    <div class="content">
+      <div class="title">
+            <h3>Frequency</h3>
+      </div>
+      <div class="desc">
+        Frequency is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item photo">
+    <div class="content">
+      <div class="title">
+        <h3>Phase</h3>
+      </div>
+      
+      <div class="desc">
+        Phase is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item photo">
+    <div class="content">
+      <div class="title">
+        <h3>Power Factor</h3>
+      </div>
+      
+      <div class="desc">
+        Power factor is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item project">
+    <div class="content">
+      <div class="title">
+        <h3>Reactive Power</h3>
+      </div>
+      <div class="desc">
+        
+        Reactive power is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item project">
+    <div class="content">
+      <div class="title">
+        <h3>Apparent Power</h3>
+      </div>
+      <div class="desc">
+        
+        Apparent power is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item blog">
+    <div class="content">
+      <div class="title">
+        <h3>Real Power</h3>
+      </div>
+      <div class="desc">
+        Real power is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item project">
+    <div class="content">
+      <div class="title">
+        <h3>Power Factor</h3>
+      </div>
+      <div class="desc">
+        
+        Power factor is 50%.
+      </div>
+    </div>
+  </div>
+  <div class="item blog">
+    <div class="content">
+      <div class="title">
+        <h3>Power Quality</h3>
+      </div>
+      <div class="desc">
+        Power quality is 50%.
+      </div>
+    </div>
+  </div>
+
+  </div>
+  
+</div>
+
+    </div>
+
+    <script>
+      function resizeGridItem(item){
+  grid = document.getElementsByClassName("grid")[0];
+  rowHeight = parseInt(window.getComputedStyle(grid).getPropertyValue('grid-auto-rows'));
+  rowGap = parseInt(window.getComputedStyle(grid).getPropertyValue('grid-row-gap'));
+  rowSpan = Math.ceil((item.querySelector('.content').getBoundingClientRect().height+rowGap)/(rowHeight+rowGap));
+    item.style.gridRowEnd = "span "+rowSpan;
+}
+
+function resizeAllGridItems(){
+  allItems = document.getElementsByClassName("item");
+  for(x=0;x<allItems.length;x++){
+    resizeGridItem(allItems[x]);
+  }
+}
+
+function resizeInstance(instance){
+  item = instance.elements[0];
+  resizeGridItem(item);
+}
+
+window.onload = resizeAllGridItems();
+window.addEventListener("resize", resizeAllGridItems);
+
+allItems = document.getElementsByClassName("item");
+for(x=0;x<allItems.length;x++){
+  imagesLoaded( allItems[x], resizeInstance);
+}
+        </script>
+</body>
+
+</html>

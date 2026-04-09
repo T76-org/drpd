@@ -1,0 +1,36 @@
+/* Optional global styles */
+body {
+    margin: 0;
+    font-family: sans-serif;
+    background: #fff;
+    overflow: hidden;
+  }
+  
+  .widget-header h2 {
+    /* already inline, optional override */
+  }
+  
+  .widget-content p {
+    /* already inline, optional override */
+  }
+
+  #canvas {
+    border: 1px dashed #444;
+    background: #eee;
+  }
+  
+  #demo-links {
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+  }
+  #demo-links a {
+    color: #fff;
+    text-decoration: none;
+    padding: 10px;
+    display: inline-block;
+  }
+  #demo-links a:hover {
+    background: #444;
+  }
