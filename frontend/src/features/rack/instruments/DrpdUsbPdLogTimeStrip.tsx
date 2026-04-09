@@ -90,6 +90,7 @@ export const DrpdUsbPdLogTimeStrip = ({
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const initialAlignmentDoneRef = useRef(false)
   const lastAutoCenterSignatureRef = useRef<string | null>(null)
+  const suppressAutoCenterSelectionKeyRef = useRef<string | null>(null)
   const panRef = useRef<{ pointerId: number; startX: number; startWindowStartUs: bigint } | null>(null)
   const windowStartUsRef = useRef<bigint>(0n)
   const windowDurationUsRef = useRef<bigint>(DEFAULT_WINDOW_US)
@@ -374,10 +375,16 @@ export const DrpdUsbPdLogTimeStrip = ({
     const parsed = selectedKey ? parseLogSelectionKey(selectedKey) : null
     if (!parsed) {
       lastAutoCenterSignatureRef.current = null
+      suppressAutoCenterSelectionKeyRef.current = null
       return
     }
     const signature = selectedKey
     if (lastAutoCenterSignatureRef.current === signature) {
+      return
+    }
+    if (suppressAutoCenterSelectionKeyRef.current === signature) {
+      suppressAutoCenterSelectionKeyRef.current = null
+      lastAutoCenterSignatureRef.current = signature
       return
     }
     lastAutoCenterSignatureRef.current = signature
@@ -465,6 +472,24 @@ export const DrpdUsbPdLogTimeStrip = ({
     setHoverPosition(null)
   }
 
+  const handleSelectSelectionKey = (nextSelectedKey: string): void => {
+    if (
+      !driver ||
+      !('setLogSelectionState' in driver) ||
+      typeof driver.setLogSelectionState !== 'function' ||
+      isEditMode
+    ) {
+      return
+    }
+    const nextSelection: DRPDLogSelectionState = {
+      selectedKeys: [nextSelectedKey],
+      anchorIndex: null,
+      activeIndex: null,
+    }
+    suppressAutoCenterSelectionKeyRef.current = nextSelectedKey
+    void Promise.resolve(driver.setLogSelectionState(nextSelection)).catch(() => undefined)
+  }
+
   return (
     <div className={styles.timeStripShell} ref={containerRef}>
       {width > 0 ? (
@@ -474,6 +499,7 @@ export const DrpdUsbPdLogTimeStrip = ({
           data={data}
           hoverPosition={hoverPosition}
           selectedKey={selectedKey}
+          onSelectSelectionKey={handleSelectSelectionKey}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}

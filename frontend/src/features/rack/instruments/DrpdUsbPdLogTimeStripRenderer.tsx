@@ -70,6 +70,33 @@ const resolveEventStroke = (eventType: LoggedCapturedEventType): string => {
   }
 }
 
+const normalizeTickIntervalUs = (rawIntervalUs: number): bigint => {
+  if (!Number.isFinite(rawIntervalUs) || rawIntervalUs <= 1) {
+    return 1n
+  }
+  const magnitude = 10 ** Math.floor(Math.log10(rawIntervalUs))
+  const normalized = rawIntervalUs / magnitude
+  const step =
+    normalized <= 1
+      ? 1
+      : normalized <= 2
+        ? 2
+        : normalized <= 5
+          ? 5
+          : 10
+  return BigInt(Math.max(1, Math.ceil(step * magnitude)))
+}
+
+const floorToIntervalUs = (
+  timestampUs: bigint,
+  intervalUs: bigint,
+): bigint => {
+  if (intervalUs <= 0n) {
+    return timestampUs
+  }
+  return (timestampUs / intervalUs) * intervalUs
+}
+
 /**
  * Render-only time-strip view.
  */
@@ -79,6 +106,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   data,
   hoverPosition,
   selectedKey,
+  onSelectSelectionKey,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -90,6 +118,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   data: MessageLogTimeStripWindow | null
   hoverPosition: { x: number; y: number } | null
   selectedKey: string | null
+  onSelectSelectionKey?: (selectionKey: string) => void
   onPointerDown?: PointerEventHandler<HTMLDivElement>
   onPointerMove?: PointerEventHandler<HTMLDivElement>
   onPointerUp?: PointerEventHandler<HTMLDivElement>
@@ -173,27 +202,39 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       .range([plotLeftX, plotRightX])
   }, [data?.windowEndUs, data?.windowStartUs, plotLeftX, plotRightX])
   const ticks = useMemo(() => {
+    if (!data || plotWidth <= 0) {
+      return []
+    }
+
     const tickSpacingPx = Math.max(1, DRPD_USB_PD_LOG_CONFIG.stripAxis.tickTargetSpacingPx)
-    const tickXs: number[] = []
-    for (let x = plotLeftX; x <= plotRightX; x += tickSpacingPx) {
-      tickXs.push(x)
-    }
-    if (tickXs.length === 0 || tickXs[tickXs.length - 1] !== plotRightX) {
-      tickXs.push(plotRightX)
-    }
-    return tickXs.map((x) => {
-      const timestampUs = BigInt(Math.round(xScale.invert(x)))
+    const rawIntervalUs = (Number(data.windowDurationUs) / plotWidth) * tickSpacingPx
+    const tickIntervalUs = normalizeTickIntervalUs(rawIntervalUs)
+    const latestVisibleTimestampUs = data.latestTimestampUs ?? data.windowEndUs
+    const tickStartUs = floorToIntervalUs(data.windowStartUs, tickIntervalUs)
+    const nextTicks = []
+
+    for (
+      let timestampUs = tickStartUs;
+      timestampUs <= latestVisibleTimestampUs;
+      timestampUs += tickIntervalUs
+    ) {
+      const x = xScale(Number(timestampUs))
+      if (x < plotLeftX || x >= plotRightX) {
+        continue
+      }
       const displayTimestampUs = interpolateDisplayTimestampUs(
         timestampUs,
-        data?.timeAnchors ?? [],
+        data.timeAnchors,
       )
-      return {
+      nextTicks.push({
         x,
-        displayLabel: formatWallClock(interpolateWallClockUs(timestampUs, data?.timeAnchors ?? [])),
+        timestampUs,
+        displayLabel: formatWallClock(interpolateWallClockUs(timestampUs, data.timeAnchors)),
         deviceLabel: formatDeviceTimestampUs(displayTimestampUs),
-      }
-    })
-  }, [data?.timeAnchors, plotLeftX, plotRightX, xScale])
+      })
+    }
+    return nextTicks
+  }, [data, plotLeftX, plotRightX, plotWidth, xScale])
   const pulseGeometry = useMemo(() => {
     const lowY = pulseHeightPx - pulseLowInsetBottom
     if (!data) {
@@ -217,6 +258,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
         }],
         highlight: null,
         paths: [] as string[],
+        hitAreas: [] as Array<{ key: string; x: number; width: number }>,
         events: [] as Array<{ key: string; x: number; stroke: string }>,
       }
     }
@@ -250,6 +292,14 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       }
       return commands.join(' ')
     })
+    const hitAreas = data.pulses.map((pulse) => ({
+      key: pulse.selectionKey,
+      x: xScale(Number(pulse.startTimestampUs)),
+      width: Math.max(
+        6,
+        xScale(Number(pulse.traceEndTimestampUs)) - xScale(Number(pulse.startTimestampUs)),
+      ),
+    }))
     const annotations = data.pulses.flatMap((pulse, index) => {
       const pulseStartUs = Number(pulse.startTimestampUs)
       const pulseEndUs = Number(pulse.traceEndTimestampUs)
@@ -331,7 +381,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       x: xScale(Number(event.timestampUs)),
       stroke: resolveEventStroke(event.eventType),
     }))
-    return { annotations, baselines, highlight, paths, events }
+    return { annotations, baselines, highlight, paths, hitAreas, events }
   }, [data, plotLeftX, plotRightX, pulseAnnotationHeight, pulseAnnotationTop, pulseHeightPx, pulseHighY, pulseLowInsetBottom, selectedPulse, xScale])
   const analogGeometry = useMemo(() => {
     const voltageScale = scaleLinear()
@@ -462,7 +512,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
       <div className={styles.axisLane} style={{ height: `${axisHeightPx}px` }}>
         <svg className={styles.axisSvg} width={Math.max(width, 1)} height={axisHeightPx}>
           {ticks.map((tick, index) => (
-            <g key={`${tick.x}-${index}`} transform={`translate(${tick.x},0)`}>
+            <g key={`${tick.timestampUs}-${index}`} transform={`translate(${tick.x},0)`}>
               <line className={styles.axisTick} y1={0} y2={axisHeightPx} />
               <text
                 className={styles.axisDeviceLabel}
@@ -550,6 +600,46 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 vectorEffect="non-scaling-stroke"
               />
             ))}
+            {onSelectSelectionKey
+              ? pulseGeometry.hitAreas.map((hitArea) => (
+                <rect
+                  key={`pulse-hit-${hitArea.key}`}
+                  x={hitArea.x}
+                  y={0}
+                  width={hitArea.width}
+                  height={pulseHeightPx}
+                  fill="transparent"
+                  data-selection-key={hitArea.key}
+                  onPointerDown={(event) => {
+                    event.stopPropagation()
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelectSelectionKey(hitArea.key)
+                  }}
+                />
+              ))
+              : null}
+            {onSelectSelectionKey
+              ? pulseGeometry.events.map((event) => (
+                <rect
+                  key={`pulse-event-hit-${event.key}`}
+                  x={event.x - 4}
+                  y={0}
+                  width={8}
+                  height={pulseHeightPx}
+                  fill="transparent"
+                  data-selection-key={event.key}
+                  onPointerDown={(pointerEvent) => {
+                    pointerEvent.stopPropagation()
+                  }}
+                  onClick={(mouseEvent) => {
+                    mouseEvent.stopPropagation()
+                    onSelectSelectionKey(event.key)
+                  }}
+                />
+              ))
+              : null}
           </g>
         </svg>
       </div>
@@ -612,6 +702,26 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
                 vectorEffect="non-scaling-stroke"
               />
             ))}
+            {onSelectSelectionKey
+              ? analogGeometry.events.map((event) => (
+                <rect
+                  key={`analog-event-hit-${event.key}`}
+                  x={event.x - 4}
+                  y={0}
+                  width={8}
+                  height={analogHeightPx}
+                  fill="transparent"
+                  data-selection-key={event.key}
+                  onPointerDown={(pointerEvent) => {
+                    pointerEvent.stopPropagation()
+                  }}
+                  onClick={(mouseEvent) => {
+                    mouseEvent.stopPropagation()
+                    onSelectSelectionKey(event.key)
+                  }}
+                />
+              ))
+              : null}
           </g>
           {analogGeometry.gridLines.map((line) => (
             <g key={`label-${line.key}`}>
