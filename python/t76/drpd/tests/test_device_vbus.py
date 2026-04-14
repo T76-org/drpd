@@ -37,7 +37,8 @@ class TestDeviceVBus(unittest.IsolatedAsyncioTestCase):
 
     async def test_get_state_uses_expanded_status_response(self) -> None:
         internal = AsyncMock()
-        internal.query_ascii_values_and_check.return_value = ["OCP", "NONE", "987654"]
+        internal.query_ascii_values_and_check.return_value = [
+            "OCP", "NONE", "987654"]
 
         vbus = DeviceVBus(internal)
 
@@ -52,7 +53,8 @@ class TestDeviceVBus(unittest.IsolatedAsyncioTestCase):
         )
         device = Device(cast(USBDevice, usb_device))
         device._internal.instrument = object()  # type: ignore[attr-defined]
-        device._internal.query_ascii_values_and_check = AsyncMock(return_value=["1"])  # type: ignore[attr-defined]
+        device._internal.query_ascii_values_and_check = AsyncMock(
+            return_value=["1"])  # type: ignore[attr-defined]
         device.vbus.get_info = AsyncMock(return_value=VBusInfo(
             state=VBusState.OVP,
             ovp_threshold=21.0,
