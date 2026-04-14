@@ -1,4 +1,4 @@
-# [Product Name]
+# Dr. PD
 ## USB-C Power Delivery Analyzer and Programmable Sink
 
 **Preliminary Datasheet**  
