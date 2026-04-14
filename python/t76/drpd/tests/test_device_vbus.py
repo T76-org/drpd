@@ -51,7 +51,7 @@ class TestDeviceVBus(unittest.IsolatedAsyncioTestCase):
             idProduct=0x000A,
         )
         device = Device(cast(USBDevice, usb_device))
-        device._internal.connected = True  # type: ignore[attr-defined]
+        device._internal.instrument = object()  # type: ignore[attr-defined]
         device._internal.query_ascii_values_and_check = AsyncMock(return_value=["1"])  # type: ignore[attr-defined]
         device.vbus.get_info = AsyncMock(return_value=VBusInfo(
             state=VBusState.OVP,

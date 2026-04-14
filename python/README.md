@@ -1,33 +1,101 @@
-# t76
+# t76 Python Package
 
-A simple Python module.
+Python tooling for DRPD devices, including:
 
-## Installation
+- A Python API for device discovery and control
+- USB-PD message decoding helpers
+- A Textual terminal app UI
+
+## Quick Setup (`.venv`)
+
+From the `python/` directory:
 
 ```bash
-pip install t76
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-## Usage
+For development dependencies:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+To leave the environment:
+
+```bash
+deactivate
+```
+
+## Run the Textual App
+
+Launch the DRPD Textual app with:
+
+```bash
+python3 -m t76.drpd
+```
+
+If your `.venv` is active, `python -m t76.drpd` works as well.
+
+You can also list available top-level apps with:
+
+```bash
+python -m t76 --apps
+```
+
+## Library Usage
+
+### Discover and Connect to a DRPD Device
 
 ```python
-import t76
+import asyncio
 
-# Use the greeting function
-print(t76.greet("World"))
+from t76.drpd.device import find_drpd_devices
 
-# Use the calculator
-calc = t76.Calculator()
-result = calc.add(5, 3)
-print(f"5 + 3 = {result}")
+
+async def main() -> None:
+    devices = find_drpd_devices()
+    if not devices:
+        print("No DRPD devices found.")
+        return
+
+    device = devices[0]
+    await device.connect()
+    try:
+        mode = await device.mode.get()
+        print(f"Connected to {device.name}, mode={mode}")
+    finally:
+        await device.disconnect()
+
+
+asyncio.run(main())
 ```
 
-## Features
+### Decode USB-PD Messages
 
-- Simple greeting function
-- Basic calculator class
-- Easy to use and extend
+The `t76.drpd.message` package exposes message classes and decoding helpers.
 
-## License
+Example imports:
 
-MIT License
+```python
+from t76.drpd.message import Message, SourceCapabilitiesMessage, VendorDefinedMessage
+```
+
+For captured BMC/PD data, see `BMCSequence.from_scpi_response(...)` in `t76.drpd.message.bmc_sequence`.
+
+## Run Tests
+
+With the `.venv` active:
+
+```bash
+bash run_tests.sh
+```
+
+Or directly:
+
+```bash
+python -m pytest t76/drpd/tests/ -v --tb=short
+```
+
