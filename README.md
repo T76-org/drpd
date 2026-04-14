@@ -2,7 +2,7 @@
 
 ![DRPD Case Render](./media/case-render.png)
 
-Dr. PD is a fuly-featured USB Power Delivery (USB-PD) analyzer and programmable sink. It is designed to help characterize and troubleshoot USB-PD devices like chargers, cables, and sink devices. 
+Dr. PD is a fuly-featured USB Power Delivery (USB-PD) analyzer and programmable sink. It is designed to help characterize and troubleshoot USB-PD devices like chargers, cables, and sink devices. You can find out more about its features in the [online datasheet](./media/datasheet.md).
 
 Dr. PD can capture and decode USB-PD messages, measure voltage and current, and even emulate a USB-PD sink device to test chargers and cables under various conditions.
 
