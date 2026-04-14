@@ -21,7 +21,7 @@ You can find out more about its features in the [online datasheet](./media/datas
 ### Programmable sink mode
 
 - Emulate specific sink behavior, trigger faults, or test edge cases without a dedicated test fixture
-- Analyze and test modern USB-PD implementations up to 48V / 5A / 240W with support for standard power delivery (SPR), extended power range (EPR), and programmable power supply modes (PPS/AVS)
+- Analyze and test modern USB-PD implementations **up to 48V / 5A / 240W** with support for standard power delivery (SPR), extended power range (EPR), and programmable power supply modes (PPS/AVS)
 
 ### Software
 
