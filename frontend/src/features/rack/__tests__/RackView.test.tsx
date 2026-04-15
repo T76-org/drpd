@@ -860,7 +860,7 @@ describe('RackView', () => {
     )
   })
 
-  it('keeps CC Lines, Device Status, VBUS, and Accumulator fixed-width allocations', async () => {
+  it('keeps CC Lines, Device Status, VBUS, Accumulator, and Sync Trigger fixed-width allocations', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -888,6 +888,10 @@ describe('RackView', () => {
                   {
                     id: 'inst-charge-energy',
                     instrumentIdentifier: 'com.mta.drpd.charge-energy'
+                  },
+                  {
+                    id: 'inst-trigger',
+                    instrumentIdentifier: 'com.mta.drpd.trigger'
                   }
                 ]
               }
@@ -914,6 +918,10 @@ describe('RackView', () => {
     expect(await screen.findByTestId('rack-instrument-inst-charge-energy')).toHaveAttribute(
       'data-width-units',
       '7',
+    )
+    expect(await screen.findByTestId('rack-instrument-inst-trigger')).toHaveAttribute(
+      'data-width-units',
+      '18',
     )
   })
 

@@ -102,7 +102,7 @@ export class DrpdTriggerInstrument extends Instrument {
       identifier: 'com.mta.drpd.trigger',
       displayName: 'Sync Trigger',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 11 },
+      defaultWidth: { mode: 'fixed', units: 18 },
       defaultUnits: 1,
     })
   }

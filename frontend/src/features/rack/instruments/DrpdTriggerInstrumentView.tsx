@@ -913,9 +913,6 @@ export const DrpdTriggerInstrumentView = ({
               <span className={styles.metricValue}>
                 {formatTriggerSenderFilter(visibleTriggerInfo?.senderFilter)}
               </span>
-              {!isFilterCapableTriggerEventType(visibleTriggerInfo?.type ?? TriggerEventType.OFF) ? (
-                <span className={styles.metricSubnote}>Ignored for this event</span>
-              ) : null}
             </div>
           </div>
           <div className={styles.rightMetricRow}>
@@ -942,9 +939,6 @@ export const DrpdTriggerInstrumentView = ({
                       <span className={styles.filterChipOverflow}>+{hiddenFilterCount} more</span>
                     ) : null}
                   </div>
-                  {!isFilterCapableTriggerEventType(visibleTriggerInfo?.type ?? TriggerEventType.OFF) ? (
-                    <span className={styles.metricSubnote}>Ignored for this event</span>
-                  ) : null}
                 </>
               ) : (
                 <span className={styles.metricValue}>Any message</span>

@@ -176,7 +176,7 @@ describe('DrpdTriggerInstrumentView', () => {
     expect(screen.getByText('+1 more')).toBeInTheDocument()
   })
 
-  it('shows when message filters are ignored for a pre-header event', () => {
+  it('renders sender and message filters for a pre-header event without ignored helper text', () => {
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
     driver.setTriggerInfo(
@@ -196,8 +196,9 @@ describe('DrpdTriggerInstrumentView', () => {
       />,
     )
 
-    expect(screen.getAllByText('Ignored for this event')).toHaveLength(2)
+    expect(screen.queryByText('Ignored for this event')).not.toBeInTheDocument()
     expect(screen.getByText('Cable')).toBeInTheDocument()
+    expect(screen.getByText('Control: GoodCRC')).toBeInTheDocument()
   })
 
   it('opens the configure popup above the rack layer', async () => {
