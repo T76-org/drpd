@@ -1166,5 +1166,13 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as VendorDefinedExtendedMessage
     expect(decoded.vdmHeader?.svid).toBe(0x1234)
     expect(decoded.vendorData.length).toBe(2)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Unstructured Vendor Defined Extended Message**')
+    expect(summary?.value).toContain('- Standard or Vendor ID: 0x1234')
+    expect(summary?.value).toContain('**Extended vendor data:**')
+    expect(summary?.value).toContain('- Payload bytes: 2')
+    expect(summary?.value).toContain('- Preview: 0xAA, 0xBB')
   })
 })

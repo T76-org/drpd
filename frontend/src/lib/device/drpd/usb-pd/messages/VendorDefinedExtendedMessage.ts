@@ -2,6 +2,19 @@ import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import { buildVDMHeaderMetadata, parseVDMHeader, readUint32LE, type ParsedVDMHeader } from '../DataObjects'
 
+const formatHex16 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
+
+const formatHexByte = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
+
+const formatStructuredVDMName = (vdmHeader: ParsedVDMHeader): string => {
+  const commandName = vdmHeader.commandName ?? `Command ${vdmHeader.command ?? 0}`
+  const commandTypeName = vdmHeader.commandTypeName ?? 'Unknown'
+  return `${commandName} ${commandTypeName}`
+}
+
+const formatBytePreview = (data: Uint8Array): string =>
+  Array.from(data.subarray(0, 8)).map(formatHexByte).join(', ')
+
 /**
  * Vendor_Defined_Extended extended message.
  */
@@ -63,6 +76,53 @@ export class VendorDefinedExtendedMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the vendor-defined extended message.
+   */
+  public describe(): string {
+    if (!this.vdmHeader) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Vendor Defined Extended message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Vendor Defined Message header.${parseErrorText}`.trim()
+    }
+
+    const lines: string[] = []
+    if (this.vdmHeader.vdmType === 'UNSTRUCTURED') {
+      lines.push('**Unstructured Vendor Defined Extended Message**', '')
+      lines.push(`- Standard or Vendor ID: ${formatHex16(this.vdmHeader.svid)}`)
+      if (this.vdmHeader.vendorPayload !== null) {
+        lines.push(`- Vendor payload: 0x${this.vdmHeader.vendorPayload.toString(16).toUpperCase()}`)
+      }
+    } else {
+      lines.push(`**Structured Vendor Defined Extended Message:** ${formatStructuredVDMName(this.vdmHeader)}`, '')
+      lines.push(`- Standard or Vendor ID: ${formatHex16(this.vdmHeader.svid)}`)
+      if (this.vdmHeader.objectPosition !== null && this.vdmHeader.objectPosition > 0) {
+        lines.push(`- Object position: ${this.vdmHeader.objectPosition}`)
+      }
+      if (this.vdmHeader.structuredVersionMajor !== null && this.vdmHeader.structuredVersionMinor !== null) {
+        lines.push(
+          `- Structured Vendor Defined Message version: ${this.vdmHeader.structuredVersionMajor}.${this.vdmHeader.structuredVersionMinor}`,
+        )
+      }
+    }
+
+    lines.push('', '**Extended vendor data:**', `- Payload bytes: ${this.vendorData.length}`)
+    if (this.vendorData.length > 0) {
+      const suffix = this.vendorData.length > 8 ? ' ...' : ''
+      lines.push(`- Preview: ${formatBytePreview(this.vendorData)}${suffix}`)
+    }
+
+    if (this.parseErrors.length > 0) {
+      lines.push('', `**Could not decode all vendor-defined extended data:** ${this.parseErrors.join(' ')}`)
+    }
+
+    return lines.join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -70,6 +130,15 @@ export class VendorDefinedExtendedMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Vendor_Defined_Extended is an extended message carrying vendor-specific payload content so implementations can exchange proprietary data beyond standard USB-PD fields.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the vendor-defined extended message header and payload bytes.',
+      ),
+    )
 
     if (this.vdmHeader) {
       metadata.messageSpecificData.setEntry('vdmHeader', buildVDMHeaderMetadata(this.vdmHeader))
