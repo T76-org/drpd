@@ -76,7 +76,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Source_Capabilities_Extended` (`SourceCapabilitiesExtendedMessage`)
   - Payload: Source Capabilities Extended Data Block.
   - Summary: VID/PID/XID, firmware/hardware versions, voltage regulation, compliance/touch-current attributes, peak-current fields, source input sources, battery-slot bitfields, and SPR/EPR PDP ratings.
-- [ ] `Status` (`StatusMessage`)
+- [x] `Status` (`StatusMessage`)
   - Payload: SOP Status Data Block or SOP'/SOP'' Status Data Block.
   - Summary: Internal temperature, active input sources, active event flags such as OCP/OTP/OVP/CL mode, temperature status, power-limitation reasons, power-state change, or cable-plug flags for SOP'/SOP''.
 - [ ] `Get_Battery_Cap` (`GetBatteryCapMessage`)

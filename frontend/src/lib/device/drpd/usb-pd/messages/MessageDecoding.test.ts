@@ -710,6 +710,17 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(StatusMessage)
     const decoded = message as StatusMessage
     expect(decoded.sopStatusDataBlock?.internalTemp).toBe(25)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Port status:**')
+    expect(summary?.value).toContain('- Internal temperature: 25C')
+    expect(summary?.value).toContain('- Present inputs: external DC power')
+    expect(summary?.value).toContain('**Active event flags:**')
+    expect(summary?.value).toContain('- over-temperature protection event')
+    expect(summary?.value).toContain('- Temperature status: normal')
+    expect(summary?.value).toContain('- Source power is limited by active event flags.')
+    expect(summary?.value).toContain('- Power state change: S3; off LED.')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('statusDataBlock')
     expect(block?.getEntry('temperatureStatus')?.value).toContain('Normal')
   })
@@ -726,6 +737,10 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(StatusMessage)
     const decoded = message as StatusMessage
     expect(decoded.sopPrimeStatusDataBlock?.flags).toBe(1)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('**Cable status:**')
+    expect(summary?.value).toContain('- Internal temperature: 30C')
+    expect(summary?.value).toContain('- Flags: 0x01')
   })
 
   it('decodes Get_Battery_Cap', () => {
