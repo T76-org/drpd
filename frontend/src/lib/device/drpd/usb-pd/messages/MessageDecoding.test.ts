@@ -667,6 +667,10 @@ describe('USB-PD extended message decoding', () => {
     scedb[1] = 0x12
     scedb[8] = 0x10
     scedb[9] = 0x20
+    scedb[21] = 0b00000111
+    scedb[22] = 0x21
+    scedb[23] = 45
+    scedb[24] = 90
     const header = makeMessageHeader({
       extended: true,
       numberOfDataObjects: 0,
@@ -678,6 +682,18 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as SourceCapabilitiesExtendedMessage
     expect(decoded.sourceCapabilitiesExtended?.vid).toBe(0x1234)
     expect(decoded.sourceCapabilitiesExtended?.hwVersion).toBe(0x20)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Source capabilities extended information:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Firmware version: 16')
+    expect(summary?.value).toContain('- Hardware version: 32')
+    expect(summary?.value).toContain('- Standard Power Range source power data profile rating: 45W')
+    expect(summary?.value).toContain('- Extended Power Range source power data profile rating: 90W')
+    expect(summary?.value).toContain('- Source inputs: unconstrained external supply, internal battery')
+    expect(summary?.value).toContain('- Fixed batteries: 1')
+    expect(summary?.value).toContain('- Hot-swappable battery slots: 2')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sourceCapabilitiesExtendedDataBlock')
     expect(block?.getEntry('voltageRegulation')?.value).toContain('Load Step Slew Rate')
   })

@@ -6,6 +6,19 @@ import {
   type ParsedSourceCapabilitiesExtendedDataBlock,
 } from '../DataObjects'
 
+const formatHex = (value: number, width: number): string => `0x${value.toString(16).toUpperCase().padStart(width, '0')}`
+
+const describeSourceInputs = (sourceInputs: number): string[] => {
+  const inputs: string[] = []
+  if ((sourceInputs & (1 << 0)) !== 0) {
+    inputs.push((sourceInputs & (1 << 1)) !== 0 ? 'unconstrained external supply' : 'constrained external supply')
+  }
+  if ((sourceInputs & (1 << 2)) !== 0) {
+    inputs.push('internal battery')
+  }
+  return inputs
+}
+
 /**
  * Source_Capabilities_Extended extended message.
  */
@@ -59,6 +72,51 @@ export class SourceCapabilitiesExtendedMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the source capability data block.
+   */
+  public describe(): string {
+    if (!this.sourceCapabilitiesExtended) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Source Capabilities Extended message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Source Capabilities Extended Data Block.${parseErrorText}`.trim()
+    }
+
+    const block = this.sourceCapabilitiesExtended
+    const sourceInputs = describeSourceInputs(block.sourceInputs)
+    const lines = [
+      '**Source capabilities extended information:**',
+      '',
+      `- USB Vendor ID: ${formatHex(block.vid, 4)}`,
+      `- Product ID: ${formatHex(block.pid, 4)}`,
+      `- XID value: ${formatHex(block.xid, 8)}`,
+      `- Firmware version: ${block.fwVersion}`,
+      `- Hardware version: ${block.hwVersion}`,
+      `- Standard Power Range source power data profile rating: ${block.sprSourcePdpRating}W`,
+      `- Extended Power Range source power data profile rating: ${block.eprSourcePdpRating}W`,
+    ]
+
+    if (sourceInputs.length > 0) {
+      lines.push(`- Source inputs: ${sourceInputs.join(', ')}`)
+    }
+    if (block.fixedBatteries > 0) {
+      lines.push(`- Fixed batteries: ${block.fixedBatteries}`)
+    }
+    if (block.hotSwappableBatterySlots > 0) {
+      lines.push(`- Hot-swappable battery slots: ${block.hotSwappableBatterySlots}`)
+    }
+
+    if (this.parseErrors.length > 0) {
+      lines.push('', `**Could not decode all source capability data:** ${this.parseErrors.join(' ')}`)
+    }
+
+    return lines.join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -66,6 +124,15 @@ export class SourceCapabilitiesExtendedMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Capabilities_Extended is an extended message that reports detailed source capability attributes so sinks can evaluate advanced source characteristics beyond basic PDOs.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the source capability details carried by this Source_Capabilities_Extended message.',
+      ),
+    )
 
     if (this.sourceCapabilitiesExtended) {
       metadata.messageSpecificData.setEntry(

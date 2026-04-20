@@ -73,7 +73,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [ ] `Reserved` (`ReservedExtendedMessage`)
   - Payload: Raw extended payload bytes for undefined or reserved extended message type values.
   - Summary: Payload byte count, chunking state, and a short hex preview.
-- [ ] `Source_Capabilities_Extended` (`SourceCapabilitiesExtendedMessage`)
+- [x] `Source_Capabilities_Extended` (`SourceCapabilitiesExtendedMessage`)
   - Payload: Source Capabilities Extended Data Block.
   - Summary: VID/PID/XID, firmware/hardware versions, voltage regulation, compliance/touch-current attributes, peak-current fields, source input sources, battery-slot bitfields, and SPR/EPR PDP ratings.
 - [ ] `Status` (`StatusMessage`)
