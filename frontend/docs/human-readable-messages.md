@@ -109,10 +109,10 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `PPS_Status` (`PPSStatusMessage`)
   - Payload: PPS Status Data Block.
   - Summary: Output voltage, output current, temperature flag, and operating mode flag.
-- [ ] `Country_Info` (`CountryInfoMessage`)
+- [x] `Country_Info` (`CountryInfoMessage`)
   - Payload: Country Info Data Block.
   - Summary: Country code, country-specific data byte count, and ASCII preview when printable.
-- [ ] `Country_Codes` (`CountryCodesMessage`)
+- [x] `Country_Codes` (`CountryCodesMessage`)
   - Payload: Country Codes Data Block.
   - Summary: Number of country codes and the decoded country code list.
 - [ ] `Sink_Capabilities_Extended` (`SinkCapabilitiesExtendedMessage`)

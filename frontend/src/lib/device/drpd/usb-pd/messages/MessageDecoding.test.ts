@@ -953,6 +953,13 @@ describe('USB-PD extended message decoding', () => {
     expect(info).toBeInstanceOf(CountryInfoMessage)
     const infoDecoded = info as CountryInfoMessage
     expect(infoDecoded.countryInfoDataBlock?.countryCode).toBe('US')
+    const infoSummary = infoDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(infoSummary?.type).toBe('String')
+    expect(infoSummary?.Label).toBe('Message Summary')
+    expect(infoSummary?.value).toContain('**Country information:**')
+    expect(infoSummary?.value).toContain('- Country code: US')
+    expect(infoSummary?.value).toContain('- Country-specific data: 3 bytes')
+    expect(infoSummary?.value).toContain('- ASCII preview: ABC')
 
     const ccdb = [0x02, 0x00, 0x55, 0x53, 0x4a, 0x50]
     const headerCodes = makeMessageHeader({
@@ -965,6 +972,12 @@ describe('USB-PD extended message decoding', () => {
     expect(codes).toBeInstanceOf(CountryCodesMessage)
     const codesDecoded = codes as CountryCodesMessage
     expect(codesDecoded.countryCodesDataBlock?.countryCodes).toContain('JP')
+    const codesSummary = codesDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(codesSummary?.type).toBe('String')
+    expect(codesSummary?.Label).toBe('Message Summary')
+    expect(codesSummary?.value).toContain('**Supported country codes:**')
+    expect(codesSummary?.value).toContain('- Reported country code count: 2')
+    expect(codesSummary?.value).toContain('- Decoded country codes: US, JP')
   })
 
   it('decodes Sink_Capabilities_Extended', () => {

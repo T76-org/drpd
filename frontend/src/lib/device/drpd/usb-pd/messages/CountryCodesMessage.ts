@@ -55,6 +55,35 @@ export class CountryCodesMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the supported country codes.
+   */
+  public describe(): string {
+    if (!this.countryCodesDataBlock) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Country Codes message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Country Codes Data Block.${parseErrorText}`.trim()
+    }
+
+    const lines = [
+      '**Supported country codes:**',
+      '',
+      `- Reported country code count: ${this.countryCodesDataBlock.length}`,
+    ]
+
+    if (this.countryCodesDataBlock.countryCodes.length > 0) {
+      lines.push(`- Decoded country codes: ${this.countryCodesDataBlock.countryCodes.join(', ')}`)
+    } else {
+      lines.push('- Decoded country codes: none')
+    }
+
+    return lines.join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -62,6 +91,15 @@ export class CountryCodesMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Codes is an extended message that provides supported country code entries so a partner can discover which country-specific data can be requested.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the country codes carried by this Country_Codes message.',
+      ),
+    )
 
     if (this.countryCodesDataBlock) {
       metadata.messageSpecificData.setEntry(
