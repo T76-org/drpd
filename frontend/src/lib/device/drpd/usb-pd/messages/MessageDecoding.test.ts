@@ -781,8 +781,14 @@ describe('USB-PD extended message decoding', () => {
 
   it('decodes Battery_Capabilities', () => {
     const bcdb = new Uint8Array(9)
+    bcdb[0] = 0x34
+    bcdb[1] = 0x12
+    bcdb[2] = 0x78
+    bcdb[3] = 0x56
     bcdb[4] = 0x10
     bcdb[5] = 0x00
+    bcdb[6] = 0x08
+    bcdb[7] = 0x00
     const header = makeMessageHeader({
       extended: true,
       numberOfDataObjects: 0,
@@ -793,6 +799,15 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(BatteryCapabilitiesMessage)
     const decoded = message as BatteryCapabilitiesMessage
     expect(decoded.batteryCapabilities?.batteryDesignCapacity).toBe(0x0010)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery capabilities:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Product ID: 0x5678')
+    expect(summary?.value).toContain('- Design capacity: 16')
+    expect(summary?.value).toContain('- Last full-charge capacity: 8')
+    expect(summary?.value).toContain('- Battery reference: valid')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('batteryCapabilitiesDataBlock')
     expect(block?.getEntry('batteryType')?.value).toBe('0b00000000 (Invalid Battery Reference clear)')
   })

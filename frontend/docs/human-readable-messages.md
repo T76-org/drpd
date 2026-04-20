@@ -85,7 +85,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Get_Battery_Status` (`GetBatteryStatusMessage`)
   - Payload: Battery status reference.
   - Summary: Requested battery reference.
-- [ ] `Battery_Capabilities` (`BatteryCapabilitiesMessage`)
+- [x] `Battery_Capabilities` (`BatteryCapabilitiesMessage`)
   - Payload: Battery Capabilities Data Block.
   - Summary: VID/PID, design capacity, last full-charge capacity, and battery type/invalid-reference flag.
 - [ ] `Get_Manufacturer_Info` (`GetManufacturerInfoMessage`)
