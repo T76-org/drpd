@@ -32,6 +32,7 @@ const EXPECTED_EXTENDED_MESSAGE_HEADER_KEYS = [
   'reservedBit9',
   'dataSize',
 ]
+const DATA_MESSAGE_TYPES_WITH_SUMMARY = new Set([0x01, 0x0f])
 
 /**
  * Build a parseable control payload for one message type.
@@ -169,7 +170,7 @@ describe('USB-PD message metadata coverage', () => {
       const expectedBaseInformationKeys = [
         'messageType',
         'messageDescription',
-        ...(messageTypeNumber === 0x01 ? ['messageSummary'] : []),
+        ...(DATA_MESSAGE_TYPES_WITH_SUMMARY.has(messageTypeNumber) ? ['messageSummary'] : []),
         'usbPdReference',
       ]
       expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual(
@@ -189,7 +190,7 @@ describe('USB-PD message metadata coverage', () => {
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
       const summary = parsed.humanReadableMetadata.baseInformation.getEntry('messageSummary')
-      if (messageTypeNumber === 0x01) {
+      if (DATA_MESSAGE_TYPES_WITH_SUMMARY.has(messageTypeNumber)) {
         expect(summary?.type).toBe('String')
         expect(summary?.Label).toBe('Message Summary')
         expect(typeof summary?.value).toBe('string')

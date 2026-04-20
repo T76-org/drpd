@@ -586,6 +586,59 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(screen.getByText('Answer')).toBeInTheDocument()
   })
 
+  it('renders string metadata as Markdown', async () => {
+    const row = buildMessageRow()
+    const metadata = {
+      baseInformation: HumanReadableField.orderedDictionary(
+        'Base Information',
+        'Base information container.',
+        [[
+          'messageSummary',
+          HumanReadableField.string(
+            '**Structured Vendor Defined Message:** DISCOVER_IDENTITY ACK\n\n- USB Vendor ID: 0x0000\n- Passive Cable Vendor Data Object:\n  - Plug type: USB Type-C\n  - Current capability: 5A',
+            'Message Summary',
+            'Markdown summary.',
+          ),
+        ]],
+      ),
+      technicalData: HumanReadableField.orderedDictionary('Technical Data', 'Technical data container.'),
+      headerData: HumanReadableField.orderedDictionary('Header Data', 'Header data container.'),
+      messageSpecificData: HumanReadableField.orderedDictionary(
+        'Message-Specific Data',
+        'Message-specific data container.',
+      ),
+    }
+    vi.spyOn(deviceModule, 'decodeLoggedCapturedMessageWithContext').mockReturnValue({
+      kind: 'message',
+      row,
+      message: {
+        humanReadableMetadata: metadata,
+      } as unknown as ReturnType<typeof deviceModule.decodeLoggedCapturedMessage> extends { kind: 'message'; message: infer T } ? T : never,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('Structured Vendor Defined Message:')).toBeInTheDocument()
+    expect(screen.getByText('USB Vendor ID: 0x0000')).toBeInTheDocument()
+    expect(screen.getByText('Passive Cable Vendor Data Object:')).toBeInTheDocument()
+    expect(screen.getByText('Plug type: USB Type-C')).toBeInTheDocument()
+    expect(screen.getByText('Current capability: 5A')).toBeInTheDocument()
+  })
+
   it('shows and dismisses field description popups', async () => {
     const user = userEvent.setup()
     const row = buildMessageRow()

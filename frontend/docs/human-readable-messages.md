@@ -64,7 +64,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [ ] `Revision` (`RevisionMessage`)
   - Payload: Revision Data Object.
   - Summary: Revision major/minor and version major/minor.
-- [ ] `Vendor_Defined` (`VendorDefinedMessage`)
+- [x] `Vendor_Defined` (`VendorDefinedMessage`)
   - Payload: VDM header plus VDOs.
   - Summary: SVID, structured vs unstructured VDM, command type/name, object position, discovered identity details, SVID list, mode list, command payload VDO count, parse errors, or raw VDO values when the command is not specifically decoded.
 

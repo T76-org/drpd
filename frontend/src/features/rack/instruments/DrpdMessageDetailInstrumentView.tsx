@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import ReactMarkdown from 'react-markdown'
 import {
   buildCapturedLogSelectionKey,
   decodeLoggedCapturedMessageWithContext,
@@ -331,7 +332,11 @@ const MetadataFieldValue = ({
   messageByteSegments?: MessageByteSegment[] | null
 }) => {
   if (isStringField(field)) {
-    return <span className={styles.scalarValue}>{field.value}</span>
+    return (
+      <div className={styles.scalarValue}>
+        <ReactMarkdown>{field.value}</ReactMarkdown>
+      </div>
+    )
   }
 
   if (isByteDataField(field)) {

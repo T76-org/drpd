@@ -272,9 +272,50 @@
 }
 
 .scalarValue {
-  display: inline-block;
-  white-space: pre-line;
+  display: block;
   color: color-mix(in srgb, currentColor 90%, black);
+}
+
+.scalarValue p {
+  margin: 0;
+}
+
+.scalarValue p + p,
+.scalarValue p + ul,
+.scalarValue p + ol,
+.scalarValue ul + p,
+.scalarValue ol + p,
+.scalarValue ul + ul,
+.scalarValue ul + ol,
+.scalarValue ol + ul,
+.scalarValue ol + ol {
+  margin-top: var(--space-4);
+}
+
+.scalarValue ul,
+.scalarValue ol {
+  list-style-position: outside;
+  margin: var(--space-2) 0 0;
+  padding-left: calc(18px * var(--ui-scale));
+}
+
+.scalarValue li {
+  margin: 0;
+  padding-left: var(--space-2);
+}
+
+.scalarValue li + li {
+  margin-top: var(--space-2);
+}
+
+.scalarValue li > ul,
+.scalarValue li > ol {
+  margin-top: var(--space-2);
+  padding-left: calc(18px * var(--ui-scale));
+}
+
+.scalarValue code {
+  font-family: var(--font-family-monospace, monospace);
 }
 
 .byteDataValue {
