@@ -94,6 +94,68 @@ describe('USB-PD data message decoding', () => {
     const fixedPdo = expectFixedPDO(decoded.decodedPDOs[0] ?? null)
     expect(fixedPdo.pdoType).toBe('FIXED')
     expect(fixedPdo.voltage50mV).toBe(100)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('Supports EPR mode.')
+    expect(summary?.value).toContain('Fixed power profiles:')
+    expect(summary?.value).toContain('- 5V @ 2A')
+  })
+
+  it('summarizes Source_Capabilities profiles by decoded PDO type', () => {
+    let fixedPdo = 0
+    fixedPdo = setBits(fixedPdo, 29, 29, 1)
+    fixedPdo = setBits(fixedPdo, 26, 26, 1)
+    fixedPdo = setBits(fixedPdo, 24, 24, 1)
+    fixedPdo = setBits(fixedPdo, 23, 23, 1)
+    fixedPdo = setBits(fixedPdo, 19, 10, 100)
+    fixedPdo = setBits(fixedPdo, 9, 0, 300)
+
+    let variablePdo = 0
+    variablePdo = setBits(variablePdo, 31, 30, 0b10)
+    variablePdo = setBits(variablePdo, 29, 20, 400)
+    variablePdo = setBits(variablePdo, 19, 10, 66)
+    variablePdo = setBits(variablePdo, 9, 0, 500)
+
+    let ppsPdo = 0
+    ppsPdo = setBits(ppsPdo, 31, 30, 0b11)
+    ppsPdo = setBits(ppsPdo, 29, 28, 0b00)
+    ppsPdo = setBits(ppsPdo, 27, 27, 1)
+    ppsPdo = setBits(ppsPdo, 24, 17, 200)
+    ppsPdo = setBits(ppsPdo, 15, 8, 33)
+    ppsPdo = setBits(ppsPdo, 6, 0, 100)
+
+    let eprAvsPdo = 0
+    eprAvsPdo = setBits(eprAvsPdo, 31, 30, 0b11)
+    eprAvsPdo = setBits(eprAvsPdo, 29, 28, 0b01)
+    eprAvsPdo = setBits(eprAvsPdo, 25, 17, 480)
+    eprAvsPdo = setBits(eprAvsPdo, 15, 8, 50)
+    eprAvsPdo = setBits(eprAvsPdo, 7, 0, 240)
+
+    const message = parseUSBPDMessage(buildMessage(
+      SOP,
+      makeMessageHeader({
+        extended: false,
+        numberOfDataObjects: 4,
+        messageTypeNumber: 0x01,
+      }),
+      [
+        ...toBytes32(fixedPdo),
+        ...toBytes32(variablePdo),
+        ...toBytes32(ppsPdo),
+        ...toBytes32(eprAvsPdo),
+      ],
+    )) as SourceCapabilitiesMessage
+
+    const summary = message.describe()
+    expect(summary).toContain('The source is reporting the following capabilities:')
+    expect(summary).toContain('Supports unchunked extended messages.')
+    expect(summary).toContain('Supports dual-role power.')
+    expect(summary).toContain('Supports USB communications.')
+    expect(summary).toContain('Fixed power profiles:\n- 5V @ 3A')
+    expect(summary).toContain('Variable power profiles:\n- 3.3V-20V @ 5A')
+    expect(summary).toContain('Programmable power profiles:\n- 3.3V-20V @ 5A PPS (power limited)')
+    expect(summary).toContain('Adjustable voltage profiles:\n- 5V-48V, 240W EPR AVS')
   })
 
   it('renders coded PDO and VDO metadata with raw values and decoded meanings', () => {

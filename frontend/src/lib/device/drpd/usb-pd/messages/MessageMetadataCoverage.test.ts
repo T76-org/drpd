@@ -166,11 +166,15 @@ describe('USB-PD message metadata coverage', () => {
       expect(parsed.humanReadableMetadata.technicalData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.headerData.type).toBe('OrderedDictionary')
       expect(parsed.humanReadableMetadata.messageSpecificData.type).toBe('OrderedDictionary')
-      expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual([
+      const expectedBaseInformationKeys = [
         'messageType',
         'messageDescription',
+        ...(messageTypeNumber === 0x01 ? ['messageSummary'] : []),
         'usbPdReference',
-      ])
+      ]
+      expect(Array.from(parsed.humanReadableMetadata.baseInformation.keys())).toEqual(
+        expectedBaseInformationKeys,
+      )
       expect(Array.from(parsed.humanReadableMetadata.technicalData.keys())).toEqual(
         EXPECTED_TECHNICAL_DATA_KEYS,
       )
@@ -184,6 +188,15 @@ describe('USB-PD message metadata coverage', () => {
       expect(description?.Label).toBe('Message Description')
       expect(typeof description?.value).toBe('string')
       expect((description?.value as string).trim().length).toBeGreaterThan(0)
+      const summary = parsed.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+      if (messageTypeNumber === 0x01) {
+        expect(summary?.type).toBe('String')
+        expect(summary?.Label).toBe('Message Summary')
+        expect(typeof summary?.value).toBe('string')
+        expect((summary?.value as string).trim().length).toBeGreaterThan(0)
+      } else {
+        expect(summary).toBeUndefined()
+      }
       const usbPdReference = parsed.humanReadableMetadata.baseInformation.getEntry('usbPdReference')
       expect(usbPdReference?.type).toBe('String')
       expect(usbPdReference?.Label).toBe('USB-PD Reference')

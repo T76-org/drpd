@@ -273,6 +273,7 @@
 
 .scalarValue {
   display: inline-block;
+  white-space: pre-line;
   color: color-mix(in srgb, currentColor 90%, black);
 }
 
