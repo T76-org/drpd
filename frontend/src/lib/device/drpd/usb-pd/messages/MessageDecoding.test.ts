@@ -449,6 +449,13 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as EnterUSBMessage
     expect(decoded.enterUsbDataObject?.usbMode).toBe(0b010)
     expect(decoded.enterUsbDataObject?.cableType).toBe(0b10)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**USB mode entry:**')
+    expect(summary?.value).toContain('- Requested USB mode: USB4')
+    expect(summary?.value).toContain('- Cable type: Active re-driver')
+    expect(summary?.value).toContain('- Cable current: 5A')
   })
 
   it('decodes EPR_Request', () => {

@@ -49,7 +49,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Get_Country_Info` (`GetCountryInfoMessage`)
   - Payload: Country Code Data Object.
   - Summary: Requested two-character country code, or raw character bytes when they are not printable.
-- [ ] `Enter_USB` (`EnterUSBMessage`)
+- [x] `Enter_USB` (`EnterUSBMessage`)
   - Payload: Enter USB Data Object.
   - Summary: Requested USB mode, USB4/USB3 DRD capability, cable speed/type/current, PCIe/DisplayPort/Thunderbolt support, and host-present flag.
 - [x] `EPR_Request` (`EPRRequestMessage`)
