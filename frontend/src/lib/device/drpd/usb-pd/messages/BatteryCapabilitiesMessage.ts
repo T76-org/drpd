@@ -6,6 +6,8 @@ import {
   type ParsedBatteryCapabilitiesDataBlock,
 } from '../DataObjects'
 
+const formatHex = (value: number, width: number): string => `0x${value.toString(16).toUpperCase().padStart(width, '0')}`
+
 /**
  * Battery_Capabilities extended message.
  */
@@ -59,6 +61,31 @@ export class BatteryCapabilitiesMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the battery capability data.
+   */
+  public describe(): string {
+    if (!this.batteryCapabilities) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Battery Capabilities message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Battery Capabilities Data Block.${parseErrorText}`.trim()
+    }
+
+    return [
+      '**Battery capabilities:**',
+      '',
+      `- USB Vendor ID: ${formatHex(this.batteryCapabilities.vid, 4)}`,
+      `- Product ID: ${formatHex(this.batteryCapabilities.pid, 4)}`,
+      `- Design capacity: ${this.batteryCapabilities.batteryDesignCapacity}`,
+      `- Last full-charge capacity: ${this.batteryCapabilities.batteryLastFullChargeCapacity}`,
+      `- Battery reference: ${(this.batteryCapabilities.batteryType & 0x01) !== 0 ? 'invalid' : 'valid'}`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -66,6 +93,15 @@ export class BatteryCapabilitiesMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Battery_Capabilities is an extended message that reports detailed battery design and capability information so policy logic can evaluate battery limits and make informed power decisions.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the battery capability data carried by this Battery_Capabilities message.',
+      ),
+    )
 
     if (this.batteryCapabilities) {
       metadata.messageSpecificData.setEntry(

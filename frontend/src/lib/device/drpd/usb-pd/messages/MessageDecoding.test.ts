@@ -94,6 +94,68 @@ describe('USB-PD data message decoding', () => {
     const fixedPdo = expectFixedPDO(decoded.decodedPDOs[0] ?? null)
     expect(fixedPdo.pdoType).toBe('FIXED')
     expect(fixedPdo.voltage50mV).toBe(100)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('Supports EPR mode.')
+    expect(summary?.value).toContain('Fixed power profiles:')
+    expect(summary?.value).toContain('- 5V @ 2A')
+  })
+
+  it('summarizes Source_Capabilities profiles by decoded PDO type', () => {
+    let fixedPdo = 0
+    fixedPdo = setBits(fixedPdo, 29, 29, 1)
+    fixedPdo = setBits(fixedPdo, 26, 26, 1)
+    fixedPdo = setBits(fixedPdo, 24, 24, 1)
+    fixedPdo = setBits(fixedPdo, 23, 23, 1)
+    fixedPdo = setBits(fixedPdo, 19, 10, 100)
+    fixedPdo = setBits(fixedPdo, 9, 0, 300)
+
+    let variablePdo = 0
+    variablePdo = setBits(variablePdo, 31, 30, 0b10)
+    variablePdo = setBits(variablePdo, 29, 20, 400)
+    variablePdo = setBits(variablePdo, 19, 10, 66)
+    variablePdo = setBits(variablePdo, 9, 0, 500)
+
+    let ppsPdo = 0
+    ppsPdo = setBits(ppsPdo, 31, 30, 0b11)
+    ppsPdo = setBits(ppsPdo, 29, 28, 0b00)
+    ppsPdo = setBits(ppsPdo, 27, 27, 1)
+    ppsPdo = setBits(ppsPdo, 24, 17, 200)
+    ppsPdo = setBits(ppsPdo, 15, 8, 33)
+    ppsPdo = setBits(ppsPdo, 6, 0, 100)
+
+    let eprAvsPdo = 0
+    eprAvsPdo = setBits(eprAvsPdo, 31, 30, 0b11)
+    eprAvsPdo = setBits(eprAvsPdo, 29, 28, 0b01)
+    eprAvsPdo = setBits(eprAvsPdo, 25, 17, 480)
+    eprAvsPdo = setBits(eprAvsPdo, 15, 8, 50)
+    eprAvsPdo = setBits(eprAvsPdo, 7, 0, 240)
+
+    const message = parseUSBPDMessage(buildMessage(
+      SOP,
+      makeMessageHeader({
+        extended: false,
+        numberOfDataObjects: 4,
+        messageTypeNumber: 0x01,
+      }),
+      [
+        ...toBytes32(fixedPdo),
+        ...toBytes32(variablePdo),
+        ...toBytes32(ppsPdo),
+        ...toBytes32(eprAvsPdo),
+      ],
+    )) as SourceCapabilitiesMessage
+
+    const summary = message.describe()
+    expect(summary).toContain('The source is reporting the following capabilities:')
+    expect(summary).toContain('Supports unchunked extended messages.')
+    expect(summary).toContain('Supports dual-role power.')
+    expect(summary).toContain('Supports USB communications.')
+    expect(summary).toContain('Fixed power profiles:\n- 5V @ 3A')
+    expect(summary).toContain('Variable power profiles:\n- 3.3V-20V @ 5A')
+    expect(summary).toContain('Programmable power profiles:\n- 3.3V-20V @ 5A PPS (power limited)')
+    expect(summary).toContain('Adjustable voltage profiles:\n- 5V-48V, 240W EPR AVS')
   })
 
   it('renders coded PDO and VDO metadata with raw values and decoded meanings', () => {
@@ -221,6 +283,11 @@ describe('USB-PD data message decoding', () => {
     expect(vdmHeader?.getEntry('vdmType')?.value).toBe('0b1 (Structured VDM)')
     expect(vdmHeader?.getEntry('structuredVersionMajor')?.value).toBe('0b01 (Version 2.x)')
     expect(vdmHeader?.getEntry('commandType')?.value).toBe('0b10 (NAK)')
+    const vendorSummary = vendorMessage.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(vendorSummary?.type).toBe('String')
+    expect(vendorSummary?.Label).toBe('Message Summary')
+    expect(vendorSummary?.value).toContain('DISCOVER_SVIDS NAK')
+    expect(vendorSummary?.value).toContain('Standard or Vendor ID: 0xFF00')
   })
 
   it('decodes Sink_Capabilities', () => {
@@ -244,6 +311,15 @@ describe('USB-PD data message decoding', () => {
     const fixedPdo = expectFixedPDO(decoded.decodedPDOs[0] ?? null)
     expect(fixedPdo.pdoType).toBe('FIXED')
     expect(fixedPdo.current10mA).toBe(150)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('The sink is reporting the following capabilities:')
+    expect(summary?.value).toContain('Supports dual-role power.')
+    expect(summary?.value).toContain('Reports higher capability.')
+    expect(summary?.value).toContain('Fast Role Swap requires 1.5A at 5V.')
+    expect(summary?.value).toContain('Fixed power profiles:')
+    expect(summary?.value).toContain('- 6V @ 1.5A')
   })
 
   it('decodes Request', () => {
@@ -262,6 +338,15 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as RequestMessage
     expect(decoded.rdo?.objectPosition).toBe(3)
     expect(decoded.rdo?.fixedVariable.operatingCurrent10mA).toBe(50)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Power request:**')
+    expect(summary?.value).toContain('- Selected source object position: 3')
+    expect(summary?.value).toContain('- Operating current: 0.5A')
+    expect(summary?.value).toContain('- Maximum operating current: 0.5A')
+    expect(summary?.value).toContain('**Asserted request flags:**')
+    expect(summary?.value).toContain('Capability mismatch')
     const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
     expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
     expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
@@ -297,6 +382,13 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as BatteryStatusMessage
     expect(decoded.batteryStatusDataObject?.batteryPresentCapacity).toBe(0x1234)
     expect(decoded.batteryStatusDataObject?.batteryPresent).toBe(true)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery status:**')
+    expect(summary?.value).toContain('- Battery is present.')
+    expect(summary?.value).toContain('- Present capacity: 466Wh')
+    expect(summary?.value).toContain('- Charging state: charging.')
   })
 
   it('decodes Alert', () => {
@@ -314,6 +406,14 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as AlertMessage
     expect(decoded.alertDataObject?.typeOfAlert).toBe(0b10000000)
     expect(decoded.alertDataObject?.extendedAlertEventType).toBe(2)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Reported alerts:**')
+    expect(summary?.value).toContain('- Extended alert event is present.')
+    expect(summary?.value).toContain('**Affected batteries:**')
+    expect(summary?.value).toContain('- Fixed battery slots: 1, 2')
+    expect(summary?.value).toContain('**Extended alert event type:** 2')
   })
 
   it('decodes Get_Country_Info', () => {
@@ -327,6 +427,11 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(GetCountryInfoMessage)
     const decoded = message as GetCountryInfoMessage
     expect(decoded.countryCodeDataObject?.countryCode).toBe('US')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Requested country information:**')
+    expect(summary?.value).toContain('- Country code: US')
   })
 
   it('decodes Enter_USB', () => {
@@ -344,6 +449,13 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as EnterUSBMessage
     expect(decoded.enterUsbDataObject?.usbMode).toBe(0b010)
     expect(decoded.enterUsbDataObject?.cableType).toBe(0b10)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**USB mode entry:**')
+    expect(summary?.value).toContain('- Requested USB mode: USB4')
+    expect(summary?.value).toContain('- Cable type: Active re-driver')
+    expect(summary?.value).toContain('- Cable current: 5A')
   })
 
   it('decodes EPR_Request', () => {
@@ -364,6 +476,14 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as EPRRequestMessage
     expect(decoded.rdo?.objectPosition).toBe(1)
     expect(decoded.requestedPDOCopy?.pdoType).toBe('FIXED')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Extended Power Range request:**')
+    expect(summary?.value).toContain('- Selected source object position: 1')
+    expect(summary?.value).toContain('- Operating current: 0.25A')
+    expect(summary?.value).toContain('**Copied requested Power Data Object:**')
+    expect(summary?.value).toContain('- 5V @ 2A fixed supply')
     const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
     expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
     expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
@@ -383,6 +503,12 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(EPRModeMessage)
     const decoded = message as EPRModeMessage
     expect(decoded.eprModeDataObject?.action).toBe(0x01)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Extended Power Range mode transition:**')
+    expect(summary?.value).toContain('- Action: Enter Extended Power Range mode.')
+    expect(summary?.value).toContain('- Sink operational power data profile: 0W.')
   })
 
   it('decodes Source_Info', () => {
@@ -398,6 +524,14 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(SourceInfoMessage)
     const decoded = message as SourceInfoMessage
     expect(decoded.sourceInfoDataObject?.portMaximumPdp).toBe(40)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Source information:**')
+    expect(summary?.value).toContain('- Port type: Guaranteed Capability Port')
+    expect(summary?.value).toContain('- Port maximum power data profile: 40W')
+    expect(summary?.value).toContain('- Port present power data profile: 0W')
+    expect(summary?.value).toContain('- Port reported power data profile: 0W')
   })
 
   it('decodes Revision', () => {
@@ -415,6 +549,12 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(RevisionMessage)
     const decoded = message as RevisionMessage
     expect(decoded.revisionDataObject?.revisionMajor).toBe(3)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Revision information:**')
+    expect(summary?.value).toContain('- Revision: 3.2')
+    expect(summary?.value).toContain('- Version: 1.1')
   })
 
   it('decodes Vendor_Defined with Discover SVIDs ACK', () => {
@@ -436,6 +576,11 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as VendorDefinedMessage
     expect(decoded.vdmHeader?.commandName).toBe('DISCOVER_SVIDS')
     expect(decoded.discoverSVIDs).toContain(0x1234)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('DISCOVER_SVIDS ACK')
+    expect(summary?.value).toContain('**Discovered Standard or Vendor IDs:**')
+    expect(summary?.value).toContain('- 0x1234')
+    expect(summary?.value).toContain('- 0x5678')
     const discoverSvidVdos = decoded.humanReadableMetadata.messageSpecificData.getEntry('discoverSvidVdos')
     expect(discoverSvidVdos?.type).toBe('OrderedDictionary')
     expect(discoverSvidVdos?.getEntry('vdo1')?.type).toBe('OrderedDictionary')
@@ -467,6 +612,11 @@ describe('USB-PD data message decoding', () => {
     expect(enterModePayloadVdos?.type).toBe('OrderedDictionary')
     expect(enterModePayloadVdos?.getEntry('vdo1')?.type).toBe('OrderedDictionary')
     expect(enterModePayloadVdos?.getEntry('vdo1')?.getEntry('raw')?.value).toBe('0x12345678')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('ENTER_MODE REQ')
+    expect(summary?.value).toContain('- Object position: 1')
+    expect(summary?.value).toContain('**ENTER_MODE payload Vendor Data Objects:**')
+    expect(summary?.value).toContain('- 0x12345678')
   })
 
   it('ignores trailing CRC bytes when decoding Vendor_Defined Discover Identity from SOP\'', () => {
@@ -495,6 +645,18 @@ describe('USB-PD data message decoding', () => {
     expect(decoded.discoverIdentity?.productTypeVDOs).toHaveLength(1)
     expect(decoded.discoverIdentity?.rawVDOs).toEqual([])
     expect(decoded.parseErrors).toEqual([])
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('DISCOVER_IDENTITY ACK')
+    expect(summary?.value).toContain('**Discover Identity data:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x0000')
+    expect(summary?.value).toContain('Passive Cable Vendor Data Object:')
+    expect(summary?.value).toContain('  - Plug type: USB Type-C')
+    expect(summary?.value).toContain('  - Extended Power Range capable: yes')
+    expect(summary?.value).toContain('  - Maximum bus voltage: 50V')
+    expect(summary?.value).toContain('  - Current capability: 5A')
+    expect(summary?.value).toContain('  - Latency: 10 ns to 20 ns (~2 m)')
+    expect(summary?.value).toContain('  - Termination: VCONN not required')
+    expect(summary?.value).toContain('  - Highest USB speed: USB 2.0 only')
   })
 })
 
@@ -505,6 +667,10 @@ describe('USB-PD extended message decoding', () => {
     scedb[1] = 0x12
     scedb[8] = 0x10
     scedb[9] = 0x20
+    scedb[21] = 0b00000111
+    scedb[22] = 0x21
+    scedb[23] = 45
+    scedb[24] = 90
     const header = makeMessageHeader({
       extended: true,
       numberOfDataObjects: 0,
@@ -516,6 +682,18 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as SourceCapabilitiesExtendedMessage
     expect(decoded.sourceCapabilitiesExtended?.vid).toBe(0x1234)
     expect(decoded.sourceCapabilitiesExtended?.hwVersion).toBe(0x20)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Source capabilities extended information:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Firmware version: 16')
+    expect(summary?.value).toContain('- Hardware version: 32')
+    expect(summary?.value).toContain('- Standard Power Range source power data profile rating: 45W')
+    expect(summary?.value).toContain('- Extended Power Range source power data profile rating: 90W')
+    expect(summary?.value).toContain('- Source inputs: unconstrained external supply, internal battery')
+    expect(summary?.value).toContain('- Fixed batteries: 1')
+    expect(summary?.value).toContain('- Hot-swappable battery slots: 2')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sourceCapabilitiesExtendedDataBlock')
     expect(block?.getEntry('voltageRegulation')?.value).toContain('Load Step Slew Rate')
   })
@@ -532,6 +710,17 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(StatusMessage)
     const decoded = message as StatusMessage
     expect(decoded.sopStatusDataBlock?.internalTemp).toBe(25)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Port status:**')
+    expect(summary?.value).toContain('- Internal temperature: 25C')
+    expect(summary?.value).toContain('- Present inputs: external DC power')
+    expect(summary?.value).toContain('**Active event flags:**')
+    expect(summary?.value).toContain('- over-temperature protection event')
+    expect(summary?.value).toContain('- Temperature status: normal')
+    expect(summary?.value).toContain('- Source power is limited by active event flags.')
+    expect(summary?.value).toContain('- Power state change: S3; off LED.')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('statusDataBlock')
     expect(block?.getEntry('temperatureStatus')?.value).toContain('Normal')
   })
@@ -548,6 +737,10 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(StatusMessage)
     const decoded = message as StatusMessage
     expect(decoded.sopPrimeStatusDataBlock?.flags).toBe(1)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('**Cable status:**')
+    expect(summary?.value).toContain('- Internal temperature: 30C')
+    expect(summary?.value).toContain('- Flags: 0x01')
   })
 
   it('decodes Get_Battery_Cap', () => {
@@ -561,6 +754,11 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(GetBatteryCapMessage)
     const decoded = message as GetBatteryCapMessage
     expect(decoded.batteryCapRef).toBe(0x04)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery capability request:**')
+    expect(summary?.value).toContain('- Requested battery reference: 4')
   })
 
   it('decodes Get_Battery_Status', () => {
@@ -574,12 +772,23 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(GetBatteryStatusMessage)
     const decoded = message as GetBatteryStatusMessage
     expect(decoded.batteryStatusRef).toBe(0x02)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery status request:**')
+    expect(summary?.value).toContain('- Requested battery reference: 2')
   })
 
   it('decodes Battery_Capabilities', () => {
     const bcdb = new Uint8Array(9)
+    bcdb[0] = 0x34
+    bcdb[1] = 0x12
+    bcdb[2] = 0x78
+    bcdb[3] = 0x56
     bcdb[4] = 0x10
     bcdb[5] = 0x00
+    bcdb[6] = 0x08
+    bcdb[7] = 0x00
     const header = makeMessageHeader({
       extended: true,
       numberOfDataObjects: 0,
@@ -590,6 +799,15 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(BatteryCapabilitiesMessage)
     const decoded = message as BatteryCapabilitiesMessage
     expect(decoded.batteryCapabilities?.batteryDesignCapacity).toBe(0x0010)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery capabilities:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Product ID: 0x5678')
+    expect(summary?.value).toContain('- Design capacity: 16')
+    expect(summary?.value).toContain('- Last full-charge capacity: 8')
+    expect(summary?.value).toContain('- Battery reference: valid')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('batteryCapabilitiesDataBlock')
     expect(block?.getEntry('batteryType')?.value).toBe('0b00000000 (Invalid Battery Reference clear)')
   })
@@ -606,6 +824,12 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as GetManufacturerInfoMessage
     expect(decoded.manufacturerInfoTarget).toBe(0x01)
     expect(decoded.manufacturerInfoRef).toBe(0x02)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Manufacturer information request:**')
+    expect(summary?.value).toContain('- Target: 1')
+    expect(summary?.value).toContain('- Reference: 2')
   })
 
   it('decodes Manufacturer_Info', () => {
@@ -620,6 +844,13 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(ManufacturerInfoMessage)
     const decoded = message as ManufacturerInfoMessage
     expect(decoded.manufacturerInfo?.manufacturerString).toBe('ACME')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Manufacturer information:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Product ID: 0x5678')
+    expect(summary?.value).toContain('- Manufacturer string: ACME')
   })
 
   it('decodes Security_Request and Security_Response', () => {
@@ -698,6 +929,14 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(PPSStatusMessage)
     const decoded = message as PPSStatusMessage
     expect(decoded.ppsStatusDataBlock?.outputVoltage20mV).toBe(0x1234)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Programmable Power Supply status:**')
+    expect(summary?.value).toContain('- Output voltage: 93.2V')
+    expect(summary?.value).toContain('- Output current: 4.3A')
+    expect(summary?.value).toContain('- Temperature flag: warning')
+    expect(summary?.value).toContain('- Operating mode: current limit mode')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('ppsStatusDataBlock')
     expect(block?.getEntry('realTimeFlags')?.value).toContain('PTF')
   })
@@ -714,6 +953,13 @@ describe('USB-PD extended message decoding', () => {
     expect(info).toBeInstanceOf(CountryInfoMessage)
     const infoDecoded = info as CountryInfoMessage
     expect(infoDecoded.countryInfoDataBlock?.countryCode).toBe('US')
+    const infoSummary = infoDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(infoSummary?.type).toBe('String')
+    expect(infoSummary?.Label).toBe('Message Summary')
+    expect(infoSummary?.value).toContain('**Country information:**')
+    expect(infoSummary?.value).toContain('- Country code: US')
+    expect(infoSummary?.value).toContain('- Country-specific data: 3 bytes')
+    expect(infoSummary?.value).toContain('- ASCII preview: ABC')
 
     const ccdb = [0x02, 0x00, 0x55, 0x53, 0x4a, 0x50]
     const headerCodes = makeMessageHeader({
@@ -726,12 +972,31 @@ describe('USB-PD extended message decoding', () => {
     expect(codes).toBeInstanceOf(CountryCodesMessage)
     const codesDecoded = codes as CountryCodesMessage
     expect(codesDecoded.countryCodesDataBlock?.countryCodes).toContain('JP')
+    const codesSummary = codesDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(codesSummary?.type).toBe('String')
+    expect(codesSummary?.Label).toBe('Message Summary')
+    expect(codesSummary?.value).toContain('**Supported country codes:**')
+    expect(codesSummary?.value).toContain('- Reported country code count: 2')
+    expect(codesSummary?.value).toContain('- Decoded country codes: US, JP')
   })
 
   it('decodes Sink_Capabilities_Extended', () => {
     const skedb = new Uint8Array(24)
+    skedb[0] = 0x34
+    skedb[1] = 0x12
+    skedb[2] = 0x78
+    skedb[3] = 0x56
+    skedb[8] = 0x10
+    skedb[9] = 0x20
     skedb[10] = 1
+    skedb[16] = 0x21
     skedb[17] = 0x10
+    skedb[18] = 10
+    skedb[19] = 20
+    skedb[20] = 30
+    skedb[21] = 40
+    skedb[22] = 50
+    skedb[23] = 60
     const header = makeMessageHeader({
       extended: true,
       numberOfDataObjects: 0,
@@ -743,6 +1008,20 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as SinkCapabilitiesExtendedMessage
     expect(decoded.sinkCapabilitiesExtended?.skedbVersion).toBe(1)
     expect(decoded.sinkCapabilitiesExtended?.sinkModes).toBe(0x10)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Sink capabilities extended information:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Product ID: 0x5678')
+    expect(summary?.value).toContain('- Firmware version: 16')
+    expect(summary?.value).toContain('- Hardware version: 32')
+    expect(summary?.value).toContain('- Sink capabilities extended data block version: 1')
+    expect(summary?.value).toContain('- Standard Power Range sink power data profile: minimum 10W, operational 20W, maximum 30W')
+    expect(summary?.value).toContain('- Extended Power Range sink power data profile: minimum 40W, operational 50W, maximum 60W')
+    expect(summary?.value).toContain('- Sink modes: battery essentially unlimited')
+    expect(summary?.value).toContain('- Fixed batteries: 1')
+    expect(summary?.value).toContain('- Hot-swappable battery slots: 2')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sinkCapabilitiesExtendedDataBlock')
     expect(block?.getEntry('skedbVersion')?.value).toBe('0x01 (Version 1.0)')
     expect(block?.getEntry('sinkModes')?.value).toContain('Battery essentially unlimited')
@@ -759,6 +1038,15 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(ExtendedControlMessage)
     const decoded = message as ExtendedControlMessage
     expect(decoded.extendedControlDataBlock?.type).toBe(0x03)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Extended control command:**')
+    expect(summary?.value).toContain('- Command: EPR_KeepAlive')
+    expect(summary?.value).toContain('- Meaning: Keeps an active Extended Power Range session alive.')
+    expect(summary?.value).not.toContain('Sent by')
+    expect(summary?.value).not.toContain('Valid Start-of-Packet')
+    expect(summary?.value).not.toContain('Data byte')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('extendedControlDataBlock')
     expect(block?.getEntry('messageType')?.value).toBe('EPR_KeepAlive')
     expect(block?.getEntry('messageMeaning')?.value).toContain('periodic EPR traffic')
@@ -782,6 +1070,11 @@ describe('USB-PD extended message decoding', () => {
     expect(sourceCapBlock?.getEntry('sentBy')?.value).toBe('Sink or DRP')
 
     const keepAliveAck = parseUSBPDMessage(buildMessage(SOP, header, [0x04, 0x01], extHeader)) as ExtendedControlMessage
+    const keepAliveAckSummary = keepAliveAck.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(keepAliveAckSummary?.value).toContain('- Command: EPR_KeepAlive_Ack')
+    expect(keepAliveAckSummary?.value).toContain('- Meaning: Acknowledges an Extended Power Range keep-alive message.')
+    expect(keepAliveAckSummary?.value).not.toContain('Data byte')
+    expect(keepAliveAckSummary?.value).not.toContain('Observed value')
     const keepAliveAckBlock = keepAliveAck.humanReadableMetadata.messageSpecificData.getEntry('extendedControlDataBlock')
     expect(keepAliveAckBlock?.getEntry('messageType')?.value).toBe('EPR_KeepAlive_Ack')
     expect(keepAliveAckBlock?.getEntry('messageMeaning')?.value).toContain('Acknowledges an EPR_KeepAlive')
@@ -808,6 +1101,14 @@ describe('USB-PD extended message decoding', () => {
     const sourceDecoded = source as EPRSourceCapabilitiesMessage
     expect(sourceDecoded.sprPDOs.length).toBe(7)
     expect(sourceDecoded.eprPDOs.length).toBe(1)
+    const sourceSummary = sourceDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(sourceSummary?.type).toBe('String')
+    expect(sourceSummary?.Label).toBe('Message Summary')
+    expect(sourceSummary?.value).toContain('The source is reporting the following Extended Power Range capabilities:')
+    expect(sourceSummary?.value).toContain('Standard Power Range fixed power profiles:')
+    expect(sourceSummary?.value).toContain('- 5V @ 2A')
+    expect(sourceSummary?.value).toContain('Extended Power Range fixed power profiles:')
+    expect(sourceSummary?.value).toContain('- 5.35V @ 2.07A')
 
     const headerSink = makeMessageHeader({
       extended: true,
@@ -820,6 +1121,30 @@ describe('USB-PD extended message decoding', () => {
     const sinkDecoded = sink as EPRSinkCapabilitiesMessage
     expect(sinkDecoded.sprPDOs.length).toBe(7)
     expect(sinkDecoded.eprPDOs.length).toBe(1)
+    const sinkSummary = sinkDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(sinkSummary?.type).toBe('String')
+    expect(sinkSummary?.Label).toBe('Message Summary')
+    expect(sinkSummary?.value).toContain('The sink is reporting the following Extended Power Range capabilities:')
+    expect(sinkSummary?.value).toContain('Standard Power Range fixed power profiles:')
+    expect(sinkSummary?.value).toContain('- 5V @ 2A')
+    expect(sinkSummary?.value).toContain('Extended Power Range fixed power profiles:')
+    expect(sinkSummary?.value).toContain('- 5.35V @ 2.07A')
+  })
+
+  it('summarizes truncated EPR Source Capabilities as a partial transfer', () => {
+    const header = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 7,
+      messageTypeNumber: 0x11,
+    })
+    const extHeader = makeExtendedHeader({ dataSize: 8 })
+    const message = parseUSBPDMessage(buildMessage(SOP, header, [0, 0, 0, 0], extHeader))
+    expect(message).toBeInstanceOf(EPRSourceCapabilitiesMessage)
+    const decoded = message as EPRSourceCapabilitiesMessage
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('has only been partially transferred')
+    expect(summary?.value).toContain('expected 8 bytes but received 4')
+    expect(summary?.value).not.toContain('did not provide any parseable power profiles')
   })
 
   it('decodes Vendor_Defined_Extended', () => {
@@ -841,5 +1166,13 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as VendorDefinedExtendedMessage
     expect(decoded.vdmHeader?.svid).toBe(0x1234)
     expect(decoded.vendorData.length).toBe(2)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Unstructured Vendor Defined Extended Message**')
+    expect(summary?.value).toContain('- Standard or Vendor ID: 0x1234')
+    expect(summary?.value).toContain('**Extended vendor data:**')
+    expect(summary?.value).toContain('- Payload bytes: 2')
+    expect(summary?.value).toContain('- Preview: 0xAA, 0xBB')
   })
 })

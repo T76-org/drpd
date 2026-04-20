@@ -54,6 +54,34 @@ export class CountryInfoMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the country information data.
+   */
+  public describe(): string {
+    if (!this.countryInfoDataBlock) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Country Info message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Country Info Data Block.${parseErrorText}`.trim()
+    }
+
+    const lines = [
+      '**Country information:**',
+      '',
+      `- Country code: ${this.countryInfoDataBlock.countryCode ?? 'unavailable'}`,
+      `- Country-specific data: ${this.countryInfoDataBlock.countrySpecificData.length} bytes`,
+    ]
+
+    if (this.countryInfoDataBlock.countrySpecificDataAscii.length > 0) {
+      lines.push(`- ASCII preview: ${this.countryInfoDataBlock.countrySpecificDataAscii}`)
+    }
+
+    return lines.join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -61,6 +89,15 @@ export class CountryInfoMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Country_Info is an extended message that returns country-specific regulatory or compliance information so products can apply region-specific behavior when required.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the country information carried by this Country_Info message.',
+      ),
+    )
 
     if (this.countryInfoDataBlock) {
       metadata.messageSpecificData.setEntry('countryInfoDataBlock', buildCountryInfoDataBlockMetadata(this.countryInfoDataBlock))

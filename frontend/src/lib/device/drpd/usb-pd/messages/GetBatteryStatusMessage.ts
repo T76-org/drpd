@@ -53,6 +53,27 @@ export class GetBatteryStatusMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the requested battery status reference.
+   */
+  public describe(): string {
+    if (this.batteryStatusRef === null) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Get Battery Status message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the battery status reference.${parseErrorText}`.trim()
+    }
+
+    return [
+      '**Battery status request:**',
+      '',
+      `- Requested battery reference: ${this.batteryStatusRef}`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -60,6 +81,15 @@ export class GetBatteryStatusMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Status is an extended message request that asks for current battery status information so policy logic can query live battery condition when needed.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the battery status reference requested by this Get_Battery_Status message.',
+      ),
+    )
 
     const getBatteryStatusDataBlock = HumanReadableField.orderedDictionary(
       'Get Battery Status Data Block',
