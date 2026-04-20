@@ -49,6 +49,25 @@ export class RevisionMessage extends DataMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the revision and version numbers.
+   */
+  public describe(): string {
+    if (!this.revisionDataObject) {
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Revision Data Object.${parseErrorText}`.trim()
+    }
+
+    return [
+      '**Revision information:**',
+      '',
+      `- Revision: ${this.revisionDataObject.revisionMajor}.${this.revisionDataObject.revisionMinor}`,
+      `- Version: ${this.revisionDataObject.versionMajor}.${this.revisionDataObject.versionMinor}`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -56,6 +75,15 @@ export class RevisionMessage extends DataMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Revision is a data message that communicates protocol and firmware revision information so partners can understand each other\'s implemented USB-PD revision context.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the revision and version numbers carried by this Revision message.',
+      ),
+    )
 
     if (this.revisionDataObject) {
       metadata.messageSpecificData.setEntry('revisionDataObject', buildRevisionDataObjectMetadata(this.revisionDataObject))

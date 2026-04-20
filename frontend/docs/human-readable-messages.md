@@ -61,7 +61,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Source_Info` (`SourceInfoMessage`)
   - Payload: Source Info Data Object.
   - Summary: Managed vs guaranteed port type, maximum PDP, present PDP, and reported PDP.
-- [ ] `Revision` (`RevisionMessage`)
+- [x] `Revision` (`RevisionMessage`)
   - Payload: Revision Data Object.
   - Summary: Revision major/minor and version major/minor.
 - [x] `Vendor_Defined` (`VendorDefinedMessage`)

@@ -542,6 +542,12 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(RevisionMessage)
     const decoded = message as RevisionMessage
     expect(decoded.revisionDataObject?.revisionMajor).toBe(3)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Revision information:**')
+    expect(summary?.value).toContain('- Revision: 3.2')
+    expect(summary?.value).toContain('- Version: 1.1')
   })
 
   it('decodes Vendor_Defined with Discover SVIDs ACK', () => {
