@@ -31,7 +31,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Source_Capabilities` (`SourceCapabilitiesMessage`)
   - Payload: Source PDO list.
   - Summary: Fixed, variable, battery, PPS, SPR AVS, and EPR AVS source profiles; EPR support from the fixed PDO; notable source flags such as dual-role power/data, USB communications, unchunked extended messages, unconstrained power, peak-current codes, and power-limited PPS.
-- [ ] `Request` (`RequestMessage`)
+- [x] `Request` (`RequestMessage`)
   - Payload: One Request Data Object.
   - Summary: Referenced object position; interpreted request level for fixed/variable, battery, PPS, or AVS requests; maximum/operating current or power; capability mismatch; USB communications/no-suspend flags; unchunked extended-message support; EPR capability.
 - [ ] `BIST` (`BISTMessage`)
@@ -40,10 +40,10 @@ Control messages are intentionally excluded because they do not carry payload da
 - [ ] `Sink_Capabilities` (`SinkCapabilitiesMessage`)
   - Payload: Sink PDO list.
   - Summary: Fixed, variable, battery, PPS, SPR AVS, and EPR AVS sink profiles; sink flags such as dual-role power/data, USB communications, higher capability, unconstrained power, and Fast Role Swap required current.
-- [ ] `Battery_Status` (`BatteryStatusMessage`)
+- [x] `Battery_Status` (`BatteryStatusMessage`)
   - Payload: Battery Status Data Object.
   - Summary: Battery present capacity, battery presence, invalid battery reference, and charging/discharging/idle status.
-- [ ] `Alert` (`AlertMessage`)
+- [x] `Alert` (`AlertMessage`)
   - Payload: Alert Data Object.
   - Summary: Active alert flags, affected fixed and hot-swappable battery slots, and extended alert event type when present.
 - [ ] `Get_Country_Info` (`GetCountryInfoMessage`)
@@ -52,10 +52,10 @@ Control messages are intentionally excluded because they do not carry payload da
 - [ ] `Enter_USB` (`EnterUSBMessage`)
   - Payload: Enter USB Data Object.
   - Summary: Requested USB mode, USB4/USB3 DRD capability, cable speed/type/current, PCIe/DisplayPort/Thunderbolt support, and host-present flag.
-- [ ] `EPR_Request` (`EPRRequestMessage`)
+- [x] `EPR_Request` (`EPRRequestMessage`)
   - Payload: EPR Request Data Object and copied requested PDO.
   - Summary: Requested EPR object position; interpreted request voltage/current or power; requested PDO profile; capability mismatch; EPR and unchunked extended-message flags.
-- [ ] `EPR_Mode` (`EPRModeMessage`)
+- [x] `EPR_Mode` (`EPRModeMessage`)
   - Payload: EPR Mode Data Object.
   - Summary: EPR action name and action-specific data, including enter PDP or failure reason when applicable.
 - [ ] `Source_Info` (`SourceInfoMessage`)

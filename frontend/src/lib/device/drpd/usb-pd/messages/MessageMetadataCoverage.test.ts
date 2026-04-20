@@ -32,7 +32,7 @@ const EXPECTED_EXTENDED_MESSAGE_HEADER_KEYS = [
   'reservedBit9',
   'dataSize',
 ]
-const DATA_MESSAGE_TYPES_WITH_SUMMARY = new Set([0x01, 0x0f])
+const DATA_MESSAGE_TYPES_WITH_SUMMARY = new Set([0x01, 0x02, 0x05, 0x06, 0x09, 0x0a, 0x0f])
 
 /**
  * Build a parseable control payload for one message type.

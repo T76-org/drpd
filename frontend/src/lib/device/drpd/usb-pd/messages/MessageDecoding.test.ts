@@ -329,6 +329,15 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as RequestMessage
     expect(decoded.rdo?.objectPosition).toBe(3)
     expect(decoded.rdo?.fixedVariable.operatingCurrent10mA).toBe(50)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Power request:**')
+    expect(summary?.value).toContain('- Selected source object position: 3')
+    expect(summary?.value).toContain('- Operating current: 0.5A')
+    expect(summary?.value).toContain('- Maximum operating current: 0.5A')
+    expect(summary?.value).toContain('**Asserted request flags:**')
+    expect(summary?.value).toContain('Capability mismatch')
     const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
     expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
     expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
@@ -364,6 +373,13 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as BatteryStatusMessage
     expect(decoded.batteryStatusDataObject?.batteryPresentCapacity).toBe(0x1234)
     expect(decoded.batteryStatusDataObject?.batteryPresent).toBe(true)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery status:**')
+    expect(summary?.value).toContain('- Battery is present.')
+    expect(summary?.value).toContain('- Present capacity: 466Wh')
+    expect(summary?.value).toContain('- Charging state: charging.')
   })
 
   it('decodes Alert', () => {
@@ -381,6 +397,14 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as AlertMessage
     expect(decoded.alertDataObject?.typeOfAlert).toBe(0b10000000)
     expect(decoded.alertDataObject?.extendedAlertEventType).toBe(2)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Reported alerts:**')
+    expect(summary?.value).toContain('- Extended alert event is present.')
+    expect(summary?.value).toContain('**Affected batteries:**')
+    expect(summary?.value).toContain('- Fixed battery slots: 1, 2')
+    expect(summary?.value).toContain('**Extended alert event type:** 2')
   })
 
   it('decodes Get_Country_Info', () => {
@@ -431,6 +455,14 @@ describe('USB-PD data message decoding', () => {
     const decoded = message as EPRRequestMessage
     expect(decoded.rdo?.objectPosition).toBe(1)
     expect(decoded.requestedPDOCopy?.pdoType).toBe('FIXED')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Extended Power Range request:**')
+    expect(summary?.value).toContain('- Selected source object position: 1')
+    expect(summary?.value).toContain('- Operating current: 0.25A')
+    expect(summary?.value).toContain('**Copied requested Power Data Object:**')
+    expect(summary?.value).toContain('- 5V @ 2A fixed supply')
     const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
     expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
     expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
@@ -450,6 +482,12 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(EPRModeMessage)
     const decoded = message as EPRModeMessage
     expect(decoded.eprModeDataObject?.action).toBe(0x01)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Extended Power Range mode transition:**')
+    expect(summary?.value).toContain('- Action: Enter Extended Power Range mode.')
+    expect(summary?.value).toContain('- Sink operational power data profile: 0W.')
   })
 
   it('decodes Source_Info', () => {
