@@ -37,7 +37,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [ ] `BIST` (`BISTMessage`)
   - Payload: BIST Data Object plus any additional raw objects.
   - Summary: BIST mode name/value and any additional raw objects.
-- [ ] `Sink_Capabilities` (`SinkCapabilitiesMessage`)
+- [x] `Sink_Capabilities` (`SinkCapabilitiesMessage`)
   - Payload: Sink PDO list.
   - Summary: Fixed, variable, battery, PPS, SPR AVS, and EPR AVS sink profiles; sink flags such as dual-role power/data, USB communications, higher capability, unconstrained power, and Fast Role Swap required current.
 - [x] `Battery_Status` (`BatteryStatusMessage`)
@@ -46,7 +46,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Alert` (`AlertMessage`)
   - Payload: Alert Data Object.
   - Summary: Active alert flags, affected fixed and hot-swappable battery slots, and extended alert event type when present.
-- [ ] `Get_Country_Info` (`GetCountryInfoMessage`)
+- [x] `Get_Country_Info` (`GetCountryInfoMessage`)
   - Payload: Country Code Data Object.
   - Summary: Requested two-character country code, or raw character bytes when they are not printable.
 - [ ] `Enter_USB` (`EnterUSBMessage`)

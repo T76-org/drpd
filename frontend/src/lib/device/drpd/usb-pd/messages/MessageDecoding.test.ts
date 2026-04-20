@@ -311,6 +311,15 @@ describe('USB-PD data message decoding', () => {
     const fixedPdo = expectFixedPDO(decoded.decodedPDOs[0] ?? null)
     expect(fixedPdo.pdoType).toBe('FIXED')
     expect(fixedPdo.current10mA).toBe(150)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('The sink is reporting the following capabilities:')
+    expect(summary?.value).toContain('Supports dual-role power.')
+    expect(summary?.value).toContain('Reports higher capability.')
+    expect(summary?.value).toContain('Fast Role Swap requires 1.5A at 5V.')
+    expect(summary?.value).toContain('Fixed power profiles:')
+    expect(summary?.value).toContain('- 6V @ 1.5A')
   })
 
   it('decodes Request', () => {
@@ -418,6 +427,11 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(GetCountryInfoMessage)
     const decoded = message as GetCountryInfoMessage
     expect(decoded.countryCodeDataObject?.countryCode).toBe('US')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Requested country information:**')
+    expect(summary?.value).toContain('- Country code: US')
   })
 
   it('decodes Enter_USB', () => {

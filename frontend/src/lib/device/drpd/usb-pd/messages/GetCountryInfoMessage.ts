@@ -7,6 +7,8 @@ import {
   type ParsedCountryCodeDataObject,
 } from '../DataObjects'
 
+const formatHexByte = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
+
 /**
  * Get_Country_Info data message.
  */
@@ -49,6 +51,32 @@ export class GetCountryInfoMessage extends DataMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the requested country code.
+   */
+  public describe(): string {
+    if (!this.countryCodeDataObject) {
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Country Code Data Object.${parseErrorText}`.trim()
+    }
+
+    if (this.countryCodeDataObject.countryCode) {
+      return [
+        '**Requested country information:**',
+        '',
+        `- Country code: ${this.countryCodeDataObject.countryCode}`,
+      ].join('\n')
+    }
+
+    return [
+      '**Requested country information:**',
+      '',
+      `- Country code bytes: ${formatHexByte(this.countryCodeDataObject.countryCodeChar1)}, ${formatHexByte(this.countryCodeDataObject.countryCodeChar2)}`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -56,6 +84,15 @@ export class GetCountryInfoMessage extends DataMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Country_Info is a data message request that specifies a country code so the partner can return corresponding country-specific information.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the specific country code requested by this Get_Country_Info message.',
+      ),
+    )
 
     if (this.countryCodeDataObject) {
       metadata.messageSpecificData.setEntry(
