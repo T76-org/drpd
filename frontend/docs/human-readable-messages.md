@@ -106,7 +106,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [ ] `Firmware_Update_Response` (`FirmwareUpdateResponseMessage`)
   - Payload: Firmware update response payload bytes.
   - Summary: Payload byte count, chunking state, and a short hex preview.
-- [ ] `PPS_Status` (`PPSStatusMessage`)
+- [x] `PPS_Status` (`PPSStatusMessage`)
   - Payload: PPS Status Data Block.
   - Summary: Output voltage, output current, temperature flag, and operating mode flag.
 - [ ] `Country_Info` (`CountryInfoMessage`)

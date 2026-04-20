@@ -2,6 +2,30 @@ import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import { buildPPSStatusDataBlockMetadata, parsePPSStatusDataBlock, type ParsedPPSStatusDataBlock } from '../DataObjects'
 
+const formatScaledValue = (value: number): string => Number(value.toFixed(2)).toString()
+
+const formatVoltageMv = (valueMv: number): string => `${formatScaledValue(valueMv / 1000)}V`
+
+const formatCurrentMa = (valueMa: number): string => `${formatScaledValue(valueMa / 1000)}A`
+
+const describeTemperatureFlag = (flags: number): string => {
+  switch ((flags >> 1) & 0b11) {
+    case 0b00:
+      return 'not supported'
+    case 0b01:
+      return 'normal'
+    case 0b10:
+      return 'warning'
+    case 0b11:
+      return 'over temperature'
+    default:
+      return 'reserved'
+  }
+}
+
+const describeOperatingMode = (flags: number): string =>
+  ((flags >> 3) & 0x01) === 1 ? 'current limit mode' : 'constant voltage mode'
+
 /**
  * PPS_Status extended message.
  */
@@ -54,6 +78,30 @@ export class PPSStatusMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the PPS output status.
+   */
+  public describe(): string {
+    if (!this.ppsStatusDataBlock) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The PPS Status message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the PPS Status Data Block.${parseErrorText}`.trim()
+    }
+
+    return [
+      '**Programmable Power Supply status:**',
+      '',
+      `- Output voltage: ${formatVoltageMv(this.ppsStatusDataBlock.outputVoltage20mV * 20)}`,
+      `- Output current: ${formatCurrentMa(this.ppsStatusDataBlock.outputCurrent50mA * 50)}`,
+      `- Temperature flag: ${describeTemperatureFlag(this.ppsStatusDataBlock.realTimeFlags)}`,
+      `- Operating mode: ${describeOperatingMode(this.ppsStatusDataBlock.realTimeFlags)}`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -61,6 +109,15 @@ export class PPSStatusMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('PPS_Status is an extended message that reports programmable power supply status values so the source and sink can monitor PPS output behavior and status.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the Programmable Power Supply status carried by this PPS_Status message.',
+      ),
+    )
 
     if (this.ppsStatusDataBlock) {
       metadata.messageSpecificData.setEntry('ppsStatusDataBlock', buildPPSStatusDataBlockMetadata(this.ppsStatusDataBlock))
