@@ -79,10 +79,10 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Status` (`StatusMessage`)
   - Payload: SOP Status Data Block or SOP'/SOP'' Status Data Block.
   - Summary: Internal temperature, active input sources, active event flags such as OCP/OTP/OVP/CL mode, temperature status, power-limitation reasons, power-state change, or cable-plug flags for SOP'/SOP''.
-- [ ] `Get_Battery_Cap` (`GetBatteryCapMessage`)
+- [x] `Get_Battery_Cap` (`GetBatteryCapMessage`)
   - Payload: Battery capability reference.
   - Summary: Requested battery reference.
-- [ ] `Get_Battery_Status` (`GetBatteryStatusMessage`)
+- [x] `Get_Battery_Status` (`GetBatteryStatusMessage`)
   - Payload: Battery status reference.
   - Summary: Requested battery reference.
 - [ ] `Battery_Capabilities` (`BatteryCapabilitiesMessage`)

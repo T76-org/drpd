@@ -53,6 +53,27 @@ export class GetBatteryCapMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the requested battery capability reference.
+   */
+  public describe(): string {
+    if (this.batteryCapRef === null) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Get Battery Cap message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the battery capability reference.${parseErrorText}`.trim()
+    }
+
+    return [
+      '**Battery capability request:**',
+      '',
+      `- Requested battery reference: ${this.batteryCapRef}`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -60,6 +81,15 @@ export class GetBatteryCapMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Battery_Cap is an extended message request that asks for battery capability information so a partner can retrieve detailed battery limits and characteristics.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the battery capability reference requested by this Get_Battery_Cap message.',
+      ),
+    )
 
     const getBatteryCapDataBlock = HumanReadableField.orderedDictionary(
       'Get Battery Cap Data Block',

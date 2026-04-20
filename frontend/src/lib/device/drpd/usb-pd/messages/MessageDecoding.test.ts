@@ -754,6 +754,11 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(GetBatteryCapMessage)
     const decoded = message as GetBatteryCapMessage
     expect(decoded.batteryCapRef).toBe(0x04)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery capability request:**')
+    expect(summary?.value).toContain('- Requested battery reference: 4')
   })
 
   it('decodes Get_Battery_Status', () => {
@@ -767,6 +772,11 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(GetBatteryStatusMessage)
     const decoded = message as GetBatteryStatusMessage
     expect(decoded.batteryStatusRef).toBe(0x02)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Battery status request:**')
+    expect(summary?.value).toContain('- Requested battery reference: 2')
   })
 
   it('decodes Battery_Capabilities', () => {
