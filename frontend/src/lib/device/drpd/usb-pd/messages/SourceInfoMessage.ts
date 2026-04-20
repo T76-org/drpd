@@ -7,6 +7,9 @@ import {
   type ParsedSourceInfoDataObject,
 } from '../DataObjects'
 
+const describePortType = (portType: number): string =>
+  portType === 1 ? 'Guaranteed Capability Port' : 'Managed Capability Port'
+
 /**
  * Source_Info data message.
  */
@@ -49,6 +52,27 @@ export class SourceInfoMessage extends DataMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the source information fields.
+   */
+  public describe(): string {
+    if (!this.sourceInfoDataObject) {
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Source Info Data Object.${parseErrorText}`.trim()
+    }
+
+    return [
+      '**Source information:**',
+      '',
+      `- Port type: ${describePortType(this.sourceInfoDataObject.portType)}`,
+      `- Port maximum power data profile: ${this.sourceInfoDataObject.portMaximumPdp}W`,
+      `- Port present power data profile: ${this.sourceInfoDataObject.portPresentPdp}W`,
+      `- Port reported power data profile: ${this.sourceInfoDataObject.portReportedPdp}W`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -56,6 +80,15 @@ export class SourceInfoMessage extends DataMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Source_Info is a data message that provides source status and capability indicators so the sink can understand source-side constraints and operating context.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the source port information carried by this Source_Info message.',
+      ),
+    )
 
     if (this.sourceInfoDataObject) {
       metadata.messageSpecificData.setEntry(

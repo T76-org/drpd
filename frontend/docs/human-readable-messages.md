@@ -58,7 +58,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `EPR_Mode` (`EPRModeMessage`)
   - Payload: EPR Mode Data Object.
   - Summary: EPR action name and action-specific data, including enter PDP or failure reason when applicable.
-- [ ] `Source_Info` (`SourceInfoMessage`)
+- [x] `Source_Info` (`SourceInfoMessage`)
   - Payload: Source Info Data Object.
   - Summary: Managed vs guaranteed port type, maximum PDP, present PDP, and reported PDP.
 - [ ] `Revision` (`RevisionMessage`)

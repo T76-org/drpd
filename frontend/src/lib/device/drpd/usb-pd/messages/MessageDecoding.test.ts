@@ -517,6 +517,14 @@ describe('USB-PD data message decoding', () => {
     expect(message).toBeInstanceOf(SourceInfoMessage)
     const decoded = message as SourceInfoMessage
     expect(decoded.sourceInfoDataObject?.portMaximumPdp).toBe(40)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Source information:**')
+    expect(summary?.value).toContain('- Port type: Guaranteed Capability Port')
+    expect(summary?.value).toContain('- Port maximum power data profile: 40W')
+    expect(summary?.value).toContain('- Port present power data profile: 0W')
+    expect(summary?.value).toContain('- Port reported power data profile: 0W')
   })
 
   it('decodes Revision', () => {
