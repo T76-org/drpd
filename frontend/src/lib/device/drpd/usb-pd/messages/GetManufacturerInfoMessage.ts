@@ -56,6 +56,28 @@ export class GetManufacturerInfoMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the requested manufacturer information target and reference.
+   */
+  public describe(): string {
+    if (this.manufacturerInfoTarget === null || this.manufacturerInfoRef === null) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Get Manufacturer Info message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the manufacturer information request.${parseErrorText}`.trim()
+    }
+
+    return [
+      '**Manufacturer information request:**',
+      '',
+      `- Target: ${this.manufacturerInfoTarget}`,
+      `- Reference: ${this.manufacturerInfoRef}`,
+    ].join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -63,6 +85,15 @@ export class GetManufacturerInfoMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('Get_Manufacturer_Info is an extended message request that asks for manufacturer identity details so a partner can expose vendor and product identification data.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the manufacturer information target and reference requested by this Get_Manufacturer_Info message.',
+      ),
+    )
 
     const getManufacturerInfoDataBlock = HumanReadableField.orderedDictionary(
       'Get Manufacturer Info Data Block',

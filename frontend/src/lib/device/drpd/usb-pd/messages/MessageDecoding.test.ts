@@ -824,6 +824,12 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as GetManufacturerInfoMessage
     expect(decoded.manufacturerInfoTarget).toBe(0x01)
     expect(decoded.manufacturerInfoRef).toBe(0x02)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Manufacturer information request:**')
+    expect(summary?.value).toContain('- Target: 1')
+    expect(summary?.value).toContain('- Reference: 2')
   })
 
   it('decodes Manufacturer_Info', () => {
@@ -838,6 +844,13 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(ManufacturerInfoMessage)
     const decoded = message as ManufacturerInfoMessage
     expect(decoded.manufacturerInfo?.manufacturerString).toBe('ACME')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Manufacturer information:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Product ID: 0x5678')
+    expect(summary?.value).toContain('- Manufacturer string: ACME')
   })
 
   it('decodes Security_Request and Security_Response', () => {

@@ -88,10 +88,10 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Battery_Capabilities` (`BatteryCapabilitiesMessage`)
   - Payload: Battery Capabilities Data Block.
   - Summary: VID/PID, design capacity, last full-charge capacity, and battery type/invalid-reference flag.
-- [ ] `Get_Manufacturer_Info` (`GetManufacturerInfoMessage`)
+- [x] `Get_Manufacturer_Info` (`GetManufacturerInfoMessage`)
   - Payload: Manufacturer info target and reference.
   - Summary: Target type and manufacturer info reference.
-- [ ] `Manufacturer_Info` (`ManufacturerInfoMessage`)
+- [x] `Manufacturer_Info` (`ManufacturerInfoMessage`)
   - Payload: Manufacturer Info Data Block.
   - Summary: VID/PID and manufacturer string, with byte count or fallback preview for non-printable data.
 - [ ] `Security_Request` (`SecurityRequestMessage`)
