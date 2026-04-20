@@ -118,7 +118,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [ ] `Sink_Capabilities_Extended` (`SinkCapabilitiesExtendedMessage`)
   - Payload: Sink Capabilities Extended Data Block.
   - Summary: VID/PID/XID, firmware/hardware versions, SKEDB version, load-step characteristics, compliance/touch-temp data, battery-slot bitfields, sink modes, and SPR/EPR min/operational/max PDP ratings.
-- [ ] `Extended_Control` (`ExtendedControlMessage`)
+- [x] `Extended_Control` (`ExtendedControlMessage`)
   - Payload: Extended Control Data Block.
   - Summary: Extended-control type name, sender/valid-SOP interpretation, and data-byte meaning.
 - [ ] `EPR_Source_Capabilities` (`EPRSourceCapabilitiesMessage`)

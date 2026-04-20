@@ -6,6 +6,39 @@ import {
   type ParsedExtendedControlDataBlock,
 } from '../DataObjects'
 
+const getExtendedControlSummary = (type: number): {
+  commandName: string
+  commandDescription: string
+} => {
+  switch (type) {
+    case 0x01:
+      return {
+        commandName: 'EPR_Get_Source_Cap',
+        commandDescription: 'Requests Extended Power Range source capabilities.',
+      }
+    case 0x02:
+      return {
+        commandName: 'EPR_Get_Sink_Cap',
+        commandDescription: 'Requests Extended Power Range sink capabilities.',
+      }
+    case 0x03:
+      return {
+        commandName: 'EPR_KeepAlive',
+        commandDescription: 'Keeps an active Extended Power Range session alive.',
+      }
+    case 0x04:
+      return {
+        commandName: 'EPR_KeepAlive_Ack',
+        commandDescription: 'Acknowledges an Extended Power Range keep-alive message.',
+      }
+    default:
+      return {
+        commandName: `Reserved type 0x${type.toString(16).toUpperCase().padStart(2, '0')}`,
+        commandDescription: 'This Extended_Control type is reserved.',
+      }
+  }
+}
+
 /**
  * Extended_Control extended message.
  */
@@ -59,6 +92,33 @@ export class ExtendedControlMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the Extended_Control command and data byte.
+   */
+  public describe(): string {
+    if (!this.extendedControlDataBlock) {
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `Could not decode the Extended Control Data Block.${parseErrorText}`.trim()
+    }
+
+    const block = this.extendedControlDataBlock
+    const summary = getExtendedControlSummary(block.type)
+    const lines = [
+      '**Extended control command:**',
+      '',
+      `- Command: ${summary.commandName}`,
+      `- Meaning: ${summary.commandDescription}`,
+    ]
+
+    if (this.parseErrors.length > 0) {
+      lines.push('', `**Could not decode all Extended_Control data:** ${this.parseErrors.join(' ')}`)
+    }
+
+    return lines.join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -72,6 +132,15 @@ export class ExtendedControlMessage extends ExtendedMessage {
         'Extended_Control is an extended message used for short control subcommands, including EPR control operations, so partners can perform lightweight protocol management actions.',
         'Message Description',
         'A description of the message\'s function and usage.',
+      ),
+    )
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the specific command and data byte carried by this Extended_Control message.',
       ),
     )
 

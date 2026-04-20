@@ -886,6 +886,15 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(ExtendedControlMessage)
     const decoded = message as ExtendedControlMessage
     expect(decoded.extendedControlDataBlock?.type).toBe(0x03)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Extended control command:**')
+    expect(summary?.value).toContain('- Command: EPR_KeepAlive')
+    expect(summary?.value).toContain('- Meaning: Keeps an active Extended Power Range session alive.')
+    expect(summary?.value).not.toContain('Sent by')
+    expect(summary?.value).not.toContain('Valid Start-of-Packet')
+    expect(summary?.value).not.toContain('Data byte')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('extendedControlDataBlock')
     expect(block?.getEntry('messageType')?.value).toBe('EPR_KeepAlive')
     expect(block?.getEntry('messageMeaning')?.value).toContain('periodic EPR traffic')
@@ -909,6 +918,11 @@ describe('USB-PD extended message decoding', () => {
     expect(sourceCapBlock?.getEntry('sentBy')?.value).toBe('Sink or DRP')
 
     const keepAliveAck = parseUSBPDMessage(buildMessage(SOP, header, [0x04, 0x01], extHeader)) as ExtendedControlMessage
+    const keepAliveAckSummary = keepAliveAck.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(keepAliveAckSummary?.value).toContain('- Command: EPR_KeepAlive_Ack')
+    expect(keepAliveAckSummary?.value).toContain('- Meaning: Acknowledges an Extended Power Range keep-alive message.')
+    expect(keepAliveAckSummary?.value).not.toContain('Data byte')
+    expect(keepAliveAckSummary?.value).not.toContain('Observed value')
     const keepAliveAckBlock = keepAliveAck.humanReadableMetadata.messageSpecificData.getEntry('extendedControlDataBlock')
     expect(keepAliveAckBlock?.getEntry('messageType')?.value).toBe('EPR_KeepAlive_Ack')
     expect(keepAliveAckBlock?.getEntry('messageMeaning')?.value).toContain('Acknowledges an EPR_KeepAlive')
