@@ -949,6 +949,14 @@ describe('USB-PD extended message decoding', () => {
     const sourceDecoded = source as EPRSourceCapabilitiesMessage
     expect(sourceDecoded.sprPDOs.length).toBe(7)
     expect(sourceDecoded.eprPDOs.length).toBe(1)
+    const sourceSummary = sourceDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(sourceSummary?.type).toBe('String')
+    expect(sourceSummary?.Label).toBe('Message Summary')
+    expect(sourceSummary?.value).toContain('The source is reporting the following Extended Power Range capabilities:')
+    expect(sourceSummary?.value).toContain('Standard Power Range fixed power profiles:')
+    expect(sourceSummary?.value).toContain('- 5V @ 2A')
+    expect(sourceSummary?.value).toContain('Extended Power Range fixed power profiles:')
+    expect(sourceSummary?.value).toContain('- 5.35V @ 2.07A')
 
     const headerSink = makeMessageHeader({
       extended: true,
@@ -961,6 +969,22 @@ describe('USB-PD extended message decoding', () => {
     const sinkDecoded = sink as EPRSinkCapabilitiesMessage
     expect(sinkDecoded.sprPDOs.length).toBe(7)
     expect(sinkDecoded.eprPDOs.length).toBe(1)
+  })
+
+  it('summarizes truncated EPR Source Capabilities as a partial transfer', () => {
+    const header = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 7,
+      messageTypeNumber: 0x11,
+    })
+    const extHeader = makeExtendedHeader({ dataSize: 8 })
+    const message = parseUSBPDMessage(buildMessage(SOP, header, [0, 0, 0, 0], extHeader))
+    expect(message).toBeInstanceOf(EPRSourceCapabilitiesMessage)
+    const decoded = message as EPRSourceCapabilitiesMessage
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('has only been partially transferred')
+    expect(summary?.value).toContain('expected 8 bytes but received 4')
+    expect(summary?.value).not.toContain('did not provide any parseable power profiles')
   })
 
   it('decodes Vendor_Defined_Extended', () => {

@@ -121,7 +121,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Extended_Control` (`ExtendedControlMessage`)
   - Payload: Extended Control Data Block.
   - Summary: Extended-control type name, sender/valid-SOP interpretation, and data-byte meaning.
-- [ ] `EPR_Source_Capabilities` (`EPRSourceCapabilitiesMessage`)
+- [x] `EPR_Source_Capabilities` (`EPRSourceCapabilitiesMessage`)
   - Payload: SPR and EPR source PDO list in an extended message.
   - Summary: Source profiles grouped by fixed, variable, battery, PPS, SPR AVS, and EPR AVS; distinguish SPR vs EPR entries; include EPR support and salient source flags.
 - [ ] `EPR_Sink_Capabilities` (`EPRSinkCapabilitiesMessage`)

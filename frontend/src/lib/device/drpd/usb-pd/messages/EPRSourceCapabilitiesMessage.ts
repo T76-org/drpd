@@ -2,6 +2,91 @@ import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import { buildPDOMetadata, parsePDO, readDataObjects, type ParsedPDO } from '../DataObjects'
 
+const formatScaledValue = (value: number): string => Number(value.toFixed(2)).toString()
+
+const formatVoltageMv = (valueMv: number): string => `${formatScaledValue(valueMv / 1000)}V`
+
+const formatCurrentMa = (valueMa: number): string => `${formatScaledValue(valueMa / 1000)}A`
+
+const formatPowerMw = (valueMw: number): string => `${formatScaledValue(valueMw / 1000)}W`
+
+const formatRaw32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
+
+const appendProfile = (groups: Map<string, string[]>, rangeName: string, profileType: string, description: string): void => {
+  const groupName = `${rangeName} ${profileType}`
+  const entries = groups.get(groupName) ?? []
+  entries.push(description)
+  groups.set(groupName, entries)
+}
+
+const formatSourcePDOProfile = (pdo: ParsedPDO, rangeName: string, groups: Map<string, string[]>): void => {
+  if (pdo.pdoType === 'FIXED') {
+    appendProfile(
+      groups,
+      rangeName,
+      'fixed power profiles',
+      `${formatVoltageMv(pdo.voltage50mV * 50)} @ ${formatCurrentMa(pdo.current10mA * 10)}`,
+    )
+    return
+  }
+
+  if (pdo.pdoType === 'VARIABLE') {
+    const profile = `${formatVoltageMv(pdo.minimumVoltage50mV * 50)}-${formatVoltageMv(pdo.maximumVoltage50mV * 50)}`
+    appendProfile(
+      groups,
+      rangeName,
+      'variable power profiles',
+      `${profile} @ ${formatCurrentMa(pdo.current10mA * 10)}`,
+    )
+    return
+  }
+
+  if (pdo.pdoType === 'BATTERY') {
+    const profile = `${formatVoltageMv(pdo.minimumVoltage50mV * 50)}-${formatVoltageMv(pdo.maximumVoltage50mV * 50)}`
+    appendProfile(
+      groups,
+      rangeName,
+      'battery power profiles',
+      `${profile} @ ${formatPowerMw(pdo.power250mW * 250)}`,
+    )
+    return
+  }
+
+  if (pdo.apdoType === 'SPR_PPS') {
+    const profile = `${formatVoltageMv(pdo.minimumVoltage100mV * 100)}-${formatVoltageMv(pdo.maximumVoltage100mV * 100)}`
+    appendProfile(
+      groups,
+      rangeName,
+      'programmable power profiles',
+      `${profile} @ ${formatCurrentMa(pdo.maximumCurrent50mA * 50)} Programmable Power Supply${pdo.ppsPowerLimited ? ' (power limited)' : ''}`,
+    )
+    return
+  }
+
+  if (pdo.apdoType === 'SPR_AVS') {
+    appendProfile(
+      groups,
+      rangeName,
+      'adjustable voltage profiles',
+      `Standard Power Range Adjustable Voltage Supply: 15V @ ${formatCurrentMa(pdo.maxCurrent15V10mA * 10)}, 20V @ ${formatCurrentMa(pdo.maxCurrent20V10mA * 10)}`,
+    )
+    return
+  }
+
+  if (pdo.apdoType === 'EPR_AVS') {
+    const profile = `${formatVoltageMv(pdo.minimumVoltage100mV * 100)}-${formatVoltageMv(pdo.maximumVoltage100mV * 100)}`
+    appendProfile(
+      groups,
+      rangeName,
+      'adjustable voltage profiles',
+      `${profile}, ${pdo.pdp1W}W Extended Power Range Adjustable Voltage Supply`,
+    )
+    return
+  }
+
+  appendProfile(groups, rangeName, 'reserved profiles', `Reserved augmented Power Data Object ${formatRaw32(pdo.raw)}`)
+}
+
 /**
  * EPR_Source_Capabilities extended message.
  */
@@ -63,6 +148,62 @@ export class EPRSourceCapabilitiesMessage extends ExtendedMessage {
   }
 
   /**
+   * Build a concise human-readable summary for this message instance.
+   *
+   * @returns Markdown summary of the advertised Standard Power Range and Extended Power Range source capabilities.
+   */
+  public describe(): string {
+    const decodedPDOs = [...this.sprPDOs, ...this.eprPDOs]
+    if (decodedPDOs.length === 0) {
+      if (this.rawPayload.length < this.dataSize) {
+        return `The Extended Power Range Source Capabilities message has only been partially transferred: expected ${this.dataSize} bytes but received ${this.rawPayload.length}.`
+      }
+      const parseErrorText = this.parseErrors.length > 0 ? ` ${this.parseErrors.join(' ')}` : ''
+      return `The source did not provide any parseable power profiles.${parseErrorText}`.trim()
+    }
+
+    const groups = new Map<string, string[]>()
+    this.sprPDOs.forEach((pdo) => formatSourcePDOProfile(pdo, 'Standard Power Range', groups))
+    this.eprPDOs.forEach((pdo) => formatSourcePDOProfile(pdo, 'Extended Power Range', groups))
+
+    const fixedPdos = decodedPDOs.filter((pdo) => pdo.pdoType === 'FIXED')
+    const sourceFacts: string[] = []
+    if (fixedPdos.some((pdo) => pdo.eprCapable)) {
+      sourceFacts.push('Supports Extended Power Range mode.')
+    }
+    if (fixedPdos.some((pdo) => pdo.unchunkedExtendedMessagesSupported)) {
+      sourceFacts.push('Supports unchunked extended messages.')
+    }
+    if (fixedPdos.some((pdo) => pdo.dualRolePower)) {
+      sourceFacts.push('Supports dual-role power.')
+    }
+    if (fixedPdos.some((pdo) => pdo.dualRoleData)) {
+      sourceFacts.push('Supports dual-role data.')
+    }
+    if (fixedPdos.some((pdo) => pdo.usbCommunicationsCapable)) {
+      sourceFacts.push('Supports USB communications.')
+    }
+    if (fixedPdos.some((pdo) => pdo.unconstrainedPower)) {
+      sourceFacts.push('Reports unconstrained power.')
+    }
+
+    const lines = ['The source is reporting the following Extended Power Range capabilities:']
+    if (sourceFacts.length > 0) {
+      lines.push('', ...sourceFacts)
+    }
+
+    groups.forEach((entries, groupName) => {
+      lines.push('', `${groupName}:`, ...entries.map((entry) => `- ${entry}`))
+    })
+
+    if (this.parseErrors.length > 0) {
+      lines.push('', `Could not decode all advertised objects: ${this.parseErrors.join(' ')}`)
+    }
+
+    return lines.join('\n')
+  }
+
+  /**
    * Human-readable metadata for this message.
    *
    * @returns Ordered dictionary with message description.
@@ -70,6 +211,15 @@ export class EPRSourceCapabilitiesMessage extends ExtendedMessage {
   public override get humanReadableMetadata() {
     const metadata = super.humanReadableMetadata
     metadata.baseInformation.insertEntryAt(1, 'messageDescription', HumanReadableField.string('EPR_Source_Capabilities is an extended message that advertises source EPR capability data so a sink can request valid high-power EPR operating points.', 'Message Description', 'A description of the message\'s function and usage.'))
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'messageSummary',
+      HumanReadableField.string(
+        this.describe(),
+        'Message Summary',
+        'Concise description of the specific Standard Power Range and Extended Power Range source capabilities advertised by this EPR_Source_Capabilities message.',
+      ),
+    )
 
     const decodedPDOs = [...this.sprPDOs, ...this.eprPDOs]
     if (decodedPDOs.length > 0) {
