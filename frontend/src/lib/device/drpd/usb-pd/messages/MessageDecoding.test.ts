@@ -1121,6 +1121,14 @@ describe('USB-PD extended message decoding', () => {
     const sinkDecoded = sink as EPRSinkCapabilitiesMessage
     expect(sinkDecoded.sprPDOs.length).toBe(7)
     expect(sinkDecoded.eprPDOs.length).toBe(1)
+    const sinkSummary = sinkDecoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(sinkSummary?.type).toBe('String')
+    expect(sinkSummary?.Label).toBe('Message Summary')
+    expect(sinkSummary?.value).toContain('The sink is reporting the following Extended Power Range capabilities:')
+    expect(sinkSummary?.value).toContain('Standard Power Range fixed power profiles:')
+    expect(sinkSummary?.value).toContain('- 5V @ 2A')
+    expect(sinkSummary?.value).toContain('Extended Power Range fixed power profiles:')
+    expect(sinkSummary?.value).toContain('- 5.35V @ 2.07A')
   })
 
   it('summarizes truncated EPR Source Capabilities as a partial transfer', () => {

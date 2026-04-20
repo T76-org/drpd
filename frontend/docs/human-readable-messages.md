@@ -124,7 +124,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `EPR_Source_Capabilities` (`EPRSourceCapabilitiesMessage`)
   - Payload: SPR and EPR source PDO list in an extended message.
   - Summary: Source profiles grouped by fixed, variable, battery, PPS, SPR AVS, and EPR AVS; distinguish SPR vs EPR entries; include EPR support and salient source flags.
-- [ ] `EPR_Sink_Capabilities` (`EPRSinkCapabilitiesMessage`)
+- [x] `EPR_Sink_Capabilities` (`EPRSinkCapabilitiesMessage`)
   - Payload: SPR and EPR sink PDO list in an extended message.
   - Summary: Sink profiles grouped by fixed, variable, battery, PPS, SPR AVS, and EPR AVS; distinguish SPR vs EPR entries; include sink capabilities and salient flags.
 - [ ] `Vendor_Defined_Extended` (`VendorDefinedExtendedMessage`)
