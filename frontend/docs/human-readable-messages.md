@@ -115,7 +115,7 @@ Control messages are intentionally excluded because they do not carry payload da
 - [x] `Country_Codes` (`CountryCodesMessage`)
   - Payload: Country Codes Data Block.
   - Summary: Number of country codes and the decoded country code list.
-- [ ] `Sink_Capabilities_Extended` (`SinkCapabilitiesExtendedMessage`)
+- [x] `Sink_Capabilities_Extended` (`SinkCapabilitiesExtendedMessage`)
   - Payload: Sink Capabilities Extended Data Block.
   - Summary: VID/PID/XID, firmware/hardware versions, SKEDB version, load-step characteristics, compliance/touch-temp data, battery-slot bitfields, sink modes, and SPR/EPR min/operational/max PDP ratings.
 - [x] `Extended_Control` (`ExtendedControlMessage`)

@@ -982,8 +982,21 @@ describe('USB-PD extended message decoding', () => {
 
   it('decodes Sink_Capabilities_Extended', () => {
     const skedb = new Uint8Array(24)
+    skedb[0] = 0x34
+    skedb[1] = 0x12
+    skedb[2] = 0x78
+    skedb[3] = 0x56
+    skedb[8] = 0x10
+    skedb[9] = 0x20
     skedb[10] = 1
+    skedb[16] = 0x21
     skedb[17] = 0x10
+    skedb[18] = 10
+    skedb[19] = 20
+    skedb[20] = 30
+    skedb[21] = 40
+    skedb[22] = 50
+    skedb[23] = 60
     const header = makeMessageHeader({
       extended: true,
       numberOfDataObjects: 0,
@@ -995,6 +1008,20 @@ describe('USB-PD extended message decoding', () => {
     const decoded = message as SinkCapabilitiesExtendedMessage
     expect(decoded.sinkCapabilitiesExtended?.skedbVersion).toBe(1)
     expect(decoded.sinkCapabilitiesExtended?.sinkModes).toBe(0x10)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.type).toBe('String')
+    expect(summary?.Label).toBe('Message Summary')
+    expect(summary?.value).toContain('**Sink capabilities extended information:**')
+    expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
+    expect(summary?.value).toContain('- Product ID: 0x5678')
+    expect(summary?.value).toContain('- Firmware version: 16')
+    expect(summary?.value).toContain('- Hardware version: 32')
+    expect(summary?.value).toContain('- Sink capabilities extended data block version: 1')
+    expect(summary?.value).toContain('- Standard Power Range sink power data profile: minimum 10W, operational 20W, maximum 30W')
+    expect(summary?.value).toContain('- Extended Power Range sink power data profile: minimum 40W, operational 50W, maximum 60W')
+    expect(summary?.value).toContain('- Sink modes: battery essentially unlimited')
+    expect(summary?.value).toContain('- Fixed batteries: 1')
+    expect(summary?.value).toContain('- Hot-swappable battery slots: 2')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sinkCapabilitiesExtendedDataBlock')
     expect(block?.getEntry('skedbVersion')?.value).toBe('0x01 (Version 1.0)')
     expect(block?.getEntry('sinkModes')?.value).toContain('Battery essentially unlimited')
