@@ -1,0 +1,137 @@
+.page {
+  min-height: 100dvh;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(71, 117, 91, 0.24), transparent 32rem),
+    linear-gradient(135deg, var(--color-page-bg), color-mix(in srgb, var(--color-page-bg) 72%, #17221b));
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  padding: var(--space-32);
+}
+
+.panel {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: var(--space-28);
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface-panel) 88%, transparent);
+  box-shadow: var(--shadow-elevated);
+}
+
+.title {
+  margin: var(--space-0) 0 var(--space-8);
+  font-size: var(--font-size-3xl);
+}
+
+.subtitle {
+  margin: var(--space-0) 0 var(--space-24);
+  color: var(--color-text-muted);
+}
+
+.heading {
+  margin: var(--space-0);
+  font-size: var(--font-size-lg);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-12);
+  margin-top: var(--space-20);
+  padding: var(--space-16);
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-panel) 76%, var(--color-page-bg));
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+}
+
+.button,
+.fileInput {
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface-panel) 84%, var(--color-page-bg));
+  color: var(--color-text-primary);
+}
+
+.button {
+  appearance: none;
+  padding: var(--control-padding-y-md) var(--control-padding-x-md);
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--color-edit-glow);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.fileInput {
+  padding: var(--space-12);
+}
+
+.status,
+.error,
+.success {
+  padding: var(--space-12);
+  border-radius: var(--radius-sm);
+}
+
+.status {
+  background: color-mix(in srgb, var(--color-surface-panel) 70%, var(--color-page-bg));
+  border: var(--border-thin) solid var(--color-border-panel);
+}
+
+.error {
+  color: var(--color-status-error);
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-status-error) 55%, transparent);
+}
+
+.success {
+  color: var(--color-status-ok);
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-status-ok) 55%, transparent);
+}
+
+.progressShell {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-page-bg) 82%, white);
+  border: var(--border-thin) solid var(--color-border-panel);
+}
+
+.progressBar {
+  height: 100%;
+  width: var(--upload-progress, 0%);
+  background: linear-gradient(90deg, #78d68f, #d8f08a);
+  transition: width var(--transition-standard);
+}
+
+.meta {
+  display: grid;
+  gap: var(--space-8);
+  color: var(--color-text-muted);
+}
+
+.code {
+  color: var(--color-text-primary);
+}
+
+.trace {
+  max-height: 18rem;
+  overflow: auto;
+  margin: var(--space-0);
+  padding: var(--space-12);
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-page-bg) 88%, black);
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+}

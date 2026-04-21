@@ -109,6 +109,7 @@ namespace T76::DRPD {
         void _querySystemSpeed(const std::vector<T76::SCPI::ParameterValue> &params);
         void _querySystemUptime(const std::vector<T76::SCPI::ParameterValue> &params);
         void _querySystemTimestamp(const std::vector<T76::SCPI::ParameterValue> &params);
+        void _enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &params);
 
         void _measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureVBusVoltage(const std::vector<T76::SCPI::ParameterValue> &);
@@ -368,6 +369,7 @@ namespace T76::DRPD {
         CommandTransport _activeCommandTransport{CommandTransport::USBTMC}; ///< Transport used for the active request/response flow.
         uint8_t _activeWinUSBTag{0}; ///< Correlation tag for the active WinUSB request.
         bool _activeWinUSBQueryRequest{false}; ///< True when the active WinUSB request expects text/binary query data.
+        bool _firmwareUpdaterRebootRequested{false}; ///< True when a WinUSB command ACK should be followed by updater reboot.
         std::string _pendingTextResponse; ///< Accumulates partial text responses until they are terminated.
         std::vector<uint8_t> _winusbRxBuffer; ///< Accumulates raw WinUSB bulk OUT bytes until complete frames are available.
         bool _winusbResponseSent{false}; ///< True when the current WinUSB request has emitted a response frame.

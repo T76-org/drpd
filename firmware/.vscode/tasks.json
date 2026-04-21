@@ -26,9 +26,13 @@
             "command": "${env:HOME}/.pico-sdk/picotool/2.2.0-a4/picotool/picotool",
             "args": [
                 "load",
-                "${command:raspberry-pi-pico.launchTargetPath}",
+                "${workspaceFolder}/build/drpd-firmware-combined.uf2",
                 "-fx"
             ],
+            "dependsOn": [
+                "Compile Project"
+            ],
+            "dependsOrder": "sequence",
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated"

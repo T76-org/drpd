@@ -353,6 +353,19 @@ export class DRPDWorkerServiceClient {
           await registration.transport.checkError(message.command)
           result = null
           break
+        case 'updateFirmware':
+          if (!message.update) {
+            throw new Error('Host transport updateFirmware missing payload')
+          }
+          if (
+            !('updateFirmware' in registration.transport) ||
+            typeof registration.transport.updateFirmware !== 'function'
+          ) {
+            throw new Error('Host transport does not support firmware updates')
+          }
+          await registration.transport.updateFirmware(message.update)
+          result = null
+          break
       }
       this.postToWorker({
         type: 'host-transport-rpc-result',

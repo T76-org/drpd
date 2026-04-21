@@ -8,6 +8,7 @@
 import { DebugLogRegistry, DebugLogger } from '../debugLogger'
 import {
   DRPD_TRANSPORT_INTERRUPT_EVENT,
+  type DRPDFirmwareUpdateRequest,
   type DRPDSCPIParam,
 } from '../device/drpd/transport'
 
@@ -24,11 +25,18 @@ const WINUSB_FRAME_HEADER_SIZE = 12
 const WINUSB_COMMAND_REQUEST = 0x01
 const WINUSB_SESSION_RESET_REQUEST = 0x02
 const WINUSB_QUERY_REQUEST = 0x03
+const WINUSB_UPDATE_BEGIN = 0x10
+const WINUSB_UPDATE_WRITE = 0x11
+const WINUSB_UPDATE_FINISH = 0x12
+const WINUSB_UPDATE_ABORT = 0x13
+const WINUSB_UPDATE_STATUS = 0x14
 const WINUSB_COMMAND_ACK = 0x80
 const WINUSB_TEXT_RESPONSE = 0x81
 const WINUSB_BINARY_RESPONSE = 0x82
 const WINUSB_ERROR_RESPONSE = 0x83
 const WINUSB_SESSION_RESET_ACK = 0x84
+const WINUSB_UPDATE_ACK = 0x85
+const WINUSB_UPDATE_STATUS_RESPONSE = 0x86
 const WINUSB_READ_TRANSFER_SIZE = 4096
 const WINUSB_STATUS_FLAG_SRQ_PENDING = 0x01
 
@@ -56,6 +64,13 @@ type ParsedWinUSBFrame = {
   tag: number
   srqPending: boolean
   payload: Uint8Array
+}
+
+export type WinUSBFirmwareUpdateStatus = {
+  state: number
+  baseOffset: number
+  totalLength: number
+  bytesWritten: number
 }
 
 /**
@@ -236,6 +251,51 @@ export class WinUSBTransport extends EventTarget {
     })
   }
 
+  public async updateFirmware(request: DRPDFirmwareUpdateRequest): Promise<void> {
+    await this.withLock(async () => {
+      let bytesWritten = 0
+      const beginPayload = new Uint8Array(12)
+      this.writeU32LE(beginPayload, 0, request.baseOffset)
+      this.writeU32LE(beginPayload, 4, request.totalLength)
+      this.writeU32LE(beginPayload, 8, request.crc32)
+      await this.sendUpdaterFrame(WINUSB_UPDATE_BEGIN, beginPayload, 'UPDATE_BEGIN')
+
+      try {
+        for (const chunk of request.chunks) {
+          const payload = new Uint8Array(4 + chunk.data.byteLength)
+          this.writeU32LE(payload, 0, chunk.offset)
+          payload.set(chunk.data, 4)
+          await this.sendUpdaterFrame(WINUSB_UPDATE_WRITE, payload, `UPDATE_WRITE 0x${chunk.offset.toString(16)}`)
+          bytesWritten += chunk.data.byteLength
+          request.onProgress?.({ bytesWritten, totalLength: request.totalLength })
+        }
+        await this.sendUpdaterFrame(WINUSB_UPDATE_FINISH, new Uint8Array(0), 'UPDATE_FINISH')
+      } catch (error) {
+        try {
+          await this.sendUpdaterFrame(WINUSB_UPDATE_ABORT, new Uint8Array(0), 'UPDATE_ABORT')
+        } catch {
+          // Preserve the original update error.
+        }
+        throw error
+      }
+    })
+  }
+
+  public async getFirmwareUpdateStatus(): Promise<WinUSBFirmwareUpdateStatus> {
+    return await this.withLock(async () => {
+      const payload = await this.sendUpdaterFrame(WINUSB_UPDATE_STATUS, new Uint8Array(0), 'UPDATE_STATUS')
+      if (payload.byteLength !== 16) {
+        throw new Error(`Invalid WinUSB updater status payload length ${payload.byteLength}`)
+      }
+      return {
+        state: this.readU32LE(payload, 0),
+        baseOffset: this.readU32LE(payload, 4),
+        totalLength: this.readU32LE(payload, 8),
+        bytesWritten: this.readU32LE(payload, 12),
+      }
+    })
+  }
+
   protected async checkErrorUnlocked(command: string): Promise<void> {
     const response = await this.queryTextFrame('SYST:ERR?')
     const combined = response.join(' ')
@@ -270,6 +330,23 @@ export class WinUSBTransport extends EventTarget {
       throw new Error(`Unexpected WinUSB response type 0x${response.type.toString(16)}`)
     }
     return this.parseSCPIResponse(this.decoder.decode(response.payload).replace(/\r?\n$/, ''))
+  }
+
+  protected async sendUpdaterFrame(type: number, payload: Uint8Array, label: string): Promise<Uint8Array> {
+    const tag = await this.withTimeout(
+      this.writeFrame(type, payload),
+      this.options.writeTimeoutMs,
+      'write',
+      label,
+    )
+    const response = await this.awaitResponseFrame(tag, label)
+    if (response.type === WINUSB_ERROR_RESPONSE) {
+      throw new Error(`WinUSB firmware update error: ${this.decoder.decode(response.payload)}`)
+    }
+    if (response.type !== WINUSB_UPDATE_ACK && response.type !== WINUSB_UPDATE_STATUS_RESPONSE) {
+      throw new Error(`Unexpected WinUSB updater response type 0x${response.type.toString(16)}`)
+    }
+    return response.payload
   }
 
   protected async writeFrame(type: number, payload: Uint8Array): Promise<number> {
@@ -367,6 +444,23 @@ export class WinUSBTransport extends EventTarget {
     frame[11] = (payloadLength >> 24) & 0xff
     frame.set(payload, WINUSB_FRAME_HEADER_SIZE)
     return frame
+  }
+
+  protected writeU32LE(target: Uint8Array, offset: number, value: number): void {
+    const normalized = value >>> 0
+    target[offset] = normalized & 0xff
+    target[offset + 1] = (normalized >> 8) & 0xff
+    target[offset + 2] = (normalized >> 16) & 0xff
+    target[offset + 3] = (normalized >> 24) & 0xff
+  }
+
+  protected readU32LE(source: Uint8Array, offset: number): number {
+    return (
+      source[offset] |
+      (source[offset + 1] << 8) |
+      (source[offset + 2] << 16) |
+      (source[offset + 3] << 24)
+    ) >>> 0
   }
 
   protected nextTag(): number {

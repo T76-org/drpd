@@ -59,6 +59,10 @@ commands:
     description:  "Query the current timestamp in microseconds."
     handler:      _querySystemTimestamp
 
+  - syntax:       "SYSTem:FIRMware:UPDater"
+    description:  "Reboot into the resident firmware updater bootloader."
+    handler:      _enterFirmwareUpdater
+
   ############################
   # Device status register
   ############################

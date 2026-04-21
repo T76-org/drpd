@@ -26,6 +26,33 @@ export const DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT = 'interrupterror'
 export type DRPDTransportKind = 'usbtmc' | 'winusb'
 
 /**
+ * Browser firmware-update write chunk.
+ */
+export interface DRPDFirmwareUpdateChunk {
+  offset: number
+  data: Uint8Array
+}
+
+/**
+ * Firmware-update request consumed by WinUSB-capable transports.
+ */
+export interface DRPDFirmwareUpdateRequest {
+  baseOffset: number
+  totalLength: number
+  crc32: number
+  chunks: DRPDFirmwareUpdateChunk[]
+  onProgress?: (progress: DRPDFirmwareUpdateProgress) => void
+}
+
+/**
+ * Firmware-update progress snapshot.
+ */
+export interface DRPDFirmwareUpdateProgress {
+  bytesWritten: number
+  totalLength: number
+}
+
+/**
  * Transport interface used by DRPD drivers.
  */
 export interface DRPDTransport {
@@ -57,4 +84,13 @@ export interface DRPDTransport {
    * @returns Binary payload bytes.
    */
   queryBinary(command: string, ...params: DRPDSCPIParam[]): Promise<Uint8Array>
+
+  /**
+   * Stream an application-region firmware image to the resident updater.
+   *
+   * Only WinUSB transports implement this in v1.
+   *
+   * @param request - Parsed update image and progress callback.
+   */
+  updateFirmware?(request: DRPDFirmwareUpdateRequest): Promise<void>
 }

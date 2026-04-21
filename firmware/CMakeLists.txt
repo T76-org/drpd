@@ -41,6 +41,7 @@ project(drpd-firmware C CXX ASM)
 pico_sdk_init()
 
 set(DRPD_PERSISTENT_CONFIG_FLASH_SIZE 4096)
+set(DRPD_STAGE3_BOOTLOADER_FLASH_SIZE 32768)
 if(DEFINED PICO_FLASH_SIZE_BYTES)
     set(DRPD_FLASH_SIZE_BYTES ${PICO_FLASH_SIZE_BYTES})
 else()
@@ -48,8 +49,19 @@ else()
 endif()
 # Reserve the final flash sector for PersistentConfig so the linked firmware
 # image does not overwrite persisted settings during normal reflashing.
-math(EXPR DRPD_LINK_FLASH_SIZE_BYTES "${DRPD_FLASH_SIZE_BYTES} - ${DRPD_PERSISTENT_CONFIG_FLASH_SIZE}")
-set(PICO_FLASH_SIZE_BYTES ${DRPD_LINK_FLASH_SIZE_BYTES})
+math(EXPR DRPD_APP_FLASH_OFFSET_BYTES "${DRPD_STAGE3_BOOTLOADER_FLASH_SIZE}")
+math(EXPR DRPD_APP_LINK_FLASH_SIZE_BYTES "${DRPD_FLASH_SIZE_BYTES} - ${DRPD_STAGE3_BOOTLOADER_FLASH_SIZE} - ${DRPD_PERSISTENT_CONFIG_FLASH_SIZE}")
+set(DRPD_APP_XIP_BASE "0x10008000")
+
+file(READ "${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2350/memmap_default.ld" DRPD_DEFAULT_MEMMAP)
+string(REPLACE
+    "INCLUDE \"pico_flash_region.ld\""
+    "FLASH(rx) : ORIGIN = ${DRPD_APP_XIP_BASE}, LENGTH = ${DRPD_APP_LINK_FLASH_SIZE_BYTES}"
+    DRPD_APP_MEMMAP
+    "${DRPD_DEFAULT_MEMMAP}"
+)
+set(DRPD_APP_MEMMAP_FILE "${CMAKE_BINARY_DIR}/drpd_app_memmap.ld")
+file(WRITE "${DRPD_APP_MEMMAP_FILE}" "${DRPD_APP_MEMMAP}")
 
 # USB Settings
 
@@ -120,6 +132,8 @@ add_executable(drpd-firmware
         freertos/rp2350.c
 )
 
+pico_set_linker_script(drpd-firmware ${DRPD_APP_MEMMAP_FILE})
+
 pico_generate_pio_header(drpd-firmware ${CMAKE_CURRENT_LIST_DIR}/lib/phy/bmc_decoder.pio)
 pico_generate_pio_header(drpd-firmware ${CMAKE_CURRENT_LIST_DIR}/lib/phy/bmc_encoder\.pio)
 
@@ -166,6 +180,7 @@ target_compile_options(t76_ic PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
 
 target_compile_definitions(drpd-firmware PUBLIC
     DRPD_ENABLE_TEST_SCPI_COMMANDS              # Enable TEST:*** SCPI commands.
+    T76_UPDATER_APPLICATION_FLASH_OFFSET_BYTES=${DRPD_APP_FLASH_OFFSET_BYTES}
 )
 
 # Add the standard library to the build
@@ -177,6 +192,19 @@ target_link_libraries(drpd-firmware
         hardware_pwm
         hardware_sync
         t76_ic
+        t76_ic_updater
+)
+
+t76_add_stage3_updater_bootloader(drpd-stage3-bootloader
+    APPLICATION_FLASH_OFFSET ${DRPD_APP_FLASH_OFFSET_BYTES}
+    FLASH_SIZE ${DRPD_FLASH_SIZE_BYTES}
+    PROTECTED_TAIL_SIZE ${DRPD_PERSISTENT_CONFIG_FLASH_SIZE}
+    USB_VENDOR_ID ${T76_IC_USB_VENDOR_ID}
+    USB_PRODUCT_ID ${T76_IC_USB_PRODUCT_ID}
+    USB_MANUFACTURER_STRING "${T76_IC_USB_MANUFACTURER_STRING}"
+    USB_PRODUCT_STRING "${T76_IC_USB_PRODUCT_STRING}"
+    PROGRAM_NAME "Dr.PD Updater"
+    PROGRAM_VERSION "0.1"
 )
 
 add_dependencies(drpd-firmware
@@ -189,4 +217,39 @@ target_include_directories(drpd-firmware PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/freertos
 )
 
-pico_add_extra_outputs(drpd-firmware)
+set(DRPD_PICOTOOL "${USERHOME}/.pico-sdk/picotool/${picotoolVersion}/picotool/picotool")
+
+add_custom_command(
+    OUTPUT
+        ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.bin
+        ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.uf2
+    COMMAND ${CMAKE_OBJCOPY}
+        -Obinary
+        $<TARGET_FILE:drpd-firmware>
+        ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.bin
+    COMMAND ${DRPD_PICOTOOL}
+        uf2 convert
+        --quiet
+        ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.bin
+        -t bin
+        ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.uf2
+        -t uf2
+        --offset ${DRPD_APP_XIP_BASE}
+        --family rp2350-arm-s
+        --abs-block
+    DEPENDS drpd-firmware
+    COMMENT "Generating relocated DRPD application BIN and UF2"
+)
+
+add_custom_target(drpd-firmware-application ALL
+    DEPENDS
+        ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.bin
+        ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.uf2
+)
+
+t76_add_combined_uf2(drpd-firmware-combined
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware-combined.uf2
+    BOOTLOADER_UF2 ${CMAKE_CURRENT_BINARY_DIR}/drpd-stage3-bootloader.uf2
+    APP_UF2 ${CMAKE_CURRENT_BINARY_DIR}/drpd-firmware.uf2
+)
+add_dependencies(drpd-firmware-combined drpd-stage3-bootloader drpd-firmware-application)

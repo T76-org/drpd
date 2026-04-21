@@ -10,6 +10,7 @@
 #include <algorithm>
 
 #include <FreeRTOS.h>
+#include <hardware/watchdog.h>
 #include <pico/flash.h>
 #include <pico/stdlib.h>
 #include <task.h>
@@ -287,6 +288,11 @@ void App::_processWinUSBRequest(const std::vector<uint8_t> &payload, bool expect
     if (!expectsQuery) {
         _sendWinUSBFrame(WinUSBFrameType::CommandAck, _activeWinUSBTag, {});
         _winusbResponseSent = true;
+        if (_firmwareUpdaterRebootRequested) {
+            _firmwareUpdaterRebootRequested = false;
+            sleep_ms(150);
+            watchdog_reboot(0, 0, 10);
+        }
         return;
     }
 

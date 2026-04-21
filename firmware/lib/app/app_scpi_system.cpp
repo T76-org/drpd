@@ -1,7 +1,11 @@
 #include "app.hpp"
 
 #include <hardware/clocks.h>
+#include <hardware/structs/watchdog.h>
+#include <hardware/watchdog.h>
 #include "pico/unique_id.h"
+
+#include <t76/updater/boot_request.h>
 
 
 using namespace T76::DRPD;
@@ -48,4 +52,15 @@ void App::_querySystemUptime(const std::vector<T76::SCPI::ParameterValue> &param
 void App::_querySystemTimestamp(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint64_t timestampMicros = time_us_64();
     _sendTransportTextResponse(std::to_string(timestampMicros));
+}
+
+void App::_enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &params) {
+    watchdog_hw->scratch[T76_UPDATER_BOOT_SCRATCH_MAGIC] = T76_UPDATER_BOOT_MAGIC;
+    watchdog_hw->scratch[T76_UPDATER_BOOT_SCRATCH_ARM] = T76_UPDATER_BOOT_ARM_VALUE;
+    if (_activeCommandTransport == CommandTransport::WinUSB) {
+        _firmwareUpdaterRebootRequested = true;
+        return;
+    }
+    sleep_ms(150);
+    watchdog_reboot(0, 0, 10);
 }

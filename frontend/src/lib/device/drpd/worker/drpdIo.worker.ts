@@ -11,7 +11,7 @@ import { openPreferredDRPDTransport, type DRPDUSBTransport } from '../../../tran
 import { SQLiteWasmStore } from '../logging/sqliteWasmStore'
 import type { DRPDLogStore } from '../logging/types'
 import { DRPDDevice } from '../device'
-import type { DRPDTransport, DRPDTransportKind } from '../transport'
+import type { DRPDFirmwareUpdateRequest, DRPDTransport, DRPDTransportKind } from '../transport'
 import type {
   HostTransportRpcRequest,
   MainToWorkerMessage,
@@ -140,6 +140,21 @@ class HostBridgeTransport extends EventTarget implements DRPDTransport {
       await callHostTransport({
         transportId: this.transportId,
         method: 'checkError',
+      })
+    })
+  }
+
+  public async updateFirmware(request: DRPDFirmwareUpdateRequest): Promise<void> {
+    await runTransportQueued(this.transportId, async () => {
+      await callHostTransport({
+        transportId: this.transportId,
+        method: 'updateFirmware',
+        update: {
+          baseOffset: request.baseOffset,
+          totalLength: request.totalLength,
+          crc32: request.crc32,
+          chunks: request.chunks,
+        },
       })
     })
   }
@@ -366,6 +381,13 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
               command: request.params.command,
               params: request.params.params,
             })
+          case 'updateFirmware':
+            await callHostTransport({
+              transportId,
+              method: 'updateFirmware',
+              update: request.params.update,
+            })
+            return null
           case 'checkError':
             await callHostTransport({
               transportId,

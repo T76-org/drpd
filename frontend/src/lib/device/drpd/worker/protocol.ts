@@ -5,7 +5,7 @@
  * Message protocol for DRPD worker-backed transport and logging services.
  */
 
-import type { DRPDSCPIParam } from '../transport'
+import type { DRPDFirmwareUpdateRequest, DRPDSCPIParam } from '../transport'
 import type { DRPDTransportKind } from '../transport'
 import type { DebugLogScopeRule } from '../../../debugLogger'
 import type {
@@ -38,6 +38,7 @@ export type WorkerTransportMethod =
   | 'queryText'
   | 'queryBinary'
   | 'checkError'
+  | 'updateFirmware'
 
 /**
  * Main-thread to worker RPC request.
@@ -83,6 +84,11 @@ export type WorkerRpcRequest =
             op: 'queryBinary'
             command: string
             params: DRPDSCPIParam[]
+          }
+        | {
+            transportId: string
+            op: 'updateFirmware'
+            update: Omit<DRPDFirmwareUpdateRequest, 'onProgress'>
           }
         | {
             transportId: string
@@ -205,6 +211,7 @@ export interface HostTransportRpcRequest {
   method: WorkerTransportMethod ///< Host transport method to invoke.
   command?: string ///< Optional SCPI command string.
   params?: DRPDSCPIParam[] ///< Optional SCPI arguments.
+  update?: Omit<DRPDFirmwareUpdateRequest, 'onProgress'> ///< Optional firmware update payload.
 }
 
 /**

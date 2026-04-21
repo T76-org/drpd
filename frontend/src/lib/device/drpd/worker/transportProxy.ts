@@ -9,6 +9,7 @@ import type { DRPDUSBTransport } from '../../../transport/drpdUsb'
 import {
   DRPD_TRANSPORT_INTERRUPT_ERROR_EVENT,
   DRPD_TRANSPORT_INTERRUPT_EVENT,
+  type DRPDFirmwareUpdateRequest,
   type DRPDSCPIParam,
   type DRPDTransport,
   type DRPDTransportKind,
@@ -108,6 +109,20 @@ export class DRPDWorkerTransportProxy extends EventTarget implements DRPDTranspo
       op: 'queryBinary',
       command,
       params,
+    })
+  }
+
+  public async updateFirmware(request: DRPDFirmwareUpdateRequest): Promise<void> {
+    this.ensureOpen()
+    await this.client.callWorker('transport.call', {
+      transportId: this.id,
+      op: 'updateFirmware',
+      update: {
+        baseOffset: request.baseOffset,
+        totalLength: request.totalLength,
+        crc32: request.crc32,
+        chunks: request.chunks,
+      },
     })
   }
 
