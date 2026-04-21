@@ -1,0 +1,9 @@
+/**
+ * @file version.hpp
+ * @brief Generated firmware version constants.
+ * @copyright Copyright (c) 2026 MTA, Inc.
+ */
+
+#pragma once
+
+#define DRPD_FIRMWARE_VERSION "@DRPD_FIRMWARE_VERSION@"

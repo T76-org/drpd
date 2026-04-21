@@ -40,6 +40,8 @@ project(drpd-firmware C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+set(DRPD_FIRMWARE_VERSION "0.9.9-beta-20260421.01" CACHE STRING "Dr.PD firmware version")
+
 set(DRPD_PERSISTENT_CONFIG_FLASH_SIZE 4096)
 set(DRPD_STAGE3_BOOTLOADER_FLASH_SIZE 32768)
 if(DEFINED PICO_FLASH_SIZE_BYTES)
@@ -63,6 +65,12 @@ string(REPLACE
 set(DRPD_APP_MEMMAP_FILE "${CMAKE_BINARY_DIR}/drpd_app_memmap.ld")
 file(WRITE "${DRPD_APP_MEMMAP_FILE}" "${DRPD_APP_MEMMAP}")
 
+configure_file(
+    ${CMAKE_CURRENT_LIST_DIR}/config/version.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/drpd_version.hpp
+    @ONLY
+)
+
 # USB Settings
 
 set(T76_IC_USB_URL "t76.org/drpd" CACHE STRING "URL string for the USB WebUSB descriptor" FORCE)
@@ -70,10 +78,6 @@ set(T76_IC_USB_VENDOR_ID "0x2E8A" CACHE STRING "USB Vendor ID" FORCE)
 set(T76_IC_USB_PRODUCT_ID "0x000A" CACHE STRING "USB Product ID" FORCE)
 set(T76_IC_USB_MANUFACTURER_STRING "MTA Inc." CACHE STRING "USB Manufacturer String" FORCE)
 set(T76_IC_USB_PRODUCT_STRING "Dr. PD" CACHE STRING "USB Product String" FORCE)
-
-# Include configuration files
-
-# Add executable. Default name is the project name, version 0.1
 
 add_executable(drpd-firmware
         lib/app/app.cpp
@@ -153,7 +157,7 @@ set(T76_SCPI_OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/lib/app/scpi_commands.cpp)
 set(FREERTOS_CONFIG_DIR ${CMAKE_CURRENT_LIST_DIR}/freertos)
 
 pico_set_program_name(drpd-firmware "Dr.PD")
-pico_set_program_version(drpd-firmware "0.1")
+pico_set_program_version(drpd-firmware "${DRPD_FIRMWARE_VERSION}")
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_usb(drpd-firmware 1)
@@ -204,7 +208,7 @@ t76_add_stage3_updater_bootloader(drpd-stage3-bootloader
     USB_MANUFACTURER_STRING "${T76_IC_USB_MANUFACTURER_STRING}"
     USB_PRODUCT_STRING "${T76_IC_USB_PRODUCT_STRING}"
     PROGRAM_NAME "Dr.PD Updater"
-    PROGRAM_VERSION "0.1"
+    PROGRAM_VERSION "${DRPD_FIRMWARE_VERSION}"
 )
 
 add_dependencies(drpd-firmware
@@ -215,6 +219,7 @@ add_dependencies(drpd-firmware
 target_include_directories(drpd-firmware PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/freertos
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
 set(DRPD_PICOTOOL "${USERHOME}/.pico-sdk/picotool/${picotoolVersion}/picotool/picotool")

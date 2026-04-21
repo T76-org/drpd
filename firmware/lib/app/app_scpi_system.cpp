@@ -3,6 +3,7 @@
 #include <hardware/clocks.h>
 #include <hardware/structs/watchdog.h>
 #include <hardware/watchdog.h>
+#include "drpd_version.hpp"
 #include "pico/unique_id.h"
 
 #include <t76/updater/boot_request.h>
@@ -16,7 +17,7 @@ void App::_queryIDN(const std::vector<T76::SCPI::ParameterValue> &params) {
     pico_get_unique_board_id_string(serialBuffer,
         sizeof(serialBuffer));
     std::string response = "\"MTA Inc.\",Dr.PD," +
-        std::string(serialBuffer) + ",1.0";
+        std::string(serialBuffer) + "," DRPD_FIRMWARE_VERSION;
     _sendTransportTextResponse(response);
 }
 
