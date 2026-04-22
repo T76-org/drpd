@@ -43,6 +43,13 @@ export class DRPDSystem {
   }
 
   /**
+   * Request reboot into the resident firmware updater.
+   */
+  public async enterFirmwareUpdate(): Promise<void> {
+    await this.transport.sendCommand('SYST:FIRM:UPD')
+  }
+
+  /**
    * Query the system error queue.
    *
    * @returns Error code and message.

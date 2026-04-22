@@ -12,10 +12,13 @@ import {
 } from './version'
 
 export const DRPD_FIRMWARE_ASSET_NAME = 'drpd-firmware-combined.uf2'
+export const DRPD_FIRMWARE_DOWNLOAD_BASE_URL = 'https://t76.org/drpd/releases'
 
 export type FirmwareUpdateChannel = 'production' | 'beta'
 
 export interface GitHubReleaseAsset {
+  id?: number
+  url?: string
   name: string
   browser_download_url: string
   size?: number
@@ -32,6 +35,7 @@ export interface GitHubRelease {
 }
 
 export interface FirmwareReleaseAsset {
+  id?: number
   name: string
   downloadUrl: string
   size?: number
@@ -102,7 +106,7 @@ export const normalizeGitHubFirmwareReleases = (
       continue
     }
 
-    const asset = selectFirmwareAsset(release.assets ?? [])
+    const asset = selectFirmwareAsset(release.assets ?? [], version.text)
     if (!asset) {
       options.log?.(`Skipping firmware release ${version.text}; missing ${DRPD_FIRMWARE_ASSET_NAME}`)
       continue
@@ -144,14 +148,18 @@ export const selectReleaseForChannel = (
  */
 export const selectFirmwareAsset = (
   assets: GitHubReleaseAsset[],
+  versionText?: string,
 ): FirmwareReleaseAsset | null => {
   const asset = assets.find((candidate) => candidate.name === DRPD_FIRMWARE_ASSET_NAME)
   if (!asset) {
     return null
   }
   return {
+    ...(asset.id == null ? {} : { id: asset.id }),
     name: asset.name,
-    downloadUrl: asset.browser_download_url,
+    downloadUrl: versionText
+      ? `${DRPD_FIRMWARE_DOWNLOAD_BASE_URL}/${versionText}/${DRPD_FIRMWARE_ASSET_NAME}`
+      : asset.browser_download_url,
     ...(asset.size == null ? {} : { size: asset.size }),
     ...(asset.content_type ? { contentType: asset.content_type } : {}),
   }

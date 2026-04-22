@@ -632,6 +632,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         if (method === 'identify') {
           return await session.device.system.identify()
         }
+        if (method === 'enterFirmwareUpdate') {
+          await session.device.system.enterFirmwareUpdate()
+          return null
+        }
         throw new Error(`Unsupported system method: ${method}`)
       }
       if (target === 'trigger') {

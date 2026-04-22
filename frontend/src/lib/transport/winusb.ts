@@ -652,6 +652,9 @@ export class WinUSBTransport extends EventTarget {
     }
 
     for (const usbInterface of configuration.interfaces) {
+      if (this.interfaceNumber != null && usbInterface.interfaceNumber !== this.interfaceNumber) {
+        continue
+      }
       const alternate = this.findWinUSBAlternate(usbInterface)
       if (!alternate) {
         continue

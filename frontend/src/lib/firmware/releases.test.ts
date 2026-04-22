@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DRPD_FIRMWARE_ASSET_NAME,
+  DRPD_FIRMWARE_DOWNLOAD_BASE_URL,
   normalizeGitHubFirmwareReleases,
   selectFirmwareAsset,
   selectReleaseForChannel,
@@ -9,6 +10,8 @@ import {
 } from './releases'
 
 const asset = (name = DRPD_FIRMWARE_ASSET_NAME) => ({
+  id: 1234,
+  url: `https://api.github.com/repos/T76-org/drpd/releases/assets/1234`,
   name,
   browser_download_url: `https://example.test/${name}`,
   size: 123,
@@ -31,8 +34,16 @@ describe('firmware asset selection', () => {
       asset('notes.txt'),
       asset(),
     ])).toMatchObject({
+      id: 1234,
       name: DRPD_FIRMWARE_ASSET_NAME,
       downloadUrl: `https://example.test/${DRPD_FIRMWARE_ASSET_NAME}`,
+    })
+  })
+
+  it('uses the GitHub Pages firmware URL when a version is known', () => {
+    expect(selectFirmwareAsset([asset()], '1.2.3-beta.4')).toMatchObject({
+      name: DRPD_FIRMWARE_ASSET_NAME,
+      downloadUrl: `${DRPD_FIRMWARE_DOWNLOAD_BASE_URL}/1.2.3-beta.4/${DRPD_FIRMWARE_ASSET_NAME}`,
     })
   })
 
@@ -90,6 +101,16 @@ describe('GitHub firmware release normalization', () => {
       'Skipping stable firmware release with beta tag 1.0.0-beta.1',
       'Skipping prerelease firmware release with stable tag 1.0.0',
     ])
+  })
+
+  it('normalizes selected firmware assets to the public t76.org release path', () => {
+    const normalized = normalizeGitHubFirmwareReleases([
+      release('1.2.3'),
+    ])
+
+    expect(normalized[0]?.asset.downloadUrl).toBe(
+      'https://t76.org/drpd/releases/1.2.3/drpd-firmware-combined.uf2',
+    )
   })
 })
 

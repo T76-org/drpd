@@ -395,6 +395,11 @@
   background: var(--color-surface-panel-accent);
 }
 
+.settingsCloseButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
 .settingsBody {
   padding: var(--space-12);
 }
@@ -482,6 +487,54 @@
   margin: var(--space-0);
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
+}
+
+.firmwareSuppressOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-12);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.firmwareUploadStatus {
+  display: grid;
+  gap: var(--space-10);
+  margin-top: var(--space-12);
+}
+
+.firmwareUploadWarning {
+  color: var(--color-status-warning);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.firmwareProgressShell {
+  height: calc(8px * var(--ui-scale));
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-panel-accent);
+  border: var(--border-thin) solid var(--color-border-panel);
+}
+
+.firmwareProgressBar {
+  width: var(--firmware-progress);
+  height: 100%;
+  background: var(--color-status-success);
+  transition: width var(--transition-fast);
+}
+
+.firmwareUploadError {
+  color: var(--color-status-error);
+  font-size: var(--font-size-sm);
+}
+
+.firmwareUpdateActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
 }
 
 .srOnly {

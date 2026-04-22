@@ -251,6 +251,8 @@ export interface RackDeviceState {
   drpdDriver?: DRPDDriverRuntime
   ///< Active transport-like runtime, if available.
   transport?: { close(): Promise<void> }
+  ///< Underlying WebUSB device, if available.
+  usbDevice?: USBDevice
 }
 
 /**
