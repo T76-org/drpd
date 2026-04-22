@@ -93,6 +93,7 @@ const createMockDevice = (): MockDevice => {
         currentConfig
     }),
     claimInterface: vi.fn(async () => undefined),
+    releaseInterface: vi.fn(async () => undefined),
     transferOut: vi.fn(async (_endpoint: number, data: BufferSource) => {
       const view =
         data instanceof ArrayBuffer
@@ -157,6 +158,20 @@ describe('WinUSBTransport', () => {
     await transport.open()
 
     await expect(transport.sendCommand('CONF:TEST')).rejects.toThrow('WinUSB device error')
+  })
+
+  it('releases the claimed interface before closing the device', async () => {
+    const device = createMockDevice()
+    device.__setResponses([
+      buildFrame(WINUSB_SESSION_RESET_ACK, 1, new Uint8Array()),
+    ])
+
+    const transport = new TestTransport(device)
+    await transport.open()
+    await transport.close()
+
+    expect(device.releaseInterface).toHaveBeenCalledWith(5)
+    expect(device.close).toHaveBeenCalled()
   })
 
   it('queryText returns text without issuing a follow-up error query', async () => {

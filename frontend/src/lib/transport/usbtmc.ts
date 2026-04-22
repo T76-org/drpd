@@ -396,6 +396,10 @@ export class USBTMCTransport extends EventTarget {
   async close(): Promise<void> {
     this._stopInterruptListener()
     if (this.device.opened) {
+      if (this.interfaceNumber != null) {
+        await this.device.releaseInterface(this.interfaceNumber).catch(() => undefined)
+        this.interfaceNumber = undefined
+      }
       await this.device.close()
     }
   }

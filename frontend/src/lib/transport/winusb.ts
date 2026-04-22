@@ -192,6 +192,10 @@ export class WinUSBTransport extends EventTarget {
   public async close(): Promise<void> {
     this.winusbInterruptLatched = false
     if (this.device.opened) {
+      if (this.interfaceNumber != null) {
+        await this.device.releaseInterface(this.interfaceNumber).catch(() => undefined)
+        this.interfaceNumber = undefined
+      }
       await this.device.close()
     }
   }
@@ -652,6 +656,9 @@ export class WinUSBTransport extends EventTarget {
     }
 
     for (const usbInterface of configuration.interfaces) {
+      if (this.interfaceNumber != null && usbInterface.interfaceNumber !== this.interfaceNumber) {
+        continue
+      }
       const alternate = this.findWinUSBAlternate(usbInterface)
       if (!alternate) {
         continue

@@ -12,6 +12,7 @@ import {
   decodeLoggedCapturedMessage,
   normalizeDRPDDeviceConfig,
   normalizeLoggingConfig,
+  uploadDRPDFirmwareUF2,
   type DRPDLoggingConfig,
   type DRPDDriverRuntime,
   type LoggedCapturedMessage,
@@ -20,7 +21,23 @@ import {
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
+import {
+  checkForFirmwareUpdate,
+  fetchGitHubReleases,
+  isFirmwareUpdatePromptSuppressed,
+  loadFirmwareUpdateChannel,
+  normalizeGitHubFirmwareReleases,
+  selectReleaseForChannel,
+  parseFirmwareVersion,
+  saveFirmwareUpdateChannel,
+  suppressFirmwareUpdatePrompt,
+  type FirmwareRelease,
+  type FirmwareUpdateChannel,
+} from '../../lib/firmware'
 import { loadRackDocument, saveRackDocument } from '../../lib/rack/loadRack'
+import { openPreferredDRPDTransport } from '../../lib/transport/drpdUsb'
+import WinUSBTransport from '../../lib/transport/winusb'
+import { DRPDWorkerServiceClient } from '../../lib/device/drpd/worker'
 import drpdLogoDark from '../../assets/drpd-logo-dark.svg'
 import drpdLogoLight from '../../assets/drpd-logo-light.svg'
 import type {
@@ -46,6 +63,13 @@ import styles from './RackView.module.css'
 type ThemeMode = 'system' | 'light' | 'dark'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
+const FIRMWARE_RELEASE_OWNER = 'T76-org'
+const FIRMWARE_RELEASE_REPO = 'drpd'
+const UPDATER_RECONNECT_TIMEOUT_MS = 10_000
+const UPDATER_RECONNECT_POLL_MS = 250
+const UPDATER_INTERFACE_NUMBER = 0
+const UPDATER_READ_TIMEOUT_MS = 15_000
+const UPDATER_WRITE_TIMEOUT_MS = 5_000
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const HEADER_MENU_POPOVER_Z_INDEX = 11000
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
@@ -117,6 +141,37 @@ interface DeviceRuntime {
   drpdDriver?: DRPDDriverRuntime
   ///< Active transport-like runtime, if available.
   transport?: { close(): Promise<void> }
+  ///< Underlying WebUSB device.
+  usbDevice?: USBDevice
+}
+
+type FirmwareUploadPhase =
+  | 'prompt'
+  | 'downloading'
+  | 'rebooting'
+  | 'waiting'
+  | 'uploading'
+  | 'success'
+  | 'failure'
+
+interface FirmwareUpdatePromptState {
+  deviceRecordId: string
+  currentVersion: string
+  targetRelease: FirmwareRelease
+  phase: FirmwareUploadPhase
+  suppressVersion: boolean
+  progress: number
+  statusMessage: string
+  errorMessage?: string
+  selectedDeviceInfo?: SelectedDeviceInfo
+  firmwareImage?: Uint8Array
+}
+
+type SelectedDeviceInfo = {
+  vendorId: number
+  productId: number
+  serialNumber: string | null
+  productName: string | null
 }
 
 const formatRackDeviceLabel = (record: RackDeviceRecord): string => {
@@ -142,6 +197,23 @@ const identifyRackDeviceRuntime = async (
     return await driver.system.identify()
   }
   return null
+}
+
+const identifyRackDeviceRuntimeForFirmwareUpdate = async (
+  runtime: DeviceRuntime | null | undefined,
+): Promise<DeviceIdentity | null> => {
+  try {
+    const identity = await identifyRackDeviceRuntime(runtime)
+    console.info(
+      `[firmware-update] identity firmware=${identity?.firmwareVersion ?? 'unknown'} serial=${identity?.serialNumber || 'unknown'}`,
+    )
+    return identity
+  } catch (error) {
+    console.warn(
+      `[firmware-update] failed to read device identity: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return null
+  }
 }
 
 const mergeRackDeviceIdentity = (
@@ -315,6 +387,10 @@ export const RackView = () => {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
+  const [firmwareUpdateChannel, setFirmwareUpdateChannel] = useState<FirmwareUpdateChannel>(() =>
+    loadFirmwareUpdateChannel(),
+  )
+  const firmwareUpdateChannelRef = useRef<FirmwareUpdateChannel>(firmwareUpdateChannel)
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
     getResolvedTheme(getStoredTheme()),
   )
@@ -322,6 +398,8 @@ export const RackView = () => {
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
   const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
   const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
@@ -335,6 +413,7 @@ export const RackView = () => {
   const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
   const editSnapshotRef = useRef<RackDefinition | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
+  const firmwareUpdateActiveRef = useRef(false)
   const rackSizing = useRackSizingConfig()
 
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
@@ -557,6 +636,11 @@ export const RackView = () => {
   }, [theme])
 
   useEffect(() => {
+    saveFirmwareUpdateChannel(firmwareUpdateChannel)
+    firmwareUpdateChannelRef.current = firmwareUpdateChannel
+  }, [firmwareUpdateChannel])
+
+  useEffect(() => {
     deviceStatesRef.current = deviceStates
   }, [deviceStates])
 
@@ -755,6 +839,68 @@ export const RackView = () => {
     }
   }, [deviceDefinitions])
 
+  const checkConnectedDeviceFirmwareUpdate = useCallback(async (
+    record: RackDeviceRecord,
+    identity: DeviceIdentity | null,
+  ): Promise<void> => {
+    const installedFirmwareVersion = identity?.firmwareVersion || record.firmwareVersion
+    if (!installedFirmwareVersion) {
+      console.info('[firmware-update] decision=no-upgrade installed=unknown candidate=none reason=missing-installed-version')
+      return
+    }
+
+    let normalizedInstalledFirmwareVersion: string
+    try {
+      normalizedInstalledFirmwareVersion = parseFirmwareVersion(installedFirmwareVersion).text
+    } catch {
+      console.info(
+        `[firmware-update] decision=no-upgrade installed=${installedFirmwareVersion} candidate=none reason=invalid-installed-version`,
+      )
+      return
+    }
+
+    console.info(`[firmware-update] installed=${normalizedInstalledFirmwareVersion}`)
+    try {
+      const rawReleases = await fetchGitHubReleases(FIRMWARE_RELEASE_OWNER, FIRMWARE_RELEASE_REPO)
+      const releases = normalizeGitHubFirmwareReleases(rawReleases, {
+        log: (message) => console.info(`[firmware-update] ${message}`),
+      })
+      const channel = firmwareUpdateChannelRef.current
+      const candidate = selectReleaseForChannel(releases, channel)
+      console.info(
+        `[firmware-update] channel=${channel} discovered=${releases.length} candidate=${candidate?.versionText ?? 'none'}`,
+      )
+      const decision = checkForFirmwareUpdate({
+        installedFirmwareVersion: normalizedInstalledFirmwareVersion,
+        channel,
+        releases,
+        isPromptSuppressed: isFirmwareUpdatePromptSuppressed,
+      })
+      if (decision.kind !== 'update-available') {
+        console.info(
+          `[firmware-update] decision=no-upgrade installed=${normalizedInstalledFirmwareVersion} candidate=${candidate?.versionText ?? 'none'} reason=${decision.reason}`,
+        )
+        return
+      }
+      console.info(
+        `[firmware-update] decision=upgrade installed=${decision.installedVersionText} target=${decision.release.versionText} channel=${channel}`,
+      )
+      setFirmwareUpdatePrompt({
+        deviceRecordId: record.id,
+        currentVersion: decision.installedVersionText,
+        targetRelease: decision.release,
+        phase: 'prompt',
+        suppressVersion: false,
+        progress: 0,
+        statusMessage: 'A newer firmware version is available for the connected device.',
+      })
+    } catch (error) {
+      console.warn(
+        `[firmware-update] Firmware update check failed: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }, [])
+
   useEffect(() => {
     const usb = typeof navigator === 'undefined' ? undefined : navigator.usb
     if (
@@ -797,6 +943,10 @@ export const RackView = () => {
       if (!connectedDevice) {
         return
       }
+      if (firmwareUpdateActiveRef.current) {
+        console.info(`[firmware-update] ignoring USB connect during updater handoff device=${describeUsbDevice(connectedDevice)}`)
+        return
+      }
       if (deviceStatesRef.current.some((state) => state.status === 'connected')) {
         return
       }
@@ -831,6 +981,7 @@ export const RackView = () => {
           })
         },
         onError: setDeviceError,
+        onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
       })
     }
 
@@ -840,7 +991,7 @@ export const RackView = () => {
       usb.removeEventListener('connect', handleUsbConnect)
       usb.removeEventListener('disconnect', handleUsbDisconnect)
     }
-  }, [deviceDefinitions])
+  }, [deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
   useEffect(() => {
     void autoConnectDevices({
@@ -858,9 +1009,10 @@ export const RackView = () => {
           return nextDocument
         })
       },
-      onError: setDeviceError
+      onError: setDeviceError,
+      onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
     })
-  }, [pairedDevices, deviceDefinitions])
+  }, [pairedDevices, deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
   /** Cycle through the available theme modes. */
   const handleThemeToggle = () => {
@@ -878,7 +1030,138 @@ export const RackView = () => {
   /** Render the human-friendly theme label. */
   const themeLabel =
     theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'
+  const firmwareUpdateChannelLabel =
+    firmwareUpdateChannel === 'production' ? 'Production' : 'Beta'
   const currentRack = isEditMode ? draftRack ?? activeRack : activeRack
+  const isFirmwareUploadBusy =
+    firmwareUpdatePrompt != null &&
+    !['prompt', 'success', 'failure'].includes(firmwareUpdatePrompt.phase)
+
+  const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
+    setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
+  }, [])
+
+  const handleDeclineFirmwareUpdate = useCallback(() => {
+    const prompt = firmwareUpdatePrompt
+    if (!prompt || isFirmwareUploadBusy) {
+      return
+    }
+    if (prompt.suppressVersion) {
+      suppressFirmwareUpdatePrompt(prompt.targetRelease.versionText)
+      console.info(`[firmware-update] suppressed target=${prompt.targetRelease.versionText}`)
+    }
+    setFirmwareUpdatePrompt(null)
+  }, [firmwareUpdatePrompt, isFirmwareUploadBusy])
+
+  const handleAcceptFirmwareUpdate = useCallback(async () => {
+    const prompt = firmwareUpdatePrompt
+    if (!prompt || isFirmwareUploadBusy) {
+      return
+    }
+
+    let updaterTransport: WinUSBTransport | null = null
+    firmwareUpdateActiveRef.current = true
+    try {
+      console.info(`[firmware-update] upload start target=${prompt.targetRelease.versionText}`)
+      let selectedInfo = prompt.selectedDeviceInfo
+      let image = prompt.firmwareImage
+      if (!selectedInfo) {
+        const connectedState = deviceStatesRef.current.find(
+          (state) => state.record.id === prompt.deviceRecordId && state.status === 'connected',
+        )
+        if (!connectedState?.drpdDriver || !connectedState.usbDevice) {
+          throw new Error('Connected device is no longer available.')
+        }
+
+        selectedInfo = {
+          vendorId: connectedState.usbDevice.vendorId,
+          productId: connectedState.usbDevice.productId,
+          serialNumber: connectedState.usbDevice.serialNumber ?? null,
+          productName: connectedState.usbDevice.productName ?? null,
+        }
+        updateFirmwarePromptState({ selectedDeviceInfo: selectedInfo })
+
+        updateFirmwarePromptState({
+          phase: 'downloading',
+          progress: 0,
+          errorMessage: undefined,
+          statusMessage: 'Downloading firmware...',
+        })
+        image = await downloadFirmwareAsset(prompt.targetRelease.asset)
+        updateFirmwarePromptState({ firmwareImage: image })
+
+        await disconnectDeviceRuntime(connectedState, deviceDefinitions)
+        DRPDWorkerServiceClient.resetShared('firmware update handoff')
+        console.info('[firmware-update] worker reset before updater handoff')
+        setDeviceStates((states) =>
+          states.map((state) =>
+            state.record.id === connectedState.record.id
+              ? buildDisconnectedDeviceState(state.record)
+              : state,
+          ),
+        )
+        updateFirmwarePromptState({
+          phase: 'rebooting',
+          statusMessage: 'Requesting firmware updater...',
+        })
+        await requestFirmwareUpdater(connectedState.usbDevice)
+      } else if (!image) {
+        updateFirmwarePromptState({
+          phase: 'downloading',
+          progress: 0,
+          errorMessage: undefined,
+          statusMessage: 'Downloading firmware...',
+        })
+        image = await downloadFirmwareAsset(prompt.targetRelease.asset)
+        updateFirmwarePromptState({ firmwareImage: image })
+      } else {
+        updateFirmwarePromptState({
+          progress: 0,
+          errorMessage: undefined,
+        })
+      }
+
+      updateFirmwarePromptState({
+        phase: 'waiting',
+        statusMessage: 'Waiting for firmware updater...',
+      })
+      DRPDWorkerServiceClient.resetShared('firmware update updater open')
+      await sleep(100)
+      const updater = await waitForUpdaterTransport(selectedInfo)
+      updaterTransport = updater.transport
+
+      updateFirmwarePromptState({
+        phase: 'uploading',
+        progress: 0,
+        statusMessage: 'Uploading firmware...',
+      })
+      await uploadDRPDFirmwareUF2(updaterTransport, image, {
+        onProgress: ({ bytesWritten, totalLength }) => {
+          updateFirmwarePromptState({
+            progress: totalLength > 0 ? bytesWritten / totalLength : 0,
+            statusMessage: `Uploading firmware (${Math.round(totalLength > 0 ? (bytesWritten / totalLength) * 100 : 0)}%)...`,
+          })
+          console.info(`[firmware-update] upload progress ${bytesWritten}/${totalLength}`)
+        },
+      })
+      console.info(`[firmware-update] upload success target=${prompt.targetRelease.versionText}`)
+      updateFirmwarePromptState({
+        phase: 'success',
+        progress: 1,
+        statusMessage: 'Firmware upload complete. The device should reboot into the updated application.',
+      })
+    } catch (error) {
+      console.warn(`[firmware-update] upload failed: ${error instanceof Error ? error.message : String(error)}`)
+      updateFirmwarePromptState({
+        phase: 'failure',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        statusMessage: 'Firmware update failed.',
+      })
+    } finally {
+      await updaterTransport?.close().catch(() => undefined)
+      firmwareUpdateActiveRef.current = false
+    }
+  }, [deviceDefinitions, firmwareUpdatePrompt, isFirmwareUploadBusy, updateFirmwarePromptState])
 
   /** Connect a new device using the WebUSB picker. */
   const handleConnectDevice = async () => {
@@ -903,9 +1186,10 @@ export const RackView = () => {
 
       if (shouldConnectNow) {
         const runtime = await connectDeviceRuntime(deviceDefinition, selected)
-        const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+        const identity = await identifyRackDeviceRuntimeForFirmwareUpdate(runtime)
         const record = stampDeviceConnection(mergeRackDeviceIdentity(baseRecord, identity))
         await applyRecordConfigToRuntime(record, runtime)
+        void checkConnectedDeviceFirmwareUpdate(record, identity)
         setDeviceStates((states) =>
           upsertDeviceState(states, buildRackDeviceState(record, runtime)),
         )
@@ -1007,9 +1291,9 @@ export const RackView = () => {
       return
     }
     await reconnectRackDeviceRecord({
-      record,
-      definition,
-      onUpdate: setDeviceStates,
+        record,
+        definition,
+        onUpdate: setDeviceStates,
       onPersistRecord: (nextRecord) => {
         setRackDocument((current) => {
           if (!current) {
@@ -1019,9 +1303,10 @@ export const RackView = () => {
           saveRackDocument(nextDocument)
           return nextDocument
         })
-      },
-      onError: setDeviceError,
-    })
+        },
+        onError: setDeviceError,
+        onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
+      })
   }
 
   /**
@@ -1309,6 +1594,14 @@ export const RackView = () => {
                 >
                   Theme: {themeLabel}
                 </button>
+                <button
+                  type="button"
+                  className={styles.settingsButton}
+                  onClick={() => setIsSettingsOpen(true)}
+                  disabled={isEditMode}
+                >
+                  Settings
+                </button>
                 {currentRack &&
                 !currentRack.hideHeader ? (
                   <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
@@ -1498,6 +1791,199 @@ export const RackView = () => {
           <div className={styles.notice}>No racks available.</div>
         ) : null}
       </main>
+      {isSettingsOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.settingsBackdrop}>
+              <section
+                className={styles.settingsDialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="rack-settings-title"
+              >
+                <div className={styles.settingsHeader}>
+                  <h2 id="rack-settings-title" className={styles.settingsTitle}>
+                    Settings
+                  </h2>
+                  <button
+                    type="button"
+                    className={styles.settingsCloseButton}
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className={styles.settingsBody}>
+                  <fieldset className={styles.settingsFieldset}>
+                    <legend className={styles.settingsLegend}>Firmware update channel</legend>
+                    <div className={styles.channelOptions}>
+                      <label className={styles.channelOption}>
+                        <input
+                          type="radio"
+                          name="firmware-update-channel"
+                          value="production"
+                          checked={firmwareUpdateChannel === 'production'}
+                          onChange={() => setFirmwareUpdateChannel('production')}
+                        />
+                        <span className={styles.channelOptionText}>
+                          <span className={styles.channelOptionTitle}>Production</span>
+                          <span className={styles.channelOptionDescription}>
+                            Stable firmware releases only.
+                          </span>
+                        </span>
+                      </label>
+                      <label className={styles.channelOption}>
+                        <input
+                          type="radio"
+                          name="firmware-update-channel"
+                          value="beta"
+                          checked={firmwareUpdateChannel === 'beta'}
+                          onChange={() => setFirmwareUpdateChannel('beta')}
+                        />
+                        <span className={styles.channelOptionText}>
+                          <span className={styles.channelOptionTitle}>Beta</span>
+                          <span className={styles.channelOptionDescription}>
+                            Stable and beta firmware releases.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    <div className={styles.settingsValue}>
+                      Current channel: {firmwareUpdateChannelLabel}
+                    </div>
+                  </fieldset>
+                </div>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
+      {firmwareUpdatePrompt && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.settingsBackdrop}>
+              <section
+                className={styles.settingsDialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="firmware-update-title"
+              >
+                <div className={styles.settingsHeader}>
+                  <h2 id="firmware-update-title" className={styles.settingsTitle}>
+                    Firmware update available
+                  </h2>
+                  <button
+                    type="button"
+                    className={styles.settingsCloseButton}
+                    onClick={() => {
+                      if (!isFirmwareUploadBusy) {
+                        setFirmwareUpdatePrompt(null)
+                      }
+                    }}
+                    aria-label="Close firmware update prompt"
+                    disabled={isFirmwareUploadBusy}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className={styles.settingsBody}>
+                  <p className={styles.firmwareUpdateText}>
+                    {firmwareUpdatePrompt.statusMessage}
+                  </p>
+                  <dl className={styles.firmwareVersionList}>
+                    <div>
+                      <dt>Installed</dt>
+                      <dd>{firmwareUpdatePrompt.currentVersion}</dd>
+                    </div>
+                    <div>
+                      <dt>Available</dt>
+                      <dd>{firmwareUpdatePrompt.targetRelease.versionText}</dd>
+                    </div>
+                  </dl>
+                  {firmwareUpdatePrompt.phase === 'prompt' ? (
+                    <label className={styles.firmwareSuppressOption}>
+                      <input
+                        type="checkbox"
+                        checked={firmwareUpdatePrompt.suppressVersion}
+                        onChange={(event) => updateFirmwarePromptState({ suppressVersion: event.target.checked })}
+                      />
+                      <span>Do not ask again for this version</span>
+                    </label>
+                  ) : null}
+                  {firmwareUpdatePrompt.phase !== 'prompt' ? (
+                    <div className={styles.firmwareUploadStatus}>
+                      <div className={styles.firmwareUploadWarning}>
+                        Do not disconnect the device. Do not refresh the page.
+                      </div>
+                      <div className={styles.firmwareProgressShell} aria-label="Firmware upload progress">
+                        <div
+                          className={styles.firmwareProgressBar}
+                          style={{ '--firmware-progress': `${Math.round(firmwareUpdatePrompt.progress * 100)}%` } as CSSProperties}
+                        />
+                      </div>
+                      {firmwareUpdatePrompt.errorMessage ? (
+                        <div className={styles.firmwareUploadError}>
+                          Error: {firmwareUpdatePrompt.errorMessage}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className={styles.firmwareUpdateActions}>
+                    {firmwareUpdatePrompt.phase === 'prompt' ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.editButtonSecondary}
+                          onClick={handleDeclineFirmwareUpdate}
+                        >
+                          Not Now
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.editButtonPrimary}
+                          onClick={() => {
+                            void handleAcceptFirmwareUpdate()
+                          }}
+                        >
+                          Upload Firmware
+                        </button>
+                      </>
+                    ) : null}
+                    {firmwareUpdatePrompt.phase === 'failure' ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.editButtonSecondary}
+                          onClick={() => setFirmwareUpdatePrompt(null)}
+                        >
+                          Close
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.editButtonPrimary}
+                          onClick={() => {
+                            void handleAcceptFirmwareUpdate()
+                          }}
+                        >
+                          Retry
+                        </button>
+                      </>
+                    ) : null}
+                    {firmwareUpdatePrompt.phase === 'success' ? (
+                      <button
+                        type="button"
+                        className={styles.editButtonPrimary}
+                        onClick={() => setFirmwareUpdatePrompt(null)}
+                      >
+                        Done
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
@@ -1680,7 +2166,8 @@ const buildRackDeviceState = (
     record,
     status: 'connected',
     drpdDriver: runtime?.drpdDriver,
-    transport: runtime?.transport
+    transport: runtime?.transport,
+    usbDevice: runtime?.usbDevice,
   }
 }
 
@@ -1731,11 +2218,11 @@ const connectDeviceRuntime = async (
   if (definition instanceof DRPDDeviceDefinition) {
     const runtime = await definition.createConnectedRuntime(device)
     await definition.connectDevice(device)
-    return { drpdDriver: runtime.driver, transport: runtime.transport }
+    return { drpdDriver: runtime.driver, transport: runtime.transport, usbDevice: device }
   }
 
   await definition.connectDevice(device)
-  return null
+  return { usbDevice: device }
 }
 
 /**
@@ -1750,6 +2237,7 @@ const reconnectRackDeviceRecord = async ({
   onUpdate,
   onPersistRecord,
   onError,
+  onFirmwareUpdateCheck,
 }: {
   record: RackDeviceRecord
   definition: Device
@@ -1757,6 +2245,7 @@ const reconnectRackDeviceRecord = async ({
   onUpdate: (updater: (states: RackDeviceState[]) => RackDeviceState[]) => void
   onPersistRecord?: (record: RackDeviceRecord) => void
   onError: (message: string | null) => void
+  onFirmwareUpdateCheck?: (record: RackDeviceRecord, identity: DeviceIdentity | null) => void
 }): Promise<void> => {
   onError(null)
 
@@ -1776,10 +2265,11 @@ const reconnectRackDeviceRecord = async ({
     }
 
     const runtime = await connectDeviceRuntime(definition, matchedDevice)
-    const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+    const identity = await identifyRackDeviceRuntimeForFirmwareUpdate(runtime)
     const nextRecord = stampDeviceConnection(mergeRackDeviceIdentity(record, identity))
 
     await applyRecordConfigToRuntime(nextRecord, runtime)
+    onFirmwareUpdateCheck?.(nextRecord, identity)
     onPersistRecord?.(nextRecord)
     onUpdate((states) =>
       upsertDeviceState(states, buildRackDeviceState(nextRecord, runtime)),
@@ -1844,6 +2334,131 @@ const cleanupDeviceRuntimes = async (
   }
 }
 
+const describeUsbDevice = (device: USBDevice | SelectedDeviceInfo): string => {
+  const product = device.productName ?? 'DRPD'
+  const serial = device.serialNumber ?? 'unknown serial'
+  return `${product} (${serial})`
+}
+
+const downloadFirmwareAsset = async (asset: FirmwareRelease['asset']): Promise<Uint8Array> => {
+  const response = await fetch(asset.downloadUrl)
+  if (!response.ok) {
+    throw new Error(`Firmware download failed: ${response.status} ${response.statusText}`)
+  }
+  return new Uint8Array(await response.arrayBuffer())
+}
+
+const requestFirmwareUpdater = async (device: USBDevice): Promise<void> => {
+  let transport: Awaited<ReturnType<typeof openPreferredDRPDTransport>> | null = null
+  try {
+    transport = await openPreferredDRPDTransport(device)
+    console.info(
+      `[firmware-update] updater request transport=${transport.kind} interface=${transport.claimedInterfaceNumber ?? 'unknown'}`,
+    )
+    await transport.sendCommand('SYST:FIRM:UPD')
+  } finally {
+    await transport?.close().catch(() => undefined)
+  }
+}
+
+const openUpdaterTransport = async (device: USBDevice): Promise<WinUSBTransport> => {
+  const transport = new WinUSBTransport(device, {
+    interfaceNumber: UPDATER_INTERFACE_NUMBER,
+    readTimeoutMs: UPDATER_READ_TIMEOUT_MS,
+    writeTimeoutMs: UPDATER_WRITE_TIMEOUT_MS,
+  })
+  await transport.open()
+  return transport
+}
+
+const describeUsbInterfaces = (device: USBDevice): string => {
+  const configuration = device.configuration ?? device.configurations?.[0] ?? null
+  if (!configuration) {
+    return 'no configuration'
+  }
+  return configuration.interfaces.map((usbInterface) => {
+    const alternates = usbInterface.alternates.map((alternate) =>
+      `alt class=0x${alternate.interfaceClass.toString(16)} subclass=0x${alternate.interfaceSubclass.toString(16)} protocol=0x${alternate.interfaceProtocol.toString(16)}`,
+    )
+    return `interface=${usbInterface.interfaceNumber} ${alternates.join('; ')}`
+  }).join(', ')
+}
+
+const isFirmwareUpdaterUsbDevice = (device: USBDevice): boolean => {
+  const configurations = device.configurations ?? []
+  if (configurations.length === 0) {
+    return true
+  }
+  return configurations.some((configuration) =>
+    configuration.interfaces.some((usbInterface) =>
+      usbInterface.interfaceNumber === UPDATER_INTERFACE_NUMBER &&
+      usbInterface.alternates.some((alternate) =>
+        alternate.interfaceClass === 0xff &&
+        alternate.interfaceSubclass === 0x01 &&
+        alternate.interfaceProtocol === 0x02,
+      ),
+    ),
+  )
+}
+
+const findMatchingAuthorizedDevice = async (
+  info: SelectedDeviceInfo,
+): Promise<USBDevice | null> => {
+  const devices = await navigator.usb.getDevices()
+  console.info(`[firmware-update] authorized USB devices=${devices.map(describeUsbDevice).join(', ') || 'none'}`)
+  const matchingIdentity = devices.filter((device) => {
+    if (device.vendorId !== info.vendorId || device.productId !== info.productId) {
+      return false
+    }
+    if (info.serialNumber != null) {
+      return (device.serialNumber ?? null) === info.serialNumber
+    }
+    return (device.productName ?? null) === info.productName
+  })
+  const updaterDevice = matchingIdentity.find(isFirmwareUpdaterUsbDevice) ?? null
+  if (!updaterDevice && matchingIdentity.length > 0) {
+    console.info(
+      `[firmware-update] waiting for updater descriptor; current matches=${matchingIdentity.map(describeUsbInterfaces).join(' | ')}`,
+    )
+  }
+  return updaterDevice
+}
+
+const waitForUpdaterTransport = async (
+  info: SelectedDeviceInfo,
+): Promise<{ device: USBDevice; transport: WinUSBTransport }> => {
+  const deadline = Date.now() + UPDATER_RECONNECT_TIMEOUT_MS
+  let attempt = 0
+  let lastError: unknown = null
+  while (Date.now() < deadline) {
+    const device = await findMatchingAuthorizedDevice(info)
+    if (device) {
+      attempt += 1
+      console.info(
+        `[firmware-update] updater open attempt=${attempt} device=${describeUsbDevice(device)} interfaces=${describeUsbInterfaces(device)}`,
+      )
+      try {
+        const transport = await openUpdaterTransport(device)
+        const updaterStatus = await transport.getFirmwareUpdateStatus()
+        console.info(
+          `[firmware-update] updater status state=${updaterStatus.state} base=0x${updaterStatus.baseOffset.toString(16)} length=${updaterStatus.totalLength} written=${updaterStatus.bytesWritten}`,
+        )
+        return { device, transport }
+      } catch (error) {
+        lastError = error
+        console.info(`[firmware-update] updater open failed: ${error instanceof Error ? error.message : String(error)}`)
+        if (device.opened) {
+          await device.close().catch(() => undefined)
+        }
+      }
+    }
+    await sleep(UPDATER_RECONNECT_POLL_MS)
+  }
+  throw new Error(
+    `Timed out opening updater WinUSB transport for ${describeUsbDevice(info)}${lastError instanceof Error ? `; last error: ${lastError.message}` : ''}`,
+  )
+}
+
 /**
  * Attempt to auto-connect stored devices when available.
  *
@@ -1855,7 +2470,8 @@ const autoConnectDevices = async ({
   existingStates,
   onUpdate,
   onPersistDevices,
-  onError
+  onError,
+  onFirmwareUpdateCheck,
 }: {
   devices: RackDeviceRecord[]
   definitions: Device[]
@@ -1863,6 +2479,7 @@ const autoConnectDevices = async ({
   onUpdate: (state: RackDeviceState[]) => void
   onPersistDevices?: (devices: RackDeviceRecord[]) => void
   onError: (message: string | null) => void
+  onFirmwareUpdateCheck?: (record: RackDeviceRecord, identity: DeviceIdentity | null) => void
 }): Promise<void> => {
   if (devices.length === 0) {
     onUpdate([])
@@ -1943,11 +2560,12 @@ const autoConnectDevices = async ({
 
     try {
       const runtime = await connectDeviceRuntime(target, selectedCandidate.matchedDevice)
-      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+      const identity = await identifyRackDeviceRuntimeForFirmwareUpdate(runtime)
       const connectedRecord = stampDeviceConnection(
         mergeRackDeviceIdentity(selectedCandidate.record, identity),
       )
       await applyRecordConfigToRuntime(connectedRecord, runtime)
+      onFirmwareUpdateCheck?.(connectedRecord, identity)
       onPersistDevices?.(
         devices.map((device) =>
           device.id === connectedRecord.id ? connectedRecord : device,

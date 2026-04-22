@@ -54,6 +54,14 @@ const mockTransportState = vi.hoisted(() => ({
   captureCountResponse: ['0'],
 }))
 
+const mockFirmwareUpdaterState = vi.hoisted(() => ({
+  openCount: 0,
+  closeCount: 0,
+  updateCount: 0,
+  interfaceNumber: null as number | null,
+  shouldFailUpdate: false,
+}))
+
 vi.mock('../../../lib/transport/drpdUsb', () => {
   /**
    * Mock preferred DRPD transport for RackView tests.
@@ -68,8 +76,9 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
      *
      * @param device - USB device instance.
      */
-    public constructor(device: USBDevice) {
+    public constructor(device: USBDevice, options?: { interfaceNumber?: number }) {
       void device
+      mockFirmwareUpdaterState.interfaceNumber = options?.interfaceNumber ?? null
     }
 
     /**
@@ -97,7 +106,9 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
      */
     public async queryText(command: string): Promise<string[]> {
       if (command === '*IDN?') {
-        return mockTransportState.idnResponse
+        return mockTransportState.idnResponse.length === 1
+          ? mockTransportState.idnResponse[0].split(',').map((part) => part.trim())
+          : mockTransportState.idnResponse
       }
       if (command === 'SYST:TIME?') {
         return mockTransportState.timestampResponse
@@ -209,6 +220,57 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
   }
 })
 
+vi.mock('../../../lib/transport/winusb', () => {
+  class MockWinUSBTransport {
+    public readonly kind = 'winusb' as const
+    public readonly claimedInterfaceNumber = 1
+    private readonly interfaceNumber: number | null
+
+    public constructor(device: USBDevice, options?: { interfaceNumber?: number }) {
+      void device
+      this.interfaceNumber = options?.interfaceNumber ?? null
+    }
+
+    public async open(): Promise<void> {
+      mockFirmwareUpdaterState.openCount += 1
+      mockFirmwareUpdaterState.interfaceNumber = this.interfaceNumber
+    }
+
+    public async close(): Promise<void> {
+      mockFirmwareUpdaterState.closeCount += 1
+    }
+
+    public async getFirmwareUpdateStatus(): Promise<{
+      state: number
+      baseOffset: number
+      totalLength: number
+      bytesWritten: number
+    }> {
+      return {
+        state: 0,
+        baseOffset: 0x8000,
+        totalLength: 0,
+        bytesWritten: 0,
+      }
+    }
+
+    public async updateFirmware(request: {
+      totalLength: number
+      onProgress?: (progress: { bytesWritten: number; totalLength: number }) => void
+    }): Promise<void> {
+      mockFirmwareUpdaterState.updateCount += 1
+      if (mockFirmwareUpdaterState.shouldFailUpdate) {
+        throw new Error('mock update failed')
+      }
+      request.onProgress?.({ bytesWritten: request.totalLength, totalLength: request.totalLength })
+    }
+  }
+
+  return {
+    default: MockWinUSBTransport,
+  }
+})
+
 /**
  * Build a sample rack document for tests.
  */
@@ -284,6 +346,46 @@ const createUSBDevice = (serialNumber = 'DRPD-TEST-001', productName = 'Dr. PD')
     serialNumber,
     productName
   }) as USBDevice
+
+const buildFetchResponse = (body: unknown, bytes?: Uint8Array): Response =>
+  ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => body,
+    arrayBuffer: async () =>
+      (bytes ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) : new ArrayBuffer(0)),
+  }) as Response
+
+const buildFirmwareRelease = (tagName: string, prerelease = tagName.includes('-beta.')) => ({
+  tag_name: tagName,
+  draft: false,
+  prerelease,
+  assets: [
+    {
+      id: 42,
+      url: `https://api.github.com/repos/T76-org/drpd/releases/assets/${tagName}`,
+      name: 'drpd-firmware-combined.uf2',
+      browser_download_url: `https://example.test/${tagName}/drpd-firmware-combined.uf2`,
+    },
+  ],
+})
+
+const buildMinimalFirmwareUf2 = (): Uint8Array => {
+  const block = new Uint8Array(512)
+  const view = new DataView(block.buffer)
+  view.setUint32(0, 0x0a324655, true)
+  view.setUint32(4, 0x9e5d5157, true)
+  view.setUint32(8, 0, true)
+  view.setUint32(12, 0x10008000, true)
+  view.setUint32(16, 4, true)
+  view.setUint32(20, 0, true)
+  view.setUint32(24, 1, true)
+  view.setUint32(28, 0, true)
+  block.set([1, 2, 3, 4], 32)
+  view.setUint32(508, 0x0ab16f30, true)
+  return block
+}
 
 const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
 
@@ -538,7 +640,13 @@ beforeEach(() => {
   originalVerifier = DRPDDeviceDefinition.verifyConnectedDevice
   DRPDDeviceDefinition.verifyConnectedDevice = async () => true
   resetMockTransportState()
+  mockFirmwareUpdaterState.openCount = 0
+  mockFirmwareUpdaterState.closeCount = 0
+  mockFirmwareUpdaterState.updateCount = 0
+  mockFirmwareUpdaterState.interfaceNumber = null
+  mockFirmwareUpdaterState.shouldFailUpdate = false
   vi.stubGlobal('localStorage', createStorage())
+  vi.stubGlobal('fetch', vi.fn(async () => buildFetchResponse([])))
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
@@ -600,6 +708,49 @@ describe('RackView', () => {
     const buttonAfterReload = await screen.findByRole('button', { name: /theme/i })
     expect(buttonAfterReload).toHaveTextContent('Dark')
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+  })
+
+  it('opens settings with production as the default firmware update channel', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' })
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /production/i })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /beta/i })).not.toBeChecked()
+    expect(screen.getByText('Current channel: Production')).toBeInTheDocument()
+  })
+
+  it('persists the selected firmware update channel from settings', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('radio', { name: /beta/i }))
+
+    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
+    expect(screen.getByText('Current channel: Beta')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:firmware-update:channel')).toBe('beta')
+  })
+
+  it('restores the persisted firmware update channel on reload', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    window.localStorage.setItem('drpd:firmware-update:channel', 'beta')
+
+    const { unmount } = render(<RackView />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
+
+    unmount()
+    render(<RackView />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
+    expect(screen.getByText('Current channel: Beta')).toBeInTheDocument()
   })
 
   it('hides the header when configured on the rack', async () => {
@@ -1105,6 +1256,139 @@ describe('RackView', () => {
     expect(requestDevice).toHaveBeenCalled()
     expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
     expect(await screen.findAllByText('connected')).not.toHaveLength(0)
+  })
+
+  it('checks for firmware updates after connected device firmware version is known', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.0']
+    const fetchMock = vi.fn(async () =>
+      buildFetchResponse([
+        buildFirmwareRelease('1.0.1'),
+        buildFirmwareRelease('1.1.0-beta.1'),
+      ]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { requestDevice } = mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    expect(requestDevice).toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog', { name: /firmware update available/i })
+    expect(dialog).toHaveTextContent('Installed')
+    expect(dialog).toHaveTextContent('1.0.0')
+    expect(dialog).toHaveTextContent('Available')
+    expect(dialog).toHaveTextContent('1.0.1')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.github.com/repos/T76-org/drpd/releases',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Accept: 'application/vnd.github+json' }),
+      }),
+    )
+  })
+
+  it('does not show a firmware update prompt for a suppressed target version', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.0']
+    window.localStorage.setItem('drpd:firmware-update:suppressed-versions', JSON.stringify(['1.0.1']))
+    const fetchMock = vi.fn(async () => buildFetchResponse([buildFirmwareRelease('1.0.1')]))
+    vi.stubGlobal('fetch', fetchMock)
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog', { name: /firmware update available/i })).not.toBeInTheDocument()
+  })
+
+  it('persists prompt suppression when declining with the checkbox selected', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.0']
+    vi.stubGlobal('fetch', vi.fn(async () => buildFetchResponse([buildFirmwareRelease('1.0.1')])))
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /firmware update available/i })
+    await userEvent.click(screen.getByRole('checkbox', { name: /do not ask again for this version/i }))
+    await userEvent.click(screen.getByRole('button', { name: /not now/i }))
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+    expect(JSON.parse(window.localStorage.getItem('drpd:firmware-update:suppressed-versions') ?? '[]')).toEqual([
+      '1.0.1',
+    ])
+  })
+
+  it('uploads firmware after accepting the update prompt', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.0']
+    const image = buildMinimalFirmwareUf2()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('api.github.com')) {
+          return buildFetchResponse([buildFirmwareRelease('1.0.1')])
+        }
+        return buildFetchResponse({}, image)
+      }),
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    await screen.findByRole('dialog', { name: /firmware update available/i })
+    await userEvent.click(screen.getByRole('button', { name: /upload firmware/i }))
+
+    expect(await screen.findByText(/do not disconnect the device/i)).toBeInTheDocument()
+    expect(await screen.findByText(/firmware upload complete/i)).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith(
+      'https://t76.org/drpd/releases/1.0.1/drpd-firmware-combined.uf2',
+    )
+    expect(mockFirmwareUpdaterState.interfaceNumber).toBe(0)
+    expect(mockFirmwareUpdaterState.updateCount).toBe(1)
+  })
+
+  it('shows a recoverable failure state when firmware upload fails', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.0']
+    mockFirmwareUpdaterState.shouldFailUpdate = true
+    const image = buildMinimalFirmwareUf2()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('api.github.com')) {
+          return buildFetchResponse([buildFirmwareRelease('1.0.1')])
+        }
+        return buildFetchResponse({}, image)
+      }),
+    )
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    await screen.findByRole('dialog', { name: /firmware update available/i })
+    await userEvent.click(screen.getByRole('button', { name: /upload firmware/i }))
+
+    expect(await screen.findByText(/firmware update failed/i)).toBeInTheDocument()
+    expect(screen.getByText(/mock update failed/i)).toBeInTheDocument()
+    expect(mockFirmwareUpdaterState.updateCount).toBe(1)
+
+    mockFirmwareUpdaterState.shouldFailUpdate = false
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+
+    expect(await screen.findByText(/firmware upload complete/i)).toBeInTheDocument()
+    expect(mockFirmwareUpdaterState.updateCount).toBe(2)
   })
 
   it('disconnects a device without removing it', async () => {

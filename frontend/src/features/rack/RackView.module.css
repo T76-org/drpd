@@ -97,6 +97,7 @@
 .editButtonSecondary,
 .editButtonPrimary,
 .themeButton,
+.settingsButton,
 .deviceMenuButton,
 .deviceActionButton,
 .deviceMenuItem {
@@ -138,6 +139,19 @@
 
 .themeButton:hover:not(:disabled) {
   background: var(--color-surface-panel-accent);
+}
+
+.settingsButton {
+  background: var(--color-surface-panel);
+}
+
+.settingsButton:hover:not(:disabled) {
+  background: var(--color-surface-panel-accent);
+}
+
+.settingsButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
 }
 
 .deviceMenuButton {
@@ -329,6 +343,198 @@
 
 .removeButton {
   color: var(--color-status-error);
+}
+
+.settingsBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-16);
+  background: color-mix(in srgb, var(--color-page-bg) 72%, transparent);
+}
+
+.settingsDialog {
+  width: min(420px, calc(100vw - var(--space-32)));
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-panel);
+  box-shadow: var(--shadow-strong);
+  color: var(--color-text-primary);
+}
+
+.settingsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  border-bottom: var(--border-thin) solid var(--color-border-divider);
+}
+
+.settingsTitle {
+  margin: var(--space-0);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settingsCloseButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-3xs);
+  letter-spacing: var(--letter-spacing-lg);
+  padding: var(--space-1) var(--space-4);
+  text-transform: uppercase;
+}
+
+.settingsCloseButton:hover {
+  background: var(--color-surface-panel-accent);
+}
+
+.settingsCloseButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.settingsBody {
+  padding: var(--space-12);
+}
+
+.settingsFieldset {
+  display: grid;
+  gap: var(--space-10);
+  margin: var(--space-0);
+  padding: var(--space-0);
+  border: 0;
+}
+
+.settingsLegend {
+  margin-bottom: var(--space-8);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-lg);
+}
+
+.channelOptions {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.channelOption {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-8);
+  align-items: start;
+  padding: var(--space-8);
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.channelOption:has(input:checked) {
+  border-color: var(--color-edit-glow);
+  background: var(--color-surface-panel-accent);
+}
+
+.channelOptionText {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.channelOptionTitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.channelOptionDescription,
+.settingsValue {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.firmwareUpdateText {
+  margin: var(--space-0) var(--space-0) var(--space-12);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.firmwareVersionList {
+  display: grid;
+  gap: var(--space-8);
+  margin: var(--space-0);
+}
+
+.firmwareVersionList > div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.firmwareVersionList dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-lg);
+}
+
+.firmwareVersionList dd {
+  margin: var(--space-0);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.firmwareSuppressOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-12);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.firmwareUploadStatus {
+  display: grid;
+  gap: var(--space-10);
+  margin-top: var(--space-12);
+}
+
+.firmwareUploadWarning {
+  color: var(--color-status-warning);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.firmwareProgressShell {
+  height: calc(8px * var(--ui-scale));
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-panel-accent);
+  border: var(--border-thin) solid var(--color-border-panel);
+}
+
+.firmwareProgressBar {
+  width: var(--firmware-progress);
+  height: 100%;
+  background: var(--color-status-success);
+  transition: width var(--transition-fast);
+}
+
+.firmwareUploadError {
+  color: var(--color-status-error);
+  font-size: var(--font-size-sm);
+}
+
+.firmwareUpdateActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
 }
 
 .srOnly {

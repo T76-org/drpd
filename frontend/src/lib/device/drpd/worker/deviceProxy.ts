@@ -78,7 +78,10 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
   } ///< Analog monitor command-group proxy.
   public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
   public readonly capture: { setCaptureEnabled: (enabled: OnOffState) => Promise<void> } ///< Capture command-group proxy.
-  public readonly system: { identify: () => Promise<DeviceIdentity> } ///< System command-group proxy.
+  public readonly system: {
+    identify: () => Promise<DeviceIdentity>
+    enterFirmwareUpdate: () => Promise<void>
+  } ///< System command-group proxy.
   public readonly sink: {
     getAvailablePdoCount: () => Promise<number>
     getPdoAtIndex: (index: number) => Promise<SinkPdo>
@@ -222,6 +225,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     }
     this.system = {
       identify: async () => (await this.callGroup('system', 'identify')) as DeviceIdentity,
+      enterFirmwareUpdate: async () => {
+        await this.callGroup('system', 'enterFirmwareUpdate')
+      },
     }
     this.sink = {
       getAvailablePdoCount: async () => (await this.callGroup('sink', 'getAvailablePdoCount')) as number,
