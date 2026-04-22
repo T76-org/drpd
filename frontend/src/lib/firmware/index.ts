@@ -7,4 +7,5 @@
 
 export * from './releases'
 export * from './preferences'
+export * from './updateCheck'
 export * from './version'

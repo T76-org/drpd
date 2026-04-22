@@ -21,8 +21,15 @@ import {
   verifyMatchingDevices
 } from '../../lib/device'
 import {
+  checkForFirmwareUpdate,
+  fetchGitHubReleases,
+  isFirmwareUpdatePromptSuppressed,
   loadFirmwareUpdateChannel,
+  normalizeGitHubFirmwareReleases,
+  selectReleaseForChannel,
+  parseFirmwareVersion,
   saveFirmwareUpdateChannel,
+  type FirmwareRelease,
   type FirmwareUpdateChannel,
 } from '../../lib/firmware'
 import { loadRackDocument, saveRackDocument } from '../../lib/rack/loadRack'
@@ -51,6 +58,8 @@ import styles from './RackView.module.css'
 type ThemeMode = 'system' | 'light' | 'dark'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
+const FIRMWARE_RELEASE_OWNER = 'T76-org'
+const FIRMWARE_RELEASE_REPO = 'drpd'
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const HEADER_MENU_POPOVER_Z_INDEX = 11000
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
@@ -124,6 +133,12 @@ interface DeviceRuntime {
   transport?: { close(): Promise<void> }
 }
 
+interface FirmwareUpdatePromptState {
+  deviceRecordId: string
+  currentVersion: string
+  targetRelease: FirmwareRelease
+}
+
 const formatRackDeviceLabel = (record: RackDeviceRecord): string => {
   const parts = [record.displayName]
   if (record.firmwareVersion) {
@@ -147,6 +162,23 @@ const identifyRackDeviceRuntime = async (
     return await driver.system.identify()
   }
   return null
+}
+
+const identifyRackDeviceRuntimeForFirmwareUpdate = async (
+  runtime: DeviceRuntime | null | undefined,
+): Promise<DeviceIdentity | null> => {
+  try {
+    const identity = await identifyRackDeviceRuntime(runtime)
+    console.info(
+      `[firmware-update] identity firmware=${identity?.firmwareVersion ?? 'unknown'} serial=${identity?.serialNumber || 'unknown'}`,
+    )
+    return identity
+  } catch (error) {
+    console.warn(
+      `[firmware-update] failed to read device identity: ${error instanceof Error ? error.message : String(error)}`,
+    )
+    return null
+  }
 }
 
 const mergeRackDeviceIdentity = (
@@ -323,6 +355,7 @@ export const RackView = () => {
   const [firmwareUpdateChannel, setFirmwareUpdateChannel] = useState<FirmwareUpdateChannel>(() =>
     loadFirmwareUpdateChannel(),
   )
+  const firmwareUpdateChannelRef = useRef<FirmwareUpdateChannel>(firmwareUpdateChannel)
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
     getResolvedTheme(getStoredTheme()),
   )
@@ -331,6 +364,7 @@ export const RackView = () => {
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
   const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
   const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
@@ -567,6 +601,7 @@ export const RackView = () => {
 
   useEffect(() => {
     saveFirmwareUpdateChannel(firmwareUpdateChannel)
+    firmwareUpdateChannelRef.current = firmwareUpdateChannel
   }, [firmwareUpdateChannel])
 
   useEffect(() => {
@@ -768,6 +803,64 @@ export const RackView = () => {
     }
   }, [deviceDefinitions])
 
+  const checkConnectedDeviceFirmwareUpdate = useCallback(async (
+    record: RackDeviceRecord,
+    identity: DeviceIdentity | null,
+  ): Promise<void> => {
+    const installedFirmwareVersion = identity?.firmwareVersion || record.firmwareVersion
+    if (!installedFirmwareVersion) {
+      console.info('[firmware-update] decision=no-upgrade installed=unknown candidate=none reason=missing-installed-version')
+      return
+    }
+
+    let normalizedInstalledFirmwareVersion: string
+    try {
+      normalizedInstalledFirmwareVersion = parseFirmwareVersion(installedFirmwareVersion).text
+    } catch {
+      console.info(
+        `[firmware-update] decision=no-upgrade installed=${installedFirmwareVersion} candidate=none reason=invalid-installed-version`,
+      )
+      return
+    }
+
+    console.info(`[firmware-update] installed=${normalizedInstalledFirmwareVersion}`)
+    try {
+      const rawReleases = await fetchGitHubReleases(FIRMWARE_RELEASE_OWNER, FIRMWARE_RELEASE_REPO)
+      const releases = normalizeGitHubFirmwareReleases(rawReleases, {
+        log: (message) => console.info(`[firmware-update] ${message}`),
+      })
+      const channel = firmwareUpdateChannelRef.current
+      const candidate = selectReleaseForChannel(releases, channel)
+      console.info(
+        `[firmware-update] channel=${channel} discovered=${releases.length} candidate=${candidate?.versionText ?? 'none'}`,
+      )
+      const decision = checkForFirmwareUpdate({
+        installedFirmwareVersion: normalizedInstalledFirmwareVersion,
+        channel,
+        releases,
+        isPromptSuppressed: isFirmwareUpdatePromptSuppressed,
+      })
+      if (decision.kind !== 'update-available') {
+        console.info(
+          `[firmware-update] decision=no-upgrade installed=${normalizedInstalledFirmwareVersion} candidate=${candidate?.versionText ?? 'none'} reason=${decision.reason}`,
+        )
+        return
+      }
+      console.info(
+        `[firmware-update] decision=upgrade installed=${decision.installedVersionText} target=${decision.release.versionText} channel=${channel}`,
+      )
+      setFirmwareUpdatePrompt({
+        deviceRecordId: record.id,
+        currentVersion: decision.installedVersionText,
+        targetRelease: decision.release,
+      })
+    } catch (error) {
+      console.warn(
+        `[firmware-update] Firmware update check failed: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }, [])
+
   useEffect(() => {
     const usb = typeof navigator === 'undefined' ? undefined : navigator.usb
     if (
@@ -844,6 +937,7 @@ export const RackView = () => {
           })
         },
         onError: setDeviceError,
+        onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
       })
     }
 
@@ -853,7 +947,7 @@ export const RackView = () => {
       usb.removeEventListener('connect', handleUsbConnect)
       usb.removeEventListener('disconnect', handleUsbDisconnect)
     }
-  }, [deviceDefinitions])
+  }, [deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
   useEffect(() => {
     void autoConnectDevices({
@@ -871,9 +965,10 @@ export const RackView = () => {
           return nextDocument
         })
       },
-      onError: setDeviceError
+      onError: setDeviceError,
+      onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
     })
-  }, [pairedDevices, deviceDefinitions])
+  }, [pairedDevices, deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
   /** Cycle through the available theme modes. */
   const handleThemeToggle = () => {
@@ -918,9 +1013,10 @@ export const RackView = () => {
 
       if (shouldConnectNow) {
         const runtime = await connectDeviceRuntime(deviceDefinition, selected)
-        const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+        const identity = await identifyRackDeviceRuntimeForFirmwareUpdate(runtime)
         const record = stampDeviceConnection(mergeRackDeviceIdentity(baseRecord, identity))
         await applyRecordConfigToRuntime(record, runtime)
+        void checkConnectedDeviceFirmwareUpdate(record, identity)
         setDeviceStates((states) =>
           upsertDeviceState(states, buildRackDeviceState(record, runtime)),
         )
@@ -1022,9 +1118,9 @@ export const RackView = () => {
       return
     }
     await reconnectRackDeviceRecord({
-      record,
-      definition,
-      onUpdate: setDeviceStates,
+        record,
+        definition,
+        onUpdate: setDeviceStates,
       onPersistRecord: (nextRecord) => {
         setRackDocument((current) => {
           if (!current) {
@@ -1034,9 +1130,10 @@ export const RackView = () => {
           saveRackDocument(nextDocument)
           return nextDocument
         })
-      },
-      onError: setDeviceError,
-    })
+        },
+        onError: setDeviceError,
+        onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
+      })
   }
 
   /**
@@ -1588,6 +1685,48 @@ export const RackView = () => {
             document.body,
           )
         : null}
+      {firmwareUpdatePrompt && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.settingsBackdrop}>
+              <section
+                className={styles.settingsDialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="firmware-update-title"
+              >
+                <div className={styles.settingsHeader}>
+                  <h2 id="firmware-update-title" className={styles.settingsTitle}>
+                    Firmware update available
+                  </h2>
+                  <button
+                    type="button"
+                    className={styles.settingsCloseButton}
+                    onClick={() => setFirmwareUpdatePrompt(null)}
+                    aria-label="Close firmware update prompt"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className={styles.settingsBody}>
+                  <p className={styles.firmwareUpdateText}>
+                    A newer firmware version is available for the connected device.
+                  </p>
+                  <dl className={styles.firmwareVersionList}>
+                    <div>
+                      <dt>Installed</dt>
+                      <dd>{firmwareUpdatePrompt.currentVersion}</dd>
+                    </div>
+                    <div>
+                      <dt>Available</dt>
+                      <dd>{firmwareUpdatePrompt.targetRelease.versionText}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
@@ -1840,6 +1979,7 @@ const reconnectRackDeviceRecord = async ({
   onUpdate,
   onPersistRecord,
   onError,
+  onFirmwareUpdateCheck,
 }: {
   record: RackDeviceRecord
   definition: Device
@@ -1847,6 +1987,7 @@ const reconnectRackDeviceRecord = async ({
   onUpdate: (updater: (states: RackDeviceState[]) => RackDeviceState[]) => void
   onPersistRecord?: (record: RackDeviceRecord) => void
   onError: (message: string | null) => void
+  onFirmwareUpdateCheck?: (record: RackDeviceRecord, identity: DeviceIdentity | null) => void
 }): Promise<void> => {
   onError(null)
 
@@ -1866,10 +2007,11 @@ const reconnectRackDeviceRecord = async ({
     }
 
     const runtime = await connectDeviceRuntime(definition, matchedDevice)
-    const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+    const identity = await identifyRackDeviceRuntimeForFirmwareUpdate(runtime)
     const nextRecord = stampDeviceConnection(mergeRackDeviceIdentity(record, identity))
 
     await applyRecordConfigToRuntime(nextRecord, runtime)
+    onFirmwareUpdateCheck?.(nextRecord, identity)
     onPersistRecord?.(nextRecord)
     onUpdate((states) =>
       upsertDeviceState(states, buildRackDeviceState(nextRecord, runtime)),
@@ -1945,7 +2087,8 @@ const autoConnectDevices = async ({
   existingStates,
   onUpdate,
   onPersistDevices,
-  onError
+  onError,
+  onFirmwareUpdateCheck,
 }: {
   devices: RackDeviceRecord[]
   definitions: Device[]
@@ -1953,6 +2096,7 @@ const autoConnectDevices = async ({
   onUpdate: (state: RackDeviceState[]) => void
   onPersistDevices?: (devices: RackDeviceRecord[]) => void
   onError: (message: string | null) => void
+  onFirmwareUpdateCheck?: (record: RackDeviceRecord, identity: DeviceIdentity | null) => void
 }): Promise<void> => {
   if (devices.length === 0) {
     onUpdate([])
@@ -2033,11 +2177,12 @@ const autoConnectDevices = async ({
 
     try {
       const runtime = await connectDeviceRuntime(target, selectedCandidate.matchedDevice)
-      const identity = await identifyRackDeviceRuntime(runtime).catch(() => null)
+      const identity = await identifyRackDeviceRuntimeForFirmwareUpdate(runtime)
       const connectedRecord = stampDeviceConnection(
         mergeRackDeviceIdentity(selectedCandidate.record, identity),
       )
       await applyRecordConfigToRuntime(connectedRecord, runtime)
+      onFirmwareUpdateCheck?.(connectedRecord, identity)
       onPersistDevices?.(
         devices.map((device) =>
           device.id === connectedRecord.id ? connectedRecord : device,

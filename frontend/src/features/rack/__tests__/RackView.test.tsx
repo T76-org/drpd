@@ -285,6 +285,26 @@ const createUSBDevice = (serialNumber = 'DRPD-TEST-001', productName = 'Dr. PD')
     productName
   }) as USBDevice
 
+const buildFetchResponse = (body: unknown): Response =>
+  ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => body,
+  }) as Response
+
+const buildFirmwareRelease = (tagName: string, prerelease = tagName.includes('-beta.')) => ({
+  tag_name: tagName,
+  draft: false,
+  prerelease,
+  assets: [
+    {
+      name: 'drpd-firmware-combined.uf2',
+      browser_download_url: `https://example.test/${tagName}/drpd-firmware-combined.uf2`,
+    },
+  ],
+})
+
 const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
 
 const buildHydratedRackDocument = (): RackDocument =>
@@ -539,6 +559,7 @@ beforeEach(() => {
   DRPDDeviceDefinition.verifyConnectedDevice = async () => true
   resetMockTransportState()
   vi.stubGlobal('localStorage', createStorage())
+  vi.stubGlobal('fetch', vi.fn(async () => buildFetchResponse([])))
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
@@ -1148,6 +1169,52 @@ describe('RackView', () => {
     expect(requestDevice).toHaveBeenCalled()
     expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
     expect(await screen.findAllByText('connected')).not.toHaveLength(0)
+  })
+
+  it('checks for firmware updates after connected device firmware version is known', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.0']
+    const fetchMock = vi.fn(async () =>
+      buildFetchResponse([
+        buildFirmwareRelease('1.0.1'),
+        buildFirmwareRelease('1.1.0-beta.1'),
+      ]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { requestDevice } = mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    expect(requestDevice).toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog', { name: /firmware update available/i })
+    expect(dialog).toHaveTextContent('Installed')
+    expect(dialog).toHaveTextContent('1.0.0')
+    expect(dialog).toHaveTextContent('Available')
+    expect(dialog).toHaveTextContent('1.0.1')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.github.com/repos/T76-org/drpd/releases',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Accept: 'application/vnd.github+json' }),
+      }),
+    )
+  })
+
+  it('does not show a firmware update prompt for a suppressed target version', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.0']
+    window.localStorage.setItem('drpd:firmware-update:suppressed-versions', JSON.stringify(['1.0.1']))
+    const fetchMock = vi.fn(async () => buildFetchResponse([buildFirmwareRelease('1.0.1')]))
+    vi.stubGlobal('fetch', fetchMock)
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(screen.queryByRole('dialog', { name: /firmware update available/i })).not.toBeInTheDocument()
   })
 
   it('disconnects a device without removing it', async () => {

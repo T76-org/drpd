@@ -452,6 +452,38 @@
   color: var(--color-text-muted);
 }
 
+.firmwareUpdateText {
+  margin: var(--space-0) var(--space-0) var(--space-12);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.firmwareVersionList {
+  display: grid;
+  gap: var(--space-8);
+  margin: var(--space-0);
+}
+
+.firmwareVersionList > div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.firmwareVersionList dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-lg);
+}
+
+.firmwareVersionList dd {
+  margin: var(--space-0);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
 .srOnly {
   position: absolute;
   width: 1px;

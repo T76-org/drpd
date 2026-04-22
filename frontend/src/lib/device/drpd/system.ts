@@ -31,6 +31,7 @@ export class DRPDSystem {
    */
   public async identify(): Promise<DeviceIdentity> {
     const response = await this.transport.queryText('*IDN?')
+    console.info(`[drpd.system] *IDN? response=${response.join(' ')}`)
     return parseDeviceIdentity(response)
   }
 

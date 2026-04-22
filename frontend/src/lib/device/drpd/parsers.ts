@@ -483,10 +483,9 @@ export const parseDeviceStatus = (value: string | number): DeviceStatusFlags => 
  * @param values - Parsed response tokens.
  * @returns Device identity fields.
  */
-export const parseDeviceIdentity = (values: string[]): DeviceIdentity => {
-  const parts = parseCommaSeparated(values)
+export const parseDeviceIdentity = (parts: string[]): DeviceIdentity => {
   if (parts.length !== 4) {
-    throw new Error(`Invalid *IDN? response: ${values.join(' ')}`)
+    throw new Error(`Invalid *IDN? response: ${parts.join(' ')}`)
   }
   return {
     manufacturer: parts[0],
