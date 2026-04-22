@@ -96,6 +96,7 @@ const createMockDevice = (): MockDevice => {
         currentConfig
     }),
     claimInterface: vi.fn(async () => undefined),
+    releaseInterface: vi.fn(async () => undefined),
     clearHalt: vi.fn(async () => undefined),
     controlTransferIn: vi.fn(async (setup: USBControlTransferParameters, length: number) => {
       const data = new Uint8Array(length)
@@ -257,6 +258,16 @@ describe('USBTMCTransport', () => {
     const writeBuffer = device.__written[device.__written.length - 1]
     expect(writeBuffer[0]).toBe(USBTMC_MSG_DEV_DEP_OUT)
     expect(Array.from(writeBuffer.subarray(12, 14))).toEqual([65, 66])
+  })
+
+  it('releases the claimed interface before closing the device', async () => {
+    const device = createMockDevice()
+    const transport = new TestTransport(device)
+    await transport.open()
+    await transport.close()
+
+    expect(device.releaseInterface).toHaveBeenCalledWith(0)
+    expect(device.close).toHaveBeenCalled()
   })
 
   it('open aborts bulk transfers and waits for completion', async () => {

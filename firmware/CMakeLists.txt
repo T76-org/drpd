@@ -40,7 +40,7 @@ project(drpd-firmware C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-set(DRPD_FIRMWARE_VERSION "0.9.9")
+set(DRPD_FIRMWARE_VERSION "0.9.8")
 
 set(DRPD_PERSISTENT_CONFIG_FLASH_SIZE 4096)
 set(DRPD_STAGE3_BOOTLOADER_FLASH_SIZE 32768)

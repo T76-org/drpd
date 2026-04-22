@@ -413,6 +413,7 @@ export const RackView = () => {
   const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
   const editSnapshotRef = useRef<RackDefinition | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
+  const firmwareUpdateActiveRef = useRef(false)
   const rackSizing = useRackSizingConfig()
 
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
@@ -942,6 +943,10 @@ export const RackView = () => {
       if (!connectedDevice) {
         return
       }
+      if (firmwareUpdateActiveRef.current) {
+        console.info(`[firmware-update] ignoring USB connect during updater handoff device=${describeUsbDevice(connectedDevice)}`)
+        return
+      }
       if (deviceStatesRef.current.some((state) => state.status === 'connected')) {
         return
       }
@@ -1055,6 +1060,7 @@ export const RackView = () => {
     }
 
     let updaterTransport: WinUSBTransport | null = null
+    firmwareUpdateActiveRef.current = true
     try {
       console.info(`[firmware-update] upload start target=${prompt.targetRelease.versionText}`)
       let selectedInfo = prompt.selectedDeviceInfo
@@ -1153,6 +1159,7 @@ export const RackView = () => {
       })
     } finally {
       await updaterTransport?.close().catch(() => undefined)
+      firmwareUpdateActiveRef.current = false
     }
   }, [deviceDefinitions, firmwareUpdatePrompt, isFirmwareUploadBusy, updateFirmwarePromptState])
 
@@ -2377,12 +2384,29 @@ const describeUsbInterfaces = (device: USBDevice): string => {
   }).join(', ')
 }
 
+const isFirmwareUpdaterUsbDevice = (device: USBDevice): boolean => {
+  const configurations = device.configurations ?? []
+  if (configurations.length === 0) {
+    return true
+  }
+  return configurations.some((configuration) =>
+    configuration.interfaces.some((usbInterface) =>
+      usbInterface.interfaceNumber === UPDATER_INTERFACE_NUMBER &&
+      usbInterface.alternates.some((alternate) =>
+        alternate.interfaceClass === 0xff &&
+        alternate.interfaceSubclass === 0x01 &&
+        alternate.interfaceProtocol === 0x02,
+      ),
+    ),
+  )
+}
+
 const findMatchingAuthorizedDevice = async (
   info: SelectedDeviceInfo,
 ): Promise<USBDevice | null> => {
   const devices = await navigator.usb.getDevices()
   console.info(`[firmware-update] authorized USB devices=${devices.map(describeUsbDevice).join(', ') || 'none'}`)
-  return devices.find((device) => {
+  const matchingIdentity = devices.filter((device) => {
     if (device.vendorId !== info.vendorId || device.productId !== info.productId) {
       return false
     }
@@ -2390,7 +2414,14 @@ const findMatchingAuthorizedDevice = async (
       return (device.serialNumber ?? null) === info.serialNumber
     }
     return (device.productName ?? null) === info.productName
-  }) ?? null
+  })
+  const updaterDevice = matchingIdentity.find(isFirmwareUpdaterUsbDevice) ?? null
+  if (!updaterDevice && matchingIdentity.length > 0) {
+    console.info(
+      `[firmware-update] waiting for updater descriptor; current matches=${matchingIdentity.map(describeUsbInterfaces).join(' | ')}`,
+    )
+  }
+  return updaterDevice
 }
 
 const waitForUpdaterTransport = async (
