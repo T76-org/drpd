@@ -602,6 +602,49 @@ describe('RackView', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
+  it('opens settings with production as the default firmware update channel', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' })
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /production/i })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /beta/i })).not.toBeChecked()
+    expect(screen.getByText('Current channel: Production')).toBeInTheDocument()
+  })
+
+  it('persists the selected firmware update channel from settings', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await userEvent.click(screen.getByRole('radio', { name: /beta/i }))
+
+    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
+    expect(screen.getByText('Current channel: Beta')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:firmware-update:channel')).toBe('beta')
+  })
+
+  it('restores the persisted firmware update channel on reload', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    window.localStorage.setItem('drpd:firmware-update:channel', 'beta')
+
+    const { unmount } = render(<RackView />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
+
+    unmount()
+    render(<RackView />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
+    expect(screen.getByText('Current channel: Beta')).toBeInTheDocument()
+  })
+
   it('hides the header when configured on the rack', async () => {
     saveRackDocument(
       buildRackDocument({

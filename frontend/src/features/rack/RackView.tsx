@@ -20,6 +20,11 @@ import {
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
+import {
+  loadFirmwareUpdateChannel,
+  saveFirmwareUpdateChannel,
+  type FirmwareUpdateChannel,
+} from '../../lib/firmware'
 import { loadRackDocument, saveRackDocument } from '../../lib/rack/loadRack'
 import drpdLogoDark from '../../assets/drpd-logo-dark.svg'
 import drpdLogoLight from '../../assets/drpd-logo-light.svg'
@@ -315,6 +320,9 @@ export const RackView = () => {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
+  const [firmwareUpdateChannel, setFirmwareUpdateChannel] = useState<FirmwareUpdateChannel>(() =>
+    loadFirmwareUpdateChannel(),
+  )
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
     getResolvedTheme(getStoredTheme()),
   )
@@ -322,6 +330,7 @@ export const RackView = () => {
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
   const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
   const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
@@ -555,6 +564,10 @@ export const RackView = () => {
       storage.setItem(THEME_STORAGE_KEY, theme)
     }
   }, [theme])
+
+  useEffect(() => {
+    saveFirmwareUpdateChannel(firmwareUpdateChannel)
+  }, [firmwareUpdateChannel])
 
   useEffect(() => {
     deviceStatesRef.current = deviceStates
@@ -878,6 +891,8 @@ export const RackView = () => {
   /** Render the human-friendly theme label. */
   const themeLabel =
     theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'
+  const firmwareUpdateChannelLabel =
+    firmwareUpdateChannel === 'production' ? 'Production' : 'Beta'
   const currentRack = isEditMode ? draftRack ?? activeRack : activeRack
 
   /** Connect a new device using the WebUSB picker. */
@@ -1309,6 +1324,14 @@ export const RackView = () => {
                 >
                   Theme: {themeLabel}
                 </button>
+                <button
+                  type="button"
+                  className={styles.settingsButton}
+                  onClick={() => setIsSettingsOpen(true)}
+                  disabled={isEditMode}
+                >
+                  Settings
+                </button>
                 {currentRack &&
                 !currentRack.hideHeader ? (
                   <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
@@ -1498,6 +1521,73 @@ export const RackView = () => {
           <div className={styles.notice}>No racks available.</div>
         ) : null}
       </main>
+      {isSettingsOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.settingsBackdrop}>
+              <section
+                className={styles.settingsDialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="rack-settings-title"
+              >
+                <div className={styles.settingsHeader}>
+                  <h2 id="rack-settings-title" className={styles.settingsTitle}>
+                    Settings
+                  </h2>
+                  <button
+                    type="button"
+                    className={styles.settingsCloseButton}
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className={styles.settingsBody}>
+                  <fieldset className={styles.settingsFieldset}>
+                    <legend className={styles.settingsLegend}>Firmware update channel</legend>
+                    <div className={styles.channelOptions}>
+                      <label className={styles.channelOption}>
+                        <input
+                          type="radio"
+                          name="firmware-update-channel"
+                          value="production"
+                          checked={firmwareUpdateChannel === 'production'}
+                          onChange={() => setFirmwareUpdateChannel('production')}
+                        />
+                        <span className={styles.channelOptionText}>
+                          <span className={styles.channelOptionTitle}>Production</span>
+                          <span className={styles.channelOptionDescription}>
+                            Stable firmware releases only.
+                          </span>
+                        </span>
+                      </label>
+                      <label className={styles.channelOption}>
+                        <input
+                          type="radio"
+                          name="firmware-update-channel"
+                          value="beta"
+                          checked={firmwareUpdateChannel === 'beta'}
+                          onChange={() => setFirmwareUpdateChannel('beta')}
+                        />
+                        <span className={styles.channelOptionText}>
+                          <span className={styles.channelOptionTitle}>Beta</span>
+                          <span className={styles.channelOptionDescription}>
+                            Stable and beta firmware releases.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    <div className={styles.settingsValue}>
+                      Current channel: {firmwareUpdateChannelLabel}
+                    </div>
+                  </fieldset>
+                </div>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
