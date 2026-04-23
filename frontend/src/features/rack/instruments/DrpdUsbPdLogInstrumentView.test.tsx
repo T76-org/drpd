@@ -13,10 +13,13 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../lib/device/drpd/usb-pd/message'
+import { buildMessage as buildUsbPdPacket, makeMessageHeader, setBits, toBytes32 } from '../../../lib/device/drpd/usb-pd/messages/messageTestUtils'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
 import { computePulseTraceEndTimestampUs } from './DrpdUsbPdLogTimeStrip.utils'
+
+const TEST_SOP = [0x18, 0x18, 0x18, 0x11]
 
 class TestLogDriver extends EventTarget {
   public analogRows: LoggedAnalogSample[]
@@ -340,6 +343,38 @@ const buildMessage = (
   parseError: null,
   createdAtMs: 1_700_000_000_000 + index,
 })
+
+const buildSourceCapabilitiesMessage = (
+  index: number,
+): LoggedCapturedMessage => {
+  let pdo = 0
+  pdo = setBits(pdo, 29, 29, 1)
+  pdo = setBits(pdo, 28, 28, 1)
+  pdo = setBits(pdo, 27, 27, 1)
+  pdo = setBits(pdo, 26, 26, 1)
+  pdo = setBits(pdo, 25, 25, 1)
+  pdo = setBits(pdo, 24, 24, 1)
+  pdo = setBits(pdo, 23, 23, 1)
+  pdo = setBits(pdo, 21, 20, 2)
+  pdo = setBits(pdo, 19, 10, 100)
+  pdo = setBits(pdo, 9, 0, 200)
+  const packet = buildUsbPdPacket(
+    TEST_SOP,
+    makeMessageHeader({
+      extended: false,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x01,
+    }),
+    toBytes32(pdo),
+  )
+  return {
+    ...buildMessage(index, 1),
+    messageKind: 'DATA',
+    messageType: 1,
+    rawSop: packet.subarray(0, 4),
+    rawDecodedData: packet.subarray(4),
+  }
+}
 
 const buildAnalogSample = (index: number): LoggedAnalogSample => ({
   timestampUs: BigInt(index * 20),
@@ -1023,5 +1058,176 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       expect(driver.logSelection.anchorIndex).toBeNull()
       expect(driver.logSelection.activeIndex).toBeNull()
     })
+  })
+
+  it('disables export menu items until at least one row is selected', async () => {
+    const user = userEvent.setup()
+    const driver = new TestLogDriver([buildMessage(0, 1), buildEvent(1, 'Mark', 'mark')])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await screen.findByText('GoodCRC')
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    let dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Export JSON' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Export CSV' })).toBeDisabled()
+
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    await user.click(rows[0] as HTMLElement)
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Export JSON' })).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Export CSV' })).toBeEnabled()
+  })
+
+  it('exports selected messages and events as JSON using decoded message metadata', async () => {
+    const user = userEvent.setup()
+    class BlobMock {
+      public parts: unknown[]
+      public type: string
+
+      public constructor(parts: unknown[], options?: { type?: string }) {
+        this.parts = parts
+        this.type = options?.type ?? ''
+      }
+    }
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    const createObjectURL = vi.fn(() => 'blob:json-export')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('Blob', BlobMock as unknown as typeof Blob)
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    })
+
+    const driver = new TestLogDriver([
+      buildSourceCapabilitiesMessage(0),
+      buildEvent(1, 'Mark', 'mark'),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await screen.findByText('Source Capabilities')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    fireEvent.click(rows[0] as HTMLElement, { ctrlKey: true })
+    fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(2)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Export JSON' }))
+
+    await waitFor(() => {
+      expect(createObjectURL).toHaveBeenCalledTimes(1)
+    })
+    const [blob] = createObjectURL.mock.calls[0] as [{ parts: unknown[] }]
+    const payload = JSON.parse(String(blob.parts[0] ?? '')) as Array<Record<string, unknown>>
+    expect(payload).toHaveLength(2)
+    expect(payload[0]?.messageType).toBe(1)
+    expect(payload[0]?.csvFields).toBeUndefined()
+    expect(JSON.stringify(payload[0]?.humanReadableMetadata)).toContain('Fixed power profiles')
+    expect(JSON.stringify(payload[0]?.humanReadableMetadata)).toContain('Message Summary')
+    expect(payload[1]?.entryKind).toBe('event')
+    expect(payload[1]?.eventText).toBe('Mark')
+    expect(payload[1]?.humanReadableMetadata).toBeNull()
+    expect(anchorClick).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:json-export')
+  })
+
+  it('exports selected messages and events as CSV with requested columns', async () => {
+    const user = userEvent.setup()
+    class BlobMock {
+      public parts: unknown[]
+      public type: string
+
+      public constructor(parts: unknown[], options?: { type?: string }) {
+        this.parts = parts
+        this.type = options?.type ?? ''
+      }
+    }
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    const createObjectURL = vi.fn(() => 'blob:csv-export')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('Blob', BlobMock as unknown as typeof Blob)
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    })
+
+    const driver = new TestLogDriver([
+      buildSourceCapabilitiesMessage(0),
+      buildEvent(1, 'Mark', 'mark'),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    await screen.findByText('Source Capabilities')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    fireEvent.click(rows[0] as HTMLElement, { ctrlKey: true })
+    fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(2)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Export CSV' }))
+
+    await waitFor(() => {
+      expect(createObjectURL).toHaveBeenCalledTimes(1)
+    })
+    const [blob] = createObjectURL.mock.calls[0] as [{ parts: unknown[] }]
+    const payload = String(blob.parts[0] ?? '')
+    expect(payload).toContain('Wall Time,Duration,Type,Sender,Receiver,ID,Description,CRC,CRC Valid,Message Summary')
+    expect(payload).toContain(',Message,')
+    expect(payload).toContain(',Event,')
+    expect(payload).toContain('Source Capabilities')
+    expect(payload).toContain('Mark')
+    expect(payload).toContain('Fixed power profiles')
+    expect(anchorClick).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv-export')
   })
 })
