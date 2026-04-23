@@ -67,9 +67,11 @@ const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
 const UPDATER_RECONNECT_TIMEOUT_MS = 10_000
 const UPDATER_RECONNECT_POLL_MS = 250
-const UPDATER_INTERFACE_NUMBER = 0
 const UPDATER_READ_TIMEOUT_MS = 15_000
 const UPDATER_WRITE_TIMEOUT_MS = 5_000
+const WINUSB_INTERFACE_CLASS = 0xff
+const WINUSB_INTERFACE_SUBCLASS = 0x01
+const WINUSB_INTERFACE_PROTOCOL = 0x02
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const HEADER_MENU_POPOVER_Z_INDEX = 11000
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
@@ -2449,8 +2451,12 @@ const requestFirmwareUpdater = async (device: USBDevice): Promise<void> => {
 }
 
 const openUpdaterTransport = async (device: USBDevice): Promise<WinUSBTransport> => {
+  const interfaceNumber = findUpdaterInterfaceNumber(device)
+  if (interfaceNumber == null) {
+    throw new Error('Updater WinUSB interface not found on device')
+  }
   const transport = new WinUSBTransport(device, {
-    interfaceNumber: UPDATER_INTERFACE_NUMBER,
+    interfaceNumber,
     readTimeoutMs: UPDATER_READ_TIMEOUT_MS,
     writeTimeoutMs: UPDATER_WRITE_TIMEOUT_MS,
   })
@@ -2476,16 +2482,25 @@ const isFirmwareUpdaterUsbDevice = (device: USBDevice): boolean => {
   if (configurations.length === 0) {
     return true
   }
-  return configurations.some((configuration) =>
-    configuration.interfaces.some((usbInterface) =>
-      usbInterface.interfaceNumber === UPDATER_INTERFACE_NUMBER &&
-      usbInterface.alternates.some((alternate) =>
-        alternate.interfaceClass === 0xff &&
-        alternate.interfaceSubclass === 0x01 &&
-        alternate.interfaceProtocol === 0x02,
-      ),
-    ),
-  )
+  return findUpdaterInterfaceNumber(device) != null
+}
+
+const findUpdaterInterfaceNumber = (device: USBDevice): number | null => {
+  const configurations = device.configurations ?? []
+  for (const configuration of configurations) {
+    for (const usbInterface of configuration.interfaces) {
+      for (const alternate of usbInterface.alternates) {
+        if (
+          alternate.interfaceClass === WINUSB_INTERFACE_CLASS &&
+          alternate.interfaceSubclass === WINUSB_INTERFACE_SUBCLASS &&
+          alternate.interfaceProtocol === WINUSB_INTERFACE_PROTOCOL
+        ) {
+          return usbInterface.interfaceNumber
+        }
+      }
+    }
+  }
+  return null
 }
 
 const findMatchingAuthorizedDevice = async (
