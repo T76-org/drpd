@@ -78,6 +78,8 @@ interface DRPDLogsConsoleHelper {
   devices(): Array<{ id: string; name: string; status: string }>
   driver(deviceId?: string): DRPDDriverRuntime
   diagnostics(deviceId?: string): Promise<unknown>
+  loggingConfig(deviceId?: string): DRPDLoggingConfig
+  setStorageBackend(mode: 'auto' | 'memory', deviceId?: string): Promise<DRPDLoggingConfig>
   count(kind?: 'analog' | 'messages' | 'all', deviceId?: string): Promise<unknown>
   queryAnalog(
     query?: { last?: number; startTimestampUs?: bigint; endTimestampUs?: bigint },
@@ -405,7 +407,9 @@ export const RackView = () => {
   const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
     undefined,
   )
+  const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
+  const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
   const deviceMenuRef = useRef<HTMLDivElement | null>(null)
   const instrumentMenuRef = useRef<HTMLDivElement | null>(null)
   const deviceMenuButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -641,8 +645,16 @@ export const RackView = () => {
   }, [firmwareUpdateChannel])
 
   useEffect(() => {
+    rackDocumentRef.current = rackDocument
+  }, [rackDocument])
+
+  useEffect(() => {
     deviceStatesRef.current = deviceStates
   }, [deviceStates])
+
+  useEffect(() => {
+    pairedDevicesRef.current = pairedDevices
+  }, [pairedDevices])
 
   useEffect(() => {
     const consoleWindow = window as RackConsoleWindow
@@ -678,6 +690,26 @@ export const RackView = () => {
       }
       return connected[0].drpdDriver as DRPDDriverRuntime
     }
+    const resolveConnectedState = (deviceId?: string): RackDeviceState => {
+      const connected = deviceStatesRef.current.filter(
+        (state) => state.status === 'connected' && state.drpdDriver,
+      )
+      if (connected.length === 0) {
+        throw new Error('No connected DRPD devices.')
+      }
+      if (deviceId) {
+        const match = connected.find((state) => state.record.id === deviceId)
+        if (!match?.drpdDriver) {
+          throw new Error(`Connected DRPD device not found: ${deviceId}`)
+        }
+        return match
+      }
+      if (connected.length > 1) {
+        const ids = connected.map((state) => state.record.id).join(', ')
+        throw new Error(`Multiple connected DRPD devices. Pass a deviceId. Available: ${ids}`)
+      }
+      return connected[0]
+    }
 
     const helper: DRPDLogsConsoleHelper = {
       devices: () =>
@@ -702,6 +734,58 @@ export const RackView = () => {
           }
         }
         return await driver.getLoggingDiagnostics()
+      },
+      loggingConfig: (deviceId) => {
+        const state = resolveConnectedState(deviceId)
+        return resolveDeviceLoggingConfig(state.record)
+      },
+      setStorageBackend: async (mode, deviceId) => {
+        const state = resolveConnectedState(deviceId)
+        const currentDocument = rackDocumentRef.current
+        if (!currentDocument) {
+          throw new Error('Rack document not loaded.')
+        }
+        let updatedRecord: RackDeviceRecord | null = null
+        const nextDevices = pairedDevicesRef.current.map((device) => {
+          if (device.id !== state.record.id) {
+            return device
+          }
+          const source =
+            device.config && typeof device.config === 'object'
+              ? (device.config as { logging?: Partial<DRPDLoggingConfig> })
+              : {}
+          updatedRecord = {
+            ...device,
+            config: {
+              ...source,
+              logging: normalizeLoggingConfig({
+                ...source.logging,
+                storageBackend: mode,
+              }),
+            },
+          }
+          return updatedRecord
+        })
+        if (!updatedRecord) {
+          throw new Error(`Rack device not found: ${state.record.id}`)
+        }
+        const nextDocument = replacePairedDevices(currentDocument, nextDevices)
+        setRackDocument(nextDocument)
+        saveRackDocument(nextDocument)
+        pairedDevicesRef.current = nextDevices
+        rackDocumentRef.current = nextDocument
+        setDeviceStates((states) =>
+          states.map((entry) =>
+            entry.record.id === state.record.id
+              ? { ...entry, record: updatedRecord as RackDeviceRecord }
+              : entry,
+          ),
+        )
+        await state.drpdDriver.configureLogging(resolveDeviceLoggingConfig(updatedRecord))
+        return resolveDeviceLoggingConfig(
+          deviceStatesRef.current.find((entry) => entry.record.id === state.record.id)?.record ??
+            updatedRecord,
+        )
       },
       count: async (kind = 'all', deviceId) => {
         const driver = resolveDriver(deviceId)
@@ -812,6 +896,9 @@ export const RackView = () => {
           'window.__drpdLogs.devices()',
           'window.__drpdLogs.driver(deviceId?)',
           'await window.__drpdLogs.diagnostics(deviceId?)',
+          'window.__drpdLogs.loggingConfig(deviceId?)',
+          'await window.__drpdLogs.setStorageBackend("memory", deviceId?)',
+          'await window.__drpdLogs.setStorageBackend("auto", deviceId?)',
           'await window.__drpdLogs.count(kind?, deviceId?) // kind: "analog" | "messages" | "all" (default)',
           'await window.__drpdLogs.queryAnalog({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessage({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',

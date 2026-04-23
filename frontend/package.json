@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:https": "DRPD_DEV_HTTPS=1 vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -29,6 +30,7 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@types/w3c-web-usb": "^1.0.10",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react": "^5.1.1",
     "@vitest/coverage-v8": "^2.1.4",
     "eslint": "^9.39.1",

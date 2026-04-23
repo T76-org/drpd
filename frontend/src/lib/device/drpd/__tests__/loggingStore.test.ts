@@ -85,6 +85,7 @@ describe('SQLiteWasmStore', () => {
     for (let index = 0; index < 9; index += 1) {
       await store.insertCapturedMessage(buildMessage(index))
     }
+    await store.flush()
 
     const analog = await store.queryAnalogSamples({
       startTimestampUs: 0n,
@@ -94,7 +95,7 @@ describe('SQLiteWasmStore', () => {
       startTimestampUs: 0n,
       endTimestampUs: 10_000n,
     })
-    expect(analog.map((row) => row.timestampUs)).toEqual([6n, 7n, 8n, 9n])
+    expect(analog.map((row) => row.timestampUs)).toEqual([5n, 6n, 7n, 8n, 9n])
     expect(messages.map((row) => row.startTimestampUs)).toEqual([1006n, 1007n, 1008n])
   })
 
@@ -120,6 +121,46 @@ describe('SQLiteWasmStore', () => {
     expect(filtered.every((row) => row.senderPowerRole === 'SOURCE')).toBe(true)
     expect(filtered.every((row) => row.senderDataRole === 'DFP')).toBe(true)
     expect(filtered.every((row) => row.sopKind === 'SOP')).toBe(true)
+  })
+
+  it('exposes queued rows to reads and diagnostics before a durable flush', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    await store.insertAnalogSample({
+      timestampUs: 10n,
+      displayTimestampUs: 10n,
+      wallClockUs: 10n,
+      vbusV: 5,
+      ibusA: 0.2,
+      role: 'OBSERVER',
+      createdAtMs: 1,
+    })
+    await store.insertCapturedMessage(buildMessage(0))
+
+    const countsBeforeFlush = await store.getCounts()
+    expect(countsBeforeFlush).toEqual({ analog: 1, messages: 1 })
+    expect(store.getDiagnostics().pendingAnalogRows).toBe(1)
+    expect(store.getDiagnostics().pendingMessageRows).toBe(1)
+
+    const analogRows = await store.queryAnalogSamples({
+      startTimestampUs: 0n,
+      endTimestampUs: 100n,
+    })
+    const messageRows = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+    })
+    expect(analogRows.map((row) => row.timestampUs)).toEqual([10n])
+    expect(messageRows.map((row) => row.startTimestampUs)).toEqual([1_000n])
+
+    await store.flush()
+    expect(store.getDiagnostics().pendingAnalogRows).toBe(0)
+    expect(store.getDiagnostics().pendingMessageRows).toBe(0)
+    expect(store.getDiagnostics().flushCount).toBe(1)
+    expect(store.getDiagnostics().lastFlushAnalogRows).toBe(1)
+    expect(store.getDiagnostics().lastFlushMessageRows).toBe(1)
   })
 
   it('supports captured message sort and pagination windows', async () => {

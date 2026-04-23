@@ -39,6 +39,16 @@ The local Vite dev server is configured with these headers in `vite.config.ts`. 
 
 When you access the dev server through a LAN IP such as `192.168.199.1`, plain HTTP is not a trustworthy origin, so Chrome will ignore COOP/COEP headers there. Use `localhost` during local development if you need those headers to take effect.
 
+If you need to test the app from another machine on the same network, use
+`npm run dev:https` and open it through a hostname that resolves to the dev
+machine. The HTTPS server stays on port `5173`; if you want a stable hostname
+in the Vite output and browser URL, set `DRPD_DEV_PUBLIC_HOST` to that name.
+The generated development certificate works for `localhost` plus any hostname
+you pass in `DRPD_DEV_PUBLIC_HOST`; it does not cover arbitrary LAN IP
+addresses. For a trusted browser session, the hostname must match the
+certificate's subject alternative names and the client machine must trust that
+certificate chain.
+
 ## Log lifecycle behavior
 
 ### Backend creation
