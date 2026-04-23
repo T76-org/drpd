@@ -6,6 +6,7 @@ import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
   DRPDDeviceDefinition,
+  OnOffState,
   SinkState,
   buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
@@ -58,6 +59,7 @@ import {
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
 import { useRackSizingConfig } from './rackSizing'
+import { RACK_SHORTCUTS, matchRackShortcut } from './shortcuts'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -403,6 +405,7 @@ export const RackView = () => {
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
   const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
@@ -525,6 +528,9 @@ export const RackView = () => {
       if (event.key !== 'Escape') {
         return
       }
+      if (isShortcutHelpOpen) {
+        setIsShortcutHelpOpen(false)
+      }
       if (isDeviceMenuOpen) {
         setIsDeviceMenuOpen(false)
       }
@@ -537,7 +543,7 @@ export const RackView = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen])
+  }, [isDeviceMenuOpen, isInstrumentMenuOpen, isShortcutHelpOpen])
 
   const updateHeaderMenuLayout = useCallback(() => {
     const anchor = isDeviceMenuOpen
@@ -1465,6 +1471,115 @@ export const RackView = () => {
     }
   }
 
+  const handleSetActiveDeviceRole = useCallback(async (
+    nextRole: CCBusRole,
+    options?: { persist?: boolean },
+  ) => {
+    const persist = options?.persist ?? true
+    const state = deviceStatesRef.current.find(
+      (entry) => entry.status === 'connected' && entry.drpdDriver,
+    )
+    if (!state?.drpdDriver) {
+      return
+    }
+
+    try {
+      await state.drpdDriver.ccBus.setRole(nextRole)
+      if (persist) {
+        await handleUpdateDeviceConfig(state.record.id, (current) => {
+          const source = current && typeof current === 'object' ? current : {}
+          return {
+            ...source,
+            role: nextRole,
+            ...(nextRole === CCBusRole.SINK ? {} : { sinkRequest: undefined }),
+          }
+        })
+      }
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [handleUpdateDeviceConfig])
+
+  const handleToggleActiveDeviceCapture = useCallback(async () => {
+    const state = deviceStatesRef.current.find(
+      (entry) => entry.status === 'connected' && entry.drpdDriver,
+    )
+    if (!state?.drpdDriver) {
+      return
+    }
+
+    const currentCaptureState = state.drpdDriver.getState().captureEnabled
+    const nextCaptureState =
+      currentCaptureState === OnOffState.ON ? OnOffState.OFF : OnOffState.ON
+
+    try {
+      await state.drpdDriver.setCaptureEnabled(nextCaptureState)
+      await handleUpdateDeviceConfig(state.record.id, (current) => {
+        const source = current && typeof current === 'object' ? current : {}
+        return {
+          ...source,
+          captureEnabled: nextCaptureState,
+        }
+      })
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [handleUpdateDeviceConfig])
+
+  const handlePulseUsbConnection = useCallback(async () => {
+    const state = deviceStatesRef.current.find(
+      (entry) => entry.status === 'connected' && entry.drpdDriver,
+    )
+    const driver = state?.drpdDriver
+    const previousRole = driver?.getState().role ?? null
+    if (!driver || !previousRole || previousRole === CCBusRole.DISABLED) {
+      return
+    }
+
+    try {
+      await driver.ccBus.setRole(CCBusRole.DISABLED)
+      await sleep(1000)
+      await driver.ccBus.setRole(previousRole)
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleGlobalShortcut = (event: KeyboardEvent) => {
+      const shortcutId = matchRackShortcut(event)
+      if (!shortcutId) {
+        return
+      }
+
+      event.preventDefault()
+      switch (shortcutId) {
+        case 'toggle-usb-connection':
+          void handlePulseUsbConnection()
+          break
+        case 'switch-sink':
+          void handleSetActiveDeviceRole(CCBusRole.SINK)
+          break
+        case 'switch-observer':
+          void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
+          break
+        case 'toggle-capture':
+          void handleToggleActiveDeviceCapture()
+          break
+        case 'show-shortcut-help':
+          setIsShortcutHelpOpen(true)
+          break
+        default:
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleGlobalShortcut)
+    return () => {
+      document.removeEventListener('keydown', handleGlobalShortcut)
+    }
+  }, [handlePulseUsbConnection, handleSetActiveDeviceRole, handleToggleActiveDeviceCapture])
+
   /** Add a compatible instrument to the rack. */
   const handleAddInstrument = (instrumentIdentifier: string) => {
     if (!currentRack || !rackDocument) {
@@ -1682,6 +1797,13 @@ export const RackView = () => {
                   onClick={handleThemeToggle}
                 >
                   Theme: {themeLabel}
+                </button>
+                <button
+                  type="button"
+                  className={styles.settingsButton}
+                  onClick={() => setIsShortcutHelpOpen(true)}
+                >
+                  Shortcut help
                 </button>
                 <button
                   type="button"
@@ -1941,6 +2063,50 @@ export const RackView = () => {
                       Current channel: {firmwareUpdateChannelLabel}
                     </div>
                   </fieldset>
+                </div>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
+      {isShortcutHelpOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.settingsBackdrop}>
+              <section
+                className={styles.shortcutDialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="shortcut-help-title"
+              >
+                <div className={styles.shortcutHero}>
+                  <div>
+                    <p className={styles.shortcutEyebrow}>Global Shortcuts</p>
+                    <h2 id="shortcut-help-title" className={styles.shortcutTitle}>
+                      Keyboard shortcuts
+                    </h2>
+                    <p className={styles.shortcutLead}>
+                      Work anywhere in rack view. Shortcut actions target connected DRPD device.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.settingsCloseButton}
+                    onClick={() => setIsShortcutHelpOpen(false)}
+                    aria-label="Close shortcut help"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className={styles.shortcutGrid}>
+                  {RACK_SHORTCUTS.map((shortcut) => (
+                    <article key={shortcut.id} className={styles.shortcutCard}>
+                      <kbd className={styles.shortcutKey}>{shortcut.key}</kbd>
+                      <div className={styles.shortcutCardBody}>
+                        <h3 className={styles.shortcutCardTitle}>{shortcut.label}</h3>
+                        <p className={styles.shortcutCardText}>{shortcut.description}</p>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </section>
             </div>,

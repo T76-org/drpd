@@ -537,6 +537,101 @@
   margin-top: var(--space-16);
 }
 
+.shortcutDialog {
+  width: min(760px, calc(100vw - var(--space-32)));
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-edit-glow) 28%, var(--color-border-panel));
+  border-radius: calc(var(--radius-md) * 1.25);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-edit-glow) 12%, transparent), transparent 36%),
+    var(--color-surface-panel);
+  box-shadow: var(--shadow-strong);
+  color: var(--color-text-primary);
+  overflow: hidden;
+}
+
+.shortcutHero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-16);
+  padding: var(--space-16);
+  border-bottom: var(--border-thin) solid var(--color-border-divider);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-panel-accent) 84%, transparent), transparent);
+}
+
+.shortcutEyebrow {
+  margin: var(--space-0) var(--space-0) var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-lg);
+  text-transform: uppercase;
+}
+
+.shortcutTitle {
+  margin: var(--space-0);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.shortcutLead {
+  margin: var(--space-8) var(--space-0) var(--space-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  max-width: 44ch;
+}
+
+.shortcutGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-12);
+  padding: var(--space-16);
+}
+
+.shortcutCard {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-12);
+  align-items: start;
+  padding: var(--space-12);
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-panel-accent) 76%, transparent), transparent),
+    var(--color-surface-panel);
+}
+
+.shortcutKey {
+  min-width: calc(40px * var(--ui-scale));
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-sm);
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-edit-glow) 35%, var(--color-border-panel));
+  background: color-mix(in srgb, var(--color-edit-glow) 12%, var(--color-surface-panel));
+  box-shadow: inset 0 calc(-2px * var(--ui-scale)) 0 color-mix(in srgb, var(--color-edit-glow) 16%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.shortcutCardBody {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.shortcutCardTitle {
+  margin: var(--space-0);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.shortcutCardText {
+  margin: var(--space-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+}
+
 .srOnly {
   position: absolute;
   width: 1px;
