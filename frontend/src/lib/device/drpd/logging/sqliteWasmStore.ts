@@ -38,7 +38,21 @@ import type {
 
 const DEFAULT_RETENTION_BATCH = 2_000
 const SQLITE_DB_FILENAME = '/drpd/drpd-logging.sqlite3'
+const LOG_FLUSH_INTERVAL_MS = 100
+const LOG_FLUSH_MESSAGE_BATCH_SIZE = 256
+const LOG_FLUSH_ANALOG_BATCH_SIZE = 512
+const SQLITE_MAX_TIMESTAMP_US = BigInt('9223372036854775807')
 let sqlite3ModulePromise: Promise<Sqlite3Static> | null = null
+
+type SQLitePreparedStatement = ReturnType<Database['prepare']>
+type PendingAnalogSample = {
+  row: LoggedAnalogSample
+  sequence: number
+}
+type PendingCapturedMessage = {
+  row: LoggedCapturedMessage
+  sequence: number
+}
 
 /**
  * Build default logging configuration values.
@@ -54,6 +68,7 @@ export const buildDefaultLoggingConfig = (): DRPDLoggingConfig => ({
   maxAnalogSamples: 1_000_000,
   maxCapturedMessages: 1_000_000,
   retentionTrimBatchSize: DEFAULT_RETENTION_BATCH,
+  storageBackend: 'auto',
 })
 
 /**
@@ -91,6 +106,7 @@ export const normalizeLoggingConfig = (
       1,
       Math.floor(input?.retentionTrimBatchSize ?? defaults.retentionTrimBatchSize),
     ),
+    storageBackend: input?.storageBackend === 'memory' ? 'memory' : defaults.storageBackend,
   }
 }
 
@@ -424,9 +440,23 @@ export class SQLiteWasmStore implements DRPDLogStore {
   protected initialized: boolean ///< True once init has completed.
   protected trimStats: { analog: number; messages: number } ///< Trim counters.
   protected maxObservedPulseTraceDurationUs: bigint | null ///< Largest pulse-trace duration seen so far.
+  protected committedCounts: DRPDLogCounts ///< Counts already committed to SQLite.
   protected db?: Database ///< Open SQLite database handle.
   protected memoryFallback?: MemoryFallbackState ///< Test/runtime fallback if SQLite cannot start.
   protected backendKind: 'sqlite-opfs' | 'sqlite-memory' | 'memory-fallback' ///< Active backend kind.
+  protected insertAnalogStmt?: SQLitePreparedStatement ///< Reused analog insert statement.
+  protected insertCapturedMessageStmt?: SQLitePreparedStatement ///< Reused captured-message insert statement.
+  protected pendingAnalogSamples: PendingAnalogSample[] ///< Rows waiting to be flushed.
+  protected pendingCapturedMessages: PendingCapturedMessage[] ///< Rows waiting to be flushed.
+  protected nextPendingSequence: number ///< Monotonic sequence for pending row ordering.
+  protected flushTimer: number | null ///< Pending scheduled flush timer.
+  protected flushInFlight: Promise<void> | null ///< Active flush task, when any.
+  protected flushStats: {
+    count: number
+    lastDurationMs: number
+    lastAnalogRows: number
+    lastMessageRows: number
+  } ///< Batched flush diagnostics.
 
   /**
    * Create a logging store.
@@ -438,7 +468,19 @@ export class SQLiteWasmStore implements DRPDLogStore {
     this.initialized = false
     this.trimStats = { analog: 0, messages: 0 }
     this.maxObservedPulseTraceDurationUs = null
+    this.committedCounts = { analog: 0, messages: 0 }
     this.backendKind = 'memory-fallback'
+    this.pendingAnalogSamples = []
+    this.pendingCapturedMessages = []
+    this.nextPendingSequence = 1
+    this.flushTimer = null
+    this.flushInFlight = null
+    this.flushStats = {
+      count: 0,
+      lastDurationMs: 0,
+      lastAnalogRows: 0,
+      lastMessageRows: 0,
+    }
   }
 
   /**
@@ -458,6 +500,11 @@ export class SQLiteWasmStore implements DRPDLogStore {
         this.db.exec('PRAGMA journal_mode = WAL;')
       } catch {
         // Not all runtimes/VFS combinations support WAL. Continue.
+      }
+      try {
+        this.db.exec('PRAGMA synchronous = NORMAL;')
+      } catch {
+        // Best-effort performance tuning only.
       }
       for (const statement of LOG_SCHEMA_STATEMENTS) {
         this.db.exec(statement)
@@ -479,9 +526,16 @@ export class SQLiteWasmStore implements DRPDLogStore {
         { bind: ['schema_version', String(LOG_SCHEMA_VERSION)] },
       )
       await this.enforceRetentionCore()
+      this.committedCounts = {
+        analog: this.selectCount('SELECT COUNT(*) FROM analog_samples'),
+        messages: this.selectCount('SELECT COUNT(*) FROM captured_messages'),
+      }
+      this.prepareStatements()
     } catch {
       // Keep tests and unsupported runtimes usable, but production worker path
       // should use the SQLite branch above (with OPFS when available).
+      this.finalizeStatements()
+      this.clearFlushTimer()
       this.db?.close()
       this.db = undefined
       this.memoryFallback = {
@@ -501,10 +555,51 @@ export class SQLiteWasmStore implements DRPDLogStore {
       return
     }
     try {
+      await this.flush()
+      this.finalizeStatements()
       this.db?.close()
     } finally {
+      this.clearFlushTimer()
+      this.flushInFlight = null
       this.db = undefined
       this.initialized = false
+    }
+  }
+
+  /**
+   * Flush any queued rows to SQLite.
+   */
+  public async flush(): Promise<void> {
+    this.ensureInitialized()
+    if (this.memoryFallback) {
+      return
+    }
+    if (this.flushInFlight) {
+      await this.flushInFlight
+      if (this.pendingAnalogSamples.length > 0 || this.pendingCapturedMessages.length > 0) {
+        await this.flush()
+      }
+      return
+    }
+    if (this.pendingAnalogSamples.length === 0 && this.pendingCapturedMessages.length === 0) {
+      return
+    }
+    this.clearFlushTimer()
+    const analogBatch = this.pendingAnalogSamples
+    const messageBatch = this.pendingCapturedMessages
+    this.pendingAnalogSamples = []
+    this.pendingCapturedMessages = []
+    const run = this.flushPendingBatches(analogBatch, messageBatch)
+    this.flushInFlight = run
+    try {
+      await run
+    } finally {
+      if (this.flushInFlight === run) {
+        this.flushInFlight = null
+      }
+    }
+    if (this.pendingAnalogSamples.length > 0 || this.pendingCapturedMessages.length > 0) {
+      await this.flush()
     }
   }
 
@@ -520,25 +615,11 @@ export class SQLiteWasmStore implements DRPDLogStore {
       await this.trimAnalogSamplesIfNeededMemory()
       return
     }
-    const db = this.requireDb()
-    const stmt = db.prepare(
-      'INSERT INTO analog_samples(timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms) VALUES(?, ?, ?, ?, ?, ?, ?)',
-    )
-    try {
-      stmt.bind([
-        sample.timestampUs,
-        sample.displayTimestampUs,
-        sample.wallClockUs,
-        sample.vbusV,
-        sample.ibusA,
-        sample.role,
-        sample.createdAtMs,
-      ])
-      stmt.stepFinalize()
-    } finally {
-      stmt.finalize()
-    }
-    await this.trimAnalogSamplesIfNeededSql()
+    this.pendingAnalogSamples.push({
+      row: sample,
+      sequence: this.nextPendingSequence++,
+    })
+    this.scheduleFlush()
   }
 
   /**
@@ -554,8 +635,56 @@ export class SQLiteWasmStore implements DRPDLogStore {
       await this.trimCapturedMessagesIfNeededMemory()
       return
     }
+    this.pendingCapturedMessages.push({
+      row: message,
+      sequence: this.nextPendingSequence++,
+    })
+    this.scheduleFlush()
+  }
+
+  /**
+   * Schedule a background flush if one is not already pending.
+   */
+  protected scheduleFlush(): void {
+    if (this.flushInFlight) {
+      return
+    }
+    if (
+      this.pendingCapturedMessages.length >= LOG_FLUSH_MESSAGE_BATCH_SIZE ||
+      this.pendingAnalogSamples.length >= LOG_FLUSH_ANALOG_BATCH_SIZE
+    ) {
+      void this.flush().catch(() => undefined)
+      return
+    }
+    if (this.flushTimer !== null) {
+      return
+    }
+    this.flushTimer = globalThis.setTimeout(() => {
+      this.flushTimer = null
+      void this.flush().catch(() => undefined)
+    }, LOG_FLUSH_INTERVAL_MS)
+  }
+
+  /**
+   * Cancel any scheduled flush timer.
+   */
+  protected clearFlushTimer(): void {
+    if (this.flushTimer === null) {
+      return
+    }
+    globalThis.clearTimeout(this.flushTimer)
+    this.flushTimer = null
+  }
+
+  /**
+   * Prepare the reusable insert statements.
+   */
+  protected prepareStatements(): void {
     const db = this.requireDb()
-    const stmt = db.prepare(
+    this.insertAnalogStmt = db.prepare(
+      'INSERT INTO analog_samples(timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms) VALUES(?, ?, ?, ?, ?, ?, ?)',
+    )
+    this.insertCapturedMessageStmt = db.prepare(
       [
         'INSERT INTO captured_messages(',
         'entry_kind,event_type,event_text,event_wall_clock_ms,wall_clock_us,start_timestamp_us,end_timestamp_us,display_timestamp_us,decode_result,sop_kind,message_kind,message_type,message_id,',
@@ -563,35 +692,98 @@ export class SQLiteWasmStore implements DRPDLogStore {
         ') VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ],
     )
-    try {
-      stmt.bind([
-        message.entryKind,
-        message.eventType,
-        message.eventText,
-        message.eventWallClockMs,
-        message.wallClockUs,
-        message.startTimestampUs,
-        message.endTimestampUs,
-        message.displayTimestampUs,
-        message.decodeResult,
-        message.sopKind,
-        message.messageKind,
-        message.messageType,
-        message.messageId,
-        message.senderPowerRole,
-        message.senderDataRole,
-        message.pulseCount,
-        encodePulseWidthsLE(message.rawPulseWidths),
-        message.rawSop,
-        message.rawDecodedData,
-        message.parseError,
-        message.createdAtMs,
-      ])
-      stmt.stepFinalize()
-    } finally {
-      stmt.finalize()
+  }
+
+  /**
+   * Finalize any reusable insert statements.
+   */
+  protected finalizeStatements(): void {
+    this.insertAnalogStmt?.finalize()
+    this.insertCapturedMessageStmt?.finalize()
+    this.insertAnalogStmt = undefined
+    this.insertCapturedMessageStmt = undefined
+  }
+
+  /**
+   * Commit one batch of queued rows.
+   *
+   * @param analogBatch - Pending analog rows.
+   * @param messageBatch - Pending captured-message rows.
+   */
+  protected async flushPendingBatches(
+    analogBatch: PendingAnalogSample[],
+    messageBatch: PendingCapturedMessage[],
+  ): Promise<void> {
+    if (analogBatch.length === 0 && messageBatch.length === 0) {
+      return
     }
-    await this.trimCapturedMessagesIfNeededSql()
+    const db = this.requireDb()
+    const analogStmt = this.insertAnalogStmt
+    const messageStmt = this.insertCapturedMessageStmt
+    if (!analogStmt || !messageStmt) {
+      throw new Error('DRPD SQLite insert statements are not prepared')
+    }
+    const flushStartedAt = Date.now()
+    try {
+      db.exec('BEGIN')
+      for (const sample of analogBatch) {
+        analogStmt.bind([
+          sample.row.timestampUs,
+          sample.row.displayTimestampUs,
+          sample.row.wallClockUs,
+          sample.row.vbusV,
+          sample.row.ibusA,
+          sample.row.role,
+          sample.row.createdAtMs,
+        ]).stepReset()
+      }
+      for (const message of messageBatch) {
+        messageStmt.bind([
+          message.row.entryKind,
+          message.row.eventType,
+          message.row.eventText,
+          message.row.eventWallClockMs,
+          message.row.wallClockUs,
+          message.row.startTimestampUs,
+          message.row.endTimestampUs,
+          message.row.displayTimestampUs,
+          message.row.decodeResult,
+          message.row.sopKind,
+          message.row.messageKind,
+          message.row.messageType,
+          message.row.messageId,
+          message.row.senderPowerRole,
+          message.row.senderDataRole,
+          message.row.pulseCount,
+          encodePulseWidthsLE(message.row.rawPulseWidths),
+          message.row.rawSop,
+          message.row.rawDecodedData,
+          message.row.parseError,
+          message.row.createdAtMs,
+        ]).stepReset()
+      }
+      db.exec('COMMIT')
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK')
+      } catch {
+        // Best-effort rollback.
+      }
+      this.pendingAnalogSamples = analogBatch.concat(this.pendingAnalogSamples)
+      this.pendingCapturedMessages = messageBatch.concat(this.pendingCapturedMessages)
+      throw error
+    }
+    this.committedCounts.analog += analogBatch.length
+    this.committedCounts.messages += messageBatch.length
+    const trimmed = await this.enforceRetentionCore()
+    this.committedCounts.analog = Math.max(0, this.committedCounts.analog - trimmed.analog)
+    this.committedCounts.messages = Math.max(0, this.committedCounts.messages - trimmed.messages)
+    this.flushStats = {
+      count: this.flushStats.count + 1,
+      lastDurationMs: Date.now() - flushStartedAt,
+      lastAnalogRows: analogBatch.length,
+      lastMessageRows: messageBatch.length,
+    }
   }
 
   /**
@@ -615,37 +807,34 @@ export class SQLiteWasmStore implements DRPDLogStore {
       }
       return rows.slice(0, query.limit)
     }
-
-    const sql = [
-      'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
-      'FROM analog_samples',
-      'WHERE timestamp_us >= ? AND timestamp_us <= ?',
-      'ORDER BY timestamp_us ASC, id ASC',
-      query.limit && query.limit > 0 ? 'LIMIT ?' : '',
-    ]
-      .filter(Boolean)
-      .join(' ')
-
-    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
-    if (query.limit && query.limit > 0) {
-      bind.push(Math.floor(query.limit))
+    const pendingRows = this.pendingAnalogSamples
+      .filter(
+        (sample) =>
+          sample.row.timestampUs >= query.startTimestampUs &&
+          sample.row.timestampUs <= query.endTimestampUs,
+      )
+      .sort((left, right) =>
+        left.row.timestampUs < right.row.timestampUs
+          ? -1
+          : left.row.timestampUs > right.row.timestampUs
+            ? 1
+            : left.sequence - right.sequence,
+      )
+      .map((sample) => sample.row)
+    const committedRows = await this.queryCommittedAnalogSamples({
+      ...query,
+      limit:
+        query.limit && query.limit > 0
+          ? query.limit + pendingRows.length
+          : query.limit,
+    })
+    const rows = committedRows.concat(pendingRows).sort((left, right) =>
+      left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
+    )
+    if (!query.limit || query.limit <= 0) {
+      return rows
     }
-    const records = this.requireDb().selectObjects(sql, bind)
-    return records.map((record) => ({
-      timestampUs: toBigIntValue(record.timestamp_us as SqlValue, 'analog.timestamp_us'),
-      displayTimestampUs:
-        record.display_timestamp_us === null || record.display_timestamp_us === undefined
-          ? null
-          : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
-      wallClockUs:
-        record.wall_clock_us === null || record.wall_clock_us === undefined
-          ? null
-          : toBigIntValue(record.wall_clock_us as SqlValue, 'analog.wall_clock_us'),
-      vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
-      ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
-      role: (record.role ?? null) as string | null,
-      createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'analog.created_at_ms'),
-    }))
+    return rows.slice(0, query.limit)
   }
 
   /**
@@ -711,7 +900,137 @@ export class SQLiteWasmStore implements DRPDLogStore {
       }
       return pagedRows.slice(0, limit)
     }
+    const hasPending =
+      this.pendingCapturedMessages.length > 0 &&
+      query.endTimestampUs >= this.pendingCapturedMessages[0]?.row.startTimestampUs
+    if (!hasPending) {
+      return await this.queryCommittedCapturedMessages(query)
+    }
 
+    const isUnfilteredFullRange =
+      query.startTimestampUs === 0n &&
+      query.endTimestampUs === SQLITE_MAX_TIMESTAMP_US &&
+      !query.messageKinds?.length &&
+      !query.senderPowerRoles?.length &&
+      !query.senderDataRoles?.length &&
+      !query.sopKinds?.length
+
+    const pendingRows = this.filterPendingCapturedMessages(query)
+    if (isUnfilteredFullRange && (offset > 0 || limit !== null)) {
+      if (sortOrder === 'asc') {
+        if (offset >= this.committedCounts.messages) {
+          return limit === null
+            ? pendingRows.slice(offset - this.committedCounts.messages)
+            : pendingRows.slice(
+                offset - this.committedCounts.messages,
+                offset - this.committedCounts.messages + limit,
+              )
+        }
+        if (limit !== null && offset + limit <= this.committedCounts.messages) {
+          return await this.queryCommittedCapturedMessages(query)
+        }
+        const committedRows = await this.queryCommittedCapturedMessages({
+          ...query,
+          offset,
+          limit: Math.max(0, this.committedCounts.messages - offset),
+        })
+        const remaining = limit === null ? pendingRows : pendingRows.slice(0, Math.max(0, limit - committedRows.length))
+        return committedRows.concat(remaining)
+      }
+      if (offset >= pendingRows.length) {
+        return await this.queryCommittedCapturedMessages({
+          ...query,
+          offset: offset - pendingRows.length,
+          limit: limit ?? undefined,
+        })
+      }
+      const head = limit === null ? pendingRows.slice(offset) : pendingRows.slice(offset, offset + limit)
+      if (limit !== null && head.length >= limit) {
+        return head
+      }
+      const tail = await this.queryCommittedCapturedMessages({
+        ...query,
+        offset: 0,
+        limit: limit === null ? undefined : limit - head.length,
+      })
+      return head.concat(tail)
+    }
+
+    const committedRows = await this.queryCommittedCapturedMessages({
+      ...query,
+      offset: undefined,
+      limit: undefined,
+    })
+    const mergedRows = committedRows.concat(pendingRows).sort((left, right) => {
+      const cmp =
+        left.startTimestampUs < right.startTimestampUs
+          ? -1
+          : left.startTimestampUs > right.startTimestampUs
+            ? 1
+            : left.createdAtMs - right.createdAtMs
+      return sortOrder === 'desc' ? -cmp : cmp
+    })
+    const pagedRows = offset > 0 ? mergedRows.slice(offset) : mergedRows
+    return limit === null ? pagedRows : pagedRows.slice(0, limit)
+  }
+
+  /**
+   * Query committed analog rows from SQLite only.
+   *
+   * @param query - Query criteria.
+   * @returns Matching committed rows.
+   */
+  protected async queryCommittedAnalogSamples(query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
+    const sql = [
+      'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
+      'FROM analog_samples',
+      'WHERE timestamp_us >= ? AND timestamp_us <= ?',
+      'ORDER BY timestamp_us ASC, id ASC',
+      query.limit && query.limit > 0 ? 'LIMIT ?' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
+    if (query.limit && query.limit > 0) {
+      bind.push(Math.floor(query.limit))
+    }
+    const records = this.requireDb().selectObjects(sql, bind)
+    return records.map((record) => ({
+      timestampUs: toBigIntValue(record.timestamp_us as SqlValue, 'analog.timestamp_us'),
+      displayTimestampUs:
+        record.display_timestamp_us === null || record.display_timestamp_us === undefined
+          ? null
+          : toBigIntValue(record.display_timestamp_us as SqlValue, 'analog.display_timestamp_us'),
+      wallClockUs:
+        record.wall_clock_us === null || record.wall_clock_us === undefined
+          ? null
+          : toBigIntValue(record.wall_clock_us as SqlValue, 'analog.wall_clock_us'),
+      vbusV: toNumberValue(record.vbus_v as SqlValue, 'analog.vbus_v'),
+      ibusA: toNumberValue(record.ibus_a as SqlValue, 'analog.ibus_a'),
+      role: (record.role ?? null) as string | null,
+      createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'analog.created_at_ms'),
+    }))
+  }
+
+  /**
+   * Query committed captured-message rows from SQLite only.
+   *
+   * @param query - Query criteria.
+   * @returns Matching committed rows.
+   */
+  protected async queryCommittedCapturedMessages(
+    query: CapturedMessageQuery,
+  ): Promise<LoggedCapturedMessage[]> {
+    const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    const offset =
+      query.offset != null && Number.isFinite(query.offset) && query.offset > 0
+        ? Math.floor(query.offset)
+        : 0
+    const limit =
+      query.limit != null && Number.isFinite(query.limit) && query.limit > 0
+        ? Math.floor(query.limit)
+        : null
     const clauses = ['start_timestamp_us >= ?', 'start_timestamp_us <= ?']
     const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
     if (query.messageKinds?.length) {
@@ -789,6 +1108,52 @@ export class SQLiteWasmStore implements DRPDLogStore {
       parseError: (record.parse_error ?? null) as string | null,
       createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'message.created_at_ms'),
     }))
+  }
+
+  /**
+   * Filter queued message rows using the same semantics as SQLite queries.
+   *
+   * @param query - Query criteria.
+   * @returns Matching pending rows in query sort order.
+   */
+  protected filterPendingCapturedMessages(query: CapturedMessageQuery): LoggedCapturedMessage[] {
+    const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    const rows = this.pendingCapturedMessages
+      .filter(({ row }) => {
+        if (row.startTimestampUs < query.startTimestampUs || row.startTimestampUs > query.endTimestampUs) {
+          return false
+        }
+        if (query.messageKinds?.length && (!row.messageKind || !query.messageKinds.includes(row.messageKind))) {
+          return false
+        }
+        if (
+          query.senderPowerRoles?.length &&
+          (!row.senderPowerRole || !query.senderPowerRoles.includes(row.senderPowerRole))
+        ) {
+          return false
+        }
+        if (
+          query.senderDataRoles?.length &&
+          (!row.senderDataRole || !query.senderDataRoles.includes(row.senderDataRole))
+        ) {
+          return false
+        }
+        if (query.sopKinds?.length && (!row.sopKind || !query.sopKinds.includes(row.sopKind))) {
+          return false
+        }
+        return true
+      })
+      .sort((left, right) => {
+        const cmp =
+          left.row.startTimestampUs < right.row.startTimestampUs
+            ? -1
+            : left.row.startTimestampUs > right.row.startTimestampUs
+              ? 1
+              : left.sequence - right.sequence
+        return sortOrder === 'desc' ? -cmp : cmp
+      })
+      .map(({ row }) => row)
+    return rows
   }
 
   /**
@@ -922,14 +1287,15 @@ export class SQLiteWasmStore implements DRPDLogStore {
    */
   public async exportData(request: LogExportRequest): Promise<LogExportResult> {
     this.ensureInitialized()
+    await this.flush()
 
     const analogQuery: AnalogSampleQuery = request.analogQuery ?? {
       startTimestampUs: 0n,
-      endTimestampUs: BigInt('9223372036854775807'),
+      endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
     }
     const messageQuery: CapturedMessageQuery = request.messageQuery ?? {
       startTimestampUs: 0n,
-      endTimestampUs: BigInt('9223372036854775807'),
+      endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
     }
 
     const analog = request.includeAnalog ? await this.queryAnalogSamples(analogQuery) : []
@@ -1048,6 +1414,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
    */
   public async clear(scope: LogClearScope): Promise<LogClearResult> {
     this.ensureInitialized()
+    await this.flush()
 
     if (this.memoryFallback) {
       const result: LogClearResult = {
@@ -1075,11 +1442,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
     if (scope === 'analog' || scope === 'all') {
       result.analogDeleted = this.selectCount('SELECT COUNT(*) FROM analog_samples')
       db.exec('DELETE FROM analog_samples')
+      this.committedCounts.analog = 0
     }
     if (scope === 'messages' || scope === 'all') {
       result.messagesDeleted = this.selectCount('SELECT COUNT(*) FROM captured_messages')
       db.exec('DELETE FROM captured_messages')
       this.maxObservedPulseTraceDurationUs = null
+      this.committedCounts.messages = 0
     }
 
     return result
@@ -1095,7 +1464,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
       await this.trimCapturedMessagesIfNeededMemory()
       return
     }
-    await this.enforceRetentionCore()
+    await this.flush()
+    const trimmed = await this.enforceRetentionCore()
+    this.committedCounts.analog = Math.max(0, this.committedCounts.analog - trimmed.analog)
+    this.committedCounts.messages = Math.max(0, this.committedCounts.messages - trimmed.messages)
   }
 
   /**
@@ -1123,6 +1495,12 @@ export class SQLiteWasmStore implements DRPDLogStore {
       clockSyncConfigured: this.config.clockSyncEnabled,
       clockSyncActive: false,
       clockSyncResyncIntervalMs: this.config.clockSyncResyncIntervalMs,
+      pendingAnalogRows: this.pendingAnalogSamples.length,
+      pendingMessageRows: this.pendingCapturedMessages.length,
+      flushCount: this.flushStats.count,
+      lastFlushDurationMs: this.flushStats.lastDurationMs,
+      lastFlushAnalogRows: this.flushStats.lastAnalogRows,
+      lastFlushMessageRows: this.flushStats.lastMessageRows,
     }
   }
 
@@ -1140,8 +1518,8 @@ export class SQLiteWasmStore implements DRPDLogStore {
       }
     }
     return {
-      analog: this.selectCount('SELECT COUNT(*) FROM analog_samples'),
-      messages: this.selectCount('SELECT COUNT(*) FROM captured_messages'),
+      analog: this.committedCounts.analog + this.pendingAnalogSamples.length,
+      messages: this.committedCounts.messages + this.pendingCapturedMessages.length,
     }
   }
 
@@ -1266,7 +1644,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
         )
       }
     }
-    return {
+    const committed = {
       earliestTimestampUs:
         earliestTimestampCandidates.length > 0
           ? earliestTimestampCandidates.reduce((minimum, value) => value < minimum ? value : minimum)
@@ -1282,6 +1660,63 @@ export class SQLiteWasmStore implements DRPDLogStore {
       latestDisplayTimestampUs:
         latestDisplayCandidates.length > 0
           ? latestDisplayCandidates.reduce((maximum, value) => value > maximum ? value : maximum)
+          : null,
+    }
+    if (this.pendingAnalogSamples.length === 0 && this.pendingCapturedMessages.length === 0) {
+      return committed
+    }
+    const pendingAnalog = this.pendingAnalogSamples.map((sample) => sample.row)
+    const pendingMessages = this.pendingCapturedMessages
+      .map((message) => message.row)
+      .filter((row) => row.entryKind === 'message')
+    const earliestTimestampCandidatesWithPending = [
+      ...(committed.earliestTimestampUs === null ? [] : [committed.earliestTimestampUs]),
+      ...pendingAnalog.map((row) => row.timestampUs),
+      ...pendingMessages.map((row) => row.startTimestampUs),
+    ]
+    const latestTimestampCandidatesWithPending = [
+      ...(committed.latestTimestampUs === null ? [] : [committed.latestTimestampUs]),
+      ...pendingAnalog.map((row) => row.timestampUs),
+      ...pendingMessages.map((row) => row.endTimestampUs),
+    ]
+    const earliestDisplayCandidatesWithPending = [
+      ...(committed.earliestDisplayTimestampUs === null ? [] : [committed.earliestDisplayTimestampUs]),
+      ...pendingAnalog
+        .map((row) => row.displayTimestampUs)
+        .filter((value): value is bigint => value !== null),
+      ...pendingMessages
+        .map((row) => row.displayTimestampUs)
+        .filter((value): value is bigint => value !== null),
+    ]
+    const latestDisplayCandidatesWithPending = [
+      ...(committed.latestDisplayTimestampUs === null ? [] : [committed.latestDisplayTimestampUs]),
+      ...pendingAnalog
+        .map((row) => row.displayTimestampUs)
+        .filter((value): value is bigint => value !== null),
+      ...pendingMessages
+        .map((row) =>
+          row.displayTimestampUs === null
+            ? null
+            : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
+        )
+        .filter((value): value is bigint => value !== null),
+    ]
+    return {
+      earliestTimestampUs:
+        earliestTimestampCandidatesWithPending.length > 0
+          ? earliestTimestampCandidatesWithPending.reduce((minimum, value) => value < minimum ? value : minimum)
+          : null,
+      latestTimestampUs:
+        latestTimestampCandidatesWithPending.length > 0
+          ? latestTimestampCandidatesWithPending.reduce((maximum, value) => value > maximum ? value : maximum)
+          : null,
+      earliestDisplayTimestampUs:
+        earliestDisplayCandidatesWithPending.length > 0
+          ? earliestDisplayCandidatesWithPending.reduce((minimum, value) => value < minimum ? value : minimum)
+          : null,
+      latestDisplayTimestampUs:
+        latestDisplayCandidatesWithPending.length > 0
+          ? latestDisplayCandidatesWithPending.reduce((maximum, value) => value > maximum ? value : maximum)
           : null,
     }
   }
@@ -1483,6 +1918,16 @@ export class SQLiteWasmStore implements DRPDLogStore {
         )
       return rows.length > 0 ? rows[rows.length - 1] ?? null : null
     }
+    const pending = this.pendingAnalogSamples
+      .filter((row) => row.row.timestampUs <= timestampUs)
+      .sort((left, right) =>
+        left.row.timestampUs < right.row.timestampUs
+          ? -1
+          : left.row.timestampUs > right.row.timestampUs
+            ? 1
+            : left.sequence - right.sequence,
+      )
+      .at(-1)?.row ?? null
     const record = this.requireDb().selectObjects(
       [
         'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
@@ -1492,10 +1937,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       ].join(' '),
       [timestampUs],
     )[0]
-    if (!record) {
-      return null
-    }
-    return {
+    const committed = !record ? null : {
       timestampUs: toBigIntValue(record.timestamp_us as SqlValue, 'analog.timestamp_us'),
       displayTimestampUs:
         record.display_timestamp_us === null || record.display_timestamp_us === undefined
@@ -1510,6 +1952,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       role: (record.role ?? null) as string | null,
       createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'analog.created_at_ms'),
     }
+    if (!committed) {
+      return pending
+    }
+    if (!pending || committed.timestampUs >= pending.timestampUs) {
+      return committed
+    }
+    return pending
   }
 
   /**
@@ -1530,6 +1979,15 @@ export class SQLiteWasmStore implements DRPDLogStore {
         )
       return rows[0] ?? null
     }
+    const pending = this.pendingAnalogSamples
+      .filter((row) => row.row.timestampUs >= timestampUs)
+      .sort((left, right) =>
+        left.row.timestampUs < right.row.timestampUs
+          ? -1
+          : left.row.timestampUs > right.row.timestampUs
+            ? 1
+            : left.sequence - right.sequence,
+      )[0]?.row ?? null
     const record = this.requireDb().selectObjects(
       [
         'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
@@ -1539,10 +1997,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       ].join(' '),
       [timestampUs],
     )[0]
-    if (!record) {
-      return null
-    }
-    return {
+    const committed = !record ? null : {
       timestampUs: toBigIntValue(record.timestamp_us as SqlValue, 'analog.timestamp_us'),
       displayTimestampUs:
         record.display_timestamp_us === null || record.display_timestamp_us === undefined
@@ -1557,6 +2012,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       role: (record.role ?? null) as string | null,
       createdAtMs: toNumberValue(record.created_at_ms as SqlValue, 'analog.created_at_ms'),
     }
+    if (!committed) {
+      return pending
+    }
+    if (!pending || committed.timestampUs <= pending.timestampUs) {
+      return committed
+    }
+    return pending
   }
 
   /**
@@ -1721,6 +2183,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
    * @returns Open database handle.
    */
   protected openDatabase(sqlite3: Sqlite3Static): Database {
+    if (this.config.storageBackend === 'memory') {
+      return new sqlite3.oo1.DB(':memory:', 'c')
+    }
     if (typeof sqlite3.oo1.OpfsDb === 'function') {
       return new sqlite3.oo1.OpfsDb(SQLITE_DB_FILENAME, 'c')
     }
@@ -1787,9 +2252,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
   /**
    * Apply retention to both SQLite-backed tables.
    */
-  protected async enforceRetentionCore(): Promise<void> {
-    await this.trimAnalogSamplesIfNeededSql()
-    await this.trimCapturedMessagesIfNeededSql()
+  protected async enforceRetentionCore(): Promise<{ analog: number; messages: number }> {
+    const analog = await this.trimAnalogSamplesIfNeededSql()
+    const messages = await this.trimCapturedMessagesIfNeededSql()
+    return { analog, messages }
   }
 
   /**
@@ -1834,11 +2300,11 @@ export class SQLiteWasmStore implements DRPDLogStore {
   /**
    * Trim old analog rows when retention is exceeded (SQLite).
    */
-  protected async trimAnalogSamplesIfNeededSql(): Promise<void> {
+  protected async trimAnalogSamplesIfNeededSql(): Promise<number> {
     const count = this.selectCount('SELECT COUNT(*) FROM analog_samples')
     const overflow = count - this.config.maxAnalogSamples
     if (overflow <= 0) {
-      return
+      return 0
     }
     const trimSize = Math.min(count, Math.max(overflow, this.config.retentionTrimBatchSize))
     this.requireDb().exec(
@@ -1846,16 +2312,17 @@ export class SQLiteWasmStore implements DRPDLogStore {
       { bind: [trimSize] },
     )
     this.trimStats.analog += trimSize
+    return trimSize
   }
 
   /**
    * Trim old captured-message rows when retention is exceeded (SQLite).
    */
-  protected async trimCapturedMessagesIfNeededSql(): Promise<void> {
+  protected async trimCapturedMessagesIfNeededSql(): Promise<number> {
     const count = this.selectCount('SELECT COUNT(*) FROM captured_messages')
     const overflow = count - this.config.maxCapturedMessages
     if (overflow <= 0) {
-      return
+      return 0
     }
     const trimSize = Math.min(count, Math.max(overflow, this.config.retentionTrimBatchSize))
     this.requireDb().exec(
@@ -1863,5 +2330,6 @@ export class SQLiteWasmStore implements DRPDLogStore {
       { bind: [trimSize] },
     )
     this.trimStats.messages += trimSize
+    return trimSize
   }
 }

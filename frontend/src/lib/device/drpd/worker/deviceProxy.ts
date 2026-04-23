@@ -121,6 +121,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   public static async create(
     device: USBDevice,
+    loggingConfig?: Partial<DRPDLoggingConfig>,
     debugLogs = new DebugLogRegistry(),
   ): Promise<DRPDWorkerDeviceProxy> {
     let lastError: unknown
@@ -145,6 +146,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
             sessionId,
             deviceSelection,
             debugLogRules: debugLogs.getScopeRules(),
+            loggingConfig,
           }),
           WORKER_CREATE_TIMEOUT_MS,
           'drpdSession.create',

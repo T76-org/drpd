@@ -25,6 +25,8 @@ export interface DRPDLoggingConfig {
   maxCapturedMessages: number
   ///< Number of rows to trim per retention batch.
   retentionTrimBatchSize: number
+  ///< Preferred SQLite storage backend for diagnostics/perf testing.
+  storageBackend: 'auto' | 'memory'
 }
 
 /**
@@ -357,6 +359,18 @@ export interface DRPDLoggingDiagnostics {
   clockSyncActive: boolean
   ///< Configured periodic resync interval in milliseconds.
   clockSyncResyncIntervalMs: number
+  ///< Number of pending analog rows not yet committed to SQLite.
+  pendingAnalogRows?: number
+  ///< Number of pending captured-message rows not yet committed to SQLite.
+  pendingMessageRows?: number
+  ///< Number of completed SQLite flushes for the current store session.
+  flushCount?: number
+  ///< Duration of the most recent SQLite flush in milliseconds.
+  lastFlushDurationMs?: number
+  ///< Number of analog rows written by the most recent flush.
+  lastFlushAnalogRows?: number
+  ///< Number of captured-message rows written by the most recent flush.
+  lastFlushMessageRows?: number
   ///< Last accepted sync snapshot, if any.
   clockSync?: DRPDClockSyncSnapshot
 }
@@ -443,6 +457,11 @@ export interface DRPDLogStore {
    * Enforce configured retention limits.
    */
   enforceRetention(): Promise<void>
+
+  /**
+   * Flush any queued rows to durable storage.
+   */
+  flush?(): Promise<void>
 
   /**
    * Return backend diagnostics for debug tooling.

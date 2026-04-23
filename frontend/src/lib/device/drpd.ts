@@ -243,9 +243,9 @@ export class DRPDDeviceDefinition extends Device {
   public async createConnectedRuntime(device: USBDevice): Promise<DRPDConnectedRuntime> {
     if (typeof Worker !== 'undefined') {
       const debugLogs = new DebugLogRegistry()
-      const driver = await DRPDWorkerDeviceProxy.create(device, debugLogs)
       const config = this.getStoredConfig()
       const loggingConfig = extractLoggingConfig(config)
+      const driver = await DRPDWorkerDeviceProxy.create(device, loggingConfig, debugLogs)
       await driver.configureLogging(loggingConfig)
       this.driver = driver
       return { driver, transport: driver, debugLogs }

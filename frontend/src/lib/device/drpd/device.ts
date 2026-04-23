@@ -225,6 +225,7 @@ export class DRPDDevice extends EventTarget {
    * @param config - Logging configuration values.
    */
   public async configureLogging(config: DRPDLoggingConfig): Promise<void> {
+    const previousConfig = this.loggingConfig
     this.loggingConfig = this.normalizeLoggingConfig(config)
     if (
       this.state.captureEnabled === OnOffStateValues.ON &&
@@ -232,10 +233,14 @@ export class DRPDDevice extends EventTarget {
     ) {
       this.loggingConfig = { ...this.loggingConfig, enabled: true }
     }
+    const storageBackendChanged = previousConfig.storageBackend !== this.loggingConfig.storageBackend
     this.setCaptureDrainPollingInterval(this.loggingConfig.messagePollFallbackIntervalMs)
     this.refreshClockSyncScheduling()
-    if (this.loggingStarted) {
+    if (this.loggingStarted || storageBackendChanged) {
       await this.stopLogging()
+      if (storageBackendChanged) {
+        await this.closeLogStore()
+      }
       if (this.loggingConfig.enabled) {
         await this.startLogging()
       }
@@ -272,6 +277,9 @@ export class DRPDDevice extends EventTarget {
       return
     }
     this.loggingStarted = false
+    if (this.logStore && typeof this.logStore.flush === 'function') {
+      await this.logStore.flush()
+    }
     this.activeDisplayEpochStartUs = null
     this.pendingDisplayEpochReset = false
     this.logDebug('logging: stopped')
@@ -1902,6 +1910,9 @@ export class DRPDDevice extends EventTarget {
     }
     if (normalized.maxCapturedMessages <= LEGACY_CAPTURE_RETENTION) {
       normalized.maxCapturedMessages = buildDefaultLoggingConfig().maxCapturedMessages
+    }
+    if (normalized.storageBackend !== 'memory') {
+      normalized.storageBackend = buildDefaultLoggingConfig().storageBackend
     }
     return normalized
   }
