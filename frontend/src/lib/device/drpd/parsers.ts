@@ -484,14 +484,18 @@ export const parseDeviceStatus = (value: string | number): DeviceStatusFlags => 
  * @returns Device identity fields.
  */
 export const parseDeviceIdentity = (parts: string[]): DeviceIdentity => {
-  if (parts.length !== 4) {
+  const normalizedParts =
+    parts.length === 1 && parts[0].includes(',')
+      ? parts[0].split(',').map((part) => part.trim())
+      : parts
+  if (normalizedParts.length !== 4) {
     throw new Error(`Invalid *IDN? response: ${parts.join(' ')}`)
   }
   return {
-    manufacturer: parts[0],
-    model: parts[1],
-    serialNumber: parts[2],
-    firmwareVersion: parts[3],
+    manufacturer: normalizedParts[0],
+    model: normalizedParts[1],
+    serialNumber: normalizedParts[2],
+    firmwareVersion: normalizedParts[3],
   }
 }
 

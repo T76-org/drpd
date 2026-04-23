@@ -52,6 +52,7 @@ const mockTransportState = vi.hoisted(() => ({
   timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
   captureCountResponse: ['0'],
+  sentCommands: [] as string[],
 }))
 
 const mockFirmwareUpdaterState = vi.hoisted(() => ({
@@ -206,7 +207,12 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
     /**
      * Stub SCPI command send.
      */
-    public async sendCommand(): Promise<void> {
+    public async sendCommand(command: string, value?: string | { raw?: string }): Promise<void> {
+      const normalizedValue =
+        value && typeof value === 'object' && 'raw' in value ? value.raw : value
+      mockTransportState.sentCommands.push(
+        normalizedValue == null ? command : `${command} ${normalizedValue}`,
+      )
       return undefined
     }
   }
@@ -340,12 +346,41 @@ const createStorage = (): Storage => {
  * Create a minimal USBDevice stub.
  */
 const createUSBDevice = (serialNumber = 'DRPD-TEST-001', productName = 'Dr. PD'): USBDevice =>
-  ({
-    vendorId: 0x2e8a,
-    productId: 0x000a,
-    serialNumber,
-    productName
-  }) as USBDevice
+  {
+    const configuration = {
+      configurationName: 'default',
+      configurationValue: 1,
+      interfaces: [
+        {
+          interfaceNumber: 0,
+          alternates: [
+            {
+              alternateSetting: 0,
+              interfaceClass: 0xff,
+              interfaceSubclass: 0x01,
+              interfaceProtocol: 0x02,
+              interfaceName: 'WinUSB',
+            },
+          ],
+        },
+      ],
+    } as USBConfiguration
+    return {
+      vendorId: 0x2e8a,
+      productId: 0x000a,
+      serialNumber,
+      productName,
+      configuration,
+      configurations: [configuration],
+      opened: false,
+      open: vi.fn(async function open(this: USBDevice & { opened?: boolean }) {
+        this.opened = true
+      }),
+      close: vi.fn(async function close(this: USBDevice & { opened?: boolean }) {
+        this.opened = false
+      }),
+    } as USBDevice
+  }
 
 const buildFetchResponse = (body: unknown, bytes?: Uint8Array): Response =>
   ({
@@ -634,6 +669,7 @@ const resetMockTransportState = (): void => {
   mockTransportState.timestampResponse = ['1000']
   mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
   mockTransportState.captureCountResponse = ['0']
+  mockTransportState.sentCommands = []
 }
 
 beforeEach(() => {
@@ -1446,6 +1482,69 @@ describe('RackView', () => {
 
     expect(await screen.findByText('connected')).toBeInTheDocument()
     await expectHydratedDrpdPanels()
+  })
+
+  it('opens shortcut help from header button and global shortcut', async () => {
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await expectHydratedDrpdPanels()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Shortcut help' }))
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+    expect(screen.getByText('Toggle USB connection')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close shortcut help' }))
+    expect(screen.queryByRole('dialog', { name: 'Keyboard shortcuts' })).not.toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: '?' })
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+  })
+
+  it('runs global Sink, Observer, and Capture shortcuts', async () => {
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await expectHydratedDrpdPanels()
+
+    fireEvent.keyDown(document, { key: 'S' })
+    fireEvent.keyDown(document, { key: 'O' })
+    fireEvent.keyDown(document, { key: 'C' })
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toEqual(
+        expect.arrayContaining([
+          'BUS:CC:ROLE SINK',
+          'BUS:CC:ROLE OBSERVER',
+          'BUS:CC:CAP:EN OFF',
+        ]),
+      )
+    })
+  })
+
+  it('pulses Disabled then restores previous role for USB toggle shortcut', async () => {
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'T' })
+        await Promise.resolve()
+      })
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE DISABLED')
+      await act(async () => {
+        vi.advanceTimersByTime(1000)
+        await Promise.resolve()
+      })
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE SINK')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
 

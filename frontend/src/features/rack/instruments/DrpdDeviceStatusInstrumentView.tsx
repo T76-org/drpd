@@ -225,10 +225,16 @@ export const DrpdDeviceStatusInstrumentView = ({
 
     const handleStateUpdated = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (detail?.changed && !detail.changed.includes('role')) {
+      if (
+        detail?.changed &&
+        !detail.changed.includes('role') &&
+        !detail.changed.includes('captureEnabled')
+      ) {
         return
       }
-      setRole(driver.getState().role ?? null)
+      const state = driver.getState()
+      setRole(state.role ?? null)
+      setCaptureEnabled(state.captureEnabled ?? null)
     }
 
     const handleCcBusStatusChanged = (event: Event) => {
@@ -244,6 +250,8 @@ export const DrpdDeviceStatusInstrumentView = ({
       const detail = event instanceof CustomEvent ? event.detail : undefined
       if (detail?.captureEnabled) {
         setCaptureEnabled(detail.captureEnabled as OnOffState)
+      } else if (detail?.current) {
+        setCaptureEnabled(detail.current as OnOffState)
       } else {
         setCaptureEnabled(driver.getState().captureEnabled ?? null)
       }

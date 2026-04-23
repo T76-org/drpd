@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { CCBusRole, CCBusRoleStatus, DRPDDevice, OnOffState } from '../../../lib/device'
@@ -170,5 +170,40 @@ describe('DrpdDeviceStatusInstrumentView', () => {
       role: CCBusRole.SINK,
       captureEnabled: OnOffState.ON,
     })
+  })
+
+  it('updates capture display from capturestatuschanged current payload', async () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setStatusState(
+      CCBusRole.SINK,
+      CCBusRoleStatus.ATTACHED,
+      OnOffState.OFF,
+    )
+
+    render(
+      <DrpdDeviceStatusInstrumentView
+        instrument={buildInstrument()}
+        displayName="Device Status"
+        deviceState={{
+          record: buildDeviceRecord(),
+          status: 'connected',
+          drpdDriver: driver,
+        }}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByText('Off')).toBeInTheDocument()
+
+    await act(async () => {
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, {
+          detail: { previous: OnOffState.OFF, current: OnOffState.ON },
+        }),
+      )
+    })
+
+    expect(await screen.findByText('On')).toBeInTheDocument()
   })
 })
