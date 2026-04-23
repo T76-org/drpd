@@ -10,9 +10,11 @@ import styles from './FirmwareUploadTestPage.module.css'
 
 const UPDATER_RECONNECT_TIMEOUT_MS = 10_000
 const UPDATER_RECONNECT_POLL_MS = 250
-const UPDATER_INTERFACE_NUMBER = 0
 const UPDATER_READ_TIMEOUT_MS = 15_000
 const UPDATER_WRITE_TIMEOUT_MS = 5_000
+const WINUSB_INTERFACE_CLASS = 0xff
+const WINUSB_INTERFACE_SUBCLASS = 0x01
+const WINUSB_INTERFACE_PROTOCOL = 0x02
 
 type SelectedDeviceInfo = {
   vendorId: number
@@ -37,13 +39,35 @@ const supportsFirmwareUpdate = (transport: WinUSBTransport): boolean =>
   'updateFirmware' in transport && typeof transport.updateFirmware === 'function'
 
 const openUpdaterTransport = async (device: USBDevice): Promise<WinUSBTransport> => {
+  const interfaceNumber = findUpdaterInterfaceNumber(device)
+  if (interfaceNumber == null) {
+    throw new Error('Updater WinUSB interface not found on device')
+  }
   const transport = new WinUSBTransport(device, {
-    interfaceNumber: UPDATER_INTERFACE_NUMBER,
+    interfaceNumber,
     readTimeoutMs: UPDATER_READ_TIMEOUT_MS,
     writeTimeoutMs: UPDATER_WRITE_TIMEOUT_MS,
   })
   await transport.open()
   return transport
+}
+
+const findUpdaterInterfaceNumber = (device: USBDevice): number | null => {
+  const configurations = device.configurations ?? []
+  for (const configuration of configurations) {
+    for (const usbInterface of configuration.interfaces) {
+      for (const alternate of usbInterface.alternates) {
+        if (
+          alternate.interfaceClass === WINUSB_INTERFACE_CLASS &&
+          alternate.interfaceSubclass === WINUSB_INTERFACE_SUBCLASS &&
+          alternate.interfaceProtocol === WINUSB_INTERFACE_PROTOCOL
+        ) {
+          return usbInterface.interfaceNumber
+        }
+      }
+    }
+  }
+  return null
 }
 
 const findMatchingAuthorizedDevice = async (
