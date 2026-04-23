@@ -12,6 +12,7 @@ import { DRPDDevice } from '../../../lib/device'
 import {
   buildDefaultLoggingConfig,
   buildCapturedLogSelectionKey,
+  decodeLoggedCapturedMessageWithContext,
   normalizeLoggingConfig,
   type DRPDLogSelectionState,
   type DRPDLoggingConfig,
@@ -22,6 +23,7 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../lib/device/drpd/usb-pd/message'
+import { HumanReadableField, type HumanReadableTableCell } from '../../../lib/device/drpd/usb-pd/humanReadableField'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -84,11 +86,110 @@ type DisplayRow = {
   valid: string
 }
 
+type ExportRow = {
+  selectionKey: string
+  row: LoggedCapturedMessage
+  humanReadableMetadata: Record<string, unknown> | null
+  wallTime: string
+  type: string
+  duration: string
+  sender: string
+  receiver: string
+  id: string
+  description: string
+  crc: string
+  crcValid: string
+  messageSummary: string
+}
+
 const formatMicroseconds = (value: bigint | null): string => {
   if (value === null) {
     return '--'
   }
   return `${value}`
+}
+
+const toHex = (bytes: Uint8Array): string =>
+  Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')
+
+const toSerializableMessage = (row: LoggedCapturedMessage): Record<string, unknown> => ({
+  entryKind: row.entryKind,
+  eventType: row.eventType,
+  eventText: row.eventText,
+  eventWallClockMs: row.eventWallClockMs,
+  wallClockUs: row.wallClockUs?.toString() ?? null,
+  startTimestampUs: row.startTimestampUs.toString(),
+  endTimestampUs: row.endTimestampUs.toString(),
+  displayTimestampUs: row.displayTimestampUs?.toString() ?? null,
+  decodeResult: row.decodeResult,
+  sopKind: row.sopKind,
+  messageKind: row.messageKind,
+  messageType: row.messageType,
+  messageId: row.messageId,
+  senderPowerRole: row.senderPowerRole,
+  senderDataRole: row.senderDataRole,
+  pulseCount: row.pulseCount,
+  rawPulseWidths: Array.from(row.rawPulseWidths),
+  rawSopHex: toHex(row.rawSop),
+  rawDecodedDataHex: toHex(row.rawDecodedData),
+  parseError: row.parseError,
+  createdAtMs: row.createdAtMs,
+})
+
+const toCSVField = (value: string): string => {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replaceAll('"', '""')}"`
+  }
+  return value
+}
+
+const serializeHumanReadableTableCell = (
+  cell: HumanReadableTableCell,
+): Record<string, unknown> => ({
+  kind: cell.kind,
+  field: serializeHumanReadableField(cell.field),
+})
+
+const serializeHumanReadableField = (
+  field: HumanReadableField,
+): Record<string, unknown> => {
+  switch (field.type) {
+    case 'String':
+      return {
+        type: field.type,
+        label: field.Label,
+        explanation: field.explanation,
+        value: field.value,
+      }
+    case 'ByteData':
+      return {
+        type: field.type,
+        label: field.Label,
+        explanation: field.explanation,
+        value: {
+          dataHex: toHex(field.value.data),
+          byteWidth: field.value.byteWidth,
+          signed: field.value.signed,
+        },
+      }
+    case 'Table':
+      return {
+        type: field.type,
+        label: field.Label,
+        explanation: field.explanation,
+        value: field.value.map(serializeHumanReadableTableCell),
+      }
+    case 'OrderedDictionary':
+      return {
+        type: field.type,
+        label: field.Label,
+        explanation: field.explanation,
+        value: Array.from(field.entries()).map(([key, entryField]) => ({
+          key,
+          field: serializeHumanReadableField(entryField),
+        })),
+      }
+  }
 }
 
 const formatTimestampCell = (row: LoggedCapturedMessage): string => {
@@ -155,6 +256,148 @@ const resolveSenderReceiver = (
   }
 
   return { sender: 'Unknown', receiver: 'Unknown' }
+}
+
+const extractStringField = (
+  dictionary: { getEntry: (key: string) => { type: string; value: unknown } | undefined } | undefined,
+  key: string,
+): string => {
+  const field = dictionary?.getEntry(key)
+  return field?.type === 'String' && typeof field.value === 'string' ? field.value : ''
+}
+
+const buildExportRows = (
+  allRows: LoggedCapturedMessage[],
+  selectionKeys: string[],
+): ExportRow[] => {
+  const selected = new Set(selectionKeys)
+  return allRows
+    .filter((row) => selected.has(buildCapturedLogSelectionKey(row)))
+    .map((row) => {
+      if (row.entryKind === 'event') {
+        return {
+          selectionKey: buildCapturedLogSelectionKey(row),
+          row,
+          humanReadableMetadata: null,
+          wallTime: formatWallClock(row.wallClockUs),
+          type: 'Event',
+          duration: '',
+          sender: '',
+          receiver: '',
+          id: '',
+          description: row.eventText ?? 'Event',
+          crc: '',
+          crcValid: '',
+          messageSummary: '',
+        }
+      }
+
+      const durationUs = row.endTimestampUs - row.startTimestampUs
+      const senderReceiver = resolveSenderReceiver(row)
+      const decoded = decodeLoggedCapturedMessageWithContext(row, allRows)
+      const crcDictionary =
+        decoded.kind === 'message'
+          ? decoded.message.humanReadableMetadata.technicalData.getEntry('crc32')
+          : undefined
+      const crc =
+        decoded.kind === 'message'
+          ? extractStringField(crcDictionary?.type === 'OrderedDictionary' ? crcDictionary : undefined, 'actual')
+          : ''
+      const crcValid =
+        decoded.kind === 'message'
+          ? extractStringField(crcDictionary?.type === 'OrderedDictionary' ? crcDictionary : undefined, 'valid')
+          : ''
+      const messageSummary =
+        decoded.kind === 'message'
+          ? extractStringField(decoded.message.humanReadableMetadata.baseInformation, 'messageSummary')
+          : ''
+      const humanReadableMetadata =
+        decoded.kind === 'message'
+          ? {
+              baseInformation: serializeHumanReadableField(decoded.message.humanReadableMetadata.baseInformation),
+              technicalData: serializeHumanReadableField(decoded.message.humanReadableMetadata.technicalData),
+              headerData: serializeHumanReadableField(decoded.message.humanReadableMetadata.headerData),
+              messageSpecificData: serializeHumanReadableField(decoded.message.humanReadableMetadata.messageSpecificData),
+            }
+          : null
+
+      return {
+        selectionKey: buildCapturedLogSelectionKey(row),
+        row,
+        humanReadableMetadata,
+        wallTime: formatTimestampCell(row),
+        type: 'Message',
+        duration: formatMicroseconds(durationUs),
+        sender: senderReceiver.sender,
+        receiver: senderReceiver.receiver,
+        id: row.messageId == null ? '' : row.messageId.toString(),
+        description: resolveMessageTypeLabel(row),
+        crc,
+        crcValid,
+        messageSummary,
+      }
+    })
+}
+
+const buildJsonExportPayload = (rows: ExportRow[]): string =>
+  JSON.stringify(
+    rows.map(({ selectionKey, row, humanReadableMetadata }) => ({
+      selectionKey,
+      ...toSerializableMessage(row),
+      humanReadableMetadata,
+    })),
+    null,
+    2,
+  )
+
+const buildCsvExportPayload = (rows: ExportRow[]): string => {
+  const lines = [
+    [
+      'Wall Time',
+      'Duration',
+      'Type',
+      'Sender',
+      'Receiver',
+      'ID',
+      'Description',
+      'CRC',
+      'CRC Valid',
+      'Message Summary',
+    ].join(','),
+  ]
+  for (const row of rows) {
+    lines.push(
+      [
+        row.wallTime,
+        row.duration,
+        row.type,
+        row.sender,
+        row.receiver,
+        row.id,
+        row.description,
+        row.crc,
+        row.crcValid,
+        row.messageSummary.replaceAll('\r\n', '\n').replaceAll('\r', '\n'),
+      ].map(toCSVField).join(','),
+    )
+  }
+  return `${lines.join('\n')}\n`
+}
+
+const downloadExportPayload = (
+  payload: string,
+  mimeType: string,
+  filename: string,
+): void => {
+  const blob = new Blob([payload], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 const toDisplayRows = (
@@ -276,6 +519,8 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [markError, setMarkError] = useState<string | null>(null)
   const [isClearing, setIsClearing] = useState(false)
   const [clearError, setClearError] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -291,6 +536,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
+  const hasSelection = selection.selectedKeys.length > 0
 
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
@@ -748,6 +994,93 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [driver, firstVisibleRow, lastVisibleRow, pages, totalRows])
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
+    const exportControl: InstrumentHeaderControl = {
+      id: 'export-log',
+      label: isExporting ? 'Exporting...' : 'Export',
+      disabled: !driver || isEditMode || isExporting,
+      renderPopover: ({ closePopover }) => (
+        <div className={styles.headerPopup}>
+          {exportError ? (
+            <p className={styles.headerPopupError}>{exportError}</p>
+          ) : null}
+          <div className={styles.headerPopupActions}>
+            <button
+              type="button"
+              className={styles.headerPopupButton}
+              disabled={!hasSelection || isExporting}
+              onClick={() => {
+                if (!driver || !hasSelection) {
+                  return
+                }
+                setIsExporting(true)
+                setExportError(null)
+                void driver
+                  .queryCapturedMessages({
+                    startTimestampUs: 0n,
+                    endTimestampUs: LOG_END_TIMESTAMP_US,
+                    sortOrder: 'asc',
+                  })
+                  .then((rows) => {
+                    const exportRows = buildExportRows(rows, selection.selectedKeys)
+                    downloadExportPayload(
+                      buildJsonExportPayload(exportRows),
+                      'application/json',
+                      'message-log-export.json',
+                    )
+                    closePopover()
+                  })
+                  .catch((error) => {
+                    const message = error instanceof Error ? error.message : String(error)
+                    setExportError(message)
+                  })
+                  .finally(() => {
+                    setIsExporting(false)
+                  })
+              }}
+            >
+              Export JSON
+            </button>
+            <button
+              type="button"
+              className={styles.headerPopupButton}
+              disabled={!hasSelection || isExporting}
+              onClick={() => {
+                if (!driver || !hasSelection) {
+                  return
+                }
+                setIsExporting(true)
+                setExportError(null)
+                void driver
+                  .queryCapturedMessages({
+                    startTimestampUs: 0n,
+                    endTimestampUs: LOG_END_TIMESTAMP_US,
+                    sortOrder: 'asc',
+                  })
+                  .then((rows) => {
+                    const exportRows = buildExportRows(rows, selection.selectedKeys)
+                    downloadExportPayload(
+                      buildCsvExportPayload(exportRows),
+                      'text/csv',
+                      'message-log-export.csv',
+                    )
+                    closePopover()
+                  })
+                  .catch((error) => {
+                    const message = error instanceof Error ? error.message : String(error)
+                    setExportError(message)
+                  })
+                  .finally(() => {
+                    setIsExporting(false)
+                  })
+              }}
+            >
+              Export CSV
+            </button>
+          </div>
+        </div>
+      ),
+    }
+
     const markControl: InstrumentHeaderControl = {
       id: 'mark-log',
       label: isMarking ? 'Marking...' : 'Mark',
@@ -921,20 +1254,24 @@ export const DrpdUsbPdLogInstrumentView = ({
       ),
     }
 
-    return [markControl, clearControl, configureControl]
+    return [exportControl, markControl, clearControl, configureControl]
   }, [
     bufferInput,
     clearError,
     deviceRecord,
     driver,
+    exportError,
+    hasSelection,
     instrument.id,
     isApplyingBuffer,
     isClearing,
     isEditMode,
+    isExporting,
     isMarking,
     onUpdateDeviceConfig,
     parseBufferInput,
     bufferError,
+    selection.selectedKeys,
   ])
 
   const handleRowClick = (
@@ -1043,9 +1380,9 @@ export const DrpdUsbPdLogInstrumentView = ({
         className={styles.wrapper}
         data-testid="drpd-usbpd-log"
       >
-        {markError ? (
+        {markError || exportError ? (
           <div className={styles.headerErrorBanner} role="alert">
-            {markError}
+            {markError ?? exportError}
           </div>
         ) : null}
         <div className={styles.headerRow}>
