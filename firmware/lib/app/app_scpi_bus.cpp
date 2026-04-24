@@ -77,7 +77,7 @@ void App::_queryCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue>
 
 void App::_setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &params) {
     if (params.size() < 1 || params[0].type != T76::SCPI::ParameterType::Enum) {
-        _interpreter.addError(-100, "Invalid or missing parameter for BUS:CC:ROLE command");
+        _interpreter.addError(T76::SCPI::Interpreter<T76::DRPD::App>::SCPIErrorDataTypeError, "Data type error");
         return;
     }
 
@@ -91,7 +91,7 @@ void App::_setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &
     } else if (roleStr == "SINK") {
         _ccBusController.role(Logic::CCBusRole::Sink);
     } else {
-        _interpreter.addError(-101, "Invalid role parameter for BUS:CC:ROLE command");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
     }
 }
 
@@ -121,7 +121,7 @@ void App::_queryCCBusCapturedMessageCount(const std::vector<T76::SCPI::Parameter
 
 void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterValue> &params) {
     if (_receivedMessages.size() == 0) {
-        _interpreter.addError(-200, "No captured CC bus messages available");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
         return;
     }
 
@@ -211,7 +211,7 @@ void App::_setCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterVal
     } else if (stateStr == "OFF") {
         _captureEnabled.store(false, std::memory_order_relaxed);
     } else {
-        _interpreter.addError(-111, "Invalid state parameter for BUS:CC:CAPTURE:STATE command");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
         return;
     }
 

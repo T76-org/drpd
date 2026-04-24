@@ -53,10 +53,10 @@ void App::_setVBusOVPThreshold(const std::vector<T76::SCPI::ParameterValue> &par
     // Ensure that the threshold is within valid range
 
     if (threshold < 0.0f) {
-        _interpreter.addError(-222, "OVP threshold cannot be negative");
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
         return;
     } else if (threshold > 60.0f) {
-        _interpreter.addError(-222, "OVP threshold exceeds maximum limit of 60V");
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
         return;
     }
 
@@ -75,10 +75,10 @@ void App::_setVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &par
     // Ensure that the threshold is within valid range
 
     if (threshold < 0.0f) {
-        _interpreter.addError(-222, "OCP threshold cannot be negative");
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
         return;
     } else if (threshold > 6.0f) {
-        _interpreter.addError(-222, "OCP threshold exceeds maximum limit of 6A");
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
         return;
     }
 
@@ -93,18 +93,18 @@ void App::_queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &)
 
 void App::_setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &params) {
     if (params.empty()) {
-        _interpreter.addError(-222, "Calibration bucket is required");
+        _interpreter.addError(T76::SCPI::Interpreter<T76::DRPD::App>::SCPIErrorMissingParameter, "Missing parameter");
         return;
     }
 
     double bucketValue = params[0].numberValue;
     if (std::trunc(bucketValue) != bucketValue) {
-        _interpreter.addError(-222, "Calibration bucket must be an integer from 0 to 60");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
         return;
     }
 
     if (bucketValue < 0.0 || bucketValue > 60.0) {
-        _interpreter.addError(-222, "Calibration bucket must be in the range 0 to 60");
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
         return;
     }
 

@@ -15,7 +15,7 @@ using namespace T76::DRPD;
 #define BAIL_IF_TEST_SCPI_COMMANDS_NOT_ENABLED()
 #else
 #define BAIL_IF_TEST_SCPI_COMMANDS_NOT_ENABLED() \
-    _interpreter.addError(102, "Test commands not enabled."); \
+    _interpreter.addError(_scpiErrorCommandProtected, "Command protected"); \
     return;
 #endif
 
@@ -32,7 +32,7 @@ void App::_setVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &par
     } else if (value == "OFF") {
         _vbusManager.enabled(false);
     } else {
-        _interpreter.addError(201, "Invalid VBUS manager state");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
     }
 }
 
@@ -61,14 +61,14 @@ void App::_setCC1Role(const std::vector<T76::SCPI::ParameterValue> &params) {
         _ccRoleManager.cc1Role(PHY::CCRole::EMarker);
     } else if (value == "SOURCE_DEFAULT") {
         _ccRoleManager.cc1Role(PHY::CCRole::SourceDefault);
-    } else if (value == "SOURCE_1_5A") {
+    } else if (value == "SOURCE_1_5A" || value == "SOURCE_15") {
         _ccRoleManager.cc1Role(PHY::CCRole::Source1_5A);
-    } else if (value == "SOURCE_3_0A") {
+    } else if (value == "SOURCE_3_0A" || value == "SOURCE_30") {
         _ccRoleManager.cc1Role(PHY::CCRole::Source3_0A);
     } else if (value == "VCONN") {
         _ccRoleManager.cc1Role(PHY::CCRole::VConn);
     } else {
-        _interpreter.addError(201, "Invalid CC1 role");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
     }
 }
 
@@ -127,14 +127,14 @@ void App::_setCC2Role(const std::vector<T76::SCPI::ParameterValue> &params) {
         _ccRoleManager.cc2Role(PHY::CCRole::EMarker);
     } else if (value == "SOURCE_DEFAULT") {
         _ccRoleManager.cc2Role(PHY::CCRole::SourceDefault);
-    } else if (value == "SOURCE_1_5A") {
+    } else if (value == "SOURCE_1_5A" || value == "SOURCE_15") {
         _ccRoleManager.cc2Role(PHY::CCRole::Source1_5A);
-    } else if (value == "SOURCE_3_0A") {
+    } else if (value == "SOURCE_3_0A" || value == "SOURCE_30") {
         _ccRoleManager.cc2Role(PHY::CCRole::Source3_0A);
     } else if (value == "VCONN") {
         _ccRoleManager.cc2Role(PHY::CCRole::VConn);
     } else {
-        _interpreter.addError(201, "Invalid CC2 role");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
     }
 }
 
@@ -190,7 +190,7 @@ void App::_setDUTChannel(const std::vector<T76::SCPI::ParameterValue> &params) {
     } else if (value == "CC2") {
         _ccBusManager.dutChannel(PHY::CCChannel::CC2);
     } else {
-        _interpreter.addError(201, "Invalid DUT channel");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
     }
 }
 
@@ -226,7 +226,7 @@ void App::_setUSDSChannel(const std::vector<T76::SCPI::ParameterValue> &params) 
     } else if (value == "CC2") {
         _ccBusManager.usdsChannel(PHY::CCChannel::CC2);
     } else {
-        _interpreter.addError(201, "Invalid USDS channel");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
     }
 }
 
@@ -261,7 +261,7 @@ void App::_setCCMuxState(const std::vector<T76::SCPI::ParameterValue> &params) {
     } else if (value == "OFF") {
         _ccBusManager.muxActive(false);
     } else {
-        _interpreter.addError(201, "Invalid CC Mux state");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
     }
 }
 

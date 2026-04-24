@@ -151,7 +151,7 @@ void App::_setTriggerEventType(const std::vector<T76::SCPI::ParameterValue> &par
         _triggerController.mode(Logic::TriggerControllerMode::AnyError);
     } else {
         // Invalid parameter, handle error as needed
-        _interpreter.addError(100, "Invalid trigger event type");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
         return;
     }
 
@@ -220,7 +220,7 @@ void App::_queryTriggerEventThreshold(const std::vector<T76::SCPI::ParameterValu
 void App::_setTriggerEventSenderFilter(const std::vector<T76::SCPI::ParameterValue> &params) {
     const auto filter = _parseSenderFilterToken(params[0].stringValue);
     if (!filter.has_value()) {
-        _interpreter.addError(100, "Invalid trigger sender filter");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
         return;
     }
 
@@ -324,7 +324,7 @@ void App::_setSyncOutputMode(const std::vector<T76::SCPI::ParameterValue> &param
         _syncManager.mode(PHY::SyncManagerMode::PullDown);
     } else {
         // Invalid parameter, handle error as needed
-        _interpreter.addError(100, "Invalid sync output mode");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
         return;
     }
 
