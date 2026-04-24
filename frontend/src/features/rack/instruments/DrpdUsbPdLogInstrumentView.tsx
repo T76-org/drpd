@@ -23,7 +23,11 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../lib/device/drpd/usb-pd/message'
-import { HumanReadableField, type HumanReadableTableCell } from '../../../lib/device/drpd/usb-pd/humanReadableField'
+import {
+  HumanReadableField,
+  type HumanReadableByteDataValue,
+  type HumanReadableTableCell,
+} from '../../../lib/device/drpd/usb-pd/humanReadableField'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -86,6 +90,19 @@ type DisplayRow = {
   valid: string
 }
 
+type MessageLogFilters = {
+  messageTypes: string[]
+  senders: string[]
+  receivers: string[]
+  sopTypes: string[]
+  crcValid: string[]
+}
+
+type FilterOption = {
+  value: string
+  label: string
+}
+
 type ExportRow = {
   selectionKey: string
   row: LoggedCapturedMessage
@@ -101,6 +118,18 @@ type ExportRow = {
   crcValid: string
   messageSummary: string
 }
+
+const EMPTY_FILTERS: MessageLogFilters = {
+  messageTypes: [],
+  senders: [],
+  receivers: [],
+  sopTypes: [],
+  crcValid: [],
+}
+
+const INVALID_MESSAGE_TYPE_LABEL = 'Invalid message'
+const CRC_VALID_LABEL = 'Valid'
+const CRC_INVALID_LABEL = 'Invalid'
 
 const formatMicroseconds = (value: bigint | null): string => {
   if (value === null) {
@@ -161,24 +190,28 @@ const serializeHumanReadableField = (
         explanation: field.explanation,
         value: field.value,
       }
-    case 'ByteData':
+    case 'ByteData': {
+      const byteData = field.value as HumanReadableByteDataValue
       return {
         type: field.type,
         label: field.Label,
         explanation: field.explanation,
         value: {
-          dataHex: toHex(field.value.data),
-          byteWidth: field.value.byteWidth,
-          signed: field.value.signed,
+          dataHex: toHex(byteData.data),
+          byteWidth: byteData.byteWidth,
+          signed: byteData.signed,
         },
       }
-    case 'Table':
+    }
+    case 'Table': {
+      const tableCells = field.value as HumanReadableTableCell[]
       return {
         type: field.type,
         label: field.Label,
         explanation: field.explanation,
-        value: field.value.map(serializeHumanReadableTableCell),
+        value: tableCells.map(serializeHumanReadableTableCell),
       }
+    }
     case 'OrderedDictionary':
       return {
         type: field.type,
@@ -214,6 +247,9 @@ const normalizeSopType = (value: string | null): string => {
 }
 
 const resolveMessageTypeLabel = (row: LoggedCapturedMessage): string => {
+  if (row.entryKind === 'message' && (row.decodeResult !== 0 || row.parseError)) {
+    return INVALID_MESSAGE_TYPE_LABEL
+  }
   if (!row.messageKind || row.messageType == null) {
     return '--'
   }
@@ -227,6 +263,12 @@ const resolveMessageTypeLabel = (row: LoggedCapturedMessage): string => {
           : undefined
   return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
 }
+
+const isRowCrcValid = (row: LoggedCapturedMessage): boolean =>
+  row.entryKind === 'message' && row.decodeResult === 0 && !row.parseError
+
+const resolveCrcValidLabel = (row: LoggedCapturedMessage): string =>
+  isRowCrcValid(row) ? CRC_VALID_LABEL : CRC_INVALID_LABEL
 
 const resolveSenderReceiver = (
   row: LoggedCapturedMessage,
@@ -264,6 +306,154 @@ const extractStringField = (
 ): string => {
   const field = dictionary?.getEntry(key)
   return field?.type === 'String' && typeof field.value === 'string' ? field.value : ''
+}
+
+const uniqueSortedOptions = (values: string[]): FilterOption[] =>
+  Array.from(new Set(values.filter((value) => value.length > 0 && value !== '--')))
+    .sort((left, right) => left.localeCompare(right))
+    .map((value) => ({ value, label: value }))
+
+const countActiveFilters = (filters: MessageLogFilters): number =>
+  [
+    filters.messageTypes,
+    filters.senders,
+    filters.receivers,
+    filters.sopTypes,
+    filters.crcValid,
+  ].filter((values) => values.length > 0).length
+
+const filterContains = (values: string[], value: string): boolean =>
+  values.length === 0 || values.includes(value)
+
+const messageMatchesFilters = (
+  row: LoggedCapturedMessage,
+  filters: MessageLogFilters,
+): boolean => {
+  if (row.entryKind !== 'message') {
+    return false
+  }
+  const senderReceiver = resolveSenderReceiver(row)
+  return (
+    filterContains(filters.messageTypes, resolveMessageTypeLabel(row)) &&
+    filterContains(filters.senders, senderReceiver.sender) &&
+    filterContains(filters.receivers, senderReceiver.receiver) &&
+    filterContains(filters.sopTypes, normalizeSopType(row.sopKind)) &&
+    filterContains(filters.crcValid, resolveCrcValidLabel(row))
+  )
+}
+
+const buildFilterOptions = (
+  rows: LoggedCapturedMessage[],
+): {
+  messageTypes: FilterOption[]
+  senders: FilterOption[]
+  receivers: FilterOption[]
+  sopTypes: FilterOption[]
+  crcValid: FilterOption[]
+} => {
+  const messageRows = rows.filter((row) => row.entryKind === 'message')
+  const senderReceivers = messageRows.map(resolveSenderReceiver)
+  const crcValues = messageRows.map(resolveCrcValidLabel)
+  return {
+    messageTypes: uniqueSortedOptions(messageRows.map(resolveMessageTypeLabel)),
+    senders: uniqueSortedOptions(senderReceivers.map((entry) => entry.sender)),
+    receivers: uniqueSortedOptions(senderReceivers.map((entry) => entry.receiver)),
+    sopTypes: uniqueSortedOptions(messageRows.map((row) => normalizeSopType(row.sopKind))),
+    crcValid: [CRC_VALID_LABEL, CRC_INVALID_LABEL]
+      .filter((value) => crcValues.includes(value))
+      .map((value) => ({ value, label: value })),
+  }
+}
+
+const toggleFilterValue = (
+  filters: MessageLogFilters,
+  key: keyof MessageLogFilters,
+  value: string,
+): MessageLogFilters => {
+  const nextValues = filters[key].includes(value)
+    ? filters[key].filter((entry) => entry !== value)
+    : [...filters[key], value]
+  return {
+    ...filters,
+    [key]: nextValues,
+  }
+}
+
+const MessageLogFilterPopover = ({
+  filters,
+  options,
+  onApply,
+  onClear,
+  closePopover,
+}: {
+  filters: MessageLogFilters
+  options: ReturnType<typeof buildFilterOptions>
+  onApply: (next: MessageLogFilters) => void
+  onClear: () => void
+  closePopover: () => void
+}) => {
+  const [draft, setDraft] = useState(filters)
+  const groups: Array<{
+    key: keyof MessageLogFilters
+    title: string
+    options: FilterOption[]
+  }> = [
+    { key: 'messageTypes', title: 'Message type', options: options.messageTypes },
+    { key: 'senders', title: 'Sender', options: options.senders },
+    { key: 'receivers', title: 'Receiver', options: options.receivers },
+    { key: 'sopTypes', title: 'SOP type', options: options.sopTypes },
+    { key: 'crcValid', title: 'CRC', options: options.crcValid },
+  ]
+
+  return (
+    <div className={styles.headerPopup}>
+      <div className={styles.filterGroups}>
+        {groups.map((group) => (
+          <fieldset key={group.key} className={styles.filterGroup}>
+            <legend className={styles.filterLegend}>{group.title}</legend>
+            {group.options.length > 0 ? (
+              group.options.map((option) => (
+                <label key={option.value} className={styles.filterOption}>
+                  <input
+                    type="checkbox"
+                    checked={draft[group.key].includes(option.value)}
+                    onChange={() => {
+                      setDraft((previous) => toggleFilterValue(previous, group.key, option.value))
+                    }}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))
+            ) : (
+              <span className={styles.filterEmpty}>No values</span>
+            )}
+          </fieldset>
+        ))}
+      </div>
+      <div className={styles.headerPopupActions}>
+        <button
+          type="button"
+          className={styles.headerPopupButton}
+          onClick={() => {
+            onClear()
+            closePopover()
+          }}
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          className={styles.headerPopupButton}
+          onClick={() => {
+            onApply(draft)
+            closePopover()
+          }}
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  )
 }
 
 const buildExportRows = (
@@ -532,22 +722,47 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
+  const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
+  const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
+  const [filterOptionRows, setFilterOptionRows] = useState<LoggedCapturedMessage[]>([])
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
   const hasSelection = selection.selectedKeys.length > 0
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
+  const hasActiveFilters = activeFilterCount > 0
+  const filteredRows = useMemo(
+    () => (hasActiveFilters ? filterRows.filter((row) => messageMatchesFilters(row, filters)) : []),
+    [filterRows, filters, hasActiveFilters],
+  )
+  const filteredDisplayRows = useMemo(
+    () => (hasActiveFilters ? toDisplayRows(filteredRows, null) : []),
+    [filteredRows, hasActiveFilters],
+  )
+  const filterOptions = useMemo(
+    () => buildFilterOptions(filterOptionRows.length > 0 ? filterOptionRows : filterRows),
+    [filterOptionRows, filterRows],
+  )
+  const displayedTotalRows = hasActiveFilters ? filteredDisplayRows.length : totalRows
 
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
-  const lastVisibleRow = Math.min(totalRows - 1, firstVisibleRow + visibleRowCount)
+  const lastVisibleRow = Math.min(displayedTotalRows - 1, firstVisibleRow + visibleRowCount)
 
   const visibleRows = useMemo(() => {
     const rows: Array<{ index: number; row: DisplayRow | null }> = []
-    if (totalRows <= 0 || lastVisibleRow < firstVisibleRow) {
+    if (displayedTotalRows <= 0 || lastVisibleRow < firstVisibleRow) {
       return rows
     }
     for (let index = firstVisibleRow; index <= lastVisibleRow; index += 1) {
+      if (hasActiveFilters) {
+        rows.push({
+          index,
+          row: filteredDisplayRows[index] ?? null,
+        })
+        continue
+      }
       const pageIndex = Math.floor(index / PAGE_SIZE)
       const rowInPageIndex = index % PAGE_SIZE
       rows.push({
@@ -556,11 +771,25 @@ export const DrpdUsbPdLogInstrumentView = ({
       })
     }
     return rows
-  }, [firstVisibleRow, lastVisibleRow, pages, totalRows])
+  }, [displayedTotalRows, filteredDisplayRows, firstVisibleRow, hasActiveFilters, lastVisibleRow, pages])
+
+  const queryAllCapturedMessages = useCallback(async (): Promise<LoggedCapturedMessage[]> => {
+    if (!driver) {
+      return []
+    }
+    return await driver.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: LOG_END_TIMESTAMP_US,
+      sortOrder: 'asc',
+    })
+  }, [driver])
 
   const getRowKeyAtIndex = async (index: number): Promise<string | null> => {
-    if (!driver || index < 0 || index >= totalRows) {
+    if (!driver || index < 0 || index >= displayedTotalRows) {
       return null
+    }
+    if (hasActiveFilters) {
+      return filteredDisplayRows[index]?.selectionKey ?? null
     }
     const pageIndex = Math.floor(index / PAGE_SIZE)
     const rowInPageIndex = index % PAGE_SIZE
@@ -617,15 +846,22 @@ export const DrpdUsbPdLogInstrumentView = ({
     additive: boolean,
     baseSelectedKeys?: string[],
   ): Promise<void> => {
-    if (!driver || totalRows <= 0) {
+    if (!driver || displayedTotalRows <= 0) {
       return
     }
-    const normalizedAnchor = Math.max(0, Math.min(anchorIndex, totalRows - 1))
-    const normalizedActive = Math.max(0, Math.min(activeIndex, totalRows - 1))
-    const rangeKeys = await driver.resolveLogSelectionKeysForIndexRange(
-      normalizedAnchor,
-      normalizedActive,
-    )
+    const normalizedAnchor = Math.max(0, Math.min(anchorIndex, displayedTotalRows - 1))
+    const normalizedActive = Math.max(0, Math.min(activeIndex, displayedTotalRows - 1))
+    const rangeKeys = hasActiveFilters
+      ? filteredDisplayRows
+          .slice(
+            Math.min(normalizedAnchor, normalizedActive),
+            Math.max(normalizedAnchor, normalizedActive) + 1,
+          )
+          .map((row) => row.selectionKey)
+      : await driver.resolveLogSelectionKeysForIndexRange(
+          normalizedAnchor,
+          normalizedActive,
+        )
     const selectedKeys = additive
       ? Array.from(new Set([...(baseSelectedKeys ?? selection.selectedKeys), ...rangeKeys]))
       : rangeKeys
@@ -674,6 +910,37 @@ export const DrpdUsbPdLogInstrumentView = ({
   useEffect(() => {
     totalRowsRef.current = totalRows
   }, [totalRows])
+
+  useEffect(() => {
+    setScrollTop(0)
+    if (viewportRef.current) {
+      viewportRef.current.scrollTop = 0
+    }
+  }, [activeFilterCount])
+
+  useEffect(() => {
+    if (!driver) {
+      setFilterRows([])
+      setFilterOptionRows([])
+      setFilters(EMPTY_FILTERS)
+      return
+    }
+
+    let cancelled = false
+    void queryAllCapturedMessages().then((rows) => {
+      if (cancelled) {
+        return
+      }
+      setFilterOptionRows(rows)
+      if (hasActiveFilters) {
+        setFilterRows(rows)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [driver, hasActiveFilters, queryAllCapturedMessages, totalRows])
 
   useEffect(() => {
     setBufferInput(configuredMaxCapturedMessages.toString())
@@ -949,7 +1216,7 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [driver])
 
   useEffect(() => {
-    if (!driver || totalRows <= 0 || lastVisibleRow < firstVisibleRow) {
+    if (hasActiveFilters || !driver || totalRows <= 0 || lastVisibleRow < firstVisibleRow) {
       return
     }
 
@@ -991,9 +1258,35 @@ export const DrpdUsbPdLogInstrumentView = ({
           loadingPagesRef.current.delete(pageIndex)
         })
     }
-  }, [driver, firstVisibleRow, lastVisibleRow, pages, totalRows])
+  }, [driver, firstVisibleRow, hasActiveFilters, lastVisibleRow, pages, totalRows])
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
+    const filterControl: InstrumentHeaderControl = {
+      id: 'filter-log',
+      label: activeFilterCount > 0 ? `Filter (${activeFilterCount})` : 'Filter',
+      disabled: !driver || isEditMode,
+      renderPopover: ({ closePopover }) => (
+        <MessageLogFilterPopover
+          filters={filters}
+          options={filterOptions}
+          onApply={(next) => {
+            setFilters(next)
+            if (countActiveFilters(next) > 0) {
+              void queryAllCapturedMessages().then((rows) => {
+                setFilterRows(rows)
+                setFilterOptionRows(rows)
+              })
+            }
+          }}
+          onClear={() => {
+            setFilters(EMPTY_FILTERS)
+            setFilterRows([])
+          }}
+          closePopover={closePopover}
+        />
+      ),
+    }
+
     const exportControl: InstrumentHeaderControl = {
       id: 'export-log',
       label: isExporting ? 'Exporting...' : 'Export',
@@ -1254,13 +1547,16 @@ export const DrpdUsbPdLogInstrumentView = ({
       ),
     }
 
-    return [exportControl, markControl, clearControl, configureControl]
+    return [filterControl, exportControl, markControl, clearControl, configureControl]
   }, [
+    activeFilterCount,
     bufferInput,
     clearError,
     deviceRecord,
     driver,
     exportError,
+    filterOptions,
+    filters,
     hasSelection,
     instrument.id,
     isApplyingBuffer,
@@ -1270,6 +1566,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     isMarking,
     onUpdateDeviceConfig,
     parseBufferInput,
+    queryAllCapturedMessages,
     bufferError,
     selection.selectedKeys,
   ])
@@ -1279,7 +1576,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     index: number,
     row: DisplayRow | null,
   ) => {
-    if (!row || !driver || index < 0 || index >= totalRows || isEditMode) {
+    if (!row || !driver || index < 0 || index >= displayedTotalRows || isEditMode) {
       return
     }
     viewportRef.current?.focus()
@@ -1335,7 +1632,7 @@ export const DrpdUsbPdLogInstrumentView = ({
       })
       return
     }
-    if (totalRows <= 0) {
+    if (displayedTotalRows <= 0) {
       return
     }
     if (key !== 'ArrowDown' && key !== 'ArrowUp') {
@@ -1349,8 +1646,8 @@ export const DrpdUsbPdLogInstrumentView = ({
       const baseIndex =
         current.activeIndex ??
         current.anchorIndex ??
-        (direction > 0 ? -1 : totalRows)
-      const nextIndex = Math.max(0, Math.min(totalRows - 1, baseIndex + direction))
+        (direction > 0 ? -1 : displayedTotalRows)
+      const nextIndex = Math.max(0, Math.min(displayedTotalRows - 1, baseIndex + direction))
       scrollRowIntoView(nextIndex)
       if (event.shiftKey) {
         const anchorIndex = current.anchorIndex ?? baseIndex
@@ -1411,7 +1708,7 @@ export const DrpdUsbPdLogInstrumentView = ({
         >
           <div
             className={styles.canvas}
-            style={{ height: `${Math.max(totalRows * rowHeightPx, 0)}px` }}
+            style={{ height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px` }}
             data-testid="drpd-usbpd-log-canvas"
           >
             {visibleRows.map(({ index, row }) => (

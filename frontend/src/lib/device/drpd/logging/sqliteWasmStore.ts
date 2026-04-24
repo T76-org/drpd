@@ -449,7 +449,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
   protected pendingAnalogSamples: PendingAnalogSample[] ///< Rows waiting to be flushed.
   protected pendingCapturedMessages: PendingCapturedMessage[] ///< Rows waiting to be flushed.
   protected nextPendingSequence: number ///< Monotonic sequence for pending row ordering.
-  protected flushTimer: number | null ///< Pending scheduled flush timer.
+  protected flushTimer: ReturnType<typeof globalThis.setTimeout> | null ///< Pending scheduled flush timer.
   protected flushInFlight: Promise<void> | null ///< Active flush task, when any.
   protected flushStats: {
     count: number

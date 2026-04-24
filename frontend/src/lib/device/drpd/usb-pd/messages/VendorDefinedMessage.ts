@@ -32,8 +32,6 @@ const formatHex32 = (value: number): string => `0x${value.toString(16).toUpperCa
 
 const formatVDOList = (values: number[]): string => values.map(formatHex32).join(', ')
 
-const formatSVIDList = (values: number[]): string => values.map(formatHex16).join(', ')
-
 const formatStructuredVDMName = (vdmHeader: ParsedVDMHeader): string => {
   const commandName = vdmHeader.commandName ?? `Command ${vdmHeader.command ?? 0}`
   const commandTypeName = vdmHeader.commandTypeName ?? 'Unknown'
@@ -217,7 +215,8 @@ const describeProductTypeVDO = (
       `  - Port number: ${value.portNumber}`,
     ].join('\n')
   }
-  return `Unrecognized product-type Vendor Data Object: ${formatHex32(value.raw)}.`
+  const unknownValue = value as { raw?: number }
+  return `Unrecognized product-type Vendor Data Object: ${formatHex32(unknownValue.raw ?? 0)}.`
 }
 
 /**

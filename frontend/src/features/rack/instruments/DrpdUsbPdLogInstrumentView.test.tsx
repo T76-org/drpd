@@ -916,6 +916,58 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
   })
 
+  it('filters messages by selected values and shows active filter count', async () => {
+    const invalidMessage = {
+      ...buildMessage(2, 4),
+      decodeResult: 2,
+      parseError: 'CRC mismatch',
+    } satisfies LoggedCapturedMessage
+    const driver = new TestLogDriver([
+      buildMessage(0, 1), // GoodCRC from Source
+      buildMessage(1, 3), // Accept from Sink
+      invalidMessage,
+      buildEvent(3, 'Mark', 'mark'),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
+    expect(screen.getByText('Accept')).toBeInTheDocument()
+    expect(screen.getByText('Invalid message')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByLabelText('GoodCRC'))
+    await userEvent.click(within(dialog).getAllByLabelText('Source')[0])
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
+
+    expect(await screen.findByRole('button', { name: 'Filter (2)' })).toBeInTheDocument()
+    await waitFor(() => {
+      const canvasText = screen.getByTestId('drpd-usbpd-log-canvas').textContent ?? ''
+      expect(canvasText).toContain('GoodCRC')
+      expect(canvasText).not.toContain('Accept')
+      expect(canvasText).not.toContain('Invalid message')
+      expect(canvasText).not.toContain('Mark')
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filter (2)' }))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Clear' }))
+    expect(await screen.findByRole('button', { name: 'Filter' })).toBeInTheDocument()
+    expect(await screen.findByText('Accept')).toBeInTheDocument()
+  })
+
   it('supports click unselect and ctrl/cmd multi-select', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3), buildMessage(2, 4)])
     const deviceState: RackDeviceState = {
@@ -1149,7 +1201,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     await waitFor(() => {
       expect(createObjectURL).toHaveBeenCalledTimes(1)
     })
-    const [blob] = createObjectURL.mock.calls[0] as [{ parts: unknown[] }]
+    const [blob] = createObjectURL.mock.calls[0] as unknown as [{ parts: unknown[] }]
     const payload = JSON.parse(String(blob.parts[0] ?? '')) as Array<Record<string, unknown>>
     expect(payload).toHaveLength(2)
     expect(payload[0]?.messageType).toBe(1)
@@ -1219,7 +1271,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     await waitFor(() => {
       expect(createObjectURL).toHaveBeenCalledTimes(1)
     })
-    const [blob] = createObjectURL.mock.calls[0] as [{ parts: unknown[] }]
+    const [blob] = createObjectURL.mock.calls[0] as unknown as [{ parts: unknown[] }]
     const payload = String(blob.parts[0] ?? '')
     expect(payload).toContain('Wall Time,Duration,Type,Sender,Receiver,ID,Description,CRC,CRC Valid,Message Summary')
     expect(payload).toContain(',Message,')

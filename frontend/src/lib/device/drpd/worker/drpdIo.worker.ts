@@ -48,7 +48,6 @@ const SESSION_CLOSE_TIMEOUT_MS = 1_000 ///< Max time to wait for transport close
 const awaitWithTimeout = async (
   promise: Promise<void>,
   timeoutMs: number,
-  _label: string,
 ): Promise<void> => {
   await Promise.race([
     promise,
@@ -502,7 +501,6 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         await awaitWithTimeout(
           session.transport.close(),
           SESSION_CLOSE_TIMEOUT_MS,
-          `drpdSession.dispose transport.close ${request.params.sessionId}`,
         )
       } catch {
         // Best-effort transport close.

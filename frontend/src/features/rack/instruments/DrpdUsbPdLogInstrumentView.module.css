@@ -297,6 +297,59 @@
   color: var(--color-status-error);
 }
 
+.filterGroups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(calc(130px * var(--ui-scale)), 1fr));
+  gap: var(--space-8);
+  width: min(calc(420px * var(--ui-scale)), calc(100vw - var(--space-32)));
+  max-width: 100%;
+}
+
+.filterGroup {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: var(--space-0);
+  padding: var(--space-6);
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: color-mix(in srgb, var(--color-surface-instrument) 72%, transparent);
+}
+
+.filterLegend {
+  padding: 0 var(--space-4);
+  font-size: var(--font-size-header-popup-label);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.filterOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+  font-size: var(--font-size-header-popup-text);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.filterOption > input {
+  margin: 0;
+}
+
+.filterOption > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filterEmpty {
+  font-size: var(--font-size-header-popup-hint);
+  color: var(--color-text-muted);
+}
+
 .headerPopupActions {
   display: flex;
   justify-content: flex-end;
