@@ -58,6 +58,7 @@ import { getSupportedInstruments } from './instrumentCatalog'
 import { useRackSizingConfig } from './rackSizing'
 import { RACK_SHORTCUTS, matchRackShortcut } from './shortcuts'
 import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
+import { Menu, type MenuItem, type NestedMenuItem } from '../../ui/overlays'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -178,18 +179,6 @@ type SelectedDeviceInfo = {
   productName: string | null
 }
 
-const formatRackDeviceLabel = (record: RackDeviceRecord): string => {
-  const parts = [record.displayName]
-  if (record.firmwareVersion) {
-    parts.push(record.firmwareVersion)
-  }
-  const displaySerial = record.deviceSerialNumber ?? record.serialNumber
-  if (displaySerial) {
-    parts.push(`#${displaySerial}`)
-  }
-  return parts.join(' ')
-}
-
 const identifyRackDeviceRuntime = async (
   runtime: DeviceRuntime | null | undefined,
 ): Promise<DeviceIdentity | null> => {
@@ -282,11 +271,10 @@ export const RackView = () => {
   )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
   const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
+  const [latestFirmwareVersion, setLatestFirmwareVersion] = useState<string | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
   const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
@@ -295,9 +283,7 @@ export const RackView = () => {
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
-  const deviceMenuRef = useRef<HTMLDivElement | null>(null)
   const instrumentMenuRef = useRef<HTMLDivElement | null>(null)
-  const deviceMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const instrumentMenuButtonRef = useRef<HTMLButtonElement | null>(null)
   const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
   const editSnapshotRef = useRef<RackDefinition | null>(null)
@@ -372,15 +358,6 @@ export const RackView = () => {
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null
       const popoverElement = headerMenuPopoverRef.current
-      if (isDeviceMenuOpen && deviceMenuRef.current) {
-        if (
-          target &&
-          !deviceMenuRef.current.contains(target) &&
-          !(popoverElement && popoverElement.contains(target))
-        ) {
-          setIsDeviceMenuOpen(false)
-        }
-      }
       if (isInstrumentMenuOpen && instrumentMenuRef.current) {
         if (
           target &&
@@ -396,7 +373,7 @@ export const RackView = () => {
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen])
+  }, [isInstrumentMenuOpen])
 
   useEffect(() => {
     /**
@@ -411,9 +388,6 @@ export const RackView = () => {
       if (isShortcutHelpOpen) {
         setIsShortcutHelpOpen(false)
       }
-      if (isDeviceMenuOpen) {
-        setIsDeviceMenuOpen(false)
-      }
       if (isInstrumentMenuOpen) {
         setIsInstrumentMenuOpen(false)
       }
@@ -423,14 +397,10 @@ export const RackView = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen, isShortcutHelpOpen])
+  }, [isInstrumentMenuOpen, isShortcutHelpOpen])
 
   const updateHeaderMenuLayout = useCallback(() => {
-    const anchor = isDeviceMenuOpen
-      ? deviceMenuButtonRef.current
-      : isInstrumentMenuOpen
-        ? instrumentMenuButtonRef.current
-        : null
+    const anchor = isInstrumentMenuOpen ? instrumentMenuButtonRef.current : null
     const popover = headerMenuPopoverRef.current
     if (!anchor || !popover) {
       return
@@ -471,14 +441,13 @@ export const RackView = () => {
       maxHeight: `${Math.round(maxHeight)}px`,
     })
   }, [
-    isDeviceMenuOpen,
     isInstrumentMenuOpen,
     rackSizing.popoverGapPx,
     rackSizing.popoverViewportInsetPx,
   ])
 
   useLayoutEffect(() => {
-    if (!isDeviceMenuOpen && !isInstrumentMenuOpen) {
+    if (!isInstrumentMenuOpen) {
       setHeaderMenuInlineStyle(undefined)
       return undefined
     }
@@ -493,7 +462,7 @@ export const RackView = () => {
       window.removeEventListener('resize', runLayout)
       window.removeEventListener('scroll', runLayout, true)
     }
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen, updateHeaderMenuLayout])
+  }, [isInstrumentMenuOpen, updateHeaderMenuLayout])
 
   useEffect(() => {
     /** Apply the current theme to the document. */
@@ -846,6 +815,7 @@ export const RackView = () => {
       })
       const channel = firmwareUpdateChannelRef.current
       const candidate = selectReleaseForChannel(releases, channel)
+      setLatestFirmwareVersion(candidate?.versionText ?? null)
       console.info(
         `[firmware-update] channel=${channel} discovered=${releases.length} candidate=${candidate?.versionText ?? 'none'}`,
       )
@@ -993,24 +963,12 @@ export const RackView = () => {
     })
   }, [pairedDevices, deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
-  /** Cycle through the available theme modes. */
-  const handleThemeToggle = () => {
-    setTheme((current) => {
-      if (current === 'system') {
-        return 'light'
-      }
-      if (current === 'light') {
-        return 'dark'
-      }
-      return 'system'
-    })
-  }
-
-  /** Render the human-friendly theme label. */
-  const themeLabel =
-    theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'
-  const firmwareUpdateChannelLabel =
-    firmwareUpdateChannel === 'production' ? 'Production' : 'Beta'
+  const activeDeviceSerialNumber =
+    activeDeviceRecord?.deviceSerialNumber ?? activeDeviceRecord?.serialNumber ?? 'Unknown'
+  const activeDeviceFirmwareVersion =
+    firmwareUpdatePrompt?.currentVersion ?? activeDeviceRecord?.firmwareVersion ?? 'Unknown'
+  const latestReportedFirmwareVersion =
+    firmwareUpdatePrompt?.targetRelease.versionText ?? latestFirmwareVersion ?? 'Unknown'
   const currentRack = isEditMode ? draftRack ?? activeRack : activeRack
   const isFirmwareUploadBusy =
     firmwareUpdatePrompt != null &&
@@ -1142,6 +1100,11 @@ export const RackView = () => {
     }
   }, [deviceDefinitions, firmwareUpdatePrompt, isFirmwareUploadBusy, updateFirmwarePromptState])
 
+  /** Open DRPD documentation in a new tab. */
+  const handleOpenDocumentation = () => {
+    window.open('https://t76.org/drpd/help', '_blank', 'noopener,noreferrer')
+  }
+
   /** Connect a new device using the WebUSB picker. */
   const handleConnectDevice = async () => {
     setDeviceError(null)
@@ -1248,45 +1211,152 @@ export const RackView = () => {
     )
   }
 
-  /** Reconnect a previously disconnected device. */
-  const handleReconnectDevice = async (recordId: string) => {
-    setDeviceError(null)
-    if (typeof navigator === 'undefined' || !navigator.usb) {
-      setDeviceError('WebUSB is not available in this browser.')
-      return
-    }
-    if (deviceStatesRef.current.some((state) => state.status === 'connected')) {
-      return
-    }
-    const record = pairedDevices.find((device) => device.id === recordId)
-    if (!record) {
-      return
-    }
-    const definition = deviceDefinitions.find(
-      (candidate) => candidate.identifier === record.identifier,
-    )
-    if (!definition) {
-      setDeviceError('No matching device definition found.')
-      return
-    }
-    await reconnectRackDeviceRecord({
-        record,
-        definition,
-        onUpdate: setDeviceStates,
-      onPersistRecord: (nextRecord) => {
-        setRackDocument((current) => {
-          if (!current) {
-            return current
-          }
-          const nextDocument = upsertPairedDeviceDocument(current, nextRecord)
-          saveRackDocument(nextDocument)
-          return nextDocument
-        })
-        },
-        onError: setDeviceError,
-        onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
-      })
-  }
+  const applicationMenuItems = useMemo<MenuItem[]>(() => {
+    const currentDeviceItems: NestedMenuItem[] = activeDeviceRecord
+      ? [
+          {
+            id: 'current-device',
+            type: 'submenu',
+            label: `Current device: ${activeDeviceSerialNumber}`,
+            items: [
+              {
+                id: 'disconnect-current-device',
+                label: 'Disconnect',
+                onSelect: () => {
+                  void handleDisconnectDevice(activeDeviceRecord.id)
+                },
+              },
+              {
+                id: 'unpair-current-device',
+                label: 'Unpair',
+                destructive: true,
+                onSelect: () => {
+                  void handleRemoveDevice(activeDeviceRecord.id)
+                },
+              },
+            ],
+          },
+        ]
+      : [
+          {
+            id: 'current-device-none',
+            label: 'Current device: None',
+            disabled: true,
+            onSelect: () => undefined,
+          },
+        ]
+
+    return [
+      {
+        id: 'devices',
+        type: 'submenu',
+        label: 'Devices',
+        items: [
+          ...currentDeviceItems,
+          {
+            id: 'pair-new-device',
+            label: 'Pair new device',
+            onSelect: () => {
+              void handleConnectDevice()
+            },
+          },
+        ],
+      },
+      {
+        id: 'theme',
+        type: 'submenu',
+        label: 'Theme',
+        items: [
+          {
+            id: 'theme-system',
+            type: 'checkbox',
+            label: 'System',
+            checked: theme === 'system',
+            onCheckedChange: () => setTheme('system'),
+          },
+          {
+            id: 'theme-light',
+            type: 'checkbox',
+            label: 'Light',
+            checked: theme === 'light',
+            onCheckedChange: () => setTheme('light'),
+          },
+          {
+            id: 'theme-dark',
+            type: 'checkbox',
+            label: 'Dark',
+            checked: theme === 'dark',
+            onCheckedChange: () => setTheme('dark'),
+          },
+        ],
+      },
+      {
+        id: 'firmware-updates',
+        type: 'submenu',
+        label: 'Firmware updates',
+        disabled: !activeDeviceRecord,
+        items: [
+          {
+            id: 'current-firmware',
+            label: `Current firmware: ${activeDeviceFirmwareVersion}`,
+            disabled: true,
+            onSelect: () => undefined,
+          },
+          {
+            id: 'latest-firmware',
+            label: `Latest firmware: ${latestReportedFirmwareVersion}`,
+            disabled: true,
+            onSelect: () => undefined,
+          },
+          {
+            id: 'firmware-channel',
+            type: 'submenu',
+            label: `Update channel: ${firmwareUpdateChannel}`,
+            items: [
+              {
+                id: 'firmware-channel-production',
+                type: 'checkbox',
+                label: 'Production',
+                checked: firmwareUpdateChannel === 'production',
+                onCheckedChange: () => setFirmwareUpdateChannel('production'),
+              },
+              {
+                id: 'firmware-channel-beta',
+                type: 'checkbox',
+                label: 'Beta',
+                checked: firmwareUpdateChannel === 'beta',
+                onCheckedChange: () => setFirmwareUpdateChannel('beta'),
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'help',
+        type: 'submenu',
+        label: 'Help',
+        items: [
+          {
+            id: 'keyboard-shortcuts',
+            label: 'Keyboard shortcuts',
+            onSelect: () => setIsShortcutHelpOpen(true),
+          },
+          {
+            id: 'documentation',
+            label: 'Documentation',
+            onSelect: handleOpenDocumentation,
+          },
+        ],
+      },
+    ]
+  }, [
+    activeDeviceFirmwareVersion,
+    activeDeviceRecord,
+    activeDeviceSerialNumber,
+    firmwareUpdateChannel,
+    latestReportedFirmwareVersion,
+    theme,
+  ])
 
   /**
    * Apply a rack layout update, respecting edit mode.
@@ -1505,7 +1575,6 @@ export const RackView = () => {
     editSnapshotRef.current = snapshot
     setDraftRack(snapshot)
     setIsEditMode(true)
-    setIsDeviceMenuOpen(false)
     setIsInstrumentMenuOpen(false)
   }
 
@@ -1675,28 +1744,6 @@ export const RackView = () => {
                     </button>
                   </>
                 )}
-                <button
-                  type="button"
-                  className={styles.themeButton}
-                  onClick={handleThemeToggle}
-                >
-                  Theme: {themeLabel}
-                </button>
-                <button
-                  type="button"
-                  className={styles.settingsButton}
-                  onClick={() => setIsShortcutHelpOpen(true)}
-                >
-                  Shortcut help
-                </button>
-                <button
-                  type="button"
-                  className={styles.settingsButton}
-                  onClick={() => setIsSettingsOpen(true)}
-                  disabled={isEditMode}
-                >
-                  Settings
-                </button>
                 {currentRack &&
                 !currentRack.hideHeader ? (
                   <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
@@ -1750,106 +1797,21 @@ export const RackView = () => {
                     ) : null}
                   </div>
                 ) : null}
-                <div
-                  className={styles.deviceMenu}
-                  data-testid="rack-devices"
-                  ref={deviceMenuRef}
-                >
-                  <button
-                    type="button"
-                    className={styles.deviceMenuButton}
-                    ref={deviceMenuButtonRef}
-                    onClick={() => setIsDeviceMenuOpen((open) => !open)}
-                    disabled={isEditMode}
-                  >
-                    Paired Devices
-                  </button>
-                  {isDeviceMenuOpen ? (
-                    typeof document !== 'undefined'
-                      ? createPortal(
-                          <div
-                            className={styles.deviceMenuPanel}
-                            ref={headerMenuPopoverRef}
-                            style={{
-                              ...headerMenuInlineStyle,
-                              zIndex: HEADER_MENU_POPOVER_Z_INDEX,
-                              visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
-                            }}
-                          >
-                            <button
-                              type="button"
-                              className={styles.deviceMenuItem}
-                              onClick={handleConnectDevice}
-                            >
-                              Pair Device
-                            </button>
-                            <div className={styles.deviceMenuSeparator} />
-                            {deviceStates.length === 0 ? (
-                              <div className={styles.deviceMenuEmpty}>No paired devices</div>
-                            ) : (
-                              <ul className={styles.deviceMenuList}>
-                                {deviceStates.map((device) => (
-                                  <li key={device.record.id} className={styles.deviceRow}>
-                                    <div className={styles.deviceInfo}>
-                                      <span className={styles.deviceName}>
-                                        {formatRackDeviceLabel(device.record)}
-                                      </span>
-                                      <span
-                                        className={`${styles.deviceStatus} ${
-                                          device.status === 'connected'
-                                            ? styles.deviceStatusConnected
-                                            : device.status === 'error'
-                                              ? styles.deviceStatusError
-                                              : ''
-                                        }`}
-                                      >
-                                        {device.status}
-                                      </span>
-                                    </div>
-                                    <div className={styles.deviceActions}>
-                                      {device.status === 'connected' ? (
-                                        <button
-                                          type="button"
-                                          className={styles.deviceActionButton}
-                                          onClick={() =>
-                                            handleDisconnectDevice(device.record.id)
-                                          }
-                                        >
-                                          Disconnect
-                                        </button>
-                                      ) : null}
-                                      {device.status === 'disconnected' ||
-                                      device.status === 'error' ? (
-                                        <button
-                                          type="button"
-                                          className={styles.deviceActionButton}
-                                          onClick={() =>
-                                            handleReconnectDevice(device.record.id)
-                                          }
-                                        >
-                                          Connect
-                                        </button>
-                                      ) : null}
-                                      <button
-                                        type="button"
-                                        className={`${styles.deviceActionButton} ${styles.removeButton}`}
-                                        onClick={() =>
-                                          handleRemoveDevice(device.record.id)
-                                        }
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>,
-                          document.body,
-                        )
-                      : null
-                  ) : null}
-                </div>
+                <Menu
+                  label="Application menu"
+                  align="end"
+                  items={applicationMenuItems}
+                  trigger={(props) => (
+                    <button
+                      type="button"
+                      className={styles.menuButton}
+                      disabled={isEditMode}
+                      {...props}
+                    >
+                      Menu
+                    </button>
+                  )}
+                />
               </div>
             </header>
           </div>
@@ -1886,73 +1848,6 @@ export const RackView = () => {
           <div className={styles.notice}>No racks available.</div>
         ) : null}
       </main>
-      {isSettingsOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <div className={styles.settingsBackdrop}>
-              <section
-                className={styles.settingsDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="rack-settings-title"
-              >
-                <div className={styles.settingsHeader}>
-                  <h2 id="rack-settings-title" className={styles.settingsTitle}>
-                    Settings
-                  </h2>
-                  <button
-                    type="button"
-                    className={styles.settingsCloseButton}
-                    onClick={() => setIsSettingsOpen(false)}
-                    aria-label="Close settings"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className={styles.settingsBody}>
-                  <fieldset className={styles.settingsFieldset}>
-                    <legend className={styles.settingsLegend}>Firmware update channel</legend>
-                    <div className={styles.channelOptions}>
-                      <label className={styles.channelOption}>
-                        <input
-                          type="radio"
-                          name="firmware-update-channel"
-                          value="production"
-                          checked={firmwareUpdateChannel === 'production'}
-                          onChange={() => setFirmwareUpdateChannel('production')}
-                        />
-                        <span className={styles.channelOptionText}>
-                          <span className={styles.channelOptionTitle}>Production</span>
-                          <span className={styles.channelOptionDescription}>
-                            Stable firmware releases only.
-                          </span>
-                        </span>
-                      </label>
-                      <label className={styles.channelOption}>
-                        <input
-                          type="radio"
-                          name="firmware-update-channel"
-                          value="beta"
-                          checked={firmwareUpdateChannel === 'beta'}
-                          onChange={() => setFirmwareUpdateChannel('beta')}
-                        />
-                        <span className={styles.channelOptionText}>
-                          <span className={styles.channelOptionTitle}>Beta</span>
-                          <span className={styles.channelOptionDescription}>
-                            Stable and beta firmware releases.
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                    <div className={styles.settingsValue}>
-                      Current channel: {firmwareUpdateChannelLabel}
-                    </div>
-                  </fieldset>
-                </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
       {isShortcutHelpOpen && typeof document !== 'undefined'
         ? createPortal(
             <div className={styles.settingsBackdrop}>

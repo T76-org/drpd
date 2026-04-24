@@ -96,11 +96,8 @@
 .editButton,
 .editButtonSecondary,
 .editButtonPrimary,
-.themeButton,
-.settingsButton,
-.deviceMenuButton,
-.deviceActionButton,
-.deviceMenuItem {
+.menuButton,
+.deviceMenuButton {
   border: var(--border-thin) solid var(--color-border-panel);
   color: var(--color-text-primary);
   text-transform: uppercase;
@@ -133,23 +130,15 @@
   background: var(--color-surface-panel-accent);
 }
 
-.themeButton {
+.menuButton {
   background: var(--color-surface-panel);
 }
 
-.themeButton:hover:not(:disabled) {
+.menuButton:hover:not(:disabled) {
   background: var(--color-surface-panel-accent);
 }
 
-.settingsButton {
-  background: var(--color-surface-panel);
-}
-
-.settingsButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.settingsButton:disabled {
+.menuButton:disabled {
   opacity: var(--opacity-disabled);
   cursor: not-allowed;
 }
@@ -165,26 +154,6 @@
 .deviceMenuButton:disabled {
   opacity: var(--opacity-disabled);
   cursor: not-allowed;
-}
-
-.deviceMenuPanel {
-  position: fixed;
-  left: 0;
-  top: 0;
-  min-width: var(--rack-device-menu-min-width);
-  width: max-content;
-  max-width: min(620px, calc(100vw - var(--space-16)));
-  background: var(--color-surface-panel);
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-strong);
-  display: grid;
-  gap: var(--space-6);
-  padding: var(--space-10);
-  overflow: auto;
-  font-size: var(--font-size-3xs);
-  transform: scale(var(--global-app-scale, 1));
-  transform-origin: top left;
 }
 
 .instrumentMenuPanel {
@@ -204,12 +173,6 @@
   font-size: var(--font-size-popup);
   transform: scale(var(--global-app-scale, 1));
   transform-origin: top left;
-}
-
-.deviceMenuItem {
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-surface-panel-accent);
-  font-size: inherit;
 }
 
 .instrumentMenuItem {
@@ -238,31 +201,11 @@
   background: color-mix(in srgb, var(--color-edit-glow) 16%, transparent);
 }
 
-.deviceMenuSeparator {
-  height: var(--border-thin);
-  background: var(--color-border-divider);
-}
-
-.deviceMenuEmpty {
-  font-size: inherit;
-  color: var(--color-text-muted);
-  padding: var(--control-padding-y-sm) var(--space-4);
-}
-
 .instrumentMenuEmpty {
   font-size: inherit;
   color: var(--color-text-muted);
   padding: var(--space-4) var(--space-10);
   white-space: nowrap;
-}
-
-.deviceMenuList {
-  list-style: none;
-  margin: var(--space-0);
-  padding: var(--space-0);
-  display: grid;
-  gap: var(--space-8);
-  width: max-content;
 }
 
 .instrumentMenuList {
@@ -275,74 +218,8 @@
   min-width: 0;
 }
 
-.deviceRow {
-  display: grid;
-  grid-template-columns: auto var(--rack-device-actions-width);
-  align-items: center;
-  gap: var(--space-4);
-  width: max-content;
-}
-
-.deviceInfo {
-  display: grid;
-  grid-template-columns: max-content var(--rack-device-status-width);
-  align-items: center;
-  column-gap: var(--space-4);
-  min-width: 0;
-  max-width: var(--rack-device-info-max-width);
-}
-
-.deviceName {
-  font-size: inherit;
-  color: var(--color-text-primary);
-  max-width: var(--rack-device-name-max-width);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.deviceStatus {
-  font-size: inherit;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  text-align: right;
-  display: inline-block;
-}
-
-.deviceStatusConnected {
-  color: var(--color-status-success);
-}
-
-.deviceStatusError {
-  color: var(--color-status-error);
-}
-
-.deviceActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  flex: 0 0 auto;
-  width: var(--rack-device-actions-width);
-  justify-content: flex-end;
-}
-
-.deviceActionButton {
-  flex: 0 0 auto;
-  background: transparent;
-  padding: var(--space-4) var(--space-8);
-  font-size: inherit;
-}
-
-.deviceActionButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.deviceMenu, .instrumentMenu {
+.instrumentMenu {
   display: contents;
-}
-
-.removeButton {
-  color: var(--color-status-error);
 }
 
 .settingsBackdrop {
@@ -402,59 +279,6 @@
 
 .settingsBody {
   padding: var(--space-12);
-}
-
-.settingsFieldset {
-  display: grid;
-  gap: var(--space-10);
-  margin: var(--space-0);
-  padding: var(--space-0);
-  border: 0;
-}
-
-.settingsLegend {
-  margin-bottom: var(--space-8);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-lg);
-}
-
-.channelOptions {
-  display: grid;
-  gap: var(--space-8);
-}
-
-.channelOption {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-8);
-  align-items: start;
-  padding: var(--space-8);
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.channelOption:has(input:checked) {
-  border-color: var(--color-edit-glow);
-  background: var(--color-surface-panel-accent);
-}
-
-.channelOptionText {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.channelOptionTitle {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-}
-
-.channelOptionDescription,
-.settingsValue {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
 }
 
 .firmwareUpdateText {

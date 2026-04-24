@@ -595,12 +595,49 @@ const mockUSB = (devices: USBDevice[]) => {
 }
 
 const expectHydratedDrpdPanels = async (): Promise<void> => {
-  expect(await screen.findByText('Sink')).toBeInTheDocument()
-  expect(await screen.findByText('Attached')).toBeInTheDocument()
+  expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+  expect(await screen.findAllByText('Attached')).not.toHaveLength(0)
   expect(await screen.findAllByText('On')).not.toHaveLength(0)
   expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
-  expect(await screen.findByText('Armed')).toBeInTheDocument()
-  expect(await screen.findByText('Connected')).toBeInTheDocument()
+  expect(await screen.findAllByText('Armed')).not.toHaveLength(0)
+  expect(await screen.findAllByText('Connected')).not.toHaveLength(0)
+}
+
+const openApplicationMenu = async (): Promise<void> => {
+  await userEvent.click(await screen.findByRole('button', { name: 'Menu' }))
+}
+
+const openApplicationSubmenu = async (name: string | RegExp): Promise<void> => {
+  await openApplicationMenu()
+  await userEvent.click(await screen.findByRole('menuitem', { name }))
+}
+
+const pairNewDeviceFromMenu = async (): Promise<void> => {
+  await openApplicationSubmenu('Devices')
+  await userEvent.click(await screen.findByRole('menuitem', { name: /pair new device/i }))
+}
+
+const disconnectCurrentDeviceFromMenu = async (): Promise<void> => {
+  await openApplicationSubmenu('Devices')
+  await userEvent.click(await screen.findByRole('menuitem', { name: /current device/i }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /^disconnect$/i }))
+}
+
+const unpairCurrentDeviceFromMenu = async (): Promise<void> => {
+  await openApplicationSubmenu('Devices')
+  await userEvent.click(await screen.findByRole('menuitem', { name: /current device/i }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: /^unpair$/i }))
+}
+
+const chooseThemeFromMenu = async (name: string | RegExp): Promise<void> => {
+  await openApplicationSubmenu('Theme')
+  await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
+}
+
+const chooseFirmwareChannelFromMenu = async (name: string | RegExp): Promise<void> => {
+  await openApplicationSubmenu('Firmware updates')
+  await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
+  await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
 }
 
 /**
@@ -711,11 +748,10 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const button = await screen.findByRole('button', { name: /theme/i })
-    expect(button).toHaveTextContent('System')
+    await chooseThemeFromMenu('Light')
 
-    await userEvent.click(button)
-    expect(button).toHaveTextContent('Light')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    expect(window.localStorage.getItem('drpd:theme')).toBe('light')
   })
 
   it('resolves system theme from matchMedia', async () => {
@@ -735,58 +771,72 @@ describe('RackView', () => {
     window.localStorage.setItem('drpd:theme', 'dark')
 
     const { unmount } = render(<RackView />)
-    const button = await screen.findByRole('button', { name: /theme/i })
-    expect(button).toHaveTextContent('Dark')
+    await screen.findByText('Bench Rack A')
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
 
     unmount()
     render(<RackView />)
-    const buttonAfterReload = await screen.findByRole('button', { name: /theme/i })
-    expect(buttonAfterReload).toHaveTextContent('Dark')
+    await screen.findByText('Bench Rack A')
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
-  it('opens settings with production as the default firmware update channel', async () => {
-    saveRackDocument(buildRackDocument())
-    mockUSB([createUSBDevice()])
+  it('shows production as the default firmware update channel', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    await pairNewDeviceFromMenu()
+    expect(requestDevice).toHaveBeenCalled()
+    await openApplicationSubmenu('Firmware updates')
+    await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Settings' })
-    expect(dialog).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /production/i })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /beta/i })).not.toBeChecked()
-    expect(screen.getByText('Current channel: Production')).toBeInTheDocument()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Production' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Beta' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
   })
 
-  it('persists the selected firmware update channel from settings', async () => {
-    saveRackDocument(buildRackDocument())
-    mockUSB([createUSBDevice()])
+  it('persists the selected firmware update channel from the menu', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
-    await userEvent.click(screen.getByRole('radio', { name: /beta/i }))
+    await pairNewDeviceFromMenu()
+    expect(requestDevice).toHaveBeenCalled()
+    await chooseFirmwareChannelFromMenu('Beta')
 
-    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
-    expect(screen.getByText('Current channel: Beta')).toBeInTheDocument()
     expect(window.localStorage.getItem('drpd:firmware-update:channel')).toBe('beta')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
   it('restores the persisted firmware update channel on reload', async () => {
-    saveRackDocument(buildRackDocument())
-    mockUSB([createUSBDevice()])
+    saveRackDocument(buildHydratedRackDocument())
+    const { requestDevice } = mockUSB([createUSBDevice()])
     window.localStorage.setItem('drpd:firmware-update:channel', 'beta')
 
     const { unmount } = render(<RackView />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
-    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
+    await pairNewDeviceFromMenu()
+    expect(requestDevice).toHaveBeenCalled()
+    await openApplicationSubmenu('Firmware updates')
+    await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Beta' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
 
     unmount()
     render(<RackView />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
-    expect(screen.getByRole('radio', { name: /beta/i })).toBeChecked()
-    expect(screen.getByText('Current channel: Beta')).toBeInTheDocument()
+    await pairNewDeviceFromMenu()
+    await openApplicationSubmenu('Firmware updates')
+    await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Beta' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
   })
 
   it('hides the header when configured on the rack', async () => {
@@ -945,13 +995,13 @@ describe('RackView', () => {
     expect(screen.getByTestId('rack-instrument-inst-1')).toBeInTheDocument()
   })
 
-  it('disables devices menu while editing', async () => {
+  it('disables application menu while editing', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
-    expect(screen.getByRole('button', { name: 'Paired Devices' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Menu' })).toBeDisabled()
   })
 
   it('saves edits and persists layout changes', async () => {
@@ -1280,18 +1330,14 @@ describe('RackView', () => {
     const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i
-    })
-    await userEvent.click(menuButton)
-    const connectButton = await screen.findByRole('button', {
-      name: /pair device/i
-    })
-    await userEvent.click(connectButton)
+    await pairNewDeviceFromMenu()
 
     expect(requestDevice).toHaveBeenCalled()
-    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
-    expect(await screen.findAllByText('connected')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    expect(stored.pairedDevices?.[0]?.serialNumber).toBe('DRPD-TEST-001')
   })
 
   it('checks for firmware updates after connected device firmware version is known', async () => {
@@ -1307,8 +1353,7 @@ describe('RackView', () => {
     const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+    await pairNewDeviceFromMenu()
 
     expect(requestDevice).toHaveBeenCalled()
     const dialog = await screen.findByRole('dialog', { name: /firmware update available/i })
@@ -1333,8 +1378,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+    await pairNewDeviceFromMenu()
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(screen.queryByRole('dialog', { name: /firmware update available/i })).not.toBeInTheDocument()
@@ -1347,8 +1391,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+    await pairNewDeviceFromMenu()
 
     const dialog = await screen.findByRole('dialog', { name: /firmware update available/i })
     await userEvent.click(screen.getByRole('checkbox', { name: /do not ask again for this version/i }))
@@ -1377,8 +1420,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+    await pairNewDeviceFromMenu()
 
     await screen.findByRole('dialog', { name: /firmware update available/i })
     await userEvent.click(screen.getByRole('button', { name: /upload firmware/i }))
@@ -1410,8 +1452,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /devices/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+    await pairNewDeviceFromMenu()
 
     await screen.findByRole('dialog', { name: /firmware update available/i })
     await userEvent.click(screen.getByRole('button', { name: /upload firmware/i }))
@@ -1432,55 +1473,23 @@ describe('RackView', () => {
     const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i
-    })
-    await userEvent.click(menuButton)
-    const connectButton = await screen.findByRole('button', {
-      name: /pair device/i
-    })
-    await userEvent.click(connectButton)
-
+    await pairNewDeviceFromMenu()
     expect(requestDevice).toHaveBeenCalled()
-    const disconnectButton = await screen.findByRole('button', {
-      name: /disconnect/i
-    })
-    await userEvent.click(disconnectButton)
+    await disconnectCurrentDeviceFromMenu()
 
-    expect(await screen.findByText('disconnected')).toBeInTheDocument()
-    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
-
-    const reconnectButton = await screen.findByRole('button', {
-      name: /connect/i
-    })
-    await userEvent.click(reconnectButton)
-
-    expect(await screen.findByText('connected')).toBeInTheDocument()
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    expect(stored.pairedDevices).toHaveLength(1)
   })
 
-  it('hydrates bound DRPD panels when reconnecting a persisted device', async () => {
+  it('hydrates bound DRPD panels for a persisted device', async () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i,
-    })
-    await userEvent.click(menuButton)
-    expect(await screen.findByText('connected')).toBeInTheDocument()
-
-    const disconnectButton = await screen.findByRole('button', {
-      name: /disconnect/i,
-    })
-    await userEvent.click(disconnectButton)
-    expect(await screen.findByText('disconnected')).toBeInTheDocument()
-
-    const reconnectButton = await screen.findByRole('button', {
-      name: /connect/i,
-    })
-    await userEvent.click(reconnectButton)
-
-    expect(await screen.findByText('connected')).toBeInTheDocument()
     await expectHydratedDrpdPanels()
   })
 
@@ -1491,7 +1500,8 @@ describe('RackView', () => {
 
     await expectHydratedDrpdPanels()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Shortcut help' }))
+    await openApplicationSubmenu('Help')
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Keyboard shortcuts' }))
     expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
     expect(screen.getByText('Toggle USB connection')).toBeInTheDocument()
 
@@ -1554,24 +1564,15 @@ describe('RackView', () => {
     const { requestDevice, dispatchDisconnect } = mockUSB([usbDevice])
     render(<RackView />)
 
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i
-    })
-    await userEvent.click(menuButton)
-    const connectButton = await screen.findByRole('button', {
-      name: /pair device/i
-    })
-    await userEvent.click(connectButton)
-
+    await pairNewDeviceFromMenu()
     expect(requestDevice).toHaveBeenCalled()
-    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
-    expect(await screen.findByText('connected')).toBeInTheDocument()
+    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    expect(await screen.findAllByText('Attached')).not.toHaveLength(0)
 
     dispatchDisconnect(usbDevice)
 
-    expect(await screen.findByText('disconnected')).toBeInTheDocument()
-    expect(screen.queryByText('connected')).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /connect/i })).toBeInTheDocument()
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
   })
 
   it('auto-connects a previously paired device when WebUSB reports it connected', async () => {
@@ -1580,16 +1581,12 @@ describe('RackView', () => {
     const { dispatchConnect } = mockUSB([])
     render(<RackView />)
 
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i
-    })
-    await userEvent.click(menuButton)
-    expect(await screen.findByText('missing')).toBeInTheDocument()
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
+    fireEvent.keyDown(document, { key: 'Escape' })
 
     dispatchConnect(usbDevice)
 
-    expect(await screen.findByText(DRPD_DEVICE_LABEL)).toBeInTheDocument()
-    expect(await screen.findByText('connected')).toBeInTheDocument()
     await expectHydratedDrpdPanels()
   })
 
@@ -1623,13 +1620,9 @@ describe('RackView', () => {
     mockUSB([createUSBDevice('DRPD-TEST-001'), createUSBDevice('DRPD-TEST-002')])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /paired devices/i }))
-
-    const newerRow = (await screen.findByText('Dr. PD 1.0 #DRPD-TEST-002')).closest('li')
-    const olderRow = (await screen.findByText('Dr. PD #DRPD-TEST-001')).closest('li')
-    expect(newerRow).toHaveTextContent('connected')
-    expect(olderRow).toHaveTextContent('disconnected')
-    expect(screen.getAllByRole('button', { name: /disconnect/i })).toHaveLength(1)
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: /current device: DRPD-TEST-002/i }))
+      .toBeInTheDocument()
   })
 
   it('does not auto-connect a plugged paired device when another device is already connected', async () => {
@@ -1664,13 +1657,14 @@ describe('RackView', () => {
     const { dispatchConnect } = mockUSB([firstDevice])
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /paired devices/i }))
-    expect((await screen.findByText('Dr. PD 1.0 #DRPD-TEST-001')).closest('li')).toHaveTextContent('connected')
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: /current device: DRPD-TEST-001/i }))
+      .toBeInTheDocument()
 
     dispatchConnect(secondDevice)
 
-    expect((await screen.findByText('Dr. PD #DRPD-TEST-002')).closest('li')).toHaveTextContent('missing')
-    expect(screen.getAllByRole('button', { name: /disconnect/i })).toHaveLength(1)
+    expect(screen.queryByRole('menuitem', { name: /current device: DRPD-TEST-002/i }))
+      .not.toBeInTheDocument()
   })
 
   it('pairs an additional device without connecting it when another device is already active', async () => {
@@ -1681,37 +1675,33 @@ describe('RackView', () => {
     saveRackDocument(buildHydratedRackDocument())
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: /paired devices/i }))
-    await userEvent.click(await screen.findByRole('button', { name: /pair device/i }))
+    await pairNewDeviceFromMenu()
 
-    expect((await screen.findByText('Dr. PD 1.0 #DRPD-TEST-001')).closest('li')).toHaveTextContent('connected')
+    await expectHydratedDrpdPanels()
 
-    await userEvent.click(screen.getByRole('button', { name: /pair device/i }))
+    await pairNewDeviceFromMenu()
 
-    expect((await screen.findByText('Dr. PD #DRPD-TEST-002')).closest('li')).toHaveTextContent('disconnected')
-    expect(screen.getAllByRole('button', { name: /disconnect/i })).toHaveLength(1)
-    expect(screen.getAllByRole('button', { name: /^connect$/i })).toHaveLength(1)
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    expect(stored.pairedDevices?.map((device) => device.serialNumber)).toEqual([
+      'DRPD-TEST-001',
+      'DRPD-TEST-002',
+    ])
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: /current device: DRPD-TEST-001/i }))
+      .toBeInTheDocument()
   })
 
-  it('removes a device when remove is clicked', async () => {
+  it('unpairs a device when unpair is clicked', async () => {
     saveRackDocument(buildRackDocument())
     const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i
-    })
-    await userEvent.click(menuButton)
-    const connectButton = await screen.findByRole('button', {
-      name: /pair device/i
-    })
-    await userEvent.click(connectButton)
-
+    await pairNewDeviceFromMenu()
     expect(requestDevice).toHaveBeenCalled()
-    const removeButton = await screen.findByRole('button', {
-      name: /remove/i
-    })
-    await userEvent.click(removeButton)
+    await unpairCurrentDeviceFromMenu()
+
     await waitFor(() => {
       expect(screen.queryByText(DRPD_DEVICE_LABEL)).not.toBeInTheDocument()
     })
@@ -1733,20 +1723,13 @@ describe('RackView', () => {
     })
 
     render(<RackView />)
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i
-    })
-    await userEvent.click(menuButton)
-    const connectButton = await screen.findByRole('button', {
-      name: /pair device/i
-    })
-    await userEvent.click(connectButton)
+    await pairNewDeviceFromMenu()
 
     expect(requestDevice).toHaveBeenCalled()
     expect(screen.queryByText(/device error/i)).not.toBeInTheDocument()
   })
 
-  it('shows connect when a device is in error state', async () => {
+  it('does not expose a current device when startup connection fails', async () => {
     mockTransportState.shouldFailOpen = true
     saveRackDocument(
       buildRackDocument({
@@ -1784,12 +1767,8 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const menuButton = await screen.findByRole('button', {
-      name: /devices/i
-    })
-    await userEvent.click(menuButton)
-    expect(await screen.findByText('error')).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: /connect/i })).toBeInTheDocument()
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
     mockTransportState.shouldFailOpen = false
   })
 
