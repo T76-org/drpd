@@ -7,6 +7,8 @@ import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdDeviceStatusInstrumentView } from './DrpdDeviceStatusInstrumentView'
 
+type DeviceConfigUpdater = (current: Record<string, unknown> | undefined) => Record<string, unknown>
+
 /**
  * Minimal DRPD transport stub for tests.
  */
@@ -162,10 +164,11 @@ describe('DrpdDeviceStatusInstrumentView', () => {
     expect(setCaptureEnabledSpy).toHaveBeenCalledWith(OnOffState.ON)
     expect(updateDeviceConfig).toHaveBeenCalledTimes(2)
 
-    const roleUpdater = updateDeviceConfig.mock.calls[0]?.[1] as (current: Record<string, unknown> | undefined) => Record<string, unknown>
+    const updateCalls = updateDeviceConfig.mock.calls as unknown as Array<[string, DeviceConfigUpdater]>
+    const roleUpdater = updateCalls[0]?.[1]
     expect(roleUpdater({})).toEqual({ role: CCBusRole.SINK })
 
-    const captureUpdater = updateDeviceConfig.mock.calls[1]?.[1] as (current: Record<string, unknown> | undefined) => Record<string, unknown>
+    const captureUpdater = updateCalls[1]?.[1]
     expect(captureUpdater({ role: CCBusRole.SINK })).toEqual({
       role: CCBusRole.SINK,
       captureEnabled: OnOffState.ON,

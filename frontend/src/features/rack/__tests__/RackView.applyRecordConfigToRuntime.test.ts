@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   CCBusRole,
+  type DRPDDeviceState,
   OnOffState,
   SinkState,
   TriggerEventType,
   TriggerMessageTypeFilterClass,
+  type TriggerMessageTypeFilter,
   TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
   buildDefaultLoggingConfig,
 } from '../../../lib/device'
 import type { RackDeviceRecord } from '../../../lib/rack/types'
-import { applyRecordConfigToRuntime } from '../RackView'
+import { applyRecordConfigToRuntime } from '../applyRecordConfigToRuntime'
 
 const buildRecord = (): RackDeviceRecord => ({
   id: 'device-1',
@@ -45,7 +47,7 @@ const buildRecord = (): RackDeviceRecord => ({
 describe('applyRecordConfigToRuntime', () => {
   it('reapplies saved role, capture, sink, and trigger settings in connect order', async () => {
     const calls: string[] = []
-    const state = {
+    const state: Pick<DRPDDeviceState, 'role' | 'captureEnabled' | 'sinkInfo' | 'triggerInfo'> = {
       role: CCBusRole.OBSERVER,
       captureEnabled: OnOffState.OFF,
       sinkInfo: null,
@@ -56,7 +58,7 @@ describe('applyRecordConfigToRuntime', () => {
         senderFilter: TriggerSenderFilter.ANY,
         autorepeat: OnOffState.ON,
         eventCount: 0,
-        syncMode: TriggerSyncMode.OFF,
+        syncMode: TriggerSyncMode.PULSE_LOW,
         syncPulseWidthUs: 1,
         messageTypeFilters: [],
       },
@@ -107,31 +109,31 @@ describe('applyRecordConfigToRuntime', () => {
       trigger: {
         setEventType: vi.fn(async (type: TriggerEventType) => {
           calls.push(`setEventType:${type}`)
-          state.triggerInfo.type = type
+          state.triggerInfo!.type = type
         }),
         setEventThreshold: vi.fn(async (count: number) => {
           calls.push(`setEventThreshold:${count}`)
-          state.triggerInfo.eventThreshold = count
+          state.triggerInfo!.eventThreshold = count
         }),
         setSenderFilter: vi.fn(async (filter: TriggerSenderFilter) => {
           calls.push(`setSenderFilter:${filter}`)
-          state.triggerInfo.senderFilter = filter
+          state.triggerInfo!.senderFilter = filter
         }),
         setAutoRepeat: vi.fn(async (value: OnOffState) => {
           calls.push(`setAutoRepeat:${value}`)
-          state.triggerInfo.autorepeat = value
+          state.triggerInfo!.autorepeat = value
         }),
         setSyncMode: vi.fn(async (mode: TriggerSyncMode) => {
           calls.push(`setSyncMode:${mode}`)
-          state.triggerInfo.syncMode = mode
+          state.triggerInfo!.syncMode = mode
         }),
         setSyncPulseWidthUs: vi.fn(async (widthUs: number) => {
           calls.push(`setSyncPulseWidthUs:${widthUs}`)
-          state.triggerInfo.syncPulseWidthUs = widthUs
+          state.triggerInfo!.syncPulseWidthUs = widthUs
         }),
-        setMessageTypeFilters: vi.fn(async (filters: typeof state.triggerInfo.messageTypeFilters) => {
+        setMessageTypeFilters: vi.fn(async (filters: TriggerMessageTypeFilter[]) => {
           calls.push(`setMessageTypeFilters:${filters.length}`)
-          state.triggerInfo.messageTypeFilters = filters
+          state.triggerInfo!.messageTypeFilters = filters
         }),
       },
     }
@@ -173,12 +175,12 @@ describe('applyRecordConfigToRuntime', () => {
 
   it('waits for sink mode readiness before replaying the stored sink request', async () => {
     vi.useFakeTimers()
-    const state = {
+    const state: Pick<DRPDDeviceState, 'role' | 'captureEnabled' | 'sinkInfo' | 'triggerInfo' | 'sinkPdoList'> = {
       role: CCBusRole.OBSERVER,
       captureEnabled: OnOffState.OFF,
       sinkInfo: null,
       triggerInfo: null,
-      sinkPdoList: null as null | unknown[],
+      sinkPdoList: null,
     }
     let roleChecks = 0
     let pdoChecks = 0
@@ -188,7 +190,7 @@ describe('applyRecordConfigToRuntime', () => {
       refreshState: vi.fn(async () => {
         if (roleChecks >= 2) {
           state.role = CCBusRole.SINK
-          state.sinkPdoList = [{}]
+          state.sinkPdoList = [null]
           state.sinkInfo = {
             status: SinkState.PE_SNK_READY,
             negotiatedPdo: null,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   DRPDDevice,
   OnOffState,
@@ -8,6 +8,7 @@ import {
   TriggerStatus,
   TriggerSyncMode,
   TRIGGER_MESSAGE_TYPE_FILTER_LIMIT,
+  type DRPDDriverRuntime,
   type TriggerMessageTypeFilter,
   type TriggerInfo,
 } from '../../../lib/device'
@@ -329,7 +330,10 @@ export const DrpdTriggerInstrumentView = ({
   ) => Promise<void> | void
 }) => {
   const driver = deviceState?.drpdDriver
-  const [resolvedTriggerInfo, setResolvedTriggerInfo] = useState<TriggerInfo | null>(null)
+  const [resolvedTriggerInfo, setResolvedTriggerInfo] = useState<{
+    driver: DRPDDriverRuntime
+    info: TriggerInfo
+  } | null>(null)
   const [eventTypeInput, setEventTypeInput] = useState<TriggerEventType>(TriggerEventType.OFF)
   const [eventThresholdInput, setEventThresholdInput] = useState<string>('1')
   const [senderFilterInput, setSenderFilterInput] = useState<TriggerSenderFilter>(TriggerSenderFilter.ANY)
@@ -375,16 +379,7 @@ export const DrpdTriggerInstrumentView = ({
     () => null,
   )
 
-  useEffect(() => {
-    if (!driver) {
-      setResolvedTriggerInfo(null)
-      return
-    }
-
-    setResolvedTriggerInfo(triggerInfo)
-  }, [driver, triggerInfo])
-
-  const populateConfigureInputs = (info: TriggerInfo | null) => {
+  const populateConfigureInputs = useCallback((info: TriggerInfo | null) => {
     setEventTypeInput(info?.type ?? TriggerEventType.OFF)
     setEventThresholdInput(String(info?.eventThreshold ?? 1))
     setSenderFilterInput(info?.senderFilter ?? TriggerSenderFilter.ANY)
@@ -394,9 +389,10 @@ export const DrpdTriggerInstrumentView = ({
     setMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
     setMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
     setMessageTypeFilterTypeInput(String(CONTROL_FILTER_OPTIONS[0]?.messageTypeNumber ?? 0))
-  }
+  }, [])
 
-  const visibleTriggerInfo = driver ? (resolvedTriggerInfo ?? triggerInfo) : null
+  const visibleTriggerInfo =
+    driver ? (resolvedTriggerInfo?.driver === driver ? resolvedTriggerInfo.info : triggerInfo) : null
   const displayedFilterChips = visibleTriggerInfo?.messageTypeFilters ?? []
   const filterSummaryChips = displayedFilterChips.slice(0, 2)
   const hiddenFilterCount = Math.max(0, displayedFilterChips.length - filterSummaryChips.length)
@@ -405,22 +401,13 @@ export const DrpdTriggerInstrumentView = ({
     messageTypeFilterClassInput === TriggerMessageTypeFilterClass.CONTROL
       ? CONTROL_FILTER_OPTIONS
       : DATA_FILTER_OPTIONS
+  const effectiveMessageTypeFilterTypeInput = activeMessageTypeOptions.some(
+    (option) => String(option.messageTypeNumber) === messageTypeFilterTypeInput,
+  )
+    ? messageTypeFilterTypeInput
+    : String(activeMessageTypeOptions[0]?.messageTypeNumber ?? '')
 
   const selectedEventSupportsFilters = isFilterCapableTriggerEventType(eventTypeInput)
-
-  useEffect(() => {
-    if (activeMessageTypeOptions.length === 0) {
-      setMessageTypeFilterTypeInput('')
-      return
-    }
-
-    const stillValid = activeMessageTypeOptions.some(
-      (option) => String(option.messageTypeNumber) === messageTypeFilterTypeInput,
-    )
-    if (!stillValid) {
-      setMessageTypeFilterTypeInput(String(activeMessageTypeOptions[0].messageTypeNumber))
-    }
-  }, [activeMessageTypeOptions, messageTypeFilterTypeInput])
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
     const configureControl: InstrumentHeaderControl = {
@@ -437,7 +424,7 @@ export const DrpdTriggerInstrumentView = ({
                 void driver.trigger
                   .getInfo()
                   .then((latestTriggerInfo) => {
-                    setResolvedTriggerInfo(latestTriggerInfo)
+                    setResolvedTriggerInfo({ driver, info: latestTriggerInfo })
                     populateConfigureInputs(latestTriggerInfo)
                   })
                   .catch((error) => {
@@ -546,6 +533,11 @@ export const DrpdTriggerInstrumentView = ({
                   setMessageTypeFilterClassInput(
                     event.currentTarget.value as TriggerMessageTypeFilter['class'],
                   )
+                  const nextOptions =
+                    event.currentTarget.value === TriggerMessageTypeFilterClass.CONTROL
+                      ? CONTROL_FILTER_OPTIONS
+                      : DATA_FILTER_OPTIONS
+                  setMessageTypeFilterTypeInput(String(nextOptions[0]?.messageTypeNumber ?? ''))
                   setConfigureError(null)
                 }}
                 disabled={isApplyingConfig || !selectedEventSupportsFilters}
@@ -556,7 +548,7 @@ export const DrpdTriggerInstrumentView = ({
               <select
                 aria-label="Message filter type"
                 className={styles.headerPopupSelect}
-                value={messageTypeFilterTypeInput}
+                value={effectiveMessageTypeFilterTypeInput}
                 onChange={(event) => {
                   setMessageTypeFilterTypeInput(event.currentTarget.value)
                   setConfigureError(null)
@@ -577,7 +569,7 @@ export const DrpdTriggerInstrumentView = ({
                 type="button"
                 className={styles.headerPopupButton}
                 onClick={() => {
-                  const parsedTypeNumber = Number(messageTypeFilterTypeInput)
+                  const parsedTypeNumber = Number(effectiveMessageTypeFilterTypeInput)
                   if (!Number.isInteger(parsedTypeNumber) || parsedTypeNumber < 0) {
                     setConfigureError('Select a valid message type filter before adding it.')
                     return
@@ -748,7 +740,7 @@ export const DrpdTriggerInstrumentView = ({
                   .then(async () => {
                     try {
                       const latestTriggerInfo = await driver.trigger.getInfo()
-                      setResolvedTriggerInfo(latestTriggerInfo)
+                      setResolvedTriggerInfo({ driver, info: latestTriggerInfo })
                     } catch {
                       // Fall back to the mirrored refresh path if direct readback fails.
                     }
@@ -829,27 +821,22 @@ export const DrpdTriggerInstrumentView = ({
     driver,
     eventThresholdInput,
     eventTypeInput,
+    activeMessageTypeOptions,
+    effectiveMessageTypeFilterTypeInput,
     instrument.id,
     isApplyingConfig,
     isEditMode,
     isResettingTrigger,
     messageTypeFilterClassInput,
-    messageTypeFilterTypeInput,
     messageTypeFiltersInput,
     onUpdateDeviceConfig,
+    populateConfigureInputs,
     selectedEventSupportsFilters,
     senderFilterInput,
     syncModeInput,
     syncPulseWidthUsInput,
     deviceRecord,
-    visibleTriggerInfo?.autorepeat,
-    visibleTriggerInfo?.eventThreshold,
-    visibleTriggerInfo?.messageTypeFilters,
-    visibleTriggerInfo?.senderFilter,
-    visibleTriggerInfo?.syncMode,
-    visibleTriggerInfo?.syncPulseWidthUs,
-    visibleTriggerInfo?.type,
-    visibleTriggerInfo?.status,
+    visibleTriggerInfo,
     configureError,
   ])
 

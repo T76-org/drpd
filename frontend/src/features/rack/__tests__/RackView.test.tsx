@@ -379,7 +379,7 @@ const createUSBDevice = (serialNumber = 'DRPD-TEST-001', productName = 'Dr. PD')
       close: vi.fn(async function close(this: USBDevice & { opened?: boolean }) {
         this.opened = false
       }),
-    } as USBDevice
+    } as unknown as USBDevice
   }
 
 const buildFetchResponse = (body: unknown, bytes?: Uint8Array): Response =>

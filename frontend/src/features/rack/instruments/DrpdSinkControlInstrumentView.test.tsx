@@ -13,6 +13,8 @@ import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdSinkControlInstrumentView } from './DrpdSinkControlInstrumentView'
 
+type DeviceConfigUpdater = (current: Record<string, unknown> | undefined) => Record<string, unknown>
+
 /**
  * Minimal DRPD transport stub for tests.
  */
@@ -226,11 +228,10 @@ describe('DrpdSinkControlInstrumentView', () => {
     })
     expect(refreshSpy).toHaveBeenCalled()
     expect(updateDeviceConfig).toHaveBeenCalledTimes(1)
-    expect(updateDeviceConfig.mock.calls[0]?.[0]).toBe(deviceRecord.id)
+    const updateCalls = updateDeviceConfig.mock.calls as unknown as Array<[string, DeviceConfigUpdater]>
+    expect(updateCalls[0]?.[0]).toBe(deviceRecord.id)
     expect(
-      (updateDeviceConfig.mock.calls[0]?.[1] as (
-        current: Record<string, unknown> | undefined,
-      ) => Record<string, unknown>)({}),
+      updateCalls[0]?.[1]({}),
     ).toEqual({
       sinkRequest: {
         index: 1,
