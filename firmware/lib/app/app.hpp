@@ -203,7 +203,12 @@ namespace T76::DRPD {
         static constexpr uint8_t _winUSBFrameMagic1 = 'U'; ///< Second WinUSB frame sync byte.
         static constexpr uint8_t _winUSBFrameVersion = 1; ///< Supported WinUSB frame protocol version.
         static constexpr uint8_t _winUSBStatusFlagSRQPending = 0x01; ///< WinUSB frame status bit for pending SRQ.
-        static constexpr int _triggerSCPIErrorInvalidParameter = -222; ///< SCPI error code used for invalid trigger parameters.
+        static constexpr int _scpiErrorCommandProtected = -203; ///< Command recognized but disabled by current firmware configuration.
+        static constexpr int _scpiErrorExecutionError = -200; ///< Generic SCPI execution error.
+        static constexpr int _scpiErrorSettingsConflict = -221; ///< Legal command cannot execute in current state.
+        static constexpr int _scpiErrorDataOutOfRange = -222; ///< Numeric data outside supported range.
+        static constexpr int _scpiErrorIllegalParameterValue = -224; ///< Parameter value not in legal value set.
+        static constexpr int _triggerSCPIErrorInvalidParameter = _scpiErrorIllegalParameterValue; ///< SCPI error code used for invalid trigger parameters.
 
         /**
          * @brief Format an analog floating-point value for SCPI responses.

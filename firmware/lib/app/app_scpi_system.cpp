@@ -30,7 +30,7 @@ void App::_querySystemError(const std::vector<T76::SCPI::ParameterValue> &params
         _sendTransportTextResponse(_interpreter.errorQueue.front(), true);
         _interpreter.errorQueue.pop();
     } else {
-        _sendTransportTextResponse("0,\"No Error\"", true);
+        _sendTransportTextResponse("0,\"No error\"", true);
     }
 }
 
