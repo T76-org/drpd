@@ -949,8 +949,13 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Filter' }))
     const dialog = screen.getByRole('dialog')
-    await userEvent.click(within(dialog).getByLabelText('GoodCRC'))
-    await userEvent.click(within(dialog).getAllByLabelText('Source')[0])
+    const goodCrcOption = within(dialog).getByText('GoodCRC').closest('div[class*="filterOption"]')
+    expect(goodCrcOption).not.toBeNull()
+    await userEvent.click(within(goodCrcOption as HTMLElement).getByRole('button', { name: 'Include' }))
+    const sourceOptions = within(dialog).getAllByText('Source')
+    const sourceSenderOption = sourceOptions[0]?.closest('div[class*="filterOption"]')
+    expect(sourceSenderOption).not.toBeNull()
+    await userEvent.click(within(sourceSenderOption as HTMLElement).getByRole('button', { name: 'Include' }))
     await userEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
 
     expect(await screen.findByRole('button', { name: 'Filter (2)' })).toBeInTheDocument()
@@ -959,13 +964,105 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       expect(canvasText).toContain('GoodCRC')
       expect(canvasText).not.toContain('Accept')
       expect(canvasText).not.toContain('Invalid message')
-      expect(canvasText).not.toContain('Mark')
+      expect(canvasText).toContain('Mark')
     })
 
     await userEvent.click(screen.getByRole('button', { name: 'Filter (2)' }))
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Clear' }))
     expect(await screen.findByRole('button', { name: 'Filter' })).toBeInTheDocument()
     expect(await screen.findByText('Accept')).toBeInTheDocument()
+  })
+
+  it('excludes selected filter values without requiring inverse selections', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1), // GoodCRC
+      buildMessage(1, 3), // Accept
+      buildMessage(2, 4), // Reject
+      buildEvent(3, 'Mark', 'mark'),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
+    expect(screen.getByText('Accept')).toBeInTheDocument()
+    expect(screen.getByText('Reject')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    const dialog = screen.getByRole('dialog')
+    const goodCrcOption = within(dialog).getByText('GoodCRC').closest('div[class*="filterOption"]')
+    expect(goodCrcOption).not.toBeNull()
+    await userEvent.click(within(goodCrcOption as HTMLElement).getByRole('button', { name: 'Exclude' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
+
+    expect(await screen.findByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
+    await waitFor(() => {
+      const canvasText = screen.getByTestId('drpd-usbpd-log-canvas').textContent ?? ''
+      expect(canvasText).not.toContain('GoodCRC')
+      expect(canvasText).toContain('Accept')
+      expect(canvasText).toContain('Reject')
+      expect(canvasText).toContain('Mark')
+    })
+  })
+
+  it('toggles GoodCRC exclusion from the instrument header and reflects it in filter UI', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1), // GoodCRC
+      buildMessage(1, 3), // Accept
+      buildMessage(2, 4), // Reject
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Exclude GoodCRC' }))
+
+    expect(await screen.findByRole('button', { name: 'Include GoodCRC' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
+    await waitFor(() => {
+      const canvasText = screen.getByTestId('drpd-usbpd-log-canvas').textContent ?? ''
+      expect(canvasText).not.toContain('GoodCRC')
+      expect(canvasText).toContain('Accept')
+      expect(canvasText).toContain('Reject')
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filter (1)' }))
+    const dialog = screen.getByRole('dialog')
+    const goodCrcOption = within(dialog).getByText('GoodCRC').closest('div[class*="filterOption"]')
+    expect(goodCrcOption).not.toBeNull()
+    expect(within(goodCrcOption as HTMLElement).getByRole('button', { name: 'Exclude' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Include GoodCRC' }))
+    expect(await screen.findByRole('button', { name: 'Exclude GoodCRC' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
+    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
   })
 
   it('supports click unselect and ctrl/cmd multi-select', async () => {

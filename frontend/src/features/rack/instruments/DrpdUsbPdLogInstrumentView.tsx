@@ -90,13 +90,19 @@ type DisplayRow = {
   valid: string
 }
 
-type MessageLogFilters = {
-  messageTypes: string[]
-  senders: string[]
-  receivers: string[]
-  sopTypes: string[]
-  crcValid: string[]
+type MessageLogFilterRule = {
+  include: string[]
+  exclude: string[]
 }
+
+type MessageLogFilterKey =
+  | 'messageTypes'
+  | 'senders'
+  | 'receivers'
+  | 'sopTypes'
+  | 'crcValid'
+
+type MessageLogFilters = Record<MessageLogFilterKey, MessageLogFilterRule>
 
 type FilterOption = {
   value: string
@@ -120,14 +126,15 @@ type ExportRow = {
 }
 
 const EMPTY_FILTERS: MessageLogFilters = {
-  messageTypes: [],
-  senders: [],
-  receivers: [],
-  sopTypes: [],
-  crcValid: [],
+  messageTypes: { include: [], exclude: [] },
+  senders: { include: [], exclude: [] },
+  receivers: { include: [], exclude: [] },
+  sopTypes: { include: [], exclude: [] },
+  crcValid: { include: [], exclude: [] },
 }
 
 const INVALID_MESSAGE_TYPE_LABEL = 'Invalid message'
+const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
 const CRC_VALID_LABEL = 'Valid'
 const CRC_INVALID_LABEL = 'Invalid'
 
@@ -314,36 +321,43 @@ const uniqueSortedOptions = (values: string[]): FilterOption[] =>
     .map((value) => ({ value, label: value }))
 
 const countActiveFilters = (filters: MessageLogFilters): number =>
-  [
-    filters.messageTypes,
-    filters.senders,
-    filters.receivers,
-    filters.sopTypes,
-    filters.crcValid,
-  ].filter((values) => values.length > 0).length
+  Object.values(filters).reduce(
+    (count, rule) => count + rule.include.length + rule.exclude.length,
+    0,
+  )
 
-const filterContains = (values: string[], value: string): boolean =>
-  values.length === 0 || values.includes(value)
+const filterRuleMatches = (rule: MessageLogFilterRule, value: string): boolean => {
+  if (rule.exclude.includes(value)) {
+    return false
+  }
+  return rule.include.length === 0 || rule.include.includes(value)
+}
 
 const messageMatchesFilters = (
   row: LoggedCapturedMessage,
   filters: MessageLogFilters,
 ): boolean => {
-  if (row.entryKind !== 'message') {
-    return false
+  if (row.entryKind === 'event') {
+    return true
   }
   const senderReceiver = resolveSenderReceiver(row)
   return (
-    filterContains(filters.messageTypes, resolveMessageTypeLabel(row)) &&
-    filterContains(filters.senders, senderReceiver.sender) &&
-    filterContains(filters.receivers, senderReceiver.receiver) &&
-    filterContains(filters.sopTypes, normalizeSopType(row.sopKind)) &&
-    filterContains(filters.crcValid, resolveCrcValidLabel(row))
+    filterRuleMatches(filters.messageTypes, resolveMessageTypeLabel(row)) &&
+    filterRuleMatches(filters.senders, senderReceiver.sender) &&
+    filterRuleMatches(filters.receivers, senderReceiver.receiver) &&
+    filterRuleMatches(filters.sopTypes, normalizeSopType(row.sopKind)) &&
+    filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row))
   )
 }
 
+const filterRuleValues = (rule: MessageLogFilterRule): string[] => [
+  ...rule.include,
+  ...rule.exclude,
+]
+
 const buildFilterOptions = (
   rows: LoggedCapturedMessage[],
+  filters: MessageLogFilters = EMPTY_FILTERS,
 ): {
   messageTypes: FilterOption[]
   senders: FilterOption[]
@@ -355,27 +369,45 @@ const buildFilterOptions = (
   const senderReceivers = messageRows.map(resolveSenderReceiver)
   const crcValues = messageRows.map(resolveCrcValidLabel)
   return {
-    messageTypes: uniqueSortedOptions(messageRows.map(resolveMessageTypeLabel)),
-    senders: uniqueSortedOptions(senderReceivers.map((entry) => entry.sender)),
-    receivers: uniqueSortedOptions(senderReceivers.map((entry) => entry.receiver)),
-    sopTypes: uniqueSortedOptions(messageRows.map((row) => normalizeSopType(row.sopKind))),
+    messageTypes: uniqueSortedOptions([
+      ...messageRows.map(resolveMessageTypeLabel),
+      ...filterRuleValues(filters.messageTypes),
+    ]),
+    senders: uniqueSortedOptions([
+      ...senderReceivers.map((entry) => entry.sender),
+      ...filterRuleValues(filters.senders),
+    ]),
+    receivers: uniqueSortedOptions([
+      ...senderReceivers.map((entry) => entry.receiver),
+      ...filterRuleValues(filters.receivers),
+    ]),
+    sopTypes: uniqueSortedOptions([
+      ...messageRows.map((row) => normalizeSopType(row.sopKind)),
+      ...filterRuleValues(filters.sopTypes),
+    ]),
     crcValid: [CRC_VALID_LABEL, CRC_INVALID_LABEL]
-      .filter((value) => crcValues.includes(value))
+      .filter((value) => crcValues.includes(value) || filterRuleValues(filters.crcValid).includes(value))
       .map((value) => ({ value, label: value })),
   }
 }
 
 const toggleFilterValue = (
   filters: MessageLogFilters,
-  key: keyof MessageLogFilters,
+  key: MessageLogFilterKey,
+  mode: keyof MessageLogFilterRule,
   value: string,
 ): MessageLogFilters => {
-  const nextValues = filters[key].includes(value)
-    ? filters[key].filter((entry) => entry !== value)
-    : [...filters[key], value]
+  const currentRule = filters[key]
+  const otherMode: keyof MessageLogFilterRule = mode === 'include' ? 'exclude' : 'include'
+  const nextModeValues = currentRule[mode].includes(value)
+    ? currentRule[mode].filter((entry) => entry !== value)
+    : [...currentRule[mode], value]
   return {
     ...filters,
-    [key]: nextValues,
+    [key]: {
+      [mode]: nextModeValues,
+      [otherMode]: currentRule[otherMode].filter((entry) => entry !== value),
+    },
   }
 }
 
@@ -394,7 +426,7 @@ const MessageLogFilterPopover = ({
 }) => {
   const [draft, setDraft] = useState(filters)
   const groups: Array<{
-    key: keyof MessageLogFilters
+    key: MessageLogFilterKey
     title: string
     options: FilterOption[]
   }> = [
@@ -412,18 +444,48 @@ const MessageLogFilterPopover = ({
           <fieldset key={group.key} className={styles.filterGroup}>
             <legend className={styles.filterLegend}>{group.title}</legend>
             {group.options.length > 0 ? (
-              group.options.map((option) => (
-                <label key={option.value} className={styles.filterOption}>
-                  <input
-                    type="checkbox"
-                    checked={draft[group.key].includes(option.value)}
-                    onChange={() => {
-                      setDraft((previous) => toggleFilterValue(previous, group.key, option.value))
-                    }}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))
+              group.options.map((option) => {
+                const rule = draft[group.key]
+                const included = rule.include.includes(option.value)
+                const excluded = rule.exclude.includes(option.value)
+                return (
+                  <div key={option.value} className={styles.filterOption}>
+                    <span className={styles.filterOptionLabel}>{option.label}</span>
+                    <div className={styles.filterOptionActions}>
+                      <button
+                        type="button"
+                        className={[
+                          styles.filterModeButton,
+                          included ? styles.filterModeButtonActive : '',
+                        ].filter(Boolean).join(' ')}
+                        aria-pressed={included}
+                        onClick={() => {
+                          setDraft((previous) =>
+                            toggleFilterValue(previous, group.key, 'include', option.value),
+                          )
+                        }}
+                      >
+                        Include
+                      </button>
+                      <button
+                        type="button"
+                        className={[
+                          styles.filterModeButton,
+                          excluded ? styles.filterModeButtonActive : '',
+                        ].filter(Boolean).join(' ')}
+                        aria-pressed={excluded}
+                        onClick={() => {
+                          setDraft((previous) =>
+                            toggleFilterValue(previous, group.key, 'exclude', option.value),
+                          )
+                        }}
+                      >
+                        Exclude
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
             ) : (
               <span className={styles.filterEmpty}>No values</span>
             )}
@@ -741,8 +803,8 @@ export const DrpdUsbPdLogInstrumentView = ({
     [filteredRows, hasActiveFilters],
   )
   const filterOptions = useMemo(
-    () => buildFilterOptions(filterOptionRows.length > 0 ? filterOptionRows : filterRows),
-    [filterOptionRows, filterRows],
+    () => buildFilterOptions(filterOptionRows.length > 0 ? filterOptionRows : filterRows, filters),
+    [filterOptionRows, filterRows, filters],
   )
   const displayedTotalRows = hasActiveFilters ? filteredDisplayRows.length : totalRows
 
@@ -1261,6 +1323,41 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [driver, firstVisibleRow, hasActiveFilters, lastVisibleRow, pages, totalRows])
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
+    const goodCrcExcluded = filters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
+
+    const goodCrcControl: InstrumentHeaderControl = {
+      id: 'goodcrc-filter-log',
+      label: goodCrcExcluded ? 'Include GoodCRC' : 'Exclude GoodCRC',
+      disabled: !driver || isEditMode,
+      onClick: () => {
+        const next = goodCrcExcluded
+          ? {
+              ...filters,
+              messageTypes: {
+                include: filters.messageTypes.include,
+                exclude: filters.messageTypes.exclude.filter(
+                  (entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL,
+                ),
+              },
+            }
+          : toggleFilterValue(
+              filters,
+              'messageTypes',
+              'exclude',
+              GOODCRC_MESSAGE_TYPE_LABEL,
+            )
+        setFilters(next)
+        if (countActiveFilters(next) > 0) {
+          void queryAllCapturedMessages().then((rows) => {
+            setFilterRows(rows)
+            setFilterOptionRows(rows)
+          })
+        } else {
+          setFilterRows([])
+        }
+      },
+    }
+
     const filterControl: InstrumentHeaderControl = {
       id: 'filter-log',
       label: activeFilterCount > 0 ? `Filter (${activeFilterCount})` : 'Filter',
@@ -1547,7 +1644,7 @@ export const DrpdUsbPdLogInstrumentView = ({
       ),
     }
 
-    return [filterControl, exportControl, markControl, clearControl, configureControl]
+    return [goodCrcControl, filterControl, exportControl, markControl, clearControl, configureControl]
   }, [
     activeFilterCount,
     bufferInput,

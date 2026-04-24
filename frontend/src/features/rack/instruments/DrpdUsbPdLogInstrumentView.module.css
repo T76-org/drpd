@@ -325,7 +325,7 @@
 
 .filterOption {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-6);
   min-width: 0;
@@ -334,15 +334,33 @@
   line-height: var(--line-height-tight);
 }
 
-.filterOption > input {
-  margin: 0;
-}
-
-.filterOption > span {
+.filterOptionLabel {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.filterOptionActions {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: var(--space-4);
+}
+
+.filterModeButton {
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: color-mix(in srgb, var(--color-surface-panel) 80%, transparent);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-button);
+  line-height: var(--line-height-tight);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.filterModeButtonActive {
+  color: var(--color-text-primary);
+  border-color: color-mix(in srgb, var(--color-status-info) 70%, var(--color-border-panel));
+  background: color-mix(in srgb, var(--color-status-info) 24%, var(--color-surface-panel));
 }
 
 .filterEmpty {
