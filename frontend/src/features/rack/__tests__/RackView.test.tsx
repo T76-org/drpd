@@ -604,7 +604,7 @@ const expectHydratedDrpdPanels = async (): Promise<void> => {
 }
 
 const openApplicationMenu = async (): Promise<void> => {
-  await userEvent.click(await screen.findByRole('button', { name: 'Menu' }))
+  await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
 }
 
 const openApplicationSubmenu = async (name: string | RegExp): Promise<void> => {
@@ -1001,7 +1001,7 @@ describe('RackView', () => {
     render(<RackView />)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
-    expect(screen.getByRole('button', { name: 'Menu' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeDisabled()
   })
 
   it('saves edits and persists layout changes', async () => {

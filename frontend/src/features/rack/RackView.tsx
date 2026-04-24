@@ -1808,7 +1808,7 @@ export const RackView = () => {
                       disabled={isEditMode}
                       {...props}
                     >
-                      Menu
+                      Settings
                     </button>
                   )}
                 />
