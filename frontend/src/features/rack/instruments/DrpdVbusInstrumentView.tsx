@@ -37,6 +37,15 @@ const formatNumber = (value: number | null | undefined, decimals: number): strin
   return value.toFixed(decimals)
 }
 
+const truncateToDecimals = (value: number | null | undefined, decimals: number): number | null => {
+  if (value == null || !Number.isFinite(value)) {
+    return null
+  }
+  const scale = 10 ** decimals
+  const truncated = Math.trunc(value * scale) / scale
+  return Object.is(truncated, -0) ? 0 : truncated
+}
+
 /**
  * Format a protection threshold value with engineering units.
  *
@@ -297,8 +306,9 @@ export const DrpdVbusInstrumentView = ({
     storage.setItem(displayRateStorageKey, displayUpdateRateHz.toString())
   }, [displayRateStorageKey, displayUpdateRateHz])
 
-  const vbusVoltage = displayMeasurements.vbusVoltage
-  const vbusCurrent = displayMeasurements.vbusCurrent
+  const measuredVbusCurrent = displayMeasurements.vbusCurrent
+  const vbusVoltage = truncateToDecimals(displayMeasurements.vbusVoltage, 2)
+  const vbusCurrent = truncateToDecimals(displayMeasurements.vbusCurrent, 2)
   const powerValue =
     vbusVoltage != null && vbusCurrent != null
       ? vbusVoltage * vbusCurrent
@@ -308,7 +318,12 @@ export const DrpdVbusInstrumentView = ({
   const ocpValueText = formatProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
   const isProtectionTriggered =
     vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP
-  const protectionStatusText = isProtectionTriggered ? 'Triggered' : 'OK'
+  const isVbusCurrentNegative = measuredVbusCurrent != null && measuredVbusCurrent < 0
+  const protectionStatusText = isVbusCurrentNegative
+    ? 'Disabled'
+    : isProtectionTriggered
+      ? 'Triggered'
+      : 'OK'
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
     const resetControl: InstrumentHeaderControl = {
@@ -573,7 +588,11 @@ export const DrpdVbusInstrumentView = ({
                 <span className={styles.protectionLabel}>STATUS</span>
                 <span
                   className={`${styles.protectionThreshold} ${
-                    isProtectionTriggered ? styles.protectionStatusTriggered : styles.protectionStatusOk
+                    isVbusCurrentNegative
+                      ? styles.protectionStatusDisabled
+                      : isProtectionTriggered
+                        ? styles.protectionStatusTriggered
+                        : styles.protectionStatusOk
                   }`}
                 >
                   {protectionStatusText}

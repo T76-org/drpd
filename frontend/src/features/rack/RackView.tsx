@@ -8,6 +8,7 @@ import {
   DRPDDevice,
   DRPDDeviceDefinition,
   OnOffState,
+  VBusStatus,
   buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
   decodeLoggedCapturedMessage,
@@ -20,7 +21,7 @@ import {
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
-import type { AnalogMonitorChannels } from '../../lib/device'
+import type { AnalogMonitorChannels, VBusInfo } from '../../lib/device'
 import {
   checkForFirmwareUpdate,
   fetchGitHubReleases,
@@ -272,6 +273,25 @@ const formatHeaderAccumulatorMetric = (value: number | null | undefined): string
   return value.toFixed(2)
 }
 
+const formatHeaderProtectionThreshold = (
+  value: number | null | undefined,
+  divisor: number,
+  unit: string,
+): { text: { ghost: string; value: string }; unit: string } => {
+  if (value == null || !Number.isFinite(value)) {
+    return { text: { ghost: '', value: '--' }, unit }
+  }
+  const formattedValue = (value / divisor).toFixed(2)
+  const paddedValue = formattedValue.padStart(5, '0')
+  return {
+    text: {
+      ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
+      value: formattedValue,
+    },
+    unit,
+  }
+}
+
 const formatHeaderAccumulatorMetricWithGhostZeros = (
   value: number | null | undefined,
 ): { ghost: string; value: string } => {
@@ -309,6 +329,19 @@ const HeaderAccumulatorValue = ({
       <HeaderGhostValue text={text} />
     </span>
     <span className={styles.headerVbusAccumulatorUnit}>{unit}</span>
+  </span>
+)
+
+const HeaderProtectionValue = ({
+  value,
+}: {
+  value: { text: { ghost: string; value: string }; unit: string }
+}) => (
+  <span className={styles.headerVbusProtectionValue}>
+    <span className={styles.headerVbusProtectionNumber}>
+      <HeaderGhostValue text={value.text} />
+    </span>
+    <span className={styles.headerVbusProtectionUnit}>{value.unit}</span>
   </span>
 )
 
@@ -2158,6 +2191,9 @@ const HeaderVbusMetrics = ({
   const [role, setRole] = useState<CCBusRole | null>(
     driver ? driver.getState().role ?? null : null,
   )
+  const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
+    driver ? driver.getState().vbusInfo ?? null : null,
+  )
   const [displayMeasurements, setDisplayMeasurements] = useState<HeaderVbusDisplayMeasurements>(() =>
     buildHeaderVbusDisplayMeasurements(driver ? driver.getState().analogMonitor ?? null : null),
   )
@@ -2172,6 +2208,7 @@ const HeaderVbusMetrics = ({
     const initialAnalogMonitor = initialState?.analogMonitor ?? null
     setAnalogMonitor(initialAnalogMonitor)
     setRole(initialState?.role ?? null)
+    setVbusInfo(initialState?.vbusInfo ?? null)
     setDisplayMeasurements(buildHeaderVbusDisplayMeasurements(initialAnalogMonitor))
     pendingAverageRef.current = {
       voltageSum: 0,
@@ -2188,7 +2225,12 @@ const HeaderVbusMetrics = ({
     const handleStateUpdated = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
       const changed = Array.isArray(detail?.changed) ? detail.changed as string[] : null
-      if (changed && !changed.includes('analogMonitor') && !changed.includes('role')) {
+      if (
+        changed &&
+        !changed.includes('analogMonitor') &&
+        !changed.includes('role') &&
+        !changed.includes('vbusInfo')
+      ) {
         return
       }
       const state = driver.getState()
@@ -2197,6 +2239,9 @@ const HeaderVbusMetrics = ({
       }
       if (!changed || changed.includes('role')) {
         setRole(state.role ?? null)
+      }
+      if (!changed || changed.includes('vbusInfo')) {
+        setVbusInfo(state.vbusInfo ?? null)
       }
     }
 
@@ -2269,6 +2314,11 @@ const HeaderVbusMetrics = ({
   const accumulatedChargeText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedChargeAh)
   const accumulatedEnergyText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedEnergyWh)
   const isChargingIndicatorActive = signedVbusCurrent != null && signedVbusCurrent !== 0
+  const ovpValueText = formatHeaderProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
+  const ocpValueText = formatHeaderProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
+  const shouldDimProtection = signedVbusCurrent != null && signedVbusCurrent < 0
+  const isOvpTriggered = vbusInfo?.status === VBusStatus.OVP
+  const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
@@ -2324,6 +2374,24 @@ const HeaderVbusMetrics = ({
             aria-hidden="true"
           />
           <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
+        </div>
+      </div>
+      <div className={styles.headerVbusProtection}>
+        <div
+          className={styles.headerVbusProtectionCell}
+          data-dimmed={shouldDimProtection ? 'true' : 'false'}
+          data-triggered={!shouldDimProtection && isOvpTriggered ? 'true' : 'false'}
+        >
+          <span className={styles.headerVbusProtectionLabel}>OVP</span>
+          <HeaderProtectionValue value={ovpValueText} />
+        </div>
+        <div
+          className={styles.headerVbusProtectionCell}
+          data-dimmed={shouldDimProtection ? 'true' : 'false'}
+          data-triggered={!shouldDimProtection && isOcpTriggered ? 'true' : 'false'}
+        >
+          <span className={styles.headerVbusProtectionLabel}>OCP</span>
+          <HeaderProtectionValue value={ocpValueText} />
         </div>
       </div>
     </div>

@@ -182,6 +182,61 @@
   min-height: var(--font-size-xs);
 }
 
+.headerVbusProtection {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(7px * var(--ui-scale));
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.headerVbusProtectionCell {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: var(--space-1);
+  align-items: baseline;
+}
+
+.headerVbusProtectionCell[data-triggered='true'] {
+  color: var(--color-status-error);
+  animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
+}
+
+.headerVbusProtectionCell[data-dimmed='true'] {
+  color: var(--color-text-muted);
+  opacity: 0.45;
+}
+
+.headerVbusProtectionLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-3xs);
+  letter-spacing: var(--letter-spacing-md);
+}
+
+.headerVbusProtectionCell[data-triggered='true'] .headerVbusProtectionLabel {
+  color: inherit;
+}
+
+.headerVbusProtectionValue {
+  display: inline-grid;
+  grid-template-columns: 5ch auto;
+  column-gap: calc(2px * var(--ui-scale));
+  align-items: baseline;
+}
+
+.headerVbusProtectionNumber {
+  text-align: right;
+}
+
+.headerVbusProtectionUnit {
+  text-align: left;
+}
+
 .headerVbusChargeIndicator {
   --header-vbus-charge-angle: 0deg;
 
@@ -269,6 +324,17 @@
 
   100% {
     --header-vbus-charge-angle: 360deg;
+  }
+}
+
+@keyframes headerVbusProtectionFlash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.25;
   }
 }
 

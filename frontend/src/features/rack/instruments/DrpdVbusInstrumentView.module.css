@@ -159,6 +159,10 @@
   color: var(--protection-color-on);
 }
 
+.protectionStatusDisabled {
+  color: var(--protection-color-off);
+}
+
 .protectionStatusTriggered {
   color: var(--protection-color-triggered);
 }
