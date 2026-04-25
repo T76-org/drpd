@@ -5,6 +5,7 @@ import type { DeviceIdentity } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
+  DRPDDevice,
   DRPDDeviceDefinition,
   OnOffState,
   buildCapturedLogSelectionKey,
@@ -19,6 +20,7 @@ import {
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
+import type { AnalogMonitorChannels } from '../../lib/device'
 import {
   checkForFirmwareUpdate,
   fetchGitHubReleases,
@@ -48,7 +50,6 @@ import {
   type RackDeviceState,
   type RackInstrumentDragPayload
 } from './RackRenderer'
-import { getRackCanvasSize } from './rackCanvasSize'
 import {
   canInsertInstrumentIntoRow,
   insertInstrumentIntoRowAtIndex,
@@ -76,6 +77,7 @@ const WINUSB_INTERFACE_PROTOCOL = 0x02
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const HEADER_MENU_POPOVER_Z_INDEX = 11000
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
+const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
 
 interface DRPDLogsConsoleHelper {
   devices(): Array<{ id: string; name: string; status: string }>
@@ -179,6 +181,17 @@ type SelectedDeviceInfo = {
   productName: string | null
 }
 
+interface HeaderVbusDisplayMeasurements {
+  vbusVoltage: number | null
+  vbusCurrent: number | null
+}
+
+interface HeaderVbusPendingAverage {
+  voltageSum: number
+  currentSum: number
+  sampleCount: number
+}
+
 const identifyRackDeviceRuntime = async (
   runtime: DeviceRuntime | null | undefined,
 ): Promise<DeviceIdentity | null> => {
@@ -236,6 +249,123 @@ const sleep = async (ms: number): Promise<void> =>
   await new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
+
+const truncateHeaderMetric = (value: number | null | undefined): number | null => {
+  if (value == null || !Number.isFinite(value)) {
+    return null
+  }
+  return Math.trunc(value * 100) / 100
+}
+
+const formatHeaderMetric = (value: number | null | undefined): string => {
+  const truncatedValue = truncateHeaderMetric(value)
+  if (truncatedValue == null) {
+    return '--'
+  }
+  return truncatedValue.toFixed(2)
+}
+
+const formatHeaderAccumulatorMetric = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) {
+    return '--'
+  }
+  return value.toFixed(2)
+}
+
+const formatHeaderAccumulatorMetricWithGhostZeros = (
+  value: number | null | undefined,
+): { ghost: string; value: string } => {
+  const formattedValue = formatHeaderAccumulatorMetric(value)
+  if (formattedValue === '--') {
+    return { ghost: '', value: formattedValue }
+  }
+  const paddedValue = formattedValue.padStart(6, '0')
+  return {
+    ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
+    value: formattedValue,
+  }
+}
+
+const HeaderGhostValue = ({
+  text,
+}: {
+  text: { ghost: string; value: string }
+}) => (
+  <>
+    <span className={styles.headerVbusGhostZeros}>{text.ghost}</span>
+    {text.value}
+  </>
+)
+
+const HeaderAccumulatorValue = ({
+  text,
+  unit,
+}: {
+  text: { ghost: string; value: string }
+  unit: string
+}) => (
+  <span className={styles.headerVbusAccumulatorValue}>
+    <span className={styles.headerVbusAccumulatorNumber}>
+      <HeaderGhostValue text={text} />
+    </span>
+    <span className={styles.headerVbusAccumulatorUnit}>{unit}</span>
+  </span>
+)
+
+const formatHeaderMetricWithGhostZeros = (
+  value: number | null | undefined,
+  width: number,
+): { ghost: string; value: string } => {
+  const formattedValue = formatHeaderMetric(value)
+  if (formattedValue === '--') {
+    return { ghost: '', value: formattedValue }
+  }
+  const paddedValue = formattedValue.padStart(width, '0')
+  return {
+    ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
+    value: formattedValue,
+  }
+}
+
+const resolveHeaderCurrentFlow = (
+  role: CCBusRole | null,
+  current: number | null,
+): { kind: 'flow'; from: string; to: string; direction: 'right' | 'left'; toPort: boolean } | { kind: 'text'; text: string } => {
+  if (role !== CCBusRole.OBSERVER && role !== CCBusRole.SINK) {
+    return { kind: 'text', text: '—' }
+  }
+  if (role === CCBusRole.OBSERVER && current === 0) {
+    return { kind: 'text', text: 'IDLE' }
+  }
+  if (current == null || current === 0) {
+    return { kind: 'text', text: '—' }
+  }
+  if (role === CCBusRole.OBSERVER) {
+    return {
+      kind: 'flow',
+      from: '1',
+      to: '2',
+      direction: current > 0 ? 'right' : 'left',
+      toPort: true,
+    }
+  }
+  return {
+    kind: 'flow',
+    from: '1',
+    to: 'B',
+    direction: current > 0 ? 'right' : 'left',
+    toPort: false,
+  }
+}
+
+const buildHeaderVbusDisplayMeasurements = (
+  analogMonitor: AnalogMonitorChannels | null | undefined,
+): HeaderVbusDisplayMeasurements => ({
+  vbusVoltage:
+    analogMonitor && Number.isFinite(analogMonitor.vbus) ? analogMonitor.vbus : null,
+  vbusCurrent:
+    analogMonitor && Number.isFinite(analogMonitor.ibus) ? analogMonitor.ibus : null,
+})
 
 const isLoggedCapturedMessageLike = (value: unknown): value is LoggedCapturedMessage => {
   if (!value || typeof value !== 'object') {
@@ -1697,9 +1827,6 @@ export const RackView = () => {
   const compatibleInstruments = currentRack
     ? instrumentDefinitions
     : []
-  const rackCanvasWidthPx = currentRack
-    ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
-    : null
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
 
   return (
@@ -1707,15 +1834,13 @@ export const RackView = () => {
       {!currentRack?.hideHeader ? (
         <div className={styles.headerViewport}>
           <div className={styles.headerScroll}>
-            <header
-              className={styles.header}
-              style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
-            >
+            <header className={styles.header}>
               <div className={styles.titleBlock}>
                 <h1 className={styles.title}>
                   <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
                   <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
                 </h1>
+                <HeaderVbusMetrics driver={activeConnectedDeviceState?.drpdDriver} />
               </div>
               <div className={styles.headerActions}>
                 {!isEditMode ? (
@@ -2018,6 +2143,189 @@ export const RackView = () => {
             document.body,
           )
         : null}
+    </div>
+  )
+}
+
+const HeaderVbusMetrics = ({
+  driver,
+}: {
+  driver?: DRPDDriverRuntime
+}) => {
+  const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
+    driver ? driver.getState().analogMonitor ?? null : null,
+  )
+  const [role, setRole] = useState<CCBusRole | null>(
+    driver ? driver.getState().role ?? null : null,
+  )
+  const [displayMeasurements, setDisplayMeasurements] = useState<HeaderVbusDisplayMeasurements>(() =>
+    buildHeaderVbusDisplayMeasurements(driver ? driver.getState().analogMonitor ?? null : null),
+  )
+  const pendingAverageRef = useRef<HeaderVbusPendingAverage>({
+    voltageSum: 0,
+    currentSum: 0,
+    sampleCount: 0,
+  })
+
+  useEffect(() => {
+    const initialState = driver ? driver.getState() : null
+    const initialAnalogMonitor = initialState?.analogMonitor ?? null
+    setAnalogMonitor(initialAnalogMonitor)
+    setRole(initialState?.role ?? null)
+    setDisplayMeasurements(buildHeaderVbusDisplayMeasurements(initialAnalogMonitor))
+    pendingAverageRef.current = {
+      voltageSum: 0,
+      currentSum: 0,
+      sampleCount: 0,
+    }
+  }, [driver])
+
+  useEffect(() => {
+    if (!driver) {
+      return
+    }
+
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed as string[] : null
+      if (changed && !changed.includes('analogMonitor') && !changed.includes('role')) {
+        return
+      }
+      const state = driver.getState()
+      if (!changed || changed.includes('analogMonitor')) {
+        setAnalogMonitor(state.analogMonitor ?? null)
+      }
+      if (!changed || changed.includes('role')) {
+        setRole(state.role ?? null)
+      }
+    }
+
+    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+
+    return () => {
+      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [driver])
+
+  useEffect(() => {
+    if (!analogMonitor) {
+      pendingAverageRef.current = {
+        voltageSum: 0,
+        currentSum: 0,
+        sampleCount: 0,
+      }
+      setDisplayMeasurements({ vbusVoltage: null, vbusCurrent: null })
+      return
+    }
+    if (!Number.isFinite(analogMonitor.vbus) || !Number.isFinite(analogMonitor.ibus)) {
+      return
+    }
+    pendingAverageRef.current = {
+      voltageSum: pendingAverageRef.current.voltageSum + analogMonitor.vbus,
+      currentSum: pendingAverageRef.current.currentSum + analogMonitor.ibus,
+      sampleCount: pendingAverageRef.current.sampleCount + 1,
+    }
+  }, [analogMonitor])
+
+  useEffect(() => {
+    const periodMs = 1000 / HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ
+    const timerId = window.setInterval(() => {
+      const pending = pendingAverageRef.current
+      if (pending.sampleCount <= 0) {
+        return
+      }
+      setDisplayMeasurements({
+        vbusVoltage: pending.voltageSum / pending.sampleCount,
+        vbusCurrent: pending.currentSum / pending.sampleCount,
+      })
+      pendingAverageRef.current = {
+        voltageSum: 0,
+        currentSum: 0,
+        sampleCount: 0,
+      }
+    }, periodMs)
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [])
+
+  const vbusVoltage = truncateHeaderMetric(displayMeasurements.vbusVoltage)
+  const signedVbusCurrent = truncateHeaderMetric(displayMeasurements.vbusCurrent)
+  const vbusCurrent = signedVbusCurrent == null ? null : Math.abs(signedVbusCurrent)
+  const vbusPower =
+    vbusVoltage != null && vbusCurrent != null ? vbusVoltage * vbusCurrent : null
+  const voltageText = formatHeaderMetricWithGhostZeros(vbusVoltage, 5)
+  const currentText = formatHeaderMetricWithGhostZeros(vbusCurrent, 4)
+  const powerText = formatHeaderMetricWithGhostZeros(vbusPower, 6)
+  const currentFlow = resolveHeaderCurrentFlow(role, signedVbusCurrent)
+  const accumulatedChargeAh =
+    analogMonitor && Number.isFinite(analogMonitor.accumulatedChargeMah)
+      ? analogMonitor.accumulatedChargeMah / 1000
+      : null
+  const accumulatedEnergyWh =
+    analogMonitor && Number.isFinite(analogMonitor.accumulatedEnergyMwh)
+      ? analogMonitor.accumulatedEnergyMwh / 1000
+      : null
+  const accumulatedChargeText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedChargeAh)
+  const accumulatedEnergyText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedEnergyWh)
+  const isChargingIndicatorActive = signedVbusCurrent != null && signedVbusCurrent !== 0
+
+  return (
+    <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
+      <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>
+        <span className={styles.headerVbusNumber}>
+          <HeaderGhostValue text={voltageText} />
+        </span>
+        <span className={styles.headerVbusUnit}>V</span>
+      </div>
+      <div className={styles.headerVbusSecondaryGroup}>
+        <div className={`${styles.headerVbusMetric} ${styles.headerVbusCurrent}`}>
+          <span className={styles.headerVbusNumber}>
+            <HeaderGhostValue text={currentText} />
+          </span>
+          <span className={styles.headerVbusUnit}>A</span>
+        </div>
+        <div className={styles.headerVbusFlow}>
+          {currentFlow.kind === 'flow' ? (
+            <>
+              <span className={styles.headerVbusFlowEndpoint}>
+                <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
+                {currentFlow.from}
+              </span>
+              <span
+                className={styles.headerVbusFlowTrack}
+                data-direction={currentFlow.direction}
+                aria-hidden="true"
+              />
+              <span className={styles.headerVbusFlowEndpoint}>
+                {currentFlow.to}
+                {currentFlow.toPort ? (
+                  <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
+                ) : null}
+              </span>
+            </>
+          ) : (
+            currentFlow.text
+          )}
+        </div>
+      </div>
+      <div className={styles.headerVbusSecondaryGroup}>
+        <div className={`${styles.headerVbusMetric} ${styles.headerVbusPower}`}>
+          <span className={styles.headerVbusNumber}>
+            <HeaderGhostValue text={powerText} />
+          </span>
+          <span className={styles.headerVbusUnit}>W</span>
+        </div>
+        <div className={styles.headerVbusAccumulation}>
+          <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
+          <span
+            className={styles.headerVbusChargeIndicator}
+            data-active={isChargingIndicatorActive ? 'true' : 'false'}
+            aria-hidden="true"
+          />
+          <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
+        </div>
+      </div>
     </div>
   )
 }
