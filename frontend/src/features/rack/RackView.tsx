@@ -64,12 +64,15 @@ import {
   RackRenderer,
   type RackDeviceState,
   type RackInstrumentDragPayload,
+  type RackRowResizePayload,
 } from './RackRenderer'
 import { getRackCanvasSize } from './rackCanvasSize'
 import {
-  canInsertInstrumentIntoRow,
   insertInstrumentIntoRowAtIndex,
+  resolveInstrumentFlex,
+  resolveRowFlex,
 } from './layout'
+import type { RackInstrumentResizePayload } from './RowRenderer'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
 import { useRackSizingConfig } from './rackSizing'
@@ -1504,10 +1507,34 @@ export const RackView = () => {
         if (rack.id !== activeRack?.id) {
           return rack
         }
-        return moveRackInstrument(rack, draggedRackInstrumentId, payload, rackInstrumentMap)
+        return moveRackInstrument(rack, draggedRackInstrumentId, payload)
       }),
     }))
-  }, [activeRack?.id, draggedRackInstrumentId, rackInstrumentMap, updateRackDocument])
+  }, [activeRack?.id, draggedRackInstrumentId, updateRackDocument])
+
+  const handleRackInstrumentResize = useCallback((payload: RackInstrumentResizePayload) => {
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return resizeAdjacentRackInstruments(rack, payload, rackInstrumentMap)
+      }),
+    }))
+  }, [activeRack?.id, rackInstrumentMap, updateRackDocument])
+
+  const handleRackRowResize = useCallback((payload: RackRowResizePayload) => {
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return resizeAdjacentRackRows(rack, payload)
+      }),
+    }))
+  }, [activeRack?.id, updateRackDocument])
 
   const exportSelectedMessageLog = useCallback((format: 'json' | 'csv') => {
     if (!activeDriver || !hasSelectedMessages) {
@@ -2739,6 +2766,8 @@ export const RackView = () => {
             onInstrumentDragStart={setDraggedRackInstrumentId}
             onInstrumentDrop={handleRackInstrumentDrop}
             onInstrumentDragEnd={() => setDraggedRackInstrumentId(null)}
+            onInstrumentResize={handleRackInstrumentResize}
+            onRowResize={handleRackRowResize}
             onUpdateDeviceConfig={handleUpdateDeviceConfig}
           />
         ) : null}
@@ -3420,7 +3449,6 @@ const moveRackInstrument = (
   rack: RackDefinition,
   instrumentId: string,
   payload: RackInstrumentDragPayload,
-  instrumentMap: Map<string, Instrument>,
 ): RackDefinition => {
   let movedInstrument: RackInstrument | null = null
   let rows = rack.rows.map((row) => {
@@ -3464,9 +3492,6 @@ const moveRackInstrument = (
 
   const targetRow = rows[targetRowIndex]
   const insertIndex = payload.insertIndex ?? targetRow.instruments.length
-  if (!canInsertInstrumentIntoRow(targetRow, movedInstrument, insertIndex, instrumentMap)) {
-    return rack
-  }
 
   rows = rows.map((row, index) => (
     index === targetRowIndex
@@ -3476,6 +3501,70 @@ const moveRackInstrument = (
   return {
     ...rack,
     rows: rows.filter((row) => row.instruments.length > 0),
+  }
+}
+
+const resizeAdjacentRackInstruments = (
+  rack: RackDefinition,
+  payload: RackInstrumentResizePayload,
+  instrumentMap: Map<string, Instrument>,
+): RackDefinition => ({
+  ...rack,
+  rows: rack.rows.map((row) => {
+    if (row.id !== payload.rowId) {
+      return row
+    }
+    const left = row.instruments.find((instrument) => instrument.id === payload.leftInstrumentId)
+    const right = row.instruments.find((instrument) => instrument.id === payload.rightInstrumentId)
+    if (!left || !right) {
+      return row
+    }
+    const leftFlex = resolveInstrumentFlex(left, instrumentMap)
+    const rightFlex = resolveInstrumentFlex(right, instrumentMap)
+    const deltaFlex = payload.delta / 120
+    const nextLeftFlex = Math.max(0.1, leftFlex + deltaFlex)
+    const nextRightFlex = Math.max(0.1, rightFlex - (nextLeftFlex - leftFlex))
+    return {
+      ...row,
+      instruments: row.instruments.map((instrument) => {
+        if (instrument.id === left.id) {
+          return { ...instrument, flex: nextLeftFlex }
+        }
+        if (instrument.id === right.id) {
+          return { ...instrument, flex: nextRightFlex }
+        }
+        return instrument
+      }),
+    }
+  }),
+})
+
+const resizeAdjacentRackRows = (
+  rack: RackDefinition,
+  payload: RackRowResizePayload,
+): RackDefinition => {
+  const upper = rack.rows.find((row) => row.id === payload.upperRowId)
+  const lower = rack.rows.find((row) => row.id === payload.lowerRowId)
+  if (!upper || !lower) {
+    return rack
+  }
+  const upperFlex = resolveRowFlex(upper)
+  const lowerFlex = resolveRowFlex(lower)
+  const deltaFlex = payload.delta / 120
+  const nextUpperFlex = Math.max(0.1, upperFlex + deltaFlex)
+  const nextLowerFlex = Math.max(0.1, lowerFlex - (nextUpperFlex - upperFlex))
+
+  return {
+    ...rack,
+    rows: rack.rows.map((row) => {
+      if (row.id === upper.id) {
+        return { ...row, flex: nextUpperFlex }
+      }
+      if (row.id === lower.id) {
+        return { ...row, flex: nextLowerFlex }
+      }
+      return row
+    }),
   }
 }
 

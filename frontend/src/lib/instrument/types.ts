@@ -48,6 +48,12 @@ export interface InstrumentInit {
   defaultUnits: number
   ///< Default vertical sizing mode.
   defaultHeightMode?: InstrumentHeightMode
+  ///< Default flex weight used by the rack renderer.
+  defaultFlex?: number
+  ///< Minimum rendered width as a CSS length.
+  minWidth?: string
+  ///< Minimum rendered height as a CSS length.
+  minHeight?: string
 }
 
 /**
@@ -79,6 +85,9 @@ export abstract class Instrument {
   public readonly defaultWidth: InstrumentWidth ///< Default width behavior.
   public readonly defaultUnits: number ///< Default units height.
   public readonly defaultHeightMode: InstrumentHeightMode ///< Default vertical sizing mode.
+  public readonly defaultFlex: number ///< Default flex weight.
+  public readonly minWidth: string ///< Minimum rendered width as a CSS length.
+  public readonly minHeight: string ///< Minimum rendered height as a CSS length.
 
   /**
    * Create an Instrument definition with default sizing details.
@@ -95,6 +104,9 @@ export abstract class Instrument {
     this.defaultWidth = init.defaultWidth
     this.defaultUnits = init.defaultUnits
     this.defaultHeightMode = init.defaultHeightMode ?? 'fixed'
+    this.defaultFlex = init.defaultFlex ?? (init.defaultWidth.mode === 'fixed' ? init.defaultWidth.units : 1)
+    this.minWidth = init.minWidth ?? '10rem'
+    this.minHeight = init.minHeight ?? '6rem'
     if (
       this.defaultWidth.mode === 'fixed' &&
       (!Number.isInteger(this.defaultWidth.units) ||
@@ -108,6 +120,15 @@ export abstract class Instrument {
       throw new Error(
         `Invalid default units for instrument ${this.identifier}: ${this.defaultUnits}`,
       )
+    }
+    if (!Number.isFinite(this.defaultFlex) || this.defaultFlex <= 0) {
+      throw new Error(`Invalid default flex for instrument ${this.identifier}: ${this.defaultFlex}`)
+    }
+    if (!this.minWidth.trim()) {
+      throw new Error(`Invalid minimum width for instrument ${this.identifier}: ${this.minWidth}`)
+    }
+    if (!this.minHeight.trim()) {
+      throw new Error(`Invalid minimum height for instrument ${this.identifier}: ${this.minHeight}`)
     }
   }
 }

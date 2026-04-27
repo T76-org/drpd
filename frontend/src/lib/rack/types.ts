@@ -12,7 +12,11 @@ import type { InstrumentIdentifier } from '../instrument'
  */
 export interface InstrumentResizableConfig {
   ///< Minimum height in units when resizing is allowed.
-  minUnits: number
+  minUnits?: number
+  ///< Minimum width as a CSS length.
+  minWidth?: string
+  ///< Minimum height as a CSS length.
+  minHeight?: string
 }
 
 /**
@@ -27,6 +31,8 @@ export interface RackInstrument {
   fullScreen?: boolean
   ///< Resizable configuration for future UI.
   resizable?: InstrumentResizableConfig
+  ///< Persisted flex weight inside its row.
+  flex?: number
   ///< Optional instrument-specific persisted configuration.
   config?: Record<string, unknown>
 }
@@ -67,6 +73,8 @@ export interface RackRow {
   id: string
   ///< Instruments in this row.
   instruments: RackInstrument[]
+  ///< Persisted flex weight inside the rack.
+  flex?: number
 }
 
 /**

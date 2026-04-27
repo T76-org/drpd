@@ -150,6 +150,36 @@ export const resolveInstrumentWidth = (
   return width
 }
 
+export interface RackInstrumentMinimumSize {
+  minWidth: string
+  minHeight: string
+}
+
+export const resolveInstrumentFlex = (
+  instrument: RackInstrument,
+  instrumentMap: Map<string, Instrument>,
+): number => {
+  const definition = instrumentMap.get(instrument.instrumentIdentifier)
+  return sanitizeFlex(instrument.flex) ?? definition?.defaultFlex ?? 1
+}
+
+export const resolveInstrumentMinimumSize = (
+  instrument: RackInstrument,
+  instrumentMap: Map<string, Instrument>,
+): RackInstrumentMinimumSize => {
+  const definition = instrumentMap.get(instrument.instrumentIdentifier)
+  return {
+    minWidth: instrument.resizable?.minWidth ?? definition?.minWidth ?? '10rem',
+    minHeight: instrument.resizable?.minHeight ?? definition?.minHeight ?? '6rem',
+  }
+}
+
+export const resolveRowFlex = (row: RackRow): number => sanitizeFlex(row.flex) ?? 1
+
+const sanitizeFlex = (value: number | undefined): number | undefined => (
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+)
+
 /**
  * Normalize fixed width units to a safe positive value.
  *
