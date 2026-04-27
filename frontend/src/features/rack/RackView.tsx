@@ -54,6 +54,7 @@ import {
   type RackDeviceState,
   type RackInstrumentDragPayload
 } from './RackRenderer'
+import { getRackCanvasSize } from './rackCanvasSize'
 import {
   canInsertInstrumentIntoRow,
   insertInstrumentIntoRowAtIndex,
@@ -1958,6 +1959,9 @@ export const RackView = () => {
   const compatibleInstruments = currentRack
     ? instrumentDefinitions
     : []
+  const rackCanvasWidthPx = currentRack
+    ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
+    : null
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
 
   return (
@@ -1965,7 +1969,10 @@ export const RackView = () => {
       {!currentRack?.hideHeader ? (
         <div className={styles.headerViewport}>
           <div className={styles.headerScroll}>
-            <header className={styles.header}>
+            <header
+              className={styles.header}
+              style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
+            >
               <div className={styles.titleBlock}>
                 <h1 className={styles.title}>
                   <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
