@@ -31,6 +31,18 @@ import {
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
+import {
+  MessageLogClearPopover,
+  MessageLogConfigurePopover,
+  MessageLogExportPopover,
+} from '../overlays/usbPdLog/LogActionPopovers'
+import { MessageLogFilterPopover } from '../overlays/usbPdLog/MessageLogFilterPopover'
+import {
+  toggleFilterValue,
+  type FilterOption,
+  type MessageLogFilterRule,
+  type MessageLogFilters,
+} from '../overlays/usbPdLog/usbPdLogFilters'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import { formatWallClock } from './DrpdUsbPdLogTimeStrip.utils'
@@ -88,25 +100,6 @@ type DisplayRow = {
   receiver: string
   sopType: string
   valid: string
-}
-
-type MessageLogFilterRule = {
-  include: string[]
-  exclude: string[]
-}
-
-type MessageLogFilterKey =
-  | 'messageTypes'
-  | 'senders'
-  | 'receivers'
-  | 'sopTypes'
-  | 'crcValid'
-
-type MessageLogFilters = Record<MessageLogFilterKey, MessageLogFilterRule>
-
-type FilterOption = {
-  value: string
-  label: string
 }
 
 type ExportRow = {
@@ -389,133 +382,6 @@ const buildFilterOptions = (
       .filter((value) => crcValues.includes(value) || filterRuleValues(filters.crcValid).includes(value))
       .map((value) => ({ value, label: value })),
   }
-}
-
-const toggleFilterValue = (
-  filters: MessageLogFilters,
-  key: MessageLogFilterKey,
-  mode: keyof MessageLogFilterRule,
-  value: string,
-): MessageLogFilters => {
-  const currentRule = filters[key]
-  const otherMode: keyof MessageLogFilterRule = mode === 'include' ? 'exclude' : 'include'
-  const nextModeValues = currentRule[mode].includes(value)
-    ? currentRule[mode].filter((entry) => entry !== value)
-    : [...currentRule[mode], value]
-  return {
-    ...filters,
-    [key]: {
-      [mode]: nextModeValues,
-      [otherMode]: currentRule[otherMode].filter((entry) => entry !== value),
-    },
-  }
-}
-
-const MessageLogFilterPopover = ({
-  filters,
-  options,
-  onApply,
-  onClear,
-  closePopover,
-}: {
-  filters: MessageLogFilters
-  options: ReturnType<typeof buildFilterOptions>
-  onApply: (next: MessageLogFilters) => void
-  onClear: () => void
-  closePopover: () => void
-}) => {
-  const [draft, setDraft] = useState(filters)
-  const groups: Array<{
-    key: MessageLogFilterKey
-    title: string
-    options: FilterOption[]
-  }> = [
-    { key: 'messageTypes', title: 'Message type', options: options.messageTypes },
-    { key: 'senders', title: 'Sender', options: options.senders },
-    { key: 'receivers', title: 'Receiver', options: options.receivers },
-    { key: 'sopTypes', title: 'SOP type', options: options.sopTypes },
-    { key: 'crcValid', title: 'CRC', options: options.crcValid },
-  ]
-
-  return (
-    <div className={styles.headerPopup}>
-      <div className={styles.filterGroups}>
-        {groups.map((group) => (
-          <fieldset key={group.key} className={styles.filterGroup}>
-            <legend className={styles.filterLegend}>{group.title}</legend>
-            {group.options.length > 0 ? (
-              group.options.map((option) => {
-                const rule = draft[group.key]
-                const included = rule.include.includes(option.value)
-                const excluded = rule.exclude.includes(option.value)
-                return (
-                  <div key={option.value} className={styles.filterOption}>
-                    <span className={styles.filterOptionLabel}>{option.label}</span>
-                    <div className={styles.filterOptionActions}>
-                      <button
-                        type="button"
-                        className={[
-                          styles.filterModeButton,
-                          included ? styles.filterModeButtonActive : '',
-                        ].filter(Boolean).join(' ')}
-                        aria-pressed={included}
-                        onClick={() => {
-                          setDraft((previous) =>
-                            toggleFilterValue(previous, group.key, 'include', option.value),
-                          )
-                        }}
-                      >
-                        Include
-                      </button>
-                      <button
-                        type="button"
-                        className={[
-                          styles.filterModeButton,
-                          excluded ? styles.filterModeButtonActive : '',
-                        ].filter(Boolean).join(' ')}
-                        aria-pressed={excluded}
-                        onClick={() => {
-                          setDraft((previous) =>
-                            toggleFilterValue(previous, group.key, 'exclude', option.value),
-                          )
-                        }}
-                      >
-                        Exclude
-                      </button>
-                    </div>
-                  </div>
-                )
-              })
-            ) : (
-              <span className={styles.filterEmpty}>No values</span>
-            )}
-          </fieldset>
-        ))}
-      </div>
-      <div className={styles.headerPopupActions}>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={() => {
-            onClear()
-            closePopover()
-          }}
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={() => {
-            onApply(draft)
-            closePopover()
-          }}
-        >
-          Apply
-        </button>
-      </div>
-    </div>
-  )
 }
 
 const buildExportRows = (
@@ -1389,85 +1255,69 @@ export const DrpdUsbPdLogInstrumentView = ({
       label: isExporting ? 'Exporting...' : 'Export',
       disabled: !driver || isEditMode || isExporting,
       renderPopover: ({ closePopover }) => (
-        <div className={styles.headerPopup}>
-          {exportError ? (
-            <p className={styles.headerPopupError}>{exportError}</p>
-          ) : null}
-          <div className={styles.headerPopupActions}>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              disabled={!hasSelection || isExporting}
-              onClick={() => {
-                if (!driver || !hasSelection) {
-                  return
-                }
-                setIsExporting(true)
-                setExportError(null)
-                void driver
-                  .queryCapturedMessages({
-                    startTimestampUs: 0n,
-                    endTimestampUs: LOG_END_TIMESTAMP_US,
-                    sortOrder: 'asc',
-                  })
-                  .then((rows) => {
-                    const exportRows = buildExportRows(rows, selection.selectedKeys)
-                    downloadExportPayload(
-                      buildJsonExportPayload(exportRows),
-                      'application/json',
-                      'message-log-export.json',
-                    )
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message = error instanceof Error ? error.message : String(error)
-                    setExportError(message)
-                  })
-                  .finally(() => {
-                    setIsExporting(false)
-                  })
-              }}
-            >
-              Export JSON
-            </button>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              disabled={!hasSelection || isExporting}
-              onClick={() => {
-                if (!driver || !hasSelection) {
-                  return
-                }
-                setIsExporting(true)
-                setExportError(null)
-                void driver
-                  .queryCapturedMessages({
-                    startTimestampUs: 0n,
-                    endTimestampUs: LOG_END_TIMESTAMP_US,
-                    sortOrder: 'asc',
-                  })
-                  .then((rows) => {
-                    const exportRows = buildExportRows(rows, selection.selectedKeys)
-                    downloadExportPayload(
-                      buildCsvExportPayload(exportRows),
-                      'text/csv',
-                      'message-log-export.csv',
-                    )
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message = error instanceof Error ? error.message : String(error)
-                    setExportError(message)
-                  })
-                  .finally(() => {
-                    setIsExporting(false)
-                  })
-              }}
-            >
-              Export CSV
-            </button>
-          </div>
-        </div>
+        <MessageLogExportPopover
+          exportError={exportError}
+          hasSelection={hasSelection}
+          isExporting={isExporting}
+          onExportJson={() => {
+            if (!driver || !hasSelection) {
+              return
+            }
+            setIsExporting(true)
+            setExportError(null)
+            void driver
+              .queryCapturedMessages({
+                startTimestampUs: 0n,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                sortOrder: 'asc',
+              })
+              .then((rows) => {
+                const exportRows = buildExportRows(rows, selection.selectedKeys)
+                downloadExportPayload(
+                  buildJsonExportPayload(exportRows),
+                  'application/json',
+                  'message-log-export.json',
+                )
+                closePopover()
+              })
+              .catch((error) => {
+                const message = error instanceof Error ? error.message : String(error)
+                setExportError(message)
+              })
+              .finally(() => {
+                setIsExporting(false)
+              })
+          }}
+          onExportCsv={() => {
+            if (!driver || !hasSelection) {
+              return
+            }
+            setIsExporting(true)
+            setExportError(null)
+            void driver
+              .queryCapturedMessages({
+                startTimestampUs: 0n,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                sortOrder: 'asc',
+              })
+              .then((rows) => {
+                const exportRows = buildExportRows(rows, selection.selectedKeys)
+                downloadExportPayload(
+                  buildCsvExportPayload(exportRows),
+                  'text/csv',
+                  'message-log-export.csv',
+                )
+                closePopover()
+              })
+              .catch((error) => {
+                const message = error instanceof Error ? error.message : String(error)
+                setExportError(message)
+              })
+              .finally(() => {
+                setIsExporting(false)
+              })
+          }}
+        />
       ),
     }
 
@@ -1498,55 +1348,33 @@ export const DrpdUsbPdLogInstrumentView = ({
       label: 'Clear',
       disabled: !driver || isEditMode || isClearing,
       renderPopover: ({ closePopover }) => (
-        <div className={styles.headerPopup}>
-          <p className={styles.headerPopupText}>
-            This will permanently delete all logged messages and analog samples, and clear the
-            time strip. Are you sure?
-          </p>
-          {clearError ? (
-            <p className={styles.headerPopupError}>{clearError}</p>
-          ) : null}
-          <div className={styles.headerPopupActions}>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                setClearError(null)
+        <MessageLogClearPopover
+          clearError={clearError}
+          isClearing={isClearing}
+          onCancel={() => {
+            setClearError(null)
+            closePopover()
+          }}
+          onClear={() => {
+            if (!driver) {
+              return
+            }
+            setIsClearing(true)
+            setClearError(null)
+            void driver
+              .clearLogs('all')
+              .then(() => {
                 closePopover()
-              }}
-              disabled={isClearing}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={`${styles.headerPopupButton} ${styles.headerPopupButtonDanger}`}
-              onClick={() => {
-                if (!driver) {
-                  return
-                }
-                setIsClearing(true)
-                setClearError(null)
-                void driver
-                  .clearLogs('all')
-                  .then(() => {
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message =
-                      error instanceof Error ? error.message : String(error)
-                    setClearError(message)
-                  })
-                  .finally(() => {
-                    setIsClearing(false)
-                  })
-              }}
-              disabled={isClearing}
-            >
-              {isClearing ? 'Clearing...' : 'Clear'}
-            </button>
-          </div>
-        </div>
+              })
+              .catch((error) => {
+                const message = error instanceof Error ? error.message : String(error)
+                setClearError(message)
+              })
+              .finally(() => {
+                setIsClearing(false)
+              })
+          }}
+        />
       ),
     }
 
@@ -1555,92 +1383,60 @@ export const DrpdUsbPdLogInstrumentView = ({
       label: 'Configure',
       disabled: !deviceRecord || !onUpdateDeviceConfig || isEditMode || isApplyingBuffer,
       renderPopover: ({ closePopover }) => (
-        <div className={styles.headerPopup}>
-          <div className={styles.headerPopupFieldRow}>
-            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-max-buffer`}>
-              Message buffer size
-            </label>
-            <input
-              id={`${instrument.id}-max-buffer`}
-              className={styles.headerPopupInput}
-              aria-label="Max message buffer"
-              type="number"
-              min={MIN_CAPTURED_MESSAGE_BUFFER}
-              max={MAX_CAPTURED_MESSAGE_BUFFER}
-              step={1}
-              value={bufferInput}
-              onChange={(event) => {
-                setBufferInput(event.currentTarget.value)
-                setBufferError(null)
-              }}
-              disabled={isApplyingBuffer}
-            />
-          </div>
-          {bufferError ? (
-            <p className={styles.headerPopupError}>{bufferError}</p>
-          ) : null}
-          <div className={styles.headerPopupActions}>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                setBufferError(null)
+        <MessageLogConfigurePopover
+          instrumentId={instrument.id}
+          minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
+          maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
+          bufferInput={bufferInput}
+          bufferError={bufferError}
+          isApplyingBuffer={isApplyingBuffer}
+          setBufferInput={setBufferInput}
+          setBufferError={setBufferError}
+          onCancel={() => {
+            setBufferError(null)
+            closePopover()
+          }}
+          onApply={() => {
+            if (!deviceRecord || !onUpdateDeviceConfig) {
+              return
+            }
+            const parsed = parseBufferInput()
+            if (parsed === null) {
+              setBufferError(
+                `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+              )
+              return
+            }
+            setIsApplyingBuffer(true)
+            setBufferError(null)
+            void Promise.resolve(
+              onUpdateDeviceConfig(deviceRecord.id, (current) => {
+                const source =
+                  current && typeof current === 'object'
+                    ? (current as { logging?: Partial<DRPDLoggingConfig> })
+                    : {}
+                const logging = normalizeLoggingConfig({
+                  ...source.logging,
+                  maxCapturedMessages: parsed,
+                })
+                return {
+                  ...source,
+                  logging,
+                }
+              }),
+            )
+              .then(() => {
                 closePopover()
-              }}
-              disabled={isApplyingBuffer}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                if (!deviceRecord || !onUpdateDeviceConfig) {
-                  return
-                }
-                const parsed = parseBufferInput()
-                if (parsed === null) {
-                  setBufferError(
-                    `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
-                  )
-                  return
-                }
-                setIsApplyingBuffer(true)
-                setBufferError(null)
-                void Promise.resolve(
-                  onUpdateDeviceConfig(deviceRecord.id, (current) => {
-                    const source =
-                      current && typeof current === 'object'
-                        ? (current as { logging?: Partial<DRPDLoggingConfig> })
-                        : {}
-                    const logging = normalizeLoggingConfig({
-                      ...source.logging,
-                      maxCapturedMessages: parsed,
-                    })
-                    return {
-                      ...source,
-                      logging,
-                    }
-                  }),
-                )
-                  .then(() => {
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message =
-                      error instanceof Error ? error.message : String(error)
-                    setBufferError(message)
-                  })
-                  .finally(() => {
-                    setIsApplyingBuffer(false)
-                  })
-              }}
-              disabled={isApplyingBuffer}
-            >
-              {isApplyingBuffer ? 'Applying...' : 'Apply'}
-            </button>
-          </div>
-        </div>
+              })
+              .catch((error) => {
+                const message = error instanceof Error ? error.message : String(error)
+                setBufferError(message)
+              })
+              .finally(() => {
+                setIsApplyingBuffer(false)
+              })
+          }}
+        />
       ),
     }
 
