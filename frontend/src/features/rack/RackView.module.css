@@ -214,6 +214,10 @@
   text-align: right;
 }
 
+.headerVbusRoleStatusValue[data-alert='true'] {
+  color: var(--color-status-error);
+}
+
 .headerVbusProtectionCell[data-triggered='true'] {
   color: var(--color-status-error);
   animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;

@@ -10,6 +10,7 @@ import {
   DRPDDeviceDefinition,
   OnOffState,
   SinkPdoType,
+  TriggerStatus,
   VBusStatus,
   buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
@@ -23,7 +24,7 @@ import {
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
-import type { AnalogMonitorChannels, SinkInfo, SinkPdo, VBusInfo } from '../../lib/device'
+import type { AnalogMonitorChannels, SinkInfo, SinkPdo, TriggerInfo, VBusInfo } from '../../lib/device'
 import {
   checkForFirmwareUpdate,
   fetchGitHubReleases,
@@ -466,6 +467,26 @@ const formatHeaderSinkContract = (sinkInfo: SinkInfo | null): string => {
   const voltageV = sinkInfo.negotiatedVoltageMv / 1000
   const currentA = sinkInfo.negotiatedCurrentMa / 1000
   return `${formatHeaderCompactNumber(voltageV)}V @ ${formatHeaderCompactNumber(currentA)}A`
+}
+
+const formatHeaderTriggerStatus = (value: TriggerInfo['status'] | null | undefined): string => {
+  switch (value) {
+    case TriggerStatus.IDLE:
+      return 'Idle'
+    case TriggerStatus.ARMED:
+      return 'Armed'
+    case TriggerStatus.TRIGGERED:
+      return 'Triggered'
+    default:
+      return '--'
+  }
+}
+
+const formatHeaderTriggerCount = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) {
+    return '--'
+  }
+  return Math.trunc(value).toString()
 }
 
 const buildHeaderVbusDisplayMeasurements = (
@@ -2277,6 +2298,9 @@ const HeaderVbusMetrics = ({
   const [sinkInfo, setSinkInfo] = useState<SinkInfo | null>(
     driver ? driver.getState().sinkInfo ?? null : null,
   )
+  const [triggerInfo, setTriggerInfo] = useState<TriggerInfo | null>(
+    driver ? driver.getState().triggerInfo ?? null : null,
+  )
   const [displayMeasurements, setDisplayMeasurements] = useState<HeaderVbusDisplayMeasurements>(() =>
     buildHeaderVbusDisplayMeasurements(driver ? driver.getState().analogMonitor ?? null : null),
   )
@@ -2294,6 +2318,7 @@ const HeaderVbusMetrics = ({
     setRoleStatus(initialState?.ccBusRoleStatus ?? null)
     setVbusInfo(initialState?.vbusInfo ?? null)
     setSinkInfo(initialState?.sinkInfo ?? null)
+    setTriggerInfo(initialState?.triggerInfo ?? null)
     setDisplayMeasurements(buildHeaderVbusDisplayMeasurements(initialAnalogMonitor))
     pendingAverageRef.current = {
       voltageSum: 0,
@@ -2316,7 +2341,8 @@ const HeaderVbusMetrics = ({
         !changed.includes('role') &&
         !changed.includes('ccBusRoleStatus') &&
         !changed.includes('vbusInfo') &&
-        !changed.includes('sinkInfo')
+        !changed.includes('sinkInfo') &&
+        !changed.includes('triggerInfo')
       ) {
         return
       }
@@ -2335,6 +2361,9 @@ const HeaderVbusMetrics = ({
       }
       if (!changed || changed.includes('sinkInfo')) {
         setSinkInfo(state.sinkInfo ?? null)
+      }
+      if (!changed || changed.includes('triggerInfo')) {
+        setTriggerInfo(state.triggerInfo ?? null)
       }
     }
 
@@ -2417,6 +2446,9 @@ const HeaderVbusMetrics = ({
   const activeSinkInfo = role === CCBusRole.SINK ? sinkInfo : null
   const sinkTypeText = formatHeaderSinkPdoType(activeSinkInfo?.negotiatedPdo)
   const sinkContractText = formatHeaderSinkContract(activeSinkInfo)
+  const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
+  const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
+  const isTriggerStateTriggered = triggerInfo?.status === TriggerStatus.TRIGGERED
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
@@ -2510,6 +2542,21 @@ const HeaderVbusMetrics = ({
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>POWER</span>
           <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+        </div>
+      </div>
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>STATE</span>
+          <span
+            className={styles.headerVbusRoleStatusValue}
+            data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+          >
+            {triggerStateText}
+          </span>
+        </div>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>COUNT</span>
+          <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
         </div>
       </div>
     </div>
