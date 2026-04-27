@@ -14,7 +14,7 @@
   border: var(--border-thin) solid var(--color-border-panel);
   border-radius: 0;
   box-shadow: 0 calc(3px * var(--ui-scale)) calc(10px * var(--ui-scale)) rgb(0 0 0 / 0.24);
-  font-size: var(--font-size-popup);
+  font-size: var(--font-size-3xs);
   line-height: 1;
   z-index: 10000;
   transform: scale(var(--global-app-scale, 1));
@@ -70,7 +70,7 @@
 
 .itemMeta {
   color: var(--color-text-muted);
-  font-size: var(--font-size-header-popup-hint);
+  font-size: var(--font-size-4xs);
 }
 
 .separator {

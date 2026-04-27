@@ -75,6 +75,16 @@ import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
 import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
 import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopover'
 import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
+import {
+  MessageLogClearPopover,
+  MessageLogConfigurePopover,
+} from './overlays/usbPdLog/LogActionPopovers'
+import { MessageLogFilterPopover } from './overlays/usbPdLog/MessageLogFilterPopover'
+import {
+  toggleFilterValue,
+  type FilterOption,
+  type MessageLogFilters,
+} from './overlays/usbPdLog/usbPdLogFilters'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -92,6 +102,17 @@ const WINUSB_INTERFACE_PROTOCOL = 0x02
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
 const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
+const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
+const MIN_CAPTURED_MESSAGE_BUFFER = 100
+const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
+const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
+const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
+  messageTypes: { include: [], exclude: [] },
+  senders: { include: [], exclude: [] },
+  receivers: { include: [], exclude: [] },
+  sopTypes: { include: [], exclude: [] },
+  crcValid: { include: [], exclude: [] },
+}
 
 interface DRPDLogsConsoleHelper {
   devices(): Array<{ id: string; name: string; status: string }>
@@ -509,6 +530,146 @@ const isLoggedCapturedMessageLike = (value: unknown): value is LoggedCapturedMes
   )
 }
 
+const countMessageLogFilters = (filters: MessageLogFilters): number =>
+  Object.values(filters).reduce(
+    (count, rule) => count + rule.include.length + rule.exclude.length,
+    0,
+  )
+
+const uniqueLogOptions = (values: string[]): FilterOption[] =>
+  Array.from(new Set(values.filter((value) => value.length > 0 && value !== '--')))
+    .sort((left, right) => left.localeCompare(right))
+    .map((value) => ({ value, label: value }))
+
+const getLogMessageTypeLabel = (row: LoggedCapturedMessage): string => {
+  if (row.entryKind === 'event') {
+    return 'Event'
+  }
+  if (row.messageType == null) {
+    return 'Unknown'
+  }
+  return String(row.messageType)
+}
+
+const getLogSenderLabel = (row: LoggedCapturedMessage): string =>
+  row.entryKind === 'message' && row.senderPowerRole ? row.senderPowerRole : 'Unknown'
+
+const getLogReceiverLabel = (row: LoggedCapturedMessage): string =>
+  row.entryKind === 'message' && row.senderPowerRole
+    ? row.senderPowerRole === 'SOURCE'
+      ? 'Sink'
+      : 'Source'
+    : 'Unknown'
+
+const getLogSopLabel = (row: LoggedCapturedMessage): string =>
+  row.entryKind === 'message' && typeof row.sopKind === 'string' ? row.sopKind : 'Unknown'
+
+const getLogCrcLabel = (row: LoggedCapturedMessage): string => {
+  if (row.entryKind !== 'message') {
+    return 'Unknown'
+  }
+  return String(row.decodeResult) === 'crc_mismatch' ? 'Invalid' : 'Valid'
+}
+
+const buildMessageLogFilterOptions = (
+  rows: LoggedCapturedMessage[],
+  filters: MessageLogFilters,
+): {
+  messageTypes: FilterOption[]
+  senders: FilterOption[]
+  receivers: FilterOption[]
+  sopTypes: FilterOption[]
+  crcValid: FilterOption[]
+} => {
+  const messageRows = rows.filter((row) => row.entryKind === 'message')
+  return {
+    messageTypes: uniqueLogOptions([
+      ...messageRows.map(getLogMessageTypeLabel),
+      ...filters.messageTypes.include,
+      ...filters.messageTypes.exclude,
+    ]),
+    senders: uniqueLogOptions([
+      ...messageRows.map(getLogSenderLabel),
+      ...filters.senders.include,
+      ...filters.senders.exclude,
+    ]),
+    receivers: uniqueLogOptions([
+      ...messageRows.map(getLogReceiverLabel),
+      ...filters.receivers.include,
+      ...filters.receivers.exclude,
+    ]),
+    sopTypes: uniqueLogOptions([
+      ...messageRows.map(getLogSopLabel),
+      ...filters.sopTypes.include,
+      ...filters.sopTypes.exclude,
+    ]),
+    crcValid: uniqueLogOptions([
+      ...messageRows.map(getLogCrcLabel),
+      ...filters.crcValid.include,
+      ...filters.crcValid.exclude,
+    ]),
+  }
+}
+
+const downloadMessageLogPayload = (payload: string, mimeType: string, filename: string): void => {
+  const blob = new Blob([payload], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const toCsvField = (value: string): string =>
+  /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
+
+const buildSelectedMessageLogJson = (
+  rows: LoggedCapturedMessage[],
+  selectionKeys: string[],
+): string => {
+  const selected = new Set(selectionKeys)
+  return JSON.stringify(
+    rows.filter((row) => selected.has(buildCapturedLogSelectionKey(row))),
+    (_key, value) => (typeof value === 'bigint' ? value.toString() : value),
+    2,
+  )
+}
+
+const buildSelectedMessageLogCsv = (
+  rows: LoggedCapturedMessage[],
+  selectionKeys: string[],
+): string => {
+  const selected = new Set(selectionKeys)
+  const lines = [['Type', 'Message Type', 'Sender', 'Receiver', 'SOP', 'CRC'].join(',')]
+  for (const row of rows) {
+    if (!selected.has(buildCapturedLogSelectionKey(row))) {
+      continue
+    }
+    lines.push(
+      [
+        row.entryKind,
+        getLogMessageTypeLabel(row),
+        getLogSenderLabel(row),
+        getLogReceiverLabel(row),
+        getLogSopLabel(row),
+        getLogCrcLabel(row),
+      ].map(toCsvField).join(','),
+    )
+  }
+  return `${lines.join('\n')}\n`
+}
+
+const notifyMessageLogFiltersChanged = (filters: MessageLogFilters): void => {
+  window.dispatchEvent(
+    new CustomEvent('drpd-message-log-filters-changed', {
+      detail: { filters },
+    }),
+  )
+}
+
 const parseSinkField = (value: string): number | null => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
@@ -675,6 +836,22 @@ export const RackView = () => {
   const [globalTriggerMessageTypeFilterTypeInput, setGlobalTriggerMessageTypeFilterTypeInput] = useState('0')
   const [globalTriggerConfigureError, setGlobalTriggerConfigureError] = useState<string | null>(null)
   const [isGlobalTriggerApplying, setIsGlobalTriggerApplying] = useState(false)
+  const [messageLogSelectionKeys, setMessageLogSelectionKeys] = useState<string[]>([])
+  const [messageLogFilters, setMessageLogFilters] =
+    useState<MessageLogFilters>(EMPTY_MESSAGE_LOG_FILTERS)
+  const [messageLogFilterRows, setMessageLogFilterRows] = useState<LoggedCapturedMessage[]>([])
+  const [isMessageLogFilterDialogOpen, setIsMessageLogFilterDialogOpen] = useState(false)
+  const [isMessageLogClearDialogOpen, setIsMessageLogClearDialogOpen] = useState(false)
+  const [isMessageLogConfigureDialogOpen, setIsMessageLogConfigureDialogOpen] = useState(false)
+  const [isMessageLogMarking, setIsMessageLogMarking] = useState(false)
+  const [isMessageLogClearing, setIsMessageLogClearing] = useState(false)
+  const [isMessageLogExporting, setIsMessageLogExporting] = useState(false)
+  const [isMessageLogConfiguring, setIsMessageLogConfiguring] = useState(false)
+  const [messageLogError, setMessageLogError] = useState<string | null>(null)
+  const [messageLogBufferInput, setMessageLogBufferInput] = useState(
+    buildDefaultLoggingConfig().maxCapturedMessages.toString(),
+  )
+  const [messageLogBufferError, setMessageLogBufferError] = useState<string | null>(null)
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
@@ -1249,13 +1426,93 @@ export const RackView = () => {
   const currentRack = activeRack
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
+  const hasSelectedMessages = messageLogSelectionKeys.length > 0
+  const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
+  const messageLogFilterOptions = useMemo(
+    () => buildMessageLogFilterOptions(messageLogFilterRows, messageLogFilters),
+    [messageLogFilterRows, messageLogFilters],
+  )
   const isFirmwareUploadBusy =
     firmwareUpdatePrompt != null &&
     !['prompt', 'success', 'failure'].includes(firmwareUpdatePrompt.phase)
 
+  const exportSelectedMessageLog = useCallback((format: 'json' | 'csv') => {
+    if (!activeDriver || !hasSelectedMessages) {
+      return
+    }
+    setIsMessageLogExporting(true)
+    setMessageLogError(null)
+    void activeDriver
+      .queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: LOG_END_TIMESTAMP_US,
+        sortOrder: 'asc',
+      })
+      .then((rows) => {
+        if (format === 'json') {
+          downloadMessageLogPayload(
+            buildSelectedMessageLogJson(rows, messageLogSelectionKeys),
+            'application/json',
+            'message-log-export.json',
+          )
+          return
+        }
+        downloadMessageLogPayload(
+          buildSelectedMessageLogCsv(rows, messageLogSelectionKeys),
+          'text/csv',
+          'message-log-export.csv',
+        )
+      })
+      .catch((error) => {
+        setMessageLogError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        setIsMessageLogExporting(false)
+      })
+  }, [activeDriver, hasSelectedMessages, messageLogSelectionKeys])
+
   const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
     setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
   }, [])
+
+  useEffect(() => {
+    if (!activeDriver) {
+      setMessageLogSelectionKeys([])
+      setMessageLogFilterRows([])
+      return
+    }
+
+    const readSelection = () => {
+      void Promise.resolve(activeDriver.getLogSelectionState()).then((selection) => {
+        setMessageLogSelectionKeys(
+          Array.isArray(selection.selectedKeys) ? selection.selectedKeys : [],
+        )
+      })
+    }
+
+    readSelection()
+    void activeDriver
+      .queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: LOG_END_TIMESTAMP_US,
+        sortOrder: 'asc',
+      })
+      .then(setMessageLogFilterRows)
+      .catch(() => setMessageLogFilterRows([]))
+
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed : []
+      if (changed.includes('logSelection')) {
+        readSelection()
+      }
+    }
+
+    activeDriver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    return () => {
+      activeDriver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [activeDriver])
 
   const handleDeclineFirmwareUpdate = useCallback(() => {
     const prompt = firmwareUpdatePrompt
@@ -1998,6 +2255,117 @@ export const RackView = () => {
         ],
       },
       {
+        id: 'logging',
+        label: 'Logging',
+        items: [
+          {
+            id: 'logging-clear-log',
+            label: 'Clear Log',
+            disabled: !activeDriver || isMessageLogClearing,
+            onSelect: () => setIsMessageLogClearDialogOpen(true),
+          },
+          {
+            id: 'logging-add-marker',
+            label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
+            disabled: !activeDriver || isMessageLogMarking,
+            onSelect: () => {
+              if (!activeDriver) {
+                return
+              }
+              setIsMessageLogMarking(true)
+              setMessageLogError(null)
+              void activeDriver
+                .markLog()
+                .catch((error) => {
+                  setMessageLogError(error instanceof Error ? error.message : String(error))
+                })
+                .finally(() => {
+                  setIsMessageLogMarking(false)
+                })
+            },
+          },
+          {
+            id: 'logging-export-selected',
+            type: 'submenu',
+            label: 'Export Selected',
+            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+            items: [
+              {
+                id: 'logging-export-selected-json',
+                label: 'JSON...',
+                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+                onSelect: () => exportSelectedMessageLog('json'),
+              },
+              {
+                id: 'logging-export-selected-csv',
+                label: 'CSV...',
+                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+                onSelect: () => exportSelectedMessageLog('csv'),
+              },
+            ],
+          },
+          {
+            id: 'logging-separator-filters',
+            type: 'separator',
+          },
+          {
+            id: 'logging-show-goodcrc',
+            type: 'checkbox',
+            label: 'Show GoodCRC Messages',
+            checked: isGoodCrcShown,
+            disabled: !activeDriver,
+            onCheckedChange: () => {
+              const next = isGoodCrcShown
+                ? toggleFilterValue(
+                    messageLogFilters,
+                    'messageTypes',
+                    'exclude',
+                    GOODCRC_MESSAGE_TYPE_LABEL,
+                  )
+                : {
+                    ...messageLogFilters,
+                    messageTypes: {
+                      include: messageLogFilters.messageTypes.include,
+                      exclude: messageLogFilters.messageTypes.exclude.filter(
+                        (entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL,
+                      ),
+                    },
+              }
+              setMessageLogFilters(next)
+              notifyMessageLogFiltersChanged(next)
+            },
+          },
+          {
+            id: 'logging-filter',
+            label: countMessageLogFilters(messageLogFilters) > 0
+              ? `Filter... (${countMessageLogFilters(messageLogFilters)})`
+              : 'Filter...',
+            disabled: !activeDriver,
+            onSelect: () => setIsMessageLogFilterDialogOpen(true),
+          },
+          {
+            id: 'logging-separator-configure',
+            type: 'separator',
+          },
+          {
+            id: 'logging-configure',
+            label: 'Configure...',
+            disabled: !activeDriver || !activeDeviceRecord || isMessageLogConfiguring,
+            onSelect: () => {
+              const configured = activeDeviceRecord?.config &&
+                typeof activeDeviceRecord.config === 'object'
+                ? normalizeLoggingConfig(
+                    (activeDeviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
+                  )
+                : buildDefaultLoggingConfig()
+              setMessageLogBufferInput(configured.maxCapturedMessages.toString())
+              setMessageLogBufferError(null)
+              setIsMessageLogConfigureDialogOpen(true)
+            },
+          },
+        ],
+      },
+      {
         id: 'trigger',
         label: 'Trigger',
         items: [
@@ -2102,6 +2470,7 @@ export const RackView = () => {
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,
+    exportSelectedMessageLog,
     handleConnectPairedDevice,
     handleDisconnectDevice,
     handleOpenDocumentation,
@@ -2115,6 +2484,13 @@ export const RackView = () => {
     isProtectionTriggered,
     isSinkMode,
     isTriggerActivated,
+    hasSelectedMessages,
+    isGoodCrcShown,
+    isMessageLogClearing,
+    isMessageLogConfiguring,
+    isMessageLogExporting,
+    isMessageLogMarking,
+    messageLogFilters,
     openGlobalSinkRequestDialog,
     openGlobalTriggerConfigureDialog,
     pairedDevices,
@@ -2281,6 +2657,121 @@ export const RackView = () => {
             .catch((error) => {
               setGlobalSinkRequestError(error instanceof Error ? error.message : String(error))
               setGlobalSinkRequestStatus('error')
+          })
+        }}
+      />
+      <MessageLogFilterPopover
+        open={isMessageLogFilterDialogOpen}
+        onOpenChange={setIsMessageLogFilterDialogOpen}
+        filters={messageLogFilters}
+        options={messageLogFilterOptions}
+        onApply={(next) => {
+          setMessageLogFilters(next)
+          notifyMessageLogFiltersChanged(next)
+          if (!activeDriver) {
+            return
+          }
+          void activeDriver
+            .queryCapturedMessages({
+              startTimestampUs: 0n,
+              endTimestampUs: LOG_END_TIMESTAMP_US,
+              sortOrder: 'asc',
+            })
+            .then(setMessageLogFilterRows)
+        }}
+        onClear={() => {
+          setMessageLogFilters(EMPTY_MESSAGE_LOG_FILTERS)
+          notifyMessageLogFiltersChanged(EMPTY_MESSAGE_LOG_FILTERS)
+        }}
+      />
+      <MessageLogClearPopover
+        open={isMessageLogClearDialogOpen}
+        onOpenChange={setIsMessageLogClearDialogOpen}
+        clearError={messageLogError}
+        isClearing={isMessageLogClearing}
+        onCancel={() => {
+          setMessageLogError(null)
+          setIsMessageLogClearDialogOpen(false)
+        }}
+        onClear={() => {
+          if (!activeDriver) {
+            return
+          }
+          setIsMessageLogClearing(true)
+          setMessageLogError(null)
+          void activeDriver
+            .clearLogs('all')
+            .then(() => {
+              setMessageLogSelectionKeys([])
+              setMessageLogFilterRows([])
+              setIsMessageLogClearDialogOpen(false)
+            })
+            .catch((error) => {
+              setMessageLogError(error instanceof Error ? error.message : String(error))
+            })
+            .finally(() => {
+              setIsMessageLogClearing(false)
+            })
+        }}
+      />
+      <MessageLogConfigurePopover
+        open={isMessageLogConfigureDialogOpen}
+        onOpenChange={setIsMessageLogConfigureDialogOpen}
+        instrumentId="global-message-log"
+        minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
+        maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
+        bufferInput={messageLogBufferInput}
+        bufferError={messageLogBufferError}
+        isApplyingBuffer={isMessageLogConfiguring}
+        setBufferInput={setMessageLogBufferInput}
+        setBufferError={setMessageLogBufferError}
+        onCancel={() => {
+          setMessageLogBufferError(null)
+          setIsMessageLogConfigureDialogOpen(false)
+        }}
+        onApply={() => {
+          if (!activeDeviceRecord) {
+            return
+          }
+          if (!/^\d+$/.test(messageLogBufferInput)) {
+            setMessageLogBufferError(
+              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+            )
+            return
+          }
+          const parsed = Number(messageLogBufferInput)
+          if (
+            !Number.isFinite(parsed) ||
+            parsed < MIN_CAPTURED_MESSAGE_BUFFER ||
+            parsed > MAX_CAPTURED_MESSAGE_BUFFER
+          ) {
+            setMessageLogBufferError(
+              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+            )
+            return
+          }
+          setIsMessageLogConfiguring(true)
+          setMessageLogBufferError(null)
+          void handleUpdateDeviceConfig(activeDeviceRecord.id, (current) => {
+            const source = current && typeof current === 'object'
+              ? (current as { logging?: Partial<DRPDLoggingConfig> })
+              : {}
+            return {
+              ...source,
+              logging: normalizeLoggingConfig({
+                ...source.logging,
+                maxCapturedMessages: Math.floor(parsed),
+              }),
+            }
+          })
+            .then(() => {
+              setIsMessageLogConfigureDialogOpen(false)
+            })
+            .catch((error) => {
+              setMessageLogBufferError(error instanceof Error ? error.message : String(error))
+            })
+            .finally(() => {
+              setIsMessageLogConfiguring(false)
             })
         }}
       />

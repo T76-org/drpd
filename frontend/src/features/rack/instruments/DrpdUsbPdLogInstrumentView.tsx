@@ -875,6 +875,30 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [driver, hasActiveFilters, queryAllCapturedMessages, totalRows])
 
   useEffect(() => {
+    const handleGlobalFiltersChanged = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const next = detail?.filters as MessageLogFilters | undefined
+      if (!next) {
+        return
+      }
+      setFilters(next)
+      if (countActiveFilters(next) > 0) {
+        void queryAllCapturedMessages().then((rows) => {
+          setFilterRows(rows)
+          setFilterOptionRows(rows)
+        })
+      } else {
+        setFilterRows([])
+      }
+    }
+
+    window.addEventListener('drpd-message-log-filters-changed', handleGlobalFiltersChanged)
+    return () => {
+      window.removeEventListener('drpd-message-log-filters-changed', handleGlobalFiltersChanged)
+    }
+  }, [queryAllCapturedMessages])
+
+  useEffect(() => {
     setBufferInput(configuredMaxCapturedMessages.toString())
     setBufferError(null)
   }, [configuredMaxCapturedMessages])

@@ -35,7 +35,7 @@
   border-radius: calc(2px * var(--ui-scale));
   background: transparent;
   color: var(--color-text-primary);
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-3xs);
   font-weight: var(--font-weight-normal);
   line-height: 1;
   min-height: calc(18px * var(--ui-scale));
