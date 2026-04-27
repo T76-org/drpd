@@ -61,9 +61,11 @@ export const RackRenderer = ({
         >
           <div
             className={styles.rackScroll}
+            style={{ width: rackWidthPx }}
           >
             <div
               className={styles.rackCanvas}
+              style={{ width: rackWidthPx }}
               data-rack-width={Math.round(rackWidthPx)}
               data-rack-height={rackHeightPx}
             >
