@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Device } from '../../lib/device'
 import type { DeviceIdentity } from '../../lib/device'
+import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
   CCBusRoleStatus,
@@ -56,13 +57,19 @@ import drpdLogoLight from '../../assets/drpd-logo-light.svg'
 import type {
   RackDefinition,
   RackDeviceRecord,
-  RackDocument
+  RackDocument,
+  RackInstrument,
 } from '../../lib/rack/types'
 import {
   RackRenderer,
   type RackDeviceState,
+  type RackInstrumentDragPayload,
 } from './RackRenderer'
 import { getRackCanvasSize } from './rackCanvasSize'
+import {
+  canInsertInstrumentIntoRow,
+  insertInstrumentIntoRowAtIndex,
+} from './layout'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
 import { useRackSizingConfig } from './rackSizing'
@@ -813,6 +820,8 @@ export const RackView = () => {
   )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
+  const [isRackEditMode, setIsRackEditMode] = useState(false)
+  const [draggedRackInstrumentId, setDraggedRackInstrumentId] = useState<string | null>(null)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
   const [isGlobalVbusDialogOpen, setIsGlobalVbusDialogOpen] = useState(false)
   const [globalOvpThresholdInput, setGlobalOvpThresholdInput] = useState('')
@@ -1415,6 +1424,16 @@ export const RackView = () => {
   const currentRack = activeRack
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
+  const rackInstrumentMap = useMemo(() => {
+    const map = new Map(
+      instrumentDefinitions.map((instrument) => [instrument.identifier, instrument]),
+    )
+    const drpdVbusInstrument = map.get('com.mta.drpd.vbus')
+    if (drpdVbusInstrument && !map.has('com.mta.drpd.device-status')) {
+      map.set('com.mta.drpd.device-status', drpdVbusInstrument)
+    }
+    return map
+  }, [instrumentDefinitions])
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
@@ -1426,6 +1445,69 @@ export const RackView = () => {
   const isFirmwareUploadBusy =
     firmwareUpdatePrompt != null &&
     !['prompt', 'success', 'failure'].includes(firmwareUpdatePrompt.phase)
+
+  const updateRackDocument = useCallback((updater: (document: RackDocument) => RackDocument) => {
+    setRackDocument((current) => {
+      if (!current) {
+        return current
+      }
+      const nextDocument = updater(current)
+      saveRackDocument(nextDocument)
+      const nextActiveRack =
+        nextDocument.racks.find((rack) => rack.id === activeRack?.id) ??
+        nextDocument.racks[0] ??
+        null
+      setActiveRack(nextActiveRack)
+      return nextDocument
+    })
+  }, [activeRack?.id])
+
+  const handleExportRack = useCallback(() => {
+    const document = rackDocumentRef.current ?? rackDocument
+    if (!document) {
+      return
+    }
+    downloadMessageLogPayload(
+      JSON.stringify(document, null, 2),
+      'application/json',
+      'drpd-rack.json',
+    )
+  }, [rackDocument])
+
+  const handleRemoveRackInstrument = useCallback((instrumentId: string) => {
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return {
+          ...rack,
+          rows: rack.rows
+            .map((row) => ({
+              ...row,
+              instruments: row.instruments.filter((instrument) => instrument.id !== instrumentId),
+            }))
+            .filter((row) => row.instruments.length > 0),
+        }
+      }),
+    }))
+  }, [activeRack?.id, updateRackDocument])
+
+  const handleRackInstrumentDrop = useCallback((payload: RackInstrumentDragPayload) => {
+    if (!draggedRackInstrumentId) {
+      return
+    }
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return moveRackInstrument(rack, draggedRackInstrumentId, payload, rackInstrumentMap)
+      }),
+    }))
+  }, [activeRack?.id, draggedRackInstrumentId, rackInstrumentMap, updateRackDocument])
 
   const exportSelectedMessageLog = useCallback((format: 'json' | 'csv') => {
     if (!activeDriver || !hasSelectedMessages) {
@@ -2222,6 +2304,26 @@ export const RackView = () => {
 
     return [
       {
+        id: 'rack',
+        label: 'Rack',
+        items: [
+          {
+            id: 'rack-edit',
+            type: 'checkbox',
+            label: 'Edit',
+            checked: isRackEditMode,
+            disabled: !currentRack,
+            onCheckedChange: () => setIsRackEditMode((current) => !current),
+          },
+          {
+            id: 'rack-export',
+            label: 'Export',
+            disabled: !rackDocument,
+            onSelect: handleExportRack,
+          },
+        ],
+      },
+      {
         id: 'device',
         label: 'Device',
         items: deviceItems,
@@ -2538,6 +2640,7 @@ export const RackView = () => {
     exportSelectedMessageLog,
     handleConnectPairedDevice,
     handleDisconnectDevice,
+    handleExportRack,
     handleOpenDocumentation,
     handlePulseUsbConnection,
     handleRemoveDevice,
@@ -2559,10 +2662,13 @@ export const RackView = () => {
     isMessageLogConfiguring,
     isMessageLogExporting,
     isMessageLogMarking,
+    isRackEditMode,
     messageLogFilters,
     openGlobalSinkRequestDialog,
     openGlobalTriggerConfigureDialog,
     pairedDevices,
+    currentRack,
+    rackDocument,
     theme,
     timeSinceMeterReset,
     toggleGoodCrcMessages,
@@ -2628,6 +2734,11 @@ export const RackView = () => {
             instruments={instrumentDefinitions}
             deviceStates={deviceStates}
             activeDeviceRecord={activeDeviceRecord}
+            isEditMode={isRackEditMode}
+            onRemoveInstrument={handleRemoveRackInstrument}
+            onInstrumentDragStart={setDraggedRackInstrumentId}
+            onInstrumentDrop={handleRackInstrumentDrop}
+            onInstrumentDragEnd={() => setDraggedRackInstrumentId(null)}
             onUpdateDeviceConfig={handleUpdateDeviceConfig}
           />
         ) : null}
@@ -3304,6 +3415,72 @@ const replacePairedDevices = (
   ...document,
   pairedDevices,
 })
+
+const moveRackInstrument = (
+  rack: RackDefinition,
+  instrumentId: string,
+  payload: RackInstrumentDragPayload,
+  instrumentMap: Map<string, Instrument>,
+): RackDefinition => {
+  let movedInstrument: RackInstrument | null = null
+  let rows = rack.rows.map((row) => {
+    const remainingInstruments = row.instruments.filter((instrument) => {
+      if (instrument.id !== instrumentId) {
+        return true
+      }
+      movedInstrument = instrument
+      return false
+    })
+    return {
+      ...row,
+      instruments: remainingInstruments,
+    }
+  })
+
+  if (!movedInstrument) {
+    return rack
+  }
+
+  if (payload.targetKind === 'new-row') {
+    const insertAt = Math.max(0, Math.min(payload.rowIndex, rows.length))
+    rows = [
+      ...rows.slice(0, insertAt),
+      {
+        id: createRackRowId(),
+        instruments: [movedInstrument],
+      },
+      ...rows.slice(insertAt),
+    ]
+    return {
+      ...rack,
+      rows: rows.filter((row) => row.instruments.length > 0),
+    }
+  }
+
+  const targetRowIndex = rows.findIndex((row) => row.id === payload.rowId)
+  if (targetRowIndex < 0) {
+    return rack
+  }
+
+  const targetRow = rows[targetRowIndex]
+  const insertIndex = payload.insertIndex ?? targetRow.instruments.length
+  if (!canInsertInstrumentIntoRow(targetRow, movedInstrument, insertIndex, instrumentMap)) {
+    return rack
+  }
+
+  rows = rows.map((row, index) => (
+    index === targetRowIndex
+      ? insertInstrumentIntoRowAtIndex(row, movedInstrument as RackInstrument, insertIndex)
+      : row
+  ))
+  return {
+    ...rack,
+    rows: rows.filter((row) => row.instruments.length > 0),
+  }
+}
+
+const createRackRowId = (): string =>
+  `row-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
 const upsertPairedDeviceDocument = (
   document: RackDocument,
