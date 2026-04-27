@@ -3316,7 +3316,7 @@ const HeaderVbusMetrics = ({
       <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
         <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>STATE</span>
+          <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
           <span
             className={styles.headerVbusRoleStatusValue}
             data-alert={isTriggerStateTriggered ? 'true' : 'false'}
@@ -3325,7 +3325,7 @@ const HeaderVbusMetrics = ({
           </span>
         </div>
         <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>COUNT</span>
+          <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
           <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
         </div>
       </div>
