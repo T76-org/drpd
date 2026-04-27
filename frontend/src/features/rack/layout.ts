@@ -174,6 +174,22 @@ export const resolveInstrumentMinimumSize = (
   }
 }
 
+export const resolveRowMinimumHeight = (
+  row: RackRow,
+  instrumentMap: Map<string, Instrument>,
+): string | undefined => {
+  const minHeights = Array.from(new Set(
+    row.instruments.map((instrument) => resolveInstrumentMinimumSize(instrument, instrumentMap).minHeight),
+  ))
+  if (minHeights.length === 0) {
+    return undefined
+  }
+  if (minHeights.length === 1) {
+    return minHeights[0]
+  }
+  return `max(${minHeights.join(', ')})`
+}
+
 export const resolveRowFlex = (row: RackRow): number => sanitizeFlex(row.flex) ?? 1
 
 const sanitizeFlex = (value: number | undefined): number | undefined => (

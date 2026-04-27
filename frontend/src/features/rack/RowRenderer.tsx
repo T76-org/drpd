@@ -4,6 +4,7 @@ import type { RackDeviceRecord, RackInstrument, RackRow } from '../../lib/rack/t
 import {
   resolveInstrumentFlex,
   resolveInstrumentMinimumSize,
+  resolveRowMinimumHeight,
   resolveRowFlex,
 } from './layout'
 import type { RackDeviceState, RackInstrumentDragPayload } from './RackRenderer'
@@ -64,6 +65,7 @@ export const RowRenderer = ({
     deviceStates.map((state) => [state.record.id, state]),
   )
   const rowFlex = resolveRowFlex(row)
+  const rowMinHeight = resolveRowMinimumHeight(row, instrumentMap)
 
   return (
     <div
@@ -71,6 +73,7 @@ export const RowRenderer = ({
       style={{
         flex: `${rowFlex} 1 0`,
         alignItems: 'stretch',
+        minHeight: rowMinHeight,
       }}
       data-testid={`rack-row-${row.id}`}
       data-row-flex={rowFlex}

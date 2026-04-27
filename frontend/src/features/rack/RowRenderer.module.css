@@ -9,6 +9,7 @@
   position: relative;
   width: 100%;
   min-height: 0;
+  box-sizing: border-box;
 }
 
 .instrumentSlot {
@@ -19,6 +20,7 @@
   min-width: 0;
   min-height: 0;
   padding: var(--rack-instrument-margin-px);
+  box-sizing: border-box;
 }
 
 .instrumentResizeHandle {

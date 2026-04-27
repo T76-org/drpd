@@ -101,6 +101,7 @@ describe('RackRenderer', () => {
     )
 
     expect(screen.getByTestId('rack-row-row-1')).toHaveStyle({ flex: '2 1 0px' })
+    expect(screen.getByTestId('rack-row-row-1')).toHaveStyle({ minHeight: '8rem' })
     expect(screen.getByTestId('rack-instrument-inst-1')).toHaveStyle({
       flex: '3 1 0px',
       minWidth: '12rem',

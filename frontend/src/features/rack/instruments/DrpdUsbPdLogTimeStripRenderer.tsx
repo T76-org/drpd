@@ -103,6 +103,7 @@ const floorToIntervalUs = (
 export const DrpdUsbPdLogTimeStripRenderer = ({
   viewportRef,
   width,
+  height,
   data,
   hoverPosition,
   selectedKey,
@@ -115,6 +116,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
 }: {
   viewportRef?: RefObject<HTMLDivElement>
   width: number
+  height?: number
   data: MessageLogTimeStripWindow | null
   hoverPosition: { x: number; y: number } | null
   selectedKey: string | null
@@ -129,7 +131,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     viewportRef?.current !== undefined && viewportRef.current !== null
       ? getComputedStyle(viewportRef.current)
       : null
-  const timeStripHeightPx = resolveCssLength(
+  const defaultTimeStripHeightPx = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-total-height') ?? '',
     80,
   )
@@ -141,9 +143,17 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     viewportStyle?.getPropertyValue('--timestrip-pulse-height') ?? '',
     20,
   )
-  const analogHeightPx = resolveCssLength(
+  const defaultAnalogHeightPx = resolveCssLength(
     viewportStyle?.getPropertyValue('--timestrip-analog-height') ?? '',
     50,
+  )
+  const timeStripHeightPx = Math.max(
+    defaultTimeStripHeightPx,
+    typeof height === 'number' && Number.isFinite(height) ? height : 0,
+  )
+  const analogHeightPx = Math.max(
+    defaultAnalogHeightPx,
+    timeStripHeightPx - axisHeightPx - pulseHeightPx,
   )
   const axisLabelY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
   const plotInsetLeft = resolveCssLength(
