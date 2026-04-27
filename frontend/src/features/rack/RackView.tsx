@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { Device } from '../../lib/device'
 import type { DeviceIdentity } from '../../lib/device'
-import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
   CCBusRoleStatus,
@@ -52,19 +51,14 @@ import type {
 import {
   RackRenderer,
   type RackDeviceState,
-  type RackInstrumentDragPayload
 } from './RackRenderer'
 import { getRackCanvasSize } from './rackCanvasSize'
-import {
-  canInsertInstrumentIntoRow,
-  insertInstrumentIntoRowAtIndex,
-} from './layout'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
 import { useRackSizingConfig } from './rackSizing'
 import { RACK_SHORTCUTS, matchRackShortcut } from './shortcuts'
 import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
-import { Menu, type MenuItem, type NestedMenuItem } from '../../ui/overlays'
+import { Menu, type MenuItem } from '../../ui/overlays'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -80,7 +74,6 @@ const WINUSB_INTERFACE_CLASS = 0xff
 const WINUSB_INTERFACE_SUBCLASS = 0x01
 const WINUSB_INTERFACE_PROTOCOL = 0x02
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
-const HEADER_MENU_POPOVER_Z_INDEX = 11000
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
 const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
 
@@ -116,34 +109,6 @@ type RackConsoleWindow = Window &
   typeof globalThis & {
     __drpdLogs?: DRPDLogsConsoleHelper
   }
-
-/**
- * Describes a drag interaction while editing the rack layout.
- */
-interface DragState {
-  ///< Instrument id being dragged.
-  instrumentId: string
-  ///< Snapshot of the rack at drag start.
-  snapshot: RackDefinition
-  ///< Whether a drop was completed.
-  didDrop: boolean
-  ///< Last target key to reduce redundant updates.
-  lastTargetKey?: string
-}
-
-/**
- * Describes a drop target for a dragged instrument.
- */
-interface DropTarget {
-  ///< Drop mode indicating placement behavior.
-  mode: 'insertIntoRow' | 'insertAsNewRow'
-  ///< Target row id for row insertion behavior.
-  rowId?: string
-  ///< Target row index for insertion behavior.
-  rowIndex: number
-  ///< In-row insertion index for row insertion behavior.
-  insertIndex?: number
-}
 
 /**
  * Runtime details for a connected device.
@@ -457,6 +422,20 @@ const formatHeaderCompactNumber = (value: number): string => {
   return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)
 }
 
+const formatHeaderElapsed = (elapsedUs: bigint | null | undefined): string => {
+  if (elapsedUs == null) {
+    return '--:--:--'
+  }
+  const totalSeconds = Number(elapsedUs / 1_000_000n)
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return '--:--:--'
+  }
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map((part) => part.toString().padStart(2, '0')).join(':')
+}
+
 const formatHeaderSinkContract = (sinkInfo: SinkInfo | null): string => {
   if (
     !sinkInfo ||
@@ -533,45 +512,16 @@ export const RackView = () => {
   )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
-  const [latestFirmwareVersion, setLatestFirmwareVersion] = useState<string | null>(null)
-  const [isEditMode, setIsEditMode] = useState(false)
-  const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
-  const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
-    undefined,
-  )
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
-  const instrumentMenuRef = useRef<HTMLDivElement | null>(null)
-  const instrumentMenuButtonRef = useRef<HTMLButtonElement | null>(null)
-  const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
-  const editSnapshotRef = useRef<RackDefinition | null>(null)
-  const dragStateRef = useRef<DragState | null>(null)
   const firmwareUpdateActiveRef = useRef(false)
   const rackSizing = useRackSizingConfig()
 
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
   const instrumentDefinitions = useMemo(() => getSupportedInstruments(), [])
-  const instrumentDefinitionMap = useMemo(
-    () => {
-      const map = new Map(
-        instrumentDefinitions.map((instrument) => [
-          instrument.identifier,
-          instrument
-        ]),
-      )
-      const drpdVbusInstrument = map.get('com.mta.drpd.vbus')
-      if (drpdVbusInstrument && !map.has('com.mta.drpd.device-status')) {
-        // Legacy identifier support for pre-rename saved rack documents.
-        map.set('com.mta.drpd.device-status', drpdVbusInstrument)
-      }
-      return map
-    },
-    [instrumentDefinitions],
-  )
   const pairedDevices = rackDocument?.pairedDevices ?? EMPTY_PAIRED_DEVICES
   const activeConnectedDeviceState = useMemo(
     () => deviceStates.find((state) => state.status === 'connected'),
@@ -617,29 +567,8 @@ export const RackView = () => {
   }, [])
 
   useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null
-      const popoverElement = headerMenuPopoverRef.current
-      if (isInstrumentMenuOpen && instrumentMenuRef.current) {
-        if (
-          target &&
-          !instrumentMenuRef.current.contains(target) &&
-          !(popoverElement && popoverElement.contains(target))
-        ) {
-          setIsInstrumentMenuOpen(false)
-        }
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-    }
-  }, [isInstrumentMenuOpen])
-
-  useEffect(() => {
     /**
-     * Close menus when the user presses Escape.
+     * Close shortcut help when the user presses Escape.
      *
      * @param event - Keyboard event.
      */
@@ -650,81 +579,13 @@ export const RackView = () => {
       if (isShortcutHelpOpen) {
         setIsShortcutHelpOpen(false)
       }
-      if (isInstrumentMenuOpen) {
-        setIsInstrumentMenuOpen(false)
-      }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isInstrumentMenuOpen, isShortcutHelpOpen])
-
-  const updateHeaderMenuLayout = useCallback(() => {
-    const anchor = isInstrumentMenuOpen ? instrumentMenuButtonRef.current : null
-    const popover = headerMenuPopoverRef.current
-    if (!anchor || !popover) {
-      return
-    }
-
-    const viewportInsetPx = rackSizing.popoverViewportInsetPx
-    const popoverGapPx = rackSizing.popoverGapPx
-    const buttonRect = anchor.getBoundingClientRect()
-    const popoverRect = popover.getBoundingClientRect()
-    const width = popoverRect.width
-    const height = popoverRect.height
-
-    let left = buttonRect.right - width
-    left = Math.max(
-      viewportInsetPx,
-      Math.min(left, window.innerWidth - width - viewportInsetPx),
-    )
-
-    const belowTop = buttonRect.bottom + popoverGapPx
-    const belowSpace = window.innerHeight - belowTop - viewportInsetPx
-    const aboveSpace = buttonRect.top - popoverGapPx - viewportInsetPx
-    const shouldOpenAbove = belowSpace < height && aboveSpace > belowSpace
-    const maxHeight = Math.max(120, Math.floor(shouldOpenAbove ? aboveSpace : belowSpace))
-
-    let top = belowTop
-    if (shouldOpenAbove) {
-      top = Math.max(
-        viewportInsetPx,
-        buttonRect.top - popoverGapPx - Math.min(height, maxHeight),
-      )
-    } else {
-      top = Math.min(top, window.innerHeight - viewportInsetPx - Math.min(height, maxHeight))
-    }
-
-    setHeaderMenuInlineStyle({
-      left: `${Math.round(left)}px`,
-      top: `${Math.round(top)}px`,
-      maxHeight: `${Math.round(maxHeight)}px`,
-    })
-  }, [
-    isInstrumentMenuOpen,
-    rackSizing.popoverGapPx,
-    rackSizing.popoverViewportInsetPx,
-  ])
-
-  useLayoutEffect(() => {
-    if (!isInstrumentMenuOpen) {
-      setHeaderMenuInlineStyle(undefined)
-      return undefined
-    }
-
-    const runLayout = () => {
-      updateHeaderMenuLayout()
-    }
-    runLayout()
-    window.addEventListener('resize', runLayout)
-    window.addEventListener('scroll', runLayout, true)
-    return () => {
-      window.removeEventListener('resize', runLayout)
-      window.removeEventListener('scroll', runLayout, true)
-    }
-  }, [isInstrumentMenuOpen, updateHeaderMenuLayout])
+  }, [isShortcutHelpOpen])
 
   useEffect(() => {
     /** Apply the current theme to the document. */
@@ -1077,7 +938,6 @@ export const RackView = () => {
       })
       const channel = firmwareUpdateChannelRef.current
       const candidate = selectReleaseForChannel(releases, channel)
-      setLatestFirmwareVersion(candidate?.versionText ?? null)
       console.info(
         `[firmware-update] channel=${channel} discovered=${releases.length} candidate=${candidate?.versionText ?? 'none'}`,
       )
@@ -1225,13 +1085,9 @@ export const RackView = () => {
     })
   }, [pairedDevices, deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
-  const activeDeviceSerialNumber =
-    activeDeviceRecord?.deviceSerialNumber ?? activeDeviceRecord?.serialNumber ?? 'Unknown'
-  const activeDeviceFirmwareVersion =
-    firmwareUpdatePrompt?.currentVersion ?? activeDeviceRecord?.firmwareVersion ?? 'Unknown'
-  const latestReportedFirmwareVersion =
-    firmwareUpdatePrompt?.targetRelease.versionText ?? latestFirmwareVersion ?? 'Unknown'
-  const currentRack = isEditMode ? draftRack ?? activeRack : activeRack
+  const currentRack = activeRack
+  const activeDriver = activeConnectedDeviceState?.drpdDriver
+  const activeDriverState = activeDriver?.getState()
   const isFirmwareUploadBusy =
     firmwareUpdatePrompt != null &&
     !['prompt', 'success', 'failure'].includes(firmwareUpdatePrompt.phase)
@@ -1427,6 +1283,38 @@ export const RackView = () => {
     }
   }
 
+  /** Connect a paired device without opening the WebUSB picker. */
+  const handleConnectPairedDevice = async (recordId: string) => {
+    const record = pairedDevices.find((device) => device.id === recordId)
+    if (!record) {
+      return
+    }
+    const definition = deviceDefinitions.find(
+      (candidate) => candidate.identifier === record.identifier,
+    )
+    if (!definition) {
+      setDeviceError('No matching device definition found.')
+      return
+    }
+    await reconnectRackDeviceRecord({
+      record,
+      definition,
+      onUpdate: setDeviceStates,
+      onPersistRecord: (nextRecord) => {
+        setRackDocument((current) => {
+          if (!current) {
+            return current
+          }
+          const nextDocument = upsertPairedDeviceDocument(current, nextRecord)
+          saveRackDocument(nextDocument)
+          return nextDocument
+        })
+      },
+      onError: setDeviceError,
+      onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
+    })
+  }
+
   /** Disconnect a device without removing it from the rack. */
   const handleDisconnectDevice = async (recordId: string) => {
     setDeviceError(null)
@@ -1473,169 +1361,75 @@ export const RackView = () => {
     )
   }
 
-  const applicationMenuItems = useMemo<MenuItem[]>(() => {
-    const currentDeviceItems: NestedMenuItem[] = activeDeviceRecord
-      ? [
-          {
-            id: 'current-device',
-            type: 'submenu',
-            label: `Current device: ${activeDeviceSerialNumber}`,
-            items: [
-              {
-                id: 'disconnect-current-device',
-                label: 'Disconnect',
-                onSelect: () => {
-                  void handleDisconnectDevice(activeDeviceRecord.id)
-                },
-              },
-              {
-                id: 'unpair-current-device',
-                label: 'Unpair',
-                destructive: true,
-                onSelect: () => {
-                  void handleRemoveDevice(activeDeviceRecord.id)
-                },
-              },
-            ],
-          },
-        ]
-      : [
-          {
-            id: 'current-device-none',
-            label: 'Current device: None',
-            disabled: true,
-            onSelect: () => undefined,
-          },
-        ]
-
-    return [
-      {
-        id: 'devices',
-        type: 'submenu',
-        label: 'Devices',
-        items: [
-          ...currentDeviceItems,
-          {
-            id: 'pair-new-device',
-            label: 'Pair new device',
-            onSelect: () => {
-              void handleConnectDevice()
-            },
-          },
-        ],
-      },
-      {
-        id: 'theme',
-        type: 'submenu',
-        label: 'Theme',
-        items: [
-          {
-            id: 'theme-system',
-            type: 'checkbox',
-            label: 'System',
-            checked: theme === 'system',
-            onCheckedChange: () => setTheme('system'),
-          },
-          {
-            id: 'theme-light',
-            type: 'checkbox',
-            label: 'Light',
-            checked: theme === 'light',
-            onCheckedChange: () => setTheme('light'),
-          },
-          {
-            id: 'theme-dark',
-            type: 'checkbox',
-            label: 'Dark',
-            checked: theme === 'dark',
-            onCheckedChange: () => setTheme('dark'),
-          },
-        ],
-      },
-      {
-        id: 'firmware-updates',
-        type: 'submenu',
-        label: 'Firmware updates',
-        disabled: !activeDeviceRecord,
-        items: [
-          {
-            id: 'current-firmware',
-            label: `Current firmware: ${activeDeviceFirmwareVersion}`,
-            disabled: true,
-            onSelect: () => undefined,
-          },
-          {
-            id: 'latest-firmware',
-            label: `Latest firmware: ${latestReportedFirmwareVersion}`,
-            disabled: true,
-            onSelect: () => undefined,
-          },
-          {
-            id: 'firmware-channel',
-            type: 'submenu',
-            label: `Update channel: ${firmwareUpdateChannel}`,
-            items: [
-              {
-                id: 'firmware-channel-production',
-                type: 'checkbox',
-                label: 'Production',
-                checked: firmwareUpdateChannel === 'production',
-                onCheckedChange: () => setFirmwareUpdateChannel('production'),
-              },
-              {
-                id: 'firmware-channel-beta',
-                type: 'checkbox',
-                label: 'Beta',
-                checked: firmwareUpdateChannel === 'beta',
-                onCheckedChange: () => setFirmwareUpdateChannel('beta'),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'help',
-        type: 'submenu',
-        label: 'Help',
-        items: [
-          {
-            id: 'keyboard-shortcuts',
-            label: 'Keyboard shortcuts',
-            onSelect: () => setIsShortcutHelpOpen(true),
-          },
-          {
-            id: 'documentation',
-            label: 'Documentation',
-            onSelect: handleOpenDocumentation,
-          },
-        ],
-      },
-    ]
-  }, [
-    activeDeviceFirmwareVersion,
-    activeDeviceRecord,
-    activeDeviceSerialNumber,
-    firmwareUpdateChannel,
-    latestReportedFirmwareVersion,
-    theme,
-  ])
-
-  /**
-   * Apply a rack layout update, respecting edit mode.
-   */
-  const applyLayoutUpdate = (nextRack: RackDefinition) => {
-    if (!rackDocument) {
+  const handleSetProtectionThresholds = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
       return
     }
-    if (isEditMode) {
-      setDraftRack(nextRack)
+    const state = driver.getState()
+    const ovpDefault = state.vbusInfo?.ovpThresholdMv != null
+      ? (state.vbusInfo.ovpThresholdMv / 1000).toFixed(2)
+      : ''
+    const ocpDefault = state.vbusInfo?.ocpThresholdMa != null
+      ? (state.vbusInfo.ocpThresholdMa / 1000).toFixed(2)
+      : ''
+    const ovpInput = window.prompt('Set OVP threshold in volts', ovpDefault)
+    if (ovpInput == null) {
       return
     }
-    const nextDocument = replaceRack(rackDocument, nextRack)
-    setRackDocument(nextDocument)
-    setActiveRack(nextRack)
-    saveRackDocument(nextDocument)
-  }
+    const ocpInput = window.prompt('Set OCP threshold in amps', ocpDefault)
+    if (ocpInput == null) {
+      return
+    }
+    const ovpV = Number.parseFloat(ovpInput)
+    const ocpA = Number.parseFloat(ocpInput)
+    if (!Number.isFinite(ovpV) || !Number.isFinite(ocpA)) {
+      setDeviceError('Invalid OVP/OCP threshold.')
+      return
+    }
+    try {
+      await driver.vbus.setOvpThresholdMv(Math.round(ovpV * 1000))
+      await driver.vbus.setOcpThresholdMa(Math.round(ocpA * 1000))
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const handleResetProtection = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    try {
+      await driver.vbus.resetFault()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const handleResetPowerChargeMeter = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    try {
+      await driver.analogMonitor.resetAccumulatedMeasurements()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const handleResetTrigger = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    try {
+      await driver.trigger.reset()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
 
   const handleUpdateDeviceConfig = useCallback(async (
     deviceRecordId: string,
@@ -1796,176 +1590,327 @@ export const RackView = () => {
     }
   }, [handlePulseUsbConnection, handleSetActiveDeviceRole, handleToggleActiveDeviceCapture])
 
-  /** Add a compatible instrument to the rack. */
-  const handleAddInstrument = (instrumentIdentifier: string) => {
-    if (!currentRack || !rackDocument) {
-      return
-    }
-    const instrumentDefinition = instrumentDefinitions.find(
-      (instrument) => instrument.identifier === instrumentIdentifier,
-    )
-    if (!instrumentDefinition) {
-      return
-    }
-    const newRowId = `row-${Date.now()}`
-    const newInstrumentId = `inst-${Date.now()}`
-    const nextRow = {
-      id: newRowId,
-      instruments: [
-        {
-          id: newInstrumentId,
-          instrumentIdentifier,
-        }
-      ]
-    }
-    const nextRack: RackDefinition = {
-      ...currentRack,
-      rows: [...currentRack.rows, nextRow]
-    }
-    applyLayoutUpdate(nextRack)
-    setIsInstrumentMenuOpen(false)
-  }
-
-  /**
-   * Enter rack edit mode and snapshot the current layout.
-   */
-  const handleEnterEditMode = () => {
-    if (!activeRack) {
-      return
-    }
-    const snapshot = cloneRackDefinition(activeRack)
-    editSnapshotRef.current = snapshot
-    setDraftRack(snapshot)
-    setIsEditMode(true)
-    setIsInstrumentMenuOpen(false)
-  }
-
-  /**
-   * Cancel edits and restore the previous layout.
-   */
-  const handleCancelEditMode = () => {
-    setIsEditMode(false)
-    setDraftRack(null)
-    editSnapshotRef.current = null
-    dragStateRef.current = null
-  }
-
-  /**
-   * Commit edits and persist the rack layout.
-   */
-  const handleSaveEditMode = () => {
-    if (!draftRack || !rackDocument) {
-      return
-    }
-    const nextDocument = replaceRack(rackDocument, draftRack)
-    setRackDocument(nextDocument)
-    setActiveRack(draftRack)
-    saveRackDocument(nextDocument)
-    setIsEditMode(false)
-    setDraftRack(null)
-    editSnapshotRef.current = null
-  }
-
-  /**
-   * Remove an instrument from the rack layout.
-   */
-  const handleRemoveInstrument = (instrumentId: string) => {
-    if (!currentRack) {
-      return
-    }
-    const nextRack = removeInstrumentFromRack(currentRack, instrumentId)
-    applyLayoutUpdate(nextRack)
-  }
-
-  /**
-   * Start a drag interaction for an instrument.
-   */
-  const handleInstrumentDragStart = (instrumentId: string) => {
-    if (!isEditMode || !currentRack) {
-      return
-    }
-    dragStateRef.current = {
-      instrumentId,
-      snapshot: cloneRackDefinition(currentRack),
-      didDrop: false
-    }
-  }
-
-  /**
-   * Update the layout preview while dragging an instrument.
-   */
-  const handleInstrumentDragOver = (payload: RackInstrumentDragPayload) => {
-    const dragState = dragStateRef.current
-    if (!isEditMode || !dragState) {
-      return
-    }
-    const target = getDropTarget({
-      rack: dragState.snapshot,
-      payload
-    })
-    const targetKey = buildDropTargetKey(target)
-    if (dragState.lastTargetKey === targetKey) {
-      return
-    }
-    dragState.lastTargetKey = targetKey
-    const nextRack = moveInstrumentInRack(
-      dragState.snapshot,
-      dragState.instrumentId,
-      target,
-      instrumentDefinitionMap,
-      rackSizing.maxRowWidthUnits,
-    )
-    setDraftRack(nextRack)
-  }
-
-  /**
-   * Commit a drag and drop interaction.
-   */
-  const handleInstrumentDrop = (payload: RackInstrumentDragPayload) => {
-    const dragState = dragStateRef.current
-    if (!isEditMode || !dragState) {
-      return
-    }
-    const target = getDropTarget({
-      rack: dragState.snapshot,
-      payload
-    })
-    const nextRack = moveInstrumentInRack(
-      dragState.snapshot,
-      dragState.instrumentId,
-      target,
-      instrumentDefinitionMap,
-      rackSizing.maxRowWidthUnits,
-    )
-    dragState.didDrop = true
-    dragState.snapshot = nextRack
-    setDraftRack(nextRack)
-  }
-
-  /**
-   * Restore the layout if a drag is cancelled.
-   */
-  const handleInstrumentDragEnd = () => {
-    const dragState = dragStateRef.current
-    if (!dragState) {
-      return
-    }
-    if (!dragState.didDrop) {
-      setDraftRack(dragState.snapshot)
-    }
-    dragStateRef.current = null
-  }
-
-  const compatibleInstruments = currentRack
-    ? instrumentDefinitions
-    : []
   const rackCanvasWidthPx = currentRack
     ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
     : null
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
+  const activeVbusInfo = activeDriverState?.vbusInfo ?? null
+  const activeTriggerInfo = activeDriverState?.triggerInfo ?? null
+  const isProtectionTriggered =
+    activeVbusInfo?.status === VBusStatus.OVP || activeVbusInfo?.status === VBusStatus.OCP
+  const isTriggerActivated = activeTriggerInfo?.status === TriggerStatus.TRIGGERED
+  const isSinkMode = activeDriverState?.role === CCBusRole.SINK
+  const timeSinceMeterReset = formatHeaderElapsed(activeDriverState?.analogMonitor?.accumulationElapsedTimeUs)
+  const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
+    const deviceItems: MenuItem[] = [
+      {
+        id: 'pair-new-device',
+        label: 'Pair new device...',
+        onSelect: () => {
+          void handleConnectDevice()
+        },
+      },
+      {
+        id: 'device-separator',
+        type: 'separator',
+      },
+      ...(pairedDevices.length > 0
+        ? pairedDevices.map((record) => {
+            const state = deviceStates.find((entry) => entry.record.id === record.id)
+            const isConnected = state?.status === 'connected'
+            return {
+              id: `paired-device-${record.id}`,
+              type: 'submenu' as const,
+              label: record.displayName,
+              items: [
+                {
+                  id: `paired-device-${record.id}-firmware`,
+                  label: `Firmware version: ${record.firmwareVersion ?? 'Unknown'}`,
+                  disabled: true,
+                  onSelect: () => undefined,
+                },
+                {
+                  id: `paired-device-${record.id}-separator`,
+                  type: 'separator' as const,
+                },
+                {
+                  id: `paired-device-${record.id}-connection`,
+                  label: isConnected ? 'Disconnect' : 'Connect',
+                  onSelect: () => {
+                    if (isConnected) {
+                      void handleDisconnectDevice(record.id)
+                      return
+                    }
+                    void handleConnectPairedDevice(record.id)
+                  },
+                },
+                {
+                  id: `paired-device-${record.id}-unpair`,
+                  label: 'Unpair',
+                  destructive: true,
+                  onSelect: () => {
+                    void handleRemoveDevice(record.id)
+                  },
+                },
+              ],
+            } satisfies MenuItem
+          })
+        : [
+            {
+              id: 'no-paired-devices',
+              label: 'No paired devices',
+              disabled: true,
+              onSelect: () => undefined,
+            } satisfies MenuItem,
+          ]),
+    ]
+
+    return [
+      {
+        id: 'device',
+        label: 'Device',
+        items: deviceItems,
+      },
+      {
+        id: 'protection',
+        label: 'Protection',
+        items: [
+          {
+            id: 'set-protection-thresholds',
+            label: 'Set thresholds...',
+            disabled: !activeDriver,
+            onSelect: () => {
+              void handleSetProtectionThresholds()
+            },
+          },
+          {
+            id: 'reset-protection',
+            label: 'Reset',
+            disabled: !activeDriver || !isProtectionTriggered,
+            onSelect: () => {
+              void handleResetProtection()
+            },
+          },
+        ],
+      },
+      {
+        id: 'power-charge-meter',
+        label: 'Power/Charge Meter',
+        items: [
+          {
+            id: 'reset-power-charge-meter',
+            label: 'Reset',
+            disabled: !activeDriver,
+            onSelect: () => {
+              void handleResetPowerChargeMeter()
+            },
+          },
+          {
+            id: 'time-since-reset',
+            label: `Time since reset  ${timeSinceMeterReset}`,
+            disabled: true,
+            onSelect: () => undefined,
+          },
+        ],
+      },
+      {
+        id: 'mode',
+        label: 'Mode',
+        items: [
+          {
+            id: 'set-mode',
+            type: 'submenu',
+            label: 'Set mode',
+            items: [
+              {
+                id: 'mode-disabled',
+                type: 'checkbox',
+                label: 'Disabled',
+                checked: activeDriverState?.role === CCBusRole.DISABLED,
+                disabled: !activeDriver,
+                onCheckedChange: () => {
+                  void handleSetActiveDeviceRole(CCBusRole.DISABLED)
+                },
+              },
+              {
+                id: 'mode-observer',
+                type: 'checkbox',
+                label: 'Observer',
+                checked: activeDriverState?.role === CCBusRole.OBSERVER,
+                disabled: !activeDriver,
+                onCheckedChange: () => {
+                  void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
+                },
+              },
+              {
+                id: 'mode-sink',
+                type: 'checkbox',
+                label: 'Sink',
+                checked: activeDriverState?.role === CCBusRole.SINK,
+                disabled: !activeDriver,
+                onCheckedChange: () => {
+                  void handleSetActiveDeviceRole(CCBusRole.SINK)
+                },
+              },
+            ],
+          },
+          {
+            id: 'choose-power-contract',
+            label: 'Choose power contract...',
+            disabled: !activeDriver || !isSinkMode,
+            onSelect: () => {
+              window.alert('Choose power contract dialog is not implemented yet.')
+            },
+          },
+        ],
+      },
+      {
+        id: 'trigger',
+        label: 'Trigger',
+        items: [
+          {
+            id: 'configure-trigger',
+            label: 'Configure...',
+            disabled: !activeDriver,
+            onSelect: () => {
+              window.alert('Trigger configuration dialog is not implemented yet.')
+            },
+          },
+          {
+            id: 'reset-trigger',
+            label: 'Reset',
+            disabled: !activeDriver || !isTriggerActivated,
+            onSelect: () => {
+              void handleResetTrigger()
+            },
+          },
+        ],
+      },
+      {
+        id: 'firmware',
+        label: 'Firmware',
+        items: [
+          {
+            id: 'update-firmware',
+            label: 'Update firmware...',
+            disabled: !firmwareUpdatePrompt || isFirmwareUploadBusy,
+            onSelect: () => undefined,
+          },
+          {
+            id: 'firmware-channel',
+            type: 'submenu',
+            label: 'Update channel',
+            items: [
+              {
+                id: 'firmware-channel-production',
+                type: 'checkbox',
+                label: 'Production',
+                checked: firmwareUpdateChannel === 'production',
+                onCheckedChange: () => setFirmwareUpdateChannel('production'),
+              },
+              {
+                id: 'firmware-channel-beta',
+                type: 'checkbox',
+                label: 'Beta',
+                checked: firmwareUpdateChannel === 'beta',
+                onCheckedChange: () => setFirmwareUpdateChannel('beta'),
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'theme',
+        label: 'Theme',
+        items: [
+          {
+            id: 'theme-light',
+            type: 'checkbox',
+            label: 'Light',
+            checked: theme === 'light',
+            onCheckedChange: () => setTheme('light'),
+          },
+          {
+            id: 'theme-dark',
+            type: 'checkbox',
+            label: 'Dark',
+            checked: theme === 'dark',
+            onCheckedChange: () => setTheme('dark'),
+          },
+          {
+            id: 'theme-system',
+            type: 'checkbox',
+            label: 'System default',
+            checked: theme === 'system',
+            onCheckedChange: () => setTheme('system'),
+          },
+        ],
+      },
+      {
+        id: 'help',
+        label: 'Help',
+        items: [
+          {
+            id: 'keyboard-shortcuts',
+            label: 'Keyboard shortcuts...',
+            onSelect: () => setIsShortcutHelpOpen(true),
+          },
+          {
+            id: 'user-manual',
+            label: 'User manual...',
+            onSelect: handleOpenDocumentation,
+          },
+        ],
+      },
+    ]
+  }, [
+    activeDriver,
+    activeDriverState?.role,
+    deviceStates,
+    firmwareUpdateChannel,
+    firmwareUpdatePrompt,
+    handleConnectPairedDevice,
+    handleDisconnectDevice,
+    handleOpenDocumentation,
+    handleRemoveDevice,
+    handleResetPowerChargeMeter,
+    handleResetProtection,
+    handleResetTrigger,
+    handleSetActiveDeviceRole,
+    handleSetProtectionThresholds,
+    isFirmwareUploadBusy,
+    isProtectionTriggered,
+    isSinkMode,
+    isTriggerActivated,
+    pairedDevices,
+    theme,
+    timeSinceMeterReset,
+  ])
 
   return (
     <div className={styles.page}>
+      <div className={styles.menuBarViewport}>
+        <div className={styles.menuBarScroll}>
+          <div
+            className={styles.menuBar}
+            style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
+          >
+            {menuBarMenus.map((menu) => (
+              <Menu
+                key={menu.id}
+                label={`${menu.label} menu`}
+                align="start"
+                items={menu.items}
+                trigger={(props) => (
+                  <button type="button" className={styles.menuBarButton} {...props}>
+                    {menu.label}
+                  </button>
+                )}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
       {!currentRack?.hideHeader ? (
         <div className={styles.headerViewport}>
           <div className={styles.headerScroll}>
@@ -1979,102 +1924,6 @@ export const RackView = () => {
                   <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
                 </h1>
                 <HeaderVbusMetrics driver={activeConnectedDeviceState?.drpdDriver} />
-              </div>
-              <div className={styles.headerActions}>
-                {!isEditMode ? (
-                  <button
-                    type="button"
-                    className={styles.editButton}
-                    onClick={handleEnterEditMode}
-                  >
-                    Edit
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className={styles.editButtonSecondary}
-                      onClick={handleCancelEditMode}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.editButtonPrimary}
-                      onClick={handleSaveEditMode}
-                    >
-                      Save
-                    </button>
-                  </>
-                )}
-                {currentRack &&
-                !currentRack.hideHeader ? (
-                  <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
-                    <button
-                      type="button"
-                      className={styles.deviceMenuButton}
-                      ref={instrumentMenuButtonRef}
-                      onClick={() =>
-                        setIsInstrumentMenuOpen((open) => !open)
-                      }
-                    >
-                      Add Instrument
-                    </button>
-                    {isInstrumentMenuOpen ? (
-                      typeof document !== 'undefined'
-                        ? createPortal(
-                            <div
-                              className={styles.instrumentMenuPanel}
-                              ref={headerMenuPopoverRef}
-                              style={{
-                                ...headerMenuInlineStyle,
-                                zIndex: HEADER_MENU_POPOVER_Z_INDEX,
-                                visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
-                              }}
-                            >
-                              {compatibleInstruments.length === 0 ? (
-                                <div className={styles.instrumentMenuEmpty}>
-                                  No compatible instruments
-                                </div>
-                              ) : (
-                                <ul className={styles.instrumentMenuList}>
-                                  {compatibleInstruments.map((instrument) => (
-                                    <li key={instrument.identifier}>
-                                      <button
-                                        type="button"
-                                        className={styles.instrumentMenuItem}
-                                        onClick={() =>
-                                          handleAddInstrument(instrument.identifier)
-                                        }
-                                      >
-                                        {instrument.displayName}
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>,
-                            document.body,
-                          )
-                        : null
-                    ) : null}
-                  </div>
-                ) : null}
-                <Menu
-                  label="Application menu"
-                  align="end"
-                  items={applicationMenuItems}
-                  trigger={(props) => (
-                    <button
-                      type="button"
-                      className={styles.menuButton}
-                      disabled={isEditMode}
-                      {...props}
-                    >
-                      Settings
-                    </button>
-                  )}
-                />
               </div>
             </header>
           </div>
@@ -2098,12 +1947,6 @@ export const RackView = () => {
             instruments={instrumentDefinitions}
             deviceStates={deviceStates}
             activeDeviceRecord={activeDeviceRecord}
-            isEditMode={isEditMode}
-            onRemoveInstrument={handleRemoveInstrument}
-            onInstrumentDragStart={handleInstrumentDragStart}
-            onInstrumentDragOver={handleInstrumentDragOver}
-            onInstrumentDrop={handleInstrumentDrop}
-            onInstrumentDragEnd={handleInstrumentDragEnd}
             onUpdateDeviceConfig={handleUpdateDeviceConfig}
           />
         ) : null}
@@ -2673,25 +2516,6 @@ const upsertPairedDeviceDocument = (
 ): RackDocument => replacePairedDevices(document, upsertDevice(document.pairedDevices ?? [], record))
 
 /**
- * Replace a rack in the rack document.
- *
- * @param document - Current rack document.
- * @param rack - Updated rack definition.
- * @returns Updated rack document.
- */
-const replaceRack = (
-  document: RackDocument,
-  rack: RackDefinition,
-): RackDocument => {
-  return {
-    ...document,
-    racks: document.racks.map((existing) =>
-      existing.id === rack.id ? rack : existing,
-    )
-  }
-}
-
-/**
  * Build a rack device record from a selected USB device.
  *
  * @param definition - Matching device definition.
@@ -3251,188 +3075,4 @@ const isUserCancelError = (error: unknown): boolean => {
   const message =
     error instanceof Error ? error.message : String(error)
   return message.toLowerCase().includes('no device selected')
-}
-
-/**
- * Create a deep clone of a rack definition.
- *
- * @param rack - Rack definition to clone.
- * @returns Deep clone of the rack.
- */
-const cloneRackDefinition = (rack: RackDefinition): RackDefinition => {
-  return JSON.parse(JSON.stringify(rack)) as RackDefinition
-}
-
-/**
- * Remove an instrument from a rack and prune empty rows.
- *
- * @param rack - Rack definition.
- * @param instrumentId - Instrument instance id.
- * @returns Updated rack definition.
- */
-const removeInstrumentFromRack = (
-  rack: RackDefinition,
-  instrumentId: string,
-): RackDefinition => {
-  const rows = rack.rows
-    .map((row) => ({
-      ...row,
-      instruments: row.instruments.filter(
-        (instrument) => instrument.id !== instrumentId,
-      )
-    }))
-    .filter((row) => row.instruments.length > 0)
-
-  return { ...rack, rows }
-}
-
-/**
- * Build a key for identifying drag preview targets.
- *
- * @param target - Drop target descriptor.
- * @returns Unique key for the target.
- */
-const buildDropTargetKey = (target: DropTarget): string => {
-  return `${target.mode}:${target.rowId ?? 'none'}:${target.rowIndex}:${
-    target.insertIndex ?? -1
-  }`
-}
-
-/**
- * Resolve a drag payload into a drop target description.
- *
- * @param params - Input parameters.
- * @returns Drop target description.
- */
-const getDropTarget = ({
-  rack,
-  payload,
-}: {
-  rack: RackDefinition
-  payload: RackInstrumentDragPayload
-}): DropTarget => {
-  if (payload.targetKind === 'new-row') {
-    return {
-      mode: 'insertAsNewRow',
-      rowIndex: Math.max(0, Math.min(payload.rowIndex, rack.rows.length))
-    }
-  }
-  const targetRow = payload.rowId
-    ? rack.rows.find((row) => row.id === payload.rowId)
-    : null
-  if (!targetRow) {
-    return {
-      mode: 'insertAsNewRow',
-      rowIndex: Math.max(0, Math.min(payload.rowIndex, rack.rows.length))
-    }
-  }
-  return {
-    mode: 'insertIntoRow',
-    rowId: payload.rowId,
-    rowIndex: payload.rowIndex,
-    insertIndex:
-      payload.insertIndex == null
-        ? targetRow.instruments.length
-        : Math.max(0, Math.min(payload.insertIndex, targetRow.instruments.length))
-  }
-}
-
-/**
- * Move an instrument within a rack definition.
- *
- * @param rack - Rack definition.
- * @param instrumentId - Instrument instance id.
- * @param target - Drop target descriptor.
- * @param instrumentMap - Instrument definition map.
- * @returns Updated rack definition.
- */
-const moveInstrumentInRack = (
-  rack: RackDefinition,
-  instrumentId: string,
-  target: DropTarget,
-  instrumentMap: Map<string, Instrument>,
-  maxRowWidthUnits: number,
-): RackDefinition => {
-  const extraction = extractInstrumentFromRack(rack, instrumentId)
-  if (!extraction.removedInstrument) {
-    return rack
-  }
-  const rows = extraction.rows
-  if (target.mode === 'insertIntoRow') {
-    const targetIndex = target.rowId
-      ? rows.findIndex((row) => row.id === target.rowId)
-      : -1
-    if (targetIndex >= 0) {
-      const targetRow = rows[targetIndex]
-      const insertIndex = Math.max(
-        0,
-        Math.min(target.insertIndex ?? targetRow.instruments.length, targetRow.instruments.length),
-      )
-      if (
-        canInsertInstrumentIntoRow(
-          targetRow,
-          extraction.removedInstrument,
-          insertIndex,
-          instrumentMap,
-          maxRowWidthUnits,
-        )
-      ) {
-        const nextRow = insertInstrumentIntoRowAtIndex(
-          targetRow,
-          extraction.removedInstrument,
-          insertIndex,
-        )
-        return {
-          ...rack,
-          rows: rows.map((row, index) => (index === targetIndex ? nextRow : row))
-        }
-      }
-    }
-  }
-  const insertionIndex = Math.max(0, Math.min(target.rowIndex, rows.length))
-  const nextRow = {
-    id: `row-${Date.now()}`,
-    instruments: [extraction.removedInstrument]
-  }
-  return {
-    ...rack,
-    rows: [
-      ...rows.slice(0, insertionIndex),
-      nextRow,
-      ...rows.slice(insertionIndex)
-    ]
-  }
-}
-
-/**
- * Extract a single instrument from the rack.
- *
- * @param rack - Rack definition.
- * @param instrumentId - Instrument instance id.
- * @returns Extracted instrument and remaining rows.
- */
-const extractInstrumentFromRack = (
-  rack: RackDefinition,
-  instrumentId: string,
-): {
-  rows: RackDefinition['rows']
-  removedInstrument?: RackDefinition['rows'][number]['instruments'][number]
-} => {
-  let removedInstrument:
-    | RackDefinition['rows'][number]['instruments'][number]
-    | undefined
-  const rows = rack.rows
-    .map((row) => {
-      const remaining = row.instruments.filter((instrument) => {
-        if (instrument.id === instrumentId) {
-          removedInstrument = instrument
-          return false
-        }
-        return true
-      })
-      return { ...row, instruments: remaining }
-    })
-    .filter((row) => row.instruments.length > 0)
-
-  return { rows, removedInstrument }
 }

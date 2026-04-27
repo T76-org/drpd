@@ -7,6 +7,51 @@
   color: var(--color-text-primary);
 }
 
+.menuBarViewport {
+  flex: 0 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--color-surface-header);
+  border-bottom: var(--border-thin) solid var(--color-border-divider);
+}
+
+.menuBarScroll {
+  min-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.menuBar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: calc(22px * var(--ui-scale));
+  box-sizing: border-box;
+}
+
+.menuBarButton {
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  padding: var(--space-3) var(--space-6);
+  cursor: pointer;
+}
+
+.menuBarButton:hover:not(:disabled),
+.menuBarButton:focus-visible {
+  background: var(--color-surface-panel-accent);
+  outline: none;
+}
+
+.menuBarButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
 .headerViewport {
   flex: 0 0 auto;
   overflow-x: auto;
@@ -397,17 +442,8 @@
   color: var(--color-status-error);
   border-color: var(--color-status-error);
 }
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.editButton,
 .editButtonSecondary,
-.editButtonPrimary,
-.menuButton,
-.deviceMenuButton {
+.editButtonPrimary {
   border: var(--border-thin) solid var(--color-border-panel);
   color: var(--color-text-primary);
   text-transform: uppercase;
@@ -417,14 +453,6 @@
   padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-control);
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-
-.editButton {
-  background: transparent;
-}
-
-.editButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
 }
 
 .editButtonSecondary {
@@ -438,98 +466,6 @@
 .editButtonPrimary {
   border-color: var(--color-edit-glow);
   background: var(--color-surface-panel-accent);
-}
-
-.menuButton {
-  background: var(--color-surface-panel);
-}
-
-.menuButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.menuButton:disabled {
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
-}
-
-.deviceMenuButton {
-  background: var(--color-surface-panel);
-}
-
-.deviceMenuButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.deviceMenuButton:disabled {
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
-}
-
-.instrumentMenuPanel {
-  position: fixed;
-  top: 0;
-  left: 0;
-  background: var(--color-surface-instrument);
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-md);
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-4) var(--space-0);
-  min-width: calc(120px * var(--ui-scale));
-  max-width: min(620px, calc(100vw - var(--space-16)));
-  box-shadow: var(--shadow-strong);
-  overflow: auto;
-  font-size: var(--font-size-popup);
-  transform: scale(var(--global-app-scale, 1));
-  transform-origin: top left;
-}
-
-.instrumentMenuItem {
-  border: none;
-  background: transparent;
-  color: var(--color-text-primary);
-  font-size: inherit;
-  padding: var(--space-4) var(--space-10);
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-  width: 100%;
-}
-
-.instrumentMenuList > li + li {
-  border-top: var(--border-thin) solid var(--color-border-panel);
-}
-
-.instrumentMenuItem:hover,
-.instrumentMenuItem:focus-visible {
-  background: var(--color-surface-panel-accent);
-  outline: none;
-}
-
-.instrumentMenuItem:active {
-  background: color-mix(in srgb, var(--color-edit-glow) 16%, transparent);
-}
-
-.instrumentMenuEmpty {
-  font-size: inherit;
-  color: var(--color-text-muted);
-  padding: var(--space-4) var(--space-10);
-  white-space: nowrap;
-}
-
-.instrumentMenuList {
-  list-style: none;
-  margin: var(--space-0);
-  padding: var(--space-0);
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-}
-
-.instrumentMenu {
-  display: contents;
 }
 
 .settingsBackdrop {
