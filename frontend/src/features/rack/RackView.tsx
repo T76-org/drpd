@@ -9,6 +9,7 @@ import {
   DRPDDevice,
   DRPDDeviceDefinition,
   OnOffState,
+  SinkPdoType,
   VBusStatus,
   buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
@@ -22,7 +23,7 @@ import {
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
-import type { AnalogMonitorChannels, VBusInfo } from '../../lib/device'
+import type { AnalogMonitorChannels, SinkInfo, SinkPdo, VBusInfo } from '../../lib/device'
 import {
   checkForFirmwareUpdate,
   fetchGitHubReleases,
@@ -422,6 +423,49 @@ const formatHeaderRoleStatusLabel = (status: CCBusRoleStatus | null): string => 
     default:
       return '--'
   }
+}
+
+const formatHeaderSinkPdoType = (pdo: SinkPdo | null | undefined): string => {
+  if (!pdo) {
+    return '—'
+  }
+  switch (pdo.type) {
+    case SinkPdoType.FIXED:
+      return 'Fixed'
+    case SinkPdoType.SPR_PPS:
+      return 'PPS'
+    case SinkPdoType.SPR_AVS:
+    case SinkPdoType.EPR_AVS:
+      return 'AVS'
+    case SinkPdoType.VARIABLE:
+      return 'Variable'
+    case SinkPdoType.BATTERY:
+      return 'Battery'
+    case SinkPdoType.AUGMENTED:
+      return 'Augmented'
+    default:
+      return '—'
+  }
+}
+
+const formatHeaderCompactNumber = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return '--'
+  }
+  return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)
+}
+
+const formatHeaderSinkContract = (sinkInfo: SinkInfo | null): string => {
+  if (
+    !sinkInfo ||
+    !Number.isFinite(sinkInfo.negotiatedVoltageMv) ||
+    !Number.isFinite(sinkInfo.negotiatedCurrentMa)
+  ) {
+    return '—'
+  }
+  const voltageV = sinkInfo.negotiatedVoltageMv / 1000
+  const currentA = sinkInfo.negotiatedCurrentMa / 1000
+  return `${formatHeaderCompactNumber(voltageV)}V @ ${formatHeaderCompactNumber(currentA)}A`
 }
 
 const buildHeaderVbusDisplayMeasurements = (
@@ -2230,6 +2274,9 @@ const HeaderVbusMetrics = ({
   const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
     driver ? driver.getState().vbusInfo ?? null : null,
   )
+  const [sinkInfo, setSinkInfo] = useState<SinkInfo | null>(
+    driver ? driver.getState().sinkInfo ?? null : null,
+  )
   const [displayMeasurements, setDisplayMeasurements] = useState<HeaderVbusDisplayMeasurements>(() =>
     buildHeaderVbusDisplayMeasurements(driver ? driver.getState().analogMonitor ?? null : null),
   )
@@ -2246,6 +2293,7 @@ const HeaderVbusMetrics = ({
     setRole(initialState?.role ?? null)
     setRoleStatus(initialState?.ccBusRoleStatus ?? null)
     setVbusInfo(initialState?.vbusInfo ?? null)
+    setSinkInfo(initialState?.sinkInfo ?? null)
     setDisplayMeasurements(buildHeaderVbusDisplayMeasurements(initialAnalogMonitor))
     pendingAverageRef.current = {
       voltageSum: 0,
@@ -2267,7 +2315,8 @@ const HeaderVbusMetrics = ({
         !changed.includes('analogMonitor') &&
         !changed.includes('role') &&
         !changed.includes('ccBusRoleStatus') &&
-        !changed.includes('vbusInfo')
+        !changed.includes('vbusInfo') &&
+        !changed.includes('sinkInfo')
       ) {
         return
       }
@@ -2283,6 +2332,9 @@ const HeaderVbusMetrics = ({
       }
       if (!changed || changed.includes('vbusInfo')) {
         setVbusInfo(state.vbusInfo ?? null)
+      }
+      if (!changed || changed.includes('sinkInfo')) {
+        setSinkInfo(state.sinkInfo ?? null)
       }
     }
 
@@ -2362,6 +2414,9 @@ const HeaderVbusMetrics = ({
   const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
   const roleText = formatHeaderRoleLabel(role)
   const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
+  const activeSinkInfo = role === CCBusRole.SINK ? sinkInfo : null
+  const sinkTypeText = formatHeaderSinkPdoType(activeSinkInfo?.negotiatedPdo)
+  const sinkContractText = formatHeaderSinkContract(activeSinkInfo)
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
@@ -2437,7 +2492,7 @@ const HeaderVbusMetrics = ({
           <HeaderProtectionValue value={ocpValueText} />
         </div>
       </div>
-      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus} ${styles.headerVbusSinkContract}`}>
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>ROLE</span>
           <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
@@ -2445,6 +2500,16 @@ const HeaderVbusMetrics = ({
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>STATUS</span>
           <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+        </div>
+      </div>
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>TYPE</span>
+          <span className={styles.headerVbusRoleStatusValue}>{sinkTypeText}</span>
+        </div>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>POWER</span>
+          <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
         </div>
       </div>
     </div>

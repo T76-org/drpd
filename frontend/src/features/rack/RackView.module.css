@@ -206,6 +206,10 @@
   grid-template-columns: auto 12ch;
 }
 
+.headerVbusSinkContract .headerVbusProtectionCell {
+  grid-template-columns: auto 15ch;
+}
+
 .headerVbusRoleStatusValue {
   text-align: right;
 }
