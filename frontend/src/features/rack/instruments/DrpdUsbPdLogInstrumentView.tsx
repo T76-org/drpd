@@ -10,12 +10,8 @@ import {
 } from 'react'
 import { DRPDDevice } from '../../../lib/device'
 import {
-  buildDefaultLoggingConfig,
   buildCapturedLogSelectionKey,
-  decodeLoggedCapturedMessageWithContext,
-  normalizeLoggingConfig,
   type DRPDLogSelectionState,
-  type DRPDLoggingConfig,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
 import {
@@ -23,23 +19,10 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../lib/device/drpd/usb-pd/message'
-import {
-  HumanReadableField,
-  type HumanReadableByteDataValue,
-  type HumanReadableTableCell,
-} from '../../../lib/device/drpd/usb-pd/humanReadableField'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
-import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
+import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import {
-  MessageLogClearPopover,
-  MessageLogConfigurePopover,
-  MessageLogExportPopover,
-} from '../overlays/usbPdLog/LogActionPopovers'
-import { MessageLogFilterPopover } from '../overlays/usbPdLog/MessageLogFilterPopover'
-import {
-  toggleFilterValue,
-  type FilterOption,
   type MessageLogFilterRule,
   type MessageLogFilters,
 } from '../overlays/usbPdLog/usbPdLogFilters'
@@ -52,8 +35,6 @@ const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
 const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
-const MIN_CAPTURED_MESSAGE_BUFFER = 100
-const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
@@ -102,22 +83,6 @@ type DisplayRow = {
   valid: string
 }
 
-type ExportRow = {
-  selectionKey: string
-  row: LoggedCapturedMessage
-  humanReadableMetadata: Record<string, unknown> | null
-  wallTime: string
-  type: string
-  duration: string
-  sender: string
-  receiver: string
-  id: string
-  description: string
-  crc: string
-  crcValid: string
-  messageSummary: string
-}
-
 const EMPTY_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
   senders: { include: [], exclude: [] },
@@ -127,7 +92,6 @@ const EMPTY_FILTERS: MessageLogFilters = {
 }
 
 const INVALID_MESSAGE_TYPE_LABEL = 'Invalid message'
-const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
 const CRC_VALID_LABEL = 'Valid'
 const CRC_INVALID_LABEL = 'Invalid'
 
@@ -136,93 +100,6 @@ const formatMicroseconds = (value: bigint | null): string => {
     return '--'
   }
   return `${value}`
-}
-
-const toHex = (bytes: Uint8Array): string =>
-  Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')
-
-const toSerializableMessage = (row: LoggedCapturedMessage): Record<string, unknown> => ({
-  entryKind: row.entryKind,
-  eventType: row.eventType,
-  eventText: row.eventText,
-  eventWallClockMs: row.eventWallClockMs,
-  wallClockUs: row.wallClockUs?.toString() ?? null,
-  startTimestampUs: row.startTimestampUs.toString(),
-  endTimestampUs: row.endTimestampUs.toString(),
-  displayTimestampUs: row.displayTimestampUs?.toString() ?? null,
-  decodeResult: row.decodeResult,
-  sopKind: row.sopKind,
-  messageKind: row.messageKind,
-  messageType: row.messageType,
-  messageId: row.messageId,
-  senderPowerRole: row.senderPowerRole,
-  senderDataRole: row.senderDataRole,
-  pulseCount: row.pulseCount,
-  rawPulseWidths: Array.from(row.rawPulseWidths),
-  rawSopHex: toHex(row.rawSop),
-  rawDecodedDataHex: toHex(row.rawDecodedData),
-  parseError: row.parseError,
-  createdAtMs: row.createdAtMs,
-})
-
-const toCSVField = (value: string): string => {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replaceAll('"', '""')}"`
-  }
-  return value
-}
-
-const serializeHumanReadableTableCell = (
-  cell: HumanReadableTableCell,
-): Record<string, unknown> => ({
-  kind: cell.kind,
-  field: serializeHumanReadableField(cell.field),
-})
-
-const serializeHumanReadableField = (
-  field: HumanReadableField,
-): Record<string, unknown> => {
-  switch (field.type) {
-    case 'String':
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: field.value,
-      }
-    case 'ByteData': {
-      const byteData = field.value as HumanReadableByteDataValue
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: {
-          dataHex: toHex(byteData.data),
-          byteWidth: byteData.byteWidth,
-          signed: byteData.signed,
-        },
-      }
-    }
-    case 'Table': {
-      const tableCells = field.value as HumanReadableTableCell[]
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: tableCells.map(serializeHumanReadableTableCell),
-      }
-    }
-    case 'OrderedDictionary':
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: Array.from(field.entries()).map(([key, entryField]) => ({
-          key,
-          field: serializeHumanReadableField(entryField),
-        })),
-      }
-  }
 }
 
 const formatTimestampCell = (row: LoggedCapturedMessage): string => {
@@ -300,19 +177,6 @@ const resolveSenderReceiver = (
   return { sender: 'Unknown', receiver: 'Unknown' }
 }
 
-const extractStringField = (
-  dictionary: { getEntry: (key: string) => { type: string; value: unknown } | undefined } | undefined,
-  key: string,
-): string => {
-  const field = dictionary?.getEntry(key)
-  return field?.type === 'String' && typeof field.value === 'string' ? field.value : ''
-}
-
-const uniqueSortedOptions = (values: string[]): FilterOption[] =>
-  Array.from(new Set(values.filter((value) => value.length > 0 && value !== '--')))
-    .sort((left, right) => left.localeCompare(right))
-    .map((value) => ({ value, label: value }))
-
 const countActiveFilters = (filters: MessageLogFilters): number =>
   Object.values(filters).reduce(
     (count, rule) => count + rule.include.length + rule.exclude.length,
@@ -341,181 +205,6 @@ const messageMatchesFilters = (
     filterRuleMatches(filters.sopTypes, normalizeSopType(row.sopKind)) &&
     filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row))
   )
-}
-
-const filterRuleValues = (rule: MessageLogFilterRule): string[] => [
-  ...rule.include,
-  ...rule.exclude,
-]
-
-const buildFilterOptions = (
-  rows: LoggedCapturedMessage[],
-  filters: MessageLogFilters = EMPTY_FILTERS,
-): {
-  messageTypes: FilterOption[]
-  senders: FilterOption[]
-  receivers: FilterOption[]
-  sopTypes: FilterOption[]
-  crcValid: FilterOption[]
-} => {
-  const messageRows = rows.filter((row) => row.entryKind === 'message')
-  const senderReceivers = messageRows.map(resolveSenderReceiver)
-  const crcValues = messageRows.map(resolveCrcValidLabel)
-  return {
-    messageTypes: uniqueSortedOptions([
-      ...messageRows.map(resolveMessageTypeLabel),
-      ...filterRuleValues(filters.messageTypes),
-    ]),
-    senders: uniqueSortedOptions([
-      ...senderReceivers.map((entry) => entry.sender),
-      ...filterRuleValues(filters.senders),
-    ]),
-    receivers: uniqueSortedOptions([
-      ...senderReceivers.map((entry) => entry.receiver),
-      ...filterRuleValues(filters.receivers),
-    ]),
-    sopTypes: uniqueSortedOptions([
-      ...messageRows.map((row) => normalizeSopType(row.sopKind)),
-      ...filterRuleValues(filters.sopTypes),
-    ]),
-    crcValid: [CRC_VALID_LABEL, CRC_INVALID_LABEL]
-      .filter((value) => crcValues.includes(value) || filterRuleValues(filters.crcValid).includes(value))
-      .map((value) => ({ value, label: value })),
-  }
-}
-
-const buildExportRows = (
-  allRows: LoggedCapturedMessage[],
-  selectionKeys: string[],
-): ExportRow[] => {
-  const selected = new Set(selectionKeys)
-  return allRows
-    .filter((row) => selected.has(buildCapturedLogSelectionKey(row)))
-    .map((row) => {
-      if (row.entryKind === 'event') {
-        return {
-          selectionKey: buildCapturedLogSelectionKey(row),
-          row,
-          humanReadableMetadata: null,
-          wallTime: formatWallClock(row.wallClockUs),
-          type: 'Event',
-          duration: '',
-          sender: '',
-          receiver: '',
-          id: '',
-          description: row.eventText ?? 'Event',
-          crc: '',
-          crcValid: '',
-          messageSummary: '',
-        }
-      }
-
-      const durationUs = row.endTimestampUs - row.startTimestampUs
-      const senderReceiver = resolveSenderReceiver(row)
-      const decoded = decodeLoggedCapturedMessageWithContext(row, allRows)
-      const crcDictionary =
-        decoded.kind === 'message'
-          ? decoded.message.humanReadableMetadata.technicalData.getEntry('crc32')
-          : undefined
-      const crc =
-        decoded.kind === 'message'
-          ? extractStringField(crcDictionary?.type === 'OrderedDictionary' ? crcDictionary : undefined, 'actual')
-          : ''
-      const crcValid =
-        decoded.kind === 'message'
-          ? extractStringField(crcDictionary?.type === 'OrderedDictionary' ? crcDictionary : undefined, 'valid')
-          : ''
-      const messageSummary =
-        decoded.kind === 'message'
-          ? extractStringField(decoded.message.humanReadableMetadata.baseInformation, 'messageSummary')
-          : ''
-      const humanReadableMetadata =
-        decoded.kind === 'message'
-          ? {
-              baseInformation: serializeHumanReadableField(decoded.message.humanReadableMetadata.baseInformation),
-              technicalData: serializeHumanReadableField(decoded.message.humanReadableMetadata.technicalData),
-              headerData: serializeHumanReadableField(decoded.message.humanReadableMetadata.headerData),
-              messageSpecificData: serializeHumanReadableField(decoded.message.humanReadableMetadata.messageSpecificData),
-            }
-          : null
-
-      return {
-        selectionKey: buildCapturedLogSelectionKey(row),
-        row,
-        humanReadableMetadata,
-        wallTime: formatTimestampCell(row),
-        type: 'Message',
-        duration: formatMicroseconds(durationUs),
-        sender: senderReceiver.sender,
-        receiver: senderReceiver.receiver,
-        id: row.messageId == null ? '' : row.messageId.toString(),
-        description: resolveMessageTypeLabel(row),
-        crc,
-        crcValid,
-        messageSummary,
-      }
-    })
-}
-
-const buildJsonExportPayload = (rows: ExportRow[]): string =>
-  JSON.stringify(
-    rows.map(({ selectionKey, row, humanReadableMetadata }) => ({
-      selectionKey,
-      ...toSerializableMessage(row),
-      humanReadableMetadata,
-    })),
-    null,
-    2,
-  )
-
-const buildCsvExportPayload = (rows: ExportRow[]): string => {
-  const lines = [
-    [
-      'Wall Time',
-      'Duration',
-      'Type',
-      'Sender',
-      'Receiver',
-      'ID',
-      'Description',
-      'CRC',
-      'CRC Valid',
-      'Message Summary',
-    ].join(','),
-  ]
-  for (const row of rows) {
-    lines.push(
-      [
-        row.wallTime,
-        row.duration,
-        row.type,
-        row.sender,
-        row.receiver,
-        row.id,
-        row.description,
-        row.crc,
-        row.crcValid,
-        row.messageSummary.replaceAll('\r\n', '\n').replaceAll('\r', '\n'),
-      ].map(toCSVField).join(','),
-    )
-  }
-  return `${lines.join('\n')}\n`
-}
-
-const downloadExportPayload = (
-  payload: string,
-  mimeType: string,
-  filename: string,
-): void => {
-  const blob = new Blob([payload], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
 }
 
 const toDisplayRows = (
@@ -574,11 +263,9 @@ const toDisplayRows = (
 export const DrpdUsbPdLogInstrumentView = ({
   instrument,
   displayName,
-  deviceRecord,
   deviceState,
   isEditMode,
   onRemove,
-  onUpdateDeviceConfig,
 }: {
   instrument: RackInstrument
   displayName: string
@@ -612,37 +299,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   const driver = deviceState?.drpdDriver
-  const configuredMaxCapturedMessages = useMemo(() => {
-    const fallback = buildDefaultLoggingConfig().maxCapturedMessages
-    const source = deviceRecord?.config
-    if (!source || typeof source !== 'object') {
-      return fallback
-    }
-    const probe = source as { logging?: Partial<DRPDLoggingConfig> }
-    const value = probe.logging?.maxCapturedMessages
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return fallback
-    }
-    return Math.max(
-      MIN_CAPTURED_MESSAGE_BUFFER,
-      Math.min(MAX_CAPTURED_MESSAGE_BUFFER, Math.floor(value)),
-    )
-  }, [deviceRecord?.config])
-  const [bufferInput, setBufferInput] = useState(() =>
-    configuredMaxCapturedMessages.toString(),
-  )
-  const [bufferError, setBufferError] = useState<string | null>(null)
-  const [isApplyingBuffer, setIsApplyingBuffer] = useState(false)
-  const [isMarking, setIsMarking] = useState(false)
-  const [markError, setMarkError] = useState<string | null>(null)
-  const [isClearing, setIsClearing] = useState(false)
-  const [clearError, setClearError] = useState<string | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
-  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
-  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false)
-  const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -656,12 +312,10 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
   const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
-  const [filterOptionRows, setFilterOptionRows] = useState<LoggedCapturedMessage[]>([])
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
-  const hasSelection = selection.selectedKeys.length > 0
   const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
   const hasActiveFilters = activeFilterCount > 0
   const filteredRows = useMemo(
@@ -671,10 +325,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   const filteredDisplayRows = useMemo(
     () => (hasActiveFilters ? toDisplayRows(filteredRows, null) : []),
     [filteredRows, hasActiveFilters],
-  )
-  const filterOptions = useMemo(
-    () => buildFilterOptions(filterOptionRows.length > 0 ? filterOptionRows : filterRows, filters),
-    [filterOptionRows, filterRows, filters],
   )
   const displayedTotalRows = hasActiveFilters ? filteredDisplayRows.length : totalRows
 
@@ -821,24 +471,6 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }
 
-  const parseBufferInput = useCallback((): number | null => {
-    if (!/^\d+$/.test(bufferInput)) {
-      return null
-    }
-    const parsed = Number(bufferInput)
-    if (!Number.isFinite(parsed)) {
-      return null
-    }
-    const normalized = Math.floor(parsed)
-    if (
-      normalized < MIN_CAPTURED_MESSAGE_BUFFER ||
-      normalized > MAX_CAPTURED_MESSAGE_BUFFER
-    ) {
-      return null
-    }
-    return normalized
-  }, [bufferInput])
-
   useEffect(() => {
     totalRowsRef.current = totalRows
   }, [totalRows])
@@ -853,7 +485,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   useEffect(() => {
     if (!driver) {
       setFilterRows([])
-      setFilterOptionRows([])
       setFilters(EMPTY_FILTERS)
       return
     }
@@ -863,7 +494,6 @@ export const DrpdUsbPdLogInstrumentView = ({
       if (cancelled) {
         return
       }
-      setFilterOptionRows(rows)
       if (hasActiveFilters) {
         setFilterRows(rows)
       }
@@ -885,7 +515,6 @@ export const DrpdUsbPdLogInstrumentView = ({
       if (countActiveFilters(next) > 0) {
         void queryAllCapturedMessages().then((rows) => {
           setFilterRows(rows)
-          setFilterOptionRows(rows)
         })
       } else {
         setFilterRows([])
@@ -897,11 +526,6 @@ export const DrpdUsbPdLogInstrumentView = ({
       window.removeEventListener('drpd-message-log-filters-changed', handleGlobalFiltersChanged)
     }
   }, [queryAllCapturedMessages])
-
-  useEffect(() => {
-    setBufferInput(configuredMaxCapturedMessages.toString())
-    setBufferError(null)
-  }, [configuredMaxCapturedMessages])
 
   useEffect(() => {
     if (!driver) {
@@ -1216,116 +840,6 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }, [driver, firstVisibleRow, hasActiveFilters, lastVisibleRow, pages, totalRows])
 
-  const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
-    const goodCrcExcluded = filters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
-
-    const goodCrcControl: InstrumentHeaderControl = {
-      id: 'goodcrc-filter-log',
-      label: goodCrcExcluded ? 'Include GoodCRC' : 'Exclude GoodCRC',
-      disabled: !driver || isEditMode,
-      onClick: () => {
-        const next = goodCrcExcluded
-          ? {
-              ...filters,
-              messageTypes: {
-                include: filters.messageTypes.include,
-                exclude: filters.messageTypes.exclude.filter(
-                  (entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL,
-                ),
-              },
-            }
-          : toggleFilterValue(
-              filters,
-              'messageTypes',
-              'exclude',
-              GOODCRC_MESSAGE_TYPE_LABEL,
-            )
-        setFilters(next)
-        if (countActiveFilters(next) > 0) {
-          void queryAllCapturedMessages().then((rows) => {
-            setFilterRows(rows)
-            setFilterOptionRows(rows)
-          })
-        } else {
-          setFilterRows([])
-        }
-      },
-    }
-
-    const filterControl: InstrumentHeaderControl = {
-      id: 'filter-log',
-      label: activeFilterCount > 0 ? `Filter (${activeFilterCount})` : 'Filter',
-      disabled: !driver || isEditMode,
-      onClick: () => setIsFilterDialogOpen(true),
-    }
-
-    const exportControl: InstrumentHeaderControl = {
-      id: 'export-log',
-      label: isExporting ? 'Exporting...' : 'Export',
-      disabled: !driver || isEditMode || isExporting,
-      onClick: () => setIsExportDialogOpen(true),
-    }
-
-    const markControl: InstrumentHeaderControl = {
-      id: 'mark-log',
-      label: isMarking ? 'Marking...' : 'Mark',
-      disabled: !driver || isEditMode || isMarking,
-      onClick: () => {
-        if (!driver) {
-          return
-        }
-        setIsMarking(true)
-        setMarkError(null)
-        void driver
-          .markLog()
-          .catch((error) => {
-            const message = error instanceof Error ? error.message : String(error)
-            setMarkError(message)
-          })
-          .finally(() => {
-            setIsMarking(false)
-          })
-      },
-    }
-
-    const clearControl: InstrumentHeaderControl = {
-      id: 'clear-log',
-      label: 'Clear',
-      disabled: !driver || isEditMode || isClearing,
-      onClick: () => setIsClearDialogOpen(true),
-    }
-
-    const configureControl: InstrumentHeaderControl = {
-      id: 'configure-log',
-      label: 'Configure',
-      disabled: !deviceRecord || !onUpdateDeviceConfig || isEditMode || isApplyingBuffer,
-      onClick: () => setIsConfigureDialogOpen(true),
-    }
-
-    return [goodCrcControl, filterControl, exportControl, markControl, clearControl, configureControl]
-  }, [
-    activeFilterCount,
-    bufferInput,
-    clearError,
-    deviceRecord,
-    driver,
-    exportError,
-    filterOptions,
-    filters,
-    hasSelection,
-    instrument.id,
-    isApplyingBuffer,
-    isClearing,
-    isEditMode,
-    isExporting,
-    isMarking,
-    onUpdateDeviceConfig,
-    parseBufferInput,
-    queryAllCapturedMessages,
-    bufferError,
-    selection.selectedKeys,
-  ])
-
   const handleRowClick = (
     event: ReactMouseEvent<HTMLDivElement>,
     index: number,
@@ -1414,12 +928,10 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   return (
-    <>
-      <InstrumentBase
+    <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
-      headerControls={headerControls}
       contentClassName={styles.contentFill}
       onClose={
         onRemove
@@ -1433,11 +945,6 @@ export const DrpdUsbPdLogInstrumentView = ({
         className={styles.wrapper}
         data-testid="drpd-usbpd-log"
       >
-        {markError || exportError ? (
-          <div className={styles.headerErrorBanner} role="alert">
-            {markError ?? exportError}
-          </div>
-        ) : null}
         <div className={styles.headerRow}>
           <span>Wall time</span>
           <span>Length</span>
@@ -1510,176 +1017,6 @@ export const DrpdUsbPdLogInstrumentView = ({
           </div>
         </div>
       </div>
-      </InstrumentBase>
-      <MessageLogFilterPopover
-        open={isFilterDialogOpen}
-        onOpenChange={setIsFilterDialogOpen}
-        filters={filters}
-        options={filterOptions}
-        onApply={(next) => {
-          setFilters(next)
-          if (countActiveFilters(next) > 0) {
-            void queryAllCapturedMessages().then((rows) => {
-              setFilterRows(rows)
-              setFilterOptionRows(rows)
-            })
-          }
-        }}
-        onClear={() => {
-          setFilters(EMPTY_FILTERS)
-          setFilterRows([])
-        }}
-      />
-      <MessageLogExportPopover
-        open={isExportDialogOpen}
-        onOpenChange={setIsExportDialogOpen}
-        exportError={exportError}
-        hasSelection={hasSelection}
-        isExporting={isExporting}
-        onExportJson={() => {
-          if (!driver || !hasSelection) {
-            return
-          }
-          setIsExporting(true)
-          setExportError(null)
-          void driver
-            .queryCapturedMessages({
-              startTimestampUs: 0n,
-              endTimestampUs: LOG_END_TIMESTAMP_US,
-              sortOrder: 'asc',
-            })
-            .then((rows) => {
-              const exportRows = buildExportRows(rows, selection.selectedKeys)
-              downloadExportPayload(
-                buildJsonExportPayload(exportRows),
-                'application/json',
-                'message-log-export.json',
-              )
-              setIsExportDialogOpen(false)
-            })
-            .catch((error) => {
-              const message = error instanceof Error ? error.message : String(error)
-              setExportError(message)
-            })
-            .finally(() => {
-              setIsExporting(false)
-            })
-        }}
-        onExportCsv={() => {
-          if (!driver || !hasSelection) {
-            return
-          }
-          setIsExporting(true)
-          setExportError(null)
-          void driver
-            .queryCapturedMessages({
-              startTimestampUs: 0n,
-              endTimestampUs: LOG_END_TIMESTAMP_US,
-              sortOrder: 'asc',
-            })
-            .then((rows) => {
-              const exportRows = buildExportRows(rows, selection.selectedKeys)
-              downloadExportPayload(
-                buildCsvExportPayload(exportRows),
-                'text/csv',
-                'message-log-export.csv',
-              )
-              setIsExportDialogOpen(false)
-            })
-            .catch((error) => {
-              const message = error instanceof Error ? error.message : String(error)
-              setExportError(message)
-            })
-            .finally(() => {
-              setIsExporting(false)
-            })
-        }}
-      />
-      <MessageLogClearPopover
-        open={isClearDialogOpen}
-        onOpenChange={setIsClearDialogOpen}
-        clearError={clearError}
-        isClearing={isClearing}
-        onCancel={() => {
-          setClearError(null)
-          setIsClearDialogOpen(false)
-        }}
-        onClear={() => {
-          if (!driver) {
-            return
-          }
-          setIsClearing(true)
-          setClearError(null)
-          void driver
-            .clearLogs('all')
-            .then(() => {
-              setIsClearDialogOpen(false)
-            })
-            .catch((error) => {
-              const message = error instanceof Error ? error.message : String(error)
-              setClearError(message)
-            })
-            .finally(() => {
-              setIsClearing(false)
-            })
-        }}
-      />
-      <MessageLogConfigurePopover
-        open={isConfigureDialogOpen}
-        onOpenChange={setIsConfigureDialogOpen}
-        instrumentId={instrument.id}
-        minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
-        maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
-        bufferInput={bufferInput}
-        bufferError={bufferError}
-        isApplyingBuffer={isApplyingBuffer}
-        setBufferInput={setBufferInput}
-        setBufferError={setBufferError}
-        onCancel={() => {
-          setBufferError(null)
-          setIsConfigureDialogOpen(false)
-        }}
-        onApply={() => {
-          if (!deviceRecord || !onUpdateDeviceConfig) {
-            return
-          }
-          const parsed = parseBufferInput()
-          if (parsed === null) {
-            setBufferError(
-              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
-            )
-            return
-          }
-          setIsApplyingBuffer(true)
-          setBufferError(null)
-          void Promise.resolve(
-            onUpdateDeviceConfig(deviceRecord.id, (current) => {
-              const source =
-                current && typeof current === 'object'
-                  ? (current as { logging?: Partial<DRPDLoggingConfig> })
-                  : {}
-              const logging = normalizeLoggingConfig({
-                ...source.logging,
-                maxCapturedMessages: parsed,
-              })
-              return {
-                ...source,
-                logging,
-              }
-            }),
-          )
-            .then(() => {
-              setIsConfigureDialogOpen(false)
-            })
-            .catch((error) => {
-              const message = error instanceof Error ? error.message : String(error)
-              setBufferError(message)
-            })
-            .finally(() => {
-              setIsApplyingBuffer(false)
-            })
-        }}
-      />
-    </>
+    </InstrumentBase>
   )
 }

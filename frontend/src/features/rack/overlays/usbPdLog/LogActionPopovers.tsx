@@ -6,51 +6,6 @@ import {
   DialogInput,
 } from '../../../../ui/overlays'
 
-export const MessageLogExportPopover = ({
-  open,
-  onOpenChange,
-  exportError,
-  hasSelection,
-  isExporting,
-  onExportJson,
-  onExportCsv,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  exportError: string | null
-  hasSelection: boolean
-  isExporting: boolean
-  onExportJson: () => void
-  onExportCsv: () => void
-}) => (
-  <Dialog
-    open={open}
-    onOpenChange={onOpenChange}
-    title="Export message log"
-    description={exportError ?? 'Export the selected log rows.'}
-    dismissible={!isExporting}
-    footer={
-      <>
-        <DialogButton
-          disabled={!hasSelection || isExporting}
-          onClick={onExportJson}
-        >
-          Export JSON
-        </DialogButton>
-        <DialogButton
-          variant="primary"
-          disabled={!hasSelection || isExporting}
-          onClick={onExportCsv}
-        >
-          Export CSV
-        </DialogButton>
-      </>
-    }
-  >
-    {hasSelection ? 'Choose an export format.' : 'Select one or more rows before exporting.'}
-  </Dialog>
-)
-
 export const MessageLogClearPopover = ({
   open,
   onOpenChange,

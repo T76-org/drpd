@@ -12,7 +12,6 @@ export { MessageLogFilterPopover } from './usbPdLog/MessageLogFilterPopover'
 export {
   MessageLogClearPopover,
   MessageLogConfigurePopover,
-  MessageLogExportPopover,
 } from './usbPdLog/LogActionPopovers'
 export {
   toggleFilterValue,
