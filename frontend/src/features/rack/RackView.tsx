@@ -5,6 +5,7 @@ import type { DeviceIdentity } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
+  CCBusRoleStatus,
   DRPDDevice,
   DRPDDeviceDefinition,
   OnOffState,
@@ -388,6 +389,38 @@ const resolveHeaderCurrentFlow = (
     to: 'B',
     direction: current > 0 ? 'right' : 'left',
     toPort: false,
+  }
+}
+
+const formatHeaderRoleLabel = (role: CCBusRole | null): string => {
+  if (!role) {
+    return '--'
+  }
+  switch (role) {
+    case CCBusRole.DISABLED:
+      return 'Disabled'
+    case CCBusRole.OBSERVER:
+      return 'Observer'
+    case CCBusRole.SINK:
+      return 'Sink'
+    default:
+      return '--'
+  }
+}
+
+const formatHeaderRoleStatusLabel = (status: CCBusRoleStatus | null): string => {
+  if (!status) {
+    return '--'
+  }
+  switch (status) {
+    case CCBusRoleStatus.UNATTACHED:
+      return 'Unattached'
+    case CCBusRoleStatus.SOURCE_FOUND:
+      return 'Source Found'
+    case CCBusRoleStatus.ATTACHED:
+      return 'Attached'
+    default:
+      return '--'
   }
 }
 
@@ -2191,6 +2224,9 @@ const HeaderVbusMetrics = ({
   const [role, setRole] = useState<CCBusRole | null>(
     driver ? driver.getState().role ?? null : null,
   )
+  const [roleStatus, setRoleStatus] = useState<CCBusRoleStatus | null>(
+    driver ? driver.getState().ccBusRoleStatus ?? null : null,
+  )
   const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
     driver ? driver.getState().vbusInfo ?? null : null,
   )
@@ -2208,6 +2244,7 @@ const HeaderVbusMetrics = ({
     const initialAnalogMonitor = initialState?.analogMonitor ?? null
     setAnalogMonitor(initialAnalogMonitor)
     setRole(initialState?.role ?? null)
+    setRoleStatus(initialState?.ccBusRoleStatus ?? null)
     setVbusInfo(initialState?.vbusInfo ?? null)
     setDisplayMeasurements(buildHeaderVbusDisplayMeasurements(initialAnalogMonitor))
     pendingAverageRef.current = {
@@ -2229,6 +2266,7 @@ const HeaderVbusMetrics = ({
         changed &&
         !changed.includes('analogMonitor') &&
         !changed.includes('role') &&
+        !changed.includes('ccBusRoleStatus') &&
         !changed.includes('vbusInfo')
       ) {
         return
@@ -2239,6 +2277,9 @@ const HeaderVbusMetrics = ({
       }
       if (!changed || changed.includes('role')) {
         setRole(state.role ?? null)
+      }
+      if (!changed || changed.includes('ccBusRoleStatus')) {
+        setRoleStatus(state.ccBusRoleStatus ?? null)
       }
       if (!changed || changed.includes('vbusInfo')) {
         setVbusInfo(state.vbusInfo ?? null)
@@ -2319,6 +2360,8 @@ const HeaderVbusMetrics = ({
   const shouldDimProtection = signedVbusCurrent != null && signedVbusCurrent < 0
   const isOvpTriggered = vbusInfo?.status === VBusStatus.OVP
   const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
+  const roleText = formatHeaderRoleLabel(role)
+  const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
@@ -2392,6 +2435,16 @@ const HeaderVbusMetrics = ({
         >
           <span className={styles.headerVbusProtectionLabel}>OCP</span>
           <HeaderProtectionValue value={ocpValueText} />
+        </div>
+      </div>
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>ROLE</span>
+          <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
+        </div>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+          <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
         </div>
       </div>
     </div>

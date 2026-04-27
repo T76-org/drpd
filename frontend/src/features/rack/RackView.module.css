@@ -202,6 +202,14 @@
   align-items: baseline;
 }
 
+.headerVbusRoleStatus .headerVbusProtectionCell {
+  grid-template-columns: auto 12ch;
+}
+
+.headerVbusRoleStatusValue {
+  text-align: right;
+}
+
 .headerVbusProtectionCell[data-triggered='true'] {
   color: var(--color-status-error);
   animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
