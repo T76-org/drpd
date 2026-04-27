@@ -58,6 +58,24 @@ describe('Menu', () => {
     expect(screen.queryByRole('menu', { name: 'Test menu' })).not.toBeInTheDocument()
   })
 
+  it('does not leave focus on the trigger after closing with Escape', async () => {
+    const user = userEvent.setup()
+    renderMenu([
+      {
+        id: 'open',
+        label: 'Open',
+        onSelect: vi.fn(),
+      },
+    ])
+
+    const trigger = screen.getByRole('button', { name: 'Open menu' })
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('menu', { name: 'Test menu' })).not.toBeInTheDocument()
+    expect(trigger).not.toHaveFocus()
+  })
+
   it('supports checkbox items and closes the menu', async () => {
     const user = userEvent.setup()
     const onCheckedChange = vi.fn()

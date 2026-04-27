@@ -236,7 +236,7 @@ export const Menu = ({
     setFocusFirstSubmenuId(null)
     setForceOpenFirstNestedSubmenuId(null)
     setActiveRootIndex(-1)
-    triggerRef.current?.focus()
+    triggerRef.current?.blur()
     onOpenChange?.(false)
   }, [onOpenChange])
 

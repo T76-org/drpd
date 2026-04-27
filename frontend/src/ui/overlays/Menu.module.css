@@ -70,7 +70,7 @@
 
 .itemMeta {
   color: var(--color-text-muted);
-  font-size: var(--font-size-4xs);
+  font-size: inherit;
 }
 
 .separator {

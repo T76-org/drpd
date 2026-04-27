@@ -69,7 +69,6 @@ import { useRackSizingConfig } from './rackSizing'
 import { matchRackShortcut } from './shortcuts'
 import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
 import { Menu, type MenuItem } from '../../ui/overlays'
-import { KeyboardShortcutsDialog } from './overlays/help/KeyboardShortcutsDialog'
 import { FirmwareUpdateDialog } from './overlays/firmware/FirmwareUpdateDialog'
 import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
 import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
@@ -802,7 +801,6 @@ export const RackView = () => {
   )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
   const [isGlobalVbusDialogOpen, setIsGlobalVbusDialogOpen] = useState(false)
   const [globalOvpThresholdInput, setGlobalOvpThresholdInput] = useState('')
@@ -903,27 +901,6 @@ export const RackView = () => {
       isMounted = false
     }
   }, [])
-
-  useEffect(() => {
-    /**
-     * Close shortcut help when the user presses Escape.
-     *
-     * @param event - Keyboard event.
-     */
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') {
-        return
-      }
-      if (isShortcutHelpOpen) {
-        setIsShortcutHelpOpen(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isShortcutHelpOpen])
 
   useEffect(() => {
     /** Apply the current theme to the document. */
@@ -1471,6 +1448,43 @@ export const RackView = () => {
         setIsMessageLogExporting(false)
       })
   }, [activeDriver, hasSelectedMessages, messageLogSelectionKeys])
+
+  const toggleGoodCrcMessages = useCallback(() => {
+    const next = isGoodCrcShown
+      ? toggleFilterValue(
+          messageLogFilters,
+          'messageTypes',
+          'exclude',
+          GOODCRC_MESSAGE_TYPE_LABEL,
+        )
+      : {
+          ...messageLogFilters,
+          messageTypes: {
+            include: messageLogFilters.messageTypes.include,
+            exclude: messageLogFilters.messageTypes.exclude.filter(
+              (entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL,
+            ),
+          },
+        }
+    setMessageLogFilters(next)
+    notifyMessageLogFiltersChanged(next)
+  }, [isGoodCrcShown, messageLogFilters])
+
+  const addMessageLogMarker = useCallback(() => {
+    if (!activeDriver || isMessageLogMarking) {
+      return
+    }
+    setIsMessageLogMarking(true)
+    setMessageLogError(null)
+    void activeDriver
+      .markLog()
+      .catch((error) => {
+        setMessageLogError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        setIsMessageLogMarking(false)
+      })
+  }, [activeDriver, isMessageLogMarking])
 
   const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
     setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
@@ -2040,11 +2054,32 @@ export const RackView = () => {
         case 'switch-observer':
           void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
           break
+        case 'switch-disabled':
+          void handleSetActiveDeviceRole(CCBusRole.DISABLED)
+          break
         case 'toggle-capture':
           void handleToggleActiveDeviceCapture()
           break
-        case 'show-shortcut-help':
-          setIsShortcutHelpOpen(true)
+        case 'reset-accumulator':
+          void handleResetPowerChargeMeter()
+          break
+        case 'clear-log':
+          setIsMessageLogClearDialogOpen(true)
+          break
+        case 'add-marker':
+          addMessageLogMarker()
+          break
+        case 'toggle-goodcrc':
+          toggleGoodCrcMessages()
+          break
+        case 'filter-log':
+          setIsMessageLogFilterDialogOpen(true)
+          break
+        case 'reset-trigger':
+          void handleResetTrigger()
+          break
+        case 'open-user-manual':
+          handleOpenDocumentation()
           break
         default:
           break
@@ -2055,7 +2090,16 @@ export const RackView = () => {
     return () => {
       document.removeEventListener('keydown', handleGlobalShortcut)
     }
-  }, [handlePulseUsbConnection, handleSetActiveDeviceRole, handleToggleActiveDeviceCapture])
+  }, [
+    addMessageLogMarker,
+    handleOpenDocumentation,
+    handlePulseUsbConnection,
+    handleResetPowerChargeMeter,
+    handleResetTrigger,
+    handleSetActiveDeviceRole,
+    handleToggleActiveDeviceCapture,
+    toggleGoodCrcMessages,
+  ])
 
   const rackCanvasWidthPx = currentRack
     ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
@@ -2191,6 +2235,7 @@ export const RackView = () => {
           {
             id: 'reset-power-charge-meter',
             label: 'Reset',
+            meta: 'Z',
             disabled: !activeDriver,
             onSelect: () => {
               void handleResetPowerChargeMeter()
@@ -2217,6 +2262,7 @@ export const RackView = () => {
                 id: 'mode-disabled',
                 type: 'checkbox',
                 label: 'Disabled',
+                meta: 'D',
                 checked: activeDriverState?.role === CCBusRole.DISABLED,
                 disabled: !activeDriver,
                 onCheckedChange: () => {
@@ -2227,6 +2273,7 @@ export const RackView = () => {
                 id: 'mode-observer',
                 type: 'checkbox',
                 label: 'Observer',
+                meta: 'O',
                 checked: activeDriverState?.role === CCBusRole.OBSERVER,
                 disabled: !activeDriver,
                 onCheckedChange: () => {
@@ -2237,6 +2284,7 @@ export const RackView = () => {
                 id: 'mode-sink',
                 type: 'checkbox',
                 label: 'Sink',
+                meta: 'S',
                 checked: activeDriverState?.role === CCBusRole.SINK,
                 disabled: !activeDriver,
                 onCheckedChange: () => {
@@ -2253,6 +2301,19 @@ export const RackView = () => {
               void openGlobalSinkRequestDialog()
             },
           },
+          {
+            id: 'mode-separator-usb-cycle',
+            type: 'separator',
+          },
+          {
+            id: 'cycle-usb-connection',
+            label: 'Cycle USB Connection',
+            meta: 'T',
+            disabled: !activeDriver || activeDriverState?.role === CCBusRole.DISABLED,
+            onSelect: () => {
+              void handlePulseUsbConnection()
+            },
+          },
         ],
       },
       {
@@ -2262,6 +2323,7 @@ export const RackView = () => {
           {
             id: 'logging-toggle-capture',
             label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
+            meta: 'C',
             disabled: !activeDriver,
             onSelect: () => {
               void handleToggleActiveDeviceCapture()
@@ -2274,28 +2336,16 @@ export const RackView = () => {
           {
             id: 'logging-clear-log',
             label: 'Clear Log',
+            meta: 'X',
             disabled: !activeDriver || isMessageLogClearing,
             onSelect: () => setIsMessageLogClearDialogOpen(true),
           },
           {
             id: 'logging-add-marker',
             label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
+            meta: 'M',
             disabled: !activeDriver || isMessageLogMarking,
-            onSelect: () => {
-              if (!activeDriver) {
-                return
-              }
-              setIsMessageLogMarking(true)
-              setMessageLogError(null)
-              void activeDriver
-                .markLog()
-                .catch((error) => {
-                  setMessageLogError(error instanceof Error ? error.message : String(error))
-                })
-                .finally(() => {
-                  setIsMessageLogMarking(false)
-                })
-            },
+            onSelect: addMessageLogMarker,
           },
           {
             id: 'logging-export-selected',
@@ -2324,35 +2374,18 @@ export const RackView = () => {
           {
             id: 'logging-show-goodcrc',
             type: 'checkbox',
-            label: 'Show GoodCRC Messages',
+            label: 'Hide GoodCRC Messages',
+            meta: 'G',
             checked: isGoodCrcShown,
             disabled: !activeDriver,
-            onCheckedChange: () => {
-              const next = isGoodCrcShown
-                ? toggleFilterValue(
-                    messageLogFilters,
-                    'messageTypes',
-                    'exclude',
-                    GOODCRC_MESSAGE_TYPE_LABEL,
-                  )
-                : {
-                    ...messageLogFilters,
-                    messageTypes: {
-                      include: messageLogFilters.messageTypes.include,
-                      exclude: messageLogFilters.messageTypes.exclude.filter(
-                        (entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL,
-                      ),
-                    },
-              }
-              setMessageLogFilters(next)
-              notifyMessageLogFiltersChanged(next)
-            },
+            onCheckedChange: toggleGoodCrcMessages,
           },
           {
             id: 'logging-filter',
             label: countMessageLogFilters(messageLogFilters) > 0
               ? `Filter... (${countMessageLogFilters(messageLogFilters)})`
               : 'Filter...',
+            meta: 'F',
             disabled: !activeDriver,
             onSelect: () => setIsMessageLogFilterDialogOpen(true),
           },
@@ -2393,6 +2426,7 @@ export const RackView = () => {
           {
             id: 'reset-trigger',
             label: 'Reset',
+            meta: 'R',
             disabled: !activeDriver || !isTriggerActivated,
             onSelect: () => {
               void handleResetTrigger()
@@ -2465,13 +2499,9 @@ export const RackView = () => {
         label: 'Help',
         items: [
           {
-            id: 'keyboard-shortcuts',
-            label: 'Keyboard shortcuts...',
-            onSelect: () => setIsShortcutHelpOpen(true),
-          },
-          {
             id: 'user-manual',
             label: 'User manual...',
+            meta: '?',
             onSelect: handleOpenDocumentation,
           },
         ],
@@ -2480,6 +2510,7 @@ export const RackView = () => {
   }, [
     activeDriver,
     activeDriverState?.role,
+    addMessageLogMarker,
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,
@@ -2487,6 +2518,7 @@ export const RackView = () => {
     handleConnectPairedDevice,
     handleDisconnectDevice,
     handleOpenDocumentation,
+    handlePulseUsbConnection,
     handleRemoveDevice,
     handleResetPowerChargeMeter,
     handleResetProtection,
@@ -2511,6 +2543,7 @@ export const RackView = () => {
     pairedDevices,
     theme,
     timeSinceMeterReset,
+    toggleGoodCrcMessages,
   ])
 
   return (
@@ -2580,10 +2613,6 @@ export const RackView = () => {
           <div className={styles.notice}>No racks available.</div>
         ) : null}
       </main>
-      <KeyboardShortcutsDialog
-        open={isShortcutHelpOpen}
-        onOpenChange={setIsShortcutHelpOpen}
-      />
       <FirmwareUpdateDialog
         prompt={firmwareUpdatePrompt}
         busy={isFirmwareUploadBusy}
