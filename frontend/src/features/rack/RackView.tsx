@@ -3227,12 +3227,12 @@ const HeaderVbusMetrics = ({
                 aria-hidden="true"
               />
               <span className={styles.headerVbusFlowEndpoint}>
-                {currentFlow.toBananaPort ? (
-                  <span className={styles.headerVbusBananaPort} aria-hidden="true" />
-                ) : null}
                 {currentFlow.to}
                 {currentFlow.toPort ? (
                   <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
+                ) : null}
+                {currentFlow.toBananaPort ? (
+                  <span className={styles.headerVbusBananaPort} aria-hidden="true" />
                 ) : null}
               </span>
             </>

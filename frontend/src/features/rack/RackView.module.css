@@ -202,12 +202,21 @@
 }
 
 .headerVbusBananaPort {
+  position: relative;
+  display: inline-block;
   width: calc(7px * var(--ui-scale));
   height: calc(7px * var(--ui-scale));
   border: var(--border-thin) solid currentColor;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 calc(1.5px * var(--ui-scale)) var(--color-surface-header);
   opacity: 0.9;
+}
+
+.headerVbusBananaPort::after {
+  content: '';
+  position: absolute;
+  inset: calc(1px * var(--ui-scale));
+  border: var(--border-thin) solid currentColor;
+  border-radius: 50%;
 }
 
 .headerVbusFlowTrack {
