@@ -65,6 +65,7 @@ export const Dialog = ({
             {...getFloatingProps({
               ref: refs.setFloating,
               className: styles.dialog,
+              style: { zIndex: 10000 },
               role: 'dialog',
               'aria-modal': true,
               'aria-label': ariaLabel,

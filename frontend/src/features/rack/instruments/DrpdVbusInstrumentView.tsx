@@ -8,6 +8,7 @@ import {
   VBUS_MIN_DISPLAY_UPDATE_RATE_HZ,
   VbusConfigurePopover,
 } from '../overlays/vbus/VbusConfigurePopover'
+import { prepareVbusConfigureDialog } from '../overlays/vbus/vbusConfigureDialogState'
 import styles from './DrpdVbusInstrumentView.module.css'
 
 const DISPLAY_UPDATE_RATE_STORAGE_PREFIX = 'drpd:vbus:display-rate:'
@@ -178,6 +179,7 @@ export const DrpdVbusInstrumentView = ({
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingProtection, setIsResettingProtection] = useState(false)
+  const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
   const pendingAverageRef = useRef<PendingAverageAccumulator>({
     voltageSum: 0,
     currentSum: 0,
@@ -328,46 +330,33 @@ export const DrpdVbusInstrumentView = ({
       id: 'configure-vbus',
       label: 'CONFIGURE',
       disabled: !driver || isEditMode || isApplyingConfig,
-      renderPopover: ({ closePopover }) => (
-        <VbusConfigurePopover
-          instrumentId={instrument.id}
-          driver={driver}
-          vbusInfo={vbusInfo}
-          displayUpdateRateHz={displayUpdateRateHz}
-          ovpThresholdInput={ovpThresholdInput}
-          ocpThresholdInput={ocpThresholdInput}
-          displayUpdateRateInput={displayUpdateRateInput}
-          configureError={configureError}
-          isApplyingConfig={isApplyingConfig}
-          setOvpThresholdInput={setOvpThresholdInput}
-          setOcpThresholdInput={setOcpThresholdInput}
-          setDisplayUpdateRateInput={setDisplayUpdateRateInput}
-          setConfigureError={setConfigureError}
-          setIsApplyingConfig={setIsApplyingConfig}
-          setDisplayUpdateRateHz={setDisplayUpdateRateHz}
-          closePopover={closePopover}
-        />
-      )
+      onClick: () => {
+        prepareVbusConfigureDialog({
+          vbusInfo,
+          displayUpdateRateHz,
+          setConfigureError,
+          setOvpThresholdInput,
+          setOcpThresholdInput,
+          setDisplayUpdateRateInput,
+        })
+        setIsConfigureDialogOpen(true)
+      },
     }
 
     return [resetControl, configureControl]
   }, [
-    configureError,
     driver,
-    instrument.id,
+    displayUpdateRateHz,
     isApplyingConfig,
     isProtectionTriggered,
     isEditMode,
-    ocpThresholdInput,
-    ovpThresholdInput,
-    displayUpdateRateHz,
-    displayUpdateRateInput,
     isResettingProtection,
     vbusInfo,
   ])
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -441,6 +430,25 @@ export const DrpdVbusInstrumentView = ({
       {deviceRecord ? null : (
         <div className={styles.unassigned}>Device: Unassigned</div>
       )}
-    </InstrumentBase>
+      </InstrumentBase>
+      <VbusConfigurePopover
+        instrumentId={instrument.id}
+        open={isConfigureDialogOpen}
+        onOpenChange={setIsConfigureDialogOpen}
+        driver={driver}
+        vbusInfo={vbusInfo}
+        ovpThresholdInput={ovpThresholdInput}
+        ocpThresholdInput={ocpThresholdInput}
+        displayUpdateRateInput={displayUpdateRateInput}
+        configureError={configureError}
+        isApplyingConfig={isApplyingConfig}
+        setOvpThresholdInput={setOvpThresholdInput}
+        setOcpThresholdInput={setOcpThresholdInput}
+        setDisplayUpdateRateInput={setDisplayUpdateRateInput}
+        setConfigureError={setConfigureError}
+        setIsApplyingConfig={setIsApplyingConfig}
+        setDisplayUpdateRateHz={setDisplayUpdateRateHz}
+      />
+    </>
   )
 }

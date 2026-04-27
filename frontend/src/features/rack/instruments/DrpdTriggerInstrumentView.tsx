@@ -272,6 +272,7 @@ export const DrpdTriggerInstrumentView = ({
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingTrigger, setIsResettingTrigger] = useState(false)
+  const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
 
   const triggerInfo = useSyncExternalStore(
     (onStoreChange) => {
@@ -327,51 +328,70 @@ export const DrpdTriggerInstrumentView = ({
       id: 'configure-trigger',
       label: 'Configure',
       disabled: !driver || isEditMode || isApplyingConfig,
-      renderPopover: ({ closePopover }) => (
-        <TriggerConfigurePopover
-          instrumentId={instrument.id}
-          eventTypeInput={eventTypeInput}
-          senderFilterInput={senderFilterInput}
-          messageTypeFiltersInput={messageTypeFiltersInput}
-          messageTypeFilterClassInput={messageTypeFilterClassInput}
-          messageTypeFilterTypeInput={messageTypeFilterTypeInput}
-          eventThresholdInput={eventThresholdInput}
-          autoRepeatInput={autoRepeatInput}
-          syncModeInput={syncModeInput}
-          syncPulseWidthUsInput={syncPulseWidthUsInput}
-          configureError={configureError}
-          isApplyingConfig={isApplyingConfig}
-          setEventTypeInput={setEventTypeInput}
-          setSenderFilterInput={setSenderFilterInput}
-          setMessageTypeFiltersInput={setMessageTypeFiltersInput}
-          setMessageTypeFilterClassInput={setMessageTypeFilterClassInput}
-          setMessageTypeFilterTypeInput={setMessageTypeFilterTypeInput}
-          setEventThresholdInput={setEventThresholdInput}
-          setAutoRepeatInput={setAutoRepeatInput}
-          setSyncModeInput={setSyncModeInput}
-          setSyncPulseWidthUsInput={setSyncPulseWidthUsInput}
-          setConfigureError={setConfigureError}
-          onMount={() => {
-            populateConfigureInputs(visibleTriggerInfo)
-            setConfigureError(null)
-            if (driver) {
-              void driver.trigger
-                .getInfo()
-                .then((latestTriggerInfo) => {
-                  setResolvedTriggerInfo({ driver, info: latestTriggerInfo })
-                  populateConfigureInputs(latestTriggerInfo)
-                })
-                .catch((error) => {
-                  const message = error instanceof Error ? error.message : String(error)
-                  setConfigureError(message)
-                })
-            }
-          }}
-          onCancel={() => {
-            setConfigureError(null)
-            closePopover()
-          }}
-          onApply={() => {
+      onClick: () => {
+        populateConfigureInputs(visibleTriggerInfo)
+        setConfigureError(null)
+        setIsConfigureDialogOpen(true)
+        if (driver) {
+          void driver.trigger
+            .getInfo()
+            .then((latestTriggerInfo) => {
+              setResolvedTriggerInfo({ driver, info: latestTriggerInfo })
+              populateConfigureInputs(latestTriggerInfo)
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error)
+              setConfigureError(message)
+            })
+        }
+      },
+    }
+
+    const resetControl: InstrumentHeaderControl = {
+      id: 'reset-trigger',
+      label: isResettingTrigger ? 'Resetting...' : 'Reset',
+      disabled:
+        !driver ||
+        isEditMode ||
+        isResettingTrigger ||
+        (visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED &&
+          visibleTriggerInfo?.autorepeat !== OnOffState.ON),
+      onClick: () => {
+        if (
+          !driver ||
+          (visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED &&
+            visibleTriggerInfo?.autorepeat !== OnOffState.ON)
+        ) {
+          return
+        }
+        setConfigureError(null)
+        setIsResettingTrigger(true)
+        void driver.trigger
+          .reset()
+          .then(async () => {
+            await driver.refreshState()
+          })
+          .catch((error) => {
+            const message = error instanceof Error ? error.message : String(error)
+            setConfigureError(message)
+          })
+          .finally(() => {
+            setIsResettingTrigger(false)
+          })
+      },
+    }
+
+    return [configureControl, resetControl]
+  }, [
+    driver,
+    isApplyingConfig,
+    isEditMode,
+    isResettingTrigger,
+    populateConfigureInputs,
+    visibleTriggerInfo,
+  ])
+
+  const applyTriggerConfiguration = (closeDialog: () => void) => {
             if (!driver) {
               return
             }
@@ -421,7 +441,7 @@ export const DrpdTriggerInstrumentView = ({
                   })
                 }
                 await driver.refreshState()
-                closePopover()
+                closeDialog()
               })
               .catch((error) => {
                 const message = error instanceof Error ? error.message : String(error)
@@ -430,66 +450,7 @@ export const DrpdTriggerInstrumentView = ({
               .finally(() => {
                 setIsApplyingConfig(false)
               })
-          }}
-        />
-      ),
-    }
-
-    const resetControl: InstrumentHeaderControl = {
-      id: 'reset-trigger',
-      label: isResettingTrigger ? 'Resetting...' : 'Reset',
-      disabled:
-        !driver ||
-        isEditMode ||
-        isResettingTrigger ||
-        (visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED &&
-          visibleTriggerInfo?.autorepeat !== OnOffState.ON),
-      onClick: () => {
-        if (
-          !driver ||
-          (visibleTriggerInfo?.status !== TriggerStatus.TRIGGERED &&
-            visibleTriggerInfo?.autorepeat !== OnOffState.ON)
-        ) {
-          return
-        }
-        setConfigureError(null)
-        setIsResettingTrigger(true)
-        void driver.trigger
-          .reset()
-          .then(async () => {
-            await driver.refreshState()
-          })
-          .catch((error) => {
-            const message = error instanceof Error ? error.message : String(error)
-            setConfigureError(message)
-          })
-          .finally(() => {
-            setIsResettingTrigger(false)
-          })
-      },
-    }
-
-    return [configureControl, resetControl]
-  }, [
-    autoRepeatInput,
-    driver,
-    eventThresholdInput,
-    eventTypeInput,
-    instrument.id,
-    isApplyingConfig,
-    isEditMode,
-    isResettingTrigger,
-    messageTypeFilterClassInput,
-    messageTypeFiltersInput,
-    onUpdateDeviceConfig,
-    populateConfigureInputs,
-    senderFilterInput,
-    syncModeInput,
-    syncPulseWidthUsInput,
-    deviceRecord,
-    visibleTriggerInfo,
-    configureError,
-  ])
+  }
 
   const statusClassName =
     visibleTriggerInfo?.status === TriggerStatus.TRIGGERED
@@ -499,7 +460,8 @@ export const DrpdTriggerInstrumentView = ({
         : styles.valueNeutral
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -586,6 +548,40 @@ export const DrpdTriggerInstrumentView = ({
           {configureError ? <p className={styles.inlineError}>{configureError}</p> : null}
         </section>
       </div>
-    </InstrumentBase>
+      </InstrumentBase>
+      <TriggerConfigurePopover
+        open={isConfigureDialogOpen}
+        onOpenChange={setIsConfigureDialogOpen}
+        instrumentId={instrument.id}
+        eventTypeInput={eventTypeInput}
+        senderFilterInput={senderFilterInput}
+        messageTypeFiltersInput={messageTypeFiltersInput}
+        messageTypeFilterClassInput={messageTypeFilterClassInput}
+        messageTypeFilterTypeInput={messageTypeFilterTypeInput}
+        eventThresholdInput={eventThresholdInput}
+        autoRepeatInput={autoRepeatInput}
+        syncModeInput={syncModeInput}
+        syncPulseWidthUsInput={syncPulseWidthUsInput}
+        configureError={configureError}
+        isApplyingConfig={isApplyingConfig}
+        setEventTypeInput={setEventTypeInput}
+        setSenderFilterInput={setSenderFilterInput}
+        setMessageTypeFiltersInput={setMessageTypeFiltersInput}
+        setMessageTypeFilterClassInput={setMessageTypeFilterClassInput}
+        setMessageTypeFilterTypeInput={setMessageTypeFilterTypeInput}
+        setEventThresholdInput={setEventThresholdInput}
+        setAutoRepeatInput={setAutoRepeatInput}
+        setSyncModeInput={setSyncModeInput}
+        setSyncPulseWidthUsInput={setSyncPulseWidthUsInput}
+        setConfigureError={setConfigureError}
+        onCancel={() => {
+          setConfigureError(null)
+          setIsConfigureDialogOpen(false)
+        }}
+        onApply={() => {
+          applyTriggerConfiguration(() => setIsConfigureDialogOpen(false))
+        }}
+      />
+    </>
   )
 }

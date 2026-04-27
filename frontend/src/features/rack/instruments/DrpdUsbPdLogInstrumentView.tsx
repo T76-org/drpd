@@ -639,6 +639,10 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [clearError, setClearError] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false)
+  const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -1228,97 +1232,14 @@ export const DrpdUsbPdLogInstrumentView = ({
       id: 'filter-log',
       label: activeFilterCount > 0 ? `Filter (${activeFilterCount})` : 'Filter',
       disabled: !driver || isEditMode,
-      renderPopover: ({ closePopover }) => (
-        <MessageLogFilterPopover
-          filters={filters}
-          options={filterOptions}
-          onApply={(next) => {
-            setFilters(next)
-            if (countActiveFilters(next) > 0) {
-              void queryAllCapturedMessages().then((rows) => {
-                setFilterRows(rows)
-                setFilterOptionRows(rows)
-              })
-            }
-          }}
-          onClear={() => {
-            setFilters(EMPTY_FILTERS)
-            setFilterRows([])
-          }}
-          closePopover={closePopover}
-        />
-      ),
+      onClick: () => setIsFilterDialogOpen(true),
     }
 
     const exportControl: InstrumentHeaderControl = {
       id: 'export-log',
       label: isExporting ? 'Exporting...' : 'Export',
       disabled: !driver || isEditMode || isExporting,
-      renderPopover: ({ closePopover }) => (
-        <MessageLogExportPopover
-          exportError={exportError}
-          hasSelection={hasSelection}
-          isExporting={isExporting}
-          onExportJson={() => {
-            if (!driver || !hasSelection) {
-              return
-            }
-            setIsExporting(true)
-            setExportError(null)
-            void driver
-              .queryCapturedMessages({
-                startTimestampUs: 0n,
-                endTimestampUs: LOG_END_TIMESTAMP_US,
-                sortOrder: 'asc',
-              })
-              .then((rows) => {
-                const exportRows = buildExportRows(rows, selection.selectedKeys)
-                downloadExportPayload(
-                  buildJsonExportPayload(exportRows),
-                  'application/json',
-                  'message-log-export.json',
-                )
-                closePopover()
-              })
-              .catch((error) => {
-                const message = error instanceof Error ? error.message : String(error)
-                setExportError(message)
-              })
-              .finally(() => {
-                setIsExporting(false)
-              })
-          }}
-          onExportCsv={() => {
-            if (!driver || !hasSelection) {
-              return
-            }
-            setIsExporting(true)
-            setExportError(null)
-            void driver
-              .queryCapturedMessages({
-                startTimestampUs: 0n,
-                endTimestampUs: LOG_END_TIMESTAMP_US,
-                sortOrder: 'asc',
-              })
-              .then((rows) => {
-                const exportRows = buildExportRows(rows, selection.selectedKeys)
-                downloadExportPayload(
-                  buildCsvExportPayload(exportRows),
-                  'text/csv',
-                  'message-log-export.csv',
-                )
-                closePopover()
-              })
-              .catch((error) => {
-                const message = error instanceof Error ? error.message : String(error)
-                setExportError(message)
-              })
-              .finally(() => {
-                setIsExporting(false)
-              })
-          }}
-        />
-      ),
+      onClick: () => setIsExportDialogOpen(true),
     }
 
     const markControl: InstrumentHeaderControl = {
@@ -1347,97 +1268,14 @@ export const DrpdUsbPdLogInstrumentView = ({
       id: 'clear-log',
       label: 'Clear',
       disabled: !driver || isEditMode || isClearing,
-      renderPopover: ({ closePopover }) => (
-        <MessageLogClearPopover
-          clearError={clearError}
-          isClearing={isClearing}
-          onCancel={() => {
-            setClearError(null)
-            closePopover()
-          }}
-          onClear={() => {
-            if (!driver) {
-              return
-            }
-            setIsClearing(true)
-            setClearError(null)
-            void driver
-              .clearLogs('all')
-              .then(() => {
-                closePopover()
-              })
-              .catch((error) => {
-                const message = error instanceof Error ? error.message : String(error)
-                setClearError(message)
-              })
-              .finally(() => {
-                setIsClearing(false)
-              })
-          }}
-        />
-      ),
+      onClick: () => setIsClearDialogOpen(true),
     }
 
     const configureControl: InstrumentHeaderControl = {
       id: 'configure-log',
       label: 'Configure',
       disabled: !deviceRecord || !onUpdateDeviceConfig || isEditMode || isApplyingBuffer,
-      renderPopover: ({ closePopover }) => (
-        <MessageLogConfigurePopover
-          instrumentId={instrument.id}
-          minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
-          maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
-          bufferInput={bufferInput}
-          bufferError={bufferError}
-          isApplyingBuffer={isApplyingBuffer}
-          setBufferInput={setBufferInput}
-          setBufferError={setBufferError}
-          onCancel={() => {
-            setBufferError(null)
-            closePopover()
-          }}
-          onApply={() => {
-            if (!deviceRecord || !onUpdateDeviceConfig) {
-              return
-            }
-            const parsed = parseBufferInput()
-            if (parsed === null) {
-              setBufferError(
-                `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
-              )
-              return
-            }
-            setIsApplyingBuffer(true)
-            setBufferError(null)
-            void Promise.resolve(
-              onUpdateDeviceConfig(deviceRecord.id, (current) => {
-                const source =
-                  current && typeof current === 'object'
-                    ? (current as { logging?: Partial<DRPDLoggingConfig> })
-                    : {}
-                const logging = normalizeLoggingConfig({
-                  ...source.logging,
-                  maxCapturedMessages: parsed,
-                })
-                return {
-                  ...source,
-                  logging,
-                }
-              }),
-            )
-              .then(() => {
-                closePopover()
-              })
-              .catch((error) => {
-                const message = error instanceof Error ? error.message : String(error)
-                setBufferError(message)
-              })
-              .finally(() => {
-                setIsApplyingBuffer(false)
-              })
-          }}
-        />
-      ),
+      onClick: () => setIsConfigureDialogOpen(true),
     }
 
     return [goodCrcControl, filterControl, exportControl, markControl, clearControl, configureControl]
@@ -1552,7 +1390,8 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -1647,6 +1486,176 @@ export const DrpdUsbPdLogInstrumentView = ({
           </div>
         </div>
       </div>
-    </InstrumentBase>
+      </InstrumentBase>
+      <MessageLogFilterPopover
+        open={isFilterDialogOpen}
+        onOpenChange={setIsFilterDialogOpen}
+        filters={filters}
+        options={filterOptions}
+        onApply={(next) => {
+          setFilters(next)
+          if (countActiveFilters(next) > 0) {
+            void queryAllCapturedMessages().then((rows) => {
+              setFilterRows(rows)
+              setFilterOptionRows(rows)
+            })
+          }
+        }}
+        onClear={() => {
+          setFilters(EMPTY_FILTERS)
+          setFilterRows([])
+        }}
+      />
+      <MessageLogExportPopover
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        exportError={exportError}
+        hasSelection={hasSelection}
+        isExporting={isExporting}
+        onExportJson={() => {
+          if (!driver || !hasSelection) {
+            return
+          }
+          setIsExporting(true)
+          setExportError(null)
+          void driver
+            .queryCapturedMessages({
+              startTimestampUs: 0n,
+              endTimestampUs: LOG_END_TIMESTAMP_US,
+              sortOrder: 'asc',
+            })
+            .then((rows) => {
+              const exportRows = buildExportRows(rows, selection.selectedKeys)
+              downloadExportPayload(
+                buildJsonExportPayload(exportRows),
+                'application/json',
+                'message-log-export.json',
+              )
+              setIsExportDialogOpen(false)
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error)
+              setExportError(message)
+            })
+            .finally(() => {
+              setIsExporting(false)
+            })
+        }}
+        onExportCsv={() => {
+          if (!driver || !hasSelection) {
+            return
+          }
+          setIsExporting(true)
+          setExportError(null)
+          void driver
+            .queryCapturedMessages({
+              startTimestampUs: 0n,
+              endTimestampUs: LOG_END_TIMESTAMP_US,
+              sortOrder: 'asc',
+            })
+            .then((rows) => {
+              const exportRows = buildExportRows(rows, selection.selectedKeys)
+              downloadExportPayload(
+                buildCsvExportPayload(exportRows),
+                'text/csv',
+                'message-log-export.csv',
+              )
+              setIsExportDialogOpen(false)
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error)
+              setExportError(message)
+            })
+            .finally(() => {
+              setIsExporting(false)
+            })
+        }}
+      />
+      <MessageLogClearPopover
+        open={isClearDialogOpen}
+        onOpenChange={setIsClearDialogOpen}
+        clearError={clearError}
+        isClearing={isClearing}
+        onCancel={() => {
+          setClearError(null)
+          setIsClearDialogOpen(false)
+        }}
+        onClear={() => {
+          if (!driver) {
+            return
+          }
+          setIsClearing(true)
+          setClearError(null)
+          void driver
+            .clearLogs('all')
+            .then(() => {
+              setIsClearDialogOpen(false)
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error)
+              setClearError(message)
+            })
+            .finally(() => {
+              setIsClearing(false)
+            })
+        }}
+      />
+      <MessageLogConfigurePopover
+        open={isConfigureDialogOpen}
+        onOpenChange={setIsConfigureDialogOpen}
+        instrumentId={instrument.id}
+        minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
+        maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
+        bufferInput={bufferInput}
+        bufferError={bufferError}
+        isApplyingBuffer={isApplyingBuffer}
+        setBufferInput={setBufferInput}
+        setBufferError={setBufferError}
+        onCancel={() => {
+          setBufferError(null)
+          setIsConfigureDialogOpen(false)
+        }}
+        onApply={() => {
+          if (!deviceRecord || !onUpdateDeviceConfig) {
+            return
+          }
+          const parsed = parseBufferInput()
+          if (parsed === null) {
+            setBufferError(
+              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+            )
+            return
+          }
+          setIsApplyingBuffer(true)
+          setBufferError(null)
+          void Promise.resolve(
+            onUpdateDeviceConfig(deviceRecord.id, (current) => {
+              const source =
+                current && typeof current === 'object'
+                  ? (current as { logging?: Partial<DRPDLoggingConfig> })
+                  : {}
+              const logging = normalizeLoggingConfig({
+                ...source.logging,
+                maxCapturedMessages: parsed,
+              })
+              return {
+                ...source,
+                logging,
+              }
+            }),
+          )
+            .then(() => {
+              setIsConfigureDialogOpen(false)
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error)
+              setBufferError(message)
+            })
+            .finally(() => {
+              setIsApplyingBuffer(false)
+            })
+        }}
+      />
+    </>
   )
 }

@@ -8,13 +8,13 @@ import {
   type TriggerInfo,
   type TriggerMessageTypeFilter,
 } from '../../../../lib/device'
+import { Dialog, DialogButton } from '../../../../ui/overlays'
 import {
   CONTROL_MESSAGE_TYPES,
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../../lib/device/drpd/usb-pd/message'
 import styles from '../../instruments/DrpdTriggerInstrumentView.module.css'
-import { PopoverLifecycle } from '../common/PopoverLifecycle'
 
 const TRIGGER_EVENT_OPTIONS = [
   TriggerEventType.OFF,
@@ -202,6 +202,8 @@ const formatTriggerSenderFilter = (value: TriggerInfo['senderFilter'] | null | u
 
 export const TriggerConfigurePopover = ({
   instrumentId,
+  open,
+  onOpenChange,
   eventTypeInput,
   senderFilterInput,
   messageTypeFiltersInput,
@@ -223,11 +225,12 @@ export const TriggerConfigurePopover = ({
   setSyncModeInput,
   setSyncPulseWidthUsInput,
   setConfigureError,
-  onMount,
   onCancel,
   onApply,
 }: {
   instrumentId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
   eventTypeInput: TriggerEventType
   senderFilterInput: TriggerSenderFilter
   messageTypeFiltersInput: TriggerMessageTypeFilter[]
@@ -249,7 +252,6 @@ export const TriggerConfigurePopover = ({
   setSyncModeInput: (value: TriggerSyncMode) => void
   setSyncPulseWidthUsInput: (value: string) => void
   setConfigureError: (value: string | null) => void
-  onMount: () => void
   onCancel: () => void
   onApply: () => void
 }) => {
@@ -265,8 +267,23 @@ export const TriggerConfigurePopover = ({
   const selectedEventSupportsFilters = isFilterCapableTriggerEventType(eventTypeInput)
 
   return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Configure trigger"
+      dismissible={!isApplyingConfig}
+      footer={
+        <>
+          <DialogButton onClick={onCancel} disabled={isApplyingConfig}>
+            Cancel
+          </DialogButton>
+          <DialogButton variant="primary" onClick={onApply} disabled={isApplyingConfig}>
+            {isApplyingConfig ? 'Applying...' : 'Apply'}
+          </DialogButton>
+        </>
+      }
+    >
     <div className={styles.headerPopup}>
-      <PopoverLifecycle onMount={onMount} onUnmount={() => {}} />
       <div className={styles.headerPopupField}>
         <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-trigger-event`}>
           Event type
@@ -531,24 +548,7 @@ export const TriggerConfigurePopover = ({
         Trigger threshold and pulse width are positive integer values.
       </p>
       {configureError ? <p className={styles.headerPopupError}>{configureError}</p> : null}
-      <div className={styles.headerPopupActions}>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={onCancel}
-          disabled={isApplyingConfig}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={onApply}
-          disabled={isApplyingConfig}
-        >
-          {isApplyingConfig ? 'Applying...' : 'Apply'}
-        </button>
-      </div>
     </div>
+    </Dialog>
   )
 }

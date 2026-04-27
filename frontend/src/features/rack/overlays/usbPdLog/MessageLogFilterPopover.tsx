@@ -1,15 +1,12 @@
 import { useState } from 'react'
+import { Dialog, DialogButton } from '../../../../ui/overlays'
 import type { FilterOption, MessageLogFilterKey, MessageLogFilters } from './usbPdLogFilters'
 import { toggleFilterValue } from './usbPdLogFilters'
 import styles from '../../instruments/DrpdUsbPdLogInstrumentView.module.css'
 
-export const MessageLogFilterPopover = ({
-  filters,
-  options,
-  onApply,
-  onClear,
-  closePopover,
-}: {
+type MessageLogFilterPopoverProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   filters: MessageLogFilters
   options: {
     messageTypes: FilterOption[]
@@ -20,8 +17,17 @@ export const MessageLogFilterPopover = ({
   }
   onApply: (next: MessageLogFilters) => void
   onClear: () => void
-  closePopover: () => void
-}) => {
+}
+
+type MessageLogFilterDialogContentProps = Omit<MessageLogFilterPopoverProps, 'open'>
+
+const MessageLogFilterDialogContent = ({
+  onOpenChange,
+  filters,
+  options,
+  onApply,
+  onClear,
+}: MessageLogFilterDialogContentProps) => {
   const [draft, setDraft] = useState(filters)
   const groups: Array<{
     key: MessageLogFilterKey
@@ -36,7 +42,32 @@ export const MessageLogFilterPopover = ({
   ]
 
   return (
-    <div className={styles.headerPopup}>
+    <Dialog
+      open
+      onOpenChange={onOpenChange}
+      title="Filter message log"
+      footer={
+        <>
+          <DialogButton
+            onClick={() => {
+              onClear()
+              onOpenChange(false)
+            }}
+          >
+            Clear
+          </DialogButton>
+          <DialogButton
+            variant="primary"
+            onClick={() => {
+              onApply(draft)
+              onOpenChange(false)
+            }}
+          >
+            Apply
+          </DialogButton>
+        </>
+      }
+    >
       <div className={styles.filterGroups}>
         {groups.map((group) => (
           <fieldset key={group.key} className={styles.filterGroup}>
@@ -90,28 +121,14 @@ export const MessageLogFilterPopover = ({
           </fieldset>
         ))}
       </div>
-      <div className={styles.headerPopupActions}>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={() => {
-            onClear()
-            closePopover()
-          }}
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={() => {
-            onApply(draft)
-            closePopover()
-          }}
-        >
-          Apply
-        </button>
-      </div>
-    </div>
+    </Dialog>
   )
+}
+
+export const MessageLogFilterPopover = (props: MessageLogFilterPopoverProps) => {
+  if (!props.open) {
+    return null
+  }
+
+  return <MessageLogFilterDialogContent {...props} />
 }

@@ -467,6 +467,7 @@ export const DrpdSinkControlInstrumentView = ({
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [requestErrorMessage, setRequestErrorMessage] = useState<string | null>(null)
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+  const [isSinkRequestDialogOpen, setIsSinkRequestDialogOpen] = useState(false)
   const [isRefreshingSinkData, setIsRefreshingSinkData] = useState(false)
 
   const isRefreshingRef = useRef(false)
@@ -692,44 +693,15 @@ export const DrpdSinkControlInstrumentView = ({
       disabled: !driver || isEditMode,
       onClick: () => {
         prepareAdvancedPopover()
+        setIsAdvancedOpen(true)
+        setIsSinkRequestDialogOpen(true)
       },
-      renderPopover: ({ closePopover }) => (
-        <SinkRequestPopover
-          instrumentId={instrument.id}
-          sinkPdoList={sinkPdoList}
-          selectedIndex={selectedIndex}
-          selectedPdo={selectedPdo}
-          isRefreshingSinkData={isRefreshingSinkData}
-          voltageV={voltageV}
-          currentA={currentA}
-          voltageHint={voltageHint}
-          currentRangeLabel={currentRangeLabel}
-          validationMessage={validationMessage}
-          requestErrorMessage={requestErrorMessage}
-          requestStatus={requestStatus}
-          canSubmit={canSubmit}
-          setSelectedIndex={setSelectedIndex}
-          setVoltageV={setVoltageV}
-          setCurrentA={setCurrentA}
-          setRequestErrorMessage={setRequestErrorMessage}
-          setRequestStatus={setRequestStatus}
-          onMount={() => setIsAdvancedOpen(true)}
-          onUnmount={() => setIsAdvancedOpen(false)}
-          onCancel={() => {
-            closePopover()
-            setRequestErrorMessage(null)
-            setRequestStatus('idle')
-          }}
-          onSubmit={() => {
-            void handleRequest(closePopover)
-          }}
-        />
-      ),
     },
   ]
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -789,6 +761,44 @@ export const DrpdSinkControlInstrumentView = ({
         </section>
       </div>
       {deviceRecord ? null : <div className={styles.unassigned}>Device: Unassigned</div>}
-    </InstrumentBase>
+      </InstrumentBase>
+      <SinkRequestPopover
+        open={isSinkRequestDialogOpen}
+        onOpenChange={(open) => {
+          setIsSinkRequestDialogOpen(open)
+          setIsAdvancedOpen(open)
+        }}
+        instrumentId={instrument.id}
+        sinkPdoList={sinkPdoList}
+        selectedIndex={selectedIndex}
+        selectedPdo={selectedPdo}
+        isRefreshingSinkData={isRefreshingSinkData}
+        voltageV={voltageV}
+        currentA={currentA}
+        voltageHint={voltageHint}
+        currentRangeLabel={currentRangeLabel}
+        validationMessage={validationMessage}
+        requestErrorMessage={requestErrorMessage}
+        requestStatus={requestStatus}
+        canSubmit={canSubmit}
+        setSelectedIndex={setSelectedIndex}
+        setVoltageV={setVoltageV}
+        setCurrentA={setCurrentA}
+        setRequestErrorMessage={setRequestErrorMessage}
+        setRequestStatus={setRequestStatus}
+        onCancel={() => {
+          setIsSinkRequestDialogOpen(false)
+          setIsAdvancedOpen(false)
+          setRequestErrorMessage(null)
+          setRequestStatus('idle')
+        }}
+        onSubmit={() => {
+          void handleRequest(() => {
+            setIsSinkRequestDialogOpen(false)
+            setIsAdvancedOpen(false)
+          })
+        }}
+      />
+    </>
   )
 }

@@ -1,4 +1,3 @@
-export { PopoverLifecycle } from './common/PopoverLifecycle'
 export {
   VBUS_MAX_DISPLAY_UPDATE_RATE_HZ,
   VBUS_MIN_DISPLAY_UPDATE_RATE_HZ,
@@ -7,7 +6,7 @@ export {
   VbusConfigurePopover,
 } from './vbus/VbusConfigurePopover'
 export { FieldHelpButton } from './messageDetail/FieldHelpButton'
-export { RoleMenu } from './deviceStatus/RoleMenu'
+export { RoleDialog } from './deviceStatus/RoleDialog'
 export { SinkRequestPopover } from './sink/SinkRequestPopover'
 export { MessageLogFilterPopover } from './usbPdLog/MessageLogFilterPopover'
 export {

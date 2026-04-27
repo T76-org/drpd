@@ -1,84 +1,105 @@
-import styles from '../../instruments/DrpdUsbPdLogInstrumentView.module.css'
+import {
+  Dialog,
+  DialogButton,
+  DialogForm,
+  DialogFormRow,
+  DialogInput,
+} from '../../../../ui/overlays'
 
 export const MessageLogExportPopover = ({
+  open,
+  onOpenChange,
   exportError,
   hasSelection,
   isExporting,
   onExportJson,
   onExportCsv,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   exportError: string | null
   hasSelection: boolean
   isExporting: boolean
   onExportJson: () => void
   onExportCsv: () => void
 }) => (
-  <div className={styles.headerPopup}>
-    {exportError ? (
-      <p className={styles.headerPopupError}>{exportError}</p>
-    ) : null}
-    <div className={styles.headerPopupActions}>
-      <button
-        type="button"
-        className={styles.headerPopupButton}
-        disabled={!hasSelection || isExporting}
-        onClick={onExportJson}
-      >
-        Export JSON
-      </button>
-      <button
-        type="button"
-        className={styles.headerPopupButton}
-        disabled={!hasSelection || isExporting}
-        onClick={onExportCsv}
-      >
-        Export CSV
-      </button>
-    </div>
-  </div>
+  <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="Export message log"
+    description={exportError ?? 'Export the selected log rows.'}
+    dismissible={!isExporting}
+    footer={
+      <>
+        <DialogButton
+          disabled={!hasSelection || isExporting}
+          onClick={onExportJson}
+        >
+          Export JSON
+        </DialogButton>
+        <DialogButton
+          variant="primary"
+          disabled={!hasSelection || isExporting}
+          onClick={onExportCsv}
+        >
+          Export CSV
+        </DialogButton>
+      </>
+    }
+  >
+    {hasSelection ? 'Choose an export format.' : 'Select one or more rows before exporting.'}
+  </Dialog>
 )
 
 export const MessageLogClearPopover = ({
+  open,
+  onOpenChange,
   clearError,
   isClearing,
   onCancel,
   onClear,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   clearError: string | null
   isClearing: boolean
   onCancel: () => void
   onClear: () => void
 }) => (
-  <div className={styles.headerPopup}>
-    <p className={styles.headerPopupText}>
-      This will permanently delete all logged messages and analog samples, and clear the time strip.
-      Are you sure?
-    </p>
-    {clearError ? (
-      <p className={styles.headerPopupError}>{clearError}</p>
-    ) : null}
-    <div className={styles.headerPopupActions}>
-      <button
-        type="button"
-        className={styles.headerPopupButton}
+  <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="Clear logs"
+    description={
+      clearError ??
+      'This will permanently delete all logged messages and analog samples, and clear the time strip.'
+    }
+    dismissible={!isClearing}
+    footer={
+      <>
+        <DialogButton
         onClick={onCancel}
         disabled={isClearing}
       >
         Cancel
-      </button>
-      <button
-        type="button"
-        className={`${styles.headerPopupButton} ${styles.headerPopupButtonDanger}`}
+        </DialogButton>
+        <DialogButton
+        variant="danger"
         onClick={onClear}
         disabled={isClearing}
       >
         {isClearing ? 'Clearing...' : 'Clear'}
-      </button>
-    </div>
-  </div>
+        </DialogButton>
+      </>
+    }
+  >
+    Are you sure?
+  </Dialog>
 )
 
 export const MessageLogConfigurePopover = ({
+  open,
+  onOpenChange,
   instrumentId,
   minBuffer,
   maxBuffer,
@@ -90,6 +111,8 @@ export const MessageLogConfigurePopover = ({
   onCancel,
   onApply,
 }: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
   instrumentId: string
   minBuffer: number
   maxBuffer: number
@@ -101,14 +124,38 @@ export const MessageLogConfigurePopover = ({
   onCancel: () => void
   onApply: () => void
 }) => (
-  <div className={styles.headerPopup}>
-    <div className={styles.headerPopupFieldRow}>
-      <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-max-buffer`}>
-        Message buffer size
-      </label>
-      <input
+  <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="Message log settings"
+    dismissible={!isApplyingBuffer}
+    footer={
+      <>
+        <DialogButton
+          onClick={onCancel}
+          disabled={isApplyingBuffer}
+        >
+          Cancel
+        </DialogButton>
+        <DialogButton
+          variant="primary"
+          onClick={onApply}
+          disabled={isApplyingBuffer}
+        >
+          {isApplyingBuffer ? 'Applying...' : 'Apply'}
+        </DialogButton>
+      </>
+    }
+  >
+    <DialogForm>
+      <DialogFormRow
+        label="Buffer size"
+        htmlFor={`${instrumentId}-max-buffer`}
+        helpText={`Range: ${minBuffer}-${maxBuffer}`}
+        errorText={bufferError ?? undefined}
+      >
+      <DialogInput
         id={`${instrumentId}-max-buffer`}
-        className={styles.headerPopupInput}
         aria-label="Max message buffer"
         type="number"
         min={minBuffer}
@@ -121,27 +168,7 @@ export const MessageLogConfigurePopover = ({
         }}
         disabled={isApplyingBuffer}
       />
-    </div>
-    {bufferError ? (
-      <p className={styles.headerPopupError}>{bufferError}</p>
-    ) : null}
-    <div className={styles.headerPopupActions}>
-      <button
-        type="button"
-        className={styles.headerPopupButton}
-        onClick={onCancel}
-        disabled={isApplyingBuffer}
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        className={styles.headerPopupButton}
-        onClick={onApply}
-        disabled={isApplyingBuffer}
-      >
-        {isApplyingBuffer ? 'Applying...' : 'Apply'}
-      </button>
-    </div>
-  </div>
+      </DialogFormRow>
+    </DialogForm>
+  </Dialog>
 )

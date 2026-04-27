@@ -1,5 +1,5 @@
 import { SinkPdoType, type SinkPdo } from '../../../../lib/device'
-import { PopoverLifecycle } from '../common/PopoverLifecycle'
+import { Dialog, DialogButton } from '../../../../ui/overlays'
 import styles from '../../instruments/DrpdSinkControlInstrumentView.module.css'
 
 type NonNullSinkPdo = Exclude<SinkPdo, null>
@@ -56,6 +56,8 @@ const isVoltageEditable = (pdo: SinkPdo | null | undefined): boolean => (
 
 export const SinkRequestPopover = ({
   instrumentId,
+  open,
+  onOpenChange,
   sinkPdoList,
   selectedIndex,
   selectedPdo,
@@ -73,12 +75,12 @@ export const SinkRequestPopover = ({
   setCurrentA,
   setRequestErrorMessage,
   setRequestStatus,
-  onMount,
-  onUnmount,
   onCancel,
   onSubmit,
 }: {
   instrumentId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
   sinkPdoList: SinkPdo[]
   selectedIndex: number
   selectedPdo: SinkPdo | null
@@ -96,18 +98,24 @@ export const SinkRequestPopover = ({
   setCurrentA: (value: string) => void
   setRequestErrorMessage: (value: string | null) => void
   setRequestStatus: (value: 'idle' | 'sending' | 'success' | 'error') => void
-  onMount: () => void
-  onUnmount: () => void
   onCancel: () => void
   onSubmit: () => void
 }) => (
-  <div
-    id={`${instrumentId}-advanced-tune`}
-    className={styles.advancedPanel}
-    role="dialog"
-    aria-label="Sink request tuning"
+  <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="Sink request tuning"
+    description="Choose a PDO and request voltage/current."
+    footer={
+      <>
+        <DialogButton onClick={onCancel}>Cancel</DialogButton>
+        <DialogButton variant="primary" onClick={onSubmit} disabled={!canSubmit}>
+          {requestStatus === 'sending' ? 'Setting...' : 'Set PDO'}
+        </DialogButton>
+      </>
+    }
   >
-    <PopoverLifecycle onMount={onMount} onUnmount={onUnmount} />
+  <div id={`${instrumentId}-advanced-tune`} className={styles.advancedPanel}>
     <div className={styles.advancedLayout}>
       <div className={styles.pdoListPane}>
         {isRefreshingSinkData && sinkPdoList.length === 0 ? (
@@ -199,24 +207,8 @@ export const SinkRequestPopover = ({
           {validationMessage ?? requestErrorMessage ?? ''}
         </div>
 
-        <div className={styles.requestActions}>
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className={styles.requestButton}
-            onClick={onSubmit}
-            disabled={!canSubmit}
-          >
-            {requestStatus === 'sending' ? 'Setting...' : 'Set PDO'}
-          </button>
-        </div>
       </div>
     </div>
   </div>
+  </Dialog>
 )

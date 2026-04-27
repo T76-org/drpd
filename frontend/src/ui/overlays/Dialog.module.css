@@ -11,6 +11,7 @@
 .dialog {
   display: grid;
   gap: var(--space-12);
+  z-index: 10000;
   width: min(calc(520px * var(--ui-scale)), calc(100vw - var(--space-32)));
   max-height: calc(100vh - var(--space-32));
   padding: var(--space-16);

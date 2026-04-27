@@ -8,7 +8,7 @@ import {
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
-import { RoleMenu } from '../overlays/deviceStatus/RoleMenu'
+import { RoleDialog } from '../overlays/deviceStatus/RoleDialog'
 import styles from './DrpdDeviceStatusInstrumentView.module.css'
 
 /**
@@ -101,6 +101,7 @@ export const DrpdDeviceStatusInstrumentView = ({
   const [captureEnabled, setCaptureEnabled] = useState<OnOffState | null>(null)
   const [isRoleUpdating, setIsRoleUpdating] = useState(false)
   const [isCaptureUpdating, setIsCaptureUpdating] = useState(false)
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!driver) {
@@ -216,7 +217,8 @@ export const DrpdDeviceStatusInstrumentView = ({
   }
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -234,15 +236,14 @@ export const DrpdDeviceStatusInstrumentView = ({
             <span className={styles.modeLabel}>Role</span>
             <span className={styles.modeValue}>{roleLabel}</span>
             <div className={styles.modeAction}>
-              <RoleMenu
-                role={role}
+              <button
+                type="button"
+                className={styles.modeButton}
+                onClick={() => setIsRoleDialogOpen(true)}
                 disabled={!driver || isRoleUpdating}
-                isUpdating={isRoleUpdating}
-                formatRoleLabel={formatRoleLabel}
-                onSelectRole={(nextRole) => {
-                  void handleRoleUpdate(nextRole)
-                }}
-              />
+              >
+                Set
+              </button>
             </div>
           </div>
           <div className={styles.modeRow}>
@@ -273,6 +274,17 @@ export const DrpdDeviceStatusInstrumentView = ({
       {deviceRecord ? null : (
         <div className={styles.unassigned}>Device: Unassigned</div>
       )}
-    </InstrumentBase>
+      </InstrumentBase>
+      <RoleDialog
+        open={isRoleDialogOpen}
+        onOpenChange={setIsRoleDialogOpen}
+        role={role}
+        isUpdating={isRoleUpdating}
+        formatRoleLabel={formatRoleLabel}
+        onSelectRole={(nextRole) => {
+          void handleRoleUpdate(nextRole)
+        }}
+      />
+    </>
   )
 }
