@@ -6,16 +6,16 @@
   flex-direction: column;
   min-width: calc(136px * var(--ui-scale));
   max-width: min(calc(320px * var(--ui-scale)), calc(100vw - var(--space-16)));
-  padding: var(--space-4) var(--space-0);
+  padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
   color: var(--color-text-primary);
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-strong);
+  border-radius: 0;
+  box-shadow: 0 calc(3px * var(--ui-scale)) calc(10px * var(--ui-scale)) rgb(0 0 0 / 0.24);
   font-size: var(--font-size-popup);
-  line-height: var(--line-height-tight);
+  line-height: 1;
   z-index: 10000;
   transform: scale(var(--global-app-scale, 1));
   transform-origin: top left;
@@ -23,13 +23,13 @@
 
 .menuItem {
   display: grid;
-  grid-template-columns: calc(14px * var(--ui-scale)) minmax(0, 1fr) auto;
+  grid-template-columns: calc(12px * var(--ui-scale)) minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-6);
+  gap: calc(6px * var(--ui-scale));
   width: 100%;
-  min-height: calc(22px * var(--ui-scale));
+  min-height: calc(19px * var(--ui-scale));
   border: 0;
-  padding: var(--space-4) var(--space-10);
+  padding: 0 calc(8px * var(--ui-scale));
   color: var(--color-text-primary);
   background: transparent;
   font: inherit;
@@ -75,6 +75,6 @@
 
 .separator {
   height: var(--border-thin);
-  margin: var(--space-4) var(--space-0);
+  margin: calc(2px * var(--ui-scale)) 0;
   background: var(--color-border-divider);
 }

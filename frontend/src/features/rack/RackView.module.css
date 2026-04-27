@@ -25,19 +25,21 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--space-2);
-  min-height: calc(22px * var(--ui-scale));
+  gap: 0;
+  min-height: calc(18px * var(--ui-scale));
   box-sizing: border-box;
 }
 
 .menuBarButton {
   border: none;
+  border-radius: calc(2px * var(--ui-scale));
   background: transparent;
   color: var(--color-text-primary);
   font-size: var(--font-size-2xs);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-tight);
-  padding: var(--space-3) var(--space-6);
+  font-weight: var(--font-weight-normal);
+  line-height: 1;
+  min-height: calc(18px * var(--ui-scale));
+  padding: calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale));
   cursor: pointer;
 }
 

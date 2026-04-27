@@ -89,7 +89,7 @@ export type MenuProps = {
   onOpenChange?: (open: boolean) => void
 }
 
-const MENU_OFFSET_PX = 4
+const MENU_OFFSET_PX = 0
 const MENU_VIEWPORT_PADDING_PX = 8
 const MIN_MENU_HEIGHT_PX = 120
 
