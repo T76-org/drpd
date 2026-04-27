@@ -82,7 +82,7 @@
 .titleBlock {
   display: flex;
   align-items: center;
-  gap: var(--space-16);
+  gap: calc(var(--space-16) * 1.15);
   min-width: 0;
 }
 
@@ -93,14 +93,14 @@
 
 .logo {
   display: block;
-  height: var(--rack-header-logo-height);
+  height: calc(var(--rack-header-logo-height) * 1.15);
   width: auto;
 }
 
 .headerVbusMetrics {
   display: flex;
   align-items: center;
-  gap: var(--space-10);
+  gap: calc(var(--space-10) * 1.15);
   min-width: 0;
 }
 
@@ -114,7 +114,7 @@
 }
 
 .headerVbusVoltage {
-  font-size: var(--font-size-4xl);
+  font-size: calc(var(--font-size-4xl) * 1.15);
 }
 
 .headerVbusVoltage {
@@ -131,7 +131,7 @@
 
 .headerVbusCurrent,
 .headerVbusPower {
-  font-size: calc(1.35rem * var(--ui-scale));
+  font-size: calc(1.5525rem * var(--ui-scale));
   line-height: var(--line-height-tight);
 }
 
@@ -145,14 +145,14 @@
 
 .headerVbusNumber {
   display: inline-block;
-  min-width: calc(89px * var(--ui-scale));
+  min-width: calc(102px * var(--ui-scale));
   text-align: right;
   white-space: nowrap;
 }
 
 .headerVbusCurrent .headerVbusNumber,
 .headerVbusPower .headerVbusNumber {
-  min-width: calc(56px * var(--ui-scale));
+  min-width: calc(64px * var(--ui-scale));
 }
 
 .headerVbusCurrent .headerVbusNumber {
@@ -165,7 +165,7 @@
 
 .headerVbusFlow {
   color: var(--color-text-muted);
-  font-size: var(--font-size-3xs);
+  font-size: calc(var(--font-size-3xs) * 1.15);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
   letter-spacing: 0;
@@ -185,20 +185,20 @@
 }
 
 .headerVbusUsbCPort {
-  width: calc(8px * var(--ui-scale));
-  height: calc(4px * var(--ui-scale));
+  width: calc(9.2px * var(--ui-scale));
+  height: calc(4.6px * var(--ui-scale));
   border: var(--border-thin) solid currentColor;
   border-radius: 999px;
   opacity: 0.9;
 }
 
 .headerVbusFlowTrack {
-  --flow-dot-size: calc(1px * var(--ui-scale));
-  --flow-dot-gap: calc(6px * var(--ui-scale));
+  --flow-dot-size: calc(1.15px * var(--ui-scale));
+  --flow-dot-gap: calc(6.9px * var(--ui-scale));
 
   display: inline-block;
-  width: calc(24px * var(--ui-scale));
-  height: calc(5px * var(--ui-scale));
+  width: calc(27.6px * var(--ui-scale));
+  height: calc(5.75px * var(--ui-scale));
   border-radius: 999px;
   background-image: radial-gradient(
     circle,
@@ -217,7 +217,7 @@
 
 .headerVbusAccumulation {
   color: var(--color-text-muted);
-  font-size: var(--font-size-3xs);
+  font-size: calc(var(--font-size-3xs) * 1.15);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
@@ -233,9 +233,9 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: calc(7px * var(--ui-scale));
+  gap: calc(8.05px * var(--ui-scale));
   color: var(--color-text-primary);
-  font-size: var(--font-size-xs);
+  font-size: calc(var(--font-size-xs) * 1.15);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
@@ -277,7 +277,7 @@
 
 .headerVbusProtectionLabel {
   color: var(--color-text-muted);
-  font-size: var(--font-size-3xs);
+  font-size: calc(var(--font-size-3xs) * 1.15);
   letter-spacing: var(--letter-spacing-md);
 }
 
@@ -304,8 +304,8 @@
   --header-vbus-charge-angle: 0deg;
 
   position: relative;
-  width: calc(3.5px * var(--ui-scale));
-  height: calc(3.5px * var(--ui-scale));
+  width: calc(4.025px * var(--ui-scale));
+  height: calc(4.025px * var(--ui-scale));
   border-radius: 999px;
   opacity: 0;
   margin-left: var(--space-0);
