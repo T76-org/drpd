@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Device } from '../../lib/device'
 import type { DeviceIdentity } from '../../lib/device'
 import {
@@ -9,7 +8,11 @@ import {
   DRPDDeviceDefinition,
   OnOffState,
   SinkPdoType,
+  TriggerEventType,
+  TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
   TriggerStatus,
+  TriggerSyncMode,
   VBusStatus,
   buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
@@ -23,7 +26,14 @@ import {
   findMatchingDevices,
   verifyMatchingDevices
 } from '../../lib/device'
-import type { AnalogMonitorChannels, SinkInfo, SinkPdo, TriggerInfo, VBusInfo } from '../../lib/device'
+import type {
+  AnalogMonitorChannels,
+  SinkInfo,
+  SinkPdo,
+  TriggerInfo,
+  TriggerMessageTypeFilter,
+  VBusInfo,
+} from '../../lib/device'
 import {
   checkForFirmwareUpdate,
   fetchGitHubReleases,
@@ -56,9 +66,15 @@ import { getRackCanvasSize } from './rackCanvasSize'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
 import { useRackSizingConfig } from './rackSizing'
-import { RACK_SHORTCUTS, matchRackShortcut } from './shortcuts'
+import { matchRackShortcut } from './shortcuts'
 import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
 import { Menu, type MenuItem } from '../../ui/overlays'
+import { KeyboardShortcutsDialog } from './overlays/help/KeyboardShortcutsDialog'
+import { FirmwareUpdateDialog } from './overlays/firmware/FirmwareUpdateDialog'
+import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
+import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
+import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopover'
+import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -493,6 +509,119 @@ const isLoggedCapturedMessageLike = (value: unknown): value is LoggedCapturedMes
   )
 }
 
+const parseSinkField = (value: string): number | null => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const isPowerLimitedSinkPdo = (pdo: SinkPdo | null | undefined): boolean => (
+  pdo?.type === SinkPdoType.BATTERY ||
+  pdo?.type === SinkPdoType.SPR_AVS ||
+  pdo?.type === SinkPdoType.EPR_AVS
+)
+
+const buildDefaultSinkForm = (
+  pdo: SinkPdo | null | undefined,
+): { voltageV: string; currentA: string } => {
+  if (!pdo) {
+    return { voltageV: '', currentA: '' }
+  }
+  switch (pdo.type) {
+    case SinkPdoType.FIXED:
+      return { voltageV: pdo.voltageV.toFixed(2), currentA: pdo.maxCurrentA.toFixed(2) }
+    case SinkPdoType.VARIABLE:
+    case SinkPdoType.AUGMENTED:
+    case SinkPdoType.SPR_PPS:
+      return { voltageV: pdo.minVoltageV.toFixed(2), currentA: pdo.maxCurrentA.toFixed(2) }
+    case SinkPdoType.BATTERY:
+    case SinkPdoType.SPR_AVS:
+    case SinkPdoType.EPR_AVS:
+      return { voltageV: pdo.minVoltageV.toFixed(2), currentA: (pdo.maxPowerW / pdo.minVoltageV).toFixed(2) }
+    default:
+      return { voltageV: '', currentA: '' }
+  }
+}
+
+const getSinkCurrentConstraints = (
+  pdo: SinkPdo | null | undefined,
+  requestedVoltageV: number | null,
+): { minA: number; maxA?: number; error?: string } => {
+  if (!pdo) {
+    return { minA: 0, error: 'Select a PDO before requesting power.' }
+  }
+  if (pdo.type === SinkPdoType.FIXED) {
+    return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+  if (
+    pdo.type === SinkPdoType.VARIABLE ||
+    pdo.type === SinkPdoType.AUGMENTED ||
+    pdo.type === SinkPdoType.SPR_PPS
+  ) {
+    return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+  if (isPowerLimitedSinkPdo(pdo)) {
+    if (requestedVoltageV == null || !Number.isFinite(requestedVoltageV)) {
+      return { minA: 0, error: 'Enter a valid voltage to compute the current range.' }
+    }
+    if (requestedVoltageV <= 0) {
+      return { minA: 0, error: 'Voltage must be greater than 0 V.' }
+    }
+    if ('maxPowerW' in pdo) {
+      return { minA: 0, maxA: pdo.maxPowerW / requestedVoltageV }
+    }
+  }
+  return { minA: 0, error: 'Unsupported PDO type.' }
+}
+
+const getSinkVoltageHint = (pdo: SinkPdo | null | undefined): string => {
+  if (!pdo) {
+    return '--'
+  }
+  if (pdo.type === SinkPdoType.FIXED) {
+    return ''
+  }
+  return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`
+}
+
+const buildSinkRequestArgs = ({
+  pdo,
+  voltageV,
+  currentA,
+}: {
+  pdo: Exclude<SinkPdo, null>
+  voltageV: string
+  currentA: string
+}): { voltageMv?: number; currentMa?: number; error?: string } => {
+  const parsedCurrent = parseSinkField(currentA)
+  if (parsedCurrent == null) {
+    return { error: 'Enter a valid current.' }
+  }
+  if (pdo.type === SinkPdoType.FIXED) {
+    if (parsedCurrent < 0 || parsedCurrent > pdo.maxCurrentA) {
+      return { error: `Current must be between 0 and ${pdo.maxCurrentA.toFixed(2)} A.` }
+    }
+    return { voltageMv: Math.round(pdo.voltageV * 1000), currentMa: Math.round(parsedCurrent * 1000) }
+  }
+
+  const parsedVoltage = parseSinkField(voltageV)
+  if (parsedVoltage == null) {
+    return { error: 'Enter valid voltage and current values.' }
+  }
+  if (parsedVoltage < pdo.minVoltageV || parsedVoltage > pdo.maxVoltageV) {
+    return { error: `Voltage must be between ${pdo.minVoltageV.toFixed(2)} and ${pdo.maxVoltageV.toFixed(2)} V.` }
+  }
+  const constraints = getSinkCurrentConstraints(pdo, parsedVoltage)
+  if (constraints.error || constraints.maxA == null) {
+    return { error: constraints.error ?? 'Current range is unavailable.' }
+  }
+  if (parsedCurrent < constraints.minA || parsedCurrent > constraints.maxA) {
+    return {
+      error: `Current must be between ${constraints.minA.toFixed(2)} and ${constraints.maxA.toFixed(2)} A.`,
+    }
+  }
+  return { voltageMv: Math.round(parsedVoltage * 1000), currentMa: Math.round(parsedCurrent * 1000) }
+}
+
 
 /**
  * Render the rack view with rack selection and layout rendering.
@@ -514,6 +643,38 @@ export const RackView = () => {
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
+  const [isGlobalVbusDialogOpen, setIsGlobalVbusDialogOpen] = useState(false)
+  const [globalOvpThresholdInput, setGlobalOvpThresholdInput] = useState('')
+  const [globalOcpThresholdInput, setGlobalOcpThresholdInput] = useState('')
+  const [globalDisplayUpdateRateInput, setGlobalDisplayUpdateRateInput] = useState(HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ.toString())
+  const [globalVbusConfigureError, setGlobalVbusConfigureError] = useState<string | null>(null)
+  const [isGlobalVbusApplying, setIsGlobalVbusApplying] = useState(false)
+  const [isGlobalSinkDialogOpen, setIsGlobalSinkDialogOpen] = useState(false)
+  const [globalSinkPdoList, setGlobalSinkPdoList] = useState<SinkPdo[]>([])
+  const [globalSinkSelectedIndex, setGlobalSinkSelectedIndex] = useState(0)
+  const [globalSinkVoltageV, setGlobalSinkVoltageV] = useState('')
+  const [globalSinkCurrentA, setGlobalSinkCurrentA] = useState('')
+  const [globalSinkRequestStatus, setGlobalSinkRequestStatus] =
+    useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [globalSinkRequestError, setGlobalSinkRequestError] = useState<string | null>(null)
+  const [isGlobalTriggerDialogOpen, setIsGlobalTriggerDialogOpen] = useState(false)
+  const [globalTriggerEventTypeInput, setGlobalTriggerEventTypeInput] =
+    useState<TriggerEventType>(TriggerEventType.OFF)
+  const [globalTriggerThresholdInput, setGlobalTriggerThresholdInput] = useState('1')
+  const [globalTriggerSenderInput, setGlobalTriggerSenderInput] =
+    useState<TriggerSenderFilter>(TriggerSenderFilter.ANY)
+  const [globalTriggerAutoRepeatInput, setGlobalTriggerAutoRepeatInput] =
+    useState<OnOffState>(OnOffState.OFF)
+  const [globalTriggerSyncModeInput, setGlobalTriggerSyncModeInput] =
+    useState<TriggerSyncMode>(TriggerSyncMode.PULSE_HIGH)
+  const [globalTriggerSyncPulseWidthUsInput, setGlobalTriggerSyncPulseWidthUsInput] = useState('1')
+  const [globalTriggerMessageTypeFiltersInput, setGlobalTriggerMessageTypeFiltersInput] =
+    useState<TriggerMessageTypeFilter[]>([])
+  const [globalTriggerMessageTypeFilterClassInput, setGlobalTriggerMessageTypeFilterClassInput] =
+    useState<TriggerMessageTypeFilter['class']>(TriggerMessageTypeFilterClass.CONTROL)
+  const [globalTriggerMessageTypeFilterTypeInput, setGlobalTriggerMessageTypeFilterTypeInput] = useState('0')
+  const [globalTriggerConfigureError, setGlobalTriggerConfigureError] = useState<string | null>(null)
+  const [isGlobalTriggerApplying, setIsGlobalTriggerApplying] = useState(false)
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
@@ -1366,33 +1527,15 @@ export const RackView = () => {
     if (!driver) {
       return
     }
-    const state = driver.getState()
-    const ovpDefault = state.vbusInfo?.ovpThresholdMv != null
-      ? (state.vbusInfo.ovpThresholdMv / 1000).toFixed(2)
-      : ''
-    const ocpDefault = state.vbusInfo?.ocpThresholdMa != null
-      ? (state.vbusInfo.ocpThresholdMa / 1000).toFixed(2)
-      : ''
-    const ovpInput = window.prompt('Set OVP threshold in volts', ovpDefault)
-    if (ovpInput == null) {
-      return
-    }
-    const ocpInput = window.prompt('Set OCP threshold in amps', ocpDefault)
-    if (ocpInput == null) {
-      return
-    }
-    const ovpV = Number.parseFloat(ovpInput)
-    const ocpA = Number.parseFloat(ocpInput)
-    if (!Number.isFinite(ovpV) || !Number.isFinite(ocpA)) {
-      setDeviceError('Invalid OVP/OCP threshold.')
-      return
-    }
-    try {
-      await driver.vbus.setOvpThresholdMv(Math.round(ovpV * 1000))
-      await driver.vbus.setOcpThresholdMa(Math.round(ocpA * 1000))
-    } catch (error) {
-      setDeviceError(error instanceof Error ? error.message : String(error))
-    }
+    prepareVbusConfigureDialog({
+      vbusInfo: driver.getState().vbusInfo ?? null,
+      displayUpdateRateHz: HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ,
+      setConfigureError: setGlobalVbusConfigureError,
+      setOvpThresholdInput: setGlobalOvpThresholdInput,
+      setOcpThresholdInput: setGlobalOcpThresholdInput,
+      setDisplayUpdateRateInput: setGlobalDisplayUpdateRateInput,
+    })
+    setIsGlobalVbusDialogOpen(true)
   }, [])
 
   const handleResetProtection = useCallback(async () => {
@@ -1430,6 +1573,72 @@ export const RackView = () => {
       setDeviceError(error instanceof Error ? error.message : String(error))
     }
   }, [])
+
+  const openGlobalSinkRequestDialog = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    const snapshot = driver.getState()
+    let pdoList = snapshot.sinkPdoList ?? []
+    try {
+      if (pdoList.length === 0) {
+        const pdoCount = await driver.sink.getAvailablePdoCount()
+        pdoList = await Promise.all(
+          Array.from({ length: pdoCount }, (_, index) => driver.sink.getPdoAtIndex(index)),
+        )
+      }
+    } catch (error) {
+      setGlobalSinkRequestError(error instanceof Error ? error.message : String(error))
+    }
+    const selectedIndex = 0
+    const selectedPdo = pdoList[selectedIndex] ?? null
+    const defaults = buildDefaultSinkForm(selectedPdo)
+    setGlobalSinkPdoList(pdoList)
+    setGlobalSinkSelectedIndex(selectedIndex)
+    setGlobalSinkVoltageV(defaults.voltageV)
+    setGlobalSinkCurrentA(defaults.currentA)
+    setGlobalSinkRequestStatus('idle')
+    setGlobalSinkRequestError(null)
+    setIsGlobalSinkDialogOpen(true)
+  }, [])
+
+  const openGlobalTriggerConfigureDialog = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    const populate = (info: TriggerInfo | null | undefined) => {
+      setGlobalTriggerEventTypeInput(info?.type ?? TriggerEventType.OFF)
+      setGlobalTriggerThresholdInput(String(info?.eventThreshold ?? 1))
+      setGlobalTriggerSenderInput(info?.senderFilter ?? TriggerSenderFilter.ANY)
+      setGlobalTriggerAutoRepeatInput(info?.autorepeat ?? OnOffState.OFF)
+      setGlobalTriggerSyncModeInput(info?.syncMode ?? TriggerSyncMode.PULSE_HIGH)
+      setGlobalTriggerSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
+      setGlobalTriggerMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
+      setGlobalTriggerMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
+      setGlobalTriggerMessageTypeFilterTypeInput('0')
+    }
+    setGlobalTriggerConfigureError(null)
+    populate(driver.getState().triggerInfo)
+    setIsGlobalTriggerDialogOpen(true)
+    try {
+      populate(await driver.trigger.getInfo())
+    } catch (error) {
+      setGlobalTriggerConfigureError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isGlobalSinkDialogOpen) {
+      return
+    }
+    const defaults = buildDefaultSinkForm(globalSinkPdoList[globalSinkSelectedIndex] ?? null)
+    setGlobalSinkVoltageV(defaults.voltageV)
+    setGlobalSinkCurrentA(defaults.currentA)
+    setGlobalSinkRequestStatus('idle')
+    setGlobalSinkRequestError(null)
+  }, [globalSinkPdoList, globalSinkSelectedIndex, isGlobalSinkDialogOpen])
 
   const handleUpdateDeviceConfig = useCallback(async (
     deviceRecordId: string,
@@ -1596,6 +1805,30 @@ export const RackView = () => {
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
   const activeVbusInfo = activeDriverState?.vbusInfo ?? null
   const activeTriggerInfo = activeDriverState?.triggerInfo ?? null
+  const globalSelectedSinkPdo = globalSinkPdoList[globalSinkSelectedIndex] ?? null
+  const globalSinkParsedVoltage = parseSinkField(
+    globalSelectedSinkPdo?.type === SinkPdoType.FIXED
+      ? globalSelectedSinkPdo.voltageV.toFixed(2)
+      : globalSinkVoltageV,
+  )
+  const globalSinkCurrentConstraints =
+    getSinkCurrentConstraints(globalSelectedSinkPdo, globalSinkParsedVoltage)
+  const globalSinkRequestPreview = globalSelectedSinkPdo
+    ? buildSinkRequestArgs({
+        pdo: globalSelectedSinkPdo,
+        voltageV: globalSinkVoltageV,
+        currentA: globalSinkCurrentA,
+      })
+    : { error: 'Select a PDO before requesting power.' }
+  const globalSinkCanSubmit =
+    !!activeDriver &&
+    globalSelectedSinkPdo != null &&
+    activeDriverState?.role === CCBusRole.SINK &&
+    globalSinkRequestStatus !== 'sending' &&
+    !globalSinkRequestPreview.error
+  const globalSinkCurrentRangeLabel = globalSinkCurrentConstraints.maxA == null
+    ? '--'
+    : `0.00-${globalSinkCurrentConstraints.maxA.toFixed(2)} A`
   const isProtectionTriggered =
     activeVbusInfo?.status === VBusStatus.OVP || activeVbusInfo?.status === VBusStatus.OCP
   const isTriggerActivated = activeTriggerInfo?.status === TriggerStatus.TRIGGERED
@@ -1759,7 +1992,7 @@ export const RackView = () => {
             label: 'Choose power contract...',
             disabled: !activeDriver || !isSinkMode,
             onSelect: () => {
-              window.alert('Choose power contract dialog is not implemented yet.')
+              void openGlobalSinkRequestDialog()
             },
           },
         ],
@@ -1773,7 +2006,7 @@ export const RackView = () => {
             label: 'Configure...',
             disabled: !activeDriver,
             onSelect: () => {
-              window.alert('Trigger configuration dialog is not implemented yet.')
+              void openGlobalTriggerConfigureDialog()
             },
           },
           {
@@ -1882,6 +2115,8 @@ export const RackView = () => {
     isProtectionTriggered,
     isSinkMode,
     isTriggerActivated,
+    openGlobalSinkRequestDialog,
+    openGlobalTriggerConfigureDialog,
     pairedDevices,
     theme,
     timeSinceMeterReset,
@@ -1954,176 +2189,167 @@ export const RackView = () => {
           <div className={styles.notice}>No racks available.</div>
         ) : null}
       </main>
-      {isShortcutHelpOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <div className={styles.settingsBackdrop}>
-              <section
-                className={styles.shortcutDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="shortcut-help-title"
-              >
-                <div className={styles.shortcutHero}>
-                  <div>
-                    <p className={styles.shortcutEyebrow}>Global Shortcuts</p>
-                    <h2 id="shortcut-help-title" className={styles.shortcutTitle}>
-                      Keyboard shortcuts
-                    </h2>
-                    <p className={styles.shortcutLead}>
-                      Work anywhere in rack view. Shortcut actions target connected DRPD device.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className={styles.settingsCloseButton}
-                    onClick={() => setIsShortcutHelpOpen(false)}
-                    aria-label="Close shortcut help"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className={styles.shortcutGrid}>
-                  {RACK_SHORTCUTS.map((shortcut) => (
-                    <article key={shortcut.id} className={styles.shortcutCard}>
-                      <kbd className={styles.shortcutKey}>{shortcut.key}</kbd>
-                      <div className={styles.shortcutCardBody}>
-                        <h3 className={styles.shortcutCardTitle}>{shortcut.label}</h3>
-                        <p className={styles.shortcutCardText}>{shortcut.description}</p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
-      {firmwareUpdatePrompt && typeof document !== 'undefined'
-        ? createPortal(
-            <div className={styles.settingsBackdrop}>
-              <section
-                className={styles.settingsDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="firmware-update-title"
-              >
-                <div className={styles.settingsHeader}>
-                  <h2 id="firmware-update-title" className={styles.settingsTitle}>
-                    Firmware update available
-                  </h2>
-                  <button
-                    type="button"
-                    className={styles.settingsCloseButton}
-                    onClick={() => {
-                      if (!isFirmwareUploadBusy) {
-                        setFirmwareUpdatePrompt(null)
-                      }
-                    }}
-                    aria-label="Close firmware update prompt"
-                    disabled={isFirmwareUploadBusy}
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className={styles.settingsBody}>
-                  <p className={styles.firmwareUpdateText}>
-                    {firmwareUpdatePrompt.statusMessage}
-                  </p>
-                  <dl className={styles.firmwareVersionList}>
-                    <div>
-                      <dt>Installed</dt>
-                      <dd>{firmwareUpdatePrompt.currentVersion}</dd>
-                    </div>
-                    <div>
-                      <dt>Available</dt>
-                      <dd>{firmwareUpdatePrompt.targetRelease.versionText}</dd>
-                    </div>
-                  </dl>
-                  {firmwareUpdatePrompt.phase === 'prompt' ? (
-                    <label className={styles.firmwareSuppressOption}>
-                      <input
-                        type="checkbox"
-                        checked={firmwareUpdatePrompt.suppressVersion}
-                        onChange={(event) => updateFirmwarePromptState({ suppressVersion: event.target.checked })}
-                      />
-                      <span>Do not ask again for this version</span>
-                    </label>
-                  ) : null}
-                  {firmwareUpdatePrompt.phase !== 'prompt' ? (
-                    <div className={styles.firmwareUploadStatus}>
-                      <div className={styles.firmwareUploadWarning}>
-                        Do not disconnect the device. Do not refresh the page.
-                      </div>
-                      <div className={styles.firmwareProgressShell} aria-label="Firmware upload progress">
-                        <div
-                          className={styles.firmwareProgressBar}
-                          style={{ '--firmware-progress': `${Math.round(firmwareUpdatePrompt.progress * 100)}%` } as CSSProperties}
-                        />
-                      </div>
-                      {firmwareUpdatePrompt.errorMessage ? (
-                        <div className={styles.firmwareUploadError}>
-                          Error: {firmwareUpdatePrompt.errorMessage}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className={styles.firmwareUpdateActions}>
-                    {firmwareUpdatePrompt.phase === 'prompt' ? (
-                      <>
-                        <button
-                          type="button"
-                          className={styles.editButtonSecondary}
-                          onClick={handleDeclineFirmwareUpdate}
-                        >
-                          Not Now
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.editButtonPrimary}
-                          onClick={() => {
-                            void handleAcceptFirmwareUpdate()
-                          }}
-                        >
-                          Upload Firmware
-                        </button>
-                      </>
-                    ) : null}
-                    {firmwareUpdatePrompt.phase === 'failure' ? (
-                      <>
-                        <button
-                          type="button"
-                          className={styles.editButtonSecondary}
-                          onClick={() => setFirmwareUpdatePrompt(null)}
-                        >
-                          Close
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.editButtonPrimary}
-                          onClick={() => {
-                            void handleAcceptFirmwareUpdate()
-                          }}
-                        >
-                          Retry
-                        </button>
-                      </>
-                    ) : null}
-                    {firmwareUpdatePrompt.phase === 'success' ? (
-                      <button
-                        type="button"
-                        className={styles.editButtonPrimary}
-                        onClick={() => setFirmwareUpdatePrompt(null)}
-                      >
-                        Done
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
+      <KeyboardShortcutsDialog
+        open={isShortcutHelpOpen}
+        onOpenChange={setIsShortcutHelpOpen}
+      />
+      <FirmwareUpdateDialog
+        prompt={firmwareUpdatePrompt}
+        busy={isFirmwareUploadBusy}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFirmwareUpdatePrompt(null)
+          }
+        }}
+        onSuppressVersionChange={(value) => updateFirmwarePromptState({ suppressVersion: value })}
+        onDecline={handleDeclineFirmwareUpdate}
+        onAccept={() => {
+          void handleAcceptFirmwareUpdate()
+        }}
+        onRetry={() => {
+          void handleAcceptFirmwareUpdate()
+        }}
+        onDone={() => setFirmwareUpdatePrompt(null)}
+      />
+      <VbusConfigurePopover
+        instrumentId="global-vbus"
+        open={isGlobalVbusDialogOpen}
+        onOpenChange={setIsGlobalVbusDialogOpen}
+        driver={activeDriver}
+        vbusInfo={activeVbusInfo}
+        ovpThresholdInput={globalOvpThresholdInput}
+        ocpThresholdInput={globalOcpThresholdInput}
+        displayUpdateRateInput={globalDisplayUpdateRateInput}
+        configureError={globalVbusConfigureError}
+        isApplyingConfig={isGlobalVbusApplying}
+        setOvpThresholdInput={setGlobalOvpThresholdInput}
+        setOcpThresholdInput={setGlobalOcpThresholdInput}
+        setDisplayUpdateRateInput={setGlobalDisplayUpdateRateInput}
+        setConfigureError={setGlobalVbusConfigureError}
+        setIsApplyingConfig={setIsGlobalVbusApplying}
+        setDisplayUpdateRateHz={() => undefined}
+      />
+      <SinkRequestPopover
+        open={isGlobalSinkDialogOpen}
+        onOpenChange={setIsGlobalSinkDialogOpen}
+        instrumentId="global-sink-request"
+        sinkPdoList={globalSinkPdoList}
+        selectedIndex={globalSinkSelectedIndex}
+        selectedPdo={globalSelectedSinkPdo}
+        isRefreshingSinkData={false}
+        voltageV={globalSinkVoltageV}
+        currentA={globalSinkCurrentA}
+        voltageHint={getSinkVoltageHint(globalSelectedSinkPdo)}
+        currentRangeLabel={globalSinkCurrentRangeLabel}
+        validationMessage={globalSinkRequestPreview.error ?? null}
+        requestErrorMessage={globalSinkRequestError}
+        requestStatus={globalSinkRequestStatus}
+        canSubmit={globalSinkCanSubmit}
+        setSelectedIndex={setGlobalSinkSelectedIndex}
+        setVoltageV={setGlobalSinkVoltageV}
+        setCurrentA={setGlobalSinkCurrentA}
+        setRequestErrorMessage={setGlobalSinkRequestError}
+        setRequestStatus={setGlobalSinkRequestStatus}
+        onCancel={() => {
+          setIsGlobalSinkDialogOpen(false)
+          setGlobalSinkRequestError(null)
+          setGlobalSinkRequestStatus('idle')
+        }}
+        onSubmit={() => {
+          if (!activeDriver || !globalSelectedSinkPdo) {
+            return
+          }
+          const parsed = buildSinkRequestArgs({
+            pdo: globalSelectedSinkPdo,
+            voltageV: globalSinkVoltageV,
+            currentA: globalSinkCurrentA,
+          })
+          if (parsed.error || parsed.voltageMv == null || parsed.currentMa == null) {
+            setGlobalSinkRequestError(parsed.error ?? 'Invalid request parameters.')
+            setGlobalSinkRequestStatus('error')
+            return
+          }
+          setGlobalSinkRequestStatus('sending')
+          setGlobalSinkRequestError(null)
+          void activeDriver.sink
+            .requestPdo(globalSinkSelectedIndex, parsed.voltageMv, parsed.currentMa)
+            .then(async () => {
+              await activeDriver.refreshState()
+              setGlobalSinkRequestStatus('success')
+              setIsGlobalSinkDialogOpen(false)
+            })
+            .catch((error) => {
+              setGlobalSinkRequestError(error instanceof Error ? error.message : String(error))
+              setGlobalSinkRequestStatus('error')
+            })
+        }}
+      />
+      <TriggerConfigurePopover
+        open={isGlobalTriggerDialogOpen}
+        onOpenChange={setIsGlobalTriggerDialogOpen}
+        instrumentId="global-trigger"
+        eventTypeInput={globalTriggerEventTypeInput}
+        senderFilterInput={globalTriggerSenderInput}
+        messageTypeFiltersInput={globalTriggerMessageTypeFiltersInput}
+        messageTypeFilterClassInput={globalTriggerMessageTypeFilterClassInput}
+        messageTypeFilterTypeInput={globalTriggerMessageTypeFilterTypeInput}
+        eventThresholdInput={globalTriggerThresholdInput}
+        autoRepeatInput={globalTriggerAutoRepeatInput}
+        syncModeInput={globalTriggerSyncModeInput}
+        syncPulseWidthUsInput={globalTriggerSyncPulseWidthUsInput}
+        configureError={globalTriggerConfigureError}
+        isApplyingConfig={isGlobalTriggerApplying}
+        setEventTypeInput={setGlobalTriggerEventTypeInput}
+        setSenderFilterInput={setGlobalTriggerSenderInput}
+        setMessageTypeFiltersInput={setGlobalTriggerMessageTypeFiltersInput}
+        setMessageTypeFilterClassInput={setGlobalTriggerMessageTypeFilterClassInput}
+        setMessageTypeFilterTypeInput={setGlobalTriggerMessageTypeFilterTypeInput}
+        setEventThresholdInput={setGlobalTriggerThresholdInput}
+        setAutoRepeatInput={setGlobalTriggerAutoRepeatInput}
+        setSyncModeInput={setGlobalTriggerSyncModeInput}
+        setSyncPulseWidthUsInput={setGlobalTriggerSyncPulseWidthUsInput}
+        setConfigureError={setGlobalTriggerConfigureError}
+        onCancel={() => {
+          setGlobalTriggerConfigureError(null)
+          setIsGlobalTriggerDialogOpen(false)
+        }}
+        onApply={() => {
+          if (!activeDriver) {
+            return
+          }
+          const parsedThreshold = Number(globalTriggerThresholdInput)
+          const parsedPulseWidthUs = Number(globalTriggerSyncPulseWidthUsInput)
+          if (!Number.isInteger(parsedThreshold) || parsedThreshold < 1) {
+            setGlobalTriggerConfigureError('Threshold must be an integer greater than or equal to 1.')
+            return
+          }
+          if (!Number.isInteger(parsedPulseWidthUs) || parsedPulseWidthUs < 1) {
+            setGlobalTriggerConfigureError('Pulse width must be an integer greater than or equal to 1 us.')
+            return
+          }
+          setIsGlobalTriggerApplying(true)
+          setGlobalTriggerConfigureError(null)
+          void Promise.all([
+            activeDriver.trigger.setEventType(globalTriggerEventTypeInput),
+            activeDriver.trigger.setEventThreshold(parsedThreshold),
+            activeDriver.trigger.setSenderFilter(globalTriggerSenderInput),
+            activeDriver.trigger.setAutoRepeat(globalTriggerAutoRepeatInput),
+            activeDriver.trigger.setSyncMode(globalTriggerSyncModeInput),
+            activeDriver.trigger.setSyncPulseWidthUs(parsedPulseWidthUs),
+            activeDriver.trigger.setMessageTypeFilters(globalTriggerMessageTypeFiltersInput),
+          ])
+            .then(async () => {
+              await activeDriver.refreshState()
+              setIsGlobalTriggerDialogOpen(false)
+            })
+            .catch((error) => {
+              setGlobalTriggerConfigureError(error instanceof Error ? error.message : String(error))
+            })
+            .finally(() => {
+              setIsGlobalTriggerApplying(false)
+            })
+        }}
+      />
     </div>
   )
 }
