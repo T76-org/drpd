@@ -387,11 +387,14 @@ const resolveHeaderCurrentFlow = (
       toPort: true,
     }
   }
+  if (current < 0) {
+    return { kind: 'text', text: '—' }
+  }
   return {
     kind: 'flow',
     from: '1',
     to: 'B',
-    direction: current > 0 ? 'right' : 'left',
+    direction: 'right',
     toPort: false,
   }
 }
