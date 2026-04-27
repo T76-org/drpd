@@ -4,6 +4,7 @@ import type { Instrument } from '../../lib/instrument'
 import type { RackDefinition, RackDeviceRecord, RackInstrument } from '../../lib/rack/types'
 import { getRackCanvasSize } from './rackCanvasSize'
 import { useRackSizingConfig } from './rackSizing'
+import { resolveRowFlex } from './layout'
 import { RowRenderer, type RackInstrumentResizePayload } from './RowRenderer'
 import { InstrumentBase } from './InstrumentBase'
 import styles from './RackRenderer.module.css'
@@ -119,6 +120,8 @@ export const RackRenderer = ({
                         <RowResizeHandle
                           upperRowId={row.id}
                           lowerRowId={rack.rows[rowIndex + 1].id}
+                          upperFlex={resolveRowFlex(row)}
+                          lowerFlex={resolveRowFlex(rack.rows[rowIndex + 1])}
                           onRowResize={onRowResize}
                         />
                       ) : null}
@@ -145,10 +148,14 @@ export const RackRenderer = ({
 const RowResizeHandle = ({
   upperRowId,
   lowerRowId,
+  upperFlex,
+  lowerFlex,
   onRowResize,
 }: {
   upperRowId: string
   lowerRowId: string
+  upperFlex: number
+  lowerFlex: number
   onRowResize?: (payload: RackRowResizePayload) => void
 }) => {
   return (
@@ -163,17 +170,24 @@ const RowResizeHandle = ({
           return
         }
         event.preventDefault()
-        let lastY = event.clientY
+        const startY = event.clientY
         const pointerId = event.pointerId
         const handle = event.currentTarget
         handle.setPointerCapture(pointerId)
+        const upperElement = handle.previousElementSibling
+        const lowerElement = handle.nextElementSibling
+        const upperHeight = upperElement instanceof HTMLElement ? upperElement.getBoundingClientRect().height : 0
+        const lowerHeight = lowerElement instanceof HTMLElement ? lowerElement.getBoundingClientRect().height : 0
         const handlePointerMove = (moveEvent: PointerEvent) => {
           onRowResize({
             upperRowId,
             lowerRowId,
-            delta: moveEvent.clientY - lastY,
+            delta: moveEvent.clientY - startY,
+            upperFlex,
+            lowerFlex,
+            upperSize: upperHeight,
+            lowerSize: lowerHeight,
           })
-          lastY = moveEvent.clientY
         }
         const handlePointerUp = () => {
           handle.removeEventListener('pointermove', handlePointerMove)
@@ -289,4 +303,12 @@ export interface RackRowResizePayload {
   lowerRowId: string
   ///< Incremental pointer movement.
   delta: number
+  ///< Starting flex for the upper row.
+  upperFlex: number
+  ///< Starting flex for the lower row.
+  lowerFlex: number
+  ///< Starting rendered height for the upper row.
+  upperSize: number
+  ///< Starting rendered height for the lower row.
+  lowerSize: number
 }

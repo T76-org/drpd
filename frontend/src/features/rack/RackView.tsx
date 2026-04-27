@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Device } from '../../lib/device'
 import type { DeviceIdentity } from '../../lib/device'
-import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
   CCBusRoleStatus,
@@ -67,11 +66,7 @@ import {
   type RackRowResizePayload,
 } from './RackRenderer'
 import { getRackCanvasSize } from './rackCanvasSize'
-import {
-  insertInstrumentIntoRowAtIndex,
-  resolveInstrumentFlex,
-  resolveRowFlex,
-} from './layout'
+import { insertInstrumentIntoRowAtIndex } from './layout'
 import type { RackInstrumentResizePayload } from './RowRenderer'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
@@ -1427,16 +1422,6 @@ export const RackView = () => {
   const currentRack = activeRack
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
-  const rackInstrumentMap = useMemo(() => {
-    const map = new Map(
-      instrumentDefinitions.map((instrument) => [instrument.identifier, instrument]),
-    )
-    const drpdVbusInstrument = map.get('com.mta.drpd.vbus')
-    if (drpdVbusInstrument && !map.has('com.mta.drpd.device-status')) {
-      map.set('com.mta.drpd.device-status', drpdVbusInstrument)
-    }
-    return map
-  }, [instrumentDefinitions])
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
@@ -1519,10 +1504,10 @@ export const RackView = () => {
         if (rack.id !== activeRack?.id) {
           return rack
         }
-        return resizeAdjacentRackInstruments(rack, payload, rackInstrumentMap)
+        return resizeAdjacentRackInstruments(rack, payload)
       }),
     }))
-  }, [activeRack?.id, rackInstrumentMap, updateRackDocument])
+  }, [activeRack?.id, updateRackDocument])
 
   const handleRackRowResize = useCallback((payload: RackRowResizePayload) => {
     updateRackDocument((document) => ({
@@ -3507,7 +3492,6 @@ const moveRackInstrument = (
 const resizeAdjacentRackInstruments = (
   rack: RackDefinition,
   payload: RackInstrumentResizePayload,
-  instrumentMap: Map<string, Instrument>,
 ): RackDefinition => ({
   ...rack,
   rows: rack.rows.map((row) => {
@@ -3519,11 +3503,14 @@ const resizeAdjacentRackInstruments = (
     if (!left || !right) {
       return row
     }
-    const leftFlex = resolveInstrumentFlex(left, instrumentMap)
-    const rightFlex = resolveInstrumentFlex(right, instrumentMap)
-    const deltaFlex = payload.delta / 120
-    const nextLeftFlex = Math.max(0.1, leftFlex + deltaFlex)
-    const nextRightFlex = Math.max(0.1, rightFlex - (nextLeftFlex - leftFlex))
+    const pairSize = payload.leftSize + payload.rightSize
+    const pairFlex = payload.leftFlex + payload.rightFlex
+    if (pairSize <= 0 || pairFlex <= 0) {
+      return row
+    }
+    const nextLeftRatio = Math.max(0.01, Math.min(0.99, (payload.leftSize + payload.delta) / pairSize))
+    const nextLeftFlex = clampFlexPairSide(pairFlex * nextLeftRatio, pairFlex)
+    const nextRightFlex = pairFlex - nextLeftFlex
     return {
       ...row,
       instruments: row.instruments.map((instrument) => {
@@ -3548,11 +3535,14 @@ const resizeAdjacentRackRows = (
   if (!upper || !lower) {
     return rack
   }
-  const upperFlex = resolveRowFlex(upper)
-  const lowerFlex = resolveRowFlex(lower)
-  const deltaFlex = payload.delta / 120
-  const nextUpperFlex = Math.max(0.1, upperFlex + deltaFlex)
-  const nextLowerFlex = Math.max(0.1, lowerFlex - (nextUpperFlex - upperFlex))
+  const pairSize = payload.upperSize + payload.lowerSize
+  const pairFlex = payload.upperFlex + payload.lowerFlex
+  if (pairSize <= 0 || pairFlex <= 0) {
+    return rack
+  }
+  const nextUpperRatio = Math.max(0.01, Math.min(0.99, (payload.upperSize + payload.delta) / pairSize))
+  const nextUpperFlex = clampFlexPairSide(pairFlex * nextUpperRatio, pairFlex)
+  const nextLowerFlex = pairFlex - nextUpperFlex
 
   return {
     ...rack,
@@ -3566,6 +3556,14 @@ const resizeAdjacentRackRows = (
       return row
     }),
   }
+}
+
+const clampFlexPairSide = (flex: number, pairFlex: number): number => {
+  const minFlex = 0.1
+  if (pairFlex <= minFlex * 2) {
+    return pairFlex / 2
+  }
+  return Math.max(minFlex, Math.min(pairFlex - minFlex, flex))
 }
 
 const createRackRowId = (): string =>

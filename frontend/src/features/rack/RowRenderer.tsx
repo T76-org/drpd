@@ -131,6 +131,8 @@ export const RowRenderer = ({
                 rowId={row.id}
                 leftInstrumentId={row.instruments[index - 1].id}
                 rightInstrumentId={instrument.id}
+                leftFlex={resolveInstrumentFlex(row.instruments[index - 1], instrumentMap)}
+                rightFlex={flex}
                 onInstrumentResize={onInstrumentResize}
               />
             ) : null}
@@ -182,11 +184,15 @@ const InstrumentResizeHandle = ({
   rowId,
   leftInstrumentId,
   rightInstrumentId,
+  leftFlex,
+  rightFlex,
   onInstrumentResize,
 }: {
   rowId: string
   leftInstrumentId: string
   rightInstrumentId: string
+  leftFlex: number
+  rightFlex: number
   onInstrumentResize?: (payload: RackInstrumentResizePayload) => void
 }) => {
   return (
@@ -201,18 +207,25 @@ const InstrumentResizeHandle = ({
           return
         }
         event.preventDefault()
-        let lastX = event.clientX
+        const startX = event.clientX
         const pointerId = event.pointerId
         event.currentTarget.setPointerCapture(pointerId)
         const handle = event.currentTarget
+        const leftElement = handle.previousElementSibling
+        const rightElement = handle.nextElementSibling
+        const leftWidth = leftElement instanceof HTMLElement ? leftElement.getBoundingClientRect().width : 0
+        const rightWidth = rightElement instanceof HTMLElement ? rightElement.getBoundingClientRect().width : 0
         const handlePointerMove = (moveEvent: PointerEvent) => {
           onInstrumentResize({
             rowId,
             leftInstrumentId,
             rightInstrumentId,
-            delta: moveEvent.clientX - lastX,
+            delta: moveEvent.clientX - startX,
+            leftFlex,
+            rightFlex,
+            leftSize: leftWidth,
+            rightSize: rightWidth,
           })
-          lastX = moveEvent.clientX
         }
         const handlePointerUp = () => {
           handle.removeEventListener('pointermove', handlePointerMove)
@@ -235,6 +248,10 @@ export interface RackInstrumentResizePayload {
   leftInstrumentId: string
   rightInstrumentId: string
   delta: number
+  leftFlex: number
+  rightFlex: number
+  leftSize: number
+  rightSize: number
 }
 
 /**
