@@ -1406,6 +1406,7 @@ export const RackView = () => {
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
+  const isGoodCrcHidden = !isGoodCrcShown
   const messageLogFilterOptions = useMemo(
     () => buildMessageLogFilterOptions(messageLogFilterRows, messageLogFilters),
     [messageLogFilterRows, messageLogFilters],
@@ -2376,7 +2377,7 @@ export const RackView = () => {
             type: 'checkbox',
             label: 'Hide GoodCRC Messages',
             meta: 'G',
-            checked: isGoodCrcShown,
+            checked: isGoodCrcHidden,
             disabled: !activeDriver,
             onCheckedChange: toggleGoodCrcMessages,
           },
@@ -2533,6 +2534,7 @@ export const RackView = () => {
     isTriggerActivated,
     hasSelectedMessages,
     isGoodCrcShown,
+    isGoodCrcHidden,
     isMessageLogClearing,
     isMessageLogConfiguring,
     isMessageLogExporting,
