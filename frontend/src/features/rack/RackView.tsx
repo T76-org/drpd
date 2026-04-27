@@ -3018,6 +3018,7 @@ const HeaderVbusMetrics = ({
   const accumulatedChargeText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedChargeAh)
   const accumulatedEnergyText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedEnergyWh)
   const isChargingIndicatorActive = signedVbusCurrent != null && signedVbusCurrent !== 0
+  const accumulationElapsedText = formatHeaderElapsed(analogMonitor?.accumulationElapsedTimeUs)
   const ovpValueText = formatHeaderProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
   const ocpValueText = formatHeaderProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
   const shouldDimProtection = signedVbusCurrent != null && signedVbusCurrent < 0
@@ -3083,6 +3084,7 @@ const HeaderVbusMetrics = ({
           <span
             className={styles.headerVbusChargeIndicator}
             data-active={isChargingIndicatorActive ? 'true' : 'false'}
+            title={`Time since accumulator reset: ${accumulationElapsedText}`}
             aria-hidden="true"
           />
           <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
