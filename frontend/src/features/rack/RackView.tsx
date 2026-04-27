@@ -3291,11 +3291,11 @@ const HeaderVbusMetrics = ({
       <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
         <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>TYPE</span>
+          <span className={styles.headerVbusProtectionLabel}>PDO TYPE</span>
           <span className={styles.headerVbusRoleStatusValue}>{sinkTypeText}</span>
         </div>
         <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>POWER</span>
+          <span className={styles.headerVbusProtectionLabel}>POWER PROFILE</span>
           <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
         </div>
       </div>

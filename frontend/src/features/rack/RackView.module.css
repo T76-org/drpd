@@ -76,7 +76,7 @@
   align-items: center;
   justify-content: space-between;
   box-sizing: border-box;
-  padding: var(--space-12) var(--space-0);
+  padding: var(--space-6) var(--space-0);
   background: var(--color-surface-header);
 }
 
@@ -115,7 +115,7 @@
 }
 
 .headerVbusVoltage {
-  font-size: calc(var(--font-size-4xl) * 1.15);
+  font-size: calc(var(--font-size-4xl) * 1.265);
 }
 
 .headerVbusVoltage {
@@ -140,7 +140,7 @@
 
 .headerVbusCurrent,
 .headerVbusPower {
-  font-size: calc(1.5525rem * var(--ui-scale));
+  font-size: calc(1.70775rem * var(--ui-scale));
   line-height: var(--line-height-tight);
 }
 
