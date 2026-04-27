@@ -101,7 +101,7 @@
 .headerVbusMetrics {
   display: flex;
   align-items: center;
-  gap: calc(var(--space-10) * 1.15);
+  gap: calc(var(--space-8) * 1.15);
   min-width: 0;
 }
 
@@ -120,6 +120,14 @@
 
 .headerVbusVoltage {
   color: var(--color-metric-voltage);
+}
+
+.headerVbusDivider {
+  align-self: stretch;
+  width: var(--border-thin);
+  min-height: calc(54px * var(--ui-scale));
+  margin: 0 calc(var(--space-4) * 1.15);
+  background: color-mix(in srgb, var(--color-border-divider) 58%, transparent);
 }
 
 .headerVbusSecondaryGroup {
@@ -190,6 +198,15 @@
   height: calc(4.6px * var(--ui-scale));
   border: var(--border-thin) solid currentColor;
   border-radius: 999px;
+  opacity: 0.9;
+}
+
+.headerVbusBananaPort {
+  width: calc(7px * var(--ui-scale));
+  height: calc(7px * var(--ui-scale));
+  border: var(--border-thin) solid currentColor;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 calc(1.5px * var(--ui-scale)) var(--color-surface-header);
   opacity: 0.9;
 }
 
@@ -269,11 +286,6 @@
 .headerVbusProtectionCell[data-triggered='true'] {
   color: var(--color-status-error);
   animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
-}
-
-.headerVbusProtectionCell[data-dimmed='true'] {
-  color: var(--color-text-muted);
-  opacity: 0.45;
 }
 
 .headerVbusProtectionLabel {

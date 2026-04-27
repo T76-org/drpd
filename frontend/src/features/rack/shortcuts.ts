@@ -3,6 +3,7 @@ export type RackShortcutId =
   | 'switch-sink'
   | 'switch-observer'
   | 'switch-disabled'
+  | 'choose-power-contract'
   | 'toggle-capture'
   | 'reset-accumulator'
   | 'clear-log'
@@ -43,6 +44,12 @@ export const RACK_SHORTCUTS: RackShortcutDefinition[] = [
     key: 'D',
     label: 'Switch to Disabled',
     description: 'Set the active DRPD mode to Disabled.',
+  },
+  {
+    id: 'choose-power-contract',
+    key: 'P',
+    label: 'Choose power contract',
+    description: 'Open sink power contract selection.',
   },
   {
     id: 'toggle-capture',
@@ -145,6 +152,9 @@ export const matchRackShortcut = (event: KeyboardEvent): RackShortcutId | null =
     case 'd':
     case 'D':
       return 'switch-disabled'
+    case 'p':
+    case 'P':
+      return 'choose-power-contract'
     case 'c':
     case 'C':
       return 'toggle-capture'

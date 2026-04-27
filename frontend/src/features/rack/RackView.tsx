@@ -368,7 +368,14 @@ const formatHeaderMetricWithGhostZeros = (
 const resolveHeaderCurrentFlow = (
   role: CCBusRole | null,
   current: number | null,
-): { kind: 'flow'; from: string; to: string; direction: 'right' | 'left'; toPort: boolean } | { kind: 'text'; text: string } => {
+): {
+  kind: 'flow'
+  from: string
+  to: string
+  direction: 'right' | 'left'
+  toPort: boolean
+  toBananaPort: boolean
+} | { kind: 'text'; text: string } => {
   if (role !== CCBusRole.OBSERVER && role !== CCBusRole.SINK) {
     return { kind: 'text', text: '—' }
   }
@@ -385,6 +392,7 @@ const resolveHeaderCurrentFlow = (
       to: '2',
       direction: current > 0 ? 'right' : 'left',
       toPort: true,
+      toBananaPort: false,
     }
   }
   if (current < 0) {
@@ -396,6 +404,7 @@ const resolveHeaderCurrentFlow = (
     to: 'B',
     direction: 'right',
     toPort: false,
+    toBananaPort: true,
   }
 }
 
@@ -2061,6 +2070,11 @@ export const RackView = () => {
         case 'switch-disabled':
           void handleSetActiveDeviceRole(CCBusRole.DISABLED)
           break
+        case 'choose-power-contract':
+          if (activeDriverState?.role === CCBusRole.SINK) {
+            void openGlobalSinkRequestDialog()
+          }
+          break
         case 'toggle-capture':
           void handleToggleActiveDeviceCapture()
           break
@@ -2102,6 +2116,8 @@ export const RackView = () => {
     handleResetTrigger,
     handleSetActiveDeviceRole,
     handleToggleActiveDeviceCapture,
+    activeDriverState?.role,
+    openGlobalSinkRequestDialog,
     toggleGoodCrcMessages,
   ])
 
@@ -2300,6 +2316,7 @@ export const RackView = () => {
           {
             id: 'choose-power-contract',
             label: 'Choose power contract...',
+            meta: 'P',
             disabled: !activeDriver || !isSinkMode,
             onSelect: () => {
               void openGlobalSinkRequestDialog()
@@ -3034,7 +3051,11 @@ const HeaderVbusMetrics = ({
 
   const vbusVoltage = truncateHeaderMetric(displayMeasurements.vbusVoltage)
   const signedVbusCurrent = truncateHeaderMetric(displayMeasurements.vbusCurrent)
-  const vbusCurrent = signedVbusCurrent == null ? null : Math.abs(signedVbusCurrent)
+  const displayVbusCurrent =
+    role === CCBusRole.SINK && signedVbusCurrent != null && signedVbusCurrent < 0
+      ? 0
+      : signedVbusCurrent
+  const vbusCurrent = displayVbusCurrent == null ? null : Math.abs(displayVbusCurrent)
   const vbusPower =
     vbusVoltage != null && vbusCurrent != null ? vbusVoltage * vbusCurrent : null
   const voltageText = formatHeaderMetricWithGhostZeros(vbusVoltage, 5)
@@ -3055,7 +3076,6 @@ const HeaderVbusMetrics = ({
   const accumulationElapsedText = formatHeaderElapsed(analogMonitor?.accumulationElapsedTimeUs)
   const ovpValueText = formatHeaderProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
   const ocpValueText = formatHeaderProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
-  const shouldDimProtection = signedVbusCurrent != null && signedVbusCurrent < 0
   const isOvpTriggered = vbusInfo?.status === VBusStatus.OVP
   const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
   const roleText = formatHeaderRoleLabel(role)
@@ -3075,6 +3095,7 @@ const HeaderVbusMetrics = ({
         </span>
         <span className={styles.headerVbusUnit}>V</span>
       </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={styles.headerVbusSecondaryGroup}>
         <div className={`${styles.headerVbusMetric} ${styles.headerVbusCurrent}`}>
           <span className={styles.headerVbusNumber}>
@@ -3095,6 +3116,9 @@ const HeaderVbusMetrics = ({
                 aria-hidden="true"
               />
               <span className={styles.headerVbusFlowEndpoint}>
+                {currentFlow.toBananaPort ? (
+                  <span className={styles.headerVbusBananaPort} aria-hidden="true" />
+                ) : null}
                 {currentFlow.to}
                 {currentFlow.toPort ? (
                   <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
@@ -3106,6 +3130,7 @@ const HeaderVbusMetrics = ({
           )}
         </div>
       </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={styles.headerVbusSecondaryGroup}>
         <div className={`${styles.headerVbusMetric} ${styles.headerVbusPower}`}>
           <span className={styles.headerVbusNumber}>
@@ -3124,24 +3149,24 @@ const HeaderVbusMetrics = ({
           <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
         </div>
       </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={styles.headerVbusProtection}>
         <div
           className={styles.headerVbusProtectionCell}
-          data-dimmed={shouldDimProtection ? 'true' : 'false'}
-          data-triggered={!shouldDimProtection && isOvpTriggered ? 'true' : 'false'}
+          data-triggered={isOvpTriggered ? 'true' : 'false'}
         >
           <span className={styles.headerVbusProtectionLabel}>OVP</span>
           <HeaderProtectionValue value={ovpValueText} />
         </div>
         <div
           className={styles.headerVbusProtectionCell}
-          data-dimmed={shouldDimProtection ? 'true' : 'false'}
-          data-triggered={!shouldDimProtection && isOcpTriggered ? 'true' : 'false'}
+          data-triggered={isOcpTriggered ? 'true' : 'false'}
         >
           <span className={styles.headerVbusProtectionLabel}>OCP</span>
           <HeaderProtectionValue value={ocpValueText} />
         </div>
       </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus} ${styles.headerVbusSinkContract}`}>
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>ROLE</span>
@@ -3152,6 +3177,7 @@ const HeaderVbusMetrics = ({
           <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
         </div>
       </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>TYPE</span>
@@ -3162,6 +3188,7 @@ const HeaderVbusMetrics = ({
           <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
         </div>
       </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>STATE</span>

@@ -6,6 +6,7 @@ describe('rack shortcuts', () => {
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'S' }))).toBe('switch-sink')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'O' }))).toBe('switch-observer')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'D' }))).toBe('switch-disabled')
+    expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'P' }))).toBe('choose-power-contract')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'C' }))).toBe('toggle-capture')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'T' }))).toBe('toggle-usb-connection')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'Z' }))).toBe('reset-accumulator')
