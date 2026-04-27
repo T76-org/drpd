@@ -1427,6 +1427,7 @@ export const RackView = () => {
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
+  const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const messageLogFilterOptions = useMemo(
     () => buildMessageLogFilterOptions(messageLogFilterRows, messageLogFilters),
@@ -2259,6 +2260,18 @@ export const RackView = () => {
         label: 'Logging',
         items: [
           {
+            id: 'logging-toggle-capture',
+            label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
+            disabled: !activeDriver,
+            onSelect: () => {
+              void handleToggleActiveDeviceCapture()
+            },
+          },
+          {
+            id: 'logging-separator-capture',
+            type: 'separator',
+          },
+          {
             id: 'logging-clear-log',
             label: 'Clear Log',
             disabled: !activeDriver || isMessageLogClearing,
@@ -2480,7 +2493,9 @@ export const RackView = () => {
     handleResetTrigger,
     handleSetActiveDeviceRole,
     handleSetProtectionThresholds,
+    handleToggleActiveDeviceCapture,
     isFirmwareUploadBusy,
+    isCaptureEnabled,
     isProtectionTriggered,
     isSinkMode,
     isTriggerActivated,
