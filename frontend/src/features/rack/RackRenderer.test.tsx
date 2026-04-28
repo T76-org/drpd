@@ -64,10 +64,8 @@ describe('RackRenderer', () => {
       />,
     )
 
-    const rackCanvas = container.querySelector('[data-rack-width]')
+    const rackCanvas = container.querySelector('[data-rack-canvas="true"]')
     expect(rackCanvas).not.toBeNull()
-    expect(rackCanvas).toHaveAttribute('data-rack-width', '1200')
-    expect(rackCanvas).toHaveAttribute('data-rack-height', '600')
     expect(rackCanvas).not.toHaveStyle({ transform: 'scale(1)' })
     expect(screen.getByTestId('rack-rows')).toBeInTheDocument()
   })

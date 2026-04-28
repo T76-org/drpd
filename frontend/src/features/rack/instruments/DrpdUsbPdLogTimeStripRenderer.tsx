@@ -12,36 +12,17 @@ import {
   interpolateWallClockUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
-const parseCssNumber = (
-  value: string,
-  fallback: number,
-): number => {
-  const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-const resolveCssLength = (
-  value: string,
-  fallback: number,
-): number => {
-  if (value.trim().length === 0 || typeof document === 'undefined') {
-    return fallback
-  }
-
-  const probe = document.createElement('div')
-  probe.style.position = 'absolute'
-  probe.style.visibility = 'hidden'
-  probe.style.pointerEvents = 'none'
-  probe.style.width = value
-  document.body.appendChild(probe)
-
-  try {
-    const resolved = window.getComputedStyle(probe).width
-    return parseCssNumber(resolved, fallback)
-  } finally {
-    probe.remove()
-  }
-}
+const AXIS_LABEL_Y_PX = 5
+const PLOT_INSET_X_PX = 18
+const PULSE_HIGH_Y_PX = 6
+const PULSE_LOW_INSET_BOTTOM_PX = 17
+const PULSE_ANNOTATION_TOP_PX = 18
+const PULSE_ANNOTATION_HEIGHT_PX = 11
+const PULSE_ANNOTATION_FONT_SIZE_PX = 5
+const ANALOG_TOP_INSET_PX = 8
+const ANALOG_BOTTOM_INSET_PX = 8
+const ANALOG_POINT_RADIUS_PX = 1.8
+const ANALOG_SCALE_LABEL_INSET_PX = 5
 
 const formatScaleLabel = (
   value: number,
@@ -127,26 +108,10 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   onPointerCancel?: PointerEventHandler<HTMLDivElement>
   onPointerLeave?: PointerEventHandler<HTMLDivElement>
 }) => {
-  const viewportStyle =
-    viewportRef?.current !== undefined && viewportRef.current !== null
-      ? getComputedStyle(viewportRef.current)
-      : null
-  const defaultTimeStripHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-total-height') ?? '',
-    80,
-  )
-  const axisHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-axis-height') ?? '',
-    10,
-  )
-  const pulseHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-height') ?? '',
-    20,
-  )
-  const defaultAnalogHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-height') ?? '',
-    50,
-  )
+  const defaultTimeStripHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.totalHeightPx
+  const axisHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.axisHeightPx
+  const pulseHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.pulseHeightPx
+  const defaultAnalogHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.analogHeightPx
   const timeStripHeightPx = Math.max(
     defaultTimeStripHeightPx,
     typeof height === 'number' && Number.isFinite(height) ? height : 0,
@@ -155,48 +120,18 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     defaultAnalogHeightPx,
     timeStripHeightPx - axisHeightPx - pulseHeightPx,
   )
-  const axisLabelY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
-  const plotInsetLeft = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-plot-inset-left') ?? '',
-    18,
-  )
-  const plotInsetRight = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-plot-inset-right') ?? '',
-    18,
-  )
-  const pulseHighY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-pulse-high-y') ?? '', 7)
-  const pulseLowInsetBottom = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-low-inset-bottom') ?? '',
-    7,
-  )
-  const pulseAnnotationTop = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-top') ?? '',
-    18,
-  )
-  const pulseAnnotationHeight = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-height') ?? '',
-    11,
-  )
-  const pulseAnnotationFontSize = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-font-size') ?? '',
-    5,
-  )
-  const analogTopInset = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-top-inset') ?? '',
-    8,
-  )
-  const analogBottomInset = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-bottom-inset') ?? '',
-    8,
-  )
-  const analogPointRadius = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-point-radius') ?? '',
-    1.8,
-  )
-  const analogScaleLabelInset = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-scale-label-inset') ?? '',
-    2,
-  )
+  const axisLabelY = AXIS_LABEL_Y_PX
+  const plotInsetLeft = PLOT_INSET_X_PX
+  const plotInsetRight = PLOT_INSET_X_PX
+  const pulseHighY = PULSE_HIGH_Y_PX
+  const pulseLowInsetBottom = PULSE_LOW_INSET_BOTTOM_PX
+  const pulseAnnotationTop = PULSE_ANNOTATION_TOP_PX
+  const pulseAnnotationHeight = PULSE_ANNOTATION_HEIGHT_PX
+  const pulseAnnotationFontSize = PULSE_ANNOTATION_FONT_SIZE_PX
+  const analogTopInset = ANALOG_TOP_INSET_PX
+  const analogBottomInset = ANALOG_BOTTOM_INSET_PX
+  const analogPointRadius = ANALOG_POINT_RADIUS_PX
+  const analogScaleLabelInset = ANALOG_SCALE_LABEL_INSET_PX
   const plotLeftX = Math.min(Math.max(0, plotInsetLeft), Math.max(width, 1))
   const plotRightX = Math.max(plotLeftX, Math.max(width, 1) - Math.max(0, plotInsetRight))
   const plotWidth = Math.max(0, plotRightX - plotLeftX)

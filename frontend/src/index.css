@@ -86,9 +86,10 @@
   --control-padding-y-md: var(--space-10);
   --control-padding-x-md: var(--space-16);
 
-  --rack-horizontal-unit-px: calc(20px * var(--ui-scale));
+  --rack-canvas-width: 1200px;
+  --rack-horizontal-unit-px: 20px;
   --rack-max-row-width-units: 60;
-  --rack-unit-height-px: calc(100px * var(--ui-scale));
+  --rack-unit-height-px: 100px;
   --rack-canvas-aspect-ratio: 1.6;
   --rack-min-display-units: 6;
   --rack-fit-min-viewport-height-px: calc(400px * var(--ui-scale));

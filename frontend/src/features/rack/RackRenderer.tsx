@@ -2,8 +2,6 @@ import { Fragment } from 'react'
 import type { DRPDDriverRuntime } from '../../lib/device'
 import type { Instrument } from '../../lib/instrument'
 import type { RackDefinition, RackDeviceRecord, RackInstrument } from '../../lib/rack/types'
-import { getRackCanvasSize } from './rackCanvasSize'
-import { useRackSizingConfig } from './rackSizing'
 import { resolveRowFlex } from './layout'
 import { RowRenderer, type RackInstrumentResizePayload } from './RowRenderer'
 import { InstrumentBase } from './InstrumentBase'
@@ -47,9 +45,6 @@ export const RackRenderer = ({
   const instrumentMap = new Map(
     instruments.map((instrument) => [instrument.identifier, instrument]),
   )
-  const rackSizing = useRackSizingConfig()
-  const { rackHeightPx, rackWidthPx } = getRackCanvasSize(rack, instruments, rackSizing)
-
   const fullScreenInstrument = findFullScreenInstrument(rack)
 
   return (
@@ -59,15 +54,10 @@ export const RackRenderer = ({
           className={styles.rackViewport}
           data-scroll-mode="fit"
         >
-          <div
-            className={styles.rackScroll}
-            style={{ width: rackWidthPx }}
-          >
+          <div className={styles.rackScroll}>
             <div
               className={styles.rackCanvas}
-              style={{ width: rackWidthPx }}
-              data-rack-width={Math.round(rackWidthPx)}
-              data-rack-height={rackHeightPx}
+              data-rack-canvas="true"
             >
               {fullScreenInstrument ? (
                 <div className={styles.fullScreenOverlay} data-testid="rack-fullscreen">

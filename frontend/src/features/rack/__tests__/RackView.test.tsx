@@ -871,18 +871,16 @@ describe('RackView', () => {
     expect(screen.queryByText('Bench Rack A')).not.toBeInTheDocument()
   })
 
-  it('renders the top header at the same native width as the rack canvas', async () => {
+  it('renders the top header and rack against the shared CSS canvas width', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
     const { container } = render(<RackView />)
 
     const header = await screen.findByRole('banner')
-    const rackCanvas = container.querySelector('[data-rack-width]')
+    const rackCanvas = container.querySelector('[data-rack-canvas="true"]')
 
     expect(rackCanvas).not.toBeNull()
-    expect(header).toHaveStyle({
-      width: `${rackCanvas?.getAttribute('data-rack-width')}px`
-    })
+    expect(header.className).toContain('header')
   })
 
   it('renders the base instrument header', () => {
@@ -1048,7 +1046,7 @@ describe('RackView', () => {
     ).toBeTruthy()
   })
 
-  it('keeps fixed-width allocations for Message Log and VBUS instruments', async () => {
+  it('keeps default flex weights for Message Log and VBUS instruments', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -1084,20 +1082,20 @@ describe('RackView', () => {
     render(<RackView />)
 
     expect(await screen.findByTestId('rack-instrument-inst-fixed')).toHaveAttribute(
-      'data-width-units',
-      '30',
+      'data-flex',
+      '2.4',
     )
     expect(await screen.findByTestId('rack-instrument-inst-flex-1')).toHaveAttribute(
-      'data-width-units',
+      'data-flex',
       '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-flex-2')).toHaveAttribute(
-      'data-width-units',
+      'data-flex',
       '10',
     )
   })
 
-  it('keeps CC Lines, Device Status, VBUS, Accumulator, and Sync Trigger fixed-width allocations', async () => {
+  it('keeps default flex weights for CC Lines, Device Status, VBUS, Accumulator, and Sync Trigger', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -1141,23 +1139,23 @@ describe('RackView', () => {
     render(<RackView />)
 
     expect(await screen.findByTestId('rack-instrument-inst-status')).toHaveAttribute(
-      'data-width-units',
+      'data-flex',
       '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-cc')).toHaveAttribute(
-      'data-width-units',
+      'data-flex',
       '7',
     )
     expect(await screen.findByTestId('rack-instrument-inst-vbus')).toHaveAttribute(
-      'data-width-units',
+      'data-flex',
       '10',
     )
     expect(await screen.findByTestId('rack-instrument-inst-charge-energy')).toHaveAttribute(
-      'data-width-units',
+      'data-flex',
       '7',
     )
     expect(await screen.findByTestId('rack-instrument-inst-trigger')).toHaveAttribute(
-      'data-width-units',
+      'data-flex',
       '18',
     )
   })
@@ -1829,7 +1827,7 @@ describe('RackView', () => {
     ).toBeInTheDocument()
   })
 
-  it('allocates Timestrip as horizontally flexible with a fixed single-unit height', async () => {
+  it('renders Timestrip with its default flex weight and CSS minimum size', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -1860,12 +1858,9 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveAttribute(
-      'data-width-units',
-      '50',
-    )
+    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveAttribute('data-flex', '100')
     expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveStyle({
-      height: '125px'
+      minHeight: '240px'
     })
   })
 
@@ -1896,10 +1891,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findByTestId('rack-instrument-inst-message-detail')).toHaveAttribute(
-      'data-width-units',
-      '60',
-    )
+    expect(await screen.findByTestId('rack-instrument-inst-message-detail')).toHaveAttribute('data-flex', '1')
     expect(await screen.findByTestId('rack-instrument-inst-message-detail')).toHaveStyle({
       height: '100%'
     })

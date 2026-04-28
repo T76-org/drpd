@@ -4,10 +4,10 @@
   width: 100%;
   height: 100%;
   min-width: 0;
-  min-height: calc(92px * var(--ui-scale));
+  min-height: 92px;
   box-sizing: border-box;
-  gap: calc(2px * var(--ui-scale));
-  padding: calc(5px * var(--ui-scale)) calc(3px * var(--ui-scale)) calc(7px * var(--ui-scale)) calc(3px * var(--ui-scale));
+  gap: 2px;
+  padding: 5px 3px 7px 3px;
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 70%, transparent);
   background:
     linear-gradient(
@@ -19,51 +19,51 @@
 
 /* Interactive viewport that owns strip-level visual custom properties. */
 .timeStripViewport {
-  --timestrip-total-height: calc(92px * var(--ui-scale));
-  --timestrip-axis-height: calc(10px * var(--ui-scale));
-  --timestrip-pulse-height: calc(32px * var(--ui-scale));
-  --timestrip-analog-height: calc(50px * var(--ui-scale));
-  --timestrip-axis-label-y: calc(5px * var(--ui-scale));
-  --timestrip-plot-inset-left: calc(18px * var(--ui-scale));
-  --timestrip-plot-inset-right: calc(18px * var(--ui-scale));
+  --timestrip-total-height: 92px;
+  --timestrip-axis-height: 10px;
+  --timestrip-pulse-height: 32px;
+  --timestrip-analog-height: 50px;
+  --timestrip-axis-label-y: 5px;
+  --timestrip-plot-inset-left: 18px;
+  --timestrip-plot-inset-right: 18px;
   --timestrip-axis-tick-stroke: rgba(255, 255, 255, 0.1);
-  --timestrip-axis-tick-stroke-width: calc(1px * max(1, var(--ui-scale)));
+  --timestrip-axis-tick-stroke-width: 1px;
   --timestrip-axis-label-fill: color-mix(in srgb, var(--color-text-primary) 92%, white 8%);
-  --timestrip-axis-label-font-size: calc(5px * var(--ui-scale));
+  --timestrip-axis-label-font-size: 5px;
   --timestrip-pulse-stroke: rgba(255, 255, 255, 0.92);
-  --timestrip-pulse-stroke-width: calc(0.5px * max(1, var(--ui-scale)));
+  --timestrip-pulse-stroke-width: 0.5px;
   --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
-  --timestrip-pulse-high-y: calc(6px * var(--ui-scale));
-  --timestrip-pulse-low-inset-bottom: calc(17px * var(--ui-scale));
-  --timestrip-pulse-annotation-top: calc(18px * var(--ui-scale));
-  --timestrip-pulse-annotation-height: calc(11px * var(--ui-scale));
-  --timestrip-pulse-annotation-font-size: calc(5px * var(--ui-scale));
+  --timestrip-pulse-high-y: 6px;
+  --timestrip-pulse-low-inset-bottom: 17px;
+  --timestrip-pulse-annotation-top: 18px;
+  --timestrip-pulse-annotation-height: 11px;
+  --timestrip-pulse-annotation-font-size: 5px;
   --timestrip-pulse-annotation-text: var(--color-text-primary);
   --timestrip-pulse-annotation-preamble-fill: color-mix(in srgb, var(--color-surface-panel-accent) 78%, transparent);
   --timestrip-pulse-annotation-sop-fill: color-mix(in srgb, var(--color-status-info) 26%, transparent);
   --timestrip-pulse-annotation-message-fill: color-mix(in srgb, var(--color-status-warning) 24%, transparent);
-  --timestrip-event-stroke-width: calc(1px * max(1, var(--ui-scale)));
+  --timestrip-event-stroke-width: 1px;
   --timestrip-event-capture-stroke: var(--color-log-event-capture);
   --timestrip-event-role-stroke: var(--color-log-event-role);
   --timestrip-event-status-stroke: var(--color-log-event-status);
   --timestrip-event-mark-stroke: var(--color-log-event-mark);
   --timestrip-event-ovp-stroke: var(--color-log-event-ovp);
   --timestrip-event-ocp-stroke: var(--color-log-event-ocp);
-  --timestrip-analog-top-inset: calc(8px * var(--ui-scale));
-  --timestrip-analog-bottom-inset: calc(8px * var(--ui-scale));
+  --timestrip-analog-top-inset: 8px;
+  --timestrip-analog-bottom-inset: 8px;
   --timestrip-analog-grid-stroke: rgba(255, 255, 255, 0.08);
-  --timestrip-analog-grid-stroke-width: calc(0.5px * max(1, var(--ui-scale)));
+  --timestrip-analog-grid-stroke-width: 0.5px;
   --timestrip-analog-selection-fill: rgba(145, 208, 255, 0.10);
   --timestrip-analog-voltage-stroke: var(--color-metric-voltage);
   --timestrip-analog-current-stroke: var(--color-metric-current);
-  --timestrip-analog-trace-stroke-width: calc(0.5px * var(--ui-scale));
-  --timestrip-analog-point-radius: calc(1.8px * var(--ui-scale));
-  --timestrip-analog-scale-label-inset: calc(5px * var(--ui-scale));
+  --timestrip-analog-trace-stroke-width: 0.5px;
+  --timestrip-analog-point-radius: 1.8px;
+  --timestrip-analog-scale-label-inset: 5px;
   --timestrip-hover-line-color: rgba(255, 255, 255, 0.22);
   --timestrip-tooltip-bg: color-mix(in srgb, var(--color-surface-panel) 92%, black 8%);
   --timestrip-tooltip-border: color-mix(in srgb, var(--color-border-panel) 82%, transparent);
   --timestrip-tooltip-text: var(--color-text-primary);
-  --timestrip-tooltip-font-size: calc(6px * var(--ui-scale));
+  --timestrip-tooltip-font-size: 6px;
   position: relative;
   overflow: hidden;
   touch-action: none;
@@ -117,7 +117,7 @@
 
 /* Analog chart lane containing traces, grid, and Y-axis labels. */
 .analogLane {
-  --timestrip-analog-scale-label-font-size: calc(5px * var(--ui-scale));
+  --timestrip-analog-scale-label-font-size: 5px;
 }
 
 /* Full-size SVG used by the pulse and analog lanes. */
@@ -148,7 +148,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: calc(1px * max(1, var(--ui-scale)));
+  width: 1px;
   background: var(--timestrip-hover-line-color);
   pointer-events: none;
 }
@@ -156,8 +156,8 @@
 /* Floating analog measurement tooltip shown when hovering near a trace. */
 .hoverTooltip {
   position: absolute;
-  min-width: calc(26px * var(--ui-scale));
-  padding: calc(3px * var(--ui-scale)) calc(5px * var(--ui-scale));
+  min-width: 26px;
+  padding: 3px 5px;
   border: var(--border-thin) solid var(--timestrip-tooltip-border);
   border-radius: var(--radius-sm);
   background: var(--timestrip-tooltip-bg);

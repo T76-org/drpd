@@ -65,12 +65,10 @@ import {
   type RackInstrumentDragPayload,
   type RackRowResizePayload,
 } from './RackRenderer'
-import { getRackCanvasSize } from './rackCanvasSize'
 import { insertInstrumentIntoRowAtIndex } from './layout'
 import type { RackInstrumentResizePayload } from './RowRenderer'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
-import { useRackSizingConfig } from './rackSizing'
 import { matchRackShortcut } from './shortcuts'
 import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
 import { Menu, type MenuItem } from '../../ui/overlays'
@@ -883,7 +881,6 @@ export const RackView = () => {
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
   const firmwareUpdateActiveRef = useRef(false)
-  const rackSizing = useRackSizingConfig()
 
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
   const instrumentDefinitions = useMemo(() => getSupportedInstruments(), [])
@@ -2230,9 +2227,6 @@ export const RackView = () => {
     toggleGoodCrcMessages,
   ])
 
-  const rackCanvasWidthPx = currentRack
-    ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
-    : null
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
   const activeVbusInfo = activeDriverState?.vbusInfo ?? null
   const activeTriggerInfo = activeDriverState?.triggerInfo ?? null
@@ -2707,10 +2701,7 @@ export const RackView = () => {
     <div className={styles.page}>
       <div className={styles.menuBarViewport}>
         <div className={styles.menuBarScroll}>
-          <div
-            className={styles.menuBar}
-            style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
-          >
+          <div className={styles.menuBar}>
             {menuBarMenus.map((menu) => (
               <Menu
                 key={menu.id}
@@ -2730,10 +2721,7 @@ export const RackView = () => {
       {!currentRack?.hideHeader ? (
         <div className={styles.headerViewport}>
           <div className={styles.headerScroll}>
-            <header
-              className={styles.header}
-              style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
-            >
+            <header className={styles.header}>
               <div className={styles.titleBlock}>
                 <h1 className={styles.title}>
                   <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
