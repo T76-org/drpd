@@ -881,6 +881,7 @@ describe('RackView', () => {
 
     expect(rackCanvas).not.toBeNull()
     expect(header.className).toContain('header')
+    expect(screen.queryByRole('button', { name: 'Rack' })).not.toBeInTheDocument()
   })
 
   it('renders the base instrument header', () => {

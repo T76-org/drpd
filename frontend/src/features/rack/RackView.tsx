@@ -822,7 +822,7 @@ export const RackView = () => {
   )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [isRackEditMode, setIsRackEditMode] = useState(false)
+  const isRackEditMode = false
   const [draggedRackInstrumentId, setDraggedRackInstrumentId] = useState<string | null>(null)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
   const [isGlobalVbusDialogOpen, setIsGlobalVbusDialogOpen] = useState(false)
@@ -1461,18 +1461,6 @@ export const RackView = () => {
       return nextDocument
     })
   }, [activeRack?.id])
-
-  const handleExportRack = useCallback(() => {
-    const document = rackDocumentRef.current ?? rackDocument
-    if (!document) {
-      return
-    }
-    downloadMessageLogPayload(
-      JSON.stringify(document, null, 2),
-      'application/json',
-      'drpd-rack.json',
-    )
-  }, [rackDocument])
 
   const handleRemoveRackInstrument = useCallback((instrumentId: string) => {
     updateRackDocument((document) => ({
@@ -2325,26 +2313,6 @@ export const RackView = () => {
 
     return [
       {
-        id: 'rack',
-        label: 'Rack',
-        items: [
-          {
-            id: 'rack-edit',
-            type: 'checkbox',
-            label: 'Edit',
-            checked: isRackEditMode,
-            disabled: !currentRack,
-            onCheckedChange: () => setIsRackEditMode((current) => !current),
-          },
-          {
-            id: 'rack-export',
-            label: 'Export',
-            disabled: !rackDocument,
-            onSelect: handleExportRack,
-          },
-        ],
-      },
-      {
         id: 'device',
         label: 'Device',
         items: deviceItems,
@@ -2662,7 +2630,6 @@ export const RackView = () => {
     exportSelectedMessageLog,
     handleConnectPairedDevice,
     handleDisconnectDevice,
-    handleExportRack,
     handleOpenDocumentation,
     handlePulseUsbConnection,
     handleRemoveDevice,
@@ -2684,14 +2651,11 @@ export const RackView = () => {
     isMessageLogConfiguring,
     isMessageLogExporting,
     isMessageLogMarking,
-    isRackEditMode,
     messageLogColumnVisibility,
     messageLogFilters,
     openGlobalSinkRequestDialog,
     openGlobalTriggerConfigureDialog,
     pairedDevices,
-    currentRack,
-    rackDocument,
     theme,
     timeSinceMeterReset,
     toggleGoodCrcMessages,
