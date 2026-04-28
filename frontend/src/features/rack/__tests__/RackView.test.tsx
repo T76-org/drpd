@@ -1860,7 +1860,7 @@ describe('RackView', () => {
 
     expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveAttribute('data-flex', '100')
     expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveStyle({
-      minHeight: '240px'
+      minHeight: '120px'
     })
   })
 

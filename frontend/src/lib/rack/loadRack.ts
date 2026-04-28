@@ -1,6 +1,36 @@
-import type { RackDefinition, RackDeviceRecord, RackDocument, RackInstrument, RackRow } from './types'
+import type {
+  RackDefinition,
+  RackDeviceRecord,
+  RackDocument,
+  RackInstrument,
+  RackRow,
+} from './types'
 
 const RACK_STORAGE_KEY = 'drpd:rack:document'
+
+interface PersistedRackSizingInstrument {
+  id: string
+  flex?: number
+}
+
+interface PersistedRackSizingRow {
+  id: string
+  flex?: number
+  instruments?: PersistedRackSizingInstrument[]
+}
+
+interface PersistedRackSizingRack {
+  id: string
+  rows?: PersistedRackSizingRow[]
+}
+
+interface PersistedRackStorage {
+  pairedDevices?: RackDeviceRecord[]
+  rackSizing?: {
+    racks?: PersistedRackSizingRack[]
+  }
+  racks?: RackDefinition[]
+}
 
 /**
  * Build a default rack document when none is stored.
@@ -17,17 +47,6 @@ const buildDefaultRackDocument = (): RackDocument => {
         hideHeader: false,
         totalUnits: 9,
         rows: [
-          {
-            id: 'row-default-status',
-            flex: 0.22,
-            instruments: [
-              buildDefaultInstrument('inst-default-vbus', 'com.mta.drpd.vbus', 10),
-              buildDefaultInstrument('inst-default-accumulator', 'com.mta.drpd.charge-energy', 7),
-              buildDefaultInstrument('inst-default-cc-lines', 'com.mta.drpd.cc-lines', 7),
-              buildDefaultInstrument('inst-default-device-status', 'com.mta.drpd.device-status-panel', 10),
-              buildDefaultInstrument('inst-default-sink', 'com.mta.drpd.sink-control', 15),
-            ],
-          },
           {
             id: 'row-default-trigger',
             flex: 0.3,
@@ -69,22 +88,18 @@ export const loadRackDocument = async (): Promise<RackDocument> => {
   }
   const raw = storage.getItem(RACK_STORAGE_KEY)
   if (!raw) {
-    const defaults = buildDefaultRackDocument()
-    storage.setItem(RACK_STORAGE_KEY, JSON.stringify(defaults))
-    return defaults
+    return buildDefaultRackDocument()
   }
   try {
     const data = JSON.parse(raw) as unknown
-    if (!data || typeof data !== 'object' || !Array.isArray((data as RackDocument).racks)) {
+    if (!data || typeof data !== 'object') {
       throw new Error('Invalid rack document payload')
     }
-    const migrated = migrateRackDocument(data as RackDocument)
-    storage.setItem(RACK_STORAGE_KEY, JSON.stringify(migrated))
+    const migrated = migratePersistedRackStorage(data as PersistedRackStorage)
+    storage.setItem(RACK_STORAGE_KEY, JSON.stringify(toPersistedRackStorage(migrated)))
     return migrated
   } catch {
-    const defaults = buildDefaultRackDocument()
-    storage.setItem(RACK_STORAGE_KEY, JSON.stringify(defaults))
-    return defaults
+    return buildDefaultRackDocument()
   }
 }
 
@@ -98,7 +113,83 @@ export const saveRackDocument = (document: RackDocument): void => {
   if (!storage) {
     return
   }
-  storage.setItem(RACK_STORAGE_KEY, JSON.stringify(document))
+  storage.setItem(RACK_STORAGE_KEY, JSON.stringify(toPersistedRackStorage(document)))
+}
+
+const migratePersistedRackStorage = (storage: PersistedRackStorage): RackDocument => {
+  const legacyDocument = Array.isArray(storage.racks)
+    ? migrateRackDocument(storage as RackDocument)
+    : null
+  const defaults = buildDefaultRackDocument()
+  const sizing = storage.rackSizing ?? (legacyDocument ? extractRackSizing(legacyDocument) : undefined)
+  const pairedDevices = new Map<string, RackDeviceRecord>()
+
+  for (const device of legacyDocument?.pairedDevices ?? []) {
+    pairedDevices.set(device.id, migrateRackDeviceRecord(device))
+  }
+  for (const device of Array.isArray(storage.pairedDevices) ? storage.pairedDevices : []) {
+    pairedDevices.set(device.id, migrateRackDeviceRecord(device))
+  }
+
+  return {
+    ...applyRackSizing(defaults, sizing),
+    pairedDevices: Array.from(pairedDevices.values()),
+  }
+}
+
+const toPersistedRackStorage = (document: RackDocument): PersistedRackStorage => ({
+  pairedDevices: Array.isArray(document.pairedDevices)
+    ? document.pairedDevices.map(migrateRackDeviceRecord)
+    : [],
+  rackSizing: extractRackSizing(document),
+})
+
+const extractRackSizing = (document: RackDocument): PersistedRackStorage['rackSizing'] => ({
+  racks: document.racks.map((rack) => ({
+    id: rack.id,
+    rows: rack.rows.map((row) => ({
+      id: row.id,
+      flex: sanitizePositiveNumber(row.flex),
+      instruments: row.instruments.map((instrument) => ({
+        id: instrument.id,
+        flex: sanitizePositiveNumber(instrument.flex),
+      })),
+    })),
+  })),
+})
+
+const applyRackSizing = (
+  document: RackDocument,
+  sizing: PersistedRackStorage['rackSizing'],
+): RackDocument => {
+  const rackSizingById = new Map((sizing?.racks ?? []).map((rack) => [rack.id, rack]))
+  return {
+    ...document,
+    racks: document.racks.map((rack) => {
+      const rackSizing = rackSizingById.get(rack.id)
+      const rowSizingById = new Map((rackSizing?.rows ?? []).map((row) => [row.id, row]))
+      return {
+        ...rack,
+        rows: rack.rows.map((row) => {
+          const rowSizing = rowSizingById.get(row.id)
+          const instrumentSizingById = new Map(
+            (rowSizing?.instruments ?? []).map((instrument) => [instrument.id, instrument]),
+          )
+          return {
+            ...row,
+            flex: sanitizePositiveNumber(rowSizing?.flex) ?? row.flex,
+            instruments: row.instruments.map((instrument) => {
+              const instrumentSizing = instrumentSizingById.get(instrument.id)
+              return {
+                ...instrument,
+                flex: sanitizePositiveNumber(instrumentSizing?.flex) ?? instrument.flex,
+              }
+            }),
+          }
+        }),
+      }
+    }),
+  }
 }
 
 const migrateRackDocument = (document: RackDocument): RackDocument => {
