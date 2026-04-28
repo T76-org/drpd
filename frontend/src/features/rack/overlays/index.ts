@@ -20,3 +20,13 @@ export {
   type MessageLogFilterRule,
   type MessageLogFilters,
 } from './usbPdLog/usbPdLogFilters'
+export {
+  DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY,
+  MESSAGE_LOG_COLUMNS,
+  notifyMessageLogColumnVisibilityChanged,
+  normalizeMessageLogColumnVisibility,
+  readMessageLogColumnVisibility,
+  saveMessageLogColumnVisibility,
+  type MessageLogColumnId,
+  type MessageLogColumnVisibility,
+} from './usbPdLog/messageLogColumns'

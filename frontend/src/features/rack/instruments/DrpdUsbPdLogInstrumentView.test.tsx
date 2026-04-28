@@ -396,6 +396,53 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(screen.queryByTestId('drpd-usbpd-log-timestrip')).not.toBeInTheDocument()
   })
 
+  it('updates visible message table columns from global column settings', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('Sender')).toBeInTheDocument()
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('drpd-message-log-columns-changed', {
+          detail: {
+            visibility: {
+              timestamp: true,
+              duration: true,
+              delta: true,
+              messageId: true,
+              messageType: true,
+              sender: false,
+              receiver: false,
+              sopType: false,
+              valid: false,
+            },
+          },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('Sender')).not.toBeInTheDocument()
+      expect(screen.queryByText('Receiver')).not.toBeInTheDocument()
+      expect(screen.queryByText('SOP')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('Message type')).toBeInTheDocument()
+  })
+
   it('loads existing logged rows on mount without waiting for add events', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1), // GoodCRC

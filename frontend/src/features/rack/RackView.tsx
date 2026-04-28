@@ -89,6 +89,12 @@ import {
   type FilterOption,
   type MessageLogFilters,
 } from './overlays/usbPdLog/usbPdLogFilters'
+import {
+  notifyMessageLogColumnVisibilityChanged,
+  readMessageLogColumnVisibility,
+  saveMessageLogColumnVisibility,
+  type MessageLogColumnVisibility,
+} from './overlays/usbPdLog/messageLogColumns'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -856,6 +862,10 @@ export const RackView = () => {
   const [messageLogSelectionKeys, setMessageLogSelectionKeys] = useState<string[]>([])
   const [messageLogFilters, setMessageLogFilters] =
     useState<MessageLogFilters>(EMPTY_MESSAGE_LOG_FILTERS)
+  const [messageLogColumnVisibility, setMessageLogColumnVisibility] =
+    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
+  const [messageLogColumnVisibilityInput, setMessageLogColumnVisibilityInput] =
+    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
   const [messageLogFilterRows, setMessageLogFilterRows] = useState<LoggedCapturedMessage[]>([])
   const [isMessageLogFilterDialogOpen, setIsMessageLogFilterDialogOpen] = useState(false)
   const [isMessageLogClearDialogOpen, setIsMessageLogClearDialogOpen] = useState(false)
@@ -961,6 +971,11 @@ export const RackView = () => {
   useEffect(() => {
     rackDocumentRef.current = rackDocument
   }, [rackDocument])
+
+  useEffect(() => {
+    saveMessageLogColumnVisibility(messageLogColumnVisibility)
+    notifyMessageLogColumnVisibilityChanged(messageLogColumnVisibility)
+  }, [messageLogColumnVisibility])
 
   useEffect(() => {
     deviceStatesRef.current = deviceStates
@@ -2541,6 +2556,7 @@ export const RackView = () => {
                 : buildDefaultLoggingConfig()
               setMessageLogBufferInput(configured.maxCapturedMessages.toString())
               setMessageLogBufferError(null)
+              setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
               setIsMessageLogConfigureDialogOpen(true)
             },
           },
@@ -2675,6 +2691,7 @@ export const RackView = () => {
     isMessageLogExporting,
     isMessageLogMarking,
     isRackEditMode,
+    messageLogColumnVisibility,
     messageLogFilters,
     openGlobalSinkRequestDialog,
     openGlobalTriggerConfigureDialog,
@@ -2913,11 +2930,14 @@ export const RackView = () => {
         maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
         bufferInput={messageLogBufferInput}
         bufferError={messageLogBufferError}
+        columnVisibility={messageLogColumnVisibilityInput}
         isApplyingBuffer={isMessageLogConfiguring}
         setBufferInput={setMessageLogBufferInput}
         setBufferError={setMessageLogBufferError}
+        setColumnVisibility={setMessageLogColumnVisibilityInput}
         onCancel={() => {
           setMessageLogBufferError(null)
+          setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
           setIsMessageLogConfigureDialogOpen(false)
         }}
         onApply={() => {
@@ -2943,6 +2963,7 @@ export const RackView = () => {
           }
           setIsMessageLogConfiguring(true)
           setMessageLogBufferError(null)
+          setMessageLogColumnVisibility(messageLogColumnVisibilityInput)
           void handleUpdateDeviceConfig(activeDeviceRecord.id, (current) => {
             const source = current && typeof current === 'object'
               ? (current as { logging?: Partial<DRPDLoggingConfig> })

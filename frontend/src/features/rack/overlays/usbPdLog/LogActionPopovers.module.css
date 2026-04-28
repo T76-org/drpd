@@ -1,0 +1,20 @@
+.columnPicker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(12ch, 1fr));
+  gap: var(--space-6) var(--space-12);
+}
+
+.columnOption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-text);
+  line-height: var(--line-height-snug);
+  white-space: nowrap;
+}
+
+.columnOption input {
+  margin: 0;
+}

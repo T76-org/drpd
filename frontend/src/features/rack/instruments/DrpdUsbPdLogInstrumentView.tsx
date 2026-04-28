@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useLayoutEffect,
@@ -26,6 +27,12 @@ import {
   type MessageLogFilterRule,
   type MessageLogFilters,
 } from '../overlays/usbPdLog/usbPdLogFilters'
+import {
+  MESSAGE_LOG_COLUMNS,
+  readMessageLogColumnVisibility,
+  type MessageLogColumnId,
+  type MessageLogColumnVisibility,
+} from '../overlays/usbPdLog/messageLogColumns'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import { formatWallClock } from './DrpdUsbPdLogTimeStrip.utils'
@@ -35,6 +42,17 @@ const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
 const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
+const MESSAGE_LOG_COLUMN_WIDTH_FALLBACK_PX: Record<MessageLogColumnId, number> = {
+  timestamp: 70,
+  duration: 55,
+  delta: 70,
+  messageId: 30,
+  messageType: 170,
+  sender: 56,
+  receiver: 56,
+  sopType: 37,
+  valid: 36,
+}
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
@@ -44,6 +62,7 @@ const EMPTY_SELECTION: DRPDLogSelectionState = {
 const resolveCssLength = (
   value: string,
   fallback: number,
+  context?: HTMLElement,
 ): number => {
   if (value.trim().length === 0 || typeof document === 'undefined') {
     return fallback
@@ -54,12 +73,13 @@ const resolveCssLength = (
   probe.style.visibility = 'hidden'
   probe.style.pointerEvents = 'none'
   probe.style.width = value
-  document.body.appendChild(probe)
+  const parent = context ?? document.body
+  parent.appendChild(probe)
 
   try {
     const resolved = window.getComputedStyle(probe).width
     const parsed = Number.parseFloat(resolved)
-    return Number.isFinite(parsed) ? parsed : fallback
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
   } finally {
     probe.remove()
   }
@@ -82,6 +102,11 @@ type DisplayRow = {
   sopType: string
   valid: string
 }
+
+type DisplayColumnField = keyof Pick<
+  DisplayRow,
+  'timestamp' | 'duration' | 'delta' | 'messageId' | 'messageType' | 'sender' | 'receiver' | 'sopType' | 'valid'
+>
 
 const EMPTY_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
@@ -299,6 +324,8 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   const driver = deviceState?.drpdDriver
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const headerRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -308,15 +335,31 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [viewportHeight, setViewportHeight] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
+  const [headerSlotHeightPx, setHeaderSlotHeightPx] = useState<number>(ROW_HEIGHT_PX)
+  const [tableScale, setTableScale] = useState(1)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
+  const [columnVisibility, setColumnVisibility] =
+    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
   const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
   const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
+  const visibleColumns = useMemo(() => {
+    const next = MESSAGE_LOG_COLUMNS.filter((column) => columnVisibility[column.id])
+    return next.length > 0 ? next : MESSAGE_LOG_COLUMNS
+  }, [columnVisibility])
+  const gridTemplateColumns = useMemo(
+    () => visibleColumns.map((column) => `var(${column.widthVar})`).join(' '),
+    [visibleColumns],
+  )
+  const tableScaleStyle = useMemo(
+    () => ({ '--message-log-table-scale': tableScale }) as CSSProperties,
+    [tableScale],
+  )
   const hasActiveFilters = activeFilterCount > 0
   const filteredRows = useMemo(
     () => (hasActiveFilters ? filterRows.filter((row) => messageMatchesFilters(row, filters)) : []),
@@ -327,9 +370,10 @@ export const DrpdUsbPdLogInstrumentView = ({
     [filteredRows, hasActiveFilters],
   )
   const displayedTotalRows = hasActiveFilters ? filteredDisplayRows.length : totalRows
+  const scaledRowHeightPx = rowHeightPx * tableScale
 
-  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
-  const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
+  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / scaledRowHeightPx) - OVERSCAN_ROWS)
+  const visibleRowCount = Math.ceil(viewportHeight / scaledRowHeightPx) + OVERSCAN_ROWS * 2
   const lastVisibleRow = Math.min(displayedTotalRows - 1, firstVisibleRow + visibleRowCount)
 
   const visibleRows = useMemo(() => {
@@ -459,8 +503,8 @@ export const DrpdUsbPdLogInstrumentView = ({
     if (!viewport) {
       return
     }
-    const rowTop = index * rowHeightPx
-    const rowBottom = rowTop + rowHeightPx
+    const rowTop = index * scaledRowHeightPx
+    const rowBottom = rowTop + scaledRowHeightPx
     if (rowTop < viewport.scrollTop) {
       viewport.scrollTop = rowTop
       return
@@ -528,6 +572,22 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [queryAllCapturedMessages])
 
   useEffect(() => {
+    const handleGlobalColumnsChanged = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const next = detail?.visibility as MessageLogColumnVisibility | undefined
+      if (!next) {
+        return
+      }
+      setColumnVisibility(next)
+    }
+
+    window.addEventListener('drpd-message-log-columns-changed', handleGlobalColumnsChanged)
+    return () => {
+      window.removeEventListener('drpd-message-log-columns-changed', handleGlobalColumnsChanged)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!driver) {
       setSelection(EMPTY_SELECTION)
       return
@@ -580,6 +640,80 @@ export const DrpdUsbPdLogInstrumentView = ({
       window.removeEventListener('resize', updateRowHeight)
     }
   }, [])
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) {
+      return undefined
+    }
+
+    const updateTableScale = () => {
+      const computedStyle = window.getComputedStyle(wrapper)
+      const uiScale = Number.parseFloat(computedStyle.getPropertyValue('--ui-scale')) || 1
+      let columnWidth = 0
+      for (const column of visibleColumns) {
+        columnWidth += resolveCssLength(
+          computedStyle.getPropertyValue(column.widthVar),
+          MESSAGE_LOG_COLUMN_WIDTH_FALLBACK_PX[column.id] * uiScale,
+          wrapper,
+        )
+      }
+      const horizontalPadding = resolveCssLength(
+        computedStyle.getPropertyValue('--space-8'),
+        8 * uiScale,
+        wrapper,
+      ) * 2
+      const baseWidth = Math.max(1, columnWidth + horizontalPadding)
+      const nextScale = Math.max(0.1, wrapper.clientWidth / baseWidth)
+      setTableScale((previous) => (
+        Math.abs(previous - nextScale) < 0.001 ? previous : nextScale
+      ))
+    }
+
+    updateTableScale()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateTableScale)
+      return () => {
+        window.removeEventListener('resize', updateTableScale)
+      }
+    }
+
+    const observer = new ResizeObserver(updateTableScale)
+    observer.observe(wrapper)
+    return () => {
+      observer.disconnect()
+    }
+  }, [visibleColumns])
+
+  useLayoutEffect(() => {
+    const header = headerRef.current
+    if (!header) {
+      return undefined
+    }
+
+    const updateHeaderHeight = () => {
+      const visualHeight = header.getBoundingClientRect().height
+      setHeaderSlotHeightPx(
+        visualHeight > 0 ? Math.ceil(visualHeight + 2) : ROW_HEIGHT_PX * tableScale,
+      )
+    }
+
+    updateHeaderHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeaderHeight)
+      return () => {
+        window.removeEventListener('resize', updateHeaderHeight)
+      }
+    }
+
+    const observer = new ResizeObserver(updateHeaderHeight)
+    observer.observe(header)
+    return () => {
+      observer.disconnect()
+    }
+  }, [tableScale, visibleColumns])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -942,19 +1076,23 @@ export const DrpdUsbPdLogInstrumentView = ({
       }
     >
       <div
+        ref={wrapperRef}
         className={styles.wrapper}
         data-testid="drpd-usbpd-log"
       >
-        <div className={styles.headerRow}>
-          <span>Wall time</span>
-          <span>Length</span>
-          <span>Δt</span>
-          <span>ID</span>
-          <span>Message type</span>
-          <span>Sender</span>
-          <span>Receiver</span>
-          <span>SOP</span>
-          <span>Valid</span>
+        <div
+          className={styles.headerSlot}
+          style={{ height: `${headerSlotHeightPx}px` }}
+        >
+          <div
+            ref={headerRef}
+            className={`${styles.scaleFrame} ${styles.headerRow}`}
+            style={{ ...tableScaleStyle, gridTemplateColumns }}
+          >
+            {visibleColumns.map((column) => (
+              <span key={column.id}>{column.label}</span>
+            ))}
+          </div>
         </div>
         <div
           ref={viewportRef}
@@ -965,55 +1103,66 @@ export const DrpdUsbPdLogInstrumentView = ({
             const element = event.currentTarget
             setScrollTop(element.scrollTop)
             atBottomRef.current =
-              element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
+              element.scrollHeight - element.clientHeight - element.scrollTop <= scaledRowHeightPx * 2
           }}
           data-testid="drpd-usbpd-log-viewport"
         >
           <div
             className={styles.canvas}
-            style={{ height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px` }}
-            data-testid="drpd-usbpd-log-canvas"
+            style={{ height: `${Math.max(displayedTotalRows * scaledRowHeightPx, 0)}px` }}
           >
-            {visibleRows.map(({ index, row }) => (
-              <div
-                key={row?.key ?? `placeholder-${index}`}
-                className={[
-                  styles.dataRow,
-                  row && selectedKeySet.has(row.selectionKey) ? styles.selectedRow : '',
-                  row?.kind === 'event' ? styles.eventRow : '',
-                  row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
-                  row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
-                  row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
-                  row?.eventType === 'mark' ? styles.eventRowMark : '',
-                  row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
-                  row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                style={{ transform: `translateY(${index * rowHeightPx}px)` }}
-                onClick={(event) => {
-                  handleRowClick(event, index, row)
-                }}
-              >
-                {row?.kind === 'event' ? (
-                  <span className={styles.eventLabel}>
-                    {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
-                  </span>
-                ) : (
-                  <>
-                    <span className={styles.right}>{row?.timestamp ?? ''}</span>
-                    <span className={styles.right}>{row?.duration ?? ''}</span>
-                    <span className={styles.right}>{row?.delta ?? ''}</span>
-                    <span className={styles.center}>{row?.messageId ?? ''}</span>
-                    <span>{row?.messageType ?? ''}</span>
-                    <span>{row?.sender ?? ''}</span>
-                    <span>{row?.receiver ?? ''}</span>
-                    <span className={styles.center}>{row?.sopType ?? ''}</span>
-                    <span className={styles.center}>{row?.valid ?? ''}</span>
-                  </>
-                )}
-              </div>
-            ))}
+            <div
+              className={styles.rowScaleFrame}
+              style={{
+                ...tableScaleStyle,
+                height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
+              }}
+              data-testid="drpd-usbpd-log-canvas"
+            >
+              {visibleRows.map(({ index, row }) => (
+                <div
+                  key={row?.key ?? `placeholder-${index}`}
+                  className={[
+                    styles.dataRow,
+                    row && selectedKeySet.has(row.selectionKey) ? styles.selectedRow : '',
+                    row?.kind === 'event' ? styles.eventRow : '',
+                    row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
+                    row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
+                    row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
+                    row?.eventType === 'mark' ? styles.eventRowMark : '',
+                    row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
+                    row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  style={{
+                    gridTemplateColumns,
+                    transform: `translateY(${index * rowHeightPx}px)`,
+                  }}
+                  onClick={(event) => {
+                    handleRowClick(event, index, row)
+                  }}
+                >
+                  {row?.kind === 'event' ? (
+                    <span className={styles.eventLabel} style={{ gridColumn: `1 / ${visibleColumns.length + 1}` }}>
+                      {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
+                    </span>
+                  ) : (
+                    visibleColumns.map((column) => (
+                      <span
+                        key={column.id}
+                        className={[
+                          column.align === 'right' ? styles.right : '',
+                          column.align === 'center' ? styles.center : '',
+                        ].filter(Boolean).join(' ')}
+                      >
+                        {row?.[column.field as DisplayColumnField] ?? ''}
+                      </span>
+                    ))
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

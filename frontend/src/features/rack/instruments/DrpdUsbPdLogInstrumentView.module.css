@@ -16,6 +16,7 @@
   --column-width-receiver: calc(56px * var(--ui-scale));
   --column-width-sop-type: calc(37px * var(--ui-scale));
   --column-width-valid: calc(36px * var(--ui-scale));
+  --message-log-table-scale: 1;
 
   height: 100%;
   width: 100%;
@@ -26,6 +27,25 @@
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.scaleFrame {
+  width: calc(100% / var(--message-log-table-scale));
+  transform: scale(var(--message-log-table-scale));
+  transform-origin: top left;
+}
+
+.headerSlot {
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.rowScaleFrame {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: calc(100% / var(--message-log-table-scale));
+  transform: scale(var(--message-log-table-scale));
+  transform-origin: top left;
 }
 
 .headerRow {
@@ -65,6 +85,10 @@
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.headerRow.scaleFrame {
+  width: calc(100% / var(--message-log-table-scale));
 }
 
 .headerRow > span {
@@ -145,6 +169,7 @@
 .canvas {
   position: relative;
   width: 100%;
+  min-height: 100%;
 }
 
 .dataRow {
