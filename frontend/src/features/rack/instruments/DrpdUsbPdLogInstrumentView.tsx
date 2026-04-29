@@ -735,6 +735,10 @@ export const DrpdUsbPdLogInstrumentView = ({
         return
       }
       setColumnVisibility(next)
+      const nextWidths = detail?.widths as MessageLogColumnWidths | undefined
+      if (nextWidths) {
+        setColumnWidths(nextWidths)
+      }
     }
 
     window.addEventListener('drpd-message-log-columns-changed', handleGlobalColumnsChanged)

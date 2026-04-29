@@ -88,9 +88,12 @@ import {
   type MessageLogFilters,
 } from './overlays/usbPdLog/usbPdLogFilters'
 import {
+  DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY,
+  DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS,
   notifyMessageLogColumnVisibilityChanged,
   readMessageLogColumnVisibility,
   saveMessageLogColumnVisibility,
+  saveMessageLogColumnWidths,
   type MessageLogColumnVisibility,
 } from './overlays/usbPdLog/messageLogColumns'
 import styles from './RackView.module.css'
@@ -2153,6 +2156,17 @@ export const RackView = () => {
     }
   }, [])
 
+  const handleRestoreMessageLogTableLayout = useCallback(() => {
+    setMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
+    setMessageLogColumnVisibilityInput(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
+    saveMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
+    saveMessageLogColumnWidths(DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS)
+    notifyMessageLogColumnVisibilityChanged(
+      DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY,
+      DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS,
+    )
+  }, [])
+
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
       const shortcutId = matchRackShortcut(event)
@@ -2440,7 +2454,7 @@ export const RackView = () => {
       },
       {
         id: 'logging',
-        label: 'Logging',
+        label: 'Message Log',
         items: [
           {
             id: 'logging-toggle-capture',
@@ -2531,6 +2545,15 @@ export const RackView = () => {
               setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
               setIsMessageLogConfigureDialogOpen(true)
             },
+          },
+          {
+            id: 'logging-separator-restore-layout',
+            type: 'separator',
+          },
+          {
+            id: 'logging-restore-table-layout',
+            label: 'Restore Table Layout',
+            onSelect: handleRestoreMessageLogTableLayout,
           },
         ],
       },
@@ -2674,6 +2697,7 @@ export const RackView = () => {
     handleResetPowerChargeMeter,
     handleResetProtection,
     handleResetTrigger,
+    handleRestoreMessageLogTableLayout,
     handleSetActiveDeviceRole,
     handleSetProtectionThresholds,
     handleToggleActiveDeviceCapture,

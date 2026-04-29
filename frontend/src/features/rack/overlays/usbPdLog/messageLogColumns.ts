@@ -189,10 +189,14 @@ export const saveMessageLogColumnWidths = (
 
 export const notifyMessageLogColumnVisibilityChanged = (
   visibility: MessageLogColumnVisibility,
+  widths?: MessageLogColumnWidths,
 ): void => {
   window.dispatchEvent(
     new CustomEvent('drpd-message-log-columns-changed', {
-      detail: { visibility: normalizeMessageLogColumnVisibility(visibility) },
+      detail: {
+        visibility: normalizeMessageLogColumnVisibility(visibility),
+        widths: widths ? normalizeMessageLogColumnWidths(widths) : undefined,
+      },
     }),
   )
 }

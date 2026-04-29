@@ -765,6 +765,22 @@ describe('RackView', () => {
     expect(window.localStorage.getItem('drpd:theme')).toBe('light')
   })
 
+  it('restores Message Log table layout from the menu', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    window.localStorage.setItem('drpd:message-log:columns', JSON.stringify({ sender: false }))
+    window.localStorage.setItem('drpd:message-log:column-widths', JSON.stringify({ messageType: 320 }))
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Message Log' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Restore Table Layout' }))
+
+    const columns = JSON.parse(window.localStorage.getItem('drpd:message-log:columns') ?? '{}')
+    const widths = JSON.parse(window.localStorage.getItem('drpd:message-log:column-widths') ?? '{}')
+    expect(Object.values(columns).every((visible) => visible === true)).toBe(true)
+    expect(widths.messageType).toBe(200)
+  })
+
   it('resolves system theme from matchMedia', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
