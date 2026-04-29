@@ -58,7 +58,8 @@
     var(--column-width-sender)
     var(--column-width-receiver)
     var(--column-width-sop-type)
-    minmax(var(--column-width-valid), 1fr);
+    var(--column-width-valid)
+    minmax(0, 1fr);
   position: relative;
   z-index: 1;
   padding: var(--space-2) var(--space-8);
@@ -112,6 +113,10 @@
 .headerCell + .headerCell {
   border-left: var(--border-thin) solid var(--message-log-column-divider);
   padding-left: var(--space-4);
+}
+
+.headerCell:last-child {
+  border-right: var(--border-thin) solid var(--message-log-column-divider);
 }
 
 .headerLabel {
@@ -176,6 +181,7 @@
   position: relative;
   flex: 1;
   min-height: 0;
+  box-sizing: border-box;
   overflow: auto;
   background: var(--color-surface-instrument);
   scrollbar-width: thin;
@@ -225,7 +231,8 @@
     var(--column-width-sender)
     var(--column-width-receiver)
     var(--column-width-sop-type)
-    minmax(var(--column-width-valid), 1fr);
+    var(--column-width-valid)
+    minmax(0, 1fr);
   align-items: center;
   padding: 0 var(--space-8);
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 40%, transparent);
@@ -254,6 +261,10 @@
 .dataRow > span + span {
   border-left: var(--border-thin) solid var(--message-log-column-divider);
   padding-left: var(--space-4);
+}
+
+.dataRow:not(.eventRow) > span:last-child {
+  border-right: var(--border-thin) solid var(--message-log-column-divider);
 }
 
 .dataRow > .right {

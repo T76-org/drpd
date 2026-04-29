@@ -143,7 +143,7 @@ export class DrpdUsbPdLogInstrument extends Instrument {
       defaultHeightMode: 'flex',
       defaultFlex: 3,
       minWidth: '48rem',
-      minHeight: '16rem',
+      minHeight: '12rem',
     })
   }
 }
@@ -186,7 +186,7 @@ export class DrpdMessageDetailInstrument extends Instrument {
       defaultHeightMode: 'flex',
       defaultFlex: 1,
       minWidth: '20rem',
-      minHeight: '16rem',
+      minHeight: '12rem',
     })
   }
 }

@@ -45,6 +45,7 @@ const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
 const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
+const HORIZONTAL_SCROLLBAR_GUTTER_PX = 12
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
@@ -474,22 +475,15 @@ export const DrpdUsbPdLogInstrumentView = ({
     return width
   }, [columnWidths, visibleColumns])
   const gridTemplateColumns = useMemo(() => {
-    const lastColumn = visibleColumns[visibleColumns.length - 1]
-    if (!lastColumn) {
-      return ''
-    }
-    let leadingWidthPx = 0
-    for (const column of visibleColumns.slice(0, -1)) {
-      leadingWidthPx += columnWidths[column.id]
-    }
-    const availableContentWidthPx = Math.max(0, viewportWidth - tableHorizontalPaddingPx)
-    const tableContentWidthPx = Math.max(gridMinimumWidthPx, availableContentWidthPx)
-    const lastWidthPx = Math.max(columnWidths[lastColumn.id], tableContentWidthPx - leadingWidthPx)
     return visibleColumns.map((column, index) => (
-      index === visibleColumns.length - 1 ? `${lastWidthPx}px` : `${columnWidths[column.id]}px`
+      index === visibleColumns.length - 1
+        ? `${columnWidths[column.id]}px minmax(0, 1fr)`
+        : `${columnWidths[column.id]}px`
     )).join(' ')
-  }, [columnWidths, gridMinimumWidthPx, tableHorizontalPaddingPx, viewportWidth, visibleColumns])
+  }, [columnWidths, visibleColumns])
   const tableOuterWidthPx = Math.max(viewportWidth, gridMinimumWidthPx + tableHorizontalPaddingPx)
+  const tableBottomGutterPx =
+    viewportWidth > 0 && tableOuterWidthPx > viewportWidth ? HORIZONTAL_SCROLLBAR_GUTTER_PX : 0
   const hasActiveFilters = activeFilterCount > 0
   const filteredRows = useMemo(
     () => (hasActiveFilters ? filterRows.filter((row) => messageMatchesFilters(row, filters)) : []),
@@ -1407,6 +1401,9 @@ export const DrpdUsbPdLogInstrumentView = ({
               element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
           }}
           data-testid="drpd-usbpd-log-viewport"
+          style={{
+            paddingBottom: tableBottomGutterPx > 0 ? `${tableBottomGutterPx}px` : undefined,
+          }}
         >
           <div
             className={styles.canvas}
