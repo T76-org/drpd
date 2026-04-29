@@ -4,7 +4,7 @@
   width: 100%;
   height: 100%;
   min-width: 0;
-  min-height: 92px;
+  min-height: 0;
   box-sizing: border-box;
   gap: 2px;
   padding: 5px 3px 7px 3px;
@@ -21,11 +21,11 @@
 .timeStripViewport {
   --timestrip-base-font-size: 10px;
 
-  --timestrip-total-height: 92px;
-  --timestrip-axis-height: 14px;
-  --timestrip-pulse-height: 30px;
-  --timestrip-analog-height: 48px;
-  --timestrip-axis-label-y: 7px;
+  --timestrip-total-height: 187px;
+  --timestrip-axis-height: 24px;
+  --timestrip-pulse-height: 42px;
+  --timestrip-analog-height: 121px;
+  --timestrip-axis-label-y: 12px;
   --timestrip-plot-inset-left: 23.4px;
   --timestrip-plot-inset-right: 23.4px;
   --timestrip-axis-tick-stroke: rgba(255, 255, 255, 0.1);
@@ -35,10 +35,10 @@
   --timestrip-pulse-stroke: rgba(255, 255, 255, 0.92);
   --timestrip-pulse-stroke-width: 0.5px;
   --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
-  --timestrip-pulse-high-y: 5px;
-  --timestrip-pulse-low-inset-bottom: 15px;
-  --timestrip-pulse-annotation-top: 15px;
-  --timestrip-pulse-annotation-height: 14px;
+  --timestrip-pulse-high-y: 7px;
+  --timestrip-pulse-low-inset-bottom: 22px;
+  --timestrip-pulse-annotation-top: 24px;
+  --timestrip-pulse-annotation-height: 16px;
   --timestrip-pulse-annotation-font-size: var(--timestrip-base-font-size);
   --timestrip-pulse-annotation-text: var(--color-text-primary);
   --timestrip-pulse-annotation-preamble-fill: color-mix(in srgb, var(--color-surface-panel-accent) 78%, transparent);
@@ -51,8 +51,8 @@
   --timestrip-event-mark-stroke: var(--color-log-event-mark);
   --timestrip-event-ovp-stroke: var(--color-log-event-ovp);
   --timestrip-event-ocp-stroke: var(--color-log-event-ocp);
-  --timestrip-analog-top-inset: 11px;
-  --timestrip-analog-bottom-inset: 11px;
+  --timestrip-analog-top-inset: 16px;
+  --timestrip-analog-bottom-inset: 16px;
   --timestrip-analog-grid-stroke: rgba(255, 255, 255, 0.08);
   --timestrip-analog-grid-stroke-width: 0.5px;
   --timestrip-analog-selection-fill: rgba(145, 208, 255, 0.10);
@@ -66,6 +66,7 @@
   --timestrip-tooltip-border: color-mix(in srgb, var(--color-border-panel) 82%, transparent);
   --timestrip-tooltip-text: var(--color-text-primary);
   --timestrip-tooltip-font-size: 7.8px;
+  container: timestrip / size;
   position: relative;
   overflow: hidden;
   touch-action: none;
@@ -103,6 +104,9 @@
 .axisDeviceLabel {
   fill: var(--timestrip-axis-label-fill);
   font-size: var(--timestrip-axis-label-font-size);
+  paint-order: stroke;
+  stroke: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
+  stroke-width: 2px;
   dominant-baseline: middle;
 }
 
@@ -133,6 +137,9 @@
 .analogScaleLabelLeft {
   fill: var(--timestrip-analog-voltage-stroke);
   font-size: var(--timestrip-analog-scale-label-font-size);
+  paint-order: stroke;
+  stroke: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
+  stroke-width: 2px;
   dominant-baseline: middle;
   text-anchor: start;
 }
@@ -141,8 +148,39 @@
 .analogScaleLabelRight {
   fill: var(--timestrip-analog-current-stroke);
   font-size: var(--timestrip-analog-scale-label-font-size);
+  paint-order: stroke;
+  stroke: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
+  stroke-width: 2px;
   dominant-baseline: middle;
   text-anchor: end;
+}
+
+@container timestrip (max-height: 180px) {
+  .analogLane g:nth-of-type(3) .analogScaleLabelLeft,
+  .analogLane g:nth-of-type(3) .analogScaleLabelRight,
+  .analogLane g:nth-of-type(5) .analogScaleLabelLeft,
+  .analogLane g:nth-of-type(5) .analogScaleLabelRight {
+    display: none;
+  }
+}
+
+@container timestrip (min-height: 240px) {
+  .analogScaleLabelLeft,
+  .analogScaleLabelRight {
+    display: revert;
+  }
+}
+
+@media (max-width: 800px) {
+  .axisSvg g:nth-child(even) .axisDeviceLabel {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .axisSvg g:not(:first-child):not(:last-child) .axisDeviceLabel {
+    display: none;
+  }
 }
 
 /* Full-height hover guide line that tracks the pointer across the strip. */

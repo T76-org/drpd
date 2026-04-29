@@ -164,7 +164,7 @@ export class DrpdTimeStripInstrument extends Instrument {
       defaultUnits: 1.25,
       defaultFlex: 100,
       minWidth: '22rem',
-      minHeight: '120px',
+      minHeight: '230px',
     })
   }
 }

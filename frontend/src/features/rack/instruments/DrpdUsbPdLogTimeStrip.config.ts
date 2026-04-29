@@ -12,10 +12,10 @@ export const DRPD_USB_PD_LOG_CONFIG = {
     zoomFactor: 2n, ///< Zoom multiplier for each in/out step.
   },
   stripLayout: {
-    totalHeightPx: 92, ///< Total time-strip viewport height.
-    axisHeightPx: 14, ///< Height of the timestamp row.
-    pulseHeightPx: 30, ///< Height of the pulse lane including annotations.
-    analogHeightPx: 48, ///< Height of the analog lane.
+    totalHeightPx: 187, ///< Total time-strip viewport height.
+    axisHeightPx: 24, ///< Height of the timestamp row.
+    pulseHeightPx: 42, ///< Height of the pulse lane including annotations.
+    analogHeightPx: 121, ///< Height of the analog lane.
   },
   stripPulseAnnotations: {
     preambleDurationUs: 213.33, ///< Approximate USB-PD preamble duration at 300 kHz.

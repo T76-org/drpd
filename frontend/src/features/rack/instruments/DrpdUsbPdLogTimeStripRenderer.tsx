@@ -12,15 +12,15 @@ import {
   interpolateWallClockUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
-const AXIS_LABEL_Y_PX = 7
+const AXIS_LABEL_Y_PX = 12
 const PLOT_INSET_X_PX = 23.4
-const PULSE_HIGH_Y_PX = 5
-const PULSE_LOW_INSET_BOTTOM_PX = 15
-const PULSE_ANNOTATION_TOP_PX = 15
-const PULSE_ANNOTATION_HEIGHT_PX = 14
+const PULSE_HIGH_Y_PX = 7
+const PULSE_LOW_INSET_BOTTOM_PX = 22
+const PULSE_ANNOTATION_TOP_PX = 24
+const PULSE_ANNOTATION_HEIGHT_PX = 16
 const PULSE_ANNOTATION_FONT_SIZE_PX = 6.5
-const ANALOG_TOP_INSET_PX = 11
-const ANALOG_BOTTOM_INSET_PX = 11
+const ANALOG_TOP_INSET_PX = 16
+const ANALOG_BOTTOM_INSET_PX = 16
 const ANALOG_POINT_RADIUS_PX = 1.8
 const ANALOG_SCALE_LABEL_INSET_PX = 6.5
 
@@ -112,10 +112,13 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   const axisHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.axisHeightPx
   const pulseHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.pulseHeightPx
   const defaultAnalogHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.analogHeightPx
-  const timeStripHeightPx = Math.max(
-    defaultTimeStripHeightPx,
+  const measuredTimeStripHeightPx = Math.max(
+    0,
     typeof height === 'number' && Number.isFinite(height) ? height : 0,
   )
+  const timeStripHeightPx = measuredTimeStripHeightPx > 0
+    ? measuredTimeStripHeightPx
+    : defaultTimeStripHeightPx
   const analogHeightPx = Math.max(
     defaultAnalogHeightPx,
     timeStripHeightPx - axisHeightPx - pulseHeightPx,
