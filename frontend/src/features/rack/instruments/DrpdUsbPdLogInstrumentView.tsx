@@ -59,21 +59,6 @@ type ColumnResizeDrag = {
   startWidthPx: number
 }
 
-type MessageLogDriver = NonNullable<RackDeviceState['drpdDriver']>
-
-type SerializedMessageLogRow = Omit<
-  LoggedCapturedMessage,
-  'wallClockUs' | 'startTimestampUs' | 'endTimestampUs' | 'displayTimestampUs' | 'rawPulseWidths' | 'rawSop' | 'rawDecodedData'
-> & {
-  wallClockUs: string | number | null
-  startTimestampUs: string | number
-  endTimestampUs: string | number
-  displayTimestampUs: string | number | null
-  rawPulseWidths?: unknown
-  rawSop?: unknown
-  rawDecodedData?: unknown
-}
-
 const resolveCssLength = (
   value: string,
   fallback: number,
@@ -300,95 +285,6 @@ const toDisplayRows = (
   })
 }
 
-const toBigIntValue = (value: string | number): bigint => BigInt(value)
-
-const toNullableBigIntValue = (value: string | number | null): bigint | null => (
-  value === null ? null : toBigIntValue(value)
-)
-
-const toNumberArray = (value: unknown): number[] => {
-  if (Array.isArray(value)) {
-    return value.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
-  }
-  if (value && typeof value === 'object') {
-    return Object.values(value)
-      .filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
-  }
-  return []
-}
-
-const toUint8Array = (value: unknown): Uint8Array => Uint8Array.from(toNumberArray(value))
-
-const deserializeFixtureRow = (row: SerializedMessageLogRow): LoggedCapturedMessage => ({
-  ...row,
-  wallClockUs: toNullableBigIntValue(row.wallClockUs),
-  startTimestampUs: toBigIntValue(row.startTimestampUs),
-  endTimestampUs: toBigIntValue(row.endTimestampUs),
-  displayTimestampUs: toNullableBigIntValue(row.displayTimestampUs),
-  rawPulseWidths: Float64Array.from(toNumberArray(row.rawPulseWidths)),
-  rawSop: toUint8Array(row.rawSop),
-  rawDecodedData: toUint8Array(row.rawDecodedData),
-})
-
-const deserializeFixtureRows = (value: unknown): LoggedCapturedMessage[] => (
-  Array.isArray(value) ? value.map((row) => deserializeFixtureRow(row as SerializedMessageLogRow)) : []
-)
-
-class FixtureMessageLogDriver extends EventTarget {
-  private selection: DRPDLogSelectionState = EMPTY_SELECTION
-  private readonly rows: LoggedCapturedMessage[]
-
-  public constructor(rows: LoggedCapturedMessage[]) {
-    super()
-    this.rows = rows
-  }
-
-  public getState() {
-    return { logSelection: this.selection }
-  }
-
-  public getLogSelectionState(): DRPDLogSelectionState {
-    return this.selection
-  }
-
-  public async setLogSelectionState(next: DRPDLogSelectionState): Promise<void> {
-    this.selection = next
-    this.dispatchEvent(
-      new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
-        detail: { state: this.getState(), changed: ['logSelection'] },
-      }),
-    )
-  }
-
-  public async clearLogSelection(): Promise<void> {
-    await this.setLogSelectionState(EMPTY_SELECTION)
-  }
-
-  public async resolveLogSelectionKeysForIndexRange(startIndex: number, endIndex: number): Promise<string[]> {
-    const start = Math.max(0, Math.min(startIndex, endIndex))
-    const end = Math.min(this.rows.length - 1, Math.max(startIndex, endIndex))
-    if (end < start) {
-      return []
-    }
-    return this.rows.slice(start, end + 1).map((row) => buildCapturedLogSelectionKey(row))
-  }
-
-  public async getLogCounts(): Promise<{ analog: number; messages: number }> {
-    return { analog: 0, messages: this.rows.length }
-  }
-
-  public async queryCapturedMessages(query: {
-    sortOrder?: 'asc' | 'desc'
-    offset?: number
-    limit?: number
-  }): Promise<LoggedCapturedMessage[]> {
-    const rows = query.sortOrder === 'desc' ? [...this.rows].reverse() : this.rows
-    const offset = query.offset ?? 0
-    const limit = query.limit ?? rows.length
-    return rows.slice(offset, offset + limit)
-  }
-}
-
 export const DrpdUsbPdLogInstrumentView = ({
   instrument,
   displayName,
@@ -445,7 +341,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [headerSlotHeightPx, setHeaderSlotHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
-  const [fixtureRows, setFixtureRows] = useState<LoggedCapturedMessage[] | null>(null)
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
   const [columnVisibility, setColumnVisibility] =
     useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
@@ -453,11 +348,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     useState<MessageLogColumnWidths>(() => readMessageLogColumnWidths())
   const [resizingColumnId, setResizingColumnId] = useState<MessageLogColumnId | null>(null)
   const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
-  const fixtureDriver = useMemo<MessageLogDriver | undefined>(
-    () => fixtureRows ? new FixtureMessageLogDriver(fixtureRows) as unknown as MessageLogDriver : undefined,
-    [fixtureRows],
-  )
-  const driver = deviceState?.drpdDriver ?? fixtureDriver
+  const driver = deviceState?.drpdDriver
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
@@ -498,33 +389,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
   const lastVisibleRow = Math.min(displayedTotalRows - 1, firstVisibleRow + visibleRowCount)
-
-  useEffect(() => {
-    if (deviceState?.drpdDriver || fixtureRows !== null || !import.meta.env.DEV) {
-      return
-    }
-    let cancelled = false
-    void fetch('/debug/message-log-export.json')
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Fixture load failed: ${response.status}`)
-        }
-        return await response.json()
-      })
-      .then((payload: unknown) => {
-        if (!cancelled) {
-          setFixtureRows(deserializeFixtureRows(payload))
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFixtureRows([])
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [deviceState?.drpdDriver, fixtureRows])
 
   const visibleRows = useMemo(() => {
     const rows: Array<{ index: number; row: DisplayRow | null }> = []
