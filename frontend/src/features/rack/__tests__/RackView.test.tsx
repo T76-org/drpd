@@ -635,6 +635,11 @@ const chooseThemeFromMenu = async (name: string | RegExp): Promise<void> => {
   await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
 }
 
+const toggleTimestripFromMenu = async (): Promise<void> => {
+  await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+  await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Show Timestrip' }))
+}
+
 const openLayoutMenu = async (): Promise<void> => {
   await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Layout' }))
@@ -1946,6 +1951,26 @@ describe('RackView', () => {
     expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveStyle({
       minHeight: '120px'
     })
+  })
+
+  it('toggles and persists standalone Timestrip visibility from the Display menu', async () => {
+    mockUSB([createUSBDevice()])
+
+    const { unmount } = render(<RackView />)
+    expect(await screen.findByTestId('rack-instrument-inst-default-timestrip')).toBeInTheDocument()
+
+    await toggleTimestripFromMenu()
+    expect(screen.queryByTestId('rack-instrument-inst-default-timestrip')).not.toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:display:show-timestrip')).toBe('false')
+
+    unmount()
+    render(<RackView />)
+    await screen.findByTestId('rack-instrument-inst-default-log')
+    expect(screen.queryByTestId('rack-instrument-inst-default-timestrip')).not.toBeInTheDocument()
+
+    await toggleTimestripFromMenu()
+    expect(await screen.findByTestId('rack-instrument-inst-default-timestrip')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:display:show-timestrip')).toBe('true')
   })
 
   it('allocates MESSAGE DETAIL as horizontally and vertically flexible', async () => {

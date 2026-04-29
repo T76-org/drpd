@@ -103,6 +103,8 @@ type LayoutMode = 'fixed' | 'full'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
 const LAYOUT_STORAGE_KEY = 'drpd:layout'
+const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
+const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
 const UPDATER_RECONNECT_TIMEOUT_MS = 10_000
@@ -883,6 +885,7 @@ export const RackView = () => {
   )
   const [messageLogBufferError, setMessageLogBufferError] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => getStoredLayoutMode())
+  const [showTimestrip, setShowTimestrip] = useState<boolean>(() => getStoredShowTimestrip())
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
@@ -972,6 +975,13 @@ export const RackView = () => {
       storage.setItem(LAYOUT_STORAGE_KEY, layoutMode === 'full' ? 'responsive' : 'fixed')
     }
   }, [layoutMode])
+
+  useEffect(() => {
+    const storage = getBrowserStorage()
+    if (storage) {
+      storage.setItem(SHOW_TIMESTRIP_STORAGE_KEY, showTimestrip ? 'true' : 'false')
+    }
+  }, [showTimestrip])
 
   useEffect(() => {
     saveFirmwareUpdateChannel(firmwareUpdateChannel)
@@ -1445,6 +1455,10 @@ export const RackView = () => {
   }, [pairedDevices, deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
   const currentRack = activeRack
+  const renderedRack = useMemo(
+    () => (currentRack && !showTimestrip ? hideTimestripInstrument(currentRack) : currentRack),
+    [currentRack, showTimestrip],
+  )
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
@@ -2618,6 +2632,13 @@ export const RackView = () => {
         label: 'Display',
         items: [
           {
+            id: 'show-timestrip',
+            type: 'checkbox',
+            label: 'Show Timestrip',
+            checked: showTimestrip,
+            onCheckedChange: () => setShowTimestrip((current) => !current),
+          },
+          {
             id: 'layout',
             type: 'submenu',
             label: 'Layout',
@@ -2719,6 +2740,7 @@ export const RackView = () => {
     openGlobalSinkRequestDialog,
     openGlobalTriggerConfigureDialog,
     pairedDevices,
+    showTimestrip,
     theme,
     timeSinceMeterReset,
     toggleGoodCrcMessages,
@@ -2774,9 +2796,9 @@ export const RackView = () => {
         {!isLoading && error ? (
           <div className={styles.notice}>Error: {error}</div>
         ) : null}
-        {!isLoading && !error && currentRack ? (
+        {!isLoading && !error && renderedRack ? (
           <RackRenderer
-            rack={currentRack}
+            rack={renderedRack}
             instruments={instrumentDefinitions}
             deviceStates={deviceStates}
             activeDeviceRecord={activeDeviceRecord}
@@ -3405,6 +3427,26 @@ const getStoredLayoutMode = (): LayoutMode => {
   }
   return 'fixed'
 }
+
+/** Read the saved timestrip visibility preference, defaulting to shown. */
+const getStoredShowTimestrip = (): boolean => {
+  const storage = getBrowserStorage()
+  const stored = storage?.getItem(SHOW_TIMESTRIP_STORAGE_KEY)
+  return stored !== 'false'
+}
+
+/** Return a rack copy without standalone timestrip instruments and empty rows. */
+const hideTimestripInstrument = (rack: RackDefinition): RackDefinition => ({
+  ...rack,
+  rows: rack.rows
+    .map((row) => ({
+      ...row,
+      instruments: row.instruments.filter(
+        (instrument) => instrument.instrumentIdentifier !== TIMESTRIP_INSTRUMENT_IDENTIFIER,
+      ),
+    }))
+    .filter((row) => row.instruments.length > 0),
+})
 
 /** Resolve the effective theme used for themed assets. */
 const getResolvedTheme = (theme: ThemeMode): 'light' | 'dark' => {
