@@ -8,6 +8,13 @@ const rackViewCss = readFileSync(
 )
 
 describe('RackView responsive header CSS', () => {
+  it('clips header and menu bar overflow on the right without horizontal scroll', () => {
+    expect(rackViewCss).toMatch(/\.menuBarViewport\s*\{[^}]*overflow-x: hidden;/s)
+    expect(rackViewCss).toMatch(/\.headerViewport\s*\{[^}]*overflow-x: hidden;/s)
+    expect(rackViewCss).toMatch(/\.menuBarScroll\s*\{[^}]*justify-content: safe center;/s)
+    expect(rackViewCss).toMatch(/\.headerScroll\s*\{[^}]*justify-content: safe center;/s)
+  })
+
   it('sizes the rack status header from the header element', () => {
     expect(rackViewCss).toMatch(/\.header\s*\{[^}]*container-type: inline-size;/s)
     expect(rackViewCss).toMatch(/\.headerContent\s*\{[^}]*--rack-header-scale:/s)

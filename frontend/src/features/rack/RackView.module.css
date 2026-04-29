@@ -13,7 +13,7 @@
 
 .menuBarViewport {
   flex: 0 0 auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   background: var(--color-surface-header);
   border-bottom: var(--border-thin) solid var(--color-border-divider);
@@ -22,7 +22,7 @@
 .menuBarScroll {
   min-width: 100%;
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
 }
 
 .menuBar {
@@ -64,7 +64,7 @@
 
 .headerViewport {
   flex: 0 0 auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   background: var(--color-surface-header);
   border-bottom: var(--border-thin) solid var(--color-border-divider);
@@ -74,7 +74,7 @@
 .headerScroll {
   min-width: 100%;
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
 }
 
 .header {
