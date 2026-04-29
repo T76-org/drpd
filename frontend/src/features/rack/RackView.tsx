@@ -2703,12 +2703,14 @@ export const RackView = () => {
         <div className={styles.headerViewport}>
           <div className={styles.headerScroll}>
             <header className={styles.header}>
-              <div className={styles.titleBlock}>
-                <h1 className={styles.title}>
-                  <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
-                  <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
-                </h1>
-                <HeaderVbusMetrics driver={activeConnectedDeviceState?.drpdDriver} />
+              <div className={styles.headerContent}>
+                <div className={styles.titleBlock}>
+                  <h1 className={styles.title}>
+                    <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
+                    <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
+                  </h1>
+                  <HeaderVbusMetrics driver={activeConnectedDeviceState?.drpdDriver} />
+                </div>
               </div>
             </header>
           </div>
