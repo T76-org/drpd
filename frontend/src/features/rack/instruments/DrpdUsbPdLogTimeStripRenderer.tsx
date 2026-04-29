@@ -12,17 +12,17 @@ import {
   interpolateWallClockUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
-const AXIS_LABEL_Y_PX = 5
-const PLOT_INSET_X_PX = 18
-const PULSE_HIGH_Y_PX = 6
-const PULSE_LOW_INSET_BOTTOM_PX = 17
-const PULSE_ANNOTATION_TOP_PX = 18
-const PULSE_ANNOTATION_HEIGHT_PX = 11
-const PULSE_ANNOTATION_FONT_SIZE_PX = 5
-const ANALOG_TOP_INSET_PX = 8
-const ANALOG_BOTTOM_INSET_PX = 8
+const AXIS_LABEL_Y_PX = 7
+const PLOT_INSET_X_PX = 23.4
+const PULSE_HIGH_Y_PX = 5
+const PULSE_LOW_INSET_BOTTOM_PX = 15
+const PULSE_ANNOTATION_TOP_PX = 15
+const PULSE_ANNOTATION_HEIGHT_PX = 14
+const PULSE_ANNOTATION_FONT_SIZE_PX = 6.5
+const ANALOG_TOP_INSET_PX = 11
+const ANALOG_BOTTOM_INSET_PX = 11
 const ANALOG_POINT_RADIUS_PX = 1.8
-const ANALOG_SCALE_LABEL_INSET_PX = 5
+const ANALOG_SCALE_LABEL_INSET_PX = 6.5
 
 const formatScaleLabel = (
   value: number,
@@ -426,7 +426,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     if (!isNearTrace) {
       return null
     }
-    const tooltipLeft = Math.min(Math.max(hoverPosition.x + analogPointRadius * 4, 4), Math.max(width - 84, 4))
+    const tooltipLeft = Math.min(Math.max(hoverPosition.x + analogPointRadius * 4, 4), Math.max(width - 110, 4))
     const tooltipTop = analogLaneTop + Math.max(4, analogPointRadius * 2)
     return {
       left: tooltipLeft,

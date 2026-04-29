@@ -13,18 +13,18 @@ export const DRPD_USB_PD_LOG_CONFIG = {
   },
   stripLayout: {
     totalHeightPx: 92, ///< Total time-strip viewport height.
-    axisHeightPx: 10, ///< Height of the timestamp row.
-    pulseHeightPx: 32, ///< Height of the pulse lane including annotations.
-    analogHeightPx: 50, ///< Height of the analog lane.
+    axisHeightPx: 14, ///< Height of the timestamp row.
+    pulseHeightPx: 30, ///< Height of the pulse lane including annotations.
+    analogHeightPx: 48, ///< Height of the analog lane.
   },
   stripPulseAnnotations: {
     preambleDurationUs: 213.33, ///< Approximate USB-PD preamble duration at 300 kHz.
     sopDurationUs: 66.67, ///< Approximate USB-PD SOP token duration at 300 kHz.
-    minPulseWidthPx: 120, ///< Minimum visible pulse width before showing annotations.
-    minSegmentLabelWidthPx: 34, ///< Minimum segment width before drawing a label.
+    minPulseWidthPx: 156, ///< Minimum visible pulse width before showing annotations.
+    minSegmentLabelWidthPx: 44, ///< Minimum segment width before drawing a label.
   },
   stripAxis: {
-    tickTargetSpacingPx: 96, ///< Desired spacing between timestamp ticks.
+    tickTargetSpacingPx: 112, ///< Desired spacing between timestamp ticks.
   },
   stripAnalog: {
     voltageMax: 60, ///< Fixed VBUS vertical range maximum in volts.

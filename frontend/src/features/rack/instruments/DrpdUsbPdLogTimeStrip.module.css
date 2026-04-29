@@ -19,25 +19,27 @@
 
 /* Interactive viewport that owns strip-level visual custom properties. */
 .timeStripViewport {
+  --timestrip-base-font-size: 10px;
+
   --timestrip-total-height: 92px;
-  --timestrip-axis-height: 10px;
-  --timestrip-pulse-height: 32px;
-  --timestrip-analog-height: 50px;
-  --timestrip-axis-label-y: 5px;
-  --timestrip-plot-inset-left: 18px;
-  --timestrip-plot-inset-right: 18px;
+  --timestrip-axis-height: 14px;
+  --timestrip-pulse-height: 30px;
+  --timestrip-analog-height: 48px;
+  --timestrip-axis-label-y: 7px;
+  --timestrip-plot-inset-left: 23.4px;
+  --timestrip-plot-inset-right: 23.4px;
   --timestrip-axis-tick-stroke: rgba(255, 255, 255, 0.1);
   --timestrip-axis-tick-stroke-width: 1px;
   --timestrip-axis-label-fill: color-mix(in srgb, var(--color-text-primary) 92%, white 8%);
-  --timestrip-axis-label-font-size: 5px;
+  --timestrip-axis-label-font-size: var(--timestrip-base-font-size);
   --timestrip-pulse-stroke: rgba(255, 255, 255, 0.92);
   --timestrip-pulse-stroke-width: 0.5px;
   --timestrip-pulse-highlight-fill: rgba(145, 208, 255, 0.14);
-  --timestrip-pulse-high-y: 6px;
-  --timestrip-pulse-low-inset-bottom: 17px;
-  --timestrip-pulse-annotation-top: 18px;
-  --timestrip-pulse-annotation-height: 11px;
-  --timestrip-pulse-annotation-font-size: 5px;
+  --timestrip-pulse-high-y: 5px;
+  --timestrip-pulse-low-inset-bottom: 15px;
+  --timestrip-pulse-annotation-top: 15px;
+  --timestrip-pulse-annotation-height: 14px;
+  --timestrip-pulse-annotation-font-size: var(--timestrip-base-font-size);
   --timestrip-pulse-annotation-text: var(--color-text-primary);
   --timestrip-pulse-annotation-preamble-fill: color-mix(in srgb, var(--color-surface-panel-accent) 78%, transparent);
   --timestrip-pulse-annotation-sop-fill: color-mix(in srgb, var(--color-status-info) 26%, transparent);
@@ -49,8 +51,8 @@
   --timestrip-event-mark-stroke: var(--color-log-event-mark);
   --timestrip-event-ovp-stroke: var(--color-log-event-ovp);
   --timestrip-event-ocp-stroke: var(--color-log-event-ocp);
-  --timestrip-analog-top-inset: 8px;
-  --timestrip-analog-bottom-inset: 8px;
+  --timestrip-analog-top-inset: 11px;
+  --timestrip-analog-bottom-inset: 11px;
   --timestrip-analog-grid-stroke: rgba(255, 255, 255, 0.08);
   --timestrip-analog-grid-stroke-width: 0.5px;
   --timestrip-analog-selection-fill: rgba(145, 208, 255, 0.10);
@@ -58,12 +60,12 @@
   --timestrip-analog-current-stroke: var(--color-metric-current);
   --timestrip-analog-trace-stroke-width: 0.5px;
   --timestrip-analog-point-radius: 1.8px;
-  --timestrip-analog-scale-label-inset: 5px;
+  --timestrip-analog-scale-label-inset: 6.5px;
   --timestrip-hover-line-color: rgba(255, 255, 255, 0.22);
   --timestrip-tooltip-bg: color-mix(in srgb, var(--color-surface-panel) 92%, black 8%);
   --timestrip-tooltip-border: color-mix(in srgb, var(--color-border-panel) 82%, transparent);
   --timestrip-tooltip-text: var(--color-text-primary);
-  --timestrip-tooltip-font-size: 6px;
+  --timestrip-tooltip-font-size: 7.8px;
   position: relative;
   overflow: hidden;
   touch-action: none;
@@ -117,7 +119,7 @@
 
 /* Analog chart lane containing traces, grid, and Y-axis labels. */
 .analogLane {
-  --timestrip-analog-scale-label-font-size: 5px;
+  --timestrip-analog-scale-label-font-size: var(--timestrip-base-font-size);
 }
 
 /* Full-size SVG used by the pulse and analog lanes. */
@@ -156,8 +158,8 @@
 /* Floating analog measurement tooltip shown when hovering near a trace. */
 .hoverTooltip {
   position: absolute;
-  min-width: 26px;
-  padding: 3px 5px;
+  min-width: 34px;
+  padding: 4px 7px;
   border: var(--border-thin) solid var(--timestrip-tooltip-border);
   border-radius: var(--radius-sm);
   background: var(--timestrip-tooltip-bg);
