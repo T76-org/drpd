@@ -1,9 +1,9 @@
 import {
-  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useLayoutEffect,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
@@ -30,8 +30,11 @@ import {
 import {
   MESSAGE_LOG_COLUMNS,
   readMessageLogColumnVisibility,
+  readMessageLogColumnWidths,
+  saveMessageLogColumnWidths,
   type MessageLogColumnId,
   type MessageLogColumnVisibility,
+  type MessageLogColumnWidths,
 } from '../overlays/usbPdLog/messageLogColumns'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
@@ -42,21 +45,17 @@ const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
 const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
-const MESSAGE_LOG_COLUMN_WIDTH_FALLBACK_PX: Record<MessageLogColumnId, number> = {
-  timestamp: 70,
-  duration: 55,
-  delta: 70,
-  messageId: 30,
-  messageType: 170,
-  sender: 56,
-  receiver: 56,
-  sopType: 37,
-  valid: 36,
-}
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
   activeIndex: null,
+}
+
+type ColumnResizeDrag = {
+  columnId: MessageLogColumnId
+  pointerId: number
+  startX: number
+  startWidthPx: number
 }
 
 const resolveCssLength = (
@@ -331,17 +330,20 @@ export const DrpdUsbPdLogInstrumentView = ({
   const totalRowsRef = useRef(0)
   const loadingPagesRef = useRef(new Set<number>())
   const selectionTaskRef = useRef<Promise<void>>(Promise.resolve())
+  const columnResizeDragRef = useRef<ColumnResizeDrag | null>(null)
   const [totalRows, setTotalRows] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [headerSlotHeightPx, setHeaderSlotHeightPx] = useState<number>(ROW_HEIGHT_PX)
-  const [tableScale, setTableScale] = useState(1)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
   const [columnVisibility, setColumnVisibility] =
     useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
+  const [columnWidths, setColumnWidths] =
+    useState<MessageLogColumnWidths>(() => readMessageLogColumnWidths())
+  const [resizingColumnId, setResizingColumnId] = useState<MessageLogColumnId | null>(null)
   const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
@@ -353,12 +355,12 @@ export const DrpdUsbPdLogInstrumentView = ({
     return next.length > 0 ? next : MESSAGE_LOG_COLUMNS
   }, [columnVisibility])
   const gridTemplateColumns = useMemo(
-    () => visibleColumns.map((column) => `calc(var(${column.widthVar}) * var(--message-log-table-scale))`).join(' '),
-    [visibleColumns],
-  )
-  const tableScaleStyle = useMemo(
-    () => ({ '--message-log-table-scale': tableScale }) as CSSProperties,
-    [tableScale],
+    () => visibleColumns.map((column, index) => (
+      index === visibleColumns.length - 1
+        ? `minmax(${columnWidths[column.id]}px, 1fr)`
+        : `${columnWidths[column.id]}px`
+    )).join(' '),
+    [columnWidths, visibleColumns],
   )
   const hasActiveFilters = activeFilterCount > 0
   const filteredRows = useMemo(
@@ -514,6 +516,148 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }
 
+  const applyColumnResize = (clientX: number, pointerId: number): void => {
+    const drag = columnResizeDragRef.current
+    if (!drag || drag.pointerId !== pointerId) {
+      return
+    }
+    const column = MESSAGE_LOG_COLUMNS.find((candidate) => candidate.id === drag.columnId)
+    if (!column) {
+      return
+    }
+    const deltaPx = clientX - drag.startX
+    const nextWidthPx = Math.max(column.minWidthPx, Math.round(drag.startWidthPx + deltaPx))
+    setColumnWidths((previous) => {
+      if (previous[drag.columnId] === nextWidthPx) {
+        return previous
+      }
+      const next = {
+        ...previous,
+        [drag.columnId]: nextWidthPx,
+      }
+      saveMessageLogColumnWidths(next)
+      return next
+    })
+  }
+
+  const handleColumnResizePointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    columnId: MessageLogColumnId,
+  ): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    columnResizeDragRef.current = {
+      columnId,
+      pointerId: event.pointerId ?? -1,
+      startX: Number.isFinite(event.clientX) ? event.clientX : 0,
+      startWidthPx: columnWidths[columnId],
+    }
+    setResizingColumnId(columnId)
+    event.currentTarget.setPointerCapture?.(event.pointerId ?? -1)
+  }
+
+  const handleColumnResizeMouseDown = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    columnId: MessageLogColumnId,
+  ): void => {
+    if (columnResizeDragRef.current) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    columnResizeDragRef.current = {
+      columnId,
+      pointerId: -1,
+      startX: Number.isFinite(event.clientX) ? event.clientX : 0,
+      startWidthPx: columnWidths[columnId],
+    }
+    setResizingColumnId(columnId)
+  }
+
+  const handleColumnResizePointerMove = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+    const drag = columnResizeDragRef.current
+    const pointerId = event.pointerId ?? -1
+    if (!drag || drag.pointerId !== pointerId) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    const clientX = Number.isFinite(event.clientX) ? event.clientX : drag.startX
+    applyColumnResize(clientX, pointerId)
+  }
+
+  const handleColumnResizePointerUp = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+    const drag = columnResizeDragRef.current
+    const pointerId = event.pointerId ?? -1
+    if (!drag || drag.pointerId !== pointerId) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    columnResizeDragRef.current = null
+    setResizingColumnId(null)
+    event.currentTarget.releasePointerCapture?.(pointerId)
+  }
+
+  useEffect(() => {
+    if (resizingColumnId === null) {
+      return undefined
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== (event.pointerId ?? -1)) {
+        return
+      }
+      event.preventDefault()
+      applyColumnResize(Number.isFinite(event.clientX) ? event.clientX : drag.startX, drag.pointerId)
+    }
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== (event.pointerId ?? -1)) {
+        return
+      }
+      event.preventDefault()
+      columnResizeDragRef.current = null
+      setResizingColumnId(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    const handleMouseMove = (event: MouseEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== -1) {
+        return
+      }
+      event.preventDefault()
+      applyColumnResize(Number.isFinite(event.clientX) ? event.clientX : drag.startX, -1)
+    }
+
+    const handleMouseUp = (event: MouseEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== -1) {
+        return
+      }
+      event.preventDefault()
+      columnResizeDragRef.current = null
+      setResizingColumnId(null)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [resizingColumnId])
+
   useEffect(() => {
     totalRowsRef.current = totalRows
   }, [totalRows])
@@ -639,50 +783,6 @@ export const DrpdUsbPdLogInstrumentView = ({
       window.removeEventListener('resize', updateRowHeight)
     }
   }, [])
-
-  useLayoutEffect(() => {
-    const wrapper = wrapperRef.current
-    if (!wrapper) {
-      return undefined
-    }
-
-    const updateTableScale = () => {
-      const computedStyle = window.getComputedStyle(wrapper)
-      let columnWidth = 0
-      for (const column of visibleColumns) {
-        columnWidth += resolveCssLength(
-          computedStyle.getPropertyValue(column.widthVar),
-          MESSAGE_LOG_COLUMN_WIDTH_FALLBACK_PX[column.id],
-          wrapper,
-        )
-      }
-      const horizontalPadding = resolveCssLength(
-        computedStyle.getPropertyValue('--space-8'),
-        8,
-        wrapper,
-      ) * 2
-      const availableColumnWidth = Math.max(1, wrapper.clientWidth - horizontalPadding)
-      const nextScale = Math.max(0.1, availableColumnWidth / Math.max(1, columnWidth))
-      setTableScale((previous) => (
-        Math.abs(previous - nextScale) < 0.001 ? previous : nextScale
-      ))
-    }
-
-    updateTableScale()
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateTableScale)
-      return () => {
-        window.removeEventListener('resize', updateTableScale)
-      }
-    }
-
-    const observer = new ResizeObserver(updateTableScale)
-    observer.observe(wrapper)
-    return () => {
-      observer.disconnect()
-    }
-  }, [visibleColumns])
 
   useLayoutEffect(() => {
     const header = headerRef.current
@@ -1085,10 +1185,29 @@ export const DrpdUsbPdLogInstrumentView = ({
           <div
             ref={headerRef}
             className={`${styles.scaleFrame} ${styles.headerRow}`}
-            style={{ ...tableScaleStyle, gridTemplateColumns }}
+            style={{ gridTemplateColumns }}
           >
             {visibleColumns.map((column) => (
-              <span key={column.id}>{column.label}</span>
+              <span
+                key={column.id}
+                className={`${styles.headerCell} ${resizingColumnId === column.id ? styles.resizingColumn : ''}`}
+              >
+                <span className={styles.headerLabel}>{column.label}</span>
+                <button
+                  type="button"
+                  className={styles.columnResizeHandle}
+                  aria-label={`Resize ${column.label} column`}
+                  onPointerDown={(event) => {
+                    handleColumnResizePointerDown(event, column.id)
+                  }}
+                  onMouseDown={(event) => {
+                    handleColumnResizeMouseDown(event, column.id)
+                  }}
+                  onPointerMove={handleColumnResizePointerMove}
+                  onPointerUp={handleColumnResizePointerUp}
+                  onPointerCancel={handleColumnResizePointerUp}
+                />
+              </span>
             ))}
           </div>
         </div>
@@ -1112,7 +1231,6 @@ export const DrpdUsbPdLogInstrumentView = ({
             <div
               className={styles.rowScaleFrame}
               style={{
-                ...tableScaleStyle,
                 height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
               }}
               data-testid="drpd-usbpd-log-canvas"

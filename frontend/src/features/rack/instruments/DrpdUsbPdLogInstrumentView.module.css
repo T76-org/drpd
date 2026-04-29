@@ -7,6 +7,8 @@
 
 .wrapper {
   --log-row-height: 14px;
+  --message-log-column-divider: color-mix(in srgb, var(--color-border-panel) 56%, transparent);
+  --message-log-column-divider-hover: color-mix(in srgb, var(--color-status-info) 76%, transparent);
   --column-width-timestamp: 70px;
   --column-width-duration: 55px;
   --column-width-delta: 70px;
@@ -97,6 +99,57 @@
 .headerRow > span {
   justify-self: center;
   position: relative;
+}
+
+.headerCell {
+  width: 100%;
+}
+
+.headerCell + .headerCell {
+  border-left: var(--border-thin) solid var(--message-log-column-divider);
+  padding-left: var(--space-4);
+}
+
+.headerLabel {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.columnResizeHandle {
+  position: absolute;
+  top: -30%;
+  right: calc(-1 * var(--space-4));
+  bottom: -30%;
+  width: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+}
+
+.columnResizeHandle::after {
+  content: '';
+  position: absolute;
+  top: 12%;
+  right: 4px;
+  bottom: 12%;
+  width: var(--border-thin);
+  background: var(--message-log-column-divider);
+}
+
+.columnResizeHandle:hover::after,
+.columnResizeHandle:focus-visible::after,
+.resizingColumn .columnResizeHandle::after {
+  background: var(--message-log-column-divider-hover);
+}
+
+.columnResizeHandle:focus-visible {
+  outline: var(--border-thin) solid var(--color-status-info);
+  outline-offset: 1px;
 }
 
 .headerRow > span + span::before {
@@ -206,6 +259,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.dataRow > span + span {
+  border-left: var(--border-thin) solid var(--message-log-column-divider);
+  padding-left: var(--space-4);
 }
 
 .dataRow > .right {

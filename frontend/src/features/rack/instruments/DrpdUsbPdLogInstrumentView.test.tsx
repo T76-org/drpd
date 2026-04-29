@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DRPDDevice } from '../../../lib/device'
 import {
   buildCapturedLogSelectionKey,
@@ -369,8 +369,25 @@ const buildEvent = (
   createdAtMs: 1_700_000_100_000 + index,
 })
 
+beforeEach(() => {
+  const localStorageItems = new Map<string, string>()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => localStorageItems.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        localStorageItems.set(key, value)
+      }),
+      removeItem: vi.fn((key: string) => {
+        localStorageItems.delete(key)
+      }),
+    },
+  })
+})
+
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -536,6 +553,38 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       expect(screen.getByText('Accept')).toBeInTheDocument()
       expect(screen.getByText('Reject')).toBeInTheDocument()
       expect(screen.getByText('PS RDY')).toBeInTheDocument()
+    })
+  })
+
+  it('resizes message table columns by dragging header handles', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(596)
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const resizeHandle = await screen.findByLabelText('Resize Message type column')
+    fireEvent.mouseDown(resizeHandle, { clientX: 200 })
+    fireEvent.mouseMove(window, { clientX: 240 })
+    fireEvent.mouseUp(window, { clientX: 240 })
+
+    await waitFor(() => {
+      const headerRow = resizeHandle.closest('[class*="headerRow"]') as HTMLElement | null
+      expect(headerRow?.style.gridTemplateColumns).toContain('210px')
+    })
+    expect(JSON.parse(window.localStorage.getItem('drpd:message-log:column-widths') ?? '{}')).toMatchObject({
+      messageType: 210,
     })
   })
 
