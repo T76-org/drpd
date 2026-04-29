@@ -20,7 +20,7 @@
   justify-content: center;
   overflow-x: auto;
   overflow-y: auto;
-  padding: var(--space-0) var(--space-0) var(--space-8);
+  padding: var(--space-0) var(--rack-layout-padding-x, var(--space-0)) var(--space-8);
   background: var(--color-surface-rack);
 }
 

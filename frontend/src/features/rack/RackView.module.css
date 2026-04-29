@@ -1,4 +1,6 @@
 .page {
+  --rack-layout-padding-x: var(--space-0);
+
   height: 100%;
   min-height: 0;
   display: flex;
@@ -9,6 +11,7 @@
 
 .page[data-layout-mode='full'] {
   --rack-canvas-width: 100%;
+  --rack-layout-padding-x: var(--space-32);
 }
 
 .menuBarViewport {
@@ -34,6 +37,7 @@
   height: var(--menu-bar-height);
   min-height: var(--menu-bar-height);
   box-sizing: border-box;
+  padding-inline: var(--rack-layout-padding-x);
 }
 
 .menuBarButton {
@@ -94,7 +98,7 @@
   justify-content: space-between;
   width: 100%;
   box-sizing: border-box;
-  padding: calc(var(--space-6) * var(--rack-header-scale)) var(--space-0);
+  padding: calc(var(--space-6) * var(--rack-header-scale)) var(--rack-layout-padding-x);
 }
 
 .titleBlock {
