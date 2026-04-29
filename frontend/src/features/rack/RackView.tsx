@@ -483,7 +483,7 @@ const formatHeaderCompactNumber = (value: number): string => {
   if (!Number.isFinite(value)) {
     return '--'
   }
-  return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)
+  return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2).replace(/\.?0+$/, '')
 }
 
 const formatHeaderElapsed = (elapsedUs: bigint | null | undefined): string => {
@@ -510,7 +510,19 @@ const formatHeaderSinkContract = (sinkInfo: SinkInfo | null): string => {
   }
   const voltageV = sinkInfo.negotiatedVoltageMv / 1000
   const currentA = sinkInfo.negotiatedCurrentMa / 1000
-  return `${formatHeaderCompactNumber(voltageV)}V @ ${formatHeaderCompactNumber(currentA)}A`
+  const pdoType = formatHeaderSinkPdoType(sinkInfo.negotiatedPdo)
+  return `${pdoType} ${formatHeaderCompactNumber(voltageV)}V @ ${formatHeaderCompactNumber(currentA)}A`
+}
+
+const formatHeaderCaptureStatus = (captureEnabled: OnOffState | null): string => {
+  switch (captureEnabled) {
+    case OnOffState.ON:
+      return 'ON'
+    case OnOffState.OFF:
+      return 'OFF'
+    default:
+      return '--'
+  }
 }
 
 const formatHeaderTriggerStatus = (value: TriggerInfo['status'] | null | undefined): string => {
@@ -3119,6 +3131,9 @@ const HeaderVbusMetrics = ({
   const [triggerInfo, setTriggerInfo] = useState<TriggerInfo | null>(
     driver ? driver.getState().triggerInfo ?? null : null,
   )
+  const [captureEnabled, setCaptureEnabled] = useState<OnOffState | null>(
+    driver ? driver.getState().captureEnabled ?? null : null,
+  )
   const [displayMeasurements, setDisplayMeasurements] = useState<HeaderVbusDisplayMeasurements>(() =>
     buildHeaderVbusDisplayMeasurements(driver ? driver.getState().analogMonitor ?? null : null),
   )
@@ -3137,6 +3152,7 @@ const HeaderVbusMetrics = ({
     setVbusInfo(initialState?.vbusInfo ?? null)
     setSinkInfo(initialState?.sinkInfo ?? null)
     setTriggerInfo(initialState?.triggerInfo ?? null)
+    setCaptureEnabled(initialState?.captureEnabled ?? null)
     setDisplayMeasurements(buildHeaderVbusDisplayMeasurements(initialAnalogMonitor))
     pendingAverageRef.current = {
       voltageSum: 0,
@@ -3160,7 +3176,8 @@ const HeaderVbusMetrics = ({
         !changed.includes('ccBusRoleStatus') &&
         !changed.includes('vbusInfo') &&
         !changed.includes('sinkInfo') &&
-        !changed.includes('triggerInfo')
+        !changed.includes('triggerInfo') &&
+        !changed.includes('captureEnabled')
       ) {
         return
       }
@@ -3182,6 +3199,9 @@ const HeaderVbusMetrics = ({
       }
       if (!changed || changed.includes('triggerInfo')) {
         setTriggerInfo(state.triggerInfo ?? null)
+      }
+      if (!changed || changed.includes('captureEnabled')) {
+        setCaptureEnabled(state.captureEnabled ?? null)
       }
     }
 
@@ -3266,7 +3286,7 @@ const HeaderVbusMetrics = ({
   const roleText = formatHeaderRoleLabel(role)
   const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
   const activeSinkInfo = role === CCBusRole.SINK ? sinkInfo : null
-  const sinkTypeText = formatHeaderSinkPdoType(activeSinkInfo?.negotiatedPdo)
+  const captureStatusText = formatHeaderCaptureStatus(captureEnabled)
   const sinkContractText = formatHeaderSinkContract(activeSinkInfo)
   const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
   const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
@@ -3365,8 +3385,8 @@ const HeaderVbusMetrics = ({
       <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
         <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>PDO TYPE</span>
-          <span className={styles.headerVbusRoleStatusValue}>{sinkTypeText}</span>
+          <span className={styles.headerVbusProtectionLabel}>CAPTURE STATUS</span>
+          <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
         </div>
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>POWER PROFILE</span>
