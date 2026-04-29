@@ -1511,6 +1511,28 @@ describe('RackView', () => {
     expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
   })
 
+  it('switches layout from Help menu and global shortcut', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildRackDocument())
+    mockUSB([])
+    render(<RackView />)
+
+    const page = await waitFor(() => {
+      const element = document.querySelector('[data-layout-mode]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+
+    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+
+    await user.click(await screen.findByRole('button', { name: 'Help' }))
+    await user.click(await screen.findByRole('menuitem', { name: /Switch Layout/ }))
+    expect(page).toHaveAttribute('data-layout-mode', 'full')
+
+    fireEvent.keyDown(document, { key: 'K' })
+    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+  })
+
   it('runs global Sink, Observer, and Capture shortcuts', async () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])

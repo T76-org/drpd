@@ -96,6 +96,7 @@ import {
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
+type LayoutMode = 'fixed' | 'full'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
@@ -877,6 +878,7 @@ export const RackView = () => {
     buildDefaultLoggingConfig().maxCapturedMessages.toString(),
   )
   const [messageLogBufferError, setMessageLogBufferError] = useState<string | null>(null)
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('fixed')
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
@@ -2143,6 +2145,10 @@ export const RackView = () => {
     }
   }, [])
 
+  const handleSwitchLayout = useCallback(() => {
+    setLayoutMode((current) => current === 'fixed' ? 'full' : 'fixed')
+  }, [])
+
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
       const shortcutId = matchRackShortcut(event)
@@ -2190,6 +2196,9 @@ export const RackView = () => {
         case 'reset-trigger':
           void handleResetTrigger()
           break
+        case 'switch-layout':
+          handleSwitchLayout()
+          break
         case 'open-user-manual':
           handleOpenDocumentation()
           break
@@ -2210,6 +2219,7 @@ export const RackView = () => {
     handleResetTrigger,
     handleSetActiveDeviceRole,
     handleToggleActiveDeviceCapture,
+    handleSwitchLayout,
     activeDriverState?.role,
     openGlobalSinkRequestDialog,
     toggleGoodCrcMessages,
@@ -2612,6 +2622,12 @@ export const RackView = () => {
         label: 'Help',
         items: [
           {
+            id: 'switch-layout',
+            label: 'Switch Layout',
+            meta: 'K',
+            onSelect: handleSwitchLayout,
+          },
+          {
             id: 'user-manual',
             label: 'User manual...',
             meta: '?',
@@ -2636,6 +2652,7 @@ export const RackView = () => {
     handleResetPowerChargeMeter,
     handleResetProtection,
     handleResetTrigger,
+    handleSwitchLayout,
     handleSetActiveDeviceRole,
     handleSetProtectionThresholds,
     handleToggleActiveDeviceCapture,
@@ -2662,7 +2679,7 @@ export const RackView = () => {
   ])
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-layout-mode={layoutMode}>
       <div className={styles.menuBarViewport}>
         <div className={styles.menuBarScroll}>
           <div className={styles.menuBar}>

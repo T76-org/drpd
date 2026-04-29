@@ -11,6 +11,7 @@ export type RackShortcutId =
   | 'toggle-goodcrc'
   | 'filter-log'
   | 'reset-trigger'
+  | 'switch-layout'
   | 'open-user-manual'
 
 export interface RackShortcutDefinition {
@@ -92,6 +93,12 @@ export const RACK_SHORTCUTS: RackShortcutDefinition[] = [
     key: 'R',
     label: 'Reset trigger',
     description: 'Reset the trigger state.',
+  },
+  {
+    id: 'switch-layout',
+    key: 'K',
+    label: 'Switch Layout',
+    description: 'Toggle between fixed-width and full-width rack layout.',
   },
   {
     id: 'open-user-manual',
@@ -176,6 +183,9 @@ export const matchRackShortcut = (event: KeyboardEvent): RackShortcutId | null =
     case 'r':
     case 'R':
       return 'reset-trigger'
+    case 'k':
+    case 'K':
+      return 'switch-layout'
     case '?':
       return 'open-user-manual'
     default:
