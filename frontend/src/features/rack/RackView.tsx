@@ -3354,7 +3354,7 @@ const HeaderVbusMetrics = ({
       <div className={styles.headerVbusDivider} aria-hidden="true" />
       <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus} ${styles.headerVbusSinkContract}`}>
         <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>ROLE</span>
+          <span className={styles.headerVbusProtectionLabel}>MODE</span>
           <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
         </div>
         <div className={styles.headerVbusProtectionCell}>
