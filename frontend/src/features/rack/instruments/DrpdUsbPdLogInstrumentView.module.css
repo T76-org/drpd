@@ -30,9 +30,7 @@
 }
 
 .scaleFrame {
-  width: calc(100% / var(--message-log-table-scale));
-  transform: scale(var(--message-log-table-scale));
-  transform-origin: top left;
+  width: 100%;
 }
 
 .headerSlot {
@@ -43,24 +41,22 @@
 .rowScaleFrame {
   position: absolute;
   inset: 0 auto auto 0;
-  width: calc(100% / var(--message-log-table-scale));
-  transform: scale(var(--message-log-table-scale));
-  transform-origin: top left;
+  width: 100%;
 }
 
 .headerRow {
   --log-header-divider: color-mix(in srgb, var(--color-border-panel) 88%, transparent);
   display: grid;
   grid-template-columns:
-    var(--column-width-timestamp)
-    var(--column-width-duration)
-    var(--column-width-delta)
-    var(--column-width-id)
-    var(--column-width-message-type)
-    var(--column-width-sender)
-    var(--column-width-receiver)
-    var(--column-width-sop-type)
-    var(--column-width-valid);
+    calc(var(--column-width-timestamp) * var(--message-log-table-scale))
+    calc(var(--column-width-duration) * var(--message-log-table-scale))
+    calc(var(--column-width-delta) * var(--message-log-table-scale))
+    calc(var(--column-width-id) * var(--message-log-table-scale))
+    calc(var(--column-width-message-type) * var(--message-log-table-scale))
+    calc(var(--column-width-sender) * var(--message-log-table-scale))
+    calc(var(--column-width-receiver) * var(--message-log-table-scale))
+    calc(var(--column-width-sop-type) * var(--message-log-table-scale))
+    calc(var(--column-width-valid) * var(--message-log-table-scale));
   position: relative;
   z-index: 1;
   padding: var(--space-2) var(--space-8);
@@ -88,7 +84,7 @@
 }
 
 .headerRow.scaleFrame {
-  width: calc(100% / var(--message-log-table-scale));
+  width: 100%;
 }
 
 .headerRow > span {
@@ -179,15 +175,15 @@
   height: var(--log-row-height);
   display: grid;
   grid-template-columns:
-    var(--column-width-timestamp)
-    var(--column-width-duration)
-    var(--column-width-delta)
-    var(--column-width-id)
-    var(--column-width-message-type)
-    var(--column-width-sender)
-    var(--column-width-receiver)
-    var(--column-width-sop-type)
-    var(--column-width-valid);
+    calc(var(--column-width-timestamp) * var(--message-log-table-scale))
+    calc(var(--column-width-duration) * var(--message-log-table-scale))
+    calc(var(--column-width-delta) * var(--message-log-table-scale))
+    calc(var(--column-width-id) * var(--message-log-table-scale))
+    calc(var(--column-width-message-type) * var(--message-log-table-scale))
+    calc(var(--column-width-sender) * var(--message-log-table-scale))
+    calc(var(--column-width-receiver) * var(--message-log-table-scale))
+    calc(var(--column-width-sop-type) * var(--message-log-table-scale))
+    calc(var(--column-width-valid) * var(--message-log-table-scale));
   align-items: center;
   padding: 0 var(--space-8);
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 40%, transparent);

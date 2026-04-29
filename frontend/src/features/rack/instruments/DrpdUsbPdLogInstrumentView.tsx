@@ -353,7 +353,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     return next.length > 0 ? next : MESSAGE_LOG_COLUMNS
   }, [columnVisibility])
   const gridTemplateColumns = useMemo(
-    () => visibleColumns.map((column) => `var(${column.widthVar})`).join(' '),
+    () => visibleColumns.map((column) => `calc(var(${column.widthVar}) * var(--message-log-table-scale))`).join(' '),
     [visibleColumns],
   )
   const tableScaleStyle = useMemo(
@@ -370,10 +370,9 @@ export const DrpdUsbPdLogInstrumentView = ({
     [filteredRows, hasActiveFilters],
   )
   const displayedTotalRows = hasActiveFilters ? filteredDisplayRows.length : totalRows
-  const scaledRowHeightPx = rowHeightPx * tableScale
 
-  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / scaledRowHeightPx) - OVERSCAN_ROWS)
-  const visibleRowCount = Math.ceil(viewportHeight / scaledRowHeightPx) + OVERSCAN_ROWS * 2
+  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
+  const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
   const lastVisibleRow = Math.min(displayedTotalRows - 1, firstVisibleRow + visibleRowCount)
 
   const visibleRows = useMemo(() => {
@@ -503,8 +502,8 @@ export const DrpdUsbPdLogInstrumentView = ({
     if (!viewport) {
       return
     }
-    const rowTop = index * scaledRowHeightPx
-    const rowBottom = rowTop + scaledRowHeightPx
+    const rowTop = index * rowHeightPx
+    const rowBottom = rowTop + rowHeightPx
     if (rowTop < viewport.scrollTop) {
       viewport.scrollTop = rowTop
       return
@@ -662,8 +661,8 @@ export const DrpdUsbPdLogInstrumentView = ({
         8,
         wrapper,
       ) * 2
-      const baseWidth = Math.max(1, columnWidth + horizontalPadding)
-      const nextScale = Math.max(0.1, wrapper.clientWidth / baseWidth)
+      const availableColumnWidth = Math.max(1, wrapper.clientWidth - horizontalPadding)
+      const nextScale = Math.max(0.1, availableColumnWidth / Math.max(1, columnWidth))
       setTableScale((previous) => (
         Math.abs(previous - nextScale) < 0.001 ? previous : nextScale
       ))
@@ -694,7 +693,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     const updateHeaderHeight = () => {
       const visualHeight = header.getBoundingClientRect().height
       setHeaderSlotHeightPx(
-        visualHeight > 0 ? Math.ceil(visualHeight + 2) : ROW_HEIGHT_PX * tableScale,
+        visualHeight > 0 ? Math.ceil(visualHeight + 2) : ROW_HEIGHT_PX,
       )
     }
 
@@ -712,7 +711,7 @@ export const DrpdUsbPdLogInstrumentView = ({
     return () => {
       observer.disconnect()
     }
-  }, [tableScale, visibleColumns])
+  }, [visibleColumns])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -1102,13 +1101,13 @@ export const DrpdUsbPdLogInstrumentView = ({
             const element = event.currentTarget
             setScrollTop(element.scrollTop)
             atBottomRef.current =
-              element.scrollHeight - element.clientHeight - element.scrollTop <= scaledRowHeightPx * 2
+              element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
           }}
           data-testid="drpd-usbpd-log-viewport"
         >
           <div
             className={styles.canvas}
-            style={{ height: `${Math.max(displayedTotalRows * scaledRowHeightPx, 0)}px` }}
+            style={{ height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px` }}
           >
             <div
               className={styles.rowScaleFrame}
