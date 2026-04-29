@@ -75,7 +75,7 @@ export const MESSAGE_LOG_COLUMNS = [
     id: 'valid',
     label: 'Valid',
     widthVar: '--column-width-valid',
-    defaultWidthPx: 48,
+    defaultWidthPx: 56,
     minWidthPx: 40,
     align: 'center',
     field: 'valid',
