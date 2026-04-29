@@ -630,7 +630,18 @@ const unpairCurrentDeviceFromMenu = async (): Promise<void> => {
 }
 
 const chooseThemeFromMenu = async (name: string | RegExp): Promise<void> => {
-  await openApplicationSubmenu('Theme')
+  await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Theme' }))
+  await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
+}
+
+const openLayoutMenu = async (): Promise<void> => {
+  await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Layout' }))
+}
+
+const chooseLayoutFromMenu = async (name: string | RegExp): Promise<void> => {
+  await openLayoutMenu()
   await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
 }
 
@@ -1511,7 +1522,7 @@ describe('RackView', () => {
     expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
   })
 
-  it('switches layout from Help menu and global shortcut', async () => {
+  it('does not expose the removed layout shortcut in the Help menu', async () => {
     const user = userEvent.setup()
     saveRackDocument(buildRackDocument())
     mockUSB([])
@@ -1526,11 +1537,45 @@ describe('RackView', () => {
     expect(page).toHaveAttribute('data-layout-mode', 'fixed')
 
     await user.click(await screen.findByRole('button', { name: 'Help' }))
-    await user.click(await screen.findByRole('menuitem', { name: /Switch Layout/ }))
-    expect(page).toHaveAttribute('data-layout-mode', 'full')
+    expect(screen.queryByRole('menuitem', { name: /Switch Layout/ })).not.toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'K' })
     expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+  })
+
+  it('persists layout mode from the Display menu', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([])
+    const { unmount } = render(<RackView />)
+
+    const page = await waitFor(() => {
+      const element = document.querySelector('[data-layout-mode]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+
+    await chooseLayoutFromMenu('Responsive')
+    expect(page).toHaveAttribute('data-layout-mode', 'full')
+    expect(window.localStorage.getItem('drpd:layout')).toBe('responsive')
+
+    await openLayoutMenu()
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Responsive' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Fixed' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+
+    unmount()
+    render(<RackView />)
+    const restoredPage = await waitFor(() => {
+      const element = document.querySelector('[data-layout-mode]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+    expect(restoredPage).toHaveAttribute('data-layout-mode', 'full')
   })
 
   it('runs global Sink, Observer, and Capture shortcuts', async () => {

@@ -99,6 +99,7 @@ type ThemeMode = 'system' | 'light' | 'dark'
 type LayoutMode = 'fixed' | 'full'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
+const LAYOUT_STORAGE_KEY = 'drpd:layout'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
 const UPDATER_RECONNECT_TIMEOUT_MS = 10_000
@@ -878,7 +879,7 @@ export const RackView = () => {
     buildDefaultLoggingConfig().maxCapturedMessages.toString(),
   )
   const [messageLogBufferError, setMessageLogBufferError] = useState<string | null>(null)
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('fixed')
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => getStoredLayoutMode())
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
@@ -949,18 +950,25 @@ export const RackView = () => {
         }
         applySystemTheme()
         const cleanup = listenToMediaQueryChange(mediaQuery, applySystemTheme)
-        const storage = getThemeStorage()
+        const storage = getBrowserStorage()
         if (storage) {
           storage.setItem(THEME_STORAGE_KEY, theme)
         }
         return cleanup
       }
     }
-    const storage = getThemeStorage()
+    const storage = getBrowserStorage()
     if (storage) {
       storage.setItem(THEME_STORAGE_KEY, theme)
     }
   }, [theme])
+
+  useEffect(() => {
+    const storage = getBrowserStorage()
+    if (storage) {
+      storage.setItem(LAYOUT_STORAGE_KEY, layoutMode === 'full' ? 'responsive' : 'fixed')
+    }
+  }, [layoutMode])
 
   useEffect(() => {
     saveFirmwareUpdateChannel(firmwareUpdateChannel)
@@ -2145,10 +2153,6 @@ export const RackView = () => {
     }
   }, [])
 
-  const handleSwitchLayout = useCallback(() => {
-    setLayoutMode((current) => current === 'fixed' ? 'full' : 'fixed')
-  }, [])
-
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
       const shortcutId = matchRackShortcut(event)
@@ -2196,9 +2200,6 @@ export const RackView = () => {
         case 'reset-trigger':
           void handleResetTrigger()
           break
-        case 'switch-layout':
-          handleSwitchLayout()
-          break
         case 'open-user-manual':
           handleOpenDocumentation()
           break
@@ -2219,7 +2220,6 @@ export const RackView = () => {
     handleResetTrigger,
     handleSetActiveDeviceRole,
     handleToggleActiveDeviceCapture,
-    handleSwitchLayout,
     activeDriverState?.role,
     openGlobalSinkRequestDialog,
     toggleGoodCrcMessages,
@@ -2591,29 +2591,57 @@ export const RackView = () => {
         ],
       },
       {
-        id: 'theme',
-        label: 'Theme',
+        id: 'display',
+        label: 'Display',
         items: [
           {
-            id: 'theme-light',
-            type: 'checkbox',
-            label: 'Light',
-            checked: theme === 'light',
-            onCheckedChange: () => setTheme('light'),
+            id: 'layout',
+            type: 'submenu',
+            label: 'Layout',
+            items: [
+              {
+                id: 'layout-responsive',
+                type: 'checkbox',
+                label: 'Responsive',
+                checked: layoutMode === 'full',
+                onCheckedChange: () => setLayoutMode('full'),
+              },
+              {
+                id: 'layout-fixed',
+                type: 'checkbox',
+                label: 'Fixed',
+                checked: layoutMode === 'fixed',
+                onCheckedChange: () => setLayoutMode('fixed'),
+              },
+            ],
           },
           {
-            id: 'theme-dark',
-            type: 'checkbox',
-            label: 'Dark',
-            checked: theme === 'dark',
-            onCheckedChange: () => setTheme('dark'),
-          },
-          {
-            id: 'theme-system',
-            type: 'checkbox',
-            label: 'System default',
-            checked: theme === 'system',
-            onCheckedChange: () => setTheme('system'),
+            id: 'theme',
+            type: 'submenu',
+            label: 'Theme',
+            items: [
+              {
+                id: 'theme-light',
+                type: 'checkbox',
+                label: 'Light',
+                checked: theme === 'light',
+                onCheckedChange: () => setTheme('light'),
+              },
+              {
+                id: 'theme-dark',
+                type: 'checkbox',
+                label: 'Dark',
+                checked: theme === 'dark',
+                onCheckedChange: () => setTheme('dark'),
+              },
+              {
+                id: 'theme-system',
+                type: 'checkbox',
+                label: 'System default',
+                checked: theme === 'system',
+                onCheckedChange: () => setTheme('system'),
+              },
+            ],
           },
         ],
       },
@@ -2621,12 +2649,6 @@ export const RackView = () => {
         id: 'help',
         label: 'Help',
         items: [
-          {
-            id: 'switch-layout',
-            label: 'Switch Layout',
-            meta: 'K',
-            onSelect: handleSwitchLayout,
-          },
           {
             id: 'user-manual',
             label: 'User manual...',
@@ -2652,7 +2674,6 @@ export const RackView = () => {
     handleResetPowerChargeMeter,
     handleResetProtection,
     handleResetTrigger,
-    handleSwitchLayout,
     handleSetActiveDeviceRole,
     handleSetProtectionThresholds,
     handleToggleActiveDeviceCapture,
@@ -2668,6 +2689,7 @@ export const RackView = () => {
     isMessageLogConfiguring,
     isMessageLogExporting,
     isMessageLogMarking,
+    layoutMode,
     messageLogColumnVisibility,
     messageLogFilters,
     openGlobalSinkRequestDialog,
@@ -3326,7 +3348,7 @@ const HeaderVbusMetrics = ({
 }
 
 /** Resolve a safe localStorage instance when available. */
-const getThemeStorage = (): Storage | null => {
+const getBrowserStorage = (): Storage | null => {
   if (typeof window === 'undefined') {
     return null
   }
@@ -3339,12 +3361,25 @@ const getThemeStorage = (): Storage | null => {
 
 /** Read the saved theme preference, defaulting to system mode. */
 const getStoredTheme = (): ThemeMode => {
-  const storage = getThemeStorage()
+  const storage = getBrowserStorage()
   const storedTheme = storage?.getItem(THEME_STORAGE_KEY)
   if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
     return storedTheme
   }
   return 'system'
+}
+
+/** Read the saved layout preference, defaulting to fixed mode. */
+const getStoredLayoutMode = (): LayoutMode => {
+  const storage = getBrowserStorage()
+  const storedLayout = storage?.getItem(LAYOUT_STORAGE_KEY)
+  if (storedLayout === 'responsive' || storedLayout === 'full') {
+    return 'full'
+  }
+  if (storedLayout === 'fixed') {
+    return 'fixed'
+  }
+  return 'fixed'
 }
 
 /** Resolve the effective theme used for themed assets. */

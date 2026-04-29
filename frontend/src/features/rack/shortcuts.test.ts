@@ -15,7 +15,6 @@ describe('rack shortcuts', () => {
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'G' }))).toBe('toggle-goodcrc')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'F' }))).toBe('filter-log')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'R' }))).toBe('reset-trigger')
-    expect(matchRackShortcut(new KeyboardEvent('keydown', { key: 'K' }))).toBe('switch-layout')
     expect(matchRackShortcut(new KeyboardEvent('keydown', { key: '?' }))).toBe('open-user-manual')
   })
 
