@@ -58,7 +58,7 @@ const buildDefaultRackDocument = (): RackDocument => {
             id: 'row-default-log',
             flex: 1,
             instruments: [
-              buildDefaultInstrument('inst-default-log', 'com.mta.drpd.usbpd-log', 2.4),
+              buildDefaultInstrument('inst-default-log', 'com.mta.drpd.usbpd-log', 3),
               buildDefaultInstrument('inst-default-detail', 'com.mta.drpd.message-detail', 1),
             ],
           },
@@ -278,7 +278,7 @@ const inferRackInstrumentFlex = (instrumentIdentifier: string): number | undefin
     case 'com.mta.drpd.timestrip':
       return 100
     case 'com.mta.drpd.usbpd-log':
-      return 2.4
+      return 3
     case 'com.mta.drpd.message-detail':
       return 1
     default:

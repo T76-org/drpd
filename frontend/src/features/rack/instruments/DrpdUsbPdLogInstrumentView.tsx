@@ -58,6 +58,21 @@ type ColumnResizeDrag = {
   startWidthPx: number
 }
 
+type MessageLogDriver = NonNullable<RackDeviceState['drpdDriver']>
+
+type SerializedMessageLogRow = Omit<
+  LoggedCapturedMessage,
+  'wallClockUs' | 'startTimestampUs' | 'endTimestampUs' | 'displayTimestampUs' | 'rawPulseWidths' | 'rawSop' | 'rawDecodedData'
+> & {
+  wallClockUs: string | number | null
+  startTimestampUs: string | number
+  endTimestampUs: string | number
+  displayTimestampUs: string | number | null
+  rawPulseWidths?: unknown
+  rawSop?: unknown
+  rawDecodedData?: unknown
+}
+
 const resolveCssLength = (
   value: string,
   fallback: number,
@@ -284,6 +299,95 @@ const toDisplayRows = (
   })
 }
 
+const toBigIntValue = (value: string | number): bigint => BigInt(value)
+
+const toNullableBigIntValue = (value: string | number | null): bigint | null => (
+  value === null ? null : toBigIntValue(value)
+)
+
+const toNumberArray = (value: unknown): number[] => {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+  }
+  if (value && typeof value === 'object') {
+    return Object.values(value)
+      .filter((entry): entry is number => typeof entry === 'number' && Number.isFinite(entry))
+  }
+  return []
+}
+
+const toUint8Array = (value: unknown): Uint8Array => Uint8Array.from(toNumberArray(value))
+
+const deserializeFixtureRow = (row: SerializedMessageLogRow): LoggedCapturedMessage => ({
+  ...row,
+  wallClockUs: toNullableBigIntValue(row.wallClockUs),
+  startTimestampUs: toBigIntValue(row.startTimestampUs),
+  endTimestampUs: toBigIntValue(row.endTimestampUs),
+  displayTimestampUs: toNullableBigIntValue(row.displayTimestampUs),
+  rawPulseWidths: Float64Array.from(toNumberArray(row.rawPulseWidths)),
+  rawSop: toUint8Array(row.rawSop),
+  rawDecodedData: toUint8Array(row.rawDecodedData),
+})
+
+const deserializeFixtureRows = (value: unknown): LoggedCapturedMessage[] => (
+  Array.isArray(value) ? value.map((row) => deserializeFixtureRow(row as SerializedMessageLogRow)) : []
+)
+
+class FixtureMessageLogDriver extends EventTarget {
+  private selection: DRPDLogSelectionState = EMPTY_SELECTION
+  private readonly rows: LoggedCapturedMessage[]
+
+  public constructor(rows: LoggedCapturedMessage[]) {
+    super()
+    this.rows = rows
+  }
+
+  public getState() {
+    return { logSelection: this.selection }
+  }
+
+  public getLogSelectionState(): DRPDLogSelectionState {
+    return this.selection
+  }
+
+  public async setLogSelectionState(next: DRPDLogSelectionState): Promise<void> {
+    this.selection = next
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { state: this.getState(), changed: ['logSelection'] },
+      }),
+    )
+  }
+
+  public async clearLogSelection(): Promise<void> {
+    await this.setLogSelectionState(EMPTY_SELECTION)
+  }
+
+  public async resolveLogSelectionKeysForIndexRange(startIndex: number, endIndex: number): Promise<string[]> {
+    const start = Math.max(0, Math.min(startIndex, endIndex))
+    const end = Math.min(this.rows.length - 1, Math.max(startIndex, endIndex))
+    if (end < start) {
+      return []
+    }
+    return this.rows.slice(start, end + 1).map((row) => buildCapturedLogSelectionKey(row))
+  }
+
+  public async getLogCounts(): Promise<{ analog: number; messages: number }> {
+    return { analog: 0, messages: this.rows.length }
+  }
+
+  public async queryCapturedMessages(query: {
+    sortOrder?: 'asc' | 'desc'
+    offset?: number
+    limit?: number
+  }): Promise<LoggedCapturedMessage[]> {
+    const rows = query.sortOrder === 'desc' ? [...this.rows].reverse() : this.rows
+    const offset = query.offset ?? 0
+    const limit = query.limit ?? rows.length
+    return rows.slice(offset, offset + limit)
+  }
+}
+
 export const DrpdUsbPdLogInstrumentView = ({
   instrument,
   displayName,
@@ -322,7 +426,6 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }
 
-  const driver = deviceState?.drpdDriver
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const headerRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -333,11 +436,15 @@ export const DrpdUsbPdLogInstrumentView = ({
   const columnResizeDragRef = useRef<ColumnResizeDrag | null>(null)
   const [totalRows, setTotalRows] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
+  const [viewportWidth, setViewportWidth] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+  const [tableHorizontalPaddingPx, setTableHorizontalPaddingPx] = useState(16)
   const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [headerSlotHeightPx, setHeaderSlotHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
+  const [fixtureRows, setFixtureRows] = useState<LoggedCapturedMessage[] | null>(null)
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
   const [columnVisibility, setColumnVisibility] =
     useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
@@ -345,6 +452,11 @@ export const DrpdUsbPdLogInstrumentView = ({
     useState<MessageLogColumnWidths>(() => readMessageLogColumnWidths())
   const [resizingColumnId, setResizingColumnId] = useState<MessageLogColumnId | null>(null)
   const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
+  const fixtureDriver = useMemo<MessageLogDriver | undefined>(
+    () => fixtureRows ? new FixtureMessageLogDriver(fixtureRows) as unknown as MessageLogDriver : undefined,
+    [fixtureRows],
+  )
+  const driver = deviceState?.drpdDriver ?? fixtureDriver
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
@@ -354,14 +466,30 @@ export const DrpdUsbPdLogInstrumentView = ({
     const next = MESSAGE_LOG_COLUMNS.filter((column) => columnVisibility[column.id])
     return next.length > 0 ? next : MESSAGE_LOG_COLUMNS
   }, [columnVisibility])
-  const gridTemplateColumns = useMemo(
-    () => visibleColumns.map((column, index) => (
-      index === visibleColumns.length - 1
-        ? `minmax(${columnWidths[column.id]}px, 1fr)`
-        : `${columnWidths[column.id]}px`
-    )).join(' '),
-    [columnWidths, visibleColumns],
-  )
+  const gridMinimumWidthPx = useMemo(() => {
+    let width = 0
+    for (const column of visibleColumns) {
+      width += columnWidths[column.id]
+    }
+    return width
+  }, [columnWidths, visibleColumns])
+  const gridTemplateColumns = useMemo(() => {
+    const lastColumn = visibleColumns[visibleColumns.length - 1]
+    if (!lastColumn) {
+      return ''
+    }
+    let leadingWidthPx = 0
+    for (const column of visibleColumns.slice(0, -1)) {
+      leadingWidthPx += columnWidths[column.id]
+    }
+    const availableContentWidthPx = Math.max(0, viewportWidth - tableHorizontalPaddingPx)
+    const tableContentWidthPx = Math.max(gridMinimumWidthPx, availableContentWidthPx)
+    const lastWidthPx = Math.max(columnWidths[lastColumn.id], tableContentWidthPx - leadingWidthPx)
+    return visibleColumns.map((column, index) => (
+      index === visibleColumns.length - 1 ? `${lastWidthPx}px` : `${columnWidths[column.id]}px`
+    )).join(' ')
+  }, [columnWidths, gridMinimumWidthPx, tableHorizontalPaddingPx, viewportWidth, visibleColumns])
+  const tableOuterWidthPx = Math.max(viewportWidth, gridMinimumWidthPx + tableHorizontalPaddingPx)
   const hasActiveFilters = activeFilterCount > 0
   const filteredRows = useMemo(
     () => (hasActiveFilters ? filterRows.filter((row) => messageMatchesFilters(row, filters)) : []),
@@ -376,6 +504,33 @@ export const DrpdUsbPdLogInstrumentView = ({
   const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
   const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
   const lastVisibleRow = Math.min(displayedTotalRows - 1, firstVisibleRow + visibleRowCount)
+
+  useEffect(() => {
+    if (deviceState?.drpdDriver || fixtureRows !== null || !import.meta.env.DEV) {
+      return
+    }
+    let cancelled = false
+    void fetch('/debug/message-log-export.json')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Fixture load failed: ${response.status}`)
+        }
+        return await response.json()
+      })
+      .then((payload: unknown) => {
+        if (!cancelled) {
+          setFixtureRows(deserializeFixtureRows(payload))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFixtureRows([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [deviceState?.drpdDriver, fixtureRows])
 
   const visibleRows = useMemo(() => {
     const rows: Array<{ index: number; row: DisplayRow | null }> = []
@@ -785,6 +940,24 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [])
 
   useLayoutEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) {
+      return
+    }
+    const updateTablePadding = () => {
+      const computedStyle = window.getComputedStyle(wrapper)
+      setTableHorizontalPaddingPx(
+        resolveCssLength(computedStyle.getPropertyValue('--space-8'), 8, wrapper) * 2,
+      )
+    }
+    updateTablePadding()
+    window.addEventListener('resize', updateTablePadding)
+    return () => {
+      window.removeEventListener('resize', updateTablePadding)
+    }
+  }, [])
+
+  useLayoutEffect(() => {
     const header = headerRef.current
     if (!header) {
       return undefined
@@ -815,17 +988,23 @@ export const DrpdUsbPdLogInstrumentView = ({
 
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || typeof ResizeObserver === 'undefined') {
+    if (!viewport) {
+      return undefined
+    }
+    setViewportHeight(viewport.clientHeight)
+    setViewportWidth(viewport.clientWidth)
+
+    if (typeof ResizeObserver === 'undefined') {
       return undefined
     }
 
     const observer = new ResizeObserver((entries) => {
-      const nextHeight = entries[0]?.contentRect.height ?? 0
-      setViewportHeight(nextHeight)
+      const rect = entries[0]?.contentRect
+      setViewportHeight(rect?.height ?? 0)
+      setViewportWidth(rect?.width ?? 0)
     })
 
     observer.observe(viewport)
-    setViewportHeight(viewport.clientHeight)
 
     return () => {
       observer.disconnect()
@@ -1185,7 +1364,11 @@ export const DrpdUsbPdLogInstrumentView = ({
           <div
             ref={headerRef}
             className={`${styles.scaleFrame} ${styles.headerRow}`}
-            style={{ gridTemplateColumns }}
+            style={{
+              gridTemplateColumns,
+              transform: `translateX(${-scrollLeft}px)`,
+              width: `${tableOuterWidthPx}px`,
+            }}
           >
             {visibleColumns.map((column) => (
               <span
@@ -1219,6 +1402,7 @@ export const DrpdUsbPdLogInstrumentView = ({
           onScroll={(event) => {
             const element = event.currentTarget
             setScrollTop(element.scrollTop)
+            setScrollLeft(element.scrollLeft)
             atBottomRef.current =
               element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
           }}
@@ -1226,12 +1410,16 @@ export const DrpdUsbPdLogInstrumentView = ({
         >
           <div
             className={styles.canvas}
-            style={{ height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px` }}
+            style={{
+              height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
+              width: `${tableOuterWidthPx}px`,
+            }}
           >
             <div
               className={styles.rowScaleFrame}
               style={{
                 height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
+                width: `${tableOuterWidthPx}px`,
               }}
               data-testid="drpd-usbpd-log-canvas"
             >

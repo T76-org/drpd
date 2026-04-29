@@ -34,25 +34,18 @@ describe('loadRackDocument', () => {
   it('creates a populated default rack without writing layout to storage', async () => {
     const document = await loadRackDocument()
 
-    expect(document.racks[0]?.rows).toHaveLength(3)
-    expect(document.racks[0]?.rows[0]?.flex).toBe(0.22)
-    expect(document.racks[0]?.rows[0]?.instruments.map((instrument) => instrument.instrumentIdentifier)).toEqual([
-      'com.mta.drpd.vbus',
-      'com.mta.drpd.charge-energy',
-      'com.mta.drpd.cc-lines',
-      'com.mta.drpd.device-status-panel',
-      'com.mta.drpd.sink-control',
-    ])
-    expect(document.racks[0]?.rows[1]?.instruments).toEqual([
+    expect(document.racks[0]?.rows).toHaveLength(2)
+    expect(document.racks[0]?.rows[0]?.flex).toBe(0.3)
+    expect(document.racks[0]?.rows[0]?.instruments).toEqual([
       expect.objectContaining({
         instrumentIdentifier: 'com.mta.drpd.timestrip',
         flex: 100,
       }),
     ])
-    expect(document.racks[0]?.rows[2]?.instruments).toEqual([
+    expect(document.racks[0]?.rows[1]?.instruments).toEqual([
       expect.objectContaining({
         instrumentIdentifier: 'com.mta.drpd.usbpd-log',
-        flex: 2.4,
+        flex: 3,
       }),
       expect.objectContaining({
         instrumentIdentifier: 'com.mta.drpd.message-detail',
@@ -154,11 +147,10 @@ describe('loadRackDocument', () => {
     const document = await loadRackDocument()
 
     expect(document.racks[0]?.rows.map((row) => row.id)).toEqual([
-      'row-default-status',
       'row-default-trigger',
       'row-default-log',
     ])
-    expect(document.racks[0]?.rows[1]).toEqual(
+    expect(document.racks[0]?.rows[0]).toEqual(
       expect.objectContaining({
         flex: 0.42,
         instruments: [
@@ -170,9 +162,9 @@ describe('loadRackDocument', () => {
         ],
       }),
     )
-    expect(document.racks[0]?.rows[1]?.instruments[0]).not.toHaveProperty('resizable')
-    expect(document.racks[0]?.rows[2]?.flex).toBe(1)
-    expect(document.racks[0]?.rows[2]?.instruments[0]?.flex).toBe(2.4)
+    expect(document.racks[0]?.rows[0]?.instruments[0]).not.toHaveProperty('resizable')
+    expect(document.racks[0]?.rows[1]?.flex).toBe(1)
+    expect(document.racks[0]?.rows[1]?.instruments[0]?.flex).toBe(3)
   })
 
   it('stores only paired devices and flex sizing settings', async () => {

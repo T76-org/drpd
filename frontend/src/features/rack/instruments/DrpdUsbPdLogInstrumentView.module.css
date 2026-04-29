@@ -6,19 +6,19 @@
 }
 
 .wrapper {
-  --log-row-height: 14px;
+  --log-table-font-size: 10pt;
+  --log-row-height: 20px;
   --message-log-column-divider: color-mix(in srgb, var(--color-border-panel) 56%, transparent);
   --message-log-column-divider-hover: color-mix(in srgb, var(--color-status-info) 76%, transparent);
-  --column-width-timestamp: 70px;
-  --column-width-duration: 55px;
-  --column-width-delta: 70px;
-  --column-width-id: 30px;
-  --column-width-message-type: 170px;
-  --column-width-sender: 56px;
-  --column-width-receiver: 56px;
-  --column-width-sop-type: 37px;
-  --column-width-valid: 36px;
-  --message-log-table-scale: 1;
+  --column-width-timestamp: 116px;
+  --column-width-duration: 68px;
+  --column-width-delta: 72px;
+  --column-width-id: 40px;
+  --column-width-message-type: 200px;
+  --column-width-sender: 74px;
+  --column-width-receiver: 80px;
+  --column-width-sop-type: 52px;
+  --column-width-valid: 48px;
 
   height: 100%;
   width: 100%;
@@ -50,15 +50,15 @@
   --log-header-divider: color-mix(in srgb, var(--color-border-panel) 88%, transparent);
   display: grid;
   grid-template-columns:
-    calc(var(--column-width-timestamp) * var(--message-log-table-scale))
-    calc(var(--column-width-duration) * var(--message-log-table-scale))
-    calc(var(--column-width-delta) * var(--message-log-table-scale))
-    calc(var(--column-width-id) * var(--message-log-table-scale))
-    calc(var(--column-width-message-type) * var(--message-log-table-scale))
-    calc(var(--column-width-sender) * var(--message-log-table-scale))
-    calc(var(--column-width-receiver) * var(--message-log-table-scale))
-    calc(var(--column-width-sop-type) * var(--message-log-table-scale))
-    calc(var(--column-width-valid) * var(--message-log-table-scale));
+    var(--column-width-timestamp)
+    var(--column-width-duration)
+    var(--column-width-delta)
+    var(--column-width-id)
+    var(--column-width-message-type)
+    var(--column-width-sender)
+    var(--column-width-receiver)
+    var(--column-width-sop-type)
+    minmax(var(--column-width-valid), 1fr);
   position: relative;
   z-index: 1;
   padding: var(--space-2) var(--space-8);
@@ -74,7 +74,7 @@
     inset 0 var(--border-thin) 0 color-mix(in srgb, var(--color-text-primary) 10%, transparent),
     inset 0 calc(-1 * var(--border-thin)) 0 color-mix(in srgb, black 22%, transparent),
     0 2px 8px color-mix(in srgb, black 10%, transparent);
-  font-size: var(--font-size-2xs);
+  font-size: var(--log-table-font-size);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-lg);
   text-transform: uppercase;
@@ -97,12 +97,16 @@
 }
 
 .headerRow > span {
-  justify-self: center;
+  justify-self: stretch;
   position: relative;
 }
 
 .headerCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .headerCell + .headerCell {
@@ -115,6 +119,7 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
 }
 
 .columnResizeHandle {
@@ -150,22 +155,6 @@
 .columnResizeHandle:focus-visible {
   outline: var(--border-thin) solid var(--color-status-info);
   outline-offset: 1px;
-}
-
-.headerRow > span + span::before {
-  content: '';
-  position: absolute;
-  left: calc(-1 * var(--space-4));
-  top: 10%;
-  bottom: 10%;
-  width: var(--border-thin);
-  background: linear-gradient(
-    180deg,
-    transparent,
-    var(--log-header-divider) 22%,
-    var(--log-header-divider) 78%,
-    transparent
-  );
 }
 
 :root[data-theme='light'] .headerRow {
@@ -228,19 +217,19 @@
   height: var(--log-row-height);
   display: grid;
   grid-template-columns:
-    calc(var(--column-width-timestamp) * var(--message-log-table-scale))
-    calc(var(--column-width-duration) * var(--message-log-table-scale))
-    calc(var(--column-width-delta) * var(--message-log-table-scale))
-    calc(var(--column-width-id) * var(--message-log-table-scale))
-    calc(var(--column-width-message-type) * var(--message-log-table-scale))
-    calc(var(--column-width-sender) * var(--message-log-table-scale))
-    calc(var(--column-width-receiver) * var(--message-log-table-scale))
-    calc(var(--column-width-sop-type) * var(--message-log-table-scale))
-    calc(var(--column-width-valid) * var(--message-log-table-scale));
+    var(--column-width-timestamp)
+    var(--column-width-duration)
+    var(--column-width-delta)
+    var(--column-width-id)
+    var(--column-width-message-type)
+    var(--column-width-sender)
+    var(--column-width-receiver)
+    var(--column-width-sop-type)
+    minmax(var(--column-width-valid), 1fr);
   align-items: center;
   padding: 0 var(--space-8);
   border-bottom: var(--border-thin) solid color-mix(in srgb, var(--color-border-panel) 40%, transparent);
-  font-size: var(--font-size-2xs);
+  font-size: var(--log-table-font-size);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
   cursor: default;
@@ -259,6 +248,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
 .dataRow > span + span {
@@ -267,11 +257,11 @@
 }
 
 .dataRow > .right {
-  justify-self: end;
+  text-align: right;
 }
 
 .dataRow > .center {
-  justify-self: center;
+  text-align: center;
 }
 
 .eventRow {

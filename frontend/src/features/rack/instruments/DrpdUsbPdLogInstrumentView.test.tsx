@@ -581,10 +581,10 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     await waitFor(() => {
       const headerRow = resizeHandle.closest('[class*="headerRow"]') as HTMLElement | null
-      expect(headerRow?.style.gridTemplateColumns).toContain('210px')
+      expect(headerRow?.style.gridTemplateColumns).toContain('240px')
     })
     expect(JSON.parse(window.localStorage.getItem('drpd:message-log:column-widths') ?? '{}')).toMatchObject({
-      messageType: 210,
+      messageType: 240,
     })
   })
 
