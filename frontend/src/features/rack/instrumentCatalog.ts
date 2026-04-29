@@ -142,7 +142,7 @@ export class DrpdUsbPdLogInstrument extends Instrument {
       defaultUnits: 1,
       defaultHeightMode: 'flex',
       defaultFlex: 3,
-      minWidth: '48rem',
+      minWidth: '30rem',
       minHeight: '12rem',
     })
   }
