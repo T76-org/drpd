@@ -14,7 +14,7 @@
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-lg);
 }
 
 .singleSelectionHeading {
@@ -239,7 +239,7 @@
   box-shadow: 0 6px 16px
     color-mix(in srgb, black 40%, transparent);
   color: inherit;
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-lg);
 }
 
 .fieldHelpPopupText {
@@ -424,7 +424,7 @@
 }
 
 .emptyStateText {
-  font-size: var(--font-size-2xs);
+  font-size: var(--font-size-lg);
 }
 
 .invalidMessageState {
@@ -436,7 +436,7 @@
   background: var(--message-bytes-invalid-background, color-mix(in srgb, #b91c1c 38%, var(--color-surface-panel)));
   color: color-mix(in srgb, white 88%, var(--color-text, currentColor));
   font-family: var(--font-family-monospace, monospace);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   text-transform: lowercase;
 }

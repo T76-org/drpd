@@ -42,7 +42,7 @@
   --menu-item-padding-x: 12pt;
   --menu-item-column-gap: 8pt;
   --menu-item-indicator-width: 12px;
-  --font-size-popup: 0.4rem;
+  --font-size-popup: 11pt;
   --font-size-header-popup-base: var(--font-size-popup);
   --font-size-header-popup-text: var(--font-size-popup);
   --font-size-header-popup-label: var(--font-size-popup);
