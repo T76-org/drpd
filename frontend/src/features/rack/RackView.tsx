@@ -3383,7 +3383,7 @@ const HeaderVbusMetrics = ({
         </div>
       </div>
       <div className={styles.headerVbusDivider} aria-hidden="true" />
-      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusCaptureProfile}`}>
         <div className={styles.headerVbusProtectionCell}>
           <span className={styles.headerVbusProtectionLabel}>CAPTURE STATUS</span>
           <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>

@@ -372,4 +372,46 @@ describe('SQLiteWasmStore', () => {
     expect(allClear.analogDeleted).toBe(0)
     expect(allClear.messagesDeleted).toBe(1)
   })
+
+  it('clamps oversized timestamp values before SQLite flush and clear', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+    const oversizedTimestampUs = BigInt('18448521561621487529')
+    const sqliteMaxTimestampUs = BigInt('9223372036854775807')
+
+    await store.insertAnalogSample({
+      timestampUs: oversizedTimestampUs,
+      displayTimestampUs: oversizedTimestampUs,
+      wallClockUs: oversizedTimestampUs,
+      vbusV: 5,
+      ibusA: 0.5,
+      role: 'SINK',
+      createdAtMs: 1,
+    })
+    await store.insertCapturedMessage({
+      ...buildMessage(0),
+      wallClockUs: oversizedTimestampUs,
+      startTimestampUs: oversizedTimestampUs,
+      endTimestampUs: oversizedTimestampUs + 100n,
+      displayTimestampUs: oversizedTimestampUs,
+    })
+    await store.flush()
+
+    const analog = await store.queryAnalogSamples({
+      startTimestampUs: 0n,
+      endTimestampUs: sqliteMaxTimestampUs,
+    })
+    const messages = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: sqliteMaxTimestampUs,
+    })
+    expect(analog[0]?.timestampUs).toBe(sqliteMaxTimestampUs)
+    expect(messages[0]?.startTimestampUs).toBe(sqliteMaxTimestampUs)
+    expect(messages[0]?.endTimestampUs).toBe(sqliteMaxTimestampUs)
+
+    await expect(store.clear('all')).resolves.toEqual({
+      analogDeleted: 1,
+      messagesDeleted: 1,
+    })
+  })
 })

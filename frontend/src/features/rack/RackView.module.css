@@ -299,11 +299,22 @@
 }
 
 .headerVbusRoleStatus .headerVbusProtectionCell {
-  grid-template-columns: auto calc(12ch * var(--rack-header-scale));
+  grid-template-columns: auto calc(8ch * var(--rack-header-scale));
 }
 
 .headerVbusSinkContract .headerVbusProtectionCell {
-  grid-template-columns: auto calc(15ch * var(--rack-header-scale));
+  grid-template-columns: auto calc(8ch * var(--rack-header-scale));
+}
+
+.headerVbusCaptureProfile {
+  --header-vbus-capture-profile-label-width: 7ch;
+  --header-vbus-capture-profile-value-width: 7ch;
+}
+
+.headerVbusCaptureProfile .headerVbusProtectionCell {
+  grid-template-columns:
+    calc(var(--header-vbus-capture-profile-label-width) * var(--rack-header-scale))
+    calc(var(--header-vbus-capture-profile-value-width) * var(--rack-header-scale));
 }
 
 .headerVbusRoleStatusValue {

@@ -301,6 +301,54 @@ const clampBigInt = (value: bigint, minimum: bigint, maximum: bigint): bigint =>
 }
 
 /**
+ * Bound timestamp-like values to SQLite's signed 64-bit integer range.
+ *
+ * @param value - Candidate timestamp.
+ * @returns SQLite-safe timestamp.
+ */
+const clampSqliteTimestampUs = (value: bigint): bigint => clampBigInt(value, 0n, SQLITE_MAX_TIMESTAMP_US)
+
+/**
+ * Bound nullable timestamp-like values to SQLite's signed 64-bit integer range.
+ *
+ * @param value - Candidate timestamp.
+ * @returns SQLite-safe timestamp or null.
+ */
+const clampNullableSqliteTimestampUs = (value: bigint | null): bigint | null =>
+  value === null ? null : clampSqliteTimestampUs(value)
+
+/**
+ * Normalize an analog row before it can reach SQLite bindings.
+ *
+ * @param sample - Analog row.
+ * @returns SQLite-safe analog row.
+ */
+const normalizeAnalogSampleForStorage = (sample: LoggedAnalogSample): LoggedAnalogSample => ({
+  ...sample,
+  timestampUs: clampSqliteTimestampUs(sample.timestampUs),
+  displayTimestampUs: clampNullableSqliteTimestampUs(sample.displayTimestampUs),
+  wallClockUs: clampNullableSqliteTimestampUs(sample.wallClockUs),
+})
+
+/**
+ * Normalize a captured-message row before it can reach SQLite bindings.
+ *
+ * @param message - Captured-message row.
+ * @returns SQLite-safe captured-message row.
+ */
+const normalizeCapturedMessageForStorage = (message: LoggedCapturedMessage): LoggedCapturedMessage => {
+  const startTimestampUs = clampSqliteTimestampUs(message.startTimestampUs)
+  const endTimestampUs = clampSqliteTimestampUs(message.endTimestampUs)
+  return {
+    ...message,
+    wallClockUs: clampNullableSqliteTimestampUs(message.wallClockUs),
+    startTimestampUs,
+    endTimestampUs: endTimestampUs < startTimestampUs ? startTimestampUs : endTimestampUs,
+    displayTimestampUs: clampNullableSqliteTimestampUs(message.displayTimestampUs),
+  }
+}
+
+/**
  * Return a bounded, positive analog point budget.
  *
  * @param value - Requested budget.
@@ -610,13 +658,14 @@ export class SQLiteWasmStore implements DRPDLogStore {
    */
   public async insertAnalogSample(sample: LoggedAnalogSample): Promise<void> {
     this.ensureInitialized()
+    const normalizedSample = normalizeAnalogSampleForStorage(sample)
     if (this.memoryFallback) {
-      this.memoryFallback.analogSamples.push(sample)
+      this.memoryFallback.analogSamples.push(normalizedSample)
       await this.trimAnalogSamplesIfNeededMemory()
       return
     }
     this.pendingAnalogSamples.push({
-      row: sample,
+      row: normalizedSample,
       sequence: this.nextPendingSequence++,
     })
     this.scheduleFlush()
@@ -629,14 +678,15 @@ export class SQLiteWasmStore implements DRPDLogStore {
    */
   public async insertCapturedMessage(message: LoggedCapturedMessage): Promise<void> {
     this.ensureInitialized()
-    this.notePulseTraceDuration(message)
+    const normalizedMessage = normalizeCapturedMessageForStorage(message)
+    this.notePulseTraceDuration(normalizedMessage)
     if (this.memoryFallback) {
-      this.memoryFallback.capturedMessages.push(message)
+      this.memoryFallback.capturedMessages.push(normalizedMessage)
       await this.trimCapturedMessagesIfNeededMemory()
       return
     }
     this.pendingCapturedMessages.push({
-      row: message,
+      row: normalizedMessage,
       sequence: this.nextPendingSequence++,
     })
     this.scheduleFlush()
@@ -991,7 +1041,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
       .filter(Boolean)
       .join(' ')
 
-    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
+    const bind: Array<SqlValue> = [
+      clampSqliteTimestampUs(query.startTimestampUs),
+      clampSqliteTimestampUs(query.endTimestampUs),
+    ]
     if (query.limit && query.limit > 0) {
       bind.push(Math.floor(query.limit))
     }
@@ -1032,7 +1085,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
         ? Math.floor(query.limit)
         : null
     const clauses = ['start_timestamp_us >= ?', 'start_timestamp_us <= ?']
-    const bind: Array<SqlValue> = [query.startTimestampUs, query.endTimestampUs]
+    const bind: Array<SqlValue> = [
+      clampSqliteTimestampUs(query.startTimestampUs),
+      clampSqliteTimestampUs(query.endTimestampUs),
+    ]
     if (query.messageKinds?.length) {
       clauses.push(`message_kind IN (${query.messageKinds.map(() => '?').join(', ')})`)
       bind.push(...query.messageKinds)
@@ -1433,6 +1489,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       return result
     }
 
+    await this.flush()
     const db = this.requireDb()
     const result: LogClearResult = {
       analogDeleted: 0,
