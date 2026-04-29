@@ -1,11 +1,10 @@
 import type { Instrument, InstrumentWidth } from '../../lib/instrument'
 import type { RackInstrument, RackRow } from '../../lib/rack/types'
-import { DEFAULT_RACK_SIZING } from './rackSizing'
 
 /**
  * Horizontal unit size used for rack width allocation math.
  */
-export const HORIZONTAL_UNIT_PX = DEFAULT_RACK_SIZING.horizontalUnitPx
+export const HORIZONTAL_UNIT_PX = 20
 
 /**
  * Maximum horizontal width available per row in width units.
@@ -13,7 +12,7 @@ export const HORIZONTAL_UNIT_PX = DEFAULT_RACK_SIZING.horizontalUnitPx
  * This was historically 12 units at 100 px per unit. The unit size is now
  * 20 px, so capacity is scaled to preserve the same effective row width.
  */
-export const MAX_ROW_WIDTH_UNITS = DEFAULT_RACK_SIZING.maxRowWidthUnits
+export const MAX_ROW_WIDTH_UNITS = 60
 
 /**
  * Width allocation for an instrument in a row.
@@ -149,6 +148,52 @@ export const resolveInstrumentWidth = (
   }
   return width
 }
+
+export interface RackInstrumentMinimumSize {
+  minWidth: string
+  minHeight: string
+}
+
+export const resolveInstrumentFlex = (
+  instrument: RackInstrument,
+  instrumentMap: Map<string, Instrument>,
+): number => {
+  const definition = instrumentMap.get(instrument.instrumentIdentifier)
+  return sanitizeFlex(instrument.flex) ?? definition?.defaultFlex ?? 1
+}
+
+export const resolveInstrumentMinimumSize = (
+  instrument: RackInstrument,
+  instrumentMap: Map<string, Instrument>,
+): RackInstrumentMinimumSize => {
+  const definition = instrumentMap.get(instrument.instrumentIdentifier)
+  return {
+    minWidth: instrument.resizable?.minWidth ?? definition?.minWidth ?? '10rem',
+    minHeight: instrument.resizable?.minHeight ?? definition?.minHeight ?? '6rem',
+  }
+}
+
+export const resolveRowMinimumHeight = (
+  row: RackRow,
+  instrumentMap: Map<string, Instrument>,
+): string | undefined => {
+  const minHeights = Array.from(new Set(
+    row.instruments.map((instrument) => resolveInstrumentMinimumSize(instrument, instrumentMap).minHeight),
+  ))
+  if (minHeights.length === 0) {
+    return undefined
+  }
+  if (minHeights.length === 1) {
+    return minHeights[0]
+  }
+  return `max(${minHeights.join(', ')})`
+}
+
+export const resolveRowFlex = (row: RackRow): number => sanitizeFlex(row.flex) ?? 1
+
+const sanitizeFlex = (value: number | undefined): number | undefined => (
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+)
 
 /**
  * Normalize fixed width units to a safe positive value.

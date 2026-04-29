@@ -3,14 +3,16 @@ import { DRPDDevice, VBusStatus, type AnalogMonitorChannels, type VBusInfo } fro
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
+import {
+  VBUS_MAX_DISPLAY_UPDATE_RATE_HZ,
+  VBUS_MIN_DISPLAY_UPDATE_RATE_HZ,
+  VbusConfigurePopover,
+} from '../overlays/vbus/VbusConfigurePopover'
+import { prepareVbusConfigureDialog } from '../overlays/vbus/vbusConfigureDialogState'
 import styles from './DrpdVbusInstrumentView.module.css'
 
-const OVP_MAX_V = 50
-const OCP_MAX_A = 6
 const DISPLAY_UPDATE_RATE_STORAGE_PREFIX = 'drpd:vbus:display-rate:'
 const DEFAULT_DISPLAY_UPDATE_RATE_HZ = 3
-const MIN_DISPLAY_UPDATE_RATE_HZ = 1
-const MAX_DISPLAY_UPDATE_RATE_HZ = 30
 
 interface AveragedDisplayMeasurements {
   vbusVoltage: number | null
@@ -35,6 +37,15 @@ const formatNumber = (value: number | null | undefined, decimals: number): strin
     return '--'
   }
   return value.toFixed(decimals)
+}
+
+const truncateToDecimals = (value: number | null | undefined, decimals: number): number | null => {
+  if (value == null || !Number.isFinite(value)) {
+    return null
+  }
+  const scale = 10 ** decimals
+  const truncated = Math.trunc(value * scale) / scale
+  return Object.is(truncated, -0) ? 0 : truncated
 }
 
 /**
@@ -76,8 +87,8 @@ const loadDisplayUpdateRateHz = (storageKey: string): number => {
   const parsed = raw == null ? NaN : Number(raw)
   if (
     Number.isFinite(parsed) &&
-    parsed >= MIN_DISPLAY_UPDATE_RATE_HZ &&
-    parsed <= MAX_DISPLAY_UPDATE_RATE_HZ
+    parsed >= VBUS_MIN_DISPLAY_UPDATE_RATE_HZ &&
+    parsed <= VBUS_MAX_DISPLAY_UPDATE_RATE_HZ
   ) {
     return parsed
   }
@@ -111,34 +122,6 @@ const resolveProtectionDisplayStatus = (
     return 'on'
   }
   return 'off'
-}
-
-const PopoverLifecycle = ({
-  onMount,
-  onUnmount
-}: {
-  onMount: () => void
-  onUnmount: () => void
-}) => {
-  const onMountRef = useRef(onMount)
-  const onUnmountRef = useRef(onUnmount)
-
-  useEffect(() => {
-    onMountRef.current = onMount
-  }, [onMount])
-
-  useEffect(() => {
-    onUnmountRef.current = onUnmount
-  }, [onUnmount])
-
-  useEffect(() => {
-    onMountRef.current()
-    return () => {
-      onUnmountRef.current()
-    }
-  }, [])
-
-  return null
 }
 
 /**
@@ -196,6 +179,7 @@ export const DrpdVbusInstrumentView = ({
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingProtection, setIsResettingProtection] = useState(false)
+  const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
   const pendingAverageRef = useRef<PendingAverageAccumulator>({
     voltageSum: 0,
     currentSum: 0,
@@ -297,8 +281,9 @@ export const DrpdVbusInstrumentView = ({
     storage.setItem(displayRateStorageKey, displayUpdateRateHz.toString())
   }, [displayRateStorageKey, displayUpdateRateHz])
 
-  const vbusVoltage = displayMeasurements.vbusVoltage
-  const vbusCurrent = displayMeasurements.vbusCurrent
+  const measuredVbusCurrent = displayMeasurements.vbusCurrent
+  const vbusVoltage = truncateToDecimals(displayMeasurements.vbusVoltage, 2)
+  const vbusCurrent = truncateToDecimals(displayMeasurements.vbusCurrent, 2)
   const powerValue =
     vbusVoltage != null && vbusCurrent != null
       ? vbusVoltage * vbusCurrent
@@ -308,7 +293,12 @@ export const DrpdVbusInstrumentView = ({
   const ocpValueText = formatProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
   const isProtectionTriggered =
     vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP
-  const protectionStatusText = isProtectionTriggered ? 'Triggered' : 'OK'
+  const isVbusCurrentNegative = measuredVbusCurrent != null && measuredVbusCurrent < 0
+  const protectionStatusText = isVbusCurrentNegative
+    ? 'Disabled'
+    : isProtectionTriggered
+      ? 'Triggered'
+      : 'OK'
 
   const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
     const resetControl: InstrumentHeaderControl = {
@@ -340,184 +330,33 @@ export const DrpdVbusInstrumentView = ({
       id: 'configure-vbus',
       label: 'CONFIGURE',
       disabled: !driver || isEditMode || isApplyingConfig,
-      renderPopover: ({ closePopover }) => (
-        <div className={styles.headerPopup}>
-          <PopoverLifecycle
-            onMount={() => {
-              setConfigureError(null)
-              setOvpThresholdInput(
-                vbusInfo && Number.isFinite(vbusInfo.ovpThresholdMv)
-                  ? (vbusInfo.ovpThresholdMv / 1000).toFixed(2)
-                  : '',
-              )
-              setOcpThresholdInput(
-                vbusInfo && Number.isFinite(vbusInfo.ocpThresholdMa)
-                  ? (vbusInfo.ocpThresholdMa / 1000).toFixed(2)
-                  : '',
-              )
-              setDisplayUpdateRateInput(displayUpdateRateHz.toString())
-            }}
-            onUnmount={() => {
-              // No cleanup needed
-            }}
-          />
-          <div className={styles.headerPopupRow}>
-            <div className={styles.headerPopupField}>
-              <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-ovp`}>
-                OVP (V)
-              </label>
-              <input
-                id={`${instrument.id}-ovp`}
-                className={styles.headerPopupInput}
-                type="number"
-                min={0}
-                max={OVP_MAX_V}
-                step={0.01}
-                value={ovpThresholdInput}
-                onChange={(event) => {
-                  setOvpThresholdInput(event.currentTarget.value)
-                  setConfigureError(null)
-                }}
-                disabled={isApplyingConfig}
-              />
-            </div>
-            <div className={styles.headerPopupField}>
-              <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-ocp`}>
-                OCP (A)
-              </label>
-              <input
-                id={`${instrument.id}-ocp`}
-                className={styles.headerPopupInput}
-                type="number"
-                min={0}
-                max={OCP_MAX_A}
-                step={0.01}
-                value={ocpThresholdInput}
-                onChange={(event) => {
-                  setOcpThresholdInput(event.currentTarget.value)
-                  setConfigureError(null)
-                }}
-                disabled={isApplyingConfig}
-              />
-            </div>
-          </div>
-          <p className={styles.headerPopupHint}>
-            OVP range: 0-{OVP_MAX_V}V · OCP range: 0-{OCP_MAX_A}A
-          </p>
-          <div className={styles.headerPopupField}>
-            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-display-rate`}>
-              Display Rate (Hz)
-            </label>
-            <input
-              id={`${instrument.id}-display-rate`}
-              className={styles.headerPopupInput}
-              type="number"
-              min={MIN_DISPLAY_UPDATE_RATE_HZ}
-              max={MAX_DISPLAY_UPDATE_RATE_HZ}
-              step={1}
-              value={displayUpdateRateInput}
-              onChange={(event) => {
-                setDisplayUpdateRateInput(event.currentTarget.value)
-                setConfigureError(null)
-              }}
-              disabled={isApplyingConfig}
-            />
-          </div>
-          <p className={styles.headerPopupHint}>
-            Display update rate range: {MIN_DISPLAY_UPDATE_RATE_HZ}-{MAX_DISPLAY_UPDATE_RATE_HZ} Hz
-          </p>
-          {configureError ? (
-            <p className={styles.headerPopupError}>{configureError}</p>
-          ) : null}
-          <div className={styles.headerPopupActions}>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                setConfigureError(null)
-                closePopover()
-              }}
-              disabled={isApplyingConfig}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                if (!driver) {
-                  return
-                }
-                const parsedOvpV = Number(ovpThresholdInput)
-                const parsedOcpA = Number(ocpThresholdInput)
-                const parsedDisplayUpdateRateHz = Number(displayUpdateRateInput)
-                if (!Number.isFinite(parsedOvpV) || parsedOvpV < 0 || parsedOvpV > OVP_MAX_V) {
-                  setConfigureError(`OVP must be between 0 and ${OVP_MAX_V} V.`)
-                  return
-                }
-                if (!Number.isFinite(parsedOcpA) || parsedOcpA < 0 || parsedOcpA > OCP_MAX_A) {
-                  setConfigureError(`OCP must be between 0 and ${OCP_MAX_A} A.`)
-                  return
-                }
-                if (
-                  !Number.isFinite(parsedDisplayUpdateRateHz) ||
-                  parsedDisplayUpdateRateHz < MIN_DISPLAY_UPDATE_RATE_HZ ||
-                  parsedDisplayUpdateRateHz > MAX_DISPLAY_UPDATE_RATE_HZ
-                ) {
-                  setConfigureError(
-                    `Display rate must be between ${MIN_DISPLAY_UPDATE_RATE_HZ} and ${MAX_DISPLAY_UPDATE_RATE_HZ} Hz.`,
-                  )
-                  return
-                }
-
-                setIsApplyingConfig(true)
-                setConfigureError(null)
-                void Promise.resolve()
-                  .then(async () => {
-                    setDisplayUpdateRateHz(parsedDisplayUpdateRateHz)
-                    if (vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP) {
-                      await driver.vbus.resetFault()
-                    }
-                    await driver.vbus.setOvpThresholdMv(Math.round(parsedOvpV * 1000))
-                    await driver.vbus.setOcpThresholdMa(Math.round(parsedOcpA * 1000))
-                    await driver.refreshState()
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message = error instanceof Error ? error.message : String(error)
-                    setConfigureError(message)
-                  })
-                  .finally(() => {
-                    setIsApplyingConfig(false)
-                  })
-              }}
-              disabled={isApplyingConfig}
-            >
-              {isApplyingConfig ? 'Applying...' : 'Apply'}
-            </button>
-          </div>
-        </div>
-      )
+      onClick: () => {
+        prepareVbusConfigureDialog({
+          vbusInfo,
+          displayUpdateRateHz,
+          setConfigureError,
+          setOvpThresholdInput,
+          setOcpThresholdInput,
+          setDisplayUpdateRateInput,
+        })
+        setIsConfigureDialogOpen(true)
+      },
     }
 
     return [resetControl, configureControl]
   }, [
-    configureError,
     driver,
-    instrument.id,
+    displayUpdateRateHz,
     isApplyingConfig,
     isProtectionTriggered,
     isEditMode,
-    ocpThresholdInput,
-    ovpThresholdInput,
-    displayUpdateRateHz,
-    displayUpdateRateInput,
     isResettingProtection,
     vbusInfo,
   ])
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -573,7 +412,11 @@ export const DrpdVbusInstrumentView = ({
                 <span className={styles.protectionLabel}>STATUS</span>
                 <span
                   className={`${styles.protectionThreshold} ${
-                    isProtectionTriggered ? styles.protectionStatusTriggered : styles.protectionStatusOk
+                    isVbusCurrentNegative
+                      ? styles.protectionStatusDisabled
+                      : isProtectionTriggered
+                        ? styles.protectionStatusTriggered
+                        : styles.protectionStatusOk
                   }`}
                 >
                   {protectionStatusText}
@@ -587,6 +430,25 @@ export const DrpdVbusInstrumentView = ({
       {deviceRecord ? null : (
         <div className={styles.unassigned}>Device: Unassigned</div>
       )}
-    </InstrumentBase>
+      </InstrumentBase>
+      <VbusConfigurePopover
+        instrumentId={instrument.id}
+        open={isConfigureDialogOpen}
+        onOpenChange={setIsConfigureDialogOpen}
+        driver={driver}
+        vbusInfo={vbusInfo}
+        ovpThresholdInput={ovpThresholdInput}
+        ocpThresholdInput={ocpThresholdInput}
+        displayUpdateRateInput={displayUpdateRateInput}
+        configureError={configureError}
+        isApplyingConfig={isApplyingConfig}
+        setOvpThresholdInput={setOvpThresholdInput}
+        setOcpThresholdInput={setOcpThresholdInput}
+        setDisplayUpdateRateInput={setDisplayUpdateRateInput}
+        setConfigureError={setConfigureError}
+        setIsApplyingConfig={setIsApplyingConfig}
+        setDisplayUpdateRateHz={setDisplayUpdateRateHz}
+      />
+    </>
   )
 }

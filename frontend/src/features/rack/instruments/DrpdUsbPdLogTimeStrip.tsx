@@ -97,6 +97,7 @@ export const DrpdUsbPdLogTimeStrip = ({
   const dataRef = useRef<MessageLogTimeStripWindow | null>(null)
   const followLiveRef = useRef(true)
   const [width, setWidth] = useState(0)
+  const [height, setHeight] = useState(0)
   const [windowDurationUs, setWindowDurationUs] = useState<bigint>(DEFAULT_WINDOW_US)
   const [windowStartUs, setWindowStartUs] = useState<bigint>(0n)
   const [data, setData] = useState<MessageLogTimeStripWindow | null>(null)
@@ -247,11 +248,13 @@ export const DrpdUsbPdLogTimeStrip = ({
       return undefined
     }
     const observer = new ResizeObserver((entries) => {
-      const nextWidth = entries[0]?.contentRect.width ?? 0
-      setWidth(nextWidth)
+      const rect = entries[0]?.contentRect
+      setWidth(rect?.width ?? 0)
+      setHeight(rect?.height ?? 0)
     })
     observer.observe(element)
     setWidth(element.clientWidth)
+    setHeight(element.clientHeight)
     return () => {
       observer.disconnect()
     }
@@ -496,6 +499,7 @@ export const DrpdUsbPdLogTimeStrip = ({
         <DrpdUsbPdLogTimeStripRenderer
           viewportRef={viewportRef as RefObject<HTMLDivElement>}
           width={width}
+          height={height}
           data={data}
           hoverPosition={hoverPosition}
           selectedKey={selectedKey}

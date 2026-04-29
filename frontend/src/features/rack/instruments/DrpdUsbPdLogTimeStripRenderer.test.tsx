@@ -64,7 +64,7 @@ describe('DrpdUsbPdLogTimeStripRenderer', () => {
     )
 
     expect(await screen.findByText('Preamble')).toBeInTheDocument()
-    expect(screen.getByText('SOP')).toBeInTheDocument()
+    expect(screen.queryByText('SOP')).not.toBeInTheDocument()
     expect(screen.getByText('Accept')).toBeInTheDocument()
 
     const baselineSegments = container.querySelectorAll('line[stroke="var(--timestrip-pulse-stroke)"]')
@@ -88,9 +88,9 @@ describe('DrpdUsbPdLogTimeStripRenderer', () => {
     const tickTransforms = getAxisTickTransforms(container)
 
     expect(tickTransforms).toEqual([
-      'translate(18,0)',
-      'translate(138.8,0)',
-      'translate(259.6,0)',
+      'translate(23.4,0)',
+      'translate(142.04000000000002,0)',
+      'translate(260.68,0)',
     ])
     expect(container.querySelector('title')?.textContent).toBe('0')
     expect(screen.queryByText('00:00:00.001400')).not.toBeInTheDocument()

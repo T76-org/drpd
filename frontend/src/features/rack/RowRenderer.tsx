@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import type { Instrument } from '../../lib/instrument'
 import type { RackDeviceRecord, RackInstrument, RackRow } from '../../lib/rack/types'
 import {
-  allocateRowInstrumentWidths,
-  MAX_ROW_WIDTH_UNITS,
-  type RowInstrumentWidthAllocation
+  resolveInstrumentFlex,
+  resolveInstrumentMinimumSize,
+  resolveRowMinimumHeight,
+  resolveRowFlex,
 } from './layout'
 import type { RackDeviceState, RackInstrumentDragPayload } from './RackRenderer'
 import { InstrumentBase } from './InstrumentBase'
@@ -25,9 +26,6 @@ import styles from './RowRenderer.module.css'
 export const RowRenderer = ({
   row,
   rowIndex,
-  rackWidthPx,
-  unitHeightPx,
-  maxRowWidthUnits = MAX_ROW_WIDTH_UNITS,
   instruments,
   activeDeviceRecord,
   deviceStates,
@@ -37,13 +35,11 @@ export const RowRenderer = ({
   onInstrumentDragOver,
   onInstrumentDrop,
   onInstrumentDragEnd,
+  onInstrumentResize,
   onUpdateDeviceConfig
 }: {
   row: RackRow
   rowIndex: number
-  rackWidthPx: number
-  unitHeightPx: number
-  maxRowWidthUnits?: number
   instruments: Instrument[]
   activeDeviceRecord?: RackDeviceRecord
   deviceStates: RackDeviceState[]
@@ -53,6 +49,7 @@ export const RowRenderer = ({
   onInstrumentDragOver?: (payload: RackInstrumentDragPayload) => void
   onInstrumentDrop?: (payload: RackInstrumentDragPayload) => void
   onInstrumentDragEnd?: () => void
+  onInstrumentResize?: (payload: RackInstrumentResizePayload) => void
   onUpdateDeviceConfig?: (
     deviceRecordId: string,
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
@@ -67,48 +64,19 @@ export const RowRenderer = ({
   const deviceStateMap = new Map(
     deviceStates.map((state) => [state.record.id, state]),
   )
-  const maxUnits = Math.max(
-    1,
-    ...row.instruments.map((instrument) => {
-      const definition = instrumentMap.get(instrument.instrumentIdentifier)
-      return definition?.defaultUnits ?? 1
-    }),
-  )
-  const rowMinHeightPx = maxUnits * unitHeightPx
-  const hasVerticalFlexInstrument = row.instruments.some((instrument) => {
-    const definition = instrumentMap.get(instrument.instrumentIdentifier)
-    return definition?.defaultHeightMode === 'flex'
-  })
-  const widthAllocations = allocateRowInstrumentWidths(
-    row,
-    instrumentMap,
-    maxRowWidthUnits,
-  )
-  const allocationMap = new Map(
-    (widthAllocations ?? buildFallbackAllocations(row, maxRowWidthUnits)).map(
-      (allocation) => [allocation.instrumentId, allocation],
-    ),
-  )
-  const unitWidthPx = rackWidthPx / maxRowWidthUnits
-  const rowStyle = hasVerticalFlexInstrument
-    ? {
-        minHeight: rowMinHeightPx,
-        flex: '1 1 0' as const,
-        alignItems: 'flex-start' as const
-      }
-    : {
-        minHeight: rowMinHeightPx,
-        height: rowMinHeightPx,
-        flex: '0 0 auto' as const,
-        alignItems: 'flex-end' as const
-      }
+  const rowFlex = resolveRowFlex(row)
+  const rowMinHeight = resolveRowMinimumHeight(row, instrumentMap)
 
   return (
     <div
       className={styles.row}
-      style={rowStyle}
+      style={{
+        flex: `${rowFlex} 1 0`,
+        alignItems: 'stretch',
+        minHeight: rowMinHeight,
+      }}
       data-testid={`rack-row-${row.id}`}
-      data-row-height={rowMinHeightPx}
+      data-row-flex={rowFlex}
       onDragOver={(event) => {
         if (!isEditMode) {
           return
@@ -146,7 +114,7 @@ export const RowRenderer = ({
         })
       }}
     >
-      {row.instruments.map((instrument) => {
+      {row.instruments.map((instrument, index) => {
         const definition = instrumentMap.get(instrument.instrumentIdentifier)
         const supportsActiveDevice = activeDeviceRecord
           ? definition?.supportedDeviceIdentifiers.includes(activeDeviceRecord.identifier) ?? false
@@ -156,75 +124,137 @@ export const RowRenderer = ({
           supportsActiveDevice && activeDeviceRecord
             ? deviceStateMap.get(activeDeviceRecord.id)
             : undefined
-        const allocation = allocationMap.get(instrument.id)
-        const allocatedWidthUnits = allocation?.widthUnits ?? 1
-        const allocatedHeightUnits = definition?.defaultUnits ?? 1
-        const allocatedWidthPx = allocatedWidthUnits * unitWidthPx
-        const allocatedHeightPx = allocatedHeightUnits * unitHeightPx
-        const isVerticalFlex = definition?.defaultHeightMode === 'flex'
+        const flex = resolveInstrumentFlex(instrument, instrumentMap)
+        const { minWidth, minHeight } = resolveInstrumentMinimumSize(instrument, instrumentMap)
 
         return (
-          <div
-            key={instrument.id}
-            className={styles.instrumentSlot}
-            style={{
-              width: allocatedWidthPx,
-              height: isVerticalFlex ? '100%' : allocatedHeightPx
-            }}
-            data-testid={`rack-instrument-${instrument.id}`}
-            data-rack-instrument-slot="true"
-            data-width-units={allocatedWidthUnits}
-            draggable={isEditMode}
-            onDragStart={(event) => {
-              if (!isEditMode) {
-                return
-              }
-              event.dataTransfer.effectAllowed = 'move'
-              event.dataTransfer.setData('text/plain', instrument.id)
-              onInstrumentDragStart?.(instrument.id)
-            }}
-            onDragEnd={() => {
-              if (!isEditMode) {
-                return
-              }
-              onInstrumentDragEnd?.()
-            }}
-          >
-            {renderInstrument({
-              instrument,
-              definition,
-              deviceRecord,
-              deviceState,
-              isEditMode,
-              onRemove: onRemoveInstrument,
-              onUpdateDeviceConfig
-            })}
-          </div>
+          <Fragment key={instrument.id}>
+            {index > 0 ? (
+              <InstrumentResizeHandle
+                rowId={row.id}
+                leftInstrumentId={row.instruments[index - 1].id}
+                rightInstrumentId={instrument.id}
+                leftFlex={resolveInstrumentFlex(row.instruments[index - 1], instrumentMap)}
+                rightFlex={flex}
+                onInstrumentResize={onInstrumentResize}
+              />
+            ) : null}
+            <div
+              className={styles.instrumentSlot}
+              style={{
+                flex: `${flex} 1 0`,
+                minWidth,
+                minHeight,
+                height: '100%',
+              }}
+              data-testid={`rack-instrument-${instrument.id}`}
+              data-rack-instrument-slot="true"
+              data-flex={flex}
+              draggable={isEditMode}
+              onDragStart={(event) => {
+                if (!isEditMode) {
+                  return
+                }
+                event.dataTransfer.effectAllowed = 'move'
+                event.dataTransfer.setData('text/plain', instrument.id)
+                onInstrumentDragStart?.(instrument.id)
+              }}
+              onDragEnd={() => {
+                if (!isEditMode) {
+                  return
+                }
+                onInstrumentDragEnd?.()
+              }}
+            >
+              {renderInstrument({
+                instrument,
+                definition,
+                deviceRecord,
+                deviceState,
+                isEditMode,
+                onRemove: onRemoveInstrument,
+                onUpdateDeviceConfig
+              })}
+            </div>
+          </Fragment>
         )
       })}
     </div>
   )
 }
 
-/**
- * Build equal-width fallback allocations when row data is invalid.
- *
- * @param row - Rack row.
- * @param maxRowWidthUnits - Maximum row width.
- * @returns Equal allocations across all instruments.
- */
-const buildFallbackAllocations = (
-  row: RackRow,
-  maxRowWidthUnits: number,
-): RowInstrumentWidthAllocation[] => {
-  if (row.instruments.length === 0) {
-    return []
-  }
-  const fallbackWidth = maxRowWidthUnits / row.instruments.length
-  return row.instruments.map((instrument) => ({
-    instrumentId: instrument.id,
-    widthUnits: fallbackWidth
-  }))
+const InstrumentResizeHandle = ({
+  rowId,
+  leftInstrumentId,
+  rightInstrumentId,
+  leftFlex,
+  rightFlex,
+  onInstrumentResize,
+}: {
+  rowId: string
+  leftInstrumentId: string
+  rightInstrumentId: string
+  leftFlex: number
+  rightFlex: number
+  onInstrumentResize?: (payload: RackInstrumentResizePayload) => void
+}) => {
+  return (
+    <div
+      className={styles.instrumentResizeHandle}
+      role="separator"
+      aria-orientation="vertical"
+      tabIndex={0}
+      data-testid={`rack-instrument-resize-${leftInstrumentId}-${rightInstrumentId}`}
+      onPointerDown={(event) => {
+        if (!onInstrumentResize) {
+          return
+        }
+        event.preventDefault()
+        const startX = event.clientX
+        const pointerId = event.pointerId
+        event.currentTarget.setPointerCapture(pointerId)
+        const handle = event.currentTarget
+        const leftElement = handle.previousElementSibling
+        const rightElement = handle.nextElementSibling
+        const leftWidth = leftElement instanceof HTMLElement ? leftElement.getBoundingClientRect().width : 0
+        const rightWidth = rightElement instanceof HTMLElement ? rightElement.getBoundingClientRect().width : 0
+        const handlePointerMove = (moveEvent: PointerEvent) => {
+          onInstrumentResize({
+            rowId,
+            leftInstrumentId,
+            rightInstrumentId,
+            delta: moveEvent.clientX - startX,
+            leftFlex,
+            rightFlex,
+            leftSize: leftWidth,
+            rightSize: rightWidth,
+          })
+        }
+        const handlePointerUp = () => {
+          handle.removeEventListener('pointermove', handlePointerMove)
+          handle.removeEventListener('pointerup', handlePointerUp)
+          handle.removeEventListener('pointercancel', handlePointerUp)
+          if (handle.hasPointerCapture(pointerId)) {
+            handle.releasePointerCapture(pointerId)
+          }
+        }
+        handle.addEventListener('pointermove', handlePointerMove)
+        handle.addEventListener('pointerup', handlePointerUp)
+        handle.addEventListener('pointercancel', handlePointerUp)
+      }}
+    />
+  )
+}
+
+export interface RackInstrumentResizePayload {
+  rowId: string
+  leftInstrumentId: string
+  rightInstrumentId: string
+  delta: number
+  leftFlex: number
+  rightFlex: number
+  leftSize: number
+  rightSize: number
 }
 
 /**

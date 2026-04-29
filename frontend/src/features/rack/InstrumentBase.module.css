@@ -36,11 +36,12 @@
 }
 
 .header {
+  --header-scale: 1.5;
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-width: 0;
-  padding: var(--space-4) var(--space-8);
+  padding: calc(var(--space-4) * var(--header-scale)) calc(var(--space-8) * var(--header-scale));
   background-color: transparent;
   background-image: var(--texture-instrument-header),
     linear-gradient(
@@ -53,7 +54,7 @@
   border-bottom: var(--border-thin) solid var(--color-border-panel);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-md);
-  font-size: var(--font-size-3xs);
+  font-size: calc(var(--font-size-3xs) * var(--header-scale));
 }
 
 .name {
@@ -108,7 +109,7 @@
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-panel);
   color: var(--color-text-primary);
-  font-size: var(--rack-header-control-font-size);
+  font-size: calc(var(--rack-header-control-font-size) * 1.2);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-sm);
   padding: var(--space-1) var(--space-4);

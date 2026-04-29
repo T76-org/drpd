@@ -28,8 +28,8 @@ The main UI metaphor is a rack. A rack is the top-level visual workspace. It con
 
 - a list of physical devices attached to the rack
 - a list of rows
-- a fixed maximum width budget per row
-- a total available vertical size measured in rack units
+- persisted flex weights for rows and instruments
+- draggable splitters between adjacent instruments and rows
 
 The rack definition is persisted in local storage, so layout changes survive reloads.
 
@@ -50,13 +50,13 @@ An instrument is one UI panel. Examples in this frontend include:
 - `Timestrip`
 - `Message Detail`
 
-Each instrument has a default width and height. Some instruments use fixed width, some use flexible width, and some can stretch vertically.
+Each instrument has a default flex weight plus minimum CSS width/height constraints. Users can resize instruments freely without a grid.
 
 ### Row
 
-A row is a horizontal strip in the rack. Instruments sit side by side inside a row. Fixed-width instruments consume their declared width first. Any remaining width is split across flex-width instruments.
+A row is a horizontal strip in the rack. Instruments sit side by side inside a row. The space between instruments is a draggable splitter that shifts flex weight from one neighbor to the other.
 
-Rows also determine height. The row height is driven by the tallest instrument in that row unless one of the instruments uses vertical flex mode, in which case the row can stretch to consume remaining height.
+Rows also determine height. The space between rows is a draggable splitter. Dragging it grows one row and shrinks the adjacent row while honoring instrument minimum heights.
 
 ### Edit Mode
 
@@ -68,13 +68,15 @@ The rack has an edit mode for layout changes. In edit mode:
 - drag operations can reorder within a row or create new rows
 - changes are transactional until the user saves
 
+Resize splitters are always active, even outside edit mode.
+
 This matters for design work because layout affordances, focus states, glow treatments, and empty/drop states all live in this mode.
 
 ## How The Frontend Is Organized
 
 ### Main entry points
 
-- `src/main.tsx`: bootstraps the app and computes the global `--ui-scale`
+- `src/main.tsx`: bootstraps the app
 - `src/App.tsx`: very thin shell around the rack view
 - `src/index.css`: global design tokens, colors, typography, spacing, and rack sizing tokens
 - `src/App.css`: root viewport layout
@@ -85,8 +87,8 @@ Most layout and UX work happens in `src/features/rack/`.
 
 - `RackView.tsx`: page-level rack experience, header, theme toggle, add-device and add-instrument menus, edit mode, and persistence wiring
 - `RackRenderer.tsx`: rack canvas sizing, scroll/fit behavior, row rendering, full-screen overlay handling
-- `RowRenderer.tsx`: per-row instrument allocation, drag/drop insertion logic, and dispatch to concrete instrument views
-- `layout.ts`: width allocation rules for rows
+- `RowRenderer.tsx`: per-row instrument sizing, resize splitters, drag/drop insertion logic, and dispatch to concrete instrument views
+- `layout.ts`: legacy unit helpers plus flex/min-size helpers
 - `rackCanvasSize.ts`: computes the base rack canvas width and height
 - `rackSizing.ts`: reads sizing tokens from CSS so TypeScript layout logic and CSS stay aligned
 
@@ -110,42 +112,40 @@ If you are redesigning a specific panel, work in that instrument’s `.tsx` and 
 
 - `src/lib/rack/types.ts`: rack, row, instrument-instance, and device-record data model
 - `src/lib/rack/loadRack.ts`: local storage persistence
-- `src/lib/instrument/types.ts`: instrument definition model including width and height modes
+- `src/lib/instrument/types.ts`: instrument definition model including default flex and minimum CSS sizes
 - `src/features/rack/instrumentCatalog.ts`: the catalog of supported instruments and their default sizes
 - `src/lib/device/drpd.ts`: Dr. PD device definition
 
 ## How Layout Works
 
-### Unit-based layout
+### Flex-based layout
 
-The rack uses a visual unit system instead of freeform pixel sizing.
+The rack uses CSS flex for instruments and rows. Legacy unit fields still exist for compatibility, but the renderer no longer allocates space with a grid or explicit panel sizes.
 
 Default sizing tokens are:
 
-- 1 horizontal unit = `20px * --ui-scale`
-- 1 vertical rack unit = `100px * --ui-scale`
+- 1 horizontal unit = `20px`
+- 1 vertical rack unit = `100px`
 - maximum row width = `60` horizontal units
 
-In practice this gives a canonical rack canvas width of `60 * 20 = 1200` scaled pixels before any browser-level zooming.
+In practice the standard bench layout keeps a 1200 px reference width for header alignment. The rack canvas itself fills the viewport, with row heights and instrument widths coming from CSS flex weights.
 
-### Width allocation
+### Width allocation and resizing
 
 Instrument widths come from `instrumentCatalog.ts`.
 
-- fixed instruments declare `defaultWidth: { mode: 'fixed', units: n }`
-- flexible instruments declare `defaultWidth: { mode: 'flex' }`
+- `defaultFlex`: default horizontal weight for new or migrated instances
+- `minWidth`: minimum width CSS length during resizing
 
-`layout.ts` applies these rules:
+`RowRenderer.tsx` renders a splitter between adjacent instruments. Dragging it increases one instrument's flex weight and decreases the neighbor's flex weight. The browser handles final sizing through CSS flex.
 
-1. fixed-width instruments consume their units first
-2. remaining row width is divided equally across flex instruments
-3. if fixed instruments already consume the whole row, flex instruments cannot fit
+The saved `RackInstrument.flex` value wins over catalog defaults.
 
 ### Height allocation
 
-Each instrument also declares `defaultUnits`, which is its default height in rack units.
+Each row and instrument uses flex for height distribution. Instruments declare `minHeight`.
 
-Most instruments are fixed-height. A few use `defaultHeightMode: 'flex'`, which allows the row to stretch vertically and fill remaining rack height. In the current catalog, the main stretchable views are the log and detail-oriented instruments.
+`RackRenderer.tsx` renders a splitter between rows. Dragging it shifts flex weight between adjacent rows.
 
 ### Full-screen mode
 
@@ -165,7 +165,7 @@ An instrument instance can be marked `fullScreen: true`. When that happens, `Rac
 - elevation shadows: `--shadow-instrument` (instrument panels; dark uses inset top highlight + outer shadow), `--shadow-rack-canvas` (rack canvas), `--shadow-header` (page header; light theme)
 - dark default look: charcoal / neomorphic-inspired surfaces (`#121212` page, `#1e1e1e` panels, instrument body uses `--color-surface-instrument` gradient only); instrument **title bars** use `--texture-instrument-header` (subtle diagonal stripes) plus a light gradient; light theme restores a larger `--radius-instrument`
 
-Most dimensions are expressed through CSS custom properties multiplied by `var(--ui-scale)`. That is the key pattern to preserve.
+Most shared dimensions are expressed through CSS custom properties in `src/index.css`. Use those tokens directly instead of reintroducing global scaling.
 
 ### Scoped styles second
 
@@ -187,24 +187,16 @@ The intended layering is:
 
 - Use tokens from `src/index.css` instead of hardcoded pixel or `rem` values when possible.
 - Header popovers should use the shared popup typography tokens, not custom font sizes per instrument.
-- Most instrument spacing and sizing should inherit from `--ui-scale` so the interface stays coherent across displays.
+- Most instrument spacing and sizing should inherit from shared tokens so the interface stays coherent across displays.
 - Shared panel chrome belongs in `InstrumentBase.module.css`; avoid duplicating it inside each instrument.
 
 ## How The UI Scales Across Resolutions
 
-### Global scale
+### Fixed tokens
 
-The app computes a single global scale factor in `src/main.tsx` and writes it into `--ui-scale`.
+The app uses fixed design tokens from `src/index.css`. Browser zoom remains native browser behavior; the app does not compute or write a global UI scale.
 
-The current behavior is:
-
-- reference viewport width: `1024px`
-- reference content width: `800px`
-- minimum scale: `0.82`
-- maximum scale: `2.8`
-- source measurement: `window.screen.width` first, then window/document width fallbacks
-
-Because the scale is written into CSS variables, typography, spacing, borders, rack units, popovers, and many instrument-specific measurements all scale together.
+Because the scale is written into CSS variables, typography, spacing, borders, splitters, popovers, and many instrument-specific measurements all scale together.
 
 ### Practical effect
 
@@ -217,7 +209,7 @@ On smaller screens:
 On larger screens:
 
 - the same visual system expands proportionally
-- rack units get larger
+- flex panels render larger in the scaled UI
 - popovers and dense data tables also scale up
 
 This frontend is therefore better described as a scaled desktop instrument UI than as a breakpoint-heavy responsive website.
@@ -229,11 +221,11 @@ This frontend is therefore better described as a scaled desktop instrument UI th
 - if the viewport is shorter than the computed rack canvas height, the rack enters scroll mode
 - if the viewport is tall enough, the rack fits without vertical scrolling
 
-The renderer tracks viewport height with `ResizeObserver`, then decides whether to allow vertical scroll inside the rack canvas.
+The renderer lets CSS flex stretch the rack canvas to the viewport. If minimum sizes exceed the viewport, the containing viewport handles overflow.
 
 ### Popovers and overlays
 
-Header menus and instrument popovers use viewport-aware positioning from `RackView.tsx` and sizing tokens from `rackSizing.ts`. Their dimensions still scale via `--ui-scale`, but their position is clamped so they stay on-screen.
+Header menus and instrument popovers use viewport-aware positioning from `RackView.tsx` and sizing tokens from `rackSizing.ts`. Their dimensions come from fixed tokens, and their position is clamped so they stay on-screen.
 
 ## Where A Designer Should Start
 

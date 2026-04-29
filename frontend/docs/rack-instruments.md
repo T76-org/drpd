@@ -27,11 +27,14 @@ The Rack document is stored in localStorage under `drpd:rack:document` via `load
 - `id`: stable rack id.
 - `name`: displayed in the header.
 - `hideHeader`: optional, hides the header when true.
-- `totalUnits`: vertical height in units (1 unit = 100 px).
-- Horizontal width units are derived by instrument definitions (1 width unit = 20 px).
+- `totalUnits`: legacy vertical height hint retained for older saved documents.
 - `rows`: list of rows, each row holding instruments.
 
-Each row contains `instruments`, which store an `instrumentIdentifier` plus instance-specific fields (`fullScreen`, `resizable`). Horizontal width is defined by the Instrument definition, not the rack JSON. If any instrument has `fullScreen: true`, the rack renderer shows a full-screen overlay instead of the row layout.
+Each row can store `flex`. Each instrument stores an `instrumentIdentifier` plus instance-specific fields (`flex`, `fullScreen`, `resizable`, `config`). `flex` is a relative CSS flex weight. If a saved document omits it, `RowRenderer` falls back to the instrument definition default.
+
+The default document built by `loadRackDocument` is a populated Dr. PD rack: status/control instruments on the first row, a full-width timestrip on the second row, and log/detail instruments on the third row. IDs are stable for persistence, but the important contract is the layout and instrument identifiers.
+
+If any instrument has `fullScreen: true`, the rack renderer shows a full-screen overlay instead of the row layout.
 
 ## How compatibility works
 
@@ -39,10 +42,11 @@ Each Instrument definition exposes:
 
 - `identifier`: reverse-domain identifier (unique).
 - `supportedDeviceIdentifiers`: list of Device identifiers it supports.
-- `defaultWidth`: either fixed width (`{ mode: 'fixed', units: <n> }`) or flex width (`{ mode: 'flex' }`).
-- `defaultUnits`: default height in units.
+- `defaultFlex`: default CSS flex weight when an instance has no saved flex.
+- `minWidth` and `minHeight`: CSS length clamps for user resizing.
+- `defaultWidth`, `defaultUnits`, and `defaultHeightMode`: legacy unit fields retained for older helpers and tests.
 
-Rows use a maximum width budget (`MAX_ROW_WIDTH_UNITS`, currently 60). Fixed-width instruments consume their configured width first. Flex-width instruments split any remaining space equally. If a row has no remaining width, flex instruments cannot be inserted into that row.
+Rows no longer use a grid or maximum unit budget. The rack canvas fills the available window. Rows flex vertically and instruments flex horizontally from CSS flex weights.
 
 The Rack UI exposes the supported instrument catalog independently of paired-device state. When a compatible paired device is connected, matching instruments receive that active device runtime. Otherwise they render in an unassigned or disconnected state.
 
@@ -73,7 +77,10 @@ Create a new file in `src/features/rack/instrumentCatalog.ts` or a new module in
           displayName: 'Acme Scope',
           supportedDeviceIdentifiers: ['com.acme.scope.model1000'],
           defaultWidth: { mode: 'fixed', units: 4 },
-          defaultUnits: 3
+          defaultUnits: 3,
+          defaultFlex: 4,
+          minWidth: '14rem',
+          minHeight: '10rem'
         })
       }
     }
@@ -82,7 +89,7 @@ Then register it in `getSupportedInstruments()`.
 
 2) Add a UI component for the instrument.
 
-Create a UI file under `src/features/rack/instruments/`, for example `AcmeScopeInstrumentView.tsx`. Render inside `InstrumentBase` and show any content you want. The view receives the allocated pixel size and units, so you can show a readout or use it for layout.
+Create a UI file under `src/features/rack/instruments/`, for example `AcmeScopeInstrumentView.tsx`. Render inside `InstrumentBase` and show any content you want. Size is controlled by the rack slot around the component, so the view should fill its parent and respond to available space with CSS.
 
 Follow the standard instrument view pattern:
 
@@ -95,27 +102,16 @@ Follow the standard instrument view pattern:
       displayName,
       deviceRecord,
       deviceState,
-      allocatedWidthPx,
-      allocatedHeightPx,
-      allocatedWidthUnits,
-      allocatedHeightUnits
     }: {
       instrument: RackInstrument
       displayName: string
       deviceRecord?: RackDeviceRecord
       deviceState?: RackDeviceState
-      allocatedWidthPx: number
-      allocatedHeightPx: number
-      allocatedWidthUnits: number
-      allocatedHeightUnits: number
     }) => {
       return (
         <InstrumentBase instrument={instrument} displayName={displayName}>
           <div>Device: {deviceRecord?.displayName ?? 'Unassigned'}</div>
           <div>Status: {deviceState?.status ?? 'Unknown'}</div>
-          <div>Width: {allocatedWidthPx}px</div>
-          <div>Height: {allocatedHeightPx}px</div>
-          <div>Units: {allocatedWidthUnits}w × {allocatedHeightUnits}h</div>
         </InstrumentBase>
       )
     }
@@ -126,17 +122,17 @@ Update `src/features/rack/RowRenderer.tsx` to render your new view when the inst
 
 4) Test compatibility filtering.
 
-Update `src/features/rack/__tests__/RackView.test.tsx` to assert that your instrument appears in the Add Instrument list when the rack includes a compatible device identifier, and that adding it appends a new row.
+Update tests to assert that your instrument can be rendered in a rack row and that its flex/min-size values are honored by resize behavior.
 
 ## Adding instruments in the UI
 
-The Rack header includes an Add Instrument button that appears only when:
+Instrument instances are added by inserting a `RackInstrument` in a row and saving the rack document. New instances should start with the catalog `defaultFlex`.
 
 - A rack is active
 - The header is not hidden
 - The rack has at least one device
 
-When the user selects an instrument, a new row is appended to the Rack and saved to localStorage.
+When the document changes, `saveRackDocument` persists the new layout to localStorage.
 
 ## Edit mode workflow
 
@@ -146,16 +142,22 @@ The Rack header includes an Edit button. When Edit mode is enabled:
 - Instruments gain a softly pulsing glow and a muted/blurred content area to indicate they are draggable.
 - Instruments can be dragged between rows. The layout updates live during drag.
 - Drop targets appear between rows (including before the first and after the last row). Dropping there creates a new row that contains the dragged instrument.
-- Dropping onto an existing row inserts at the pointer position when the row stays within max width.
+- Dropping onto an existing row inserts at the pointer position.
 - Adjacent instrument borders collapse so only a single border is visible between neighbors.
 
 Edit mode is transactional: Cancel discards all layout edits made during the session, while Save persists the updated rack JSON to localStorage.
 
+## Resizing
+
+Instruments are always resizable, including outside edit mode. The space between adjacent instruments is a vertical splitter. Dragging it changes the neighboring flex weights. The space between rows is a horizontal splitter with the same behavior for row flex weights.
+
+Resize operations respect the instrument definition's `minWidth` and `minHeight`, or an instance-level `resizable.minWidth` / `resizable.minHeight` override.
+
 ## Troubleshooting
 
-- If an instrument does not appear in the Add Instrument list, check that its `supportedDeviceIdentifiers` includes a device identifier present in the rack’s `devices` list.
+- If an instrument does not bind to a device, check that its `supportedDeviceIdentifiers` includes the active paired device identifier.
 - If changes do not persist, ensure `saveRackDocument` is called after modifications.
-- If the UI shows “No compatible instruments,” confirm that at least one device has been added to the rack.
+- If resizing stops before the pointer stops moving, check `minWidth` and `minHeight` on the instrument definition or persisted instance.
 
 ## Header popup typography
 

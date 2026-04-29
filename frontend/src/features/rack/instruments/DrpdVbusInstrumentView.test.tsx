@@ -145,6 +145,39 @@ describe('DrpdVbusInstrumentView', () => {
     expect(screen.getAllByText('----')).toHaveLength(2)
   })
 
+  it('truncates VBUS voltage and current before rendering and calculating power', () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setAnalogMonitor(
+      buildAnalogMonitor({
+        vbus: 12.349,
+        ibus: 1.239,
+      }),
+    )
+
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver,
+    }
+
+    render(
+      <DrpdVbusInstrumentView
+        instrument={buildInstrument()}
+        displayName="VBUS"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByText('12.34')).toBeInTheDocument()
+    expect(screen.getByText('1.23')).toBeInTheDocument()
+    expect(screen.getByText('15.18')).toBeInTheDocument()
+    expect(screen.queryByText('12.35')).toBeNull()
+    expect(screen.queryByText('1.24')).toBeNull()
+    expect(screen.queryByText('15.30')).toBeNull()
+  })
+
   it('updates displayed measurements at the configured rate using averaged samples', () => {
     vi.useFakeTimers()
     const transport = new TestTransport()
@@ -274,6 +307,42 @@ describe('DrpdVbusInstrumentView', () => {
       )
     })
     expect(screen.getByText('Triggered')).toBeInTheDocument()
+  })
+
+  it('shows disabled status when VBUS current is negative', () => {
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setAnalogMonitor(
+      buildAnalogMonitor({
+        vbus: 5,
+        ibus: -0.2,
+      }),
+    )
+    driver.setVBusInfo({
+      status: VBusStatus.ENABLED,
+      ovpThresholdMv: 15000,
+      ocpThresholdMa: 3000,
+      ovpEventTimestampUs: null,
+      ocpEventTimestampUs: null,
+    })
+
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver,
+    }
+
+    render(
+      <DrpdVbusInstrumentView
+        instrument={buildInstrument()}
+        displayName="VBUS"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(screen.getByText('Disabled')).toBeInTheDocument()
+    expect(screen.queryByText('OK')).toBeNull()
   })
 
   it('hydrates protection state when the driver attaches after the first render', async () => {

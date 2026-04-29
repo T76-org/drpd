@@ -25,6 +25,9 @@ const buildInstrumentDefinition = (
     defaultWidth: width,
     defaultUnits: 1,
     defaultHeightMode: 'fixed',
+    defaultFlex: width.mode === 'fixed' ? width.units : 1,
+    minWidth: '10rem',
+    minHeight: '6rem',
   } as Instrument
 }
 

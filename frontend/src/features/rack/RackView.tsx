@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Device } from '../../lib/device'
 import type { DeviceIdentity } from '../../lib/device'
-import type { Instrument } from '../../lib/instrument'
 import {
   CCBusRole,
+  CCBusRoleStatus,
+  DRPDDevice,
   DRPDDeviceDefinition,
   OnOffState,
+  SinkPdoType,
+  TriggerEventType,
+  TriggerMessageTypeFilterClass,
+  TriggerSenderFilter,
+  TriggerStatus,
+  TriggerSyncMode,
+  VBusStatus,
   buildCapturedLogSelectionKey,
   buildDefaultLoggingConfig,
   decodeLoggedCapturedMessage,
@@ -18,6 +25,14 @@ import {
   buildUSBFilters,
   findMatchingDevices,
   verifyMatchingDevices
+} from '../../lib/device'
+import type {
+  AnalogMonitorChannels,
+  SinkInfo,
+  SinkPdo,
+  TriggerInfo,
+  TriggerMessageTypeFilter,
+  VBusInfo,
 } from '../../lib/device'
 import {
   checkForFirmwareUpdate,
@@ -41,28 +56,55 @@ import drpdLogoLight from '../../assets/drpd-logo-light.svg'
 import type {
   RackDefinition,
   RackDeviceRecord,
-  RackDocument
+  RackDocument,
+  RackInstrument,
 } from '../../lib/rack/types'
 import {
   RackRenderer,
   type RackDeviceState,
-  type RackInstrumentDragPayload
+  type RackInstrumentDragPayload,
+  type RackRowResizePayload,
 } from './RackRenderer'
-import { getRackCanvasSize } from './rackCanvasSize'
-import {
-  canInsertInstrumentIntoRow,
-  insertInstrumentIntoRowAtIndex,
-} from './layout'
+import { insertInstrumentIntoRowAtIndex } from './layout'
+import type { RackInstrumentResizePayload } from './RowRenderer'
 import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
-import { useRackSizingConfig } from './rackSizing'
-import { RACK_SHORTCUTS, matchRackShortcut } from './shortcuts'
+import { matchRackShortcut } from './shortcuts'
 import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
+import { Menu, type MenuItem } from '../../ui/overlays'
+import { FirmwareUpdateDialog } from './overlays/firmware/FirmwareUpdateDialog'
+import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
+import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
+import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopover'
+import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
+import {
+  MessageLogClearPopover,
+  MessageLogConfigurePopover,
+} from './overlays/usbPdLog/LogActionPopovers'
+import { MessageLogFilterPopover } from './overlays/usbPdLog/MessageLogFilterPopover'
+import {
+  toggleFilterValue,
+  type FilterOption,
+  type MessageLogFilters,
+} from './overlays/usbPdLog/usbPdLogFilters'
+import {
+  DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY,
+  DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS,
+  notifyMessageLogColumnVisibilityChanged,
+  readMessageLogColumnVisibility,
+  saveMessageLogColumnVisibility,
+  saveMessageLogColumnWidths,
+  type MessageLogColumnVisibility,
+} from './overlays/usbPdLog/messageLogColumns'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
+type LayoutMode = 'fixed' | 'full'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
+const LAYOUT_STORAGE_KEY = 'drpd:layout'
+const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
+const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
 const UPDATER_RECONNECT_TIMEOUT_MS = 10_000
@@ -73,8 +115,19 @@ const WINUSB_INTERFACE_CLASS = 0xff
 const WINUSB_INTERFACE_SUBCLASS = 0x01
 const WINUSB_INTERFACE_PROTOCOL = 0x02
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
-const HEADER_MENU_POPOVER_Z_INDEX = 11000
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
+const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
+const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
+const MIN_CAPTURED_MESSAGE_BUFFER = 100
+const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
+const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
+const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
+  messageTypes: { include: [], exclude: [] },
+  senders: { include: [], exclude: [] },
+  receivers: { include: [], exclude: [] },
+  sopTypes: { include: [], exclude: [] },
+  crcValid: { include: [], exclude: [] },
+}
 
 interface DRPDLogsConsoleHelper {
   devices(): Array<{ id: string; name: string; status: string }>
@@ -108,34 +161,6 @@ type RackConsoleWindow = Window &
   typeof globalThis & {
     __drpdLogs?: DRPDLogsConsoleHelper
   }
-
-/**
- * Describes a drag interaction while editing the rack layout.
- */
-interface DragState {
-  ///< Instrument id being dragged.
-  instrumentId: string
-  ///< Snapshot of the rack at drag start.
-  snapshot: RackDefinition
-  ///< Whether a drop was completed.
-  didDrop: boolean
-  ///< Last target key to reduce redundant updates.
-  lastTargetKey?: string
-}
-
-/**
- * Describes a drop target for a dragged instrument.
- */
-interface DropTarget {
-  ///< Drop mode indicating placement behavior.
-  mode: 'insertIntoRow' | 'insertAsNewRow'
-  ///< Target row id for row insertion behavior.
-  rowId?: string
-  ///< Target row index for insertion behavior.
-  rowIndex: number
-  ///< In-row insertion index for row insertion behavior.
-  insertIndex?: number
-}
 
 /**
  * Runtime details for a connected device.
@@ -178,16 +203,15 @@ type SelectedDeviceInfo = {
   productName: string | null
 }
 
-const formatRackDeviceLabel = (record: RackDeviceRecord): string => {
-  const parts = [record.displayName]
-  if (record.firmwareVersion) {
-    parts.push(record.firmwareVersion)
-  }
-  const displaySerial = record.deviceSerialNumber ?? record.serialNumber
-  if (displaySerial) {
-    parts.push(`#${displaySerial}`)
-  }
-  return parts.join(' ')
+interface HeaderVbusDisplayMeasurements {
+  vbusVoltage: number | null
+  vbusCurrent: number | null
+}
+
+interface HeaderVbusPendingAverage {
+  voltageSum: number
+  currentSum: number
+  sampleCount: number
 }
 
 const identifyRackDeviceRuntime = async (
@@ -248,6 +272,276 @@ const sleep = async (ms: number): Promise<void> =>
     window.setTimeout(resolve, ms)
   })
 
+const truncateHeaderMetric = (value: number | null | undefined): number | null => {
+  if (value == null || !Number.isFinite(value)) {
+    return null
+  }
+  return Math.trunc(value * 100) / 100
+}
+
+const formatHeaderMetric = (value: number | null | undefined): string => {
+  const truncatedValue = truncateHeaderMetric(value)
+  if (truncatedValue == null) {
+    return '--'
+  }
+  return truncatedValue.toFixed(2)
+}
+
+const formatHeaderAccumulatorMetric = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) {
+    return '--'
+  }
+  return value.toFixed(2)
+}
+
+const formatHeaderProtectionThreshold = (
+  value: number | null | undefined,
+  divisor: number,
+  unit: string,
+): { text: { ghost: string; value: string }; unit: string } => {
+  if (value == null || !Number.isFinite(value)) {
+    return { text: { ghost: '', value: '--' }, unit }
+  }
+  const formattedValue = (value / divisor).toFixed(2)
+  const paddedValue = formattedValue.padStart(5, '0')
+  return {
+    text: {
+      ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
+      value: formattedValue,
+    },
+    unit,
+  }
+}
+
+const formatHeaderAccumulatorMetricWithGhostZeros = (
+  value: number | null | undefined,
+): { ghost: string; value: string } => {
+  const formattedValue = formatHeaderAccumulatorMetric(value)
+  if (formattedValue === '--') {
+    return { ghost: '', value: formattedValue }
+  }
+  const paddedValue = formattedValue.padStart(6, '0')
+  return {
+    ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
+    value: formattedValue,
+  }
+}
+
+const HeaderGhostValue = ({
+  text,
+}: {
+  text: { ghost: string; value: string }
+}) => (
+  <>
+    <span className={styles.headerVbusGhostZeros}>{text.ghost}</span>
+    {text.value}
+  </>
+)
+
+const HeaderAccumulatorValue = ({
+  text,
+  unit,
+}: {
+  text: { ghost: string; value: string }
+  unit: string
+}) => (
+  <span className={styles.headerVbusAccumulatorValue}>
+    <span className={styles.headerVbusAccumulatorNumber}>
+      <HeaderGhostValue text={text} />
+    </span>
+    <span className={styles.headerVbusAccumulatorUnit}>{unit}</span>
+  </span>
+)
+
+const HeaderProtectionValue = ({
+  value,
+}: {
+  value: { text: { ghost: string; value: string }; unit: string }
+}) => (
+  <span className={styles.headerVbusProtectionValue}>
+    <span className={styles.headerVbusProtectionNumber}>
+      <HeaderGhostValue text={value.text} />
+    </span>
+    <span className={styles.headerVbusProtectionUnit}>{value.unit}</span>
+  </span>
+)
+
+const formatHeaderMetricWithGhostZeros = (
+  value: number | null | undefined,
+  width: number,
+): { ghost: string; value: string } => {
+  const formattedValue = formatHeaderMetric(value)
+  if (formattedValue === '--') {
+    return { ghost: '', value: formattedValue }
+  }
+  const paddedValue = formattedValue.padStart(width, '0')
+  return {
+    ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
+    value: formattedValue,
+  }
+}
+
+const resolveHeaderCurrentFlow = (
+  role: CCBusRole | null,
+  current: number | null,
+): {
+  kind: 'flow'
+  from: string
+  to: string
+  direction: 'right' | 'left'
+  toPort: boolean
+  toBananaPort: boolean
+} | { kind: 'text'; text: string } => {
+  if (role !== CCBusRole.OBSERVER && role !== CCBusRole.SINK) {
+    return { kind: 'text', text: '—' }
+  }
+  if (role === CCBusRole.OBSERVER && current === 0) {
+    return { kind: 'text', text: 'IDLE' }
+  }
+  if (current == null || current === 0) {
+    return { kind: 'text', text: '—' }
+  }
+  if (role === CCBusRole.OBSERVER) {
+    return {
+      kind: 'flow',
+      from: '1',
+      to: '2',
+      direction: current > 0 ? 'right' : 'left',
+      toPort: true,
+      toBananaPort: false,
+    }
+  }
+  if (current < 0) {
+    return { kind: 'text', text: '—' }
+  }
+  return {
+    kind: 'flow',
+    from: '1',
+    to: 'B',
+    direction: 'right',
+    toPort: false,
+    toBananaPort: true,
+  }
+}
+
+const formatHeaderRoleLabel = (role: CCBusRole | null): string => {
+  if (!role) {
+    return '--'
+  }
+  switch (role) {
+    case CCBusRole.DISABLED:
+      return 'Disabled'
+    case CCBusRole.OBSERVER:
+      return 'Observer'
+    case CCBusRole.SINK:
+      return 'Sink'
+    default:
+      return '--'
+  }
+}
+
+const formatHeaderRoleStatusLabel = (status: CCBusRoleStatus | null): string => {
+  if (!status) {
+    return '--'
+  }
+  switch (status) {
+    case CCBusRoleStatus.UNATTACHED:
+      return 'Unattached'
+    case CCBusRoleStatus.SOURCE_FOUND:
+      return 'Source Found'
+    case CCBusRoleStatus.ATTACHED:
+      return 'Attached'
+    default:
+      return '--'
+  }
+}
+
+const formatHeaderSinkPdoType = (pdo: SinkPdo | null | undefined): string => {
+  if (!pdo) {
+    return '—'
+  }
+  switch (pdo.type) {
+    case SinkPdoType.FIXED:
+      return 'Fixed'
+    case SinkPdoType.SPR_PPS:
+      return 'PPS'
+    case SinkPdoType.SPR_AVS:
+    case SinkPdoType.EPR_AVS:
+      return 'AVS'
+    case SinkPdoType.VARIABLE:
+      return 'Variable'
+    case SinkPdoType.BATTERY:
+      return 'Battery'
+    case SinkPdoType.AUGMENTED:
+      return 'Augmented'
+    default:
+      return '—'
+  }
+}
+
+const formatHeaderCompactNumber = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return '--'
+  }
+  return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2)
+}
+
+const formatHeaderElapsed = (elapsedUs: bigint | null | undefined): string => {
+  if (elapsedUs == null) {
+    return '--:--:--'
+  }
+  const totalSeconds = Number(elapsedUs / 1_000_000n)
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return '--:--:--'
+  }
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map((part) => part.toString().padStart(2, '0')).join(':')
+}
+
+const formatHeaderSinkContract = (sinkInfo: SinkInfo | null): string => {
+  if (
+    !sinkInfo ||
+    !Number.isFinite(sinkInfo.negotiatedVoltageMv) ||
+    !Number.isFinite(sinkInfo.negotiatedCurrentMa)
+  ) {
+    return '—'
+  }
+  const voltageV = sinkInfo.negotiatedVoltageMv / 1000
+  const currentA = sinkInfo.negotiatedCurrentMa / 1000
+  return `${formatHeaderCompactNumber(voltageV)}V @ ${formatHeaderCompactNumber(currentA)}A`
+}
+
+const formatHeaderTriggerStatus = (value: TriggerInfo['status'] | null | undefined): string => {
+  switch (value) {
+    case TriggerStatus.IDLE:
+      return 'Idle'
+    case TriggerStatus.ARMED:
+      return 'Armed'
+    case TriggerStatus.TRIGGERED:
+      return 'Triggered'
+    default:
+      return '--'
+  }
+}
+
+const formatHeaderTriggerCount = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) {
+    return '--'
+  }
+  return Math.trunc(value).toString()
+}
+
+const buildHeaderVbusDisplayMeasurements = (
+  analogMonitor: AnalogMonitorChannels | null | undefined,
+): HeaderVbusDisplayMeasurements => ({
+  vbusVoltage:
+    analogMonitor && Number.isFinite(analogMonitor.vbus) ? analogMonitor.vbus : null,
+  vbusCurrent:
+    analogMonitor && Number.isFinite(analogMonitor.ibus) ? analogMonitor.ibus : null,
+})
+
 const isLoggedCapturedMessageLike = (value: unknown): value is LoggedCapturedMessage => {
   if (!value || typeof value !== 'object') {
     return false
@@ -261,6 +555,259 @@ const isLoggedCapturedMessageLike = (value: unknown): value is LoggedCapturedMes
     probe.rawSop instanceof Uint8Array &&
     probe.rawDecodedData instanceof Uint8Array
   )
+}
+
+const countMessageLogFilters = (filters: MessageLogFilters): number =>
+  Object.values(filters).reduce(
+    (count, rule) => count + rule.include.length + rule.exclude.length,
+    0,
+  )
+
+const uniqueLogOptions = (values: string[]): FilterOption[] =>
+  Array.from(new Set(values.filter((value) => value.length > 0 && value !== '--')))
+    .sort((left, right) => left.localeCompare(right))
+    .map((value) => ({ value, label: value }))
+
+const getLogMessageTypeLabel = (row: LoggedCapturedMessage): string => {
+  if (row.entryKind === 'event') {
+    return 'Event'
+  }
+  if (row.messageType == null) {
+    return 'Unknown'
+  }
+  return String(row.messageType)
+}
+
+const getLogSenderLabel = (row: LoggedCapturedMessage): string =>
+  row.entryKind === 'message' && row.senderPowerRole ? row.senderPowerRole : 'Unknown'
+
+const getLogReceiverLabel = (row: LoggedCapturedMessage): string =>
+  row.entryKind === 'message' && row.senderPowerRole
+    ? row.senderPowerRole === 'SOURCE'
+      ? 'Sink'
+      : 'Source'
+    : 'Unknown'
+
+const getLogSopLabel = (row: LoggedCapturedMessage): string =>
+  row.entryKind === 'message' && typeof row.sopKind === 'string' ? row.sopKind : 'Unknown'
+
+const getLogCrcLabel = (row: LoggedCapturedMessage): string => {
+  if (row.entryKind !== 'message') {
+    return 'Unknown'
+  }
+  return String(row.decodeResult) === 'crc_mismatch' ? 'Invalid' : 'Valid'
+}
+
+const buildMessageLogFilterOptions = (
+  rows: LoggedCapturedMessage[],
+  filters: MessageLogFilters,
+): {
+  messageTypes: FilterOption[]
+  senders: FilterOption[]
+  receivers: FilterOption[]
+  sopTypes: FilterOption[]
+  crcValid: FilterOption[]
+} => {
+  const messageRows = rows.filter((row) => row.entryKind === 'message')
+  return {
+    messageTypes: uniqueLogOptions([
+      ...messageRows.map(getLogMessageTypeLabel),
+      ...filters.messageTypes.include,
+      ...filters.messageTypes.exclude,
+    ]),
+    senders: uniqueLogOptions([
+      ...messageRows.map(getLogSenderLabel),
+      ...filters.senders.include,
+      ...filters.senders.exclude,
+    ]),
+    receivers: uniqueLogOptions([
+      ...messageRows.map(getLogReceiverLabel),
+      ...filters.receivers.include,
+      ...filters.receivers.exclude,
+    ]),
+    sopTypes: uniqueLogOptions([
+      ...messageRows.map(getLogSopLabel),
+      ...filters.sopTypes.include,
+      ...filters.sopTypes.exclude,
+    ]),
+    crcValid: uniqueLogOptions([
+      ...messageRows.map(getLogCrcLabel),
+      ...filters.crcValid.include,
+      ...filters.crcValid.exclude,
+    ]),
+  }
+}
+
+const downloadMessageLogPayload = (payload: string, mimeType: string, filename: string): void => {
+  const blob = new Blob([payload], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const toCsvField = (value: string): string =>
+  /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
+
+const buildSelectedMessageLogJson = (
+  rows: LoggedCapturedMessage[],
+  selectionKeys: string[],
+): string => {
+  const selected = new Set(selectionKeys)
+  return JSON.stringify(
+    rows.filter((row) => selected.has(buildCapturedLogSelectionKey(row))),
+    (_key, value) => (typeof value === 'bigint' ? value.toString() : value),
+    2,
+  )
+}
+
+const buildSelectedMessageLogCsv = (
+  rows: LoggedCapturedMessage[],
+  selectionKeys: string[],
+): string => {
+  const selected = new Set(selectionKeys)
+  const lines = [['Type', 'Message Type', 'Sender', 'Receiver', 'SOP', 'CRC'].join(',')]
+  for (const row of rows) {
+    if (!selected.has(buildCapturedLogSelectionKey(row))) {
+      continue
+    }
+    lines.push(
+      [
+        row.entryKind,
+        getLogMessageTypeLabel(row),
+        getLogSenderLabel(row),
+        getLogReceiverLabel(row),
+        getLogSopLabel(row),
+        getLogCrcLabel(row),
+      ].map(toCsvField).join(','),
+    )
+  }
+  return `${lines.join('\n')}\n`
+}
+
+const notifyMessageLogFiltersChanged = (filters: MessageLogFilters): void => {
+  window.dispatchEvent(
+    new CustomEvent('drpd-message-log-filters-changed', {
+      detail: { filters },
+    }),
+  )
+}
+
+const parseSinkField = (value: string): number | null => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const isPowerLimitedSinkPdo = (pdo: SinkPdo | null | undefined): boolean => (
+  pdo?.type === SinkPdoType.BATTERY ||
+  pdo?.type === SinkPdoType.SPR_AVS ||
+  pdo?.type === SinkPdoType.EPR_AVS
+)
+
+const buildDefaultSinkForm = (
+  pdo: SinkPdo | null | undefined,
+): { voltageV: string; currentA: string } => {
+  if (!pdo) {
+    return { voltageV: '', currentA: '' }
+  }
+  switch (pdo.type) {
+    case SinkPdoType.FIXED:
+      return { voltageV: pdo.voltageV.toFixed(2), currentA: pdo.maxCurrentA.toFixed(2) }
+    case SinkPdoType.VARIABLE:
+    case SinkPdoType.AUGMENTED:
+    case SinkPdoType.SPR_PPS:
+      return { voltageV: pdo.minVoltageV.toFixed(2), currentA: pdo.maxCurrentA.toFixed(2) }
+    case SinkPdoType.BATTERY:
+    case SinkPdoType.SPR_AVS:
+    case SinkPdoType.EPR_AVS:
+      return { voltageV: pdo.minVoltageV.toFixed(2), currentA: (pdo.maxPowerW / pdo.minVoltageV).toFixed(2) }
+    default:
+      return { voltageV: '', currentA: '' }
+  }
+}
+
+const getSinkCurrentConstraints = (
+  pdo: SinkPdo | null | undefined,
+  requestedVoltageV: number | null,
+): { minA: number; maxA?: number; error?: string } => {
+  if (!pdo) {
+    return { minA: 0, error: 'Select a PDO before requesting power.' }
+  }
+  if (pdo.type === SinkPdoType.FIXED) {
+    return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+  if (
+    pdo.type === SinkPdoType.VARIABLE ||
+    pdo.type === SinkPdoType.AUGMENTED ||
+    pdo.type === SinkPdoType.SPR_PPS
+  ) {
+    return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+  if (isPowerLimitedSinkPdo(pdo)) {
+    if (requestedVoltageV == null || !Number.isFinite(requestedVoltageV)) {
+      return { minA: 0, error: 'Enter a valid voltage to compute the current range.' }
+    }
+    if (requestedVoltageV <= 0) {
+      return { minA: 0, error: 'Voltage must be greater than 0 V.' }
+    }
+    if ('maxPowerW' in pdo) {
+      return { minA: 0, maxA: pdo.maxPowerW / requestedVoltageV }
+    }
+  }
+  return { minA: 0, error: 'Unsupported PDO type.' }
+}
+
+const getSinkVoltageHint = (pdo: SinkPdo | null | undefined): string => {
+  if (!pdo) {
+    return '--'
+  }
+  if (pdo.type === SinkPdoType.FIXED) {
+    return ''
+  }
+  return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`
+}
+
+const buildSinkRequestArgs = ({
+  pdo,
+  voltageV,
+  currentA,
+}: {
+  pdo: Exclude<SinkPdo, null>
+  voltageV: string
+  currentA: string
+}): { voltageMv?: number; currentMa?: number; error?: string } => {
+  const parsedCurrent = parseSinkField(currentA)
+  if (parsedCurrent == null) {
+    return { error: 'Enter a valid current.' }
+  }
+  if (pdo.type === SinkPdoType.FIXED) {
+    if (parsedCurrent < 0 || parsedCurrent > pdo.maxCurrentA) {
+      return { error: `Current must be between 0 and ${pdo.maxCurrentA.toFixed(2)} A.` }
+    }
+    return { voltageMv: Math.round(pdo.voltageV * 1000), currentMa: Math.round(parsedCurrent * 1000) }
+  }
+
+  const parsedVoltage = parseSinkField(voltageV)
+  if (parsedVoltage == null) {
+    return { error: 'Enter valid voltage and current values.' }
+  }
+  if (parsedVoltage < pdo.minVoltageV || parsedVoltage > pdo.maxVoltageV) {
+    return { error: `Voltage must be between ${pdo.minVoltageV.toFixed(2)} and ${pdo.maxVoltageV.toFixed(2)} V.` }
+  }
+  const constraints = getSinkCurrentConstraints(pdo, parsedVoltage)
+  if (constraints.error || constraints.maxA == null) {
+    return { error: constraints.error ?? 'Current range is unavailable.' }
+  }
+  if (parsedCurrent < constraints.minA || parsedCurrent > constraints.maxA) {
+    return {
+      error: `Current must be between ${constraints.minA.toFixed(2)} and ${constraints.maxA.toFixed(2)} A.`,
+    }
+  }
+  return { voltageMv: Math.round(parsedVoltage * 1000), currentMa: Math.round(parsedCurrent * 1000) }
 }
 
 
@@ -282,48 +829,70 @@ export const RackView = () => {
   )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false)
-  const [isInstrumentMenuOpen, setIsInstrumentMenuOpen] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
+  const isRackEditMode = false
+  const [draggedRackInstrumentId, setDraggedRackInstrumentId] = useState<string | null>(null)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
-  const [isEditMode, setIsEditMode] = useState(false)
-  const [draftRack, setDraftRack] = useState<RackDefinition | null>(null)
-  const [headerMenuInlineStyle, setHeaderMenuInlineStyle] = useState<CSSProperties | undefined>(
-    undefined,
+  const [isGlobalVbusDialogOpen, setIsGlobalVbusDialogOpen] = useState(false)
+  const [globalOvpThresholdInput, setGlobalOvpThresholdInput] = useState('')
+  const [globalOcpThresholdInput, setGlobalOcpThresholdInput] = useState('')
+  const [globalDisplayUpdateRateInput, setGlobalDisplayUpdateRateInput] = useState(HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ.toString())
+  const [globalVbusConfigureError, setGlobalVbusConfigureError] = useState<string | null>(null)
+  const [isGlobalVbusApplying, setIsGlobalVbusApplying] = useState(false)
+  const [isGlobalSinkDialogOpen, setIsGlobalSinkDialogOpen] = useState(false)
+  const [globalSinkPdoList, setGlobalSinkPdoList] = useState<SinkPdo[]>([])
+  const [globalSinkSelectedIndex, setGlobalSinkSelectedIndex] = useState(0)
+  const [globalSinkVoltageV, setGlobalSinkVoltageV] = useState('')
+  const [globalSinkCurrentA, setGlobalSinkCurrentA] = useState('')
+  const [globalSinkRequestStatus, setGlobalSinkRequestStatus] =
+    useState<'idle' | 'sending' | 'success' | 'error'>('idle')
+  const [globalSinkRequestError, setGlobalSinkRequestError] = useState<string | null>(null)
+  const [isGlobalTriggerDialogOpen, setIsGlobalTriggerDialogOpen] = useState(false)
+  const [globalTriggerEventTypeInput, setGlobalTriggerEventTypeInput] =
+    useState<TriggerEventType>(TriggerEventType.OFF)
+  const [globalTriggerThresholdInput, setGlobalTriggerThresholdInput] = useState('1')
+  const [globalTriggerSenderInput, setGlobalTriggerSenderInput] =
+    useState<TriggerSenderFilter>(TriggerSenderFilter.ANY)
+  const [globalTriggerAutoRepeatInput, setGlobalTriggerAutoRepeatInput] =
+    useState<OnOffState>(OnOffState.OFF)
+  const [globalTriggerSyncModeInput, setGlobalTriggerSyncModeInput] =
+    useState<TriggerSyncMode>(TriggerSyncMode.PULSE_HIGH)
+  const [globalTriggerSyncPulseWidthUsInput, setGlobalTriggerSyncPulseWidthUsInput] = useState('1')
+  const [globalTriggerMessageTypeFiltersInput, setGlobalTriggerMessageTypeFiltersInput] =
+    useState<TriggerMessageTypeFilter[]>([])
+  const [globalTriggerMessageTypeFilterClassInput, setGlobalTriggerMessageTypeFilterClassInput] =
+    useState<TriggerMessageTypeFilter['class']>(TriggerMessageTypeFilterClass.CONTROL)
+  const [globalTriggerMessageTypeFilterTypeInput, setGlobalTriggerMessageTypeFilterTypeInput] = useState('0')
+  const [globalTriggerConfigureError, setGlobalTriggerConfigureError] = useState<string | null>(null)
+  const [isGlobalTriggerApplying, setIsGlobalTriggerApplying] = useState(false)
+  const [messageLogSelectionKeys, setMessageLogSelectionKeys] = useState<string[]>([])
+  const [messageLogFilters, setMessageLogFilters] =
+    useState<MessageLogFilters>(EMPTY_MESSAGE_LOG_FILTERS)
+  const [messageLogColumnVisibility, setMessageLogColumnVisibility] =
+    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
+  const [messageLogColumnVisibilityInput, setMessageLogColumnVisibilityInput] =
+    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
+  const [messageLogFilterRows, setMessageLogFilterRows] = useState<LoggedCapturedMessage[]>([])
+  const [isMessageLogFilterDialogOpen, setIsMessageLogFilterDialogOpen] = useState(false)
+  const [isMessageLogClearDialogOpen, setIsMessageLogClearDialogOpen] = useState(false)
+  const [isMessageLogConfigureDialogOpen, setIsMessageLogConfigureDialogOpen] = useState(false)
+  const [isMessageLogMarking, setIsMessageLogMarking] = useState(false)
+  const [isMessageLogClearing, setIsMessageLogClearing] = useState(false)
+  const [isMessageLogExporting, setIsMessageLogExporting] = useState(false)
+  const [isMessageLogConfiguring, setIsMessageLogConfiguring] = useState(false)
+  const [messageLogError, setMessageLogError] = useState<string | null>(null)
+  const [messageLogBufferInput, setMessageLogBufferInput] = useState(
+    buildDefaultLoggingConfig().maxCapturedMessages.toString(),
   )
+  const [messageLogBufferError, setMessageLogBufferError] = useState<string | null>(null)
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => getStoredLayoutMode())
+  const [showTimestrip, setShowTimestrip] = useState<boolean>(() => getStoredShowTimestrip())
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
   const pairedDevicesRef = useRef<RackDeviceRecord[]>(EMPTY_PAIRED_DEVICES)
-  const deviceMenuRef = useRef<HTMLDivElement | null>(null)
-  const instrumentMenuRef = useRef<HTMLDivElement | null>(null)
-  const deviceMenuButtonRef = useRef<HTMLButtonElement | null>(null)
-  const instrumentMenuButtonRef = useRef<HTMLButtonElement | null>(null)
-  const headerMenuPopoverRef = useRef<HTMLDivElement | null>(null)
-  const editSnapshotRef = useRef<RackDefinition | null>(null)
-  const dragStateRef = useRef<DragState | null>(null)
   const firmwareUpdateActiveRef = useRef(false)
-  const rackSizing = useRackSizingConfig()
 
   const deviceDefinitions = useMemo<Device[]>(() => getSupportedDevices(), [])
   const instrumentDefinitions = useMemo(() => getSupportedInstruments(), [])
-  const instrumentDefinitionMap = useMemo(
-    () => {
-      const map = new Map(
-        instrumentDefinitions.map((instrument) => [
-          instrument.identifier,
-          instrument
-        ]),
-      )
-      const drpdVbusInstrument = map.get('com.mta.drpd.vbus')
-      if (drpdVbusInstrument && !map.has('com.mta.drpd.device-status')) {
-        // Legacy identifier support for pre-rename saved rack documents.
-        map.set('com.mta.drpd.device-status', drpdVbusInstrument)
-      }
-      return map
-    },
-    [instrumentDefinitions],
-  )
   const pairedDevices = rackDocument?.pairedDevices ?? EMPTY_PAIRED_DEVICES
   const activeConnectedDeviceState = useMemo(
     () => deviceStates.find((state) => state.status === 'connected'),
@@ -369,133 +938,6 @@ export const RackView = () => {
   }, [])
 
   useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null
-      const popoverElement = headerMenuPopoverRef.current
-      if (isDeviceMenuOpen && deviceMenuRef.current) {
-        if (
-          target &&
-          !deviceMenuRef.current.contains(target) &&
-          !(popoverElement && popoverElement.contains(target))
-        ) {
-          setIsDeviceMenuOpen(false)
-        }
-      }
-      if (isInstrumentMenuOpen && instrumentMenuRef.current) {
-        if (
-          target &&
-          !instrumentMenuRef.current.contains(target) &&
-          !(popoverElement && popoverElement.contains(target))
-        ) {
-          setIsInstrumentMenuOpen(false)
-        }
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-    }
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen])
-
-  useEffect(() => {
-    /**
-     * Close menus when the user presses Escape.
-     *
-     * @param event - Keyboard event.
-     */
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') {
-        return
-      }
-      if (isShortcutHelpOpen) {
-        setIsShortcutHelpOpen(false)
-      }
-      if (isDeviceMenuOpen) {
-        setIsDeviceMenuOpen(false)
-      }
-      if (isInstrumentMenuOpen) {
-        setIsInstrumentMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen, isShortcutHelpOpen])
-
-  const updateHeaderMenuLayout = useCallback(() => {
-    const anchor = isDeviceMenuOpen
-      ? deviceMenuButtonRef.current
-      : isInstrumentMenuOpen
-        ? instrumentMenuButtonRef.current
-        : null
-    const popover = headerMenuPopoverRef.current
-    if (!anchor || !popover) {
-      return
-    }
-
-    const viewportInsetPx = rackSizing.popoverViewportInsetPx
-    const popoverGapPx = rackSizing.popoverGapPx
-    const buttonRect = anchor.getBoundingClientRect()
-    const popoverRect = popover.getBoundingClientRect()
-    const width = popoverRect.width
-    const height = popoverRect.height
-
-    let left = buttonRect.right - width
-    left = Math.max(
-      viewportInsetPx,
-      Math.min(left, window.innerWidth - width - viewportInsetPx),
-    )
-
-    const belowTop = buttonRect.bottom + popoverGapPx
-    const belowSpace = window.innerHeight - belowTop - viewportInsetPx
-    const aboveSpace = buttonRect.top - popoverGapPx - viewportInsetPx
-    const shouldOpenAbove = belowSpace < height && aboveSpace > belowSpace
-    const maxHeight = Math.max(120, Math.floor(shouldOpenAbove ? aboveSpace : belowSpace))
-
-    let top = belowTop
-    if (shouldOpenAbove) {
-      top = Math.max(
-        viewportInsetPx,
-        buttonRect.top - popoverGapPx - Math.min(height, maxHeight),
-      )
-    } else {
-      top = Math.min(top, window.innerHeight - viewportInsetPx - Math.min(height, maxHeight))
-    }
-
-    setHeaderMenuInlineStyle({
-      left: `${Math.round(left)}px`,
-      top: `${Math.round(top)}px`,
-      maxHeight: `${Math.round(maxHeight)}px`,
-    })
-  }, [
-    isDeviceMenuOpen,
-    isInstrumentMenuOpen,
-    rackSizing.popoverGapPx,
-    rackSizing.popoverViewportInsetPx,
-  ])
-
-  useLayoutEffect(() => {
-    if (!isDeviceMenuOpen && !isInstrumentMenuOpen) {
-      setHeaderMenuInlineStyle(undefined)
-      return undefined
-    }
-
-    const runLayout = () => {
-      updateHeaderMenuLayout()
-    }
-    runLayout()
-    window.addEventListener('resize', runLayout)
-    window.addEventListener('scroll', runLayout, true)
-    return () => {
-      window.removeEventListener('resize', runLayout)
-      window.removeEventListener('scroll', runLayout, true)
-    }
-  }, [isDeviceMenuOpen, isInstrumentMenuOpen, updateHeaderMenuLayout])
-
-  useEffect(() => {
     /** Apply the current theme to the document. */
     const root = document.documentElement
     if (theme !== 'system') {
@@ -514,18 +956,32 @@ export const RackView = () => {
         }
         applySystemTheme()
         const cleanup = listenToMediaQueryChange(mediaQuery, applySystemTheme)
-        const storage = getThemeStorage()
+        const storage = getBrowserStorage()
         if (storage) {
           storage.setItem(THEME_STORAGE_KEY, theme)
         }
         return cleanup
       }
     }
-    const storage = getThemeStorage()
+    const storage = getBrowserStorage()
     if (storage) {
       storage.setItem(THEME_STORAGE_KEY, theme)
     }
   }, [theme])
+
+  useEffect(() => {
+    const storage = getBrowserStorage()
+    if (storage) {
+      storage.setItem(LAYOUT_STORAGE_KEY, layoutMode === 'full' ? 'responsive' : 'fixed')
+    }
+  }, [layoutMode])
+
+  useEffect(() => {
+    const storage = getBrowserStorage()
+    if (storage) {
+      storage.setItem(SHOW_TIMESTRIP_STORAGE_KEY, showTimestrip ? 'true' : 'false')
+    }
+  }, [showTimestrip])
 
   useEffect(() => {
     saveFirmwareUpdateChannel(firmwareUpdateChannel)
@@ -535,6 +991,11 @@ export const RackView = () => {
   useEffect(() => {
     rackDocumentRef.current = rackDocument
   }, [rackDocument])
+
+  useEffect(() => {
+    saveMessageLogColumnVisibility(messageLogColumnVisibility)
+    notifyMessageLogColumnVisibilityChanged(messageLogColumnVisibility)
+  }, [messageLogColumnVisibility])
 
   useEffect(() => {
     deviceStatesRef.current = deviceStates
@@ -993,32 +1454,214 @@ export const RackView = () => {
     })
   }, [pairedDevices, deviceDefinitions, checkConnectedDeviceFirmwareUpdate])
 
-  /** Cycle through the available theme modes. */
-  const handleThemeToggle = () => {
-    setTheme((current) => {
-      if (current === 'system') {
-        return 'light'
-      }
-      if (current === 'light') {
-        return 'dark'
-      }
-      return 'system'
-    })
-  }
-
-  /** Render the human-friendly theme label. */
-  const themeLabel =
-    theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'
-  const firmwareUpdateChannelLabel =
-    firmwareUpdateChannel === 'production' ? 'Production' : 'Beta'
-  const currentRack = isEditMode ? draftRack ?? activeRack : activeRack
+  const currentRack = activeRack
+  const renderedRack = useMemo(
+    () => (currentRack && !showTimestrip ? hideTimestripInstrument(currentRack) : currentRack),
+    [currentRack, showTimestrip],
+  )
+  const activeDriver = activeConnectedDeviceState?.drpdDriver
+  const activeDriverState = activeDriver?.getState()
+  const hasSelectedMessages = messageLogSelectionKeys.length > 0
+  const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
+  const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
+  const isGoodCrcHidden = !isGoodCrcShown
+  const messageLogFilterOptions = useMemo(
+    () => buildMessageLogFilterOptions(messageLogFilterRows, messageLogFilters),
+    [messageLogFilterRows, messageLogFilters],
+  )
   const isFirmwareUploadBusy =
     firmwareUpdatePrompt != null &&
     !['prompt', 'success', 'failure'].includes(firmwareUpdatePrompt.phase)
 
+  const updateRackDocument = useCallback((updater: (document: RackDocument) => RackDocument) => {
+    setRackDocument((current) => {
+      if (!current) {
+        return current
+      }
+      const nextDocument = updater(current)
+      saveRackDocument(nextDocument)
+      const nextActiveRack =
+        nextDocument.racks.find((rack) => rack.id === activeRack?.id) ??
+        nextDocument.racks[0] ??
+        null
+      setActiveRack(nextActiveRack)
+      return nextDocument
+    })
+  }, [activeRack?.id])
+
+  const handleRemoveRackInstrument = useCallback((instrumentId: string) => {
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return {
+          ...rack,
+          rows: rack.rows
+            .map((row) => ({
+              ...row,
+              instruments: row.instruments.filter((instrument) => instrument.id !== instrumentId),
+            }))
+            .filter((row) => row.instruments.length > 0),
+        }
+      }),
+    }))
+  }, [activeRack?.id, updateRackDocument])
+
+  const handleRackInstrumentDrop = useCallback((payload: RackInstrumentDragPayload) => {
+    if (!draggedRackInstrumentId) {
+      return
+    }
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return moveRackInstrument(rack, draggedRackInstrumentId, payload)
+      }),
+    }))
+  }, [activeRack?.id, draggedRackInstrumentId, updateRackDocument])
+
+  const handleRackInstrumentResize = useCallback((payload: RackInstrumentResizePayload) => {
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return resizeAdjacentRackInstruments(rack, payload)
+      }),
+    }))
+  }, [activeRack?.id, updateRackDocument])
+
+  const handleRackRowResize = useCallback((payload: RackRowResizePayload) => {
+    updateRackDocument((document) => ({
+      ...document,
+      racks: document.racks.map((rack) => {
+        if (rack.id !== activeRack?.id) {
+          return rack
+        }
+        return resizeAdjacentRackRows(rack, payload)
+      }),
+    }))
+  }, [activeRack?.id, updateRackDocument])
+
+  const exportSelectedMessageLog = useCallback((format: 'json' | 'csv') => {
+    if (!activeDriver || !hasSelectedMessages) {
+      return
+    }
+    setIsMessageLogExporting(true)
+    setMessageLogError(null)
+    void activeDriver
+      .queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: LOG_END_TIMESTAMP_US,
+        sortOrder: 'asc',
+      })
+      .then((rows) => {
+        if (format === 'json') {
+          downloadMessageLogPayload(
+            buildSelectedMessageLogJson(rows, messageLogSelectionKeys),
+            'application/json',
+            'message-log-export.json',
+          )
+          return
+        }
+        downloadMessageLogPayload(
+          buildSelectedMessageLogCsv(rows, messageLogSelectionKeys),
+          'text/csv',
+          'message-log-export.csv',
+        )
+      })
+      .catch((error) => {
+        setMessageLogError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        setIsMessageLogExporting(false)
+      })
+  }, [activeDriver, hasSelectedMessages, messageLogSelectionKeys])
+
+  const toggleGoodCrcMessages = useCallback(() => {
+    const next = isGoodCrcShown
+      ? toggleFilterValue(
+          messageLogFilters,
+          'messageTypes',
+          'exclude',
+          GOODCRC_MESSAGE_TYPE_LABEL,
+        )
+      : {
+          ...messageLogFilters,
+          messageTypes: {
+            include: messageLogFilters.messageTypes.include,
+            exclude: messageLogFilters.messageTypes.exclude.filter(
+              (entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL,
+            ),
+          },
+        }
+    setMessageLogFilters(next)
+    notifyMessageLogFiltersChanged(next)
+  }, [isGoodCrcShown, messageLogFilters])
+
+  const addMessageLogMarker = useCallback(() => {
+    if (!activeDriver || isMessageLogMarking) {
+      return
+    }
+    setIsMessageLogMarking(true)
+    setMessageLogError(null)
+    void activeDriver
+      .markLog()
+      .catch((error) => {
+        setMessageLogError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        setIsMessageLogMarking(false)
+      })
+  }, [activeDriver, isMessageLogMarking])
+
   const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
     setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
   }, [])
+
+  useEffect(() => {
+    if (!activeDriver) {
+      setMessageLogSelectionKeys([])
+      setMessageLogFilterRows([])
+      return
+    }
+
+    const readSelection = () => {
+      void Promise.resolve(activeDriver.getLogSelectionState()).then((selection) => {
+        setMessageLogSelectionKeys(
+          Array.isArray(selection.selectedKeys) ? selection.selectedKeys : [],
+        )
+      })
+    }
+
+    readSelection()
+    void activeDriver
+      .queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: LOG_END_TIMESTAMP_US,
+        sortOrder: 'asc',
+      })
+      .then(setMessageLogFilterRows)
+      .catch(() => setMessageLogFilterRows([]))
+
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed : []
+      if (changed.includes('logSelection')) {
+        readSelection()
+      }
+    }
+
+    activeDriver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    return () => {
+      activeDriver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [activeDriver])
 
   const handleDeclineFirmwareUpdate = useCallback(() => {
     const prompt = firmwareUpdatePrompt
@@ -1142,6 +1785,11 @@ export const RackView = () => {
     }
   }, [deviceDefinitions, firmwareUpdatePrompt, isFirmwareUploadBusy, updateFirmwarePromptState])
 
+  /** Open DRPD documentation in a new tab. */
+  const handleOpenDocumentation = () => {
+    window.open('https://t76.org/drpd/help', '_blank', 'noopener,noreferrer')
+  }
+
   /** Connect a new device using the WebUSB picker. */
   const handleConnectDevice = async () => {
     setDeviceError(null)
@@ -1202,6 +1850,38 @@ export const RackView = () => {
     }
   }
 
+  /** Connect a paired device without opening the WebUSB picker. */
+  const handleConnectPairedDevice = async (recordId: string) => {
+    const record = pairedDevices.find((device) => device.id === recordId)
+    if (!record) {
+      return
+    }
+    const definition = deviceDefinitions.find(
+      (candidate) => candidate.identifier === record.identifier,
+    )
+    if (!definition) {
+      setDeviceError('No matching device definition found.')
+      return
+    }
+    await reconnectRackDeviceRecord({
+      record,
+      definition,
+      onUpdate: setDeviceStates,
+      onPersistRecord: (nextRecord) => {
+        setRackDocument((current) => {
+          if (!current) {
+            return current
+          }
+          const nextDocument = upsertPairedDeviceDocument(current, nextRecord)
+          saveRackDocument(nextDocument)
+          return nextDocument
+        })
+      },
+      onError: setDeviceError,
+      onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
+    })
+  }
+
   /** Disconnect a device without removing it from the rack. */
   const handleDisconnectDevice = async (recordId: string) => {
     setDeviceError(null)
@@ -1248,62 +1928,123 @@ export const RackView = () => {
     )
   }
 
-  /** Reconnect a previously disconnected device. */
-  const handleReconnectDevice = async (recordId: string) => {
-    setDeviceError(null)
-    if (typeof navigator === 'undefined' || !navigator.usb) {
-      setDeviceError('WebUSB is not available in this browser.')
+  const handleSetProtectionThresholds = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
       return
     }
-    if (deviceStatesRef.current.some((state) => state.status === 'connected')) {
-      return
-    }
-    const record = pairedDevices.find((device) => device.id === recordId)
-    if (!record) {
-      return
-    }
-    const definition = deviceDefinitions.find(
-      (candidate) => candidate.identifier === record.identifier,
-    )
-    if (!definition) {
-      setDeviceError('No matching device definition found.')
-      return
-    }
-    await reconnectRackDeviceRecord({
-        record,
-        definition,
-        onUpdate: setDeviceStates,
-      onPersistRecord: (nextRecord) => {
-        setRackDocument((current) => {
-          if (!current) {
-            return current
-          }
-          const nextDocument = upsertPairedDeviceDocument(current, nextRecord)
-          saveRackDocument(nextDocument)
-          return nextDocument
-        })
-        },
-        onError: setDeviceError,
-        onFirmwareUpdateCheck: checkConnectedDeviceFirmwareUpdate,
-      })
-  }
+    prepareVbusConfigureDialog({
+      vbusInfo: driver.getState().vbusInfo ?? null,
+      displayUpdateRateHz: HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ,
+      setConfigureError: setGlobalVbusConfigureError,
+      setOvpThresholdInput: setGlobalOvpThresholdInput,
+      setOcpThresholdInput: setGlobalOcpThresholdInput,
+      setDisplayUpdateRateInput: setGlobalDisplayUpdateRateInput,
+    })
+    setIsGlobalVbusDialogOpen(true)
+  }, [])
 
-  /**
-   * Apply a rack layout update, respecting edit mode.
-   */
-  const applyLayoutUpdate = (nextRack: RackDefinition) => {
-    if (!rackDocument) {
+  const handleResetProtection = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
       return
     }
-    if (isEditMode) {
-      setDraftRack(nextRack)
+    try {
+      await driver.vbus.resetFault()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const handleResetPowerChargeMeter = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
       return
     }
-    const nextDocument = replaceRack(rackDocument, nextRack)
-    setRackDocument(nextDocument)
-    setActiveRack(nextRack)
-    saveRackDocument(nextDocument)
-  }
+    try {
+      await driver.analogMonitor.resetAccumulatedMeasurements()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const handleResetTrigger = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    try {
+      await driver.trigger.reset()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const openGlobalSinkRequestDialog = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    const snapshot = driver.getState()
+    let pdoList = snapshot.sinkPdoList ?? []
+    try {
+      if (pdoList.length === 0) {
+        const pdoCount = await driver.sink.getAvailablePdoCount()
+        pdoList = await Promise.all(
+          Array.from({ length: pdoCount }, (_, index) => driver.sink.getPdoAtIndex(index)),
+        )
+      }
+    } catch (error) {
+      setGlobalSinkRequestError(error instanceof Error ? error.message : String(error))
+    }
+    const selectedIndex = 0
+    const selectedPdo = pdoList[selectedIndex] ?? null
+    const defaults = buildDefaultSinkForm(selectedPdo)
+    setGlobalSinkPdoList(pdoList)
+    setGlobalSinkSelectedIndex(selectedIndex)
+    setGlobalSinkVoltageV(defaults.voltageV)
+    setGlobalSinkCurrentA(defaults.currentA)
+    setGlobalSinkRequestStatus('idle')
+    setGlobalSinkRequestError(null)
+    setIsGlobalSinkDialogOpen(true)
+  }, [])
+
+  const openGlobalTriggerConfigureDialog = useCallback(async () => {
+    const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
+    if (!driver) {
+      return
+    }
+    const populate = (info: TriggerInfo | null | undefined) => {
+      setGlobalTriggerEventTypeInput(info?.type ?? TriggerEventType.OFF)
+      setGlobalTriggerThresholdInput(String(info?.eventThreshold ?? 1))
+      setGlobalTriggerSenderInput(info?.senderFilter ?? TriggerSenderFilter.ANY)
+      setGlobalTriggerAutoRepeatInput(info?.autorepeat ?? OnOffState.OFF)
+      setGlobalTriggerSyncModeInput(info?.syncMode ?? TriggerSyncMode.PULSE_HIGH)
+      setGlobalTriggerSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
+      setGlobalTriggerMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
+      setGlobalTriggerMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
+      setGlobalTriggerMessageTypeFilterTypeInput('0')
+    }
+    setGlobalTriggerConfigureError(null)
+    populate(driver.getState().triggerInfo)
+    setIsGlobalTriggerDialogOpen(true)
+    try {
+      populate(await driver.trigger.getInfo())
+    } catch (error) {
+      setGlobalTriggerConfigureError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isGlobalSinkDialogOpen) {
+      return
+    }
+    const defaults = buildDefaultSinkForm(globalSinkPdoList[globalSinkSelectedIndex] ?? null)
+    setGlobalSinkVoltageV(defaults.voltageV)
+    setGlobalSinkCurrentA(defaults.currentA)
+    setGlobalSinkRequestStatus('idle')
+    setGlobalSinkRequestError(null)
+  }, [globalSinkPdoList, globalSinkSelectedIndex, isGlobalSinkDialogOpen])
 
   const handleUpdateDeviceConfig = useCallback(async (
     deviceRecordId: string,
@@ -1429,6 +2170,17 @@ export const RackView = () => {
     }
   }, [])
 
+  const handleRestoreMessageLogTableLayout = useCallback(() => {
+    setMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
+    setMessageLogColumnVisibilityInput(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
+    saveMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
+    saveMessageLogColumnWidths(DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS)
+    notifyMessageLogColumnVisibilityChanged(
+      DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY,
+      DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS,
+    )
+  }, [])
+
   useEffect(() => {
     const handleGlobalShortcut = (event: KeyboardEvent) => {
       const shortcutId = matchRackShortcut(event)
@@ -1447,11 +2199,37 @@ export const RackView = () => {
         case 'switch-observer':
           void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
           break
+        case 'switch-disabled':
+          void handleSetActiveDeviceRole(CCBusRole.DISABLED)
+          break
+        case 'choose-power-contract':
+          if (activeDriverState?.role === CCBusRole.SINK) {
+            void openGlobalSinkRequestDialog()
+          }
+          break
         case 'toggle-capture':
           void handleToggleActiveDeviceCapture()
           break
-        case 'show-shortcut-help':
-          setIsShortcutHelpOpen(true)
+        case 'reset-accumulator':
+          void handleResetPowerChargeMeter()
+          break
+        case 'clear-log':
+          setIsMessageLogClearDialogOpen(true)
+          break
+        case 'add-marker':
+          addMessageLogMarker()
+          break
+        case 'toggle-goodcrc':
+          toggleGoodCrcMessages()
+          break
+        case 'filter-log':
+          setIsMessageLogFilterDialogOpen(true)
+          break
+        case 'reset-trigger':
+          void handleResetTrigger()
+          break
+        case 'open-user-manual':
+          handleOpenDocumentation()
           break
         default:
           break
@@ -1462,393 +2240,544 @@ export const RackView = () => {
     return () => {
       document.removeEventListener('keydown', handleGlobalShortcut)
     }
-  }, [handlePulseUsbConnection, handleSetActiveDeviceRole, handleToggleActiveDeviceCapture])
+  }, [
+    addMessageLogMarker,
+    handleOpenDocumentation,
+    handlePulseUsbConnection,
+    handleResetPowerChargeMeter,
+    handleResetTrigger,
+    handleSetActiveDeviceRole,
+    handleToggleActiveDeviceCapture,
+    activeDriverState?.role,
+    openGlobalSinkRequestDialog,
+    toggleGoodCrcMessages,
+  ])
 
-  /** Add a compatible instrument to the rack. */
-  const handleAddInstrument = (instrumentIdentifier: string) => {
-    if (!currentRack || !rackDocument) {
-      return
-    }
-    const instrumentDefinition = instrumentDefinitions.find(
-      (instrument) => instrument.identifier === instrumentIdentifier,
-    )
-    if (!instrumentDefinition) {
-      return
-    }
-    const newRowId = `row-${Date.now()}`
-    const newInstrumentId = `inst-${Date.now()}`
-    const nextRow = {
-      id: newRowId,
-      instruments: [
-        {
-          id: newInstrumentId,
-          instrumentIdentifier,
-        }
-      ]
-    }
-    const nextRack: RackDefinition = {
-      ...currentRack,
-      rows: [...currentRack.rows, nextRow]
-    }
-    applyLayoutUpdate(nextRack)
-    setIsInstrumentMenuOpen(false)
-  }
-
-  /**
-   * Enter rack edit mode and snapshot the current layout.
-   */
-  const handleEnterEditMode = () => {
-    if (!activeRack) {
-      return
-    }
-    const snapshot = cloneRackDefinition(activeRack)
-    editSnapshotRef.current = snapshot
-    setDraftRack(snapshot)
-    setIsEditMode(true)
-    setIsDeviceMenuOpen(false)
-    setIsInstrumentMenuOpen(false)
-  }
-
-  /**
-   * Cancel edits and restore the previous layout.
-   */
-  const handleCancelEditMode = () => {
-    setIsEditMode(false)
-    setDraftRack(null)
-    editSnapshotRef.current = null
-    dragStateRef.current = null
-  }
-
-  /**
-   * Commit edits and persist the rack layout.
-   */
-  const handleSaveEditMode = () => {
-    if (!draftRack || !rackDocument) {
-      return
-    }
-    const nextDocument = replaceRack(rackDocument, draftRack)
-    setRackDocument(nextDocument)
-    setActiveRack(draftRack)
-    saveRackDocument(nextDocument)
-    setIsEditMode(false)
-    setDraftRack(null)
-    editSnapshotRef.current = null
-  }
-
-  /**
-   * Remove an instrument from the rack layout.
-   */
-  const handleRemoveInstrument = (instrumentId: string) => {
-    if (!currentRack) {
-      return
-    }
-    const nextRack = removeInstrumentFromRack(currentRack, instrumentId)
-    applyLayoutUpdate(nextRack)
-  }
-
-  /**
-   * Start a drag interaction for an instrument.
-   */
-  const handleInstrumentDragStart = (instrumentId: string) => {
-    if (!isEditMode || !currentRack) {
-      return
-    }
-    dragStateRef.current = {
-      instrumentId,
-      snapshot: cloneRackDefinition(currentRack),
-      didDrop: false
-    }
-  }
-
-  /**
-   * Update the layout preview while dragging an instrument.
-   */
-  const handleInstrumentDragOver = (payload: RackInstrumentDragPayload) => {
-    const dragState = dragStateRef.current
-    if (!isEditMode || !dragState) {
-      return
-    }
-    const target = getDropTarget({
-      rack: dragState.snapshot,
-      payload
-    })
-    const targetKey = buildDropTargetKey(target)
-    if (dragState.lastTargetKey === targetKey) {
-      return
-    }
-    dragState.lastTargetKey = targetKey
-    const nextRack = moveInstrumentInRack(
-      dragState.snapshot,
-      dragState.instrumentId,
-      target,
-      instrumentDefinitionMap,
-      rackSizing.maxRowWidthUnits,
-    )
-    setDraftRack(nextRack)
-  }
-
-  /**
-   * Commit a drag and drop interaction.
-   */
-  const handleInstrumentDrop = (payload: RackInstrumentDragPayload) => {
-    const dragState = dragStateRef.current
-    if (!isEditMode || !dragState) {
-      return
-    }
-    const target = getDropTarget({
-      rack: dragState.snapshot,
-      payload
-    })
-    const nextRack = moveInstrumentInRack(
-      dragState.snapshot,
-      dragState.instrumentId,
-      target,
-      instrumentDefinitionMap,
-      rackSizing.maxRowWidthUnits,
-    )
-    dragState.didDrop = true
-    dragState.snapshot = nextRack
-    setDraftRack(nextRack)
-  }
-
-  /**
-   * Restore the layout if a drag is cancelled.
-   */
-  const handleInstrumentDragEnd = () => {
-    const dragState = dragStateRef.current
-    if (!dragState) {
-      return
-    }
-    if (!dragState.didDrop) {
-      setDraftRack(dragState.snapshot)
-    }
-    dragStateRef.current = null
-  }
-
-  const compatibleInstruments = currentRack
-    ? instrumentDefinitions
-    : []
-  const rackCanvasWidthPx = currentRack
-    ? getRackCanvasSize(currentRack, instrumentDefinitions, rackSizing).rackWidthPx
-    : null
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
+  const activeVbusInfo = activeDriverState?.vbusInfo ?? null
+  const activeTriggerInfo = activeDriverState?.triggerInfo ?? null
+  const globalSelectedSinkPdo = globalSinkPdoList[globalSinkSelectedIndex] ?? null
+  const globalSinkParsedVoltage = parseSinkField(
+    globalSelectedSinkPdo?.type === SinkPdoType.FIXED
+      ? globalSelectedSinkPdo.voltageV.toFixed(2)
+      : globalSinkVoltageV,
+  )
+  const globalSinkCurrentConstraints =
+    getSinkCurrentConstraints(globalSelectedSinkPdo, globalSinkParsedVoltage)
+  const globalSinkRequestPreview = globalSelectedSinkPdo
+    ? buildSinkRequestArgs({
+        pdo: globalSelectedSinkPdo,
+        voltageV: globalSinkVoltageV,
+        currentA: globalSinkCurrentA,
+      })
+    : { error: 'Select a PDO before requesting power.' }
+  const globalSinkCanSubmit =
+    !!activeDriver &&
+    globalSelectedSinkPdo != null &&
+    activeDriverState?.role === CCBusRole.SINK &&
+    globalSinkRequestStatus !== 'sending' &&
+    !globalSinkRequestPreview.error
+  const globalSinkCurrentRangeLabel = globalSinkCurrentConstraints.maxA == null
+    ? '--'
+    : `0.00-${globalSinkCurrentConstraints.maxA.toFixed(2)} A`
+  const isProtectionTriggered =
+    activeVbusInfo?.status === VBusStatus.OVP || activeVbusInfo?.status === VBusStatus.OCP
+  const isTriggerActivated = activeTriggerInfo?.status === TriggerStatus.TRIGGERED
+  const isSinkMode = activeDriverState?.role === CCBusRole.SINK
+  const timeSinceMeterReset = formatHeaderElapsed(activeDriverState?.analogMonitor?.accumulationElapsedTimeUs)
+  const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
+    const deviceItems: MenuItem[] = [
+      {
+        id: 'pair-new-device',
+        label: 'Pair new device...',
+        onSelect: () => {
+          void handleConnectDevice()
+        },
+      },
+      {
+        id: 'device-separator',
+        type: 'separator',
+      },
+      ...(pairedDevices.length > 0
+        ? pairedDevices.map((record) => {
+            const state = deviceStates.find((entry) => entry.record.id === record.id)
+            const isConnected = state?.status === 'connected'
+            return {
+              id: `paired-device-${record.id}`,
+              type: 'submenu' as const,
+              label: record.displayName,
+              items: [
+                {
+                  id: `paired-device-${record.id}-firmware`,
+                  label: `Firmware version: ${record.firmwareVersion ?? 'Unknown'}`,
+                  disabled: true,
+                  onSelect: () => undefined,
+                },
+                {
+                  id: `paired-device-${record.id}-separator`,
+                  type: 'separator' as const,
+                },
+                {
+                  id: `paired-device-${record.id}-connection`,
+                  label: isConnected ? 'Disconnect' : 'Connect',
+                  onSelect: () => {
+                    if (isConnected) {
+                      void handleDisconnectDevice(record.id)
+                      return
+                    }
+                    void handleConnectPairedDevice(record.id)
+                  },
+                },
+                {
+                  id: `paired-device-${record.id}-unpair`,
+                  label: 'Unpair',
+                  destructive: true,
+                  onSelect: () => {
+                    void handleRemoveDevice(record.id)
+                  },
+                },
+              ],
+            } satisfies MenuItem
+          })
+        : [
+            {
+              id: 'no-paired-devices',
+              label: 'No paired devices',
+              disabled: true,
+              onSelect: () => undefined,
+            } satisfies MenuItem,
+          ]),
+    ]
+
+    return [
+      {
+        id: 'device',
+        label: 'Device',
+        items: deviceItems,
+      },
+      {
+        id: 'protection',
+        label: 'Protection',
+        items: [
+          {
+            id: 'set-protection-thresholds',
+            label: 'Set thresholds...',
+            disabled: !activeDriver,
+            onSelect: () => {
+              void handleSetProtectionThresholds()
+            },
+          },
+          {
+            id: 'reset-protection',
+            label: 'Reset',
+            disabled: !activeDriver || !isProtectionTriggered,
+            onSelect: () => {
+              void handleResetProtection()
+            },
+          },
+        ],
+      },
+      {
+        id: 'power-charge-meter',
+        label: 'Power/Charge Meter',
+        items: [
+          {
+            id: 'reset-power-charge-meter',
+            label: 'Reset',
+            meta: 'Z',
+            disabled: !activeDriver,
+            onSelect: () => {
+              void handleResetPowerChargeMeter()
+            },
+          },
+          {
+            id: 'time-since-reset',
+            label: `Time since reset  ${timeSinceMeterReset}`,
+            disabled: true,
+            onSelect: () => undefined,
+          },
+        ],
+      },
+      {
+        id: 'mode',
+        label: 'Mode',
+        items: [
+          {
+            id: 'set-mode',
+            type: 'submenu',
+            label: 'Set mode',
+            items: [
+              {
+                id: 'mode-disabled',
+                type: 'checkbox',
+                label: 'Disabled',
+                meta: 'D',
+                checked: activeDriverState?.role === CCBusRole.DISABLED,
+                disabled: !activeDriver,
+                onCheckedChange: () => {
+                  void handleSetActiveDeviceRole(CCBusRole.DISABLED)
+                },
+              },
+              {
+                id: 'mode-observer',
+                type: 'checkbox',
+                label: 'Observer',
+                meta: 'O',
+                checked: activeDriverState?.role === CCBusRole.OBSERVER,
+                disabled: !activeDriver,
+                onCheckedChange: () => {
+                  void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
+                },
+              },
+              {
+                id: 'mode-sink',
+                type: 'checkbox',
+                label: 'Sink',
+                meta: 'S',
+                checked: activeDriverState?.role === CCBusRole.SINK,
+                disabled: !activeDriver,
+                onCheckedChange: () => {
+                  void handleSetActiveDeviceRole(CCBusRole.SINK)
+                },
+              },
+            ],
+          },
+          {
+            id: 'choose-power-contract',
+            label: 'Choose power contract...',
+            meta: 'P',
+            disabled: !activeDriver || !isSinkMode,
+            onSelect: () => {
+              void openGlobalSinkRequestDialog()
+            },
+          },
+          {
+            id: 'mode-separator-usb-cycle',
+            type: 'separator',
+          },
+          {
+            id: 'cycle-usb-connection',
+            label: 'Cycle USB Connection',
+            meta: 'T',
+            disabled: !activeDriver || activeDriverState?.role === CCBusRole.DISABLED,
+            onSelect: () => {
+              void handlePulseUsbConnection()
+            },
+          },
+        ],
+      },
+      {
+        id: 'logging',
+        label: 'Message Log',
+        items: [
+          {
+            id: 'logging-toggle-capture',
+            label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
+            meta: 'C',
+            disabled: !activeDriver,
+            onSelect: () => {
+              void handleToggleActiveDeviceCapture()
+            },
+          },
+          {
+            id: 'logging-separator-capture',
+            type: 'separator',
+          },
+          {
+            id: 'logging-clear-log',
+            label: 'Clear Log',
+            meta: 'X',
+            disabled: !activeDriver || isMessageLogClearing,
+            onSelect: () => setIsMessageLogClearDialogOpen(true),
+          },
+          {
+            id: 'logging-add-marker',
+            label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
+            meta: 'M',
+            disabled: !activeDriver || isMessageLogMarking,
+            onSelect: addMessageLogMarker,
+          },
+          {
+            id: 'logging-export-selected',
+            type: 'submenu',
+            label: 'Export Selected',
+            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+            items: [
+              {
+                id: 'logging-export-selected-json',
+                label: 'JSON...',
+                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+                onSelect: () => exportSelectedMessageLog('json'),
+              },
+              {
+                id: 'logging-export-selected-csv',
+                label: 'CSV...',
+                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+                onSelect: () => exportSelectedMessageLog('csv'),
+              },
+            ],
+          },
+          {
+            id: 'logging-separator-filters',
+            type: 'separator',
+          },
+          {
+            id: 'logging-show-goodcrc',
+            type: 'checkbox',
+            label: 'Hide GoodCRC Messages',
+            meta: 'G',
+            checked: isGoodCrcHidden,
+            disabled: !activeDriver,
+            onCheckedChange: toggleGoodCrcMessages,
+          },
+          {
+            id: 'logging-filter',
+            label: countMessageLogFilters(messageLogFilters) > 0
+              ? `Filter... (${countMessageLogFilters(messageLogFilters)})`
+              : 'Filter...',
+            meta: 'F',
+            disabled: !activeDriver,
+            onSelect: () => setIsMessageLogFilterDialogOpen(true),
+          },
+          {
+            id: 'logging-separator-configure',
+            type: 'separator',
+          },
+          {
+            id: 'logging-configure',
+            label: 'Configure...',
+            disabled: !activeDriver || !activeDeviceRecord || isMessageLogConfiguring,
+            onSelect: () => {
+              const configured = activeDeviceRecord?.config &&
+                typeof activeDeviceRecord.config === 'object'
+                ? normalizeLoggingConfig(
+                    (activeDeviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
+                  )
+                : buildDefaultLoggingConfig()
+              setMessageLogBufferInput(configured.maxCapturedMessages.toString())
+              setMessageLogBufferError(null)
+              setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
+              setIsMessageLogConfigureDialogOpen(true)
+            },
+          },
+          {
+            id: 'logging-separator-restore-layout',
+            type: 'separator',
+          },
+          {
+            id: 'logging-restore-table-layout',
+            label: 'Restore Table Layout',
+            onSelect: handleRestoreMessageLogTableLayout,
+          },
+        ],
+      },
+      {
+        id: 'trigger',
+        label: 'Trigger',
+        items: [
+          {
+            id: 'configure-trigger',
+            label: 'Configure...',
+            disabled: !activeDriver,
+            onSelect: () => {
+              void openGlobalTriggerConfigureDialog()
+            },
+          },
+          {
+            id: 'reset-trigger',
+            label: 'Reset',
+            meta: 'R',
+            disabled: !activeDriver || !isTriggerActivated,
+            onSelect: () => {
+              void handleResetTrigger()
+            },
+          },
+        ],
+      },
+      {
+        id: 'firmware',
+        label: 'Firmware',
+        items: [
+          {
+            id: 'update-firmware',
+            label: 'Update firmware...',
+            disabled: !firmwareUpdatePrompt || isFirmwareUploadBusy,
+            onSelect: () => undefined,
+          },
+          {
+            id: 'firmware-channel',
+            type: 'submenu',
+            label: 'Update channel',
+            items: [
+              {
+                id: 'firmware-channel-production',
+                type: 'checkbox',
+                label: 'Production',
+                checked: firmwareUpdateChannel === 'production',
+                onCheckedChange: () => setFirmwareUpdateChannel('production'),
+              },
+              {
+                id: 'firmware-channel-beta',
+                type: 'checkbox',
+                label: 'Beta',
+                checked: firmwareUpdateChannel === 'beta',
+                onCheckedChange: () => setFirmwareUpdateChannel('beta'),
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'display',
+        label: 'Display',
+        items: [
+          {
+            id: 'show-timestrip',
+            type: 'checkbox',
+            label: 'Show Timestrip',
+            checked: showTimestrip,
+            onCheckedChange: () => setShowTimestrip((current) => !current),
+          },
+          {
+            id: 'layout',
+            type: 'submenu',
+            label: 'Layout',
+            items: [
+              {
+                id: 'layout-responsive',
+                type: 'checkbox',
+                label: 'Responsive',
+                checked: layoutMode === 'full',
+                onCheckedChange: () => setLayoutMode('full'),
+              },
+              {
+                id: 'layout-fixed',
+                type: 'checkbox',
+                label: 'Fixed',
+                checked: layoutMode === 'fixed',
+                onCheckedChange: () => setLayoutMode('fixed'),
+              },
+            ],
+          },
+          {
+            id: 'theme',
+            type: 'submenu',
+            label: 'Theme',
+            items: [
+              {
+                id: 'theme-light',
+                type: 'checkbox',
+                label: 'Light',
+                checked: theme === 'light',
+                onCheckedChange: () => setTheme('light'),
+              },
+              {
+                id: 'theme-dark',
+                type: 'checkbox',
+                label: 'Dark',
+                checked: theme === 'dark',
+                onCheckedChange: () => setTheme('dark'),
+              },
+              {
+                id: 'theme-system',
+                type: 'checkbox',
+                label: 'System default',
+                checked: theme === 'system',
+                onCheckedChange: () => setTheme('system'),
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'help',
+        label: 'Help',
+        items: [
+          {
+            id: 'user-manual',
+            label: 'User manual...',
+            meta: '?',
+            onSelect: handleOpenDocumentation,
+          },
+        ],
+      },
+    ]
+  }, [
+    activeDriver,
+    activeDriverState?.role,
+    addMessageLogMarker,
+    deviceStates,
+    firmwareUpdateChannel,
+    firmwareUpdatePrompt,
+    exportSelectedMessageLog,
+    handleConnectPairedDevice,
+    handleDisconnectDevice,
+    handleOpenDocumentation,
+    handlePulseUsbConnection,
+    handleRemoveDevice,
+    handleResetPowerChargeMeter,
+    handleResetProtection,
+    handleResetTrigger,
+    handleRestoreMessageLogTableLayout,
+    handleSetActiveDeviceRole,
+    handleSetProtectionThresholds,
+    handleToggleActiveDeviceCapture,
+    isFirmwareUploadBusy,
+    isCaptureEnabled,
+    isProtectionTriggered,
+    isSinkMode,
+    isTriggerActivated,
+    hasSelectedMessages,
+    isGoodCrcShown,
+    isGoodCrcHidden,
+    isMessageLogClearing,
+    isMessageLogConfiguring,
+    isMessageLogExporting,
+    isMessageLogMarking,
+    layoutMode,
+    messageLogColumnVisibility,
+    messageLogFilters,
+    openGlobalSinkRequestDialog,
+    openGlobalTriggerConfigureDialog,
+    pairedDevices,
+    showTimestrip,
+    theme,
+    timeSinceMeterReset,
+    toggleGoodCrcMessages,
+  ])
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-layout-mode={layoutMode}>
+      <div className={styles.menuBarViewport}>
+        <div className={styles.menuBarScroll}>
+          <div className={styles.menuBar}>
+            {menuBarMenus.map((menu) => (
+              <Menu
+                key={menu.id}
+                label={`${menu.label} menu`}
+                align="start"
+                items={menu.items}
+                trigger={(props) => (
+                  <button type="button" className={styles.menuBarButton} {...props}>
+                    {menu.label}
+                  </button>
+                )}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
       {!currentRack?.hideHeader ? (
         <div className={styles.headerViewport}>
           <div className={styles.headerScroll}>
-            <header
-              className={styles.header}
-              style={rackCanvasWidthPx ? { width: rackCanvasWidthPx } : undefined}
-            >
-              <div className={styles.titleBlock}>
-                <h1 className={styles.title}>
-                  <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
-                  <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
-                </h1>
-              </div>
-              <div className={styles.headerActions}>
-                {!isEditMode ? (
-                  <button
-                    type="button"
-                    className={styles.editButton}
-                    onClick={handleEnterEditMode}
-                  >
-                    Edit
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className={styles.editButtonSecondary}
-                      onClick={handleCancelEditMode}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.editButtonPrimary}
-                      onClick={handleSaveEditMode}
-                    >
-                      Save
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  className={styles.themeButton}
-                  onClick={handleThemeToggle}
-                >
-                  Theme: {themeLabel}
-                </button>
-                <button
-                  type="button"
-                  className={styles.settingsButton}
-                  onClick={() => setIsShortcutHelpOpen(true)}
-                >
-                  Shortcut help
-                </button>
-                <button
-                  type="button"
-                  className={styles.settingsButton}
-                  onClick={() => setIsSettingsOpen(true)}
-                  disabled={isEditMode}
-                >
-                  Settings
-                </button>
-                {currentRack &&
-                !currentRack.hideHeader ? (
-                  <div className={styles.instrumentMenu} ref={instrumentMenuRef}>
-                    <button
-                      type="button"
-                      className={styles.deviceMenuButton}
-                      ref={instrumentMenuButtonRef}
-                      onClick={() =>
-                        setIsInstrumentMenuOpen((open) => !open)
-                      }
-                    >
-                      Add Instrument
-                    </button>
-                    {isInstrumentMenuOpen ? (
-                      typeof document !== 'undefined'
-                        ? createPortal(
-                            <div
-                              className={styles.instrumentMenuPanel}
-                              ref={headerMenuPopoverRef}
-                              style={{
-                                ...headerMenuInlineStyle,
-                                zIndex: HEADER_MENU_POPOVER_Z_INDEX,
-                                visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
-                              }}
-                            >
-                              {compatibleInstruments.length === 0 ? (
-                                <div className={styles.instrumentMenuEmpty}>
-                                  No compatible instruments
-                                </div>
-                              ) : (
-                                <ul className={styles.instrumentMenuList}>
-                                  {compatibleInstruments.map((instrument) => (
-                                    <li key={instrument.identifier}>
-                                      <button
-                                        type="button"
-                                        className={styles.instrumentMenuItem}
-                                        onClick={() =>
-                                          handleAddInstrument(instrument.identifier)
-                                        }
-                                      >
-                                        {instrument.displayName}
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>,
-                            document.body,
-                          )
-                        : null
-                    ) : null}
-                  </div>
-                ) : null}
-                <div
-                  className={styles.deviceMenu}
-                  data-testid="rack-devices"
-                  ref={deviceMenuRef}
-                >
-                  <button
-                    type="button"
-                    className={styles.deviceMenuButton}
-                    ref={deviceMenuButtonRef}
-                    onClick={() => setIsDeviceMenuOpen((open) => !open)}
-                    disabled={isEditMode}
-                  >
-                    Paired Devices
-                  </button>
-                  {isDeviceMenuOpen ? (
-                    typeof document !== 'undefined'
-                      ? createPortal(
-                          <div
-                            className={styles.deviceMenuPanel}
-                            ref={headerMenuPopoverRef}
-                            style={{
-                              ...headerMenuInlineStyle,
-                              zIndex: HEADER_MENU_POPOVER_Z_INDEX,
-                              visibility: headerMenuInlineStyle ? 'visible' : 'hidden',
-                            }}
-                          >
-                            <button
-                              type="button"
-                              className={styles.deviceMenuItem}
-                              onClick={handleConnectDevice}
-                            >
-                              Pair Device
-                            </button>
-                            <div className={styles.deviceMenuSeparator} />
-                            {deviceStates.length === 0 ? (
-                              <div className={styles.deviceMenuEmpty}>No paired devices</div>
-                            ) : (
-                              <ul className={styles.deviceMenuList}>
-                                {deviceStates.map((device) => (
-                                  <li key={device.record.id} className={styles.deviceRow}>
-                                    <div className={styles.deviceInfo}>
-                                      <span className={styles.deviceName}>
-                                        {formatRackDeviceLabel(device.record)}
-                                      </span>
-                                      <span
-                                        className={`${styles.deviceStatus} ${
-                                          device.status === 'connected'
-                                            ? styles.deviceStatusConnected
-                                            : device.status === 'error'
-                                              ? styles.deviceStatusError
-                                              : ''
-                                        }`}
-                                      >
-                                        {device.status}
-                                      </span>
-                                    </div>
-                                    <div className={styles.deviceActions}>
-                                      {device.status === 'connected' ? (
-                                        <button
-                                          type="button"
-                                          className={styles.deviceActionButton}
-                                          onClick={() =>
-                                            handleDisconnectDevice(device.record.id)
-                                          }
-                                        >
-                                          Disconnect
-                                        </button>
-                                      ) : null}
-                                      {device.status === 'disconnected' ||
-                                      device.status === 'error' ? (
-                                        <button
-                                          type="button"
-                                          className={styles.deviceActionButton}
-                                          onClick={() =>
-                                            handleReconnectDevice(device.record.id)
-                                          }
-                                        >
-                                          Connect
-                                        </button>
-                                      ) : null}
-                                      <button
-                                        type="button"
-                                        className={`${styles.deviceActionButton} ${styles.removeButton}`}
-                                        onClick={() =>
-                                          handleRemoveDevice(device.record.id)
-                                        }
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>,
-                          document.body,
-                        )
-                      : null
-                  ) : null}
+            <header className={styles.header}>
+              <div className={styles.headerContent}>
+                <div className={styles.titleBlock}>
+                  <h1 className={styles.title}>
+                    <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
+                    <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
+                  </h1>
+                  <HeaderVbusMetrics driver={activeConnectedDeviceState?.drpdDriver} />
                 </div>
               </div>
             </header>
@@ -1867,18 +2796,19 @@ export const RackView = () => {
         {!isLoading && error ? (
           <div className={styles.notice}>Error: {error}</div>
         ) : null}
-        {!isLoading && !error && currentRack ? (
+        {!isLoading && !error && renderedRack ? (
           <RackRenderer
-            rack={currentRack}
+            rack={renderedRack}
             instruments={instrumentDefinitions}
             deviceStates={deviceStates}
             activeDeviceRecord={activeDeviceRecord}
-            isEditMode={isEditMode}
-            onRemoveInstrument={handleRemoveInstrument}
-            onInstrumentDragStart={handleInstrumentDragStart}
-            onInstrumentDragOver={handleInstrumentDragOver}
-            onInstrumentDrop={handleInstrumentDrop}
-            onInstrumentDragEnd={handleInstrumentDragEnd}
+            isEditMode={isRackEditMode}
+            onRemoveInstrument={handleRemoveRackInstrument}
+            onInstrumentDragStart={setDraggedRackInstrumentId}
+            onInstrumentDrop={handleRackInstrumentDrop}
+            onInstrumentDragEnd={() => setDraggedRackInstrumentId(null)}
+            onInstrumentResize={handleRackInstrumentResize}
+            onRowResize={handleRackRowResize}
             onUpdateDeviceConfig={handleUpdateDeviceConfig}
           />
         ) : null}
@@ -1886,249 +2816,585 @@ export const RackView = () => {
           <div className={styles.notice}>No racks available.</div>
         ) : null}
       </main>
-      {isSettingsOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <div className={styles.settingsBackdrop}>
-              <section
-                className={styles.settingsDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="rack-settings-title"
-              >
-                <div className={styles.settingsHeader}>
-                  <h2 id="rack-settings-title" className={styles.settingsTitle}>
-                    Settings
-                  </h2>
-                  <button
-                    type="button"
-                    className={styles.settingsCloseButton}
-                    onClick={() => setIsSettingsOpen(false)}
-                    aria-label="Close settings"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className={styles.settingsBody}>
-                  <fieldset className={styles.settingsFieldset}>
-                    <legend className={styles.settingsLegend}>Firmware update channel</legend>
-                    <div className={styles.channelOptions}>
-                      <label className={styles.channelOption}>
-                        <input
-                          type="radio"
-                          name="firmware-update-channel"
-                          value="production"
-                          checked={firmwareUpdateChannel === 'production'}
-                          onChange={() => setFirmwareUpdateChannel('production')}
-                        />
-                        <span className={styles.channelOptionText}>
-                          <span className={styles.channelOptionTitle}>Production</span>
-                          <span className={styles.channelOptionDescription}>
-                            Stable firmware releases only.
-                          </span>
-                        </span>
-                      </label>
-                      <label className={styles.channelOption}>
-                        <input
-                          type="radio"
-                          name="firmware-update-channel"
-                          value="beta"
-                          checked={firmwareUpdateChannel === 'beta'}
-                          onChange={() => setFirmwareUpdateChannel('beta')}
-                        />
-                        <span className={styles.channelOptionText}>
-                          <span className={styles.channelOptionTitle}>Beta</span>
-                          <span className={styles.channelOptionDescription}>
-                            Stable and beta firmware releases.
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                    <div className={styles.settingsValue}>
-                      Current channel: {firmwareUpdateChannelLabel}
-                    </div>
-                  </fieldset>
-                </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
-      {isShortcutHelpOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <div className={styles.settingsBackdrop}>
-              <section
-                className={styles.shortcutDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="shortcut-help-title"
-              >
-                <div className={styles.shortcutHero}>
-                  <div>
-                    <p className={styles.shortcutEyebrow}>Global Shortcuts</p>
-                    <h2 id="shortcut-help-title" className={styles.shortcutTitle}>
-                      Keyboard shortcuts
-                    </h2>
-                    <p className={styles.shortcutLead}>
-                      Work anywhere in rack view. Shortcut actions target connected DRPD device.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className={styles.settingsCloseButton}
-                    onClick={() => setIsShortcutHelpOpen(false)}
-                    aria-label="Close shortcut help"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className={styles.shortcutGrid}>
-                  {RACK_SHORTCUTS.map((shortcut) => (
-                    <article key={shortcut.id} className={styles.shortcutCard}>
-                      <kbd className={styles.shortcutKey}>{shortcut.key}</kbd>
-                      <div className={styles.shortcutCardBody}>
-                        <h3 className={styles.shortcutCardTitle}>{shortcut.label}</h3>
-                        <p className={styles.shortcutCardText}>{shortcut.description}</p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
-      {firmwareUpdatePrompt && typeof document !== 'undefined'
-        ? createPortal(
-            <div className={styles.settingsBackdrop}>
-              <section
-                className={styles.settingsDialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="firmware-update-title"
-              >
-                <div className={styles.settingsHeader}>
-                  <h2 id="firmware-update-title" className={styles.settingsTitle}>
-                    Firmware update available
-                  </h2>
-                  <button
-                    type="button"
-                    className={styles.settingsCloseButton}
-                    onClick={() => {
-                      if (!isFirmwareUploadBusy) {
-                        setFirmwareUpdatePrompt(null)
-                      }
-                    }}
-                    aria-label="Close firmware update prompt"
-                    disabled={isFirmwareUploadBusy}
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className={styles.settingsBody}>
-                  <p className={styles.firmwareUpdateText}>
-                    {firmwareUpdatePrompt.statusMessage}
-                  </p>
-                  <dl className={styles.firmwareVersionList}>
-                    <div>
-                      <dt>Installed</dt>
-                      <dd>{firmwareUpdatePrompt.currentVersion}</dd>
-                    </div>
-                    <div>
-                      <dt>Available</dt>
-                      <dd>{firmwareUpdatePrompt.targetRelease.versionText}</dd>
-                    </div>
-                  </dl>
-                  {firmwareUpdatePrompt.phase === 'prompt' ? (
-                    <label className={styles.firmwareSuppressOption}>
-                      <input
-                        type="checkbox"
-                        checked={firmwareUpdatePrompt.suppressVersion}
-                        onChange={(event) => updateFirmwarePromptState({ suppressVersion: event.target.checked })}
-                      />
-                      <span>Do not ask again for this version</span>
-                    </label>
-                  ) : null}
-                  {firmwareUpdatePrompt.phase !== 'prompt' ? (
-                    <div className={styles.firmwareUploadStatus}>
-                      <div className={styles.firmwareUploadWarning}>
-                        Do not disconnect the device. Do not refresh the page.
-                      </div>
-                      <div className={styles.firmwareProgressShell} aria-label="Firmware upload progress">
-                        <div
-                          className={styles.firmwareProgressBar}
-                          style={{ '--firmware-progress': `${Math.round(firmwareUpdatePrompt.progress * 100)}%` } as CSSProperties}
-                        />
-                      </div>
-                      {firmwareUpdatePrompt.errorMessage ? (
-                        <div className={styles.firmwareUploadError}>
-                          Error: {firmwareUpdatePrompt.errorMessage}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className={styles.firmwareUpdateActions}>
-                    {firmwareUpdatePrompt.phase === 'prompt' ? (
-                      <>
-                        <button
-                          type="button"
-                          className={styles.editButtonSecondary}
-                          onClick={handleDeclineFirmwareUpdate}
-                        >
-                          Not Now
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.editButtonPrimary}
-                          onClick={() => {
-                            void handleAcceptFirmwareUpdate()
-                          }}
-                        >
-                          Upload Firmware
-                        </button>
-                      </>
-                    ) : null}
-                    {firmwareUpdatePrompt.phase === 'failure' ? (
-                      <>
-                        <button
-                          type="button"
-                          className={styles.editButtonSecondary}
-                          onClick={() => setFirmwareUpdatePrompt(null)}
-                        >
-                          Close
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.editButtonPrimary}
-                          onClick={() => {
-                            void handleAcceptFirmwareUpdate()
-                          }}
-                        >
-                          Retry
-                        </button>
-                      </>
-                    ) : null}
-                    {firmwareUpdatePrompt.phase === 'success' ? (
-                      <button
-                        type="button"
-                        className={styles.editButtonPrimary}
-                        onClick={() => setFirmwareUpdatePrompt(null)}
-                      >
-                        Done
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </section>
-            </div>,
-            document.body,
-          )
-        : null}
+      <FirmwareUpdateDialog
+        prompt={firmwareUpdatePrompt}
+        busy={isFirmwareUploadBusy}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFirmwareUpdatePrompt(null)
+          }
+        }}
+        onSuppressVersionChange={(value) => updateFirmwarePromptState({ suppressVersion: value })}
+        onDecline={handleDeclineFirmwareUpdate}
+        onAccept={() => {
+          void handleAcceptFirmwareUpdate()
+        }}
+        onRetry={() => {
+          void handleAcceptFirmwareUpdate()
+        }}
+        onDone={() => setFirmwareUpdatePrompt(null)}
+      />
+      <VbusConfigurePopover
+        instrumentId="global-vbus"
+        open={isGlobalVbusDialogOpen}
+        onOpenChange={setIsGlobalVbusDialogOpen}
+        driver={activeDriver}
+        vbusInfo={activeVbusInfo}
+        ovpThresholdInput={globalOvpThresholdInput}
+        ocpThresholdInput={globalOcpThresholdInput}
+        displayUpdateRateInput={globalDisplayUpdateRateInput}
+        configureError={globalVbusConfigureError}
+        isApplyingConfig={isGlobalVbusApplying}
+        setOvpThresholdInput={setGlobalOvpThresholdInput}
+        setOcpThresholdInput={setGlobalOcpThresholdInput}
+        setDisplayUpdateRateInput={setGlobalDisplayUpdateRateInput}
+        setConfigureError={setGlobalVbusConfigureError}
+        setIsApplyingConfig={setIsGlobalVbusApplying}
+        setDisplayUpdateRateHz={() => undefined}
+      />
+      <SinkRequestPopover
+        open={isGlobalSinkDialogOpen}
+        onOpenChange={setIsGlobalSinkDialogOpen}
+        instrumentId="global-sink-request"
+        sinkPdoList={globalSinkPdoList}
+        selectedIndex={globalSinkSelectedIndex}
+        selectedPdo={globalSelectedSinkPdo}
+        isRefreshingSinkData={false}
+        voltageV={globalSinkVoltageV}
+        currentA={globalSinkCurrentA}
+        voltageHint={getSinkVoltageHint(globalSelectedSinkPdo)}
+        currentRangeLabel={globalSinkCurrentRangeLabel}
+        validationMessage={globalSinkRequestPreview.error ?? null}
+        requestErrorMessage={globalSinkRequestError}
+        requestStatus={globalSinkRequestStatus}
+        canSubmit={globalSinkCanSubmit}
+        setSelectedIndex={setGlobalSinkSelectedIndex}
+        setVoltageV={setGlobalSinkVoltageV}
+        setCurrentA={setGlobalSinkCurrentA}
+        setRequestErrorMessage={setGlobalSinkRequestError}
+        setRequestStatus={setGlobalSinkRequestStatus}
+        onCancel={() => {
+          setIsGlobalSinkDialogOpen(false)
+          setGlobalSinkRequestError(null)
+          setGlobalSinkRequestStatus('idle')
+        }}
+        onSubmit={() => {
+          if (!activeDriver || !globalSelectedSinkPdo) {
+            return
+          }
+          const parsed = buildSinkRequestArgs({
+            pdo: globalSelectedSinkPdo,
+            voltageV: globalSinkVoltageV,
+            currentA: globalSinkCurrentA,
+          })
+          if (parsed.error || parsed.voltageMv == null || parsed.currentMa == null) {
+            setGlobalSinkRequestError(parsed.error ?? 'Invalid request parameters.')
+            setGlobalSinkRequestStatus('error')
+            return
+          }
+          setGlobalSinkRequestStatus('sending')
+          setGlobalSinkRequestError(null)
+          void activeDriver.sink
+            .requestPdo(globalSinkSelectedIndex, parsed.voltageMv, parsed.currentMa)
+            .then(async () => {
+              await activeDriver.refreshState()
+              setGlobalSinkRequestStatus('success')
+              setIsGlobalSinkDialogOpen(false)
+            })
+            .catch((error) => {
+              setGlobalSinkRequestError(error instanceof Error ? error.message : String(error))
+              setGlobalSinkRequestStatus('error')
+          })
+        }}
+      />
+      <MessageLogFilterPopover
+        open={isMessageLogFilterDialogOpen}
+        onOpenChange={setIsMessageLogFilterDialogOpen}
+        filters={messageLogFilters}
+        options={messageLogFilterOptions}
+        onApply={(next) => {
+          setMessageLogFilters(next)
+          notifyMessageLogFiltersChanged(next)
+          if (!activeDriver) {
+            return
+          }
+          void activeDriver
+            .queryCapturedMessages({
+              startTimestampUs: 0n,
+              endTimestampUs: LOG_END_TIMESTAMP_US,
+              sortOrder: 'asc',
+            })
+            .then(setMessageLogFilterRows)
+        }}
+        onClear={() => {
+          setMessageLogFilters(EMPTY_MESSAGE_LOG_FILTERS)
+          notifyMessageLogFiltersChanged(EMPTY_MESSAGE_LOG_FILTERS)
+        }}
+      />
+      <MessageLogClearPopover
+        open={isMessageLogClearDialogOpen}
+        onOpenChange={setIsMessageLogClearDialogOpen}
+        clearError={messageLogError}
+        isClearing={isMessageLogClearing}
+        onCancel={() => {
+          setMessageLogError(null)
+          setIsMessageLogClearDialogOpen(false)
+        }}
+        onClear={() => {
+          if (!activeDriver) {
+            return
+          }
+          setIsMessageLogClearing(true)
+          setMessageLogError(null)
+          void activeDriver
+            .clearLogs('all')
+            .then(() => {
+              setMessageLogSelectionKeys([])
+              setMessageLogFilterRows([])
+              setIsMessageLogClearDialogOpen(false)
+            })
+            .catch((error) => {
+              setMessageLogError(error instanceof Error ? error.message : String(error))
+            })
+            .finally(() => {
+              setIsMessageLogClearing(false)
+            })
+        }}
+      />
+      <MessageLogConfigurePopover
+        open={isMessageLogConfigureDialogOpen}
+        onOpenChange={setIsMessageLogConfigureDialogOpen}
+        instrumentId="global-message-log"
+        minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
+        maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
+        bufferInput={messageLogBufferInput}
+        bufferError={messageLogBufferError}
+        columnVisibility={messageLogColumnVisibilityInput}
+        isApplyingBuffer={isMessageLogConfiguring}
+        setBufferInput={setMessageLogBufferInput}
+        setBufferError={setMessageLogBufferError}
+        setColumnVisibility={setMessageLogColumnVisibilityInput}
+        onCancel={() => {
+          setMessageLogBufferError(null)
+          setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
+          setIsMessageLogConfigureDialogOpen(false)
+        }}
+        onApply={() => {
+          if (!activeDeviceRecord) {
+            return
+          }
+          if (!/^\d+$/.test(messageLogBufferInput)) {
+            setMessageLogBufferError(
+              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+            )
+            return
+          }
+          const parsed = Number(messageLogBufferInput)
+          if (
+            !Number.isFinite(parsed) ||
+            parsed < MIN_CAPTURED_MESSAGE_BUFFER ||
+            parsed > MAX_CAPTURED_MESSAGE_BUFFER
+          ) {
+            setMessageLogBufferError(
+              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+            )
+            return
+          }
+          setIsMessageLogConfiguring(true)
+          setMessageLogBufferError(null)
+          setMessageLogColumnVisibility(messageLogColumnVisibilityInput)
+          void handleUpdateDeviceConfig(activeDeviceRecord.id, (current) => {
+            const source = current && typeof current === 'object'
+              ? (current as { logging?: Partial<DRPDLoggingConfig> })
+              : {}
+            return {
+              ...source,
+              logging: normalizeLoggingConfig({
+                ...source.logging,
+                maxCapturedMessages: Math.floor(parsed),
+              }),
+            }
+          })
+            .then(() => {
+              setIsMessageLogConfigureDialogOpen(false)
+            })
+            .catch((error) => {
+              setMessageLogBufferError(error instanceof Error ? error.message : String(error))
+            })
+            .finally(() => {
+              setIsMessageLogConfiguring(false)
+            })
+        }}
+      />
+      <TriggerConfigurePopover
+        open={isGlobalTriggerDialogOpen}
+        onOpenChange={setIsGlobalTriggerDialogOpen}
+        instrumentId="global-trigger"
+        eventTypeInput={globalTriggerEventTypeInput}
+        senderFilterInput={globalTriggerSenderInput}
+        messageTypeFiltersInput={globalTriggerMessageTypeFiltersInput}
+        messageTypeFilterClassInput={globalTriggerMessageTypeFilterClassInput}
+        messageTypeFilterTypeInput={globalTriggerMessageTypeFilterTypeInput}
+        eventThresholdInput={globalTriggerThresholdInput}
+        autoRepeatInput={globalTriggerAutoRepeatInput}
+        syncModeInput={globalTriggerSyncModeInput}
+        syncPulseWidthUsInput={globalTriggerSyncPulseWidthUsInput}
+        configureError={globalTriggerConfigureError}
+        isApplyingConfig={isGlobalTriggerApplying}
+        setEventTypeInput={setGlobalTriggerEventTypeInput}
+        setSenderFilterInput={setGlobalTriggerSenderInput}
+        setMessageTypeFiltersInput={setGlobalTriggerMessageTypeFiltersInput}
+        setMessageTypeFilterClassInput={setGlobalTriggerMessageTypeFilterClassInput}
+        setMessageTypeFilterTypeInput={setGlobalTriggerMessageTypeFilterTypeInput}
+        setEventThresholdInput={setGlobalTriggerThresholdInput}
+        setAutoRepeatInput={setGlobalTriggerAutoRepeatInput}
+        setSyncModeInput={setGlobalTriggerSyncModeInput}
+        setSyncPulseWidthUsInput={setGlobalTriggerSyncPulseWidthUsInput}
+        setConfigureError={setGlobalTriggerConfigureError}
+        onCancel={() => {
+          setGlobalTriggerConfigureError(null)
+          setIsGlobalTriggerDialogOpen(false)
+        }}
+        onApply={() => {
+          if (!activeDriver) {
+            return
+          }
+          const parsedThreshold = Number(globalTriggerThresholdInput)
+          const parsedPulseWidthUs = Number(globalTriggerSyncPulseWidthUsInput)
+          if (!Number.isInteger(parsedThreshold) || parsedThreshold < 1) {
+            setGlobalTriggerConfigureError('Threshold must be an integer greater than or equal to 1.')
+            return
+          }
+          if (!Number.isInteger(parsedPulseWidthUs) || parsedPulseWidthUs < 1) {
+            setGlobalTriggerConfigureError('Pulse width must be an integer greater than or equal to 1 us.')
+            return
+          }
+          setIsGlobalTriggerApplying(true)
+          setGlobalTriggerConfigureError(null)
+          void Promise.all([
+            activeDriver.trigger.setEventType(globalTriggerEventTypeInput),
+            activeDriver.trigger.setEventThreshold(parsedThreshold),
+            activeDriver.trigger.setSenderFilter(globalTriggerSenderInput),
+            activeDriver.trigger.setAutoRepeat(globalTriggerAutoRepeatInput),
+            activeDriver.trigger.setSyncMode(globalTriggerSyncModeInput),
+            activeDriver.trigger.setSyncPulseWidthUs(parsedPulseWidthUs),
+            activeDriver.trigger.setMessageTypeFilters(globalTriggerMessageTypeFiltersInput),
+          ])
+            .then(async () => {
+              await activeDriver.refreshState()
+              setIsGlobalTriggerDialogOpen(false)
+            })
+            .catch((error) => {
+              setGlobalTriggerConfigureError(error instanceof Error ? error.message : String(error))
+            })
+            .finally(() => {
+              setIsGlobalTriggerApplying(false)
+            })
+        }}
+      />
+    </div>
+  )
+}
+
+const HeaderVbusMetrics = ({
+  driver,
+}: {
+  driver?: DRPDDriverRuntime
+}) => {
+  const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
+    driver ? driver.getState().analogMonitor ?? null : null,
+  )
+  const [role, setRole] = useState<CCBusRole | null>(
+    driver ? driver.getState().role ?? null : null,
+  )
+  const [roleStatus, setRoleStatus] = useState<CCBusRoleStatus | null>(
+    driver ? driver.getState().ccBusRoleStatus ?? null : null,
+  )
+  const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
+    driver ? driver.getState().vbusInfo ?? null : null,
+  )
+  const [sinkInfo, setSinkInfo] = useState<SinkInfo | null>(
+    driver ? driver.getState().sinkInfo ?? null : null,
+  )
+  const [triggerInfo, setTriggerInfo] = useState<TriggerInfo | null>(
+    driver ? driver.getState().triggerInfo ?? null : null,
+  )
+  const [displayMeasurements, setDisplayMeasurements] = useState<HeaderVbusDisplayMeasurements>(() =>
+    buildHeaderVbusDisplayMeasurements(driver ? driver.getState().analogMonitor ?? null : null),
+  )
+  const pendingAverageRef = useRef<HeaderVbusPendingAverage>({
+    voltageSum: 0,
+    currentSum: 0,
+    sampleCount: 0,
+  })
+
+  useEffect(() => {
+    const initialState = driver ? driver.getState() : null
+    const initialAnalogMonitor = initialState?.analogMonitor ?? null
+    setAnalogMonitor(initialAnalogMonitor)
+    setRole(initialState?.role ?? null)
+    setRoleStatus(initialState?.ccBusRoleStatus ?? null)
+    setVbusInfo(initialState?.vbusInfo ?? null)
+    setSinkInfo(initialState?.sinkInfo ?? null)
+    setTriggerInfo(initialState?.triggerInfo ?? null)
+    setDisplayMeasurements(buildHeaderVbusDisplayMeasurements(initialAnalogMonitor))
+    pendingAverageRef.current = {
+      voltageSum: 0,
+      currentSum: 0,
+      sampleCount: 0,
+    }
+  }, [driver])
+
+  useEffect(() => {
+    if (!driver) {
+      return
+    }
+
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed as string[] : null
+      if (
+        changed &&
+        !changed.includes('analogMonitor') &&
+        !changed.includes('role') &&
+        !changed.includes('ccBusRoleStatus') &&
+        !changed.includes('vbusInfo') &&
+        !changed.includes('sinkInfo') &&
+        !changed.includes('triggerInfo')
+      ) {
+        return
+      }
+      const state = driver.getState()
+      if (!changed || changed.includes('analogMonitor')) {
+        setAnalogMonitor(state.analogMonitor ?? null)
+      }
+      if (!changed || changed.includes('role')) {
+        setRole(state.role ?? null)
+      }
+      if (!changed || changed.includes('ccBusRoleStatus')) {
+        setRoleStatus(state.ccBusRoleStatus ?? null)
+      }
+      if (!changed || changed.includes('vbusInfo')) {
+        setVbusInfo(state.vbusInfo ?? null)
+      }
+      if (!changed || changed.includes('sinkInfo')) {
+        setSinkInfo(state.sinkInfo ?? null)
+      }
+      if (!changed || changed.includes('triggerInfo')) {
+        setTriggerInfo(state.triggerInfo ?? null)
+      }
+    }
+
+    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+
+    return () => {
+      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [driver])
+
+  useEffect(() => {
+    if (!analogMonitor) {
+      pendingAverageRef.current = {
+        voltageSum: 0,
+        currentSum: 0,
+        sampleCount: 0,
+      }
+      setDisplayMeasurements({ vbusVoltage: null, vbusCurrent: null })
+      return
+    }
+    if (!Number.isFinite(analogMonitor.vbus) || !Number.isFinite(analogMonitor.ibus)) {
+      return
+    }
+    pendingAverageRef.current = {
+      voltageSum: pendingAverageRef.current.voltageSum + analogMonitor.vbus,
+      currentSum: pendingAverageRef.current.currentSum + analogMonitor.ibus,
+      sampleCount: pendingAverageRef.current.sampleCount + 1,
+    }
+  }, [analogMonitor])
+
+  useEffect(() => {
+    const periodMs = 1000 / HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ
+    const timerId = window.setInterval(() => {
+      const pending = pendingAverageRef.current
+      if (pending.sampleCount <= 0) {
+        return
+      }
+      setDisplayMeasurements({
+        vbusVoltage: pending.voltageSum / pending.sampleCount,
+        vbusCurrent: pending.currentSum / pending.sampleCount,
+      })
+      pendingAverageRef.current = {
+        voltageSum: 0,
+        currentSum: 0,
+        sampleCount: 0,
+      }
+    }, periodMs)
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [])
+
+  const vbusVoltage = truncateHeaderMetric(displayMeasurements.vbusVoltage)
+  const signedVbusCurrent = truncateHeaderMetric(displayMeasurements.vbusCurrent)
+  const displayVbusCurrent =
+    role === CCBusRole.SINK && signedVbusCurrent != null && signedVbusCurrent < 0
+      ? 0
+      : signedVbusCurrent
+  const vbusCurrent = displayVbusCurrent == null ? null : Math.abs(displayVbusCurrent)
+  const vbusPower =
+    vbusVoltage != null && vbusCurrent != null ? vbusVoltage * vbusCurrent : null
+  const voltageText = formatHeaderMetricWithGhostZeros(vbusVoltage, 5)
+  const currentText = formatHeaderMetricWithGhostZeros(vbusCurrent, 4)
+  const powerText = formatHeaderMetricWithGhostZeros(vbusPower, 6)
+  const currentFlow = resolveHeaderCurrentFlow(role, signedVbusCurrent)
+  const accumulatedChargeAh =
+    analogMonitor && Number.isFinite(analogMonitor.accumulatedChargeMah)
+      ? analogMonitor.accumulatedChargeMah / 1000
+      : null
+  const accumulatedEnergyWh =
+    analogMonitor && Number.isFinite(analogMonitor.accumulatedEnergyMwh)
+      ? analogMonitor.accumulatedEnergyMwh / 1000
+      : null
+  const accumulatedChargeText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedChargeAh)
+  const accumulatedEnergyText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedEnergyWh)
+  const isChargingIndicatorActive = signedVbusCurrent != null && signedVbusCurrent !== 0
+  const accumulationElapsedText = formatHeaderElapsed(analogMonitor?.accumulationElapsedTimeUs)
+  const ovpValueText = formatHeaderProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
+  const ocpValueText = formatHeaderProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
+  const isOvpTriggered = vbusInfo?.status === VBusStatus.OVP
+  const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
+  const roleText = formatHeaderRoleLabel(role)
+  const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
+  const activeSinkInfo = role === CCBusRole.SINK ? sinkInfo : null
+  const sinkTypeText = formatHeaderSinkPdoType(activeSinkInfo?.negotiatedPdo)
+  const sinkContractText = formatHeaderSinkContract(activeSinkInfo)
+  const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
+  const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
+  const isTriggerStateTriggered = triggerInfo?.status === TriggerStatus.TRIGGERED
+
+  return (
+    <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
+      <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>
+        <span className={styles.headerVbusNumber}>
+          <HeaderGhostValue text={voltageText} />
+        </span>
+        <span className={styles.headerVbusUnit}>V</span>
+      </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
+      <div className={styles.headerVbusSecondaryGroup}>
+        <div className={`${styles.headerVbusMetric} ${styles.headerVbusCurrent}`}>
+          <span className={styles.headerVbusNumber}>
+            <HeaderGhostValue text={currentText} />
+          </span>
+          <span className={styles.headerVbusUnit}>A</span>
+        </div>
+        <div className={styles.headerVbusFlow}>
+          {currentFlow.kind === 'flow' ? (
+            <>
+              <span className={styles.headerVbusFlowEndpoint}>
+                <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
+                {currentFlow.from}
+              </span>
+              <span
+                className={styles.headerVbusFlowTrack}
+                data-direction={currentFlow.direction}
+                aria-hidden="true"
+              />
+              <span className={styles.headerVbusFlowEndpoint}>
+                {currentFlow.to}
+                {currentFlow.toPort ? (
+                  <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
+                ) : null}
+                {currentFlow.toBananaPort ? (
+                  <span className={styles.headerVbusBananaPort} aria-hidden="true" />
+                ) : null}
+              </span>
+            </>
+          ) : (
+            currentFlow.text
+          )}
+        </div>
+      </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
+      <div className={styles.headerVbusSecondaryGroup}>
+        <div className={`${styles.headerVbusMetric} ${styles.headerVbusPower}`}>
+          <span className={styles.headerVbusNumber}>
+            <HeaderGhostValue text={powerText} />
+          </span>
+          <span className={styles.headerVbusUnit}>W</span>
+        </div>
+        <div className={styles.headerVbusAccumulation}>
+          <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
+          <span
+            className={styles.headerVbusChargeIndicator}
+            data-active={isChargingIndicatorActive ? 'true' : 'false'}
+            title={`Time since accumulator reset: ${accumulationElapsedText}`}
+            aria-hidden="true"
+          />
+          <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
+        </div>
+      </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
+      <div className={styles.headerVbusProtection}>
+        <div
+          className={styles.headerVbusProtectionCell}
+          data-triggered={isOvpTriggered ? 'true' : 'false'}
+        >
+          <span className={styles.headerVbusProtectionLabel}>OVP</span>
+          <HeaderProtectionValue value={ovpValueText} />
+        </div>
+        <div
+          className={styles.headerVbusProtectionCell}
+          data-triggered={isOcpTriggered ? 'true' : 'false'}
+        >
+          <span className={styles.headerVbusProtectionLabel}>OCP</span>
+          <HeaderProtectionValue value={ocpValueText} />
+        </div>
+      </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus} ${styles.headerVbusSinkContract}`}>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>ROLE</span>
+          <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
+        </div>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+          <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+        </div>
+      </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>PDO TYPE</span>
+          <span className={styles.headerVbusRoleStatusValue}>{sinkTypeText}</span>
+        </div>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>POWER PROFILE</span>
+          <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+        </div>
+      </div>
+      <div className={styles.headerVbusDivider} aria-hidden="true" />
+      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
+          <span
+            className={styles.headerVbusRoleStatusValue}
+            data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+          >
+            {triggerStateText}
+          </span>
+        </div>
+        <div className={styles.headerVbusProtectionCell}>
+          <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
+          <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
+        </div>
+      </div>
     </div>
   )
 }
 
 /** Resolve a safe localStorage instance when available. */
-const getThemeStorage = (): Storage | null => {
+const getBrowserStorage = (): Storage | null => {
   if (typeof window === 'undefined') {
     return null
   }
@@ -2141,13 +3407,46 @@ const getThemeStorage = (): Storage | null => {
 
 /** Read the saved theme preference, defaulting to system mode. */
 const getStoredTheme = (): ThemeMode => {
-  const storage = getThemeStorage()
+  const storage = getBrowserStorage()
   const storedTheme = storage?.getItem(THEME_STORAGE_KEY)
   if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
     return storedTheme
   }
   return 'system'
 }
+
+/** Read the saved layout preference, defaulting to fixed mode. */
+const getStoredLayoutMode = (): LayoutMode => {
+  const storage = getBrowserStorage()
+  const storedLayout = storage?.getItem(LAYOUT_STORAGE_KEY)
+  if (storedLayout === 'responsive' || storedLayout === 'full') {
+    return 'full'
+  }
+  if (storedLayout === 'fixed') {
+    return 'fixed'
+  }
+  return 'fixed'
+}
+
+/** Read the saved timestrip visibility preference, defaulting to shown. */
+const getStoredShowTimestrip = (): boolean => {
+  const storage = getBrowserStorage()
+  const stored = storage?.getItem(SHOW_TIMESTRIP_STORAGE_KEY)
+  return stored !== 'false'
+}
+
+/** Return a rack copy without standalone timestrip instruments and empty rows. */
+const hideTimestripInstrument = (rack: RackDefinition): RackDefinition => ({
+  ...rack,
+  rows: rack.rows
+    .map((row) => ({
+      ...row,
+      instruments: row.instruments.filter(
+        (instrument) => instrument.instrumentIdentifier !== TIMESTRIP_INSTRUMENT_IDENTIFIER,
+      ),
+    }))
+    .filter((row) => row.instruments.length > 0),
+})
 
 /** Resolve the effective theme used for themed assets. */
 const getResolvedTheme = (theme: ThemeMode): 'light' | 'dark' => {
@@ -2224,29 +3523,149 @@ const replacePairedDevices = (
   pairedDevices,
 })
 
+const moveRackInstrument = (
+  rack: RackDefinition,
+  instrumentId: string,
+  payload: RackInstrumentDragPayload,
+): RackDefinition => {
+  let movedInstrument: RackInstrument | null = null
+  let rows = rack.rows.map((row) => {
+    const remainingInstruments = row.instruments.filter((instrument) => {
+      if (instrument.id !== instrumentId) {
+        return true
+      }
+      movedInstrument = instrument
+      return false
+    })
+    return {
+      ...row,
+      instruments: remainingInstruments,
+    }
+  })
+
+  if (!movedInstrument) {
+    return rack
+  }
+
+  if (payload.targetKind === 'new-row') {
+    const insertAt = Math.max(0, Math.min(payload.rowIndex, rows.length))
+    rows = [
+      ...rows.slice(0, insertAt),
+      {
+        id: createRackRowId(),
+        instruments: [movedInstrument],
+      },
+      ...rows.slice(insertAt),
+    ]
+    return {
+      ...rack,
+      rows: rows.filter((row) => row.instruments.length > 0),
+    }
+  }
+
+  const targetRowIndex = rows.findIndex((row) => row.id === payload.rowId)
+  if (targetRowIndex < 0) {
+    return rack
+  }
+
+  const targetRow = rows[targetRowIndex]
+  const insertIndex = payload.insertIndex ?? targetRow.instruments.length
+
+  rows = rows.map((row, index) => (
+    index === targetRowIndex
+      ? insertInstrumentIntoRowAtIndex(row, movedInstrument as RackInstrument, insertIndex)
+      : row
+  ))
+  return {
+    ...rack,
+    rows: rows.filter((row) => row.instruments.length > 0),
+  }
+}
+
+const resizeAdjacentRackInstruments = (
+  rack: RackDefinition,
+  payload: RackInstrumentResizePayload,
+): RackDefinition => ({
+  ...rack,
+  rows: rack.rows.map((row) => {
+    if (row.id !== payload.rowId) {
+      return row
+    }
+    const left = row.instruments.find((instrument) => instrument.id === payload.leftInstrumentId)
+    const right = row.instruments.find((instrument) => instrument.id === payload.rightInstrumentId)
+    if (!left || !right) {
+      return row
+    }
+    const pairSize = payload.leftSize + payload.rightSize
+    const pairFlex = payload.leftFlex + payload.rightFlex
+    if (pairSize <= 0 || pairFlex <= 0) {
+      return row
+    }
+    const nextLeftRatio = Math.max(0.01, Math.min(0.99, (payload.leftSize + payload.delta) / pairSize))
+    const nextLeftFlex = clampFlexPairSide(pairFlex * nextLeftRatio, pairFlex)
+    const nextRightFlex = pairFlex - nextLeftFlex
+    return {
+      ...row,
+      instruments: row.instruments.map((instrument) => {
+        if (instrument.id === left.id) {
+          return { ...instrument, flex: nextLeftFlex }
+        }
+        if (instrument.id === right.id) {
+          return { ...instrument, flex: nextRightFlex }
+        }
+        return instrument
+      }),
+    }
+  }),
+})
+
+const resizeAdjacentRackRows = (
+  rack: RackDefinition,
+  payload: RackRowResizePayload,
+): RackDefinition => {
+  const upper = rack.rows.find((row) => row.id === payload.upperRowId)
+  const lower = rack.rows.find((row) => row.id === payload.lowerRowId)
+  if (!upper || !lower) {
+    return rack
+  }
+  const pairSize = payload.upperSize + payload.lowerSize
+  const pairFlex = payload.upperFlex + payload.lowerFlex
+  if (pairSize <= 0 || pairFlex <= 0) {
+    return rack
+  }
+  const nextUpperRatio = Math.max(0.01, Math.min(0.99, (payload.upperSize + payload.delta) / pairSize))
+  const nextUpperFlex = clampFlexPairSide(pairFlex * nextUpperRatio, pairFlex)
+  const nextLowerFlex = pairFlex - nextUpperFlex
+
+  return {
+    ...rack,
+    rows: rack.rows.map((row) => {
+      if (row.id === upper.id) {
+        return { ...row, flex: nextUpperFlex }
+      }
+      if (row.id === lower.id) {
+        return { ...row, flex: nextLowerFlex }
+      }
+      return row
+    }),
+  }
+}
+
+const clampFlexPairSide = (flex: number, pairFlex: number): number => {
+  const minFlex = 0.1
+  if (pairFlex <= minFlex * 2) {
+    return pairFlex / 2
+  }
+  return Math.max(minFlex, Math.min(pairFlex - minFlex, flex))
+}
+
+const createRackRowId = (): string =>
+  `row-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
 const upsertPairedDeviceDocument = (
   document: RackDocument,
   record: RackDeviceRecord,
 ): RackDocument => replacePairedDevices(document, upsertDevice(document.pairedDevices ?? [], record))
-
-/**
- * Replace a rack in the rack document.
- *
- * @param document - Current rack document.
- * @param rack - Updated rack definition.
- * @returns Updated rack document.
- */
-const replaceRack = (
-  document: RackDocument,
-  rack: RackDefinition,
-): RackDocument => {
-  return {
-    ...document,
-    racks: document.racks.map((existing) =>
-      existing.id === rack.id ? rack : existing,
-    )
-  }
-}
 
 /**
  * Build a rack device record from a selected USB device.
@@ -2808,188 +4227,4 @@ const isUserCancelError = (error: unknown): boolean => {
   const message =
     error instanceof Error ? error.message : String(error)
   return message.toLowerCase().includes('no device selected')
-}
-
-/**
- * Create a deep clone of a rack definition.
- *
- * @param rack - Rack definition to clone.
- * @returns Deep clone of the rack.
- */
-const cloneRackDefinition = (rack: RackDefinition): RackDefinition => {
-  return JSON.parse(JSON.stringify(rack)) as RackDefinition
-}
-
-/**
- * Remove an instrument from a rack and prune empty rows.
- *
- * @param rack - Rack definition.
- * @param instrumentId - Instrument instance id.
- * @returns Updated rack definition.
- */
-const removeInstrumentFromRack = (
-  rack: RackDefinition,
-  instrumentId: string,
-): RackDefinition => {
-  const rows = rack.rows
-    .map((row) => ({
-      ...row,
-      instruments: row.instruments.filter(
-        (instrument) => instrument.id !== instrumentId,
-      )
-    }))
-    .filter((row) => row.instruments.length > 0)
-
-  return { ...rack, rows }
-}
-
-/**
- * Build a key for identifying drag preview targets.
- *
- * @param target - Drop target descriptor.
- * @returns Unique key for the target.
- */
-const buildDropTargetKey = (target: DropTarget): string => {
-  return `${target.mode}:${target.rowId ?? 'none'}:${target.rowIndex}:${
-    target.insertIndex ?? -1
-  }`
-}
-
-/**
- * Resolve a drag payload into a drop target description.
- *
- * @param params - Input parameters.
- * @returns Drop target description.
- */
-const getDropTarget = ({
-  rack,
-  payload,
-}: {
-  rack: RackDefinition
-  payload: RackInstrumentDragPayload
-}): DropTarget => {
-  if (payload.targetKind === 'new-row') {
-    return {
-      mode: 'insertAsNewRow',
-      rowIndex: Math.max(0, Math.min(payload.rowIndex, rack.rows.length))
-    }
-  }
-  const targetRow = payload.rowId
-    ? rack.rows.find((row) => row.id === payload.rowId)
-    : null
-  if (!targetRow) {
-    return {
-      mode: 'insertAsNewRow',
-      rowIndex: Math.max(0, Math.min(payload.rowIndex, rack.rows.length))
-    }
-  }
-  return {
-    mode: 'insertIntoRow',
-    rowId: payload.rowId,
-    rowIndex: payload.rowIndex,
-    insertIndex:
-      payload.insertIndex == null
-        ? targetRow.instruments.length
-        : Math.max(0, Math.min(payload.insertIndex, targetRow.instruments.length))
-  }
-}
-
-/**
- * Move an instrument within a rack definition.
- *
- * @param rack - Rack definition.
- * @param instrumentId - Instrument instance id.
- * @param target - Drop target descriptor.
- * @param instrumentMap - Instrument definition map.
- * @returns Updated rack definition.
- */
-const moveInstrumentInRack = (
-  rack: RackDefinition,
-  instrumentId: string,
-  target: DropTarget,
-  instrumentMap: Map<string, Instrument>,
-  maxRowWidthUnits: number,
-): RackDefinition => {
-  const extraction = extractInstrumentFromRack(rack, instrumentId)
-  if (!extraction.removedInstrument) {
-    return rack
-  }
-  const rows = extraction.rows
-  if (target.mode === 'insertIntoRow') {
-    const targetIndex = target.rowId
-      ? rows.findIndex((row) => row.id === target.rowId)
-      : -1
-    if (targetIndex >= 0) {
-      const targetRow = rows[targetIndex]
-      const insertIndex = Math.max(
-        0,
-        Math.min(target.insertIndex ?? targetRow.instruments.length, targetRow.instruments.length),
-      )
-      if (
-        canInsertInstrumentIntoRow(
-          targetRow,
-          extraction.removedInstrument,
-          insertIndex,
-          instrumentMap,
-          maxRowWidthUnits,
-        )
-      ) {
-        const nextRow = insertInstrumentIntoRowAtIndex(
-          targetRow,
-          extraction.removedInstrument,
-          insertIndex,
-        )
-        return {
-          ...rack,
-          rows: rows.map((row, index) => (index === targetIndex ? nextRow : row))
-        }
-      }
-    }
-  }
-  const insertionIndex = Math.max(0, Math.min(target.rowIndex, rows.length))
-  const nextRow = {
-    id: `row-${Date.now()}`,
-    instruments: [extraction.removedInstrument]
-  }
-  return {
-    ...rack,
-    rows: [
-      ...rows.slice(0, insertionIndex),
-      nextRow,
-      ...rows.slice(insertionIndex)
-    ]
-  }
-}
-
-/**
- * Extract a single instrument from the rack.
- *
- * @param rack - Rack definition.
- * @param instrumentId - Instrument instance id.
- * @returns Extracted instrument and remaining rows.
- */
-const extractInstrumentFromRack = (
-  rack: RackDefinition,
-  instrumentId: string,
-): {
-  rows: RackDefinition['rows']
-  removedInstrument?: RackDefinition['rows'][number]['instruments'][number]
-} => {
-  let removedInstrument:
-    | RackDefinition['rows'][number]['instruments'][number]
-    | undefined
-  const rows = rack.rows
-    .map((row) => {
-      const remaining = row.instruments.filter((instrument) => {
-        if (instrument.id === instrumentId) {
-          removedInstrument = instrument
-          return false
-        }
-        return true
-      })
-      return { ...row, instruments: remaining }
-    })
-    .filter((row) => row.instruments.length > 0)
-
-  return { rows, removedInstrument }
 }

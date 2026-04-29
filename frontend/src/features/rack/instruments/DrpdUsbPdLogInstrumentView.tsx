@@ -3,6 +3,7 @@ import {
   useCallback,
   useLayoutEffect,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
@@ -10,12 +11,8 @@ import {
 } from 'react'
 import { DRPDDevice } from '../../../lib/device'
 import {
-  buildDefaultLoggingConfig,
   buildCapturedLogSelectionKey,
-  decodeLoggedCapturedMessageWithContext,
-  normalizeLoggingConfig,
   type DRPDLogSelectionState,
-  type DRPDLoggingConfig,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
 import {
@@ -23,14 +20,22 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../lib/device/drpd/usb-pd/message'
-import {
-  HumanReadableField,
-  type HumanReadableByteDataValue,
-  type HumanReadableTableCell,
-} from '../../../lib/device/drpd/usb-pd/humanReadableField'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
-import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
+import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
+import {
+  type MessageLogFilterRule,
+  type MessageLogFilters,
+} from '../overlays/usbPdLog/usbPdLogFilters'
+import {
+  MESSAGE_LOG_COLUMNS,
+  readMessageLogColumnVisibility,
+  readMessageLogColumnWidths,
+  saveMessageLogColumnWidths,
+  type MessageLogColumnId,
+  type MessageLogColumnVisibility,
+  type MessageLogColumnWidths,
+} from '../overlays/usbPdLog/messageLogColumns'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
 import { formatWallClock } from './DrpdUsbPdLogTimeStrip.utils'
@@ -40,17 +45,24 @@ const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx
 const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
-const MIN_CAPTURED_MESSAGE_BUFFER = 100
-const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
+const HORIZONTAL_SCROLLBAR_GUTTER_PX = 12
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
   activeIndex: null,
 }
 
+type ColumnResizeDrag = {
+  columnId: MessageLogColumnId
+  pointerId: number
+  startX: number
+  startWidthPx: number
+}
+
 const resolveCssLength = (
   value: string,
   fallback: number,
+  context?: HTMLElement,
 ): number => {
   if (value.trim().length === 0 || typeof document === 'undefined') {
     return fallback
@@ -61,12 +73,13 @@ const resolveCssLength = (
   probe.style.visibility = 'hidden'
   probe.style.pointerEvents = 'none'
   probe.style.width = value
-  document.body.appendChild(probe)
+  const parent = context ?? document.body
+  parent.appendChild(probe)
 
   try {
     const resolved = window.getComputedStyle(probe).width
     const parsed = Number.parseFloat(resolved)
-    return Number.isFinite(parsed) ? parsed : fallback
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
   } finally {
     probe.remove()
   }
@@ -90,40 +103,10 @@ type DisplayRow = {
   valid: string
 }
 
-type MessageLogFilterRule = {
-  include: string[]
-  exclude: string[]
-}
-
-type MessageLogFilterKey =
-  | 'messageTypes'
-  | 'senders'
-  | 'receivers'
-  | 'sopTypes'
-  | 'crcValid'
-
-type MessageLogFilters = Record<MessageLogFilterKey, MessageLogFilterRule>
-
-type FilterOption = {
-  value: string
-  label: string
-}
-
-type ExportRow = {
-  selectionKey: string
-  row: LoggedCapturedMessage
-  humanReadableMetadata: Record<string, unknown> | null
-  wallTime: string
-  type: string
-  duration: string
-  sender: string
-  receiver: string
-  id: string
-  description: string
-  crc: string
-  crcValid: string
-  messageSummary: string
-}
+type DisplayColumnField = keyof Pick<
+  DisplayRow,
+  'timestamp' | 'duration' | 'delta' | 'messageId' | 'messageType' | 'sender' | 'receiver' | 'sopType' | 'valid'
+>
 
 const EMPTY_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
@@ -134,7 +117,6 @@ const EMPTY_FILTERS: MessageLogFilters = {
 }
 
 const INVALID_MESSAGE_TYPE_LABEL = 'Invalid message'
-const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
 const CRC_VALID_LABEL = 'Valid'
 const CRC_INVALID_LABEL = 'Invalid'
 
@@ -143,93 +125,6 @@ const formatMicroseconds = (value: bigint | null): string => {
     return '--'
   }
   return `${value}`
-}
-
-const toHex = (bytes: Uint8Array): string =>
-  Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')
-
-const toSerializableMessage = (row: LoggedCapturedMessage): Record<string, unknown> => ({
-  entryKind: row.entryKind,
-  eventType: row.eventType,
-  eventText: row.eventText,
-  eventWallClockMs: row.eventWallClockMs,
-  wallClockUs: row.wallClockUs?.toString() ?? null,
-  startTimestampUs: row.startTimestampUs.toString(),
-  endTimestampUs: row.endTimestampUs.toString(),
-  displayTimestampUs: row.displayTimestampUs?.toString() ?? null,
-  decodeResult: row.decodeResult,
-  sopKind: row.sopKind,
-  messageKind: row.messageKind,
-  messageType: row.messageType,
-  messageId: row.messageId,
-  senderPowerRole: row.senderPowerRole,
-  senderDataRole: row.senderDataRole,
-  pulseCount: row.pulseCount,
-  rawPulseWidths: Array.from(row.rawPulseWidths),
-  rawSopHex: toHex(row.rawSop),
-  rawDecodedDataHex: toHex(row.rawDecodedData),
-  parseError: row.parseError,
-  createdAtMs: row.createdAtMs,
-})
-
-const toCSVField = (value: string): string => {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replaceAll('"', '""')}"`
-  }
-  return value
-}
-
-const serializeHumanReadableTableCell = (
-  cell: HumanReadableTableCell,
-): Record<string, unknown> => ({
-  kind: cell.kind,
-  field: serializeHumanReadableField(cell.field),
-})
-
-const serializeHumanReadableField = (
-  field: HumanReadableField,
-): Record<string, unknown> => {
-  switch (field.type) {
-    case 'String':
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: field.value,
-      }
-    case 'ByteData': {
-      const byteData = field.value as HumanReadableByteDataValue
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: {
-          dataHex: toHex(byteData.data),
-          byteWidth: byteData.byteWidth,
-          signed: byteData.signed,
-        },
-      }
-    }
-    case 'Table': {
-      const tableCells = field.value as HumanReadableTableCell[]
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: tableCells.map(serializeHumanReadableTableCell),
-      }
-    }
-    case 'OrderedDictionary':
-      return {
-        type: field.type,
-        label: field.Label,
-        explanation: field.explanation,
-        value: Array.from(field.entries()).map(([key, entryField]) => ({
-          key,
-          field: serializeHumanReadableField(entryField),
-        })),
-      }
-  }
 }
 
 const formatTimestampCell = (row: LoggedCapturedMessage): string => {
@@ -307,19 +202,6 @@ const resolveSenderReceiver = (
   return { sender: 'Unknown', receiver: 'Unknown' }
 }
 
-const extractStringField = (
-  dictionary: { getEntry: (key: string) => { type: string; value: unknown } | undefined } | undefined,
-  key: string,
-): string => {
-  const field = dictionary?.getEntry(key)
-  return field?.type === 'String' && typeof field.value === 'string' ? field.value : ''
-}
-
-const uniqueSortedOptions = (values: string[]): FilterOption[] =>
-  Array.from(new Set(values.filter((value) => value.length > 0 && value !== '--')))
-    .sort((left, right) => left.localeCompare(right))
-    .map((value) => ({ value, label: value }))
-
 const countActiveFilters = (filters: MessageLogFilters): number =>
   Object.values(filters).reduce(
     (count, rule) => count + rule.include.length + rule.exclude.length,
@@ -348,308 +230,6 @@ const messageMatchesFilters = (
     filterRuleMatches(filters.sopTypes, normalizeSopType(row.sopKind)) &&
     filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row))
   )
-}
-
-const filterRuleValues = (rule: MessageLogFilterRule): string[] => [
-  ...rule.include,
-  ...rule.exclude,
-]
-
-const buildFilterOptions = (
-  rows: LoggedCapturedMessage[],
-  filters: MessageLogFilters = EMPTY_FILTERS,
-): {
-  messageTypes: FilterOption[]
-  senders: FilterOption[]
-  receivers: FilterOption[]
-  sopTypes: FilterOption[]
-  crcValid: FilterOption[]
-} => {
-  const messageRows = rows.filter((row) => row.entryKind === 'message')
-  const senderReceivers = messageRows.map(resolveSenderReceiver)
-  const crcValues = messageRows.map(resolveCrcValidLabel)
-  return {
-    messageTypes: uniqueSortedOptions([
-      ...messageRows.map(resolveMessageTypeLabel),
-      ...filterRuleValues(filters.messageTypes),
-    ]),
-    senders: uniqueSortedOptions([
-      ...senderReceivers.map((entry) => entry.sender),
-      ...filterRuleValues(filters.senders),
-    ]),
-    receivers: uniqueSortedOptions([
-      ...senderReceivers.map((entry) => entry.receiver),
-      ...filterRuleValues(filters.receivers),
-    ]),
-    sopTypes: uniqueSortedOptions([
-      ...messageRows.map((row) => normalizeSopType(row.sopKind)),
-      ...filterRuleValues(filters.sopTypes),
-    ]),
-    crcValid: [CRC_VALID_LABEL, CRC_INVALID_LABEL]
-      .filter((value) => crcValues.includes(value) || filterRuleValues(filters.crcValid).includes(value))
-      .map((value) => ({ value, label: value })),
-  }
-}
-
-const toggleFilterValue = (
-  filters: MessageLogFilters,
-  key: MessageLogFilterKey,
-  mode: keyof MessageLogFilterRule,
-  value: string,
-): MessageLogFilters => {
-  const currentRule = filters[key]
-  const otherMode: keyof MessageLogFilterRule = mode === 'include' ? 'exclude' : 'include'
-  const nextModeValues = currentRule[mode].includes(value)
-    ? currentRule[mode].filter((entry) => entry !== value)
-    : [...currentRule[mode], value]
-  return {
-    ...filters,
-    [key]: {
-      [mode]: nextModeValues,
-      [otherMode]: currentRule[otherMode].filter((entry) => entry !== value),
-    },
-  }
-}
-
-const MessageLogFilterPopover = ({
-  filters,
-  options,
-  onApply,
-  onClear,
-  closePopover,
-}: {
-  filters: MessageLogFilters
-  options: ReturnType<typeof buildFilterOptions>
-  onApply: (next: MessageLogFilters) => void
-  onClear: () => void
-  closePopover: () => void
-}) => {
-  const [draft, setDraft] = useState(filters)
-  const groups: Array<{
-    key: MessageLogFilterKey
-    title: string
-    options: FilterOption[]
-  }> = [
-    { key: 'messageTypes', title: 'Message type', options: options.messageTypes },
-    { key: 'senders', title: 'Sender', options: options.senders },
-    { key: 'receivers', title: 'Receiver', options: options.receivers },
-    { key: 'sopTypes', title: 'SOP type', options: options.sopTypes },
-    { key: 'crcValid', title: 'CRC', options: options.crcValid },
-  ]
-
-  return (
-    <div className={styles.headerPopup}>
-      <div className={styles.filterGroups}>
-        {groups.map((group) => (
-          <fieldset key={group.key} className={styles.filterGroup}>
-            <legend className={styles.filterLegend}>{group.title}</legend>
-            {group.options.length > 0 ? (
-              group.options.map((option) => {
-                const rule = draft[group.key]
-                const included = rule.include.includes(option.value)
-                const excluded = rule.exclude.includes(option.value)
-                return (
-                  <div key={option.value} className={styles.filterOption}>
-                    <span className={styles.filterOptionLabel}>{option.label}</span>
-                    <div className={styles.filterOptionActions}>
-                      <button
-                        type="button"
-                        className={[
-                          styles.filterModeButton,
-                          included ? styles.filterModeButtonActive : '',
-                        ].filter(Boolean).join(' ')}
-                        aria-pressed={included}
-                        onClick={() => {
-                          setDraft((previous) =>
-                            toggleFilterValue(previous, group.key, 'include', option.value),
-                          )
-                        }}
-                      >
-                        Include
-                      </button>
-                      <button
-                        type="button"
-                        className={[
-                          styles.filterModeButton,
-                          excluded ? styles.filterModeButtonActive : '',
-                        ].filter(Boolean).join(' ')}
-                        aria-pressed={excluded}
-                        onClick={() => {
-                          setDraft((previous) =>
-                            toggleFilterValue(previous, group.key, 'exclude', option.value),
-                          )
-                        }}
-                      >
-                        Exclude
-                      </button>
-                    </div>
-                  </div>
-                )
-              })
-            ) : (
-              <span className={styles.filterEmpty}>No values</span>
-            )}
-          </fieldset>
-        ))}
-      </div>
-      <div className={styles.headerPopupActions}>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={() => {
-            onClear()
-            closePopover()
-          }}
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          className={styles.headerPopupButton}
-          onClick={() => {
-            onApply(draft)
-            closePopover()
-          }}
-        >
-          Apply
-        </button>
-      </div>
-    </div>
-  )
-}
-
-const buildExportRows = (
-  allRows: LoggedCapturedMessage[],
-  selectionKeys: string[],
-): ExportRow[] => {
-  const selected = new Set(selectionKeys)
-  return allRows
-    .filter((row) => selected.has(buildCapturedLogSelectionKey(row)))
-    .map((row) => {
-      if (row.entryKind === 'event') {
-        return {
-          selectionKey: buildCapturedLogSelectionKey(row),
-          row,
-          humanReadableMetadata: null,
-          wallTime: formatWallClock(row.wallClockUs),
-          type: 'Event',
-          duration: '',
-          sender: '',
-          receiver: '',
-          id: '',
-          description: row.eventText ?? 'Event',
-          crc: '',
-          crcValid: '',
-          messageSummary: '',
-        }
-      }
-
-      const durationUs = row.endTimestampUs - row.startTimestampUs
-      const senderReceiver = resolveSenderReceiver(row)
-      const decoded = decodeLoggedCapturedMessageWithContext(row, allRows)
-      const crcDictionary =
-        decoded.kind === 'message'
-          ? decoded.message.humanReadableMetadata.technicalData.getEntry('crc32')
-          : undefined
-      const crc =
-        decoded.kind === 'message'
-          ? extractStringField(crcDictionary?.type === 'OrderedDictionary' ? crcDictionary : undefined, 'actual')
-          : ''
-      const crcValid =
-        decoded.kind === 'message'
-          ? extractStringField(crcDictionary?.type === 'OrderedDictionary' ? crcDictionary : undefined, 'valid')
-          : ''
-      const messageSummary =
-        decoded.kind === 'message'
-          ? extractStringField(decoded.message.humanReadableMetadata.baseInformation, 'messageSummary')
-          : ''
-      const humanReadableMetadata =
-        decoded.kind === 'message'
-          ? {
-              baseInformation: serializeHumanReadableField(decoded.message.humanReadableMetadata.baseInformation),
-              technicalData: serializeHumanReadableField(decoded.message.humanReadableMetadata.technicalData),
-              headerData: serializeHumanReadableField(decoded.message.humanReadableMetadata.headerData),
-              messageSpecificData: serializeHumanReadableField(decoded.message.humanReadableMetadata.messageSpecificData),
-            }
-          : null
-
-      return {
-        selectionKey: buildCapturedLogSelectionKey(row),
-        row,
-        humanReadableMetadata,
-        wallTime: formatTimestampCell(row),
-        type: 'Message',
-        duration: formatMicroseconds(durationUs),
-        sender: senderReceiver.sender,
-        receiver: senderReceiver.receiver,
-        id: row.messageId == null ? '' : row.messageId.toString(),
-        description: resolveMessageTypeLabel(row),
-        crc,
-        crcValid,
-        messageSummary,
-      }
-    })
-}
-
-const buildJsonExportPayload = (rows: ExportRow[]): string =>
-  JSON.stringify(
-    rows.map(({ selectionKey, row, humanReadableMetadata }) => ({
-      selectionKey,
-      ...toSerializableMessage(row),
-      humanReadableMetadata,
-    })),
-    null,
-    2,
-  )
-
-const buildCsvExportPayload = (rows: ExportRow[]): string => {
-  const lines = [
-    [
-      'Wall Time',
-      'Duration',
-      'Type',
-      'Sender',
-      'Receiver',
-      'ID',
-      'Description',
-      'CRC',
-      'CRC Valid',
-      'Message Summary',
-    ].join(','),
-  ]
-  for (const row of rows) {
-    lines.push(
-      [
-        row.wallTime,
-        row.duration,
-        row.type,
-        row.sender,
-        row.receiver,
-        row.id,
-        row.description,
-        row.crc,
-        row.crcValid,
-        row.messageSummary.replaceAll('\r\n', '\n').replaceAll('\r', '\n'),
-      ].map(toCSVField).join(','),
-    )
-  }
-  return `${lines.join('\n')}\n`
-}
-
-const downloadExportPayload = (
-  payload: string,
-  mimeType: string,
-  filename: string,
-): void => {
-  const blob = new Blob([payload], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
 }
 
 const toDisplayRows = (
@@ -708,11 +288,9 @@ const toDisplayRows = (
 export const DrpdUsbPdLogInstrumentView = ({
   instrument,
   displayName,
-  deviceRecord,
   deviceState,
   isEditMode,
   onRemove,
-  onUpdateDeviceConfig,
 }: {
   instrument: RackInstrument
   displayName: string
@@ -745,54 +323,58 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }
 
-  const driver = deviceState?.drpdDriver
-  const configuredMaxCapturedMessages = useMemo(() => {
-    const fallback = buildDefaultLoggingConfig().maxCapturedMessages
-    const source = deviceRecord?.config
-    if (!source || typeof source !== 'object') {
-      return fallback
-    }
-    const probe = source as { logging?: Partial<DRPDLoggingConfig> }
-    const value = probe.logging?.maxCapturedMessages
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      return fallback
-    }
-    return Math.max(
-      MIN_CAPTURED_MESSAGE_BUFFER,
-      Math.min(MAX_CAPTURED_MESSAGE_BUFFER, Math.floor(value)),
-    )
-  }, [deviceRecord?.config])
-  const [bufferInput, setBufferInput] = useState(() =>
-    configuredMaxCapturedMessages.toString(),
-  )
-  const [bufferError, setBufferError] = useState<string | null>(null)
-  const [isApplyingBuffer, setIsApplyingBuffer] = useState(false)
-  const [isMarking, setIsMarking] = useState(false)
-  const [markError, setMarkError] = useState<string | null>(null)
-  const [isClearing, setIsClearing] = useState(false)
-  const [clearError, setClearError] = useState<string | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
-  const [exportError, setExportError] = useState<string | null>(null)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const headerRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
   const loadingPagesRef = useRef(new Set<number>())
   const selectionTaskRef = useRef<Promise<void>>(Promise.resolve())
+  const columnResizeDragRef = useRef<ColumnResizeDrag | null>(null)
   const [totalRows, setTotalRows] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
+  const [viewportWidth, setViewportWidth] = useState(0)
   const [scrollTop, setScrollTop] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
+  const [tableHorizontalPaddingPx, setTableHorizontalPaddingPx] = useState(16)
   const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
+  const [headerSlotHeightPx, setHeaderSlotHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
+  const [columnVisibility, setColumnVisibility] =
+    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
+  const [columnWidths, setColumnWidths] =
+    useState<MessageLogColumnWidths>(() => readMessageLogColumnWidths())
+  const [resizingColumnId, setResizingColumnId] = useState<MessageLogColumnId | null>(null)
   const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
-  const [filterOptionRows, setFilterOptionRows] = useState<LoggedCapturedMessage[]>([])
+  const driver = deviceState?.drpdDriver
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
     [selection.selectedKeys],
   )
-  const hasSelection = selection.selectedKeys.length > 0
   const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
+  const visibleColumns = useMemo(() => {
+    const next = MESSAGE_LOG_COLUMNS.filter((column) => columnVisibility[column.id])
+    return next.length > 0 ? next : MESSAGE_LOG_COLUMNS
+  }, [columnVisibility])
+  const gridMinimumWidthPx = useMemo(() => {
+    let width = 0
+    for (const column of visibleColumns) {
+      width += columnWidths[column.id]
+    }
+    return width
+  }, [columnWidths, visibleColumns])
+  const gridTemplateColumns = useMemo(() => {
+    return visibleColumns.map((column, index) => (
+      index === visibleColumns.length - 1
+        ? `${columnWidths[column.id]}px minmax(0, 1fr)`
+        : `${columnWidths[column.id]}px`
+    )).join(' ')
+  }, [columnWidths, visibleColumns])
+  const tableOuterWidthPx = Math.max(viewportWidth, gridMinimumWidthPx + tableHorizontalPaddingPx)
+  const tableBottomGutterPx =
+    viewportWidth > 0 && tableOuterWidthPx > viewportWidth ? HORIZONTAL_SCROLLBAR_GUTTER_PX : 0
   const hasActiveFilters = activeFilterCount > 0
   const filteredRows = useMemo(
     () => (hasActiveFilters ? filterRows.filter((row) => messageMatchesFilters(row, filters)) : []),
@@ -801,10 +383,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   const filteredDisplayRows = useMemo(
     () => (hasActiveFilters ? toDisplayRows(filteredRows, null) : []),
     [filteredRows, hasActiveFilters],
-  )
-  const filterOptions = useMemo(
-    () => buildFilterOptions(filterOptionRows.length > 0 ? filterOptionRows : filterRows, filters),
-    [filterOptionRows, filterRows, filters],
   )
   const displayedTotalRows = hasActiveFilters ? filteredDisplayRows.length : totalRows
 
@@ -951,23 +529,147 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }
 
-  const parseBufferInput = useCallback((): number | null => {
-    if (!/^\d+$/.test(bufferInput)) {
-      return null
+  const applyColumnResize = (clientX: number, pointerId: number): void => {
+    const drag = columnResizeDragRef.current
+    if (!drag || drag.pointerId !== pointerId) {
+      return
     }
-    const parsed = Number(bufferInput)
-    if (!Number.isFinite(parsed)) {
-      return null
+    const column = MESSAGE_LOG_COLUMNS.find((candidate) => candidate.id === drag.columnId)
+    if (!column) {
+      return
     }
-    const normalized = Math.floor(parsed)
-    if (
-      normalized < MIN_CAPTURED_MESSAGE_BUFFER ||
-      normalized > MAX_CAPTURED_MESSAGE_BUFFER
-    ) {
-      return null
+    const deltaPx = clientX - drag.startX
+    const nextWidthPx = Math.max(column.minWidthPx, Math.round(drag.startWidthPx + deltaPx))
+    setColumnWidths((previous) => {
+      if (previous[drag.columnId] === nextWidthPx) {
+        return previous
+      }
+      const next = {
+        ...previous,
+        [drag.columnId]: nextWidthPx,
+      }
+      saveMessageLogColumnWidths(next)
+      return next
+    })
+  }
+
+  const handleColumnResizePointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    columnId: MessageLogColumnId,
+  ): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    columnResizeDragRef.current = {
+      columnId,
+      pointerId: event.pointerId ?? -1,
+      startX: Number.isFinite(event.clientX) ? event.clientX : 0,
+      startWidthPx: columnWidths[columnId],
     }
-    return normalized
-  }, [bufferInput])
+    setResizingColumnId(columnId)
+    event.currentTarget.setPointerCapture?.(event.pointerId ?? -1)
+  }
+
+  const handleColumnResizeMouseDown = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    columnId: MessageLogColumnId,
+  ): void => {
+    if (columnResizeDragRef.current) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    columnResizeDragRef.current = {
+      columnId,
+      pointerId: -1,
+      startX: Number.isFinite(event.clientX) ? event.clientX : 0,
+      startWidthPx: columnWidths[columnId],
+    }
+    setResizingColumnId(columnId)
+  }
+
+  const handleColumnResizePointerMove = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+    const drag = columnResizeDragRef.current
+    const pointerId = event.pointerId ?? -1
+    if (!drag || drag.pointerId !== pointerId) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    const clientX = Number.isFinite(event.clientX) ? event.clientX : drag.startX
+    applyColumnResize(clientX, pointerId)
+  }
+
+  const handleColumnResizePointerUp = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+    const drag = columnResizeDragRef.current
+    const pointerId = event.pointerId ?? -1
+    if (!drag || drag.pointerId !== pointerId) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    columnResizeDragRef.current = null
+    setResizingColumnId(null)
+    event.currentTarget.releasePointerCapture?.(pointerId)
+  }
+
+  useEffect(() => {
+    if (resizingColumnId === null) {
+      return undefined
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== (event.pointerId ?? -1)) {
+        return
+      }
+      event.preventDefault()
+      applyColumnResize(Number.isFinite(event.clientX) ? event.clientX : drag.startX, drag.pointerId)
+    }
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== (event.pointerId ?? -1)) {
+        return
+      }
+      event.preventDefault()
+      columnResizeDragRef.current = null
+      setResizingColumnId(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    const handleMouseMove = (event: MouseEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== -1) {
+        return
+      }
+      event.preventDefault()
+      applyColumnResize(Number.isFinite(event.clientX) ? event.clientX : drag.startX, -1)
+    }
+
+    const handleMouseUp = (event: MouseEvent) => {
+      const drag = columnResizeDragRef.current
+      if (!drag || drag.pointerId !== -1) {
+        return
+      }
+      event.preventDefault()
+      columnResizeDragRef.current = null
+      setResizingColumnId(null)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [resizingColumnId])
 
   useEffect(() => {
     totalRowsRef.current = totalRows
@@ -983,7 +685,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   useEffect(() => {
     if (!driver) {
       setFilterRows([])
-      setFilterOptionRows([])
       setFilters(EMPTY_FILTERS)
       return
     }
@@ -993,7 +694,6 @@ export const DrpdUsbPdLogInstrumentView = ({
       if (cancelled) {
         return
       }
-      setFilterOptionRows(rows)
       if (hasActiveFilters) {
         setFilterRows(rows)
       }
@@ -1005,9 +705,47 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [driver, hasActiveFilters, queryAllCapturedMessages, totalRows])
 
   useEffect(() => {
-    setBufferInput(configuredMaxCapturedMessages.toString())
-    setBufferError(null)
-  }, [configuredMaxCapturedMessages])
+    const handleGlobalFiltersChanged = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const next = detail?.filters as MessageLogFilters | undefined
+      if (!next) {
+        return
+      }
+      setFilters(next)
+      if (countActiveFilters(next) > 0) {
+        void queryAllCapturedMessages().then((rows) => {
+          setFilterRows(rows)
+        })
+      } else {
+        setFilterRows([])
+      }
+    }
+
+    window.addEventListener('drpd-message-log-filters-changed', handleGlobalFiltersChanged)
+    return () => {
+      window.removeEventListener('drpd-message-log-filters-changed', handleGlobalFiltersChanged)
+    }
+  }, [queryAllCapturedMessages])
+
+  useEffect(() => {
+    const handleGlobalColumnsChanged = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const next = detail?.visibility as MessageLogColumnVisibility | undefined
+      if (!next) {
+        return
+      }
+      setColumnVisibility(next)
+      const nextWidths = detail?.widths as MessageLogColumnWidths | undefined
+      if (nextWidths) {
+        setColumnWidths(nextWidths)
+      }
+    }
+
+    window.addEventListener('drpd-message-log-columns-changed', handleGlobalColumnsChanged)
+    return () => {
+      window.removeEventListener('drpd-message-log-columns-changed', handleGlobalColumnsChanged)
+    }
+  }, [])
 
   useEffect(() => {
     if (!driver) {
@@ -1063,19 +801,72 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }, [])
 
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) {
+      return
+    }
+    const updateTablePadding = () => {
+      const computedStyle = window.getComputedStyle(wrapper)
+      setTableHorizontalPaddingPx(
+        resolveCssLength(computedStyle.getPropertyValue('--space-8'), 8, wrapper) * 2,
+      )
+    }
+    updateTablePadding()
+    window.addEventListener('resize', updateTablePadding)
+    return () => {
+      window.removeEventListener('resize', updateTablePadding)
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    const header = headerRef.current
+    if (!header) {
+      return undefined
+    }
+
+    const updateHeaderHeight = () => {
+      const visualHeight = header.getBoundingClientRect().height
+      setHeaderSlotHeightPx(
+        visualHeight > 0 ? Math.ceil(visualHeight + 2) : ROW_HEIGHT_PX,
+      )
+    }
+
+    updateHeaderHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeaderHeight)
+      return () => {
+        window.removeEventListener('resize', updateHeaderHeight)
+      }
+    }
+
+    const observer = new ResizeObserver(updateHeaderHeight)
+    observer.observe(header)
+    return () => {
+      observer.disconnect()
+    }
+  }, [visibleColumns])
+
   useEffect(() => {
     const viewport = viewportRef.current
-    if (!viewport || typeof ResizeObserver === 'undefined') {
+    if (!viewport) {
+      return undefined
+    }
+    setViewportHeight(viewport.clientHeight)
+    setViewportWidth(viewport.clientWidth)
+
+    if (typeof ResizeObserver === 'undefined') {
       return undefined
     }
 
     const observer = new ResizeObserver((entries) => {
-      const nextHeight = entries[0]?.contentRect.height ?? 0
-      setViewportHeight(nextHeight)
+      const rect = entries[0]?.contentRect
+      setViewportHeight(rect?.height ?? 0)
+      setViewportWidth(rect?.width ?? 0)
     })
 
     observer.observe(viewport)
-    setViewportHeight(viewport.clientHeight)
 
     return () => {
       observer.disconnect()
@@ -1322,352 +1113,6 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }, [driver, firstVisibleRow, hasActiveFilters, lastVisibleRow, pages, totalRows])
 
-  const headerControls = useMemo<InstrumentHeaderControl[]>(() => {
-    const goodCrcExcluded = filters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
-
-    const goodCrcControl: InstrumentHeaderControl = {
-      id: 'goodcrc-filter-log',
-      label: goodCrcExcluded ? 'Include GoodCRC' : 'Exclude GoodCRC',
-      disabled: !driver || isEditMode,
-      onClick: () => {
-        const next = goodCrcExcluded
-          ? {
-              ...filters,
-              messageTypes: {
-                include: filters.messageTypes.include,
-                exclude: filters.messageTypes.exclude.filter(
-                  (entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL,
-                ),
-              },
-            }
-          : toggleFilterValue(
-              filters,
-              'messageTypes',
-              'exclude',
-              GOODCRC_MESSAGE_TYPE_LABEL,
-            )
-        setFilters(next)
-        if (countActiveFilters(next) > 0) {
-          void queryAllCapturedMessages().then((rows) => {
-            setFilterRows(rows)
-            setFilterOptionRows(rows)
-          })
-        } else {
-          setFilterRows([])
-        }
-      },
-    }
-
-    const filterControl: InstrumentHeaderControl = {
-      id: 'filter-log',
-      label: activeFilterCount > 0 ? `Filter (${activeFilterCount})` : 'Filter',
-      disabled: !driver || isEditMode,
-      renderPopover: ({ closePopover }) => (
-        <MessageLogFilterPopover
-          filters={filters}
-          options={filterOptions}
-          onApply={(next) => {
-            setFilters(next)
-            if (countActiveFilters(next) > 0) {
-              void queryAllCapturedMessages().then((rows) => {
-                setFilterRows(rows)
-                setFilterOptionRows(rows)
-              })
-            }
-          }}
-          onClear={() => {
-            setFilters(EMPTY_FILTERS)
-            setFilterRows([])
-          }}
-          closePopover={closePopover}
-        />
-      ),
-    }
-
-    const exportControl: InstrumentHeaderControl = {
-      id: 'export-log',
-      label: isExporting ? 'Exporting...' : 'Export',
-      disabled: !driver || isEditMode || isExporting,
-      renderPopover: ({ closePopover }) => (
-        <div className={styles.headerPopup}>
-          {exportError ? (
-            <p className={styles.headerPopupError}>{exportError}</p>
-          ) : null}
-          <div className={styles.headerPopupActions}>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              disabled={!hasSelection || isExporting}
-              onClick={() => {
-                if (!driver || !hasSelection) {
-                  return
-                }
-                setIsExporting(true)
-                setExportError(null)
-                void driver
-                  .queryCapturedMessages({
-                    startTimestampUs: 0n,
-                    endTimestampUs: LOG_END_TIMESTAMP_US,
-                    sortOrder: 'asc',
-                  })
-                  .then((rows) => {
-                    const exportRows = buildExportRows(rows, selection.selectedKeys)
-                    downloadExportPayload(
-                      buildJsonExportPayload(exportRows),
-                      'application/json',
-                      'message-log-export.json',
-                    )
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message = error instanceof Error ? error.message : String(error)
-                    setExportError(message)
-                  })
-                  .finally(() => {
-                    setIsExporting(false)
-                  })
-              }}
-            >
-              Export JSON
-            </button>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              disabled={!hasSelection || isExporting}
-              onClick={() => {
-                if (!driver || !hasSelection) {
-                  return
-                }
-                setIsExporting(true)
-                setExportError(null)
-                void driver
-                  .queryCapturedMessages({
-                    startTimestampUs: 0n,
-                    endTimestampUs: LOG_END_TIMESTAMP_US,
-                    sortOrder: 'asc',
-                  })
-                  .then((rows) => {
-                    const exportRows = buildExportRows(rows, selection.selectedKeys)
-                    downloadExportPayload(
-                      buildCsvExportPayload(exportRows),
-                      'text/csv',
-                      'message-log-export.csv',
-                    )
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message = error instanceof Error ? error.message : String(error)
-                    setExportError(message)
-                  })
-                  .finally(() => {
-                    setIsExporting(false)
-                  })
-              }}
-            >
-              Export CSV
-            </button>
-          </div>
-        </div>
-      ),
-    }
-
-    const markControl: InstrumentHeaderControl = {
-      id: 'mark-log',
-      label: isMarking ? 'Marking...' : 'Mark',
-      disabled: !driver || isEditMode || isMarking,
-      onClick: () => {
-        if (!driver) {
-          return
-        }
-        setIsMarking(true)
-        setMarkError(null)
-        void driver
-          .markLog()
-          .catch((error) => {
-            const message = error instanceof Error ? error.message : String(error)
-            setMarkError(message)
-          })
-          .finally(() => {
-            setIsMarking(false)
-          })
-      },
-    }
-
-    const clearControl: InstrumentHeaderControl = {
-      id: 'clear-log',
-      label: 'Clear',
-      disabled: !driver || isEditMode || isClearing,
-      renderPopover: ({ closePopover }) => (
-        <div className={styles.headerPopup}>
-          <p className={styles.headerPopupText}>
-            This will permanently delete all logged messages and analog samples, and clear the
-            time strip. Are you sure?
-          </p>
-          {clearError ? (
-            <p className={styles.headerPopupError}>{clearError}</p>
-          ) : null}
-          <div className={styles.headerPopupActions}>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                setClearError(null)
-                closePopover()
-              }}
-              disabled={isClearing}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={`${styles.headerPopupButton} ${styles.headerPopupButtonDanger}`}
-              onClick={() => {
-                if (!driver) {
-                  return
-                }
-                setIsClearing(true)
-                setClearError(null)
-                void driver
-                  .clearLogs('all')
-                  .then(() => {
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message =
-                      error instanceof Error ? error.message : String(error)
-                    setClearError(message)
-                  })
-                  .finally(() => {
-                    setIsClearing(false)
-                  })
-              }}
-              disabled={isClearing}
-            >
-              {isClearing ? 'Clearing...' : 'Clear'}
-            </button>
-          </div>
-        </div>
-      ),
-    }
-
-    const configureControl: InstrumentHeaderControl = {
-      id: 'configure-log',
-      label: 'Configure',
-      disabled: !deviceRecord || !onUpdateDeviceConfig || isEditMode || isApplyingBuffer,
-      renderPopover: ({ closePopover }) => (
-        <div className={styles.headerPopup}>
-          <div className={styles.headerPopupFieldRow}>
-            <label className={styles.headerPopupLabel} htmlFor={`${instrument.id}-max-buffer`}>
-              Message buffer size
-            </label>
-            <input
-              id={`${instrument.id}-max-buffer`}
-              className={styles.headerPopupInput}
-              aria-label="Max message buffer"
-              type="number"
-              min={MIN_CAPTURED_MESSAGE_BUFFER}
-              max={MAX_CAPTURED_MESSAGE_BUFFER}
-              step={1}
-              value={bufferInput}
-              onChange={(event) => {
-                setBufferInput(event.currentTarget.value)
-                setBufferError(null)
-              }}
-              disabled={isApplyingBuffer}
-            />
-          </div>
-          {bufferError ? (
-            <p className={styles.headerPopupError}>{bufferError}</p>
-          ) : null}
-          <div className={styles.headerPopupActions}>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                setBufferError(null)
-                closePopover()
-              }}
-              disabled={isApplyingBuffer}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={styles.headerPopupButton}
-              onClick={() => {
-                if (!deviceRecord || !onUpdateDeviceConfig) {
-                  return
-                }
-                const parsed = parseBufferInput()
-                if (parsed === null) {
-                  setBufferError(
-                    `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
-                  )
-                  return
-                }
-                setIsApplyingBuffer(true)
-                setBufferError(null)
-                void Promise.resolve(
-                  onUpdateDeviceConfig(deviceRecord.id, (current) => {
-                    const source =
-                      current && typeof current === 'object'
-                        ? (current as { logging?: Partial<DRPDLoggingConfig> })
-                        : {}
-                    const logging = normalizeLoggingConfig({
-                      ...source.logging,
-                      maxCapturedMessages: parsed,
-                    })
-                    return {
-                      ...source,
-                      logging,
-                    }
-                  }),
-                )
-                  .then(() => {
-                    closePopover()
-                  })
-                  .catch((error) => {
-                    const message =
-                      error instanceof Error ? error.message : String(error)
-                    setBufferError(message)
-                  })
-                  .finally(() => {
-                    setIsApplyingBuffer(false)
-                  })
-              }}
-              disabled={isApplyingBuffer}
-            >
-              {isApplyingBuffer ? 'Applying...' : 'Apply'}
-            </button>
-          </div>
-        </div>
-      ),
-    }
-
-    return [goodCrcControl, filterControl, exportControl, markControl, clearControl, configureControl]
-  }, [
-    activeFilterCount,
-    bufferInput,
-    clearError,
-    deviceRecord,
-    driver,
-    exportError,
-    filterOptions,
-    filters,
-    hasSelection,
-    instrument.id,
-    isApplyingBuffer,
-    isClearing,
-    isEditMode,
-    isExporting,
-    isMarking,
-    onUpdateDeviceConfig,
-    parseBufferInput,
-    queryAllCapturedMessages,
-    bufferError,
-    selection.selectedKeys,
-  ])
-
   const handleRowClick = (
     event: ReactMouseEvent<HTMLDivElement>,
     index: number,
@@ -1760,7 +1205,6 @@ export const DrpdUsbPdLogInstrumentView = ({
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
-      headerControls={headerControls}
       contentClassName={styles.contentFill}
       onClose={
         onRemove
@@ -1771,24 +1215,46 @@ export const DrpdUsbPdLogInstrumentView = ({
       }
     >
       <div
+        ref={wrapperRef}
         className={styles.wrapper}
         data-testid="drpd-usbpd-log"
       >
-        {markError || exportError ? (
-          <div className={styles.headerErrorBanner} role="alert">
-            {markError ?? exportError}
+        <div
+          className={styles.headerSlot}
+          style={{ height: `${headerSlotHeightPx}px` }}
+        >
+          <div
+            ref={headerRef}
+            className={`${styles.scaleFrame} ${styles.headerRow}`}
+            style={{
+              gridTemplateColumns,
+              transform: `translateX(${-scrollLeft}px)`,
+              width: `${tableOuterWidthPx}px`,
+            }}
+          >
+            {visibleColumns.map((column) => (
+              <span
+                key={column.id}
+                className={`${styles.headerCell} ${resizingColumnId === column.id ? styles.resizingColumn : ''}`}
+              >
+                <span className={styles.headerLabel}>{column.label}</span>
+                <button
+                  type="button"
+                  className={styles.columnResizeHandle}
+                  aria-label={`Resize ${column.label} column`}
+                  onPointerDown={(event) => {
+                    handleColumnResizePointerDown(event, column.id)
+                  }}
+                  onMouseDown={(event) => {
+                    handleColumnResizeMouseDown(event, column.id)
+                  }}
+                  onPointerMove={handleColumnResizePointerMove}
+                  onPointerUp={handleColumnResizePointerUp}
+                  onPointerCancel={handleColumnResizePointerUp}
+                />
+              </span>
+            ))}
           </div>
-        ) : null}
-        <div className={styles.headerRow}>
-          <span>Wall time</span>
-          <span>Length</span>
-          <span>Δt</span>
-          <span>ID</span>
-          <span>Message type</span>
-          <span>Sender</span>
-          <span>Receiver</span>
-          <span>SOP</span>
-          <span>Valid</span>
         </div>
         <div
           ref={viewportRef}
@@ -1798,56 +1264,74 @@ export const DrpdUsbPdLogInstrumentView = ({
           onScroll={(event) => {
             const element = event.currentTarget
             setScrollTop(element.scrollTop)
+            setScrollLeft(element.scrollLeft)
             atBottomRef.current =
               element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
           }}
           data-testid="drpd-usbpd-log-viewport"
+          style={{
+            paddingBottom: tableBottomGutterPx > 0 ? `${tableBottomGutterPx}px` : undefined,
+          }}
         >
           <div
             className={styles.canvas}
-            style={{ height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px` }}
-            data-testid="drpd-usbpd-log-canvas"
+            style={{
+              height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
+              width: `${tableOuterWidthPx}px`,
+            }}
           >
-            {visibleRows.map(({ index, row }) => (
-              <div
-                key={row?.key ?? `placeholder-${index}`}
-                className={[
-                  styles.dataRow,
-                  row && selectedKeySet.has(row.selectionKey) ? styles.selectedRow : '',
-                  row?.kind === 'event' ? styles.eventRow : '',
-                  row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
-                  row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
-                  row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
-                  row?.eventType === 'mark' ? styles.eventRowMark : '',
-                  row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
-                  row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                style={{ transform: `translateY(${index * rowHeightPx}px)` }}
-                onClick={(event) => {
-                  handleRowClick(event, index, row)
-                }}
-              >
-                {row?.kind === 'event' ? (
-                  <span className={styles.eventLabel}>
-                    {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
-                  </span>
-                ) : (
-                  <>
-                    <span className={styles.right}>{row?.timestamp ?? ''}</span>
-                    <span className={styles.right}>{row?.duration ?? ''}</span>
-                    <span className={styles.right}>{row?.delta ?? ''}</span>
-                    <span className={styles.center}>{row?.messageId ?? ''}</span>
-                    <span>{row?.messageType ?? ''}</span>
-                    <span>{row?.sender ?? ''}</span>
-                    <span>{row?.receiver ?? ''}</span>
-                    <span className={styles.center}>{row?.sopType ?? ''}</span>
-                    <span className={styles.center}>{row?.valid ?? ''}</span>
-                  </>
-                )}
-              </div>
-            ))}
+            <div
+              className={styles.rowScaleFrame}
+              style={{
+                height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
+                width: `${tableOuterWidthPx}px`,
+              }}
+              data-testid="drpd-usbpd-log-canvas"
+            >
+              {visibleRows.map(({ index, row }) => (
+                <div
+                  key={row?.key ?? `placeholder-${index}`}
+                  className={[
+                    styles.dataRow,
+                    row && selectedKeySet.has(row.selectionKey) ? styles.selectedRow : '',
+                    row?.kind === 'event' ? styles.eventRow : '',
+                    row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
+                    row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
+                    row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
+                    row?.eventType === 'mark' ? styles.eventRowMark : '',
+                    row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
+                    row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  style={{
+                    gridTemplateColumns,
+                    transform: `translateY(${index * rowHeightPx}px)`,
+                  }}
+                  onClick={(event) => {
+                    handleRowClick(event, index, row)
+                  }}
+                >
+                  {row?.kind === 'event' ? (
+                    <span className={styles.eventLabel} style={{ gridColumn: `1 / ${visibleColumns.length + 1}` }}>
+                      {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
+                    </span>
+                  ) : (
+                    visibleColumns.map((column) => (
+                      <span
+                        key={column.id}
+                        className={[
+                          column.align === 'right' ? styles.right : '',
+                          column.align === 'center' ? styles.center : '',
+                        ].filter(Boolean).join(' ')}
+                      >
+                        {row?.[column.field as DisplayColumnField] ?? ''}
+                      </span>
+                    ))
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

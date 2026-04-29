@@ -12,36 +12,17 @@ import {
   interpolateWallClockUs,
 } from './DrpdUsbPdLogTimeStrip.utils'
 
-const parseCssNumber = (
-  value: string,
-  fallback: number,
-): number => {
-  const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-const resolveCssLength = (
-  value: string,
-  fallback: number,
-): number => {
-  if (value.trim().length === 0 || typeof document === 'undefined') {
-    return fallback
-  }
-
-  const probe = document.createElement('div')
-  probe.style.position = 'absolute'
-  probe.style.visibility = 'hidden'
-  probe.style.pointerEvents = 'none'
-  probe.style.width = value
-  document.body.appendChild(probe)
-
-  try {
-    const resolved = window.getComputedStyle(probe).width
-    return parseCssNumber(resolved, fallback)
-  } finally {
-    probe.remove()
-  }
-}
+const AXIS_LABEL_Y_PX = 12
+const PLOT_INSET_X_PX = 23.4
+const PULSE_HIGH_Y_PX = 7
+const PULSE_LOW_INSET_BOTTOM_PX = 22
+const PULSE_ANNOTATION_TOP_PX = 24
+const PULSE_ANNOTATION_HEIGHT_PX = 16
+const PULSE_ANNOTATION_FONT_SIZE_PX = 6.5
+const ANALOG_TOP_INSET_PX = 16
+const ANALOG_BOTTOM_INSET_PX = 16
+const ANALOG_POINT_RADIUS_PX = 1.8
+const ANALOG_SCALE_LABEL_INSET_PX = 6.5
 
 const formatScaleLabel = (
   value: number,
@@ -103,6 +84,7 @@ const floorToIntervalUs = (
 export const DrpdUsbPdLogTimeStripRenderer = ({
   viewportRef,
   width,
+  height,
   data,
   hoverPosition,
   selectedKey,
@@ -115,6 +97,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
 }: {
   viewportRef?: RefObject<HTMLDivElement>
   width: number
+  height?: number
   data: MessageLogTimeStripWindow | null
   hoverPosition: { x: number; y: number } | null
   selectedKey: string | null
@@ -125,68 +108,33 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
   onPointerCancel?: PointerEventHandler<HTMLDivElement>
   onPointerLeave?: PointerEventHandler<HTMLDivElement>
 }) => {
-  const viewportStyle =
-    viewportRef?.current !== undefined && viewportRef.current !== null
-      ? getComputedStyle(viewportRef.current)
-      : null
-  const timeStripHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-total-height') ?? '',
-    80,
+  const defaultTimeStripHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.totalHeightPx
+  const axisHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.axisHeightPx
+  const pulseHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.pulseHeightPx
+  const defaultAnalogHeightPx = DRPD_USB_PD_LOG_CONFIG.stripLayout.analogHeightPx
+  const measuredTimeStripHeightPx = Math.max(
+    0,
+    typeof height === 'number' && Number.isFinite(height) ? height : 0,
   )
-  const axisHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-axis-height') ?? '',
-    10,
+  const timeStripHeightPx = measuredTimeStripHeightPx > 0
+    ? measuredTimeStripHeightPx
+    : defaultTimeStripHeightPx
+  const analogHeightPx = Math.max(
+    defaultAnalogHeightPx,
+    timeStripHeightPx - axisHeightPx - pulseHeightPx,
   )
-  const pulseHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-height') ?? '',
-    20,
-  )
-  const analogHeightPx = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-height') ?? '',
-    50,
-  )
-  const axisLabelY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-axis-label-y') ?? '', 5)
-  const plotInsetLeft = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-plot-inset-left') ?? '',
-    18,
-  )
-  const plotInsetRight = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-plot-inset-right') ?? '',
-    18,
-  )
-  const pulseHighY = resolveCssLength(viewportStyle?.getPropertyValue('--timestrip-pulse-high-y') ?? '', 7)
-  const pulseLowInsetBottom = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-low-inset-bottom') ?? '',
-    7,
-  )
-  const pulseAnnotationTop = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-top') ?? '',
-    18,
-  )
-  const pulseAnnotationHeight = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-height') ?? '',
-    11,
-  )
-  const pulseAnnotationFontSize = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-pulse-annotation-font-size') ?? '',
-    5,
-  )
-  const analogTopInset = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-top-inset') ?? '',
-    8,
-  )
-  const analogBottomInset = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-bottom-inset') ?? '',
-    8,
-  )
-  const analogPointRadius = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-point-radius') ?? '',
-    1.8,
-  )
-  const analogScaleLabelInset = resolveCssLength(
-    viewportStyle?.getPropertyValue('--timestrip-analog-scale-label-inset') ?? '',
-    2,
-  )
+  const axisLabelY = AXIS_LABEL_Y_PX
+  const plotInsetLeft = PLOT_INSET_X_PX
+  const plotInsetRight = PLOT_INSET_X_PX
+  const pulseHighY = PULSE_HIGH_Y_PX
+  const pulseLowInsetBottom = PULSE_LOW_INSET_BOTTOM_PX
+  const pulseAnnotationTop = PULSE_ANNOTATION_TOP_PX
+  const pulseAnnotationHeight = PULSE_ANNOTATION_HEIGHT_PX
+  const pulseAnnotationFontSize = PULSE_ANNOTATION_FONT_SIZE_PX
+  const analogTopInset = ANALOG_TOP_INSET_PX
+  const analogBottomInset = ANALOG_BOTTOM_INSET_PX
+  const analogPointRadius = ANALOG_POINT_RADIUS_PX
+  const analogScaleLabelInset = ANALOG_SCALE_LABEL_INSET_PX
   const plotLeftX = Math.min(Math.max(0, plotInsetLeft), Math.max(width, 1))
   const plotRightX = Math.max(plotLeftX, Math.max(width, 1) - Math.max(0, plotInsetRight))
   const plotWidth = Math.max(0, plotRightX - plotLeftX)
@@ -481,7 +429,7 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     if (!isNearTrace) {
       return null
     }
-    const tooltipLeft = Math.min(Math.max(hoverPosition.x + analogPointRadius * 4, 4), Math.max(width - 84, 4))
+    const tooltipLeft = Math.min(Math.max(hoverPosition.x + analogPointRadius * 4, 4), Math.max(width - 110, 4))
     const tooltipTop = analogLaneTop + Math.max(4, analogPointRadius * 2)
     return {
       left: tooltipLeft,

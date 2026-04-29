@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DRPDDevice } from '../../../lib/device'
 import {
   buildCapturedLogSelectionKey,
@@ -13,13 +13,10 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../../lib/device/drpd/usb-pd/message'
-import { buildMessage as buildUsbPdPacket, makeMessageHeader, setBits, toBytes32 } from '../../../lib/device/drpd/usb-pd/messages/messageTestUtils'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
 import { computePulseTraceEndTimestampUs } from './DrpdUsbPdLogTimeStrip.utils'
-
-const TEST_SOP = [0x18, 0x18, 0x18, 0x11]
 
 class TestLogDriver extends EventTarget {
   public analogRows: LoggedAnalogSample[]
@@ -344,48 +341,6 @@ const buildMessage = (
   createdAtMs: 1_700_000_000_000 + index,
 })
 
-const buildSourceCapabilitiesMessage = (
-  index: number,
-): LoggedCapturedMessage => {
-  let pdo = 0
-  pdo = setBits(pdo, 29, 29, 1)
-  pdo = setBits(pdo, 28, 28, 1)
-  pdo = setBits(pdo, 27, 27, 1)
-  pdo = setBits(pdo, 26, 26, 1)
-  pdo = setBits(pdo, 25, 25, 1)
-  pdo = setBits(pdo, 24, 24, 1)
-  pdo = setBits(pdo, 23, 23, 1)
-  pdo = setBits(pdo, 21, 20, 2)
-  pdo = setBits(pdo, 19, 10, 100)
-  pdo = setBits(pdo, 9, 0, 200)
-  const packet = buildUsbPdPacket(
-    TEST_SOP,
-    makeMessageHeader({
-      extended: false,
-      numberOfDataObjects: 1,
-      messageTypeNumber: 0x01,
-    }),
-    toBytes32(pdo),
-  )
-  return {
-    ...buildMessage(index, 1),
-    messageKind: 'DATA',
-    messageType: 1,
-    rawSop: packet.subarray(0, 4),
-    rawDecodedData: packet.subarray(4),
-  }
-}
-
-const buildAnalogSample = (index: number): LoggedAnalogSample => ({
-  timestampUs: BigInt(index * 20),
-  displayTimestampUs: BigInt(index * 20),
-  wallClockUs: BigInt(1_700_000_000_000_000 + index * 20),
-  vbusV: 5 + index,
-  ibusA: 0.5 + index * 0.1,
-  role: 'OBSERVER',
-  createdAtMs: 1_700_000_000_000 + index * 10,
-})
-
 const buildEvent = (
   index: number,
   text: string,
@@ -414,53 +369,25 @@ const buildEvent = (
   createdAtMs: 1_700_000_100_000 + index,
 })
 
-const stubResizeObserver = (): void => {
-  class ResizeObserverMock {
-    public callback: ResizeObserverCallback
-
-    public constructor(callback: ResizeObserverCallback) {
-      this.callback = callback
-    }
-
-    public observe(target: Element): void {
-      Object.defineProperty(target, 'clientWidth', {
-        configurable: true,
-        value: 640,
-      })
-      Object.defineProperty(target, 'clientHeight', {
-        configurable: true,
-        value: 180,
-      })
-      this.callback(
-        [
-          {
-            target,
-            contentRect: {
-              width: 640,
-              height: 180,
-              x: 0,
-              y: 0,
-              top: 0,
-              left: 0,
-              bottom: 180,
-              right: 640,
-              toJSON: () => ({}),
-            } as DOMRectReadOnly,
-          } as ResizeObserverEntry,
-        ],
-        this as unknown as ResizeObserver,
-      )
-    }
-
-    public disconnect(): void {}
-    public unobserve(): void {}
-  }
-
-  vi.stubGlobal('ResizeObserver', ResizeObserverMock)
-}
+beforeEach(() => {
+  const localStorageItems = new Map<string, string>()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: vi.fn((key: string) => localStorageItems.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        localStorageItems.set(key, value)
+      }),
+      removeItem: vi.fn((key: string) => {
+        localStorageItems.delete(key)
+      }),
+    },
+  })
+})
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -484,6 +411,53 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     expect(await screen.findByText('Wall time')).toBeInTheDocument()
     expect(screen.queryByTestId('drpd-usbpd-log-timestrip')).not.toBeInTheDocument()
+  })
+
+  it('updates visible message table columns from global column settings', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findByText('Sender')).toBeInTheDocument()
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('drpd-message-log-columns-changed', {
+          detail: {
+            visibility: {
+              timestamp: true,
+              duration: true,
+              delta: true,
+              messageId: true,
+              messageType: true,
+              sender: false,
+              receiver: false,
+              sopType: false,
+              valid: false,
+            },
+          },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('Sender')).not.toBeInTheDocument()
+      expect(screen.queryByText('Receiver')).not.toBeInTheDocument()
+      expect(screen.queryByText('SOP')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('Message type')).toBeInTheDocument()
   })
 
   it('loads existing logged rows on mount without waiting for add events', async () => {
@@ -582,6 +556,38 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
   })
 
+  it('resizes message table columns by dragging header handles', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(596)
+    const driver = new TestLogDriver([buildMessage(0, 1)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const resizeHandle = await screen.findByLabelText('Resize Message type column')
+    fireEvent.mouseDown(resizeHandle, { clientX: 200 })
+    fireEvent.mouseMove(window, { clientX: 240 })
+    fireEvent.mouseUp(window, { clientX: 240 })
+
+    await waitFor(() => {
+      const headerRow = resizeHandle.closest('[class*="headerRow"]') as HTMLElement | null
+      expect(headerRow?.style.gridTemplateColumns).toContain('240px')
+    })
+    expect(JSON.parse(window.localStorage.getItem('drpd:message-log:column-widths') ?? '{}')).toMatchObject({
+      messageType: 240,
+    })
+  })
+
   it('maps SOP prime sender and receiver using cable-plug origin metadata', async () => {
     const cableToPort = {
       ...buildMessage(0, 1),
@@ -658,32 +664,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(container.querySelector('[class*="eventRowOcp"]')).not.toBeNull()
     const eventLabel = container.querySelector('[class*="eventLabel"]')
     expect(eventLabel).not.toBeNull()
-  })
-
-  it('adds a mark event from the header button', async () => {
-    const user = userEvent.setup()
-    const driver = new TestLogDriver([buildMessage(0, 1)])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    const { container } = render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Mark' }))
-
-    expect(driver.markCalls).toBe(1)
-    await waitFor(() => {
-      expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
-    })
   })
 
   it('resets delta display after an event row', async () => {
@@ -801,179 +781,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(rows[2]?.textContent ?? '').toContain('--')
   })
 
-  it('shows clear confirmation popup and clears all logs when confirmed', async () => {
-    stubResizeObserver()
-
-    const driver = new TestLogDriver([buildMessage(0, 1)], [
-      buildAnalogSample(0),
-      buildAnalogSample(1),
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceRecord={buildDeviceRecord()}
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Clear' }))
-    expect(
-      screen.getByText(/permanently delete all logged messages and analog samples/i),
-    ).toBeInTheDocument()
-
-    const clearDialog = screen.getByRole('dialog')
-    await userEvent.click(within(clearDialog).getByRole('button', { name: /^Clear$/ }))
-    await waitFor(() => {
-      expect(driver.clearScopes).toEqual(['all'])
-      expect(driver.rows).toHaveLength(0)
-      expect(driver.analogRows).toHaveLength(0)
-    })
-  })
-
-  it('validates and applies configured max message buffer', async () => {
-    const driver = new TestLogDriver([buildMessage(0, 1)])
-    const deviceRecord: RackDeviceRecord = {
-      ...buildDeviceRecord(),
-      config: {
-        logging: {
-          maxCapturedMessages: 1000,
-        },
-      },
-    }
-    const updateDeviceConfig = vi.fn(async () => undefined)
-    const deviceState: RackDeviceState = {
-      record: deviceRecord,
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceRecord={deviceRecord}
-        deviceState={deviceState}
-        isEditMode={false}
-        onUpdateDeviceConfig={updateDeviceConfig}
-      />,
-    )
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Configure' }))
-    const input = screen.getByLabelText(/max message buffer/i)
-    expect(input).toHaveValue(1000)
-
-    await userEvent.clear(input)
-    await userEvent.type(input, '50')
-    const configureDialog = screen.getByRole('dialog')
-    await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
-    expect(
-      screen.getByText(/enter an integer value from 100 to 1000000/i),
-    ).toBeInTheDocument()
-    expect(updateDeviceConfig).not.toHaveBeenCalled()
-
-    await userEvent.clear(input)
-    await userEvent.type(input, '1000001')
-    await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
-    expect(
-      screen.getByText(/enter an integer value from 100 to 1000000/i),
-    ).toBeInTheDocument()
-    expect(updateDeviceConfig).not.toHaveBeenCalled()
-
-    await userEvent.clear(input)
-    await userEvent.type(input, '777')
-    await userEvent.click(within(configureDialog).getByRole('button', { name: 'Apply' }))
-    await waitFor(() => {
-      expect(updateDeviceConfig).toHaveBeenCalledTimes(1)
-    })
-    const updateCalls = updateDeviceConfig.mock.calls as unknown as Array<
-      [string, (current: Record<string, unknown> | undefined) => Record<string, unknown>]
-    >
-    const [updatedDeviceRecordId, updater] = updateCalls[0] ?? []
-    expect(updatedDeviceRecordId).toBe(deviceRecord.id)
-    expect(updater).toBeTypeOf('function')
-    const next = updater?.({
-      logging: {
-        enabled: true,
-        autoStartOnConnect: false,
-        maxAnalogSamples: 123,
-        retentionTrimBatchSize: 10,
-      },
-    })
-    expect(next?.logging).toMatchObject({
-      enabled: true,
-      autoStartOnConnect: false,
-      maxAnalogSamples: 123,
-      retentionTrimBatchSize: 10,
-      maxCapturedMessages: 777,
-    })
-  })
-
-  it('filters messages by selected values and shows active filter count', async () => {
-    const invalidMessage = {
-      ...buildMessage(2, 4),
-      decodeResult: 2,
-      parseError: 'CRC mismatch',
-    } satisfies LoggedCapturedMessage
-    const driver = new TestLogDriver([
-      buildMessage(0, 1), // GoodCRC from Source
-      buildMessage(1, 3), // Accept from Sink
-      invalidMessage,
-      buildEvent(3, 'Mark', 'mark'),
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
-    expect(screen.getByText('Accept')).toBeInTheDocument()
-    expect(screen.getByText('Invalid message')).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    const dialog = screen.getByRole('dialog')
-    const goodCrcOption = within(dialog).getByText('GoodCRC').closest('div[class*="filterOption"]')
-    expect(goodCrcOption).not.toBeNull()
-    await userEvent.click(within(goodCrcOption as HTMLElement).getByRole('button', { name: 'Include' }))
-    const sourceOptions = within(dialog).getAllByText('Source')
-    const sourceSenderOption = sourceOptions[0]?.closest('div[class*="filterOption"]')
-    expect(sourceSenderOption).not.toBeNull()
-    await userEvent.click(within(sourceSenderOption as HTMLElement).getByRole('button', { name: 'Include' }))
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
-
-    expect(await screen.findByRole('button', { name: 'Filter (2)' })).toBeInTheDocument()
-    await waitFor(() => {
-      const canvasText = screen.getByTestId('drpd-usbpd-log-canvas').textContent ?? ''
-      expect(canvasText).toContain('GoodCRC')
-      expect(canvasText).not.toContain('Accept')
-      expect(canvasText).not.toContain('Invalid message')
-      expect(canvasText).toContain('Mark')
-    })
-
-    await userEvent.click(screen.getByRole('button', { name: 'Filter (2)' }))
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Clear' }))
-    expect(await screen.findByRole('button', { name: 'Filter' })).toBeInTheDocument()
-    expect(await screen.findByText('Accept')).toBeInTheDocument()
-  })
-
-  it('excludes selected filter values without requiring inverse selections', async () => {
+  it('applies message filters sent by the global logging menu', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1), // GoodCRC
       buildMessage(1, 3), // Accept
@@ -999,14 +807,22 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(screen.getByText('Accept')).toBeInTheDocument()
     expect(screen.getByText('Reject')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    const dialog = screen.getByRole('dialog')
-    const goodCrcOption = within(dialog).getByText('GoodCRC').closest('div[class*="filterOption"]')
-    expect(goodCrcOption).not.toBeNull()
-    await userEvent.click(within(goodCrcOption as HTMLElement).getByRole('button', { name: 'Exclude' }))
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent('drpd-message-log-filters-changed', {
+          detail: {
+            filters: {
+              messageTypes: { include: [], exclude: ['GoodCRC'] },
+              senders: { include: [], exclude: [] },
+              receivers: { include: [], exclude: [] },
+              sopTypes: { include: [], exclude: [] },
+              crcValid: { include: [], exclude: [] },
+            },
+          },
+        }),
+      )
+    })
 
-    expect(await screen.findByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
     await waitFor(() => {
       const canvasText = screen.getByTestId('drpd-usbpd-log-canvas').textContent ?? ''
       expect(canvasText).not.toContain('GoodCRC')
@@ -1014,55 +830,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       expect(canvasText).toContain('Reject')
       expect(canvasText).toContain('Mark')
     })
-  })
-
-  it('toggles GoodCRC exclusion from the instrument header and reflects it in filter UI', async () => {
-    const driver = new TestLogDriver([
-      buildMessage(0, 1), // GoodCRC
-      buildMessage(1, 3), // Accept
-      buildMessage(2, 4), // Reject
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Exclude GoodCRC' }))
-
-    expect(await screen.findByRole('button', { name: 'Include GoodCRC' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter (1)' })).toBeInTheDocument()
-    await waitFor(() => {
-      const canvasText = screen.getByTestId('drpd-usbpd-log-canvas').textContent ?? ''
-      expect(canvasText).not.toContain('GoodCRC')
-      expect(canvasText).toContain('Accept')
-      expect(canvasText).toContain('Reject')
-    })
-
-    await userEvent.click(screen.getByRole('button', { name: 'Filter (1)' }))
-    const dialog = screen.getByRole('dialog')
-    const goodCrcOption = within(dialog).getByText('GoodCRC').closest('div[class*="filterOption"]')
-    expect(goodCrcOption).not.toBeNull()
-    expect(within(goodCrcOption as HTMLElement).getByRole('button', { name: 'Exclude' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await userEvent.keyboard('{Escape}')
-
-    await userEvent.click(screen.getByRole('button', { name: 'Include GoodCRC' }))
-    expect(await screen.findByRole('button', { name: 'Exclude GoodCRC' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
-    expect(await screen.findByText('GoodCRC')).toBeInTheDocument()
   })
 
   it('supports click unselect and ctrl/cmd multi-select', async () => {
@@ -1209,174 +976,4 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
   })
 
-  it('disables export menu items until at least one row is selected', async () => {
-    const user = userEvent.setup()
-    const driver = new TestLogDriver([buildMessage(0, 1), buildEvent(1, 'Mark', 'mark')])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    const { container } = render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await screen.findByText('GoodCRC')
-    await user.click(screen.getByRole('button', { name: 'Export' }))
-    let dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('button', { name: 'Export JSON' })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Export CSV' })).toBeDisabled()
-
-    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
-    await user.click(rows[0] as HTMLElement)
-
-    await user.click(screen.getByRole('button', { name: 'Export' }))
-    dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('button', { name: 'Export JSON' })).toBeEnabled()
-    expect(within(dialog).getByRole('button', { name: 'Export CSV' })).toBeEnabled()
-  })
-
-  it('exports selected messages and events as JSON using decoded message metadata', async () => {
-    const user = userEvent.setup()
-    class BlobMock {
-      public parts: unknown[]
-      public type: string
-
-      public constructor(parts: unknown[], options?: { type?: string }) {
-        this.parts = parts
-        this.type = options?.type ?? ''
-      }
-    }
-    const anchorClick = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => undefined)
-    const createObjectURL = vi.fn(() => 'blob:json-export')
-    const revokeObjectURL = vi.fn()
-    vi.stubGlobal('Blob', BlobMock as unknown as typeof Blob)
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL,
-      revokeObjectURL,
-    })
-
-    const driver = new TestLogDriver([
-      buildSourceCapabilitiesMessage(0),
-      buildEvent(1, 'Mark', 'mark'),
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    const { container } = render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await screen.findByText('Source Capabilities')
-    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
-    fireEvent.click(rows[0] as HTMLElement, { ctrlKey: true })
-    fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
-    await waitFor(() => {
-      expect(driver.logSelection.selectedKeys).toHaveLength(2)
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Export' }))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Export JSON' }))
-
-    await waitFor(() => {
-      expect(createObjectURL).toHaveBeenCalledTimes(1)
-    })
-    const [blob] = createObjectURL.mock.calls[0] as unknown as [{ parts: unknown[] }]
-    const payload = JSON.parse(String(blob.parts[0] ?? '')) as Array<Record<string, unknown>>
-    expect(payload).toHaveLength(2)
-    expect(payload[0]?.messageType).toBe(1)
-    expect(payload[0]?.csvFields).toBeUndefined()
-    expect(JSON.stringify(payload[0]?.humanReadableMetadata)).toContain('Fixed power profiles')
-    expect(JSON.stringify(payload[0]?.humanReadableMetadata)).toContain('Message Summary')
-    expect(payload[1]?.entryKind).toBe('event')
-    expect(payload[1]?.eventText).toBe('Mark')
-    expect(payload[1]?.humanReadableMetadata).toBeNull()
-    expect(anchorClick).toHaveBeenCalledTimes(1)
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:json-export')
-  })
-
-  it('exports selected messages and events as CSV with requested columns', async () => {
-    const user = userEvent.setup()
-    class BlobMock {
-      public parts: unknown[]
-      public type: string
-
-      public constructor(parts: unknown[], options?: { type?: string }) {
-        this.parts = parts
-        this.type = options?.type ?? ''
-      }
-    }
-    const anchorClick = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => undefined)
-    const createObjectURL = vi.fn(() => 'blob:csv-export')
-    const revokeObjectURL = vi.fn()
-    vi.stubGlobal('Blob', BlobMock as unknown as typeof Blob)
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL,
-      revokeObjectURL,
-    })
-
-    const driver = new TestLogDriver([
-      buildSourceCapabilitiesMessage(0),
-      buildEvent(1, 'Mark', 'mark'),
-    ])
-    const deviceState: RackDeviceState = {
-      record: buildDeviceRecord(),
-      status: 'connected',
-      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
-    }
-
-    const { container } = render(
-      <DrpdUsbPdLogInstrumentView
-        instrument={buildInstrument()}
-        displayName="USB-PD Log"
-        deviceState={deviceState}
-        isEditMode={false}
-      />,
-    )
-
-    await screen.findByText('Source Capabilities')
-    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
-    fireEvent.click(rows[0] as HTMLElement, { ctrlKey: true })
-    fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
-    await waitFor(() => {
-      expect(driver.logSelection.selectedKeys).toHaveLength(2)
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Export' }))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Export CSV' }))
-
-    await waitFor(() => {
-      expect(createObjectURL).toHaveBeenCalledTimes(1)
-    })
-    const [blob] = createObjectURL.mock.calls[0] as unknown as [{ parts: unknown[] }]
-    const payload = String(blob.parts[0] ?? '')
-    expect(payload).toContain('Wall Time,Duration,Type,Sender,Receiver,ID,Description,CRC,CRC Valid,Message Summary')
-    expect(payload).toContain(',Message,')
-    expect(payload).toContain(',Event,')
-    expect(payload).toContain('Source Capabilities')
-    expect(payload).toContain('Mark')
-    expect(payload).toContain('Fixed power profiles')
-    expect(anchorClick).toHaveBeenCalledTimes(1)
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:csv-export')
-  })
 })

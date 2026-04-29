@@ -1,4 +1,6 @@
 .page {
+  --rack-layout-padding-x: var(--space-0);
+
   height: 100%;
   min-height: 0;
   display: flex;
@@ -7,9 +9,66 @@
   color: var(--color-text-primary);
 }
 
+.page[data-layout-mode='full'] {
+  --rack-canvas-width: 100%;
+  --rack-layout-padding-x: var(--space-32);
+}
+
+.menuBarViewport {
+  flex: 0 0 auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  background: var(--color-surface-header);
+  border-bottom: var(--border-thin) solid var(--color-border-divider);
+}
+
+.menuBarScroll {
+  min-width: 100%;
+  display: flex;
+  justify-content: safe center;
+}
+
+.menuBar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0;
+  width: var(--rack-canvas-width);
+  height: var(--menu-bar-height);
+  min-height: var(--menu-bar-height);
+  box-sizing: border-box;
+  padding-inline: var(--rack-layout-padding-x);
+}
+
+.menuBarButton {
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-menu);
+  font-weight: var(--font-weight-normal);
+  line-height: 1;
+  height: var(--menu-bar-height);
+  min-height: 0;
+  padding: 0 var(--menu-bar-padding-x);
+  cursor: pointer;
+}
+
+.menuBarButton:hover:not(:disabled),
+.menuBarButton:focus-visible,
+.menuBarButton[aria-expanded='true'] {
+  background: var(--color-surface-panel-accent);
+  outline: none;
+}
+
+.menuBarButton:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
 .headerViewport {
   flex: 0 0 auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   background: var(--color-surface-header);
   border-bottom: var(--border-thin) solid var(--color-border-divider);
@@ -19,22 +78,34 @@
 .headerScroll {
   min-width: 100%;
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
 }
 
 .header {
-  display: flex;
+  container-type: inline-size;
   flex: 0 0 auto;
+  width: var(--rack-canvas-width);
+  box-sizing: border-box;
+  background: var(--color-surface-header);
+}
+
+.headerContent {
+  --rack-header-design-width: 1200px;
+  --rack-header-scale: clamp(0.5, calc(100cqw / var(--rack-header-design-width)), 1.7);
+
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-12) var(--space-20);
-  background: var(--color-surface-header);
+  width: 100%;
+  box-sizing: border-box;
+  padding: calc(var(--space-6) * var(--rack-header-scale)) var(--rack-layout-padding-x);
 }
 
 .titleBlock {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  gap: calc(var(--space-16) * 1.15 * var(--rack-header-scale));
+  min-width: 0;
 }
 
 .title {
@@ -44,8 +115,338 @@
 
 .logo {
   display: block;
-  height: var(--rack-header-logo-height);
+  height: calc(var(--rack-header-logo-height) * 1.15 * var(--rack-header-scale));
   width: auto;
+  padding-left: calc(var(--space-8) * var(--rack-header-scale));
+}
+
+.headerVbusMetrics {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-8) * 1.15 * var(--rack-header-scale));
+  min-width: 0;
+}
+
+.headerVbusMetric {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--line-height-snug);
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.headerVbusVoltage {
+  font-size: calc(var(--font-size-4xl) * 1.265 * var(--rack-header-scale));
+}
+
+.headerVbusVoltage {
+  color: var(--color-metric-voltage);
+}
+
+.headerVbusDivider {
+  align-self: stretch;
+  width: var(--border-thin);
+  min-height: calc(54px * var(--rack-header-scale));
+  margin: 0 calc(var(--space-4) * 1.15 * var(--rack-header-scale));
+  background: color-mix(in srgb, var(--color-border-divider) 58%, transparent);
+}
+
+.headerVbusSecondaryGroup {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-0);
+}
+
+.headerVbusCurrent,
+.headerVbusPower {
+  font-size: calc(1.70775rem * var(--rack-header-scale));
+  line-height: var(--line-height-tight);
+}
+
+.headerVbusCurrent {
+  color: var(--color-metric-current);
+}
+
+.headerVbusPower {
+  color: var(--color-metric-power);
+}
+
+.headerVbusNumber {
+  display: inline-block;
+  min-width: calc(102px * var(--rack-header-scale));
+  text-align: right;
+  white-space: nowrap;
+}
+
+.headerVbusCurrent .headerVbusNumber,
+.headerVbusPower .headerVbusNumber {
+  min-width: calc(64px * var(--rack-header-scale));
+}
+
+.headerVbusCurrent .headerVbusNumber {
+  min-width: 0;
+}
+
+.headerVbusGhostZeros {
+  opacity: 0.2;
+}
+
+.headerVbusFlow {
+  color: var(--color-text-muted);
+  font-size: calc(var(--font-size-3xs) * 1.15 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  letter-spacing: 0;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--space-2) * var(--rack-header-scale));
+  min-height: calc(var(--font-size-xs) * var(--rack-header-scale));
+  align-self: center;
+}
+
+.headerVbusFlowEndpoint {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(2px * var(--rack-header-scale));
+}
+
+.headerVbusUsbCPort {
+  width: calc(9.2px * var(--rack-header-scale));
+  height: calc(4.6px * var(--rack-header-scale));
+  border: var(--border-thin) solid currentColor;
+  border-radius: 999px;
+  opacity: 0.9;
+}
+
+.headerVbusBananaPort {
+  position: relative;
+  display: inline-block;
+  width: calc(7px * var(--rack-header-scale));
+  height: calc(7px * var(--rack-header-scale));
+  border: var(--border-thin) solid currentColor;
+  border-radius: 50%;
+  opacity: 0.9;
+}
+
+.headerVbusBananaPort::after {
+  content: '';
+  position: absolute;
+  inset: calc(1px * var(--rack-header-scale));
+  border: var(--border-thin) solid currentColor;
+  border-radius: 50%;
+}
+
+.headerVbusFlowTrack {
+  --flow-dot-size: calc(1.15px * var(--rack-header-scale));
+  --flow-dot-gap: calc(6.9px * var(--rack-header-scale));
+
+  display: inline-block;
+  width: calc(27.6px * var(--rack-header-scale));
+  height: calc(5.75px * var(--rack-header-scale));
+  border-radius: 999px;
+  background-image: radial-gradient(
+    circle,
+    currentColor var(--flow-dot-size),
+    transparent calc(var(--flow-dot-size) + 0.5px)
+  );
+  background-size: var(--flow-dot-gap) 100%;
+  background-repeat: repeat-x;
+  opacity: 0.85;
+  animation: headerVbusFlowRight 0.75s linear infinite;
+}
+
+.headerVbusFlowTrack[data-direction='left'] {
+  animation-name: headerVbusFlowLeft;
+}
+
+.headerVbusAccumulation {
+  color: var(--color-text-muted);
+  font-size: calc(var(--font-size-3xs) * 1.15 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--space-4) * var(--rack-header-scale));
+  white-space: nowrap;
+  min-height: calc(var(--font-size-xs) * var(--rack-header-scale));
+}
+
+.headerVbusProtection {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(8.05px * var(--rack-header-scale));
+  color: var(--color-text-primary);
+  font-size: calc(var(--font-size-xs) * 1.15 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.headerVbusProtectionCell {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: calc(var(--space-1) * var(--rack-header-scale));
+  align-items: baseline;
+}
+
+.headerVbusRoleStatus .headerVbusProtectionCell {
+  grid-template-columns: auto calc(12ch * var(--rack-header-scale));
+}
+
+.headerVbusSinkContract .headerVbusProtectionCell {
+  grid-template-columns: auto calc(15ch * var(--rack-header-scale));
+}
+
+.headerVbusRoleStatusValue {
+  text-align: right;
+}
+
+.headerVbusRoleStatusValue[data-alert='true'] {
+  color: var(--color-status-error);
+}
+
+.headerVbusProtectionCell[data-triggered='true'] {
+  color: var(--color-status-error);
+  animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
+}
+
+.headerVbusProtectionLabel {
+  color: var(--color-text-muted);
+  font-size: calc(var(--font-size-3xs) * 1.15 * var(--rack-header-scale));
+  letter-spacing: var(--letter-spacing-md);
+}
+
+.headerVbusProtectionCell[data-triggered='true'] .headerVbusProtectionLabel {
+  color: inherit;
+}
+
+.headerVbusProtectionValue {
+  display: inline-grid;
+  grid-template-columns: calc(5ch * var(--rack-header-scale)) auto;
+  column-gap: calc(2px * var(--rack-header-scale));
+  align-items: baseline;
+}
+
+.headerVbusProtectionNumber {
+  text-align: right;
+}
+
+.headerVbusProtectionUnit {
+  text-align: left;
+}
+
+.headerVbusChargeIndicator {
+  --header-vbus-charge-angle: 0deg;
+
+  position: relative;
+  width: calc(4.025px * var(--rack-header-scale));
+  height: calc(4.025px * var(--rack-header-scale));
+  border-radius: 999px;
+  opacity: 0;
+  margin-left: var(--space-0);
+  margin-right: calc(var(--space-3) * -1 * var(--rack-header-scale));
+}
+
+.headerVbusChargeIndicator[data-active='true'] {
+  opacity: 0.7;
+}
+
+.headerVbusChargeIndicator::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--border-thin) * -1);
+  border-radius: inherit;
+  background: conic-gradient(currentColor var(--header-vbus-charge-angle), transparent 0);
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--border-thin)),
+    #000 calc(100% - var(--border-thin))
+  );
+  opacity: 0;
+}
+
+.headerVbusChargeIndicator[data-active='true']::after {
+  opacity: 1;
+  animation: headerVbusChargeFill 3.25s linear infinite;
+}
+
+.headerVbusAccumulatorValue {
+  display: inline-grid;
+  grid-template-columns: calc(6ch * var(--rack-header-scale)) auto;
+  column-gap: calc(2px * var(--rack-header-scale));
+  align-items: baseline;
+}
+
+.headerVbusAccumulatorNumber {
+  text-align: right;
+}
+
+.headerVbusAccumulatorUnit {
+  text-align: left;
+}
+
+@keyframes headerVbusFlowRight {
+  from {
+    background-position-x: 0;
+  }
+
+  to {
+    background-position-x: var(--flow-dot-gap);
+  }
+}
+
+@keyframes headerVbusFlowLeft {
+  from {
+    background-position-x: 0;
+  }
+
+  to {
+    background-position-x: calc(var(--flow-dot-gap) * -1);
+  }
+}
+
+@property --header-vbus-charge-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes headerVbusChargeFill {
+  0% {
+    --header-vbus-charge-angle: 0deg;
+  }
+
+  80% {
+    --header-vbus-charge-angle: 360deg;
+  }
+
+  100% {
+    --header-vbus-charge-angle: 360deg;
+  }
+}
+
+@keyframes headerVbusProtectionFlash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.headerVbusUnit {
+  font-size: calc(var(--font-size-xs) * var(--rack-header-scale));
 }
 
 .subtitle {
@@ -87,376 +488,6 @@
   color: var(--color-status-error);
   border-color: var(--color-status-error);
 }
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.editButton,
-.editButtonSecondary,
-.editButtonPrimary,
-.themeButton,
-.settingsButton,
-.deviceMenuButton,
-.deviceActionButton,
-.deviceMenuItem {
-  border: var(--border-thin) solid var(--color-border-panel);
-  color: var(--color-text-primary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-lg);
-  cursor: pointer;
-  font-size: var(--font-size-3xs);
-  padding: var(--space-1) var(--space-4);
-  border-radius: var(--radius-control);
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
-}
-
-.editButton {
-  background: transparent;
-}
-
-.editButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.editButtonSecondary {
-  background: transparent;
-}
-
-.editButtonSecondary:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.editButtonPrimary {
-  border-color: var(--color-edit-glow);
-  background: var(--color-surface-panel-accent);
-}
-
-.themeButton {
-  background: var(--color-surface-panel);
-}
-
-.themeButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.settingsButton {
-  background: var(--color-surface-panel);
-}
-
-.settingsButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.settingsButton:disabled {
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
-}
-
-.deviceMenuButton {
-  background: var(--color-surface-panel);
-}
-
-.deviceMenuButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.deviceMenuButton:disabled {
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
-}
-
-.deviceMenuPanel {
-  position: fixed;
-  left: 0;
-  top: 0;
-  min-width: var(--rack-device-menu-min-width);
-  width: max-content;
-  max-width: min(620px, calc(100vw - var(--space-16)));
-  background: var(--color-surface-panel);
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-strong);
-  display: grid;
-  gap: var(--space-6);
-  padding: var(--space-10);
-  overflow: auto;
-  font-size: var(--font-size-3xs);
-  transform: scale(var(--global-app-scale, 1));
-  transform-origin: top left;
-}
-
-.instrumentMenuPanel {
-  position: fixed;
-  top: 0;
-  left: 0;
-  background: var(--color-surface-instrument);
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-md);
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-4) var(--space-0);
-  min-width: calc(120px * var(--ui-scale));
-  max-width: min(620px, calc(100vw - var(--space-16)));
-  box-shadow: var(--shadow-strong);
-  overflow: auto;
-  font-size: var(--font-size-popup);
-  transform: scale(var(--global-app-scale, 1));
-  transform-origin: top left;
-}
-
-.deviceMenuItem {
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-surface-panel-accent);
-  font-size: inherit;
-}
-
-.instrumentMenuItem {
-  border: none;
-  background: transparent;
-  color: var(--color-text-primary);
-  font-size: inherit;
-  padding: var(--space-4) var(--space-10);
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-  width: 100%;
-}
-
-.instrumentMenuList > li + li {
-  border-top: var(--border-thin) solid var(--color-border-panel);
-}
-
-.instrumentMenuItem:hover,
-.instrumentMenuItem:focus-visible {
-  background: var(--color-surface-panel-accent);
-  outline: none;
-}
-
-.instrumentMenuItem:active {
-  background: color-mix(in srgb, var(--color-edit-glow) 16%, transparent);
-}
-
-.deviceMenuSeparator {
-  height: var(--border-thin);
-  background: var(--color-border-divider);
-}
-
-.deviceMenuEmpty {
-  font-size: inherit;
-  color: var(--color-text-muted);
-  padding: var(--control-padding-y-sm) var(--space-4);
-}
-
-.instrumentMenuEmpty {
-  font-size: inherit;
-  color: var(--color-text-muted);
-  padding: var(--space-4) var(--space-10);
-  white-space: nowrap;
-}
-
-.deviceMenuList {
-  list-style: none;
-  margin: var(--space-0);
-  padding: var(--space-0);
-  display: grid;
-  gap: var(--space-8);
-  width: max-content;
-}
-
-.instrumentMenuList {
-  list-style: none;
-  margin: var(--space-0);
-  padding: var(--space-0);
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-}
-
-.deviceRow {
-  display: grid;
-  grid-template-columns: auto var(--rack-device-actions-width);
-  align-items: center;
-  gap: var(--space-4);
-  width: max-content;
-}
-
-.deviceInfo {
-  display: grid;
-  grid-template-columns: max-content var(--rack-device-status-width);
-  align-items: center;
-  column-gap: var(--space-4);
-  min-width: 0;
-  max-width: var(--rack-device-info-max-width);
-}
-
-.deviceName {
-  font-size: inherit;
-  color: var(--color-text-primary);
-  max-width: var(--rack-device-name-max-width);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.deviceStatus {
-  font-size: inherit;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  text-align: right;
-  display: inline-block;
-}
-
-.deviceStatusConnected {
-  color: var(--color-status-success);
-}
-
-.deviceStatusError {
-  color: var(--color-status-error);
-}
-
-.deviceActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  flex: 0 0 auto;
-  width: var(--rack-device-actions-width);
-  justify-content: flex-end;
-}
-
-.deviceActionButton {
-  flex: 0 0 auto;
-  background: transparent;
-  padding: var(--space-4) var(--space-8);
-  font-size: inherit;
-}
-
-.deviceActionButton:hover:not(:disabled) {
-  background: var(--color-surface-panel-accent);
-}
-
-.deviceMenu, .instrumentMenu {
-  display: contents;
-}
-
-.removeButton {
-  color: var(--color-status-error);
-}
-
-.settingsBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 12000;
-  display: grid;
-  place-items: center;
-  padding: var(--space-16);
-  background: color-mix(in srgb, var(--color-page-bg) 72%, transparent);
-}
-
-.settingsDialog {
-  width: min(420px, calc(100vw - var(--space-32)));
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-panel);
-  box-shadow: var(--shadow-strong);
-  color: var(--color-text-primary);
-}
-
-.settingsHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-12);
-  padding: var(--space-12);
-  border-bottom: var(--border-thin) solid var(--color-border-divider);
-}
-
-.settingsTitle {
-  margin: var(--space-0);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
-.settingsCloseButton {
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--color-text-primary);
-  cursor: pointer;
-  font-size: var(--font-size-3xs);
-  letter-spacing: var(--letter-spacing-lg);
-  padding: var(--space-1) var(--space-4);
-  text-transform: uppercase;
-}
-
-.settingsCloseButton:hover {
-  background: var(--color-surface-panel-accent);
-}
-
-.settingsCloseButton:disabled {
-  opacity: var(--opacity-disabled);
-  cursor: not-allowed;
-}
-
-.settingsBody {
-  padding: var(--space-12);
-}
-
-.settingsFieldset {
-  display: grid;
-  gap: var(--space-10);
-  margin: var(--space-0);
-  padding: var(--space-0);
-  border: 0;
-}
-
-.settingsLegend {
-  margin-bottom: var(--space-8);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-lg);
-}
-
-.channelOptions {
-  display: grid;
-  gap: var(--space-8);
-}
-
-.channelOption {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-8);
-  align-items: start;
-  padding: var(--space-8);
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.channelOption:has(input:checked) {
-  border-color: var(--color-edit-glow);
-  background: var(--color-surface-panel-accent);
-}
-
-.channelOptionText {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.channelOptionTitle {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-}
-
-.channelOptionDescription,
-.settingsValue {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
 .firmwareUpdateText {
   margin: var(--space-0) var(--space-0) var(--space-12);
   color: var(--color-text-primary);
@@ -511,7 +542,7 @@
 }
 
 .firmwareProgressShell {
-  height: calc(8px * var(--ui-scale));
+  height: 8px;
   overflow: hidden;
   border-radius: var(--radius-sm);
   background: var(--color-surface-panel-accent);
@@ -528,108 +559,6 @@
 .firmwareUploadError {
   color: var(--color-status-error);
   font-size: var(--font-size-sm);
-}
-
-.firmwareUpdateActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-8);
-  margin-top: var(--space-16);
-}
-
-.shortcutDialog {
-  width: min(760px, calc(100vw - var(--space-32)));
-  border: var(--border-thin) solid color-mix(in srgb, var(--color-edit-glow) 28%, var(--color-border-panel));
-  border-radius: calc(var(--radius-md) * 1.25);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--color-edit-glow) 12%, transparent), transparent 36%),
-    var(--color-surface-panel);
-  box-shadow: var(--shadow-strong);
-  color: var(--color-text-primary);
-  overflow: hidden;
-}
-
-.shortcutHero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-16);
-  padding: var(--space-16);
-  border-bottom: var(--border-thin) solid var(--color-border-divider);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-panel-accent) 84%, transparent), transparent);
-}
-
-.shortcutEyebrow {
-  margin: var(--space-0) var(--space-0) var(--space-6);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  letter-spacing: var(--letter-spacing-lg);
-  text-transform: uppercase;
-}
-
-.shortcutTitle {
-  margin: var(--space-0);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.shortcutLead {
-  margin: var(--space-8) var(--space-0) var(--space-0);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  max-width: 44ch;
-}
-
-.shortcutGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-12);
-  padding: var(--space-16);
-}
-
-.shortcutCard {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-12);
-  align-items: start;
-  padding: var(--space-12);
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-panel-accent) 76%, transparent), transparent),
-    var(--color-surface-panel);
-}
-
-.shortcutKey {
-  min-width: calc(40px * var(--ui-scale));
-  padding: var(--space-6) var(--space-8);
-  border-radius: var(--radius-sm);
-  border: var(--border-thin) solid color-mix(in srgb, var(--color-edit-glow) 35%, var(--color-border-panel));
-  background: color-mix(in srgb, var(--color-edit-glow) 12%, var(--color-surface-panel));
-  box-shadow: inset 0 calc(-2px * var(--ui-scale)) 0 color-mix(in srgb, var(--color-edit-glow) 16%, transparent);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  text-align: center;
-}
-
-.shortcutCardBody {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.shortcutCardTitle {
-  margin: var(--space-0);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-}
-
-.shortcutCardText {
-  margin: var(--space-0);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  line-height: 1.45;
 }
 
 .srOnly {

@@ -1,6 +1,6 @@
 .wrapper {
-  --metric-number-width: calc(60px * var(--ui-scale));
-  --metric-unit-width: calc(12px * var(--ui-scale));
+  --metric-number-width: 60px;
+  --metric-unit-width: 12px;
   --metric-value-width: calc(
     var(--metric-number-width) + var(--metric-unit-width) + var(--space-1)
   );

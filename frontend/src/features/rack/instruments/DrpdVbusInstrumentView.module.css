@@ -1,6 +1,6 @@
 .wrapper {
-  --vbus-number-width: calc(89px * var(--ui-scale));
-  --metric-number-width: calc(56px * var(--ui-scale));
+  --vbus-number-width: 89px;
+  --metric-number-width: 56px;
   --separator-opacity: 0.8;
   --protection-color-on: var(--color-status-success);
   --protection-color-off: var(--color-status-muted);
@@ -159,6 +159,10 @@
   color: var(--protection-color-on);
 }
 
+.protectionStatusDisabled {
+  color: var(--protection-color-off);
+}
+
 .protectionStatusTriggered {
   color: var(--protection-color-triggered);
 }
@@ -187,11 +191,11 @@
 .headerPopup {
   display: grid;
   gap: var(--space-8);
-  min-width: calc(250px * var(--ui-scale));
+  min-width: 250px;
 }
 
 .headerResetPopup {
-  min-width: calc(180px * var(--ui-scale));
+  min-width: 180px;
 }
 
 .headerPopupRow {

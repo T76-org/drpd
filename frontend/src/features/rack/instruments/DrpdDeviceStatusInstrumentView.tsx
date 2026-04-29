@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import {
   CCBusRole,
   CCBusRoleStatus,
@@ -9,10 +8,8 @@ import {
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
-import { useRackSizingConfig } from '../rackSizing'
+import { RoleDialog } from '../overlays/deviceStatus/RoleDialog'
 import styles from './DrpdDeviceStatusInstrumentView.module.css'
-
-const ROLE_MENU_Z_INDEX = 10000
 
 /**
  * Build a readable label for a CC bus role.
@@ -102,118 +99,9 @@ export const DrpdDeviceStatusInstrumentView = ({
   )
   const [roleStatus, setRoleStatus] = useState<CCBusRoleStatus | null>(null)
   const [captureEnabled, setCaptureEnabled] = useState<OnOffState | null>(null)
-  const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false)
   const [isRoleUpdating, setIsRoleUpdating] = useState(false)
   const [isCaptureUpdating, setIsCaptureUpdating] = useState(false)
-  const [roleMenuInlineStyle, setRoleMenuInlineStyle] = useState<CSSProperties | undefined>(
-    undefined,
-  )
-  const roleMenuButtonRef = useRef<HTMLButtonElement | null>(null)
-  const roleMenuRef = useRef<HTMLDivElement | null>(null)
-  const rackSizing = useRackSizingConfig()
-
-  const closeRoleMenu = () => {
-    setIsRoleMenuOpen(false)
-    setRoleMenuInlineStyle(undefined)
-  }
-
-  const updateRoleMenuLayout = useCallback(() => {
-    if (!isRoleMenuOpen) {
-      return
-    }
-
-    const button = roleMenuButtonRef.current
-    const menu = roleMenuRef.current
-    if (!button || !menu) {
-      return
-    }
-
-    const viewportInsetPx = rackSizing.popoverViewportInsetPx
-    const menuGapPx = rackSizing.popoverGapPx
-    const buttonRect = button.getBoundingClientRect()
-    const menuRect = menu.getBoundingClientRect()
-    const width = menuRect.width
-    const height = menuRect.height
-
-    let left = buttonRect.right - width
-    left = Math.max(
-      viewportInsetPx,
-      Math.min(left, window.innerWidth - width - viewportInsetPx),
-    )
-
-    const belowTop = buttonRect.bottom + menuGapPx
-    const belowSpace = window.innerHeight - belowTop - viewportInsetPx
-    const aboveSpace = buttonRect.top - menuGapPx - viewportInsetPx
-    const shouldOpenAbove = belowSpace < height && aboveSpace > belowSpace
-    const maxHeight = Math.max(120, Math.floor(shouldOpenAbove ? aboveSpace : belowSpace))
-
-    let top = belowTop
-    if (shouldOpenAbove) {
-      top = Math.max(
-        viewportInsetPx,
-        buttonRect.top - menuGapPx - Math.min(height, maxHeight),
-      )
-    } else {
-      top = Math.min(top, window.innerHeight - viewportInsetPx - Math.min(height, maxHeight))
-    }
-
-    setRoleMenuInlineStyle({
-      left: `${Math.round(left)}px`,
-      top: `${Math.round(top)}px`,
-      maxHeight: `${Math.round(maxHeight)}px`,
-      zIndex: ROLE_MENU_Z_INDEX,
-    })
-  }, [isRoleMenuOpen, rackSizing.popoverGapPx, rackSizing.popoverViewportInsetPx])
-
-  useEffect(() => {
-    if (!isRoleMenuOpen) {
-      return undefined
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) {
-        return
-      }
-      if (roleMenuButtonRef.current?.contains(target)) {
-        return
-      }
-      if (roleMenuRef.current?.contains(target)) {
-        return
-      }
-      closeRoleMenu()
-    }
-
-    const handleRoleMenuKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        closeRoleMenu()
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown)
-    window.addEventListener('keydown', handleRoleMenuKeydown)
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('keydown', handleRoleMenuKeydown)
-    }
-  }, [isRoleMenuOpen])
-
-  useEffect(() => {
-    if (!isRoleMenuOpen) {
-      return undefined
-    }
-    const runLayout = () => {
-      updateRoleMenuLayout()
-    }
-    runLayout()
-    window.addEventListener('resize', runLayout)
-    window.addEventListener('scroll', runLayout, true)
-    return () => {
-      window.removeEventListener('resize', runLayout)
-      window.removeEventListener('scroll', runLayout, true)
-    }
-  }, [isRoleMenuOpen, updateRoleMenuLayout])
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false)
 
   useEffect(() => {
     if (!driver) {
@@ -282,7 +170,6 @@ export const DrpdDeviceStatusInstrumentView = ({
         : styles.modeValueNeutral
 
   const handleRoleUpdate = async (nextRole: CCBusRole) => {
-    closeRoleMenu()
     if (!driver) {
       return
     }
@@ -330,7 +217,8 @@ export const DrpdDeviceStatusInstrumentView = ({
   }
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -351,48 +239,11 @@ export const DrpdDeviceStatusInstrumentView = ({
               <button
                 type="button"
                 className={styles.modeButton}
-                ref={roleMenuButtonRef}
-                onClick={() => setIsRoleMenuOpen((open) => !open)}
+                onClick={() => setIsRoleDialogOpen(true)}
                 disabled={!driver || isRoleUpdating}
-                aria-haspopup="menu"
-                aria-expanded={isRoleMenuOpen}
               >
                 Set
               </button>
-              {isRoleMenuOpen ? (
-                typeof document !== 'undefined'
-                  ? createPortal(
-                      <div
-                        className={styles.modeMenu}
-                        role="menu"
-                        ref={roleMenuRef}
-                        style={roleMenuInlineStyle}
-                      >
-                        {Object.values(CCBusRole).map((nextRole) => {
-                          const isSelected = nextRole === role
-                          return (
-                            <button
-                              key={nextRole}
-                              type="button"
-                              role="menuitemradio"
-                              aria-checked={isSelected}
-                              className={`${styles.modeMenuItem} ${
-                                isSelected ? styles.modeMenuItemActive : ''
-                              }`}
-                              onClick={() => {
-                                void handleRoleUpdate(nextRole)
-                              }}
-                              disabled={isRoleUpdating}
-                            >
-                              {formatRoleLabel(nextRole)}
-                            </button>
-                          )
-                        })}
-                      </div>,
-                      document.body,
-                    )
-                  : null
-              ) : null}
             </div>
           </div>
           <div className={styles.modeRow}>
@@ -423,6 +274,17 @@ export const DrpdDeviceStatusInstrumentView = ({
       {deviceRecord ? null : (
         <div className={styles.unassigned}>Device: Unassigned</div>
       )}
-    </InstrumentBase>
+      </InstrumentBase>
+      <RoleDialog
+        open={isRoleDialogOpen}
+        onOpenChange={setIsRoleDialogOpen}
+        role={role}
+        isUpdating={isRoleUpdating}
+        formatRoleLabel={formatRoleLabel}
+        onSelectRole={(nextRole) => {
+          void handleRoleUpdate(nextRole)
+        }}
+      />
+    </>
   )
 }

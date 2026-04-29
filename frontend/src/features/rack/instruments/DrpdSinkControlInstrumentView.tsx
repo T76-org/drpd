@@ -11,24 +11,11 @@ import {
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
+import { SinkRequestPopover } from '../overlays/sink/SinkRequestPopover'
 import styles from './DrpdSinkControlInstrumentView.module.css'
 
 type RequestStatus = 'idle' | 'sending' | 'success' | 'error'
 type NonNullSinkPdo = Exclude<SinkPdo, null>
-
-const PopoverLifecycle = ({
-  onMount,
-  onUnmount,
-}: {
-  onMount: () => void
-  onUnmount: () => void
-}) => {
-  useEffect(() => {
-    onMount()
-    return onUnmount
-  }, [onMount, onUnmount])
-  return null
-}
 
 /**
  * Format a number using fixed precision.
@@ -45,82 +32,12 @@ const formatNumber = (value: number | null | undefined, digits = 2): string => {
 }
 
 /**
- * Build a human-readable PDO type label.
- *
- * @param pdo - PDO value.
- * @returns PDO type display label.
- */
-const getPdoTypeLabel = (pdo: SinkPdo | null | undefined): string => {
-  if (!pdo) {
-    return 'None'
-  }
-  switch (pdo.type) {
-    case SinkPdoType.FIXED:
-      return 'Fixed'
-    case SinkPdoType.VARIABLE:
-      return 'Variable'
-    case SinkPdoType.BATTERY:
-      return 'Battery'
-    case SinkPdoType.AUGMENTED:
-      return 'Augmented'
-    case SinkPdoType.SPR_PPS:
-      return 'SPR PPS'
-    case SinkPdoType.SPR_AVS:
-      return 'SPR AVS'
-    case SinkPdoType.EPR_AVS:
-      return 'EPR AVS'
-    default:
-      return 'Unknown'
-  }
-}
-
-/**
  * Return true when a PDO is power-limited (Battery/AVS).
  *
  * @param pdo - PDO value.
  * @returns True when current limit depends on voltage and max power.
  */
 const isPowerLimitedPdo = (pdo: SinkPdo | null | undefined): boolean => (
-  pdo?.type === SinkPdoType.BATTERY ||
-  pdo?.type === SinkPdoType.SPR_AVS ||
-  pdo?.type === SinkPdoType.EPR_AVS
-)
-
-/**
- * Build the secondary line shown in the PDO list.
- *
- * @param pdo - PDO value.
- * @returns Two-line list subtitle content.
- */
-const getPdoListSecondaryLine = (pdo: NonNullSinkPdo): string => {
-  switch (pdo.type) {
-    case SinkPdoType.FIXED:
-      return `${pdo.voltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
-    case SinkPdoType.VARIABLE:
-      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
-    case SinkPdoType.AUGMENTED:
-      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
-    case SinkPdoType.SPR_PPS:
-      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
-    case SinkPdoType.BATTERY:
-    case SinkPdoType.SPR_AVS:
-    case SinkPdoType.EPR_AVS:
-      return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxPowerW.toFixed(2)} W max`
-    default:
-      return '--'
-  }
-}
-
-/**
- * Get whether voltage is user-editable for a PDO.
- *
- * @param pdo - PDO value.
- * @returns True when voltage can be edited.
- */
-const isVoltageEditable = (pdo: SinkPdo | null | undefined): boolean => (
-  pdo?.type === SinkPdoType.VARIABLE ||
-  pdo?.type === SinkPdoType.AUGMENTED ||
-  pdo?.type === SinkPdoType.SPR_PPS ||
   pdo?.type === SinkPdoType.BATTERY ||
   pdo?.type === SinkPdoType.SPR_AVS ||
   pdo?.type === SinkPdoType.EPR_AVS
@@ -550,6 +467,7 @@ export const DrpdSinkControlInstrumentView = ({
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('idle')
   const [requestErrorMessage, setRequestErrorMessage] = useState<string | null>(null)
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+  const [isSinkRequestDialogOpen, setIsSinkRequestDialogOpen] = useState(false)
   const [isRefreshingSinkData, setIsRefreshingSinkData] = useState(false)
 
   const isRefreshingRef = useRef(false)
@@ -775,141 +693,15 @@ export const DrpdSinkControlInstrumentView = ({
       disabled: !driver || isEditMode,
       onClick: () => {
         prepareAdvancedPopover()
+        setIsAdvancedOpen(true)
+        setIsSinkRequestDialogOpen(true)
       },
-      renderPopover: ({ closePopover }) => (
-        <div
-          id={`${instrument.id}-advanced-tune`}
-          className={styles.advancedPanel}
-          role="dialog"
-          aria-label="Sink request tuning"
-        >
-          <PopoverLifecycle
-            onMount={() => setIsAdvancedOpen(true)}
-            onUnmount={() => setIsAdvancedOpen(false)}
-          />
-          <div className={styles.advancedLayout}>
-            <div className={styles.pdoListPane}>
-              {isRefreshingSinkData && sinkPdoList.length === 0 ? (
-                <div className={styles.message}>Loading sink PDO list from device...</div>
-              ) : null}
-              <div
-                className={styles.pdoList}
-                role="listbox"
-                aria-label="Available PDOs"
-                data-testid="pdo-list"
-              >
-                {sinkPdoList.length === 0 ? (
-                  <div className={styles.emptyList}>No PDOs available</div>
-                ) : (
-                  sinkPdoList.map((pdo, index) => (
-                    <button
-                      key={`pdo-${index}`}
-                      type="button"
-                      role="option"
-                      aria-selected={selectedIndex === index}
-                      className={`${styles.pdoListItem} ${selectedIndex === index ? styles.pdoListItemSelected : ''}`}
-                      onClick={() => {
-                        setSelectedIndex(index)
-                        setRequestErrorMessage(null)
-                        setRequestStatus('idle')
-                      }}
-                    >
-                      <span className={styles.pdoListItemTitle}>
-                        #{index + 1} {getPdoTypeLabel(pdo)}
-                      </span>
-                      <span className={styles.pdoListItemDetail}>
-                        {pdo ? getPdoListSecondaryLine(pdo) : '--'}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className={styles.requestPane}>
-              <div className={styles.requestBody}>
-                <label className={styles.fieldLabel} htmlFor={`${instrument.id}-voltage`}>
-                  Voltage
-                </label>
-                <input
-                  id={`${instrument.id}-voltage`}
-                  className={styles.control}
-                  value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
-                  onChange={(event) => {
-                    setVoltageV(event.target.value)
-                    setRequestErrorMessage(null)
-                    setRequestStatus('idle')
-                  }}
-                  readOnly={!isVoltageEditable(selectedPdo)}
-                  aria-readonly={!isVoltageEditable(selectedPdo)}
-                  disabled={!selectedPdo}
-                />
-
-                <div className={styles.fieldMeta} />
-                <div className={styles.fieldHint}>{voltageHint}</div>
-
-                <label className={styles.fieldLabel} htmlFor={`${instrument.id}-current`}>
-                  Current
-                </label>
-                <input
-                  id={`${instrument.id}-current`}
-                  className={styles.control}
-                  value={currentA}
-                  onChange={(event) => {
-                    setCurrentA(event.target.value)
-                    setRequestErrorMessage(null)
-                    setRequestStatus('idle')
-                  }}
-                  disabled={!selectedPdo}
-                />
-
-                <div className={styles.fieldMeta} />
-                <div className={styles.fieldHint}>
-                  {currentRangeLabel}
-                </div>
-              </div>
-
-              <div
-                className={`${styles.message} ${
-                  validationMessage || requestErrorMessage ? styles.messageError : ''
-                }`}
-                aria-live="polite"
-              >
-                {validationMessage ?? requestErrorMessage ?? ''}
-              </div>
-
-              <div className={styles.requestActions}>
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={() => {
-                    closePopover()
-                    setRequestErrorMessage(null)
-                    setRequestStatus('idle')
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className={styles.requestButton}
-                  onClick={() => {
-                    void handleRequest(closePopover)
-                  }}
-                  disabled={!canSubmit}
-                >
-                  {requestStatus === 'sending' ? 'Setting...' : 'Set PDO'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ),
     },
   ]
 
   return (
-    <InstrumentBase
+    <>
+      <InstrumentBase
       instrument={instrument}
       displayName={displayName}
       isEditMode={isEditMode}
@@ -969,6 +761,44 @@ export const DrpdSinkControlInstrumentView = ({
         </section>
       </div>
       {deviceRecord ? null : <div className={styles.unassigned}>Device: Unassigned</div>}
-    </InstrumentBase>
+      </InstrumentBase>
+      <SinkRequestPopover
+        open={isSinkRequestDialogOpen}
+        onOpenChange={(open) => {
+          setIsSinkRequestDialogOpen(open)
+          setIsAdvancedOpen(open)
+        }}
+        instrumentId={instrument.id}
+        sinkPdoList={sinkPdoList}
+        selectedIndex={selectedIndex}
+        selectedPdo={selectedPdo}
+        isRefreshingSinkData={isRefreshingSinkData}
+        voltageV={voltageV}
+        currentA={currentA}
+        voltageHint={voltageHint}
+        currentRangeLabel={currentRangeLabel}
+        validationMessage={validationMessage}
+        requestErrorMessage={requestErrorMessage}
+        requestStatus={requestStatus}
+        canSubmit={canSubmit}
+        setSelectedIndex={setSelectedIndex}
+        setVoltageV={setVoltageV}
+        setCurrentA={setCurrentA}
+        setRequestErrorMessage={setRequestErrorMessage}
+        setRequestStatus={setRequestStatus}
+        onCancel={() => {
+          setIsSinkRequestDialogOpen(false)
+          setIsAdvancedOpen(false)
+          setRequestErrorMessage(null)
+          setRequestStatus('idle')
+        }}
+        onSubmit={() => {
+          void handleRequest(() => {
+            setIsSinkRequestDialogOpen(false)
+            setIsAdvancedOpen(false)
+          })
+        }}
+      />
+    </>
   )
 }

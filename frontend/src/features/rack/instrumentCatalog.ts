@@ -13,7 +13,10 @@ export class DrpdVbusInstrument extends Instrument {
       displayName: 'VBUS',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'fixed', units: 10 },
-      defaultUnits: 1
+      defaultUnits: 1,
+      defaultFlex: 10,
+      minWidth: '11rem',
+      minHeight: '7rem',
     })
   }
 }
@@ -31,7 +34,10 @@ export class DrpdChargeEnergyInstrument extends Instrument {
       displayName: 'Accumulator',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'fixed', units: 7 },
-      defaultUnits: 1
+      defaultUnits: 1,
+      defaultFlex: 7,
+      minWidth: '9rem',
+      minHeight: '7rem',
     })
   }
 }
@@ -49,7 +55,10 @@ export class DrpdDeviceStatusInstrument extends Instrument {
       displayName: 'Device Status',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'fixed', units: 10 },
-      defaultUnits: 1
+      defaultUnits: 1,
+      defaultFlex: 10,
+      minWidth: '11rem',
+      minHeight: '7rem',
     })
   }
 }
@@ -67,7 +76,10 @@ export class DrpdCcLinesInstrument extends Instrument {
       displayName: 'CC Lines',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'fixed', units: 7 },
-      defaultUnits: 1
+      defaultUnits: 1,
+      defaultFlex: 7,
+      minWidth: '9rem',
+      minHeight: '7rem',
     })
   }
 }
@@ -85,7 +97,10 @@ export class DrpdSinkControlInstrument extends Instrument {
       displayName: 'Sink Control',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'fixed', units: 15 },
-      defaultUnits: 1
+      defaultUnits: 1,
+      defaultFlex: 15,
+      minWidth: '15rem',
+      minHeight: '7.5rem',
     })
   }
 }
@@ -104,6 +119,9 @@ export class DrpdTriggerInstrument extends Instrument {
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'fixed', units: 18 },
       defaultUnits: 1,
+      defaultFlex: 18,
+      minWidth: '17rem',
+      minHeight: '8rem',
     })
   }
 }
@@ -120,9 +138,12 @@ export class DrpdUsbPdLogInstrument extends Instrument {
       identifier: 'com.mta.drpd.usbpd-log',
       displayName: 'Message Log',
       supportedDeviceIdentifiers: ['com.mta.drpd'],
-      defaultWidth: { mode: 'fixed', units: 30 },
+      defaultWidth: { mode: 'fixed', units: 39 },
       defaultUnits: 1,
-      defaultHeightMode: 'flex'
+      defaultHeightMode: 'flex',
+      defaultFlex: 3,
+      minWidth: '30rem',
+      minHeight: '12rem',
     })
   }
 }
@@ -141,6 +162,9 @@ export class DrpdTimeStripInstrument extends Instrument {
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'flex' },
       defaultUnits: 1.25,
+      defaultFlex: 100,
+      minWidth: '22rem',
+      minHeight: '230px',
     })
   }
 }
@@ -159,7 +183,10 @@ export class DrpdMessageDetailInstrument extends Instrument {
       supportedDeviceIdentifiers: ['com.mta.drpd'],
       defaultWidth: { mode: 'flex' },
       defaultUnits: 1,
-      defaultHeightMode: 'flex'
+      defaultHeightMode: 'flex',
+      defaultFlex: 1,
+      minWidth: '20rem',
+      minHeight: '12rem',
     })
   }
 }

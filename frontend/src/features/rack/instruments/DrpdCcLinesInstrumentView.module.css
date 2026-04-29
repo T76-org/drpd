@@ -1,6 +1,6 @@
 .wrapper {
-  --cc-title-width: calc(30px * var(--ui-scale));
-  --cc-label-width: calc(15px * var(--ui-scale));
+  --cc-title-width: 30px;
+  --cc-label-width: 15px;
   --separator-opacity: 0.8;
 
   height: 100%;
