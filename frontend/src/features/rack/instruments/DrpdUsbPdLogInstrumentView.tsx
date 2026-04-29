@@ -649,18 +649,17 @@ export const DrpdUsbPdLogInstrumentView = ({
 
     const updateTableScale = () => {
       const computedStyle = window.getComputedStyle(wrapper)
-      const uiScale = Number.parseFloat(computedStyle.getPropertyValue('--ui-scale')) || 1
       let columnWidth = 0
       for (const column of visibleColumns) {
         columnWidth += resolveCssLength(
           computedStyle.getPropertyValue(column.widthVar),
-          MESSAGE_LOG_COLUMN_WIDTH_FALLBACK_PX[column.id] * uiScale,
+          MESSAGE_LOG_COLUMN_WIDTH_FALLBACK_PX[column.id],
           wrapper,
         )
       }
       const horizontalPadding = resolveCssLength(
         computedStyle.getPropertyValue('--space-8'),
-        8 * uiScale,
+        8,
         wrapper,
       ) * 2
       const baseWidth = Math.max(1, columnWidth + horizontalPadding)

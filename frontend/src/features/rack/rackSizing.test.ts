@@ -20,12 +20,8 @@ describe('rackSizing', () => {
     expect(config.popoverGapPx).toBe(6)
   })
 
-  it('resolves calc-based popover sizing tokens', () => {
-    document.documentElement.style.setProperty('--ui-scale', '1')
-    document.documentElement.style.setProperty(
-      '--rack-popover-viewport-inset-px',
-      'calc(8px * var(--ui-scale))',
-    )
+  it('resolves popover sizing tokens from CSS lengths', () => {
+    document.documentElement.style.setProperty('--rack-popover-viewport-inset-px', '8px')
 
     const config = getRackSizingConfig()
 

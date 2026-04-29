@@ -1,7 +1,7 @@
 .wrapper {
-  --mode-col-label: calc(40px * var(--ui-scale));
-  --mode-col-value: calc(55px * var(--ui-scale));
-  --mode-col-state: calc(64px * var(--ui-scale));
+  --mode-col-label: 40px;
+  --mode-col-value: 55px;
+  --mode-col-state: 64px;
   --separator-opacity: 0.8;
 
   height: 100%;
@@ -93,7 +93,7 @@
   letter-spacing: var(--letter-spacing-md);
   padding: var(--space-1) var(--space-4);
   cursor: pointer;
-  min-width: calc(40px * var(--ui-scale));
+  min-width: 40px;
 }
 
 .modeMenu {
@@ -105,10 +105,11 @@
   display: flex;
   flex-direction: column;
   padding: var(--space-4) var(--space-0);
-  min-width: calc(120px * var(--ui-scale));
+  min-width: 120px;
   box-shadow: var(--shadow-strong);
   overflow: auto;
-  font-size: var(--font-size-popup);
+  font-size: var(--font-size-menu);
+  line-height: var(--menu-line-height);
   transform: scale(var(--global-app-scale, 1));
   transform-origin: top left;
 }
@@ -118,7 +119,9 @@
   background: transparent;
   color: var(--color-text-primary);
   font-size: inherit;
-  padding: var(--space-4) var(--space-10);
+  height: var(--menu-item-height);
+  min-height: var(--menu-item-height);
+  padding: 0 var(--menu-item-padding-x);
   text-align: left;
   cursor: pointer;
   white-space: nowrap;

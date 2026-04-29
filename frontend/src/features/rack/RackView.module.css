@@ -27,20 +27,22 @@
   align-items: center;
   gap: 0;
   width: var(--rack-canvas-width);
-  min-height: calc(18px * var(--ui-scale));
+  height: var(--menu-bar-height);
+  min-height: var(--menu-bar-height);
   box-sizing: border-box;
 }
 
 .menuBarButton {
   border: none;
-  border-radius: calc(2px * var(--ui-scale));
+  border-radius: 2px;
   background: transparent;
   color: var(--color-text-primary);
-  font-size: var(--font-size-3xs);
+  font-size: var(--font-size-menu);
   font-weight: var(--font-weight-normal);
   line-height: 1;
-  min-height: calc(18px * var(--ui-scale));
-  padding: calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  height: var(--menu-bar-height);
+  min-height: 0;
+  padding: 0 var(--menu-bar-padding-x);
   cursor: pointer;
 }
 
@@ -127,7 +129,7 @@
 .headerVbusDivider {
   align-self: stretch;
   width: var(--border-thin);
-  min-height: calc(54px * var(--ui-scale));
+  min-height: 54px;
   margin: 0 calc(var(--space-4) * 1.15);
   background: color-mix(in srgb, var(--color-border-divider) 58%, transparent);
 }
@@ -142,7 +144,7 @@
 
 .headerVbusCurrent,
 .headerVbusPower {
-  font-size: calc(1.70775rem * var(--ui-scale));
+  font-size: 1.70775rem;
   line-height: var(--line-height-tight);
 }
 
@@ -156,14 +158,14 @@
 
 .headerVbusNumber {
   display: inline-block;
-  min-width: calc(102px * var(--ui-scale));
+  min-width: 102px;
   text-align: right;
   white-space: nowrap;
 }
 
 .headerVbusCurrent .headerVbusNumber,
 .headerVbusPower .headerVbusNumber {
-  min-width: calc(64px * var(--ui-scale));
+  min-width: 64px;
 }
 
 .headerVbusCurrent .headerVbusNumber {
@@ -192,12 +194,12 @@
 .headerVbusFlowEndpoint {
   display: inline-flex;
   align-items: center;
-  gap: calc(2px * var(--ui-scale));
+  gap: 2px;
 }
 
 .headerVbusUsbCPort {
-  width: calc(9.2px * var(--ui-scale));
-  height: calc(4.6px * var(--ui-scale));
+  width: 9.2px;
+  height: 4.6px;
   border: var(--border-thin) solid currentColor;
   border-radius: 999px;
   opacity: 0.9;
@@ -206,8 +208,8 @@
 .headerVbusBananaPort {
   position: relative;
   display: inline-block;
-  width: calc(7px * var(--ui-scale));
-  height: calc(7px * var(--ui-scale));
+  width: 7px;
+  height: 7px;
   border: var(--border-thin) solid currentColor;
   border-radius: 50%;
   opacity: 0.9;
@@ -216,18 +218,18 @@
 .headerVbusBananaPort::after {
   content: '';
   position: absolute;
-  inset: calc(1px * var(--ui-scale));
+  inset: 1px;
   border: var(--border-thin) solid currentColor;
   border-radius: 50%;
 }
 
 .headerVbusFlowTrack {
-  --flow-dot-size: calc(1.15px * var(--ui-scale));
-  --flow-dot-gap: calc(6.9px * var(--ui-scale));
+  --flow-dot-size: 1.15px;
+  --flow-dot-gap: 6.9px;
 
   display: inline-block;
-  width: calc(27.6px * var(--ui-scale));
-  height: calc(5.75px * var(--ui-scale));
+  width: 27.6px;
+  height: 5.75px;
   border-radius: 999px;
   background-image: radial-gradient(
     circle,
@@ -262,7 +264,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: calc(8.05px * var(--ui-scale));
+  gap: 8.05px;
   color: var(--color-text-primary);
   font-size: calc(var(--font-size-xs) * 1.15);
   font-weight: var(--font-weight-semibold);
@@ -312,7 +314,7 @@
 .headerVbusProtectionValue {
   display: inline-grid;
   grid-template-columns: 5ch auto;
-  column-gap: calc(2px * var(--ui-scale));
+  column-gap: 2px;
   align-items: baseline;
 }
 
@@ -328,8 +330,8 @@
   --header-vbus-charge-angle: 0deg;
 
   position: relative;
-  width: calc(4.025px * var(--ui-scale));
-  height: calc(4.025px * var(--ui-scale));
+  width: 4.025px;
+  height: 4.025px;
   border-radius: 999px;
   opacity: 0;
   margin-left: var(--space-0);
@@ -362,7 +364,7 @@
 .headerVbusAccumulatorValue {
   display: inline-grid;
   grid-template-columns: 6ch auto;
-  column-gap: calc(2px * var(--ui-scale));
+  column-gap: 2px;
   align-items: baseline;
 }
 
@@ -522,7 +524,7 @@
 }
 
 .firmwareProgressShell {
-  height: calc(8px * var(--ui-scale));
+  height: 8px;
   overflow: hidden;
   border-radius: var(--radius-sm);
   background: var(--color-surface-panel-accent);

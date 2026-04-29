@@ -4,8 +4,8 @@
   left: 0;
   display: flex;
   flex-direction: column;
-  min-width: calc(136px * var(--ui-scale));
-  max-width: min(calc(320px * var(--ui-scale)), calc(100vw - var(--space-16)));
+  min-width: var(--menu-min-width);
+  max-width: min(var(--menu-max-width), calc(100vw - var(--space-16)));
   padding: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -13,9 +13,9 @@
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
   border-radius: 0;
-  box-shadow: 0 calc(3px * var(--ui-scale)) calc(10px * var(--ui-scale)) rgb(0 0 0 / 0.24);
-  font-size: var(--font-size-3xs);
-  line-height: 1;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.24);
+  font-size: var(--font-size-menu);
+  line-height: var(--menu-line-height);
   z-index: 10000;
   transform: scale(var(--global-app-scale, 1));
   transform-origin: top left;
@@ -23,13 +23,14 @@
 
 .menuItem {
   display: grid;
-  grid-template-columns: calc(12px * var(--ui-scale)) minmax(0, 1fr) auto;
+  grid-template-columns: var(--menu-item-indicator-width) minmax(0, 1fr) auto;
   align-items: center;
-  gap: calc(6px * var(--ui-scale));
+  gap: var(--menu-item-column-gap);
   width: 100%;
-  min-height: calc(19px * var(--ui-scale));
+  height: var(--menu-item-height);
+  min-height: var(--menu-item-height);
   border: 0;
-  padding: 0 calc(8px * var(--ui-scale));
+  padding: 0 var(--menu-item-padding-x);
   color: var(--color-text-primary);
   background: transparent;
   font: inherit;
@@ -75,6 +76,6 @@
 
 .separator {
   height: var(--border-thin);
-  margin: calc(2px * var(--ui-scale)) 0;
+  margin: 2px 0;
   background: var(--color-border-divider);
 }

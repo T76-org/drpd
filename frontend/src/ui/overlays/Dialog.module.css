@@ -12,7 +12,7 @@
   display: grid;
   gap: var(--space-12);
   z-index: 10000;
-  width: min(calc(520px * var(--ui-scale)), calc(100vw - var(--space-32)));
+  width: min(520px, calc(100vw - var(--space-32)));
   max-height: calc(100vh - var(--space-32));
   padding: var(--space-16);
   overflow: auto;
@@ -58,7 +58,7 @@
 
 .formRow {
   display: grid;
-  grid-template-columns: minmax(calc(76px * var(--ui-scale)), auto) minmax(0, 1fr);
+  grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
@@ -102,7 +102,7 @@
 }
 
 .button {
-  min-width: calc(76px * var(--ui-scale));
+  min-width: 76px;
   border: var(--border-thin) solid var(--color-border-panel);
   padding: var(--space-6) var(--space-10);
   color: var(--color-text-primary);

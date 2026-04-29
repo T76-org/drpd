@@ -229,14 +229,14 @@
 .fieldHelpPopup {
   position: fixed;
   z-index: 9999;
-  max-width: min(calc(120px * var(--ui-scale)), calc(100vw - calc(16px * var(--ui-scale))));
-  max-height: calc(100vh - calc(16px * var(--ui-scale)));
+  max-width: min(120px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
   overflow: auto;
   padding: var(--space-6) var(--space-10);
   border: var(--border-thin) solid color-mix(in srgb, currentColor 24%, transparent);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--color-surface-panel-elevated, var(--color-surface-panel)) 96%, black);
-  box-shadow: 0 calc(6px * var(--ui-scale)) calc(16px * var(--ui-scale))
+  box-shadow: 0 6px 16px
     color-mix(in srgb, black 40%, transparent);
   color: inherit;
   font-size: var(--font-size-3xs);
@@ -296,7 +296,7 @@
 .scalarValue ol {
   list-style-position: outside;
   margin: var(--space-2) 0 0;
-  padding-left: calc(18px * var(--ui-scale));
+  padding-left: 18px;
 }
 
 .scalarValue li {
@@ -311,7 +311,7 @@
 .scalarValue li > ul,
 .scalarValue li > ol {
   margin-top: var(--space-2);
-  padding-left: calc(18px * var(--ui-scale));
+  padding-left: 18px;
 }
 
 .scalarValue code {

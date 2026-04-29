@@ -4,8 +4,8 @@
   left: 0;
   display: grid;
   gap: var(--space-10);
-  min-width: calc(220px * var(--ui-scale));
-  max-width: min(calc(520px * var(--ui-scale)), calc(100vw - var(--space-16)));
+  min-width: 220px;
+  max-width: min(520px, calc(100vw - var(--space-16)));
   padding: var(--space-16);
   overflow: auto;
   color: var(--color-text-primary);
@@ -47,7 +47,7 @@
 
 .formRow {
   display: grid;
-  grid-template-columns: minmax(calc(76px * var(--ui-scale)), auto) minmax(0, 1fr);
+  grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
@@ -91,7 +91,7 @@
 }
 
 .button {
-  min-width: calc(70px * var(--ui-scale));
+  min-width: 70px;
   border: var(--border-thin) solid var(--color-border-panel);
   padding: var(--space-6) var(--space-10);
   color: var(--color-text-primary);

@@ -85,7 +85,7 @@
 .headerPopup {
   display: grid;
   gap: var(--space-8);
-  min-width: calc(290px * var(--ui-scale));
+  min-width: 290px;
 }
 
 .headerPopupFieldRow {

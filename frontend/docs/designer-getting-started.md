@@ -76,7 +76,7 @@ This matters for design work because layout affordances, focus states, glow trea
 
 ### Main entry points
 
-- `src/main.tsx`: bootstraps the app and computes the global `--ui-scale`
+- `src/main.tsx`: bootstraps the app
 - `src/App.tsx`: very thin shell around the rack view
 - `src/index.css`: global design tokens, colors, typography, spacing, and rack sizing tokens
 - `src/App.css`: root viewport layout
@@ -124,8 +124,8 @@ The rack uses CSS flex for instruments and rows. Legacy unit fields still exist 
 
 Default sizing tokens are:
 
-- 1 horizontal unit = `20px * --ui-scale`
-- 1 vertical rack unit = `100px * --ui-scale`
+- 1 horizontal unit = `20px`
+- 1 vertical rack unit = `100px`
 - maximum row width = `60` horizontal units
 
 In practice the standard bench layout keeps a 1200 px reference width for header alignment. The rack canvas itself fills the viewport, with row heights and instrument widths coming from CSS flex weights.
@@ -165,7 +165,7 @@ An instrument instance can be marked `fullScreen: true`. When that happens, `Rac
 - elevation shadows: `--shadow-instrument` (instrument panels; dark uses inset top highlight + outer shadow), `--shadow-rack-canvas` (rack canvas), `--shadow-header` (page header; light theme)
 - dark default look: charcoal / neomorphic-inspired surfaces (`#121212` page, `#1e1e1e` panels, instrument body uses `--color-surface-instrument` gradient only); instrument **title bars** use `--texture-instrument-header` (subtle diagonal stripes) plus a light gradient; light theme restores a larger `--radius-instrument`
 
-Most dimensions are expressed through CSS custom properties multiplied by `var(--ui-scale)`. That is the key pattern to preserve.
+Most shared dimensions are expressed through CSS custom properties in `src/index.css`. Use those tokens directly instead of reintroducing global scaling.
 
 ### Scoped styles second
 
@@ -187,22 +187,14 @@ The intended layering is:
 
 - Use tokens from `src/index.css` instead of hardcoded pixel or `rem` values when possible.
 - Header popovers should use the shared popup typography tokens, not custom font sizes per instrument.
-- Most instrument spacing and sizing should inherit from `--ui-scale` so the interface stays coherent across displays.
+- Most instrument spacing and sizing should inherit from shared tokens so the interface stays coherent across displays.
 - Shared panel chrome belongs in `InstrumentBase.module.css`; avoid duplicating it inside each instrument.
 
 ## How The UI Scales Across Resolutions
 
-### Global scale
+### Fixed tokens
 
-The app computes a single global scale factor in `src/main.tsx` and writes it into `--ui-scale`.
-
-The current behavior is:
-
-- reference viewport width: `1024px`
-- reference content width: `800px`
-- minimum scale: `0.82`
-- maximum scale: `2.8`
-- source measurement: `window.screen.width` first, then window/document width fallbacks
+The app uses fixed design tokens from `src/index.css`. Browser zoom remains native browser behavior; the app does not compute or write a global UI scale.
 
 Because the scale is written into CSS variables, typography, spacing, borders, splitters, popovers, and many instrument-specific measurements all scale together.
 
@@ -233,7 +225,7 @@ The renderer lets CSS flex stretch the rack canvas to the viewport. If minimum s
 
 ### Popovers and overlays
 
-Header menus and instrument popovers use viewport-aware positioning from `RackView.tsx` and sizing tokens from `rackSizing.ts`. Their dimensions still scale via `--ui-scale`, but their position is clamped so they stay on-screen.
+Header menus and instrument popovers use viewport-aware positioning from `RackView.tsx` and sizing tokens from `rackSizing.ts`. Their dimensions come from fixed tokens, and their position is clamped so they stay on-screen.
 
 ## Where A Designer Should Start
 
