@@ -26,6 +26,11 @@ bool VBusManager::activate() {
     gpio_put(PHY_VBUS_MANAGER_VBUS_EN_PIN, false);
     gpio_set_dir(PHY_VBUS_MANAGER_VBUS_EN_PIN, GPIO_OUT);
 
+    gpio_set_function(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN, GPIO_FUNC_SIO);
+    gpio_init(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN);
+    gpio_put(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN, false);
+    gpio_set_dir(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN, GPIO_OUT);
+
     enabled(false);
 
     return true;
@@ -33,6 +38,7 @@ bool VBusManager::activate() {
 
 void VBusManager::makeSafe() {
     gpio_put(PHY_VBUS_MANAGER_VBUS_EN_PIN, false);
+    gpio_put(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN, false);
 }
 
 bool VBusManager::enabled() {
@@ -53,6 +59,7 @@ void VBusManager::enabled(bool value) {
     }
 
     gpio_put(PHY_VBUS_MANAGER_VBUS_EN_PIN, value);
+    gpio_put(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN, value);
 
     if (_managerChangedCallback) {
         _managerChangedCallback();
