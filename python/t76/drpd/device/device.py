@@ -12,9 +12,6 @@ from typing import Any, Optional
 
 import usb
 
-from pyvisa.events import Event
-from pyvisa.resources import Resource
-
 from t76.drpd.device.types import DeviceStatusFlags
 
 from ..message.bmc_sequence import BMCSequence
@@ -176,7 +173,7 @@ class Device:
                 return
             logging.warning("Ignoring interrupt handling error: %s", e)
 
-    def _interrupt_handler(self, _: Resource, __: Event, ___: Any) -> None:
+    def _interrupt_handler(self, _: Any, __: Any, ___: Any) -> None:
         if self._disconnecting or not self._internal.connected:
             return
 

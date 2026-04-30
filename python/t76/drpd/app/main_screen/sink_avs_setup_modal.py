@@ -8,7 +8,6 @@ import logging
 
 from typing import Optional
 
-from pyvisa import VisaIOError
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -118,7 +117,7 @@ class SinkAVSSetupModal(ModalScreen):
                     int(self.pdo.max_voltage * 1000)
                 )
             )
-        except (AssertionError, AttributeError, RuntimeError, VisaIOError) as e:
+        except (AssertionError, AttributeError, RuntimeError) as e:
             logging.warning(
                 "Failed to load negotiated voltage: %s", e
             )
@@ -137,7 +136,7 @@ class SinkAVSSetupModal(ModalScreen):
         current_ma = max_current_ma
         try:
             current_ma = await self.device.sink.get_negotiated_current()
-        except (AssertionError, AttributeError, RuntimeError, VisaIOError) as e:
+        except (AssertionError, AttributeError, RuntimeError) as e:
             logging.warning(
                 "Failed to load negotiated current: %s", e
             )
@@ -250,7 +249,7 @@ class SinkAVSSetupModal(ModalScreen):
                 current_ma,
             )
             self.app.pop_screen()
-        except (AssertionError, AttributeError, RuntimeError, VisaIOError) as e:
+        except (AssertionError, AttributeError, RuntimeError) as e:
             logging.error("Failed to request AVS PDO %d: %s",
                           self.pdo_index, e)
             error_label.update(f"Failed to request PDO: {e}")

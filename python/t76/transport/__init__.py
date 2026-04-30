@@ -7,7 +7,7 @@ Transport module for USB device communications.
 from .usb_discovery import discover_usb_devices, get_serial_port_for_device
 from .serial import SerialTransport
 from .transport import Transport
-from .visa import VisaTransport
+
 
 __all__ = ["discover_usb_devices", "get_serial_port_for_device",
-           "SerialTransport", "VisaTransport", "Transport"]
+           "SerialTransport", "Transport"]

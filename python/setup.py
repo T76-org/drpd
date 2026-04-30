@@ -31,7 +31,8 @@ setup(
         "pyserial>=3.5",
         "pyserial-asyncio>=0.6",
         "pyusb>=1.3.1",
-        "PyVISA>=1.15.0",
         "textual>=5.0.1",
     ],
+    extras_require={
+    },
 )
