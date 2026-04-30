@@ -8,7 +8,6 @@ import logging
 
 from typing import Optional
 
-from pyvisa import VisaIOError
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import HorizontalGroup, VerticalGroup
@@ -260,7 +259,7 @@ class SinkPanel(VerticalGroup):
                     await self._update_sink_info(sink_info)
             elif isinstance(event, AnalogMonitorStatusChanged):
                 await self.update_analog_measurements(event.status)
-        except (AssertionError, AttributeError, RuntimeError, VisaIOError, NoMatches) as e:
+        except (AssertionError, AttributeError, RuntimeError, NoMatches) as e:
             logging.warning("Failed to handle sink panel event: %s", e)
 
     async def on_pdo_table_pdo_selected(self, message: PdoTable.PdoSelected) -> None:
@@ -279,7 +278,7 @@ class SinkPanel(VerticalGroup):
                     message.index,
                     pdo.voltage,
                 )
-            except (AssertionError, AttributeError, RuntimeError, VisaIOError) as e:
+            except (AssertionError, AttributeError, RuntimeError) as e:
                 logging.error("Failed to request PDO %d: %s", message.index, e)
             return
 
@@ -314,8 +313,7 @@ class SinkPanel(VerticalGroup):
             self.query_one("#sink-state-value", Static).update(
                 f"State: {sink_info.status.value}"
             )
-        except (AssertionError, AttributeError, RuntimeError,
-                VisaIOError, NoMatches) as e:
+        except (AssertionError, AttributeError, RuntimeError, NoMatches) as e:
             logging.error("Failed to update sink panel: %s", e)
             try:
                 self.query_one("#pdo-voltage-value", Static).update("ERR")

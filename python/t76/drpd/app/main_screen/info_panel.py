@@ -8,7 +8,6 @@ import logging
 
 from typing import Optional
 
-from pyvisa import VisaIOError
 from textual.app import ComposeResult
 from textual.containers import VerticalGroup, HorizontalGroup
 from textual.css.query import NoMatches
@@ -68,7 +67,7 @@ class InfoPanel(VerticalGroup):
 
             self.query_one("#version-value", Static).update(
                 f"v{device_info.firmware_version}")
-        except (AttributeError, ValueError, RuntimeError, AssertionError, VisaIOError, NoMatches) as e:
+        except (AttributeError, ValueError, RuntimeError, AssertionError, NoMatches) as e:
             logging.error("Failed to update statistics: %s", e)
 
             try:
