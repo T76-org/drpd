@@ -115,9 +115,6 @@ class DeviceInternal:
         :raises AssertionError: If the instrument is not initialized.
         :raises TypeError: If the command is not a string.
         """
-        if self.instrument is None:
-            raise RuntimeError("Instrument is not initialized.")
-
         logging.debug("Writing command to instrument: %s", command)
 
         lock_acquired = False
@@ -125,7 +122,11 @@ class DeviceInternal:
         try:
             self._acquire_lock(command)
             lock_acquired = True
-            self.instrument.write(command)
+            instrument = self.instrument
+            if instrument is None:
+                raise RuntimeError("Instrument is not initialized.")
+
+            instrument.write(command)
             self.check_for_error(command)
         except pyvisa.errors.VisaIOError as e:
             logging.error("Failed to write command '%s': %s", command, e)
@@ -150,12 +151,6 @@ class DeviceInternal:
         :raises AssertionError: If the instrument is not initialized.
         :raises TypeError: If the command is not a string or data is not a sequence.
         """
-        if self.instrument is None:
-            logging.error(
-                "Instrument is not initialized when sending command %s.", command)
-            raise RuntimeError(
-                "Instrument is not initialized when sending command %s." % command)
-
         logging.debug("Writing binary command to instrument: %s", command)
 
         lock_acquired = False
@@ -163,7 +158,14 @@ class DeviceInternal:
         try:
             self._acquire_lock(command)
             lock_acquired = True
-            self.instrument.write_binary_values(
+            instrument = self.instrument
+            if instrument is None:
+                logging.error(
+                    "Instrument is not initialized when sending command %s.", command)
+                raise RuntimeError(
+                    "Instrument is not initialized when sending command %s." % command)
+
+            instrument.write_binary_values(
                 command, data, datatype=datatype)
             self.check_for_error(command)
         except pyvisa.errors.VisaIOError as e:
@@ -192,18 +194,19 @@ class DeviceInternal:
         """
         logging.debug("Querying ASCII values from instrument: %s", command)
 
-        if self.instrument is None:
-            logging.error(
-                "Instrument is not initialized when sending command %s.", command)
-            raise RuntimeError(
-                "Instrument is not initialized when sending command %s." % command)
-
         lock_acquired = False
 
         try:
             self._acquire_lock(command)
             lock_acquired = True
-            result = self.instrument.query_ascii_values(command, converter)
+            instrument = self.instrument
+            if instrument is None:
+                logging.error(
+                    "Instrument is not initialized when sending command %s.", command)
+                raise RuntimeError(
+                    "Instrument is not initialized when sending command %s." % command)
+
+            result = instrument.query_ascii_values(command, converter)
 
             return result
         except pyvisa.errors.VisaIOError as e:
@@ -234,8 +237,6 @@ class DeviceInternal:
         :raises RuntimeError: If there is an error communicating with the instrument.
         :raises AssertionError: If the instrument is not initialized.
         """
-        assert self.instrument is not None, "Instrument must be initialized before fetching capture data."
-
         logging.debug("Querying binary values from instrument: %s", command)
 
         data: Optional[Sequence[int | float]] = None
@@ -245,7 +246,13 @@ class DeviceInternal:
         try:
             self._acquire_lock(command)
             lock_acquired = True
-            data = self.instrument.query_binary_values(
+            instrument = self.instrument
+            if instrument is None:
+                raise RuntimeError(
+                    "Instrument must be initialized before fetching capture data."
+                )
+
+            data = instrument.query_binary_values(
                 command, datatype=datatype, container=container
             )
 
@@ -328,48 +335,56 @@ class DeviceInternal:
         """
         Disconnect from the device.
         """
-        instrument = self.instrument
-        resource_manager = self._resource_manager
+        lock_acquired = False
+        try:
+            self._acquire_lock("disconnect")
+            lock_acquired = True
 
-        # Clear references first so repeated disconnects are idempotent
-        # and future reconnects start from a clean slate.
-        self.instrument = None
-        self._resource_manager = None
+            instrument = self.instrument
+            resource_manager = self._resource_manager
 
-        if instrument is not None:
-            try:
+            # Clear references first so repeated disconnects are idempotent
+            # and future reconnects start from a clean slate.
+            self.instrument = None
+            self._resource_manager = None
+
+            if instrument is not None:
                 try:
-                    instrument.disable_event(
-                        EventType.service_request,
-                        EventMechanism.handler,
-                    )
-                except pyvisa.errors.VisaIOError:
-                    pass
-
-                if self._wrapped_interrupt_handler is not None:
                     try:
-                        instrument.uninstall_handler(
+                        instrument.disable_event(
                             EventType.service_request,
-                            self._wrapped_interrupt_handler,
-                            None,
+                            EventMechanism.handler,
                         )
                     except pyvisa.errors.VisaIOError:
                         pass
 
-                instrument.close()
-            except pyvisa.errors.VisaIOError as e:
-                logging.warning("Failed to close instrument cleanly: %s", e)
-            finally:
-                self._wrapped_interrupt_handler = None
+                    if self._wrapped_interrupt_handler is not None:
+                        try:
+                            instrument.uninstall_handler(
+                                EventType.service_request,
+                                self._wrapped_interrupt_handler,
+                                None,
+                            )
+                        except pyvisa.errors.VisaIOError:
+                            pass
 
-        if resource_manager is not None:
-            try:
-                resource_manager.close()
-            except pyvisa.errors.VisaIOError as e:
-                logging.warning(
-                    "Failed to close resource manager cleanly: %s",
-                    e,
-                )
+                    instrument.close()
+                except pyvisa.errors.VisaIOError as e:
+                    logging.warning("Failed to close instrument cleanly: %s", e)
+                finally:
+                    self._wrapped_interrupt_handler = None
+
+            if resource_manager is not None:
+                try:
+                    resource_manager.close()
+                except pyvisa.errors.VisaIOError as e:
+                    logging.warning(
+                        "Failed to close resource manager cleanly: %s",
+                        e,
+                    )
+        finally:
+            if lock_acquired:
+                self._lock.release()
 
     @property
     def connected(self) -> bool:

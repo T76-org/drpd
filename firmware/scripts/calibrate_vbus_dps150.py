@@ -22,7 +22,7 @@ if str(PYTHON_ROOT) not in sys.path:
 
 
 DEFAULT_CURRENT_LIMIT_A = 0.5
-DEFAULT_SETTLE_SECONDS = 1
+DEFAULT_SETTLE_SECONDS = 2
 DEFAULT_START_VOLTAGE = 1
 DEFAULT_END_VOLTAGE = 19
 
@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reset-to-defaults",
         action="store_true",
-        help="Restore the device calibration table to defaults before calibrating.",
+        help="Restore the device calibration table to defaults and exit without calibrating.",
     )
     return parser
 
@@ -291,10 +291,10 @@ async def calibrate(args: argparse.Namespace) -> None:
         original_ocp_threshold = await device.vbus.get_ocp_threshold()
         original_mode = await device.mode.get()
 
-        if args.reset_to_defaults:
-            print("Resetting device calibration table to defaults.")
-            await device.analog_monitor.reset_vbus_calibration_to_defaults()
-        else:
+        print("Resetting device calibration table to defaults.")
+        await device.analog_monitor.reset_vbus_calibration_to_defaults()
+
+        if not args.reset_to_defaults:
             with DPS150(dps150_port) as supply:
                 supply.set_current(args.current_limit)
                 supply.set_voltage(float(args.start_voltage))

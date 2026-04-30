@@ -3,6 +3,7 @@ Unit tests for Device.disconnect() robustness.
 """
 
 import asyncio
+import threading
 import unittest
 from types import SimpleNamespace
 from typing import cast
@@ -11,6 +12,7 @@ from unittest.mock import AsyncMock, PropertyMock, patch
 from usb.core import Device as USBDevice
 
 from t76.drpd.device.device import Device
+from t76.drpd.device.device_internal import DeviceInternal
 
 
 class TestDeviceDisconnect(unittest.IsolatedAsyncioTestCase):
@@ -79,3 +81,41 @@ class TestDeviceDisconnect(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
 
         process_interrupt.assert_awaited()
+
+    async def test_internal_disconnect_waits_for_active_command_lock(
+            self) -> None:
+        usb_device = SimpleNamespace(
+            product="Test Device",
+            serial_number="ABC123",
+            idVendor=0x2E8A,
+            idProduct=0x000A,
+        )
+        internal = DeviceInternal(cast(USBDevice, usb_device), lambda *_: None)
+        internal.instrument = SimpleNamespace(
+            disable_event=lambda *_: None,
+            uninstall_handler=lambda *_: None,
+            close=lambda: None,
+        )
+        internal._resource_manager = SimpleNamespace(close=lambda: None)
+        internal._wrapped_interrupt_handler = object()
+        disconnect_errors = []
+
+        internal._lock.acquire()
+        try:
+            def run_disconnect() -> None:
+                try:
+                    asyncio.run(internal.disconnect())
+                except Exception as exc:
+                    disconnect_errors.append(exc)
+
+            disconnect_thread = threading.Thread(target=run_disconnect)
+            disconnect_thread.start()
+            await asyncio.sleep(0.1)
+            self.assertTrue(disconnect_thread.is_alive())
+        finally:
+            internal._lock.release()
+
+        disconnect_thread.join(timeout=1.0)
+        self.assertFalse(disconnect_thread.is_alive())
+        self.assertEqual([], disconnect_errors)
+        self.assertIsNone(internal.instrument)
