@@ -107,10 +107,6 @@ export const normalizeGitHubFirmwareReleases = (
     }
 
     const asset = selectFirmwareAsset(release.assets ?? [], version.text)
-    if (!asset) {
-      options.log?.(`Skipping firmware release ${version.text}; missing ${DRPD_FIRMWARE_ASSET_NAME}`)
-      continue
-    }
 
     normalized.push({
       tagName: release.tag_name,
@@ -146,13 +142,26 @@ export const selectReleaseForChannel = (
 /**
  * Select the firmware UF2 asset from a GitHub release.
  */
-export const selectFirmwareAsset = (
+export function selectFirmwareAsset(
+  assets: GitHubReleaseAsset[],
+  versionText: string,
+): FirmwareReleaseAsset
+export function selectFirmwareAsset(
+  assets: GitHubReleaseAsset[],
+  versionText?: undefined,
+): FirmwareReleaseAsset | null
+export function selectFirmwareAsset(
   assets: GitHubReleaseAsset[],
   versionText?: string,
-): FirmwareReleaseAsset | null => {
+): FirmwareReleaseAsset | null {
   const asset = assets.find((candidate) => candidate.name === DRPD_FIRMWARE_ASSET_NAME)
   if (!asset) {
-    return null
+    return versionText
+      ? {
+          name: DRPD_FIRMWARE_ASSET_NAME,
+          downloadUrl: `${DRPD_FIRMWARE_DOWNLOAD_BASE_URL}/${versionText}/${DRPD_FIRMWARE_ASSET_NAME}`,
+        }
+      : null
   }
   return {
     ...(asset.id == null ? {} : { id: asset.id }),

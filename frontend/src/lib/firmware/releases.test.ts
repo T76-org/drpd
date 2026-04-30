@@ -50,6 +50,13 @@ describe('firmware asset selection', () => {
   it('returns null when the combined UF2 asset is missing', () => {
     expect(selectFirmwareAsset([asset('other.uf2')])).toBeNull()
   })
+
+  it('derives the public firmware URL when GitHub asset metadata is missing', () => {
+    expect(selectFirmwareAsset([asset('other.uf2')], '1.2.3')).toEqual({
+      name: DRPD_FIRMWARE_ASSET_NAME,
+      downloadUrl: `${DRPD_FIRMWARE_DOWNLOAD_BASE_URL}/1.2.3/${DRPD_FIRMWARE_ASSET_NAME}`,
+    })
+  })
 })
 
 describe('GitHub firmware release normalization', () => {
@@ -75,17 +82,18 @@ describe('GitHub firmware release normalization', () => {
     expect(logs).toEqual(['Skipping firmware release with invalid tag not-a-version'])
   })
 
-  it('skips releases missing the expected firmware asset', () => {
+  it('keeps releases missing the expected GitHub asset metadata', () => {
     const logs: string[] = []
     const normalized = normalizeGitHubFirmwareReleases([
       release('1.0.0', { assets: [asset('other.uf2')] }),
       release('1.0.1'),
     ], { log: (message) => logs.push(message) })
 
-    expect(normalized.map((entry) => entry.versionText)).toEqual(['1.0.1'])
-    expect(logs).toEqual([
-      `Skipping firmware release 1.0.0; missing ${DRPD_FIRMWARE_ASSET_NAME}`,
-    ])
+    expect(normalized.map((entry) => entry.versionText)).toEqual(['1.0.0', '1.0.1'])
+    expect(normalized[0]?.asset.downloadUrl).toBe(
+      `${DRPD_FIRMWARE_DOWNLOAD_BASE_URL}/1.0.0/${DRPD_FIRMWARE_ASSET_NAME}`,
+    )
+    expect(logs).toEqual([])
   })
 
   it('skips prerelease/tag mismatches so production cannot receive beta tags', () => {

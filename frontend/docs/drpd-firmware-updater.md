@@ -44,11 +44,7 @@ Release normalization and channel selection live in `src/lib/firmware/releases.t
 
 ## Firmware asset location
 
-GitHub Release assets are used only to confirm that a release has the expected firmware asset name:
-
-`drpd-firmware-combined.uf2`
-
-The browser does not download the UF2 from GitHub Release asset URLs because those URLs do not provide the CORS behavior needed by the frontend. The actual UF2 download URL is derived from the normalized version:
+The browser does not download the UF2 from GitHub Release asset URLs because those URLs do not provide the CORS behavior needed by the frontend. The UF2 download URL is derived from the normalized version:
 
 `https://t76.org/drpd/releases/<version>/drpd-firmware-combined.uf2`
 
