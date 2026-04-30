@@ -96,6 +96,14 @@ import {
   saveMessageLogColumnWidths,
   type MessageLogColumnVisibility,
 } from './overlays/usbPdLog/messageLogColumns'
+import {
+  buildSelectedMessageLogCsv,
+  getLogCrcLabel,
+  getLogMessageTypeLabel,
+  getLogReceiverLabel,
+  getLogSenderLabel,
+  getLogSopLabel,
+} from './messageLogExport'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -581,36 +589,6 @@ const uniqueLogOptions = (values: string[]): FilterOption[] =>
     .sort((left, right) => left.localeCompare(right))
     .map((value) => ({ value, label: value }))
 
-const getLogMessageTypeLabel = (row: LoggedCapturedMessage): string => {
-  if (row.entryKind === 'event') {
-    return 'Event'
-  }
-  if (row.messageType == null) {
-    return 'Unknown'
-  }
-  return String(row.messageType)
-}
-
-const getLogSenderLabel = (row: LoggedCapturedMessage): string =>
-  row.entryKind === 'message' && row.senderPowerRole ? row.senderPowerRole : 'Unknown'
-
-const getLogReceiverLabel = (row: LoggedCapturedMessage): string =>
-  row.entryKind === 'message' && row.senderPowerRole
-    ? row.senderPowerRole === 'SOURCE'
-      ? 'Sink'
-      : 'Source'
-    : 'Unknown'
-
-const getLogSopLabel = (row: LoggedCapturedMessage): string =>
-  row.entryKind === 'message' && typeof row.sopKind === 'string' ? row.sopKind : 'Unknown'
-
-const getLogCrcLabel = (row: LoggedCapturedMessage): string => {
-  if (row.entryKind !== 'message') {
-    return 'Unknown'
-  }
-  return String(row.decodeResult) === 'crc_mismatch' ? 'Invalid' : 'Valid'
-}
-
 const buildMessageLogFilterOptions = (
   rows: LoggedCapturedMessage[],
   filters: MessageLogFilters,
@@ -663,9 +641,6 @@ const downloadMessageLogPayload = (payload: string, mimeType: string, filename: 
   URL.revokeObjectURL(url)
 }
 
-const toCsvField = (value: string): string =>
-  /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
-
 const buildSelectedMessageLogJson = (
   rows: LoggedCapturedMessage[],
   selectionKeys: string[],
@@ -676,30 +651,6 @@ const buildSelectedMessageLogJson = (
     (_key, value) => (typeof value === 'bigint' ? value.toString() : value),
     2,
   )
-}
-
-const buildSelectedMessageLogCsv = (
-  rows: LoggedCapturedMessage[],
-  selectionKeys: string[],
-): string => {
-  const selected = new Set(selectionKeys)
-  const lines = [['Type', 'Message Type', 'Sender', 'Receiver', 'SOP', 'CRC'].join(',')]
-  for (const row of rows) {
-    if (!selected.has(buildCapturedLogSelectionKey(row))) {
-      continue
-    }
-    lines.push(
-      [
-        row.entryKind,
-        getLogMessageTypeLabel(row),
-        getLogSenderLabel(row),
-        getLogReceiverLabel(row),
-        getLogSopLabel(row),
-        getLogCrcLabel(row),
-      ].map(toCsvField).join(','),
-    )
-  }
-  return `${lines.join('\n')}\n`
 }
 
 const notifyMessageLogFiltersChanged = (filters: MessageLogFilters): void => {
