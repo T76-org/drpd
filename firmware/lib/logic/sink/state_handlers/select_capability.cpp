@@ -311,6 +311,23 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
 
     Proto::PDHeader decodedHeader = message->decodedHeader();
 
+    if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Data) {
+        const auto dataMessageType = decodedHeader.dataMessageType();
+
+        if (dataMessageType.has_value() &&
+            dataMessageType.value() == Proto::DataMessageType::Source_Capabilities) {
+            context.setSourceCapabilities(
+                Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()));
+
+            if (context.runtimeState()._pendingRequestedPDO.has_value()) {
+                (void)_requestPendingPDO(context);
+            } else {
+                (void)context.requestPDO(0, 0, 0);
+            }
+            return;
+        }
+    }
+
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Control) {
         auto controlMessageType = decodedHeader.controlMessageType();
 
@@ -389,6 +406,48 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
     }
 }
 
+bool SelectCapabilityStateHandler::_requestPendingPDO(SinkContext& context) {
+    auto& state = context.runtimeState();
+    if (!state._pendingRequestedPDO.has_value()) {
+        return false;
+    }
+
+    int pdoIndex = -1;
+    const uint32_t pendingPdoRaw = std::visit(
+        [](const auto& pdo) { return pdo.raw(); },
+        state._pendingRequestedPDO.value()
+    );
+
+    const size_t pdoCount = context.totalPDOCount();
+    for (size_t i = 0; i < pdoCount; ++i) {
+        const auto pdo = context.pdoAtIndex(i);
+        if (!pdo.has_value()) {
+            continue;
+        }
+
+        const uint32_t pdoRaw = std::visit(
+            [](const auto& typedPdo) { return typedPdo.raw(); },
+            pdo.value()
+        );
+
+        if (pdoRaw == pendingPdoRaw) {
+            pdoIndex = static_cast<int>(i);
+            break;
+        }
+    }
+
+    if (pdoIndex == -1) {
+        return requestPDO(context, 0, 0.0f, state._pendingCurrent);
+    }
+
+    return requestPDO(
+        context,
+        pdoIndex,
+        state._pendingVoltage,
+        state._pendingCurrent
+    );
+}
+
 void SelectCapabilityStateHandler::handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) {
     if (state == SinkMessageSenderState::GoodCRCReceived) {
         // Start the response timeout timer when GoodCRC is received
@@ -419,44 +478,7 @@ void SelectCapabilityStateHandler::enter(SinkContext& context) {
     // In this case, we send a new request for the same PDO.
 
     if (context.runtimeState()._pendingRequestedPDO.has_value()) {
-        // First, find out if the pending requested PDO is still valid
-
-        int pdoIndex = -1;
-        const uint32_t pendingPdoRaw = std::visit(
-            [](const auto& pdo) { return pdo.raw(); },
-            context.runtimeState()._pendingRequestedPDO.value()
-        );
-
-        const size_t pdoCount = context.totalPDOCount();
-        for (size_t i = 0; i < pdoCount; ++i) {
-            const auto pdo = context.pdoAtIndex(i);
-            if (!pdo.has_value()) {
-                continue;
-            }
-
-            const uint32_t pdoRaw = std::visit(
-                [](const auto& typedPdo) { return typedPdo.raw(); },
-                pdo.value()
-            );
-
-            if (pdoRaw == pendingPdoRaw) {
-                pdoIndex = static_cast<int>(i);
-                break;
-            }
-        }
-
-        // If the PDO no longer exists, we cannot re-request it. We therefore default
-        // to the first Fixed Supply PDO in the list.
-        if (pdoIndex == -1) {
-            requestPDO(context, 0, 0.0f, context.runtimeState()._pendingCurrent);
-        } else {
-            requestPDO(
-                context,
-                pdoIndex,
-                context.runtimeState()._pendingVoltage,
-                context.runtimeState()._pendingCurrent
-            );
-        }
+        (void)_requestPendingPDO(context);
     }
 }
 

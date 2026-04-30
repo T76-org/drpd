@@ -152,6 +152,14 @@ namespace T76::DRPD::Logic {
          */
         bool _requestAugmentedPDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t voltageMV, uint32_t currentMA);
 
+        /**
+         * @brief Re-request the pending PDO against the active capability set.
+         *
+         * @param context Shared sink context.
+         * @return true if a Request message was dispatched, false otherwise.
+         */
+        bool _requestPendingPDO(SinkContext& context);
+
         alarm_id_t _responseTimeoutAlarmId = -1;  ///< Alarm ID for response timeout timer
 
         /**

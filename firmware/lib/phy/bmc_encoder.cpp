@@ -25,6 +25,9 @@ void BMCEncoder::initCore1() {
     pio_gpio_init(PHY_BMC_ENCODER_PIO, PHY_BMC_ENCODER_CC_OUT_HIGH_PIN);
     pio_gpio_init(PHY_BMC_ENCODER_PIO, PHY_BMC_ENCODER_CC_OUT_LOW_PIN);
 
+    gpio_set_slew_rate(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN, GPIO_SLEW_RATE_SLOW);
+    gpio_set_slew_rate(PHY_BMC_ENCODER_CC_OUT_LOW_PIN, GPIO_SLEW_RATE_SLOW);
+
     pio_sm_set_pins_with_mask(
         PHY_BMC_ENCODER_PIO, 
         _stateMachine, 
