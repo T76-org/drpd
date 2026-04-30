@@ -349,6 +349,19 @@ const normalizeCapturedMessageForStorage = (message: LoggedCapturedMessage): Log
 }
 
 /**
+ * Return true when a message has a bounded timestamp range usable for time-strip layout.
+ *
+ * @param row - Candidate captured-message row.
+ * @returns True when the row should contribute to time-strip ranges.
+ */
+const isTimeStripMessage = (
+  row: Pick<LoggedCapturedMessage, 'entryKind' | 'startTimestampUs' | 'endTimestampUs'>,
+): boolean =>
+  row.entryKind === 'message' &&
+  row.endTimestampUs < SQLITE_MAX_TIMESTAMP_US &&
+  row.endTimestampUs >= row.startTimestampUs
+
+/**
  * Return a bounded, positive analog point budget.
  *
  * @param value - Requested budget.
@@ -1266,7 +1279,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     )
     const messages = capturedRows.filter(
       (row) =>
-        row.entryKind === 'message' &&
+        isTimeStripMessage(row) &&
         computePulseTraceEndTimestampUs(row) >= windowStartUs &&
         row.startTimestampUs <= windowEndUs,
     )
@@ -1595,7 +1608,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     if (this.memoryFallback) {
       const analog = this.memoryFallback.analogSamples
       const messages = this.memoryFallback.capturedMessages
-        .filter((row) => row.entryKind === 'message')
+        .filter(isTimeStripMessage)
       const absoluteStarts = [
         ...messages.map((row) => row.startTimestampUs),
         ...analog.map((row) => row.timestampUs),
@@ -1645,17 +1658,19 @@ export class SQLiteWasmStore implements DRPDLogStore {
       [
         'SELECT start_timestamp_us, end_timestamp_us, display_timestamp_us',
         'FROM captured_messages',
-        "WHERE entry_kind = 'message'",
+        "WHERE entry_kind = 'message' AND end_timestamp_us < ?",
         'ORDER BY start_timestamp_us ASC, id ASC LIMIT 1',
       ].join(' '),
+      [SQLITE_MAX_TIMESTAMP_US],
     )[0]
     const latestMessage = db.selectObjects(
       [
         'SELECT start_timestamp_us, end_timestamp_us, display_timestamp_us',
         'FROM captured_messages',
-        "WHERE entry_kind = 'message'",
+        "WHERE entry_kind = 'message' AND end_timestamp_us < ?",
         'ORDER BY end_timestamp_us DESC, id DESC LIMIT 1',
       ].join(' '),
+      [SQLITE_MAX_TIMESTAMP_US],
     )[0]
 
     const earliestAnalog = db.selectObjects(
@@ -1725,7 +1740,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const pendingAnalog = this.pendingAnalogSamples.map((sample) => sample.row)
     const pendingMessages = this.pendingCapturedMessages
       .map((message) => message.row)
-      .filter((row) => row.entryKind === 'message')
+      .filter(isTimeStripMessage)
     const earliestTimestampCandidatesWithPending = [
       ...(committed.earliestTimestampUs === null ? [] : [committed.earliestTimestampUs]),
       ...pendingAnalog.map((row) => row.timestampUs),
@@ -2244,7 +2259,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       return new sqlite3.oo1.DB(':memory:', 'c')
     }
     if (typeof sqlite3.oo1.OpfsDb === 'function') {
-      return new sqlite3.oo1.OpfsDb(SQLITE_DB_FILENAME, 'c')
+      try {
+        return new sqlite3.oo1.OpfsDb(SQLITE_DB_FILENAME, 'c')
+      } catch {
+        // OPFS can be advertised but fail during open when the browser's
+        // cached file-system state changes. Keep SQLite available for the
+        // current session instead of disabling logging entirely.
+      }
     }
     return new sqlite3.oo1.DB(':memory:', 'c')
   }

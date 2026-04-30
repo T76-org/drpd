@@ -23,6 +23,7 @@ const ANALOG_TOP_INSET_PX = 16
 const ANALOG_BOTTOM_INSET_PX = 16
 const ANALOG_POINT_RADIUS_PX = 1.8
 const ANALOG_SCALE_LABEL_INSET_PX = 6.5
+const MAX_AXIS_TICKS = 512
 
 const formatScaleLabel = (
   value: number,
@@ -157,15 +158,20 @@ export const DrpdUsbPdLogTimeStripRenderer = ({
     const tickSpacingPx = Math.max(1, DRPD_USB_PD_LOG_CONFIG.stripAxis.tickTargetSpacingPx)
     const rawIntervalUs = (Number(data.windowDurationUs) / plotWidth) * tickSpacingPx
     const tickIntervalUs = normalizeTickIntervalUs(rawIntervalUs)
-    const latestVisibleTimestampUs = data.latestTimestampUs ?? data.windowEndUs
+    const latestVisibleTimestampUs =
+      data.latestTimestampUs === null || data.latestTimestampUs > data.windowEndUs
+        ? data.windowEndUs
+        : data.latestTimestampUs
     const tickStartUs = floorToIntervalUs(data.windowStartUs, tickIntervalUs)
     const nextTicks = []
+    let tickCount = 0
 
     for (
       let timestampUs = tickStartUs;
-      timestampUs <= latestVisibleTimestampUs;
+      timestampUs <= latestVisibleTimestampUs && tickCount < MAX_AXIS_TICKS;
       timestampUs += tickIntervalUs
     ) {
+      tickCount += 1
       const x = xScale(Number(timestampUs))
       if (x < plotLeftX || x >= plotRightX) {
         continue

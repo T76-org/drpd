@@ -53,6 +53,7 @@ import { DRPDVBus } from './vbus'
 const LEGACY_CAPTURE_RETENTION = 50
 const CLOCK_SYNC_SAMPLE_COUNT = 5
 const CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS = 64
+const LOGGING_CONNECT_START_TIMEOUT_MS = 250
 
 /**
  * Optional DRPD device constructor overrides.
@@ -114,6 +115,9 @@ export class DRPDDevice extends EventTarget {
   protected loggingConfig: DRPDLoggingConfig ///< Active logging configuration.
   protected logStore?: DRPDLogStore ///< Active log store instance.
   protected loggingStarted: boolean ///< True when logging is started.
+  protected loggingStartInFlight?: Promise<void> ///< Active logging startup task, when any.
+  protected logStoreOpenInFlight?: Promise<void> ///< Active log-store open task, when any.
+  protected logStoreOpenGeneration: number ///< Increments when pending log-store opens are invalidated.
   protected readonly createLogStore: (config: DRPDLoggingConfig) => DRPDLogStore ///< Log store factory.
   protected activeDisplayEpochStartUs: bigint | null ///< Active display-timestamp epoch anchor.
   protected pendingDisplayEpochReset: boolean ///< True when next message should reset display epoch.
@@ -122,6 +126,7 @@ export class DRPDDevice extends EventTarget {
   protected clockSyncTimer?: ReturnType<typeof setInterval> ///< Periodic clock-sync timer.
   protected clockSyncInFlight?: Promise<void> ///< In-flight clock-sync task.
   protected clockSync: DRPDClockSyncSnapshot | null ///< Active device-to-host clock-sync snapshot.
+  protected connectTasksActive: boolean ///< True while initial connect tasks are running.
   protected lastSeenVBusOvpEventTimestampUs: bigint | null ///< Most recent observed OVP event timestamp.
   protected lastSeenVBusOcpEventTimestampUs: bigint | null ///< Most recent observed OCP event timestamp.
   protected hasSeenInitialVBusEventTimestamps: boolean ///< True once connect-time VBUS event timestamps are baselined.
@@ -173,12 +178,16 @@ export class DRPDDevice extends EventTarget {
     this.loggingConfig = buildDefaultLoggingConfig()
     this.captureDrainIntervalMs = this.loggingConfig.messagePollFallbackIntervalMs
     this.loggingStarted = false
+    this.loggingStartInFlight = undefined
+    this.logStoreOpenInFlight = undefined
+    this.logStoreOpenGeneration = 0
     this.createLogStore = options?.createLogStore ?? ((config) => new SQLiteWasmStore(config))
     this.activeDisplayEpochStartUs = null
     this.pendingDisplayEpochReset = false
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
+    this.connectTasksActive = false
     this.lastSeenVBusOvpEventTimestampUs = null
     this.lastSeenVBusOcpEventTimestampUs = null
     this.hasSeenInitialVBusEventTimestamps = false
@@ -254,6 +263,25 @@ export class DRPDDevice extends EventTarget {
     if (this.loggingStarted || !this.loggingConfig.enabled) {
       return
     }
+    if (this.loggingStartInFlight) {
+      await this.loggingStartInFlight
+      return
+    }
+    const task = this.runStartLogging()
+    this.loggingStartInFlight = task
+    try {
+      await task
+    } finally {
+      if (this.loggingStartInFlight === task) {
+        this.loggingStartInFlight = undefined
+      }
+    }
+  }
+
+  /**
+   * Start logging without re-entrancy bookkeeping.
+   */
+  protected async runStartLogging(): Promise<void> {
     try {
       await this.ensureLogStoreOpen()
       if (!this.logStore) {
@@ -266,6 +294,26 @@ export class DRPDDevice extends EventTarget {
       this.loggingStarted = false
       this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
       this.logDebug(`logging: start error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Start logging during connect without letting storage initialization block device hydration.
+   */
+  protected async startLoggingWithinConnectBudget(): Promise<void> {
+    const task = this.startLogging()
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined
+    const timedOut = await Promise.race([
+      task.then(() => false),
+      new Promise<true>((resolve) => {
+        timer = globalThis.setTimeout(() => resolve(true), LOGGING_CONNECT_START_TIMEOUT_MS)
+      }),
+    ])
+    if (timer) {
+      globalThis.clearTimeout(timer)
+    }
+    if (timedOut) {
+      this.logDebug('logging: connect startup continuing in background')
     }
   }
 
@@ -1436,25 +1484,29 @@ export class DRPDDevice extends EventTarget {
    */
   protected async runConnectTasks(): Promise<void> {
     this.logDebug('runConnectTasks: start')
-    await this.ensureLogStoreOpen()
-    await this.synchronizeClock('connect')
-    if (this.loggingConfig.enabled && this.loggingConfig.autoStartOnConnect) {
-      await this.startLogging()
-    }
+    this.connectTasksActive = true
     try {
-      this.captureCycleTimeNs = await this.capture.getCycleTimeNs()
-      this.logDebug(`runConnectTasks: captureCycleTimeNs=${this.captureCycleTimeNs}`)
-    } catch (error) {
-      this.captureCycleTimeNs = null
-      this.dispatchEvent(
-        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
-      )
-      this.logDebug(`runConnectTasks: cycle time error=${String(error)}`)
+      await this.synchronizeClock('connect')
+      if (this.loggingConfig.enabled && this.loggingConfig.autoStartOnConnect) {
+        await this.startLoggingWithinConnectBudget()
+      }
+      try {
+        this.captureCycleTimeNs = await this.capture.getCycleTimeNs()
+        this.logDebug(`runConnectTasks: captureCycleTimeNs=${this.captureCycleTimeNs}`)
+      } catch (error) {
+        this.captureCycleTimeNs = null
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+        )
+        this.logDebug(`runConnectTasks: cycle time error=${String(error)}`)
+      }
+      await this.refreshState()
+      await this.processDeviceStatusUpdate('connect')
+      await this.refreshAndDrainCapturedMessagesFromDevice()
+      this.logDebug('runConnectTasks: done')
+    } finally {
+      this.connectTasksActive = false
     }
-    await this.refreshState()
-    await this.processDeviceStatusUpdate('connect')
-    await this.refreshAndDrainCapturedMessagesFromDevice()
-    this.logDebug('runConnectTasks: done')
   }
 
   /**
@@ -1471,7 +1523,11 @@ export class DRPDDevice extends EventTarget {
         await this.configureLogging({ ...this.loggingConfig, enabled: true })
       }
       if (!this.loggingStarted) {
-        await this.startLogging()
+        if (this.connectTasksActive) {
+          await this.startLoggingWithinConnectBudget()
+        } else {
+          await this.startLogging()
+        }
       }
       return
     }
@@ -1891,9 +1947,38 @@ export class DRPDDevice extends EventTarget {
     if (this.logStore) {
       return
     }
+    if (this.logStoreOpenInFlight) {
+      await this.logStoreOpenInFlight
+      return
+    }
+    const task = this.openLogStore()
+    this.logStoreOpenInFlight = task
+    try {
+      await task
+    } finally {
+      if (this.logStoreOpenInFlight === task) {
+        this.logStoreOpenInFlight = undefined
+      }
+    }
+  }
+
+  /**
+   * Create and initialize the log store.
+   */
+  protected async openLogStore(): Promise<void> {
+    const generation = this.logStoreOpenGeneration
     const store = this.createLogStore(this.loggingConfig)
-    await store.init()
-    this.logStore = store
+    try {
+      await store.init()
+      if (generation !== this.logStoreOpenGeneration) {
+        await store.close().catch(() => undefined)
+        return
+      }
+      this.logStore = store
+    } catch (error) {
+      await store.close().catch(() => undefined)
+      throw error
+    }
   }
 
   /**
@@ -1935,6 +2020,7 @@ export class DRPDDevice extends EventTarget {
    * Close and clear the current log store, if any.
    */
   protected async closeLogStore(): Promise<void> {
+    this.logStoreOpenGeneration += 1
     if (!this.logStore) {
       return
     }

@@ -93,6 +93,7 @@ When `RackView` is loaded, the frontend registers a DevTools helper on `window`:
 - `window.__drpdLogs.devices()`
 - `window.__drpdLogs.driver(deviceId?)`
 - `await window.__drpdLogs.diagnostics(deviceId?)`
+- `await window.__drpdLogs.resetPersistentStorage(deviceId?)`
 - `await window.__drpdLogs.count(kind?, deviceId?)`
 - `await window.__drpdLogs.queryAnalog(query?, deviceId?)`
 - `await window.__drpdLogs.queryMessage(query?, deviceId?)`
@@ -113,6 +114,19 @@ If exactly one DRPD device is connected, `deviceId` is optional. If multiple are
 - `opfs`
 - `loggingStarted`
 - `loggingConfigured`
+
+### OPFS storage repair
+
+If the browser's OPFS state for the logging database gets wedged, repair it with:
+
+```js
+await window.__drpdLogs.resetPersistentStorage()
+```
+
+The helper temporarily switches the connected device to in-memory logging, deletes the origin's
+`/drpd` OPFS directory, then restores the previous storage backend. This discards persisted log
+history for the current origin, but allows the next `auto` storage open to recreate a clean OPFS
+database.
 
 ### Counts
 

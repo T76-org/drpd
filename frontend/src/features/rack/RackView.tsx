@@ -135,6 +135,7 @@ interface DRPDLogsConsoleHelper {
   diagnostics(deviceId?: string): Promise<unknown>
   loggingConfig(deviceId?: string): DRPDLoggingConfig
   setStorageBackend(mode: 'auto' | 'memory', deviceId?: string): Promise<DRPDLoggingConfig>
+  resetPersistentStorage(deviceId?: string): Promise<unknown>
   count(kind?: 'analog' | 'messages' | 'all', deviceId?: string): Promise<unknown>
   queryAnalog(
     query?: { last?: number; startTimestampUs?: bigint; endTimestampUs?: bigint },
@@ -1152,6 +1153,30 @@ export const RackView = () => {
             updatedRecord,
         )
       },
+      resetPersistentStorage: async (deviceId) => {
+        if (!navigator.storage?.getDirectory) {
+          throw new Error('OPFS is not available in this browser context.')
+        }
+        const previousConfig = helper.loggingConfig(deviceId)
+        await helper.setStorageBackend('memory', deviceId)
+        const root = await navigator.storage.getDirectory()
+        let deleted = false
+        try {
+          await root.removeEntry('drpd', { recursive: true })
+          deleted = true
+        } catch (error) {
+          if (!(error instanceof DOMException && error.name === 'NotFoundError')) {
+            throw error
+          }
+        }
+        if (previousConfig.storageBackend !== 'memory') {
+          await helper.setStorageBackend(previousConfig.storageBackend, deviceId)
+        }
+        return {
+          deleted,
+          storageBackend: helper.loggingConfig(deviceId).storageBackend,
+        }
+      },
       count: async (kind = 'all', deviceId) => {
         const driver = resolveDriver(deviceId)
         if (!('getLogCounts' in driver) || typeof driver.getLogCounts !== 'function') {
@@ -1264,6 +1289,7 @@ export const RackView = () => {
           'window.__drpdLogs.loggingConfig(deviceId?)',
           'await window.__drpdLogs.setStorageBackend("memory", deviceId?)',
           'await window.__drpdLogs.setStorageBackend("auto", deviceId?)',
+          'await window.__drpdLogs.resetPersistentStorage(deviceId?)',
           'await window.__drpdLogs.count(kind?, deviceId?) // kind: "analog" | "messages" | "all" (default)',
           'await window.__drpdLogs.queryAnalog({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',
           'await window.__drpdLogs.queryMessage({ last: 20, startTimestampUs: 0n, endTimestampUs: 999999n }, deviceId?)',

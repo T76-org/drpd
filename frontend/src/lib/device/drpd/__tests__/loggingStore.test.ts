@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { SQLiteWasmStore } from '../logging'
+import type { Database, Sqlite3Static } from '@sqlite.org/sqlite-wasm'
 import type { LoggedCapturedMessage } from '../logging'
+
+class OpenDatabaseTestStore extends SQLiteWasmStore {
+  public testOpenDatabase(sqlite3: Sqlite3Static): Database {
+    return this.openDatabase(sqlite3)
+  }
+}
 
 /**
  * Build a synthetic captured message row.
@@ -63,6 +70,35 @@ const buildEvent = (index: number): LoggedCapturedMessage => ({
 })
 
 describe('SQLiteWasmStore', () => {
+  it('falls back to an in-memory SQLite database when OPFS open fails', () => {
+    const store = new OpenDatabaseTestStore()
+    const memoryDb = { dbVfsName: () => 'memdb' } as unknown as Database
+    const dbCalls: Array<{ filename: string; flags: string }> = []
+    class FailingOpfsDb {
+      public constructor() {
+        throw new DOMException(
+          'An operation that depends on state cached in an interface object changed',
+          'InvalidStateError',
+        )
+      }
+    }
+    class MemoryDb {
+      public constructor(filename: string, flags: string) {
+        dbCalls.push({ filename, flags })
+        return memoryDb
+      }
+    }
+    const sqlite3 = {
+      oo1: {
+        OpfsDb: FailingOpfsDb,
+        DB: MemoryDb,
+      },
+    } as unknown as Sqlite3Static
+
+    expect(store.testOpenDatabase(sqlite3)).toBe(memoryDb)
+    expect(dbCalls).toEqual([{ filename: ':memory:', flags: 'c' }])
+  })
+
   it('enforces retention on analog and captured message tables', async () => {
     const store = new SQLiteWasmStore({
       maxAnalogSamples: 5,
@@ -296,6 +332,36 @@ describe('SQLiteWasmStore', () => {
     expect(window.latestTimestampUs).toBe(50_000n)
     expect(window.earliestDisplayTimestampUs).toBe(10n)
     expect(window.latestDisplayTimestampUs).toBe(50_000n)
+  })
+
+  it('ignores SQLite max timestamp sentinel rows for time-strip bounds', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    await store.insertAnalogSample({
+      timestampUs: 50_000n,
+      displayTimestampUs: 50_000n,
+      wallClockUs: 50_000n,
+      vbusV: 5,
+      ibusA: 0.1,
+      role: 'OBSERVER',
+      createdAtMs: 1,
+    })
+    await store.insertCapturedMessage({
+      ...buildMessage(0),
+      startTimestampUs: 1_000n,
+      endTimestampUs: BigInt('9223372036854775807'),
+      displayTimestampUs: 1_000n,
+    })
+
+    const window = await store.queryMessageLogTimeStripWindow({
+      windowStartUs: 0n,
+      windowDurationUs: 1_000n,
+      analogPointBudget: 10,
+    })
+
+    expect(window.latestTimestampUs).toBe(50_000n)
+    expect(window.pulses).toEqual([])
   })
 
   it('keeps a pulse visible while its waveform still overlaps the window', async () => {

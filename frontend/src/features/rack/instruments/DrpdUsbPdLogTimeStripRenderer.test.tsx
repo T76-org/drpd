@@ -142,6 +142,31 @@ describe('DrpdUsbPdLogTimeStripRenderer', () => {
     expect(tickTransforms).not.toContain('translate(622,0)')
   })
 
+  it('bounds tick generation to the visible window when latest timestamp is corrupt', () => {
+    const { container } = render(
+      <DrpdUsbPdLogTimeStripRenderer
+        width={640}
+        data={buildTimeStripData({
+          windowStartUs: 14_326_541_750_000_000n,
+          windowEndUs: 14_326_542_750_000_000n,
+          windowDurationUs: 1_000_000_000n,
+          earliestTimestampUs: 14_326_541_750_000_000n,
+          latestTimestampUs: 9_223_372_036_854_775_807n,
+          earliestDisplayTimestampUs: 0n,
+          latestDisplayTimestampUs: 1_000_000_000n,
+          windowStartDisplayTimestampUs: 0n,
+          windowEndDisplayTimestampUs: 1_000_000_000n,
+          pulses: [],
+          timeAnchors: [],
+        })}
+        hoverPosition={null}
+        selectedKey={null}
+      />,
+    )
+
+    expect(getAxisTickTransforms(container).length).toBeLessThanOrEqual(10)
+  })
+
   it('exposes clickable hit areas for messages and events', () => {
     const { container } = render(
       <DrpdUsbPdLogTimeStripRenderer
