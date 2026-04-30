@@ -1437,7 +1437,9 @@ export interface ParsedSOPStatusDataBlock {
   ///< Power status bitfield.
   powerStatus: number
   ///< Power state change bitfield.
-  powerStateChange: number
+  powerStateChange: number | null
+  ///< True when the data block is the legacy 6-byte form without Power State Change.
+  legacy6ByteBlock: boolean
 }
 
 /**
@@ -1672,7 +1674,8 @@ export const parseSOPStatusDataBlock = (data: Uint8Array): ParsedSOPStatusDataBl
     eventFlags: data[3] ?? 0,
     temperatureStatus: data[4] ?? 0,
     powerStatus: data[5] ?? 0,
-    powerStateChange: data[6] ?? 0,
+    powerStateChange: data.length >= 7 ? (data[6] ?? 0) : null,
+    legacy6ByteBlock: data.length === 6,
   }
 }
 
@@ -3041,7 +3044,11 @@ export const buildSOPStatusDataBlockMetadata = (block: ParsedSOPStatusDataBlock)
   addStringMetadataField(container, 'eventFlags', 'Event Flags', formatStatusEventFlags(block.eventFlags), 'Event flag bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'temperatureStatus', 'Temperature Status', formatTemperatureStatus(block.temperatureStatus), 'Temperature-status bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'powerStatus', 'Power Status', formatPowerStatus(block.powerStatus), 'Power-status bitfield from the SOP Status Data Block.')
-  addStringMetadataField(container, 'powerStateChange', 'Power State Change', formatPowerStateChange(block.powerStateChange), 'Power-state-change bitfield from the SOP Status Data Block.')
+  if (block.powerStateChange === null) {
+    addStringMetadataField(container, 'powerStateChange', 'Power State Change', 'Unavailable (legacy 6-byte SDB)', 'USB PD 3.2 requires this byte at offset 6; this data block omits it.')
+  } else {
+    addStringMetadataField(container, 'powerStateChange', 'Power State Change', formatPowerStateChange(block.powerStateChange), 'Power-state-change bitfield from the SOP Status Data Block.')
+  }
   return container
 }
 

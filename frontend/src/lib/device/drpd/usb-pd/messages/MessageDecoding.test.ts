@@ -770,6 +770,33 @@ describe('USB-PD extended message decoding', () => {
     expect(block?.getEntry('temperatureStatus')?.value).toContain('Normal')
   })
 
+  it('decodes legacy 6-byte Status for SOP with missing Power State Change byte', () => {
+    const message = parseUSBPDMessage(Uint8Array.from([
+      0x18, 0x18, 0x18, 0x11,
+      0x82, 0x80,
+      0x06, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x82, 0xB8, 0x40, 0xA1,
+    ]))
+    expect(message).toBeInstanceOf(StatusMessage)
+    const decoded = message as StatusMessage
+    expect(decoded.header.extendedHeader?.dataSize).toBe(6)
+    expect(decoded.sopStatusDataBlock?.internalTemp).toBe(0)
+    expect(decoded.sopStatusDataBlock?.presentInput).toBe(0)
+    expect(decoded.sopStatusDataBlock?.powerStateChange).toBeNull()
+    expect(decoded.parseErrors).toContain(
+      'Legacy 6-byte SOP Status Data Block: missing Power State Change byte required by USB PD 3.2.',
+    )
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('**Port status:**')
+    expect(summary?.value).toContain('- Internal temperature: 0C')
+    expect(summary?.value).toContain('- Temperature status: not supported')
+    expect(summary?.value).toContain('- Power state change: unavailable (legacy 6-byte SDB).')
+    expect(summary?.value).toContain('Legacy 6-byte SOP Status Data Block')
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('statusDataBlock')
+    expect(block?.getEntry('powerStateChange')?.value).toBe('Unavailable (legacy 6-byte SDB)')
+  })
+
   it('decodes Status for SOP\'', () => {
     const spdb = [30, 0x01]
     const header = makeMessageHeader({

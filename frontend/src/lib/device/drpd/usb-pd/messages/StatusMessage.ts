@@ -10,6 +10,8 @@ import {
 } from '../DataObjects'
 
 const formatHexByte = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
+const LEGACY_SOP_STATUS_LENGTH = 6
+const USB_PD_3_2_SOP_STATUS_LENGTH = 7
 
 const describePresentInputs = (value: number): string[] => {
   const inputs: string[] = []
@@ -136,8 +138,21 @@ export class StatusMessage extends ExtendedMessage {
     }
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
     if (this.sop.kind === 'SOP') {
-      this.sopStatusDataBlock = dataBlock.length >= 7 ? parseSOPStatusDataBlock(dataBlock) : null
+      this.sopStatusDataBlock =
+        dataBlock.length >= LEGACY_SOP_STATUS_LENGTH ? parseSOPStatusDataBlock(dataBlock) : null
       this.sopPrimeStatusDataBlock = null
+      if (dataBlock.length === LEGACY_SOP_STATUS_LENGTH) {
+        this.parseErrors.push(
+          'Legacy 6-byte SOP Status Data Block: missing Power State Change byte required by USB PD 3.2.',
+        )
+      } else if (
+        dataBlock.length > LEGACY_SOP_STATUS_LENGTH &&
+        dataBlock.length < USB_PD_3_2_SOP_STATUS_LENGTH
+      ) {
+        this.parseErrors.push(
+          `Status message expected ${USB_PD_3_2_SOP_STATUS_LENGTH} bytes for USB PD 3.2 but received ${dataBlock.length}`,
+        )
+      }
     } else {
       this.sopStatusDataBlock = null
       this.sopPrimeStatusDataBlock =
@@ -187,7 +202,9 @@ export class StatusMessage extends ExtendedMessage {
       if (powerStatus.length > 0) {
         lines.push(`- Source power is ${powerStatus.join(', ')}.`)
       }
-      if (block.powerStateChange !== 0) {
+      if (block.powerStateChange === null) {
+        lines.push('- Power state change: unavailable (legacy 6-byte SDB).')
+      } else if (block.powerStateChange !== 0) {
         lines.push(`- Power state change: ${describePowerStateChange(block.powerStateChange)}.`)
       }
 
