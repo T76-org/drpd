@@ -667,6 +667,17 @@ describe('USB-PD extended message decoding', () => {
     scedb[1] = 0x12
     scedb[8] = 0x10
     scedb[9] = 0x20
+    scedb[10] = 0b00000101
+    scedb[11] = 3
+    scedb[12] = 0b00000111
+    scedb[13] = 0b00000111
+    scedb[14] = 0x21
+    scedb[15] = 0x08
+    scedb[16] = 0x42
+    scedb[17] = 0x10
+    scedb[18] = 0x63
+    scedb[19] = 0x18
+    scedb[20] = 0x02
     scedb[21] = 0b00000111
     scedb[22] = 0x21
     scedb[23] = 45
@@ -689,13 +700,47 @@ describe('USB-PD extended message decoding', () => {
     expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
     expect(summary?.value).toContain('- Firmware version: 16')
     expect(summary?.value).toContain('- Hardware version: 32')
-    expect(summary?.value).toContain('- Standard Power Range source power data profile rating: 45W')
-    expect(summary?.value).toContain('- Extended Power Range source power data profile rating: 90W')
-    expect(summary?.value).toContain('- Source inputs: unconstrained external supply, internal battery')
+    expect(summary?.value).toContain('- Voltage regulation: 500 mA/µs load step; 90% IoC load step magnitude')
+    expect(summary?.value).toContain('- Holdup time: 3 ms')
+    expect(summary?.value).toContain('- Compliance: LPS, PS1, PS2')
+    expect(summary?.value).toContain('- Touch current: low touch current EPS, ground pin supported, ground pin intended for protective earth')
+    expect(summary?.value).toContain('- Peak current 1: 10% overload for 20 ms at 5% duty cycle; VBUS voltage droop not allowed')
+    expect(summary?.value).toContain('- Peak current 2: 20% overload for 40 ms at 10% duty cycle; VBUS voltage droop not allowed')
+    expect(summary?.value).toContain('- Peak current 3: 30% overload for 60 ms at 15% duty cycle; VBUS voltage droop not allowed')
+    expect(summary?.value).toContain('- Touch temperature: IEC 62368-1 TS2')
+    expect(summary?.value).toContain('- Source inputs: external supply present, external supply unconstrained, internal battery present')
     expect(summary?.value).toContain('- Fixed batteries: 1')
     expect(summary?.value).toContain('- Hot-swappable battery slots: 2')
+    expect(summary?.value).toContain('- Standard Power Range source power data profile rating: 45W')
+    expect(summary?.value).toContain('- Extended Power Range source power data profile rating: 90W')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sourceCapabilitiesExtendedDataBlock')
     expect(block?.getEntry('voltageRegulation')?.value).toContain('Load Step Slew Rate')
+  })
+
+  it('decodes legacy 24-byte Source_Capabilities_Extended with missing EPR PDP byte', () => {
+    const message = parseUSBPDMessage(Uint8Array.from([
+      0x18, 0x18, 0x18, 0x11,
+      0x81, 0x8A,
+      0x18, 0x00,
+      0xAC, 0x05, 0x09, 0x71, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x01, 0x07,
+      0x99, 0x29, 0xEB, 0x2D,
+    ]))
+    expect(message).toBeInstanceOf(SourceCapabilitiesExtendedMessage)
+    const decoded = message as SourceCapabilitiesExtendedMessage
+    expect(decoded.header.extendedHeader?.dataSize).toBe(24)
+    expect(decoded.sourceCapabilitiesExtended?.vid).toBe(0x05AC)
+    expect(decoded.sourceCapabilitiesExtended?.pid).toBe(0x7109)
+    expect(decoded.sourceCapabilitiesExtended?.sprSourcePdpRating).toBe(7)
+    expect(decoded.sourceCapabilitiesExtended?.eprSourcePdpRating).toBeNull()
+    expect(decoded.parseErrors).toContain(
+      'Legacy 24-byte Source Capabilities Extended Data Block: missing EPR Source PDP Rating byte required by USB PD 3.2.',
+    )
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('legacy 24-byte SCEDB')
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sourceCapabilitiesExtendedDataBlock')
+    expect(block?.getEntry('eprSourcePdpRating')?.value).toBe('Unavailable (legacy 24-byte SCEDB)')
   })
 
   it('decodes Status for SOP', () => {
@@ -989,8 +1034,13 @@ describe('USB-PD extended message decoding', () => {
     skedb[8] = 0x10
     skedb[9] = 0x20
     skedb[10] = 1
+    skedb[11] = 1
+    skedb[12] = 0x21
+    skedb[13] = 0x08
+    skedb[14] = 0b00000111
+    skedb[15] = 3
     skedb[16] = 0x21
-    skedb[17] = 0x10
+    skedb[17] = 0x3f
     skedb[18] = 10
     skedb[19] = 20
     skedb[20] = 30
@@ -1007,7 +1057,7 @@ describe('USB-PD extended message decoding', () => {
     expect(message).toBeInstanceOf(SinkCapabilitiesExtendedMessage)
     const decoded = message as SinkCapabilitiesExtendedMessage
     expect(decoded.sinkCapabilitiesExtended?.skedbVersion).toBe(1)
-    expect(decoded.sinkCapabilitiesExtended?.sinkModes).toBe(0x10)
+    expect(decoded.sinkCapabilitiesExtended?.sinkModes).toBe(0x3f)
     const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
     expect(summary?.type).toBe('String')
     expect(summary?.Label).toBe('Message Summary')
@@ -1016,15 +1066,52 @@ describe('USB-PD extended message decoding', () => {
     expect(summary?.value).toContain('- Product ID: 0x5678')
     expect(summary?.value).toContain('- Firmware version: 16')
     expect(summary?.value).toContain('- Hardware version: 32')
-    expect(summary?.value).toContain('- Sink capabilities extended data block version: 1')
-    expect(summary?.value).toContain('- Standard Power Range sink power data profile: minimum 10W, operational 20W, maximum 30W')
-    expect(summary?.value).toContain('- Extended Power Range sink power data profile: minimum 40W, operational 50W, maximum 60W')
-    expect(summary?.value).toContain('- Sink modes: battery essentially unlimited')
+    expect(summary?.value).toContain('- Sink capabilities extended data block version: Version 1.0')
+    expect(summary?.value).toContain('- Load step: 500 mA/µs load step')
+    expect(summary?.value).toContain('- Sink load characteristics: 10% overload for 20 ms at 5% duty cycle; VBUS voltage droop not tolerated')
+    expect(summary?.value).toContain('- Compliance: requires LPS source, requires PS1 source, requires PS2 source')
+    expect(summary?.value).toContain('- Touch temperature: IEC 62368-1 TS2')
     expect(summary?.value).toContain('- Fixed batteries: 1')
     expect(summary?.value).toContain('- Hot-swappable battery slots: 2')
+    expect(summary?.value).toContain('- Sink modes: Programmable Power Supply charging supported, VBUS powered, AC supply powered, battery powered, battery essentially unlimited, Adjustable Voltage Supply supported')
+    expect(summary?.value).toContain('- Standard Power Range sink power data profile: minimum 10W, operational 20W, maximum 30W')
+    expect(summary?.value).toContain('- Extended Power Range sink power data profile: minimum 40W, operational 50W, maximum 60W')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sinkCapabilitiesExtendedDataBlock')
     expect(block?.getEntry('skedbVersion')?.value).toBe('0x01 (Version 1.0)')
     expect(block?.getEntry('sinkModes')?.value).toContain('Battery essentially unlimited')
+  })
+
+  it('decodes legacy 21-byte Sink_Capabilities_Extended with missing EPR PDP bytes', () => {
+    const message = parseUSBPDMessage(Uint8Array.from([
+      0x18, 0x18, 0x18, 0x11,
+      0x8F, 0x8C,
+      0x15, 0x00,
+      0xAC, 0x05, 0x09, 0x71, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0x0A, 0x05, 0x12, 0x2D,
+      0x27, 0xE8, 0x61, 0x23,
+    ]))
+    expect(message).toBeInstanceOf(SinkCapabilitiesExtendedMessage)
+    const decoded = message as SinkCapabilitiesExtendedMessage
+    expect(decoded.header.extendedHeader?.dataSize).toBe(21)
+    expect(decoded.sinkCapabilitiesExtended?.vid).toBe(0x05AC)
+    expect(decoded.sinkCapabilitiesExtended?.pid).toBe(0x7109)
+    expect(decoded.sinkCapabilitiesExtended?.skedbVersion).toBe(1)
+    expect(decoded.sinkCapabilitiesExtended?.sprSinkMinimumPdp).toBe(5)
+    expect(decoded.sinkCapabilitiesExtended?.sprSinkOperationalPdp).toBe(18)
+    expect(decoded.sinkCapabilitiesExtended?.sprSinkMaximumPdp).toBe(45)
+    expect(decoded.sinkCapabilitiesExtended?.eprSinkMinimumPdp).toBeNull()
+    expect(decoded.sinkCapabilitiesExtended?.eprSinkOperationalPdp).toBeNull()
+    expect(decoded.sinkCapabilitiesExtended?.eprSinkMaximumPdp).toBeNull()
+    expect(decoded.parseErrors).toContain(
+      'Legacy 21-byte Sink Capabilities Extended Data Block: missing EPR Sink PDP bytes required by USB PD 3.2.',
+    )
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('legacy 21-byte SKEDB')
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('sinkCapabilitiesExtendedDataBlock')
+    expect(block?.getEntry('eprSinkMinimumPdp')?.value).toBe('Unavailable (legacy 21-byte SKEDB)')
+    expect(block?.getEntry('eprSinkOperationalPdp')?.value).toBe('Unavailable (legacy 21-byte SKEDB)')
+    expect(block?.getEntry('eprSinkMaximumPdp')?.value).toBe('Unavailable (legacy 21-byte SKEDB)')
   })
 
   it('decodes Extended_Control', () => {
