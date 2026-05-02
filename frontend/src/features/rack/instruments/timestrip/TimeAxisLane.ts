@@ -11,6 +11,7 @@ export interface TimestripTick {
 
 const MIN_TICK_COUNT = 2
 const MAX_TICK_COUNT = 12
+const TICK_EDGE_SEARCH_PX = 160
 
 /**
  * Format a wall-clock tick label.
@@ -41,22 +42,27 @@ export const selectTimeAxisTicks = (
   layout: TimestripLaneLayout,
   worldStartWallClockUs: number,
 ): TimestripTick[] => {
-  const worldBleedUs = tile.bleedPx * tile.zoomLevelDenominator
-  const startWallClockMs = (worldStartWallClockUs + tile.worldLeftUs - worldBleedUs) / 1000
-  const endWallClockMs =
-    (worldStartWallClockUs + tile.worldLeftUs + tile.worldWidthUs + worldBleedUs) / 1000
+  const startWallClockMs = (worldStartWallClockUs + tile.worldLeftUs) / 1000
+  const endWallClockMs = (worldStartWallClockUs + tile.worldLeftUs + tile.worldWidthUs) / 1000
   const scale = scaleTime()
     .domain([new Date(startWallClockMs), new Date(endWallClockMs)])
-    .range([-tile.bleedPx, tile.widthPx + tile.bleedPx])
+    .range([0, tile.widthPx])
+  const edgeSearchMs = (TICK_EDGE_SEARCH_PX * tile.zoomLevelDenominator) / 1000
+  const candidateScale = scaleTime()
+    .domain([new Date(startWallClockMs - edgeSearchMs), new Date(endWallClockMs + edgeSearchMs)])
+    .range([-TICK_EDGE_SEARCH_PX, tile.widthPx + TICK_EDGE_SEARCH_PX])
 
   context.save()
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
   for (let count = MAX_TICK_COUNT; count >= MIN_TICK_COUNT; count -= 1) {
-    const ticks = scale.ticks(count).map((date) => ({
+    const ticks = candidateScale.ticks(count).map((date) => ({
       date,
       label: formatTimestripTickLabel(date),
       xPx: scale(date) as number,
-    }))
+    })).filter((tick) => {
+      const labelWidth = context.measureText(tick.label).width
+      return tick.xPx + labelWidth / 2 >= 0 && tick.xPx - labelWidth / 2 <= tile.widthPx
+    })
     if (ticks.length === 0) {
       continue
     }
@@ -90,12 +96,7 @@ export const drawTimeAxisLane = (
   theme: TimestripThemePalette,
 ): void => {
   context.fillStyle = theme.timeAxisBackground
-  context.fillRect(
-    -tile.bleedPx,
-    layout.timeAxis.y,
-    tile.widthPx + tile.bleedPx * 2,
-    layout.timeAxis.height,
-  )
+  context.fillRect(0, layout.timeAxis.y, tile.widthPx, layout.timeAxis.height)
 
   const ticks = selectTimeAxisTicks(context, tile, layout, worldStartWallClockUs)
   context.save()

@@ -29,10 +29,9 @@ export const drawDigitalTraceLane = (
   widthPx: number,
   theme: TimestripThemePalette,
   options?: DigitalTraceLaneRenderOptions,
-  bleedPx = 0,
 ): void => {
   context.fillStyle = theme.digitalBackground
-  context.fillRect(-bleedPx, layout.digital.y, widthPx + bleedPx * 2, layout.digital.height)
+  context.fillRect(0, layout.digital.y, widthPx, layout.digital.height)
   if (!options) {
     return
   }
@@ -40,7 +39,7 @@ export const drawDigitalTraceLane = (
   const detailLevel = resolveTimestripDigitalDetailLevel(options.zoomDenominator)
   context.save()
   context.beginPath()
-  context.rect(-bleedPx, layout.digital.y, widthPx + bleedPx * 2, layout.digital.height)
+  context.rect(0, layout.digital.y, widthPx, layout.digital.height)
   context.clip()
   context.font = '11px sans-serif'
   context.textAlign = 'center'

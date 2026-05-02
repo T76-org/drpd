@@ -1,7 +1,6 @@
 import {
   calculateVisibleTimestripTiles,
   scrollLeftToWorldUs,
-  TIMESTRIP_TILE_BLEED_PX,
   TIMESTRIP_TILE_WIDTH_PX,
   type TimestripVisibleTile,
 } from './timestripLayout'
@@ -207,11 +206,8 @@ export class TimestripTiledRenderer {
       if (!entry.tile || !entry.tileKey) {
         continue
       }
-      const tileStart = entry.tile.worldLeftUs - entry.tile.bleedPx * entry.tile.zoomLevelDenominator
-      const tileEnd =
-        entry.tile.worldLeftUs +
-        entry.tile.worldWidthUs +
-        entry.tile.bleedPx * entry.tile.zoomLevelDenominator
+      const tileStart = entry.tile.worldLeftUs
+      const tileEnd = entry.tile.worldLeftUs + entry.tile.worldWidthUs
       if (tileEnd < start || tileStart > end) {
         continue
       }
@@ -278,7 +274,7 @@ export class TimestripTiledRenderer {
   }
 
   protected resizePoolCanvases(): void {
-    const cssWidth = TIMESTRIP_TILE_WIDTH_PX + TIMESTRIP_TILE_BLEED_PX * 2
+    const cssWidth = TIMESTRIP_TILE_WIDTH_PX
     const cssHeight = Math.max(1, this.viewport.viewportHeightPx)
     const backingWidth = Math.max(1, Math.ceil(cssWidth * this.viewport.dpr))
     const backingHeight = Math.max(1, Math.ceil(cssHeight * this.viewport.dpr))
@@ -368,7 +364,7 @@ export class TimestripTiledRenderer {
   protected positionTileCanvas(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
     const scrollWorldUs = scrollLeftToWorldUs(this.viewport.scrollLeftPx, this.viewport.zoomDenominator)
     const screenX = (tile.worldLeftUs - scrollWorldUs) / this.viewport.zoomDenominator
-    entry.canvas.style.transform = `translate3d(${screenX - tile.bleedPx}px, 0, 0)`
+    entry.canvas.style.transform = `translate3d(${screenX}px, 0, 0)`
   }
 
   protected enqueueTile(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
@@ -377,8 +373,8 @@ export class TimestripTiledRenderer {
     this.pendingTiles.set(tile.key, requestId)
     const digitalEntries = filterTimestripDigitalEntriesForTile(
       this.viewport.digitalEntries ?? [],
-      tile.worldLeftUs - tile.bleedPx * tile.zoomLevelDenominator,
-      tile.worldLeftUs + tile.worldWidthUs + tile.bleedPx * tile.zoomLevelDenominator,
+      tile.worldLeftUs,
+      tile.worldLeftUs + tile.worldWidthUs,
     )
     if (this.worker) {
       const request: TimestripTileWorkerRequest = {

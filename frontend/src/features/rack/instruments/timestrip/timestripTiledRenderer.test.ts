@@ -74,8 +74,14 @@ describe('TimestripTiledRenderer', () => {
     renderer.setViewport(buildViewport(1000))
     frameCallbacks.shift()?.(0)
 
+    const tileCanvases = Array.from(
+      tileLayer.querySelectorAll<HTMLCanvasElement>('canvas[data-timestrip-tile-canvas="true"]'),
+    )
     expect(renderer.getPoolSize()).toBe(4)
-    expect(tileLayer.querySelectorAll('canvas[data-timestrip-tile-canvas="true"]')).toHaveLength(4)
+    expect(tileCanvases).toHaveLength(4)
+    expect(tileCanvases[0].style.width).toBe('512px')
+    expect(tileCanvases[0].width).toBe(512)
+    expect(tileCanvases[0].style.transform).toBe('translate3d(0px, 0, 0)')
     expect(worker.postMessage).toHaveBeenCalledTimes(2)
     expect(worker.postMessage.mock.calls[0][0].tile.key.startsWith('z1000:')).toBe(true)
     expect(worker.postMessage.mock.calls[0][0].worldStartWallClockUs).toBe(1_700_000_000_000_000)

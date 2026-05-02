@@ -13,8 +13,7 @@ export const drawAnalogTraceLane = (
   layout: TimestripLaneLayout,
   widthPx: number,
   theme: TimestripThemePalette,
-  bleedPx = 0,
 ): void => {
   context.fillStyle = theme.analogBackground
-  context.fillRect(-bleedPx, layout.analog.y, widthPx + bleedPx * 2, layout.analog.height)
+  context.fillRect(0, layout.analog.y, widthPx, layout.analog.height)
 }

@@ -37,7 +37,7 @@ const buildTile = (worldWidthUs: number): TimestripVisibleTile => ({
   worldWidthUs,
   widthPx: 512,
   heightPx: 240,
-  bleedPx: 160,
+  bleedPx: 0,
 })
 
 describe('TimeAxisLane', () => {
@@ -60,7 +60,7 @@ describe('TimeAxisLane', () => {
     }
   })
 
-  it('draws tick labels inside the tile including bleed', () => {
+  it('draws tick labels inside the tile rectangle', () => {
     const context = buildContext(70)
 
     drawTimeAxisLane(
@@ -74,11 +74,11 @@ describe('TimeAxisLane', () => {
     expect(context.fillText).toHaveBeenCalled()
   })
 
-  it('selects ticks that intersect the horizontal bleed area', () => {
+  it('selects ticks whose labels intersect the left tile edge', () => {
     const context = buildContext(70)
     const tile = {
       ...buildTile(512_000),
-      worldLeftUs: 512_000,
+      worldLeftUs: 512_020,
     }
 
     const ticks = selectTimeAxisTicks(
@@ -88,6 +88,23 @@ describe('TimeAxisLane', () => {
       1_700_000_000_000_000,
     )
 
-    expect(ticks.some((tick) => tick.xPx > tile.widthPx)).toBe(true)
+    expect(ticks.some((tick) => tick.xPx < 0 && tick.xPx + 35 >= 0)).toBe(true)
+  })
+
+  it('selects ticks whose labels intersect the right tile edge', () => {
+    const context = buildContext(70)
+    const tile = {
+      ...buildTile(512_000),
+      worldLeftUs: 487_980,
+    }
+
+    const ticks = selectTimeAxisTicks(
+      context,
+      tile,
+      buildTimestripLaneLayout(240),
+      1_700_000_000_000_000,
+    )
+
+    expect(ticks.some((tick) => tick.xPx > tile.widthPx && tick.xPx - 35 <= tile.widthPx)).toBe(true)
   })
 })

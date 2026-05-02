@@ -38,7 +38,7 @@ const tile: TimestripVisibleTile = {
   worldWidthUs: 512_000,
   widthPx: 512,
   heightPx: 240,
-  bleedPx: 160,
+  bleedPx: 0,
 }
 
 describe('timestripTileDrawing', () => {
@@ -48,9 +48,11 @@ describe('timestripTileDrawing', () => {
     drawTimestripTile(context, tile, 2, DEFAULT_TIMESTRIP_THEME, [], 1_700_000_000_000_000)
 
     expect(context.scale).toHaveBeenCalledWith(2, 2)
+    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 512, 240)
+    expect(context.translate).not.toHaveBeenCalled()
     expect(context.fillRect).toHaveBeenCalled()
     expect(
-      vi.mocked(context.fillRect).mock.calls.filter(([x, , width]) => x === -160 && width === 832),
+      vi.mocked(context.fillRect).mock.calls.filter(([x, , width]) => x === 0 && width === 512),
     ).toHaveLength(3)
     expect(context.fillText).toHaveBeenCalled()
   })

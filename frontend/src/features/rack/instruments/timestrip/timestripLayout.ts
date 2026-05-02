@@ -1,7 +1,6 @@
 const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 1
 const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 1000
 export const TIMESTRIP_TILE_WIDTH_PX = 512
-export const TIMESTRIP_TILE_BLEED_PX = 160
 export const TIMESTRIP_TILE_OVERSCAN = 1
 
 /**
@@ -68,7 +67,7 @@ export interface TimestripVisibleTile {
   widthPx: number
   ///< Tile height in CSS pixels.
   heightPx: number
-  ///< Extra horizontal render area on both sides in CSS pixels.
+  ///< Extra horizontal render area on both sides in CSS pixels. Visible DOM tiles use 0.
   bleedPx: number
 }
 
@@ -154,7 +153,7 @@ export const calculateVisibleTimestripTiles = (
       worldWidthUs: tileWorldWidthUs,
       widthPx: TIMESTRIP_TILE_WIDTH_PX,
       heightPx: viewportHeight,
-      bleedPx: TIMESTRIP_TILE_BLEED_PX,
+      bleedPx: 0,
     })
   }
   return tiles

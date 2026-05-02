@@ -47,6 +47,7 @@ describe('timestripLayout', () => {
     expect(tiles[0]).toMatchObject({
       heightPx: 240,
       widthPx: 512,
+      bleedPx: 0,
       worldLeftUs: 0,
       worldWidthUs: 512_000,
     })

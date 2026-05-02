@@ -8,7 +8,6 @@ import styles from './DrpdTimeStripInstrumentView.module.css'
 import {
   calculateTimestripWidthPx,
   clampTimestripZoomDenominator,
-  TIMESTRIP_TILE_BLEED_PX,
   TIMESTRIP_TILE_OVERSCAN,
   TIMESTRIP_TILE_WIDTH_PX,
 } from './timestrip/timestripLayout'
@@ -26,8 +25,7 @@ const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const DEFAULT_ZOOM_DENOMINATOR = 1000
 const CTRL_WHEEL_ZOOM_STEP = 1.1
 const DIGITAL_QUERY_LIMIT = 5000
-const DIGITAL_QUERY_OVERSCAN_PX =
-  TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1) + TIMESTRIP_TILE_BLEED_PX
+const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
 const readThemeName = () => (
   typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
 )
