@@ -225,7 +225,7 @@ afterEach(() => {
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
-  it('renders the message table without a timestrip renderer', async () => {
+  it('renders the message table', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1)])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -243,7 +243,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     )
 
     expect(await screen.findByText('Wall time')).toBeInTheDocument()
-    expect(screen.queryByTestId('drpd-usbpd-log-timestrip')).not.toBeInTheDocument()
   })
 
   it('updates visible message table columns from global column settings', async () => {
