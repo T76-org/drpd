@@ -4,25 +4,36 @@ import {
   calculateVisibleTimestripTiles,
   calculateTimestripWidthPx,
   clampTimestripZoomDenominator,
+  formatTimestripZoomDenominator,
   resolveTimestripZoomLevel,
   scrollLeftToWorldUs,
 } from './timestripLayout'
 
 describe('timestripLayout', () => {
   it('clamps zoom denominators to the supported range', () => {
-    expect(clampTimestripZoomDenominator(0)).toBe(1)
-    expect(clampTimestripZoomDenominator(1)).toBe(1)
-    expect(clampTimestripZoomDenominator(400.8)).toBe(400)
+    expect(clampTimestripZoomDenominator(0)).toBe(500)
+    expect(clampTimestripZoomDenominator(1)).toBe(500)
+    expect(clampTimestripZoomDenominator(400.8)).toBe(500)
+    expect(clampTimestripZoomDenominator(500)).toBe(500)
     expect(clampTimestripZoomDenominator(1000)).toBe(1000)
     expect(clampTimestripZoomDenominator(1001)).toBe(1001)
     expect(clampTimestripZoomDenominator(1_000_001)).toBe(1_000_000)
     expect(clampTimestripZoomDenominator('not-a-number')).toBe(1_000_000)
   })
 
+  it('formats zoom denominators as time per pixel', () => {
+    expect(formatTimestripZoomDenominator(1)).toBe('500ns')
+    expect(formatTimestripZoomDenominator(500)).toBe('500ns')
+    expect(formatTimestripZoomDenominator(1000)).toBe('1us')
+    expect(formatTimestripZoomDenominator(1500)).toBe('1.5us')
+    expect(formatTimestripZoomDenominator(909_091)).toBe('909.091us')
+    expect(formatTimestripZoomDenominator(1_000_000)).toBe('1ms')
+  })
+
   it('uses ceil(durationNs / zoomDenominator) for timeline width', () => {
     expect(calculateTimestripWidthPx(10_000_000_000n, 1_000_000, 0)).toBe(10_000)
     expect(calculateTimestripWidthPx(10_000_001n, 1000, 0)).toBe(10_001)
-    expect(calculateTimestripWidthPx(10_000_000n, 1, 0)).toBe(10_000_000)
+    expect(calculateTimestripWidthPx(10_000_000n, 500, 0)).toBe(20_000)
   })
 
   it('never returns a width smaller than the viewport', () => {
@@ -31,8 +42,8 @@ describe('timestripLayout', () => {
   })
 
   it('uses exact zoom denominators as tile render levels', () => {
-    expect(resolveTimestripZoomLevel(1)).toEqual({ zoomLevel: 'z1', denominator: 1 })
-    expect(resolveTimestripZoomLevel(3)).toEqual({ zoomLevel: 'z3', denominator: 3 })
+    expect(resolveTimestripZoomLevel(1)).toEqual({ zoomLevel: 'z500', denominator: 500 })
+    expect(resolveTimestripZoomLevel(3)).toEqual({ zoomLevel: 'z500', denominator: 500 })
     expect(resolveTimestripZoomLevel(909)).toEqual({ zoomLevel: 'z909', denominator: 909 })
     expect(resolveTimestripZoomLevel(1001)).toEqual({ zoomLevel: 'z1001', denominator: 1001 })
     expect(resolveTimestripZoomLevel(1_000_001)).toEqual({ zoomLevel: 'z1000000', denominator: 1_000_000 })

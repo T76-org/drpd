@@ -1,4 +1,4 @@
-const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 1
+const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 500
 const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 1_000_000
 export const TIMESTRIP_TILE_WIDTH_PX = 512
 export const TIMESTRIP_TILE_OVERSCAN = 1
@@ -7,7 +7,7 @@ export const TIMESTRIP_TILE_OVERSCAN = 1
  * Clamp a user-provided timestrip zoom denominator into the supported range.
  *
  * @param value - Candidate denominator.
- * @returns Integer denominator from 1 to 1,000,000.
+ * @returns Integer denominator from 500 to 1,000,000.
  */
 export const clampTimestripZoomDenominator = (value: number | string): number => {
   const parsed = typeof value === 'number' ? value : Number(value)
@@ -20,11 +20,35 @@ export const clampTimestripZoomDenominator = (value: number | string): number =>
   )
 }
 
+const formatCompactDecimal = (value: number): string => {
+  if (Number.isInteger(value)) {
+    return value.toString()
+  }
+  return value.toFixed(3).replace(/\.?0+$/, '')
+}
+
+/**
+ * Format the current zoom denominator as time per CSS pixel.
+ *
+ * @param value - Nanoseconds-per-CSS-pixel denominator.
+ * @returns Compact zoom label, e.g. `500ns`, `1us`, or `1ms`.
+ */
+export const formatTimestripZoomDenominator = (value: number | string): string => {
+  const denominator = clampTimestripZoomDenominator(value)
+  if (denominator < 1000) {
+    return `${denominator}ns`
+  }
+  if (denominator < 1_000_000) {
+    return `${formatCompactDecimal(denominator / 1000)}us`
+  }
+  return `${formatCompactDecimal(denominator / 1_000_000)}ms`
+}
+
 /**
  * Calculate the timeline container width for a capture duration and zoom level.
  *
  * @param durationNs - Timeline duration in nanoseconds.
- * @param zoomDenominator - Zoom denominator where 1:N means N nanoseconds per CSS pixel.
+ * @param zoomDenominator - Nanoseconds represented by one CSS pixel.
  * @param viewportWidthPx - Current visible viewport width in CSS pixels.
  * @returns Timeline width in CSS pixels.
  */

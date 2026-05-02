@@ -97,7 +97,7 @@ describe('DrpdTimeStripInstrumentView', () => {
   it('renders zoom as passive header text without button or popover controls', () => {
     renderTimestrip()
 
-    expect(screen.getByLabelText('Zoom 1:1000000')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 1ms per pixel')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /zoom/i })).toBeNull()
     expect(screen.queryByRole('slider')).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
@@ -122,12 +122,12 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 1:909091')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 909.091us per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBe(0)
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
 
-    expect(screen.getByLabelText('Zoom 1:1000000')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 1ms per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBe(0)
   })
 
@@ -152,7 +152,7 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 1:909091')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 909.091us per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBeCloseTo(5515, 2)
   })
 

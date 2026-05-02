@@ -8,6 +8,7 @@ import styles from './DrpdTimeStripInstrumentView.module.css'
 import {
   calculateTimestripWidthPx,
   clampTimestripZoomDenominator,
+  formatTimestripZoomDenominator,
   TIMESTRIP_TILE_OVERSCAN,
   TIMESTRIP_TILE_WIDTH_PX,
 } from './timestrip/timestripLayout'
@@ -126,6 +127,7 @@ export const DrpdTimeStripInstrumentView = ({
   const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
   const [digitalDataRevision, setDigitalDataRevision] = useState(0)
+  const zoomReadout = formatTimestripZoomDenominator(zoomDenominator)
   const timelineWidthPx = calculateTimestripWidthPx(
     timelineRange.durationNs,
     zoomDenominator,
@@ -537,8 +539,8 @@ export const DrpdTimeStripInstrumentView = ({
       isEditMode={isEditMode}
       contentClassName={styles.content}
       headerAccessory={
-        <span className={styles.zoomReadout} aria-label={`Zoom 1:${zoomDenominator}`}>
-          Zoom 1:{zoomDenominator}
+        <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
+          Zoom {zoomReadout}
         </span>
       }
       onClose={
