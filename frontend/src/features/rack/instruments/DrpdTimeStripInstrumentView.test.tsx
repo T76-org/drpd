@@ -1,7 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { DrpdTimeStripInstrumentView } from './DrpdTimeStripInstrumentView'
+
+const buildCanvasContext = () => ({
+  clearRect: vi.fn(),
+  drawImage: vi.fn(),
+  fillRect: vi.fn(),
+  fillText: vi.fn(),
+  restore: vi.fn(),
+  save: vi.fn(),
+  scale: vi.fn(),
+  setTransform: vi.fn(),
+  strokeRect: vi.fn(),
+  fillStyle: '',
+  font: '',
+  lineWidth: 1,
+  strokeStyle: '',
+  textBaseline: 'alphabetic',
+})
 
 /**
  * Build a minimal timestrip rack instrument.
@@ -27,14 +44,25 @@ const renderTimestrip = () => {
 }
 
 describe('DrpdTimeStripInstrumentView', () => {
-  it('renders a viewport and timeline container without canvas or svg', () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      buildCanvasContext() as unknown as CanvasRenderingContext2D,
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('renders a viewport, timeline spacer, and one viewport canvas without svg', () => {
     const { container } = renderTimestrip()
 
     expect(screen.getByTestId('drpd-timestrip-viewport')).toBeInTheDocument()
     expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
       width: '10000px',
     })
-    expect(container.querySelector('canvas')).toBeNull()
+    expect(screen.getByTestId('drpd-timestrip-canvas')).toBeInstanceOf(HTMLCanvasElement)
+    expect(container.querySelectorAll('canvas')).toHaveLength(1)
     expect(container.querySelector('svg')).toBeNull()
   })
 

@@ -7,6 +7,7 @@ import {
   calculateTimestripWidthPx,
   clampTimestripZoomDenominator,
 } from './timestrip/timestripLayout'
+import { TimestripTiledRenderer } from './timestrip/timestripTiledRenderer'
 
 const PLACEHOLDER_TIMELINE_START_US = 0n
 const PLACEHOLDER_TIMELINE_END_US = 10_000_000n
@@ -28,7 +29,11 @@ export const DrpdTimeStripInstrumentView = ({
   onRemove?: (instrumentId: string) => void
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const rendererRef = useRef<TimestripTiledRenderer | null>(null)
   const [viewportWidthPx, setViewportWidthPx] = useState(0)
+  const [viewportHeightPx, setViewportHeightPx] = useState(0)
+  const [scrollLeftPx, setScrollLeftPx] = useState(0)
   const [zoomDenominator, setZoomDenominator] = useState(DEFAULT_ZOOM_DENOMINATOR)
   const timelineDurationUs = PLACEHOLDER_TIMELINE_END_US - PLACEHOLDER_TIMELINE_START_US
   const timelineWidthPx = calculateTimestripWidthPx(
@@ -64,7 +69,12 @@ export const DrpdTimeStripInstrumentView = ({
     }
     event.preventDefault()
     viewport.scrollLeft += scrollDelta
+    setScrollLeftPx(viewport.scrollLeft)
   }, [commitZoomDenominator, zoomDenominator])
+
+  const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    setScrollLeftPx(event.currentTarget.scrollLeft)
+  }, [])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -74,6 +84,7 @@ export const DrpdTimeStripInstrumentView = ({
 
     const updateViewportWidth = () => {
       setViewportWidthPx(Math.max(0, Math.floor(viewport.clientWidth)))
+      setViewportHeightPx(Math.max(0, Math.floor(viewport.clientHeight)))
     }
     updateViewportWidth()
 
@@ -84,13 +95,40 @@ export const DrpdTimeStripInstrumentView = ({
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       const inlineSize = entry?.contentBoxSize?.[0]?.inlineSize ?? entry?.contentRect.width
+      const blockSize = entry?.contentBoxSize?.[0]?.blockSize ?? entry?.contentRect.height
       setViewportWidthPx(Math.max(0, Math.floor(inlineSize ?? viewport.clientWidth)))
+      setViewportHeightPx(Math.max(0, Math.floor(blockSize ?? viewport.clientHeight)))
     })
     observer.observe(viewport)
     return () => {
       observer.disconnect()
     }
   }, [])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) {
+      return undefined
+    }
+    const renderer = new TimestripTiledRenderer({ canvas })
+    rendererRef.current = renderer
+    return () => {
+      renderer.dispose()
+      if (rendererRef.current === renderer) {
+        rendererRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    rendererRef.current?.setViewport({
+      scrollLeftPx,
+      zoomDenominator,
+      viewportWidthPx,
+      viewportHeightPx,
+      dpr: window.devicePixelRatio || 1,
+    })
+  }, [scrollLeftPx, viewportHeightPx, viewportWidthPx, zoomDenominator])
 
   return (
     <InstrumentBase
@@ -116,7 +154,17 @@ export const DrpdTimeStripInstrumentView = ({
         className={styles.viewport}
         data-testid="drpd-timestrip-viewport"
         onWheel={handleViewportWheel}
+        onScroll={handleViewportScroll}
       >
+        <canvas
+          ref={canvasRef}
+          className={styles.canvas}
+          data-testid="drpd-timestrip-canvas"
+          style={{
+            width: `${viewportWidthPx}px`,
+            height: `${viewportHeightPx}px`,
+          }}
+        />
         <div
           className={styles.timeline}
           data-testid="drpd-timestrip-timeline"

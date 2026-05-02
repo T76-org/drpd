@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildTimestripTileKey,
+  calculateVisibleTimestripTiles,
   calculateTimestripWidthPx,
   clampTimestripZoomDenominator,
+  resolveTimestripZoomLevel,
+  scrollLeftToWorldUs,
 } from './timestripLayout'
 
 describe('timestripLayout', () => {
@@ -23,5 +27,31 @@ describe('timestripLayout', () => {
   it('never returns a width smaller than the viewport', () => {
     expect(calculateTimestripWidthPx(10_000n, 1000, 800)).toBe(800)
     expect(calculateTimestripWidthPx(-1n, 1000, 320)).toBe(320)
+  })
+
+  it('quantizes zoom denominators into stable LOD buckets', () => {
+    expect(resolveTimestripZoomLevel(1)).toEqual({ zoomLevel: 'z1', denominator: 1 })
+    expect(resolveTimestripZoomLevel(3)).toEqual({ zoomLevel: 'z4', denominator: 4 })
+    expect(resolveTimestripZoomLevel(900)).toEqual({ zoomLevel: 'z1000', denominator: 1000 })
+  })
+
+  it('builds tile keys from LOD and tile coordinates', () => {
+    expect(buildTimestripTileKey('z512', 17, 0)).toBe('z512:17:0')
+  })
+
+  it('calculates visible tiles with horizontal overscan', () => {
+    const tiles = calculateVisibleTimestripTiles(0, 1000, 900, 240)
+
+    expect(tiles.map((tile) => tile.key)).toEqual(['z1000:0:0', 'z1000:1:0', 'z1000:2:0'])
+    expect(tiles[0]).toMatchObject({
+      heightPx: 240,
+      widthPx: 512,
+      worldLeftUs: 0,
+      worldWidthUs: 512_000,
+    })
+  })
+
+  it('converts scrollLeft into world microseconds', () => {
+    expect(scrollLeftToWorldUs(25, 1000)).toBe(25_000)
   })
 })
