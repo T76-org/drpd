@@ -203,7 +203,13 @@ export class TimestripTiledRenderer {
       cached.lastUsed = now
       const screenX = (tile.worldLeftUs - scrollWorldUs) / zoomDenominator
       const screenWidth = tile.worldWidthUs / zoomDenominator
-      this.context.drawImage(cached.bitmap, screenX, 0, screenWidth, viewportHeightPx)
+      this.context.drawImage(
+        cached.bitmap,
+        screenX - tile.bleedPx,
+        0,
+        screenWidth + tile.bleedPx * 2,
+        viewportHeightPx,
+      )
     }
 
     this.evictTiles(visibleKeys)
@@ -236,7 +242,7 @@ export class TimestripTiledRenderer {
     dpr: number,
   ): CanvasImageSource & { close?: () => void } {
     const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.ceil(tile.widthPx * dpr))
+    canvas.width = Math.max(1, Math.ceil((tile.widthPx + tile.bleedPx * 2) * dpr))
     canvas.height = Math.max(1, Math.ceil(tile.heightPx * dpr))
     const context = canvas.getContext('2d')
     if (context) {

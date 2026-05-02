@@ -19,23 +19,18 @@ export const drawTimestripTile = (
   worldStartWallClockUs: number,
 ): void => {
   const width = tile.widthPx
+  const bleed = tile.bleedPx
+  const drawWidth = width + bleed * 2
   const height = tile.heightPx
   context.save()
   context.scale(dpr, dpr)
-  context.clearRect(0, 0, width, height)
+  context.clearRect(0, 0, drawWidth, height)
+  context.translate(bleed, 0)
 
   const layout = buildTimestripLaneLayout(height)
   drawTimeAxisLane(context, tile, layout, worldStartWallClockUs)
-  drawDigitalTraceLane(context, layout, width)
-  drawAnalogTraceLane(context, layout, width)
-
-  context.fillStyle = 'rgba(255, 255, 255, 0.18)'
-  context.fillRect(0, layout.timeAxis.height, width, layout.separatorHeightPx)
-  context.fillRect(0, layout.analog.y - layout.separatorHeightPx, width, layout.separatorHeightPx)
-
-  context.strokeStyle = 'rgba(255, 255, 255, 0.16)'
-  context.lineWidth = 1
-  context.strokeRect(0.5, 0.5, width - 1, height - 1)
+  drawDigitalTraceLane(context, layout, width, bleed)
+  drawAnalogTraceLane(context, layout, width, bleed)
 
   context.restore()
 }

@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RackInstrument } from '../../../lib/rack/types'
+import type { RackDeviceState } from '../RackRenderer'
 import { DrpdTimeStripInstrumentView } from './DrpdTimeStripInstrumentView'
 
 const buildCanvasContext = () => ({
@@ -18,6 +19,7 @@ const buildCanvasContext = () => ({
   setTransform: vi.fn(),
   stroke: vi.fn(),
   strokeRect: vi.fn(),
+  translate: vi.fn(),
   fillStyle: '',
   font: '',
   lineWidth: 1,
@@ -39,15 +41,31 @@ const buildInstrument = (): RackInstrument => ({
 /**
  * Render the timestrip instrument in its default state.
  */
-const renderTimestrip = () => {
+const renderTimestrip = (deviceState?: RackDeviceState) => {
   return render(
     <DrpdTimeStripInstrumentView
       instrument={buildInstrument()}
       displayName="Timestrip"
+      deviceState={deviceState}
       isEditMode={false}
     />,
   )
 }
+
+const buildDeviceState = (queryCapturedMessages: ReturnType<typeof vi.fn>): RackDeviceState =>
+  ({
+    record: {
+      id: 'device-1',
+      identifier: 'com.mta.drpd',
+      displayName: 'DRPD',
+      vendorId: 0,
+      productId: 0,
+    },
+    status: 'connected',
+    drpdDriver: {
+      queryCapturedMessages,
+    },
+  }) as unknown as RackDeviceState
 
 describe('DrpdTimeStripInstrumentView', () => {
   beforeEach(() => {
@@ -132,5 +150,23 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     expect(screen.getByLabelText('Zoom 1:909')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBeCloseTo(5515.57, 2)
+  })
+
+  it('sizes the timeline from message-log wall-clock range when available', async () => {
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
+      {
+        wallClockUs:
+          query.sortOrder === 'desc'
+            ? 1_700_000_004_000_000n
+            : 1_700_000_000_000_000n,
+      },
+    ])
+    renderTimestrip(buildDeviceState(queryCapturedMessages))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '4000px',
+      })
+    })
   })
 })

@@ -40,11 +40,13 @@ export const selectTimeAxisTicks = (
   layout: TimestripLaneLayout,
   worldStartWallClockUs: number,
 ): TimestripTick[] => {
-  const startWallClockMs = (worldStartWallClockUs + tile.worldLeftUs) / 1000
-  const endWallClockMs = (worldStartWallClockUs + tile.worldLeftUs + tile.worldWidthUs) / 1000
+  const worldBleedUs = tile.bleedPx * tile.zoomLevelDenominator
+  const startWallClockMs = (worldStartWallClockUs + tile.worldLeftUs - worldBleedUs) / 1000
+  const endWallClockMs =
+    (worldStartWallClockUs + tile.worldLeftUs + tile.worldWidthUs + worldBleedUs) / 1000
   const scale = scaleTime()
     .domain([new Date(startWallClockMs), new Date(endWallClockMs)])
-    .range([0, tile.widthPx])
+    .range([-tile.bleedPx, tile.widthPx + tile.bleedPx])
 
   context.save()
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
@@ -64,10 +66,7 @@ export const selectTimeAxisTicks = (
     const minimumSpacing = getMinimumTickSpacing(ticks)
     if (ticks.length === 1 || minimumSpacing >= maxLabelWidth + layout.timeAxis.labelPaddingPx) {
       context.restore()
-      return ticks.filter((tick) => {
-        const halfLabelWidth = context.measureText(tick.label).width / 2
-        return tick.xPx - halfLabelWidth >= 2 && tick.xPx + halfLabelWidth <= tile.widthPx - 2
-      })
+      return ticks
     }
   }
   context.restore()
@@ -89,7 +88,7 @@ export const drawTimeAxisLane = (
   worldStartWallClockUs: number,
 ): void => {
   context.fillStyle = '#161d26'
-  context.fillRect(0, layout.timeAxis.y, tile.widthPx, layout.timeAxis.height)
+  context.fillRect(-tile.bleedPx, layout.timeAxis.y, tile.widthPx + tile.bleedPx * 2, layout.timeAxis.height)
 
   const ticks = selectTimeAxisTicks(context, tile, layout, worldStartWallClockUs)
   context.save()

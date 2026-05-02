@@ -15,7 +15,7 @@ workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
     return
   }
 
-  const width = Math.max(1, Math.ceil(message.tile.widthPx * message.dpr))
+  const width = Math.max(1, Math.ceil((message.tile.widthPx + message.tile.bleedPx * 2) * message.dpr))
   const height = Math.max(1, Math.ceil(message.tile.heightPx * message.dpr))
   const canvas = new OffscreenCanvas(width, height)
   const context = canvas.getContext('2d')

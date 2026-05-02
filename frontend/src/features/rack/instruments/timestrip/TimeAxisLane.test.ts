@@ -21,6 +21,7 @@ const buildTile = (worldWidthUs: number): TimestripVisibleTile => ({
   worldWidthUs,
   widthPx: 512,
   heightPx: 240,
+  bleedPx: 160,
 })
 
 describe('TimeAxisLane', () => {

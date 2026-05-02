@@ -16,6 +16,7 @@ const buildContext = () =>
     scale: vi.fn(),
     stroke: vi.fn(),
     strokeRect: vi.fn(),
+    translate: vi.fn(),
     fillStyle: '',
     font: '',
     lineWidth: 1,
@@ -34,6 +35,7 @@ const tile: TimestripVisibleTile = {
   worldWidthUs: 512_000,
   widthPx: 512,
   heightPx: 240,
+  bleedPx: 160,
 }
 
 describe('timestripTileDrawing', () => {
