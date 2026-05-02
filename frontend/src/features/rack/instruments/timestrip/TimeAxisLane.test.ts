@@ -123,7 +123,7 @@ describe('TimeAxisLane', () => {
   it('keeps tick cadence uniform across adjacent tiles', () => {
     const context = buildContext(70)
     const layout = buildTimestripLaneLayout(240)
-    const zoomDenominator = 23
+    const zoomDenominator = 23_000
     const worldStartWallClockUs = 1_700_000_000_000_000
     const tile0 = buildZoomedTile(0, zoomDenominator)
     const tile1 = buildZoomedTile(1, zoomDenominator)
@@ -145,9 +145,9 @@ describe('TimeAxisLane', () => {
     }
   })
 
-  it('positions millisecond ticks at exact pixel intervals at high zoom', () => {
+  it('positions submillisecond ticks at exact pixel intervals at high zoom', () => {
     const context = buildContext(70)
-    const tile = buildZoomedTile(1, 5)
+    const tile = buildZoomedTile(1, 5_000)
 
     const ticks = selectTimeAxisTicks(
       context,
@@ -159,7 +159,7 @@ describe('TimeAxisLane', () => {
 
     expect(visibleTicks.length).toBeGreaterThan(2)
     for (let index = 1; index < visibleTicks.length; index += 1) {
-      expect(visibleTicks[index].xPx - visibleTicks[index - 1].xPx).toBeCloseTo(200, 6)
+      expect(visibleTicks[index].xPx - visibleTicks[index - 1].xPx).toBeCloseTo(100, 6)
     }
   })
 })

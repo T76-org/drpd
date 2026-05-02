@@ -14,12 +14,13 @@ describe('timestripLayout', () => {
     expect(clampTimestripZoomDenominator(1)).toBe(1)
     expect(clampTimestripZoomDenominator(400.8)).toBe(400)
     expect(clampTimestripZoomDenominator(1000)).toBe(1000)
-    expect(clampTimestripZoomDenominator(1001)).toBe(1000)
-    expect(clampTimestripZoomDenominator('not-a-number')).toBe(1000)
+    expect(clampTimestripZoomDenominator(1001)).toBe(1001)
+    expect(clampTimestripZoomDenominator(1_000_001)).toBe(1_000_000)
+    expect(clampTimestripZoomDenominator('not-a-number')).toBe(1_000_000)
   })
 
-  it('uses ceil(durationUs / zoomDenominator) for timeline width', () => {
-    expect(calculateTimestripWidthPx(10_000_000n, 1000, 0)).toBe(10_000)
+  it('uses ceil(durationNs / zoomDenominator) for timeline width', () => {
+    expect(calculateTimestripWidthPx(10_000_000_000n, 1_000_000, 0)).toBe(10_000)
     expect(calculateTimestripWidthPx(10_000_001n, 1000, 0)).toBe(10_001)
     expect(calculateTimestripWidthPx(10_000_000n, 1, 0)).toBe(10_000_000)
   })
@@ -33,7 +34,8 @@ describe('timestripLayout', () => {
     expect(resolveTimestripZoomLevel(1)).toEqual({ zoomLevel: 'z1', denominator: 1 })
     expect(resolveTimestripZoomLevel(3)).toEqual({ zoomLevel: 'z3', denominator: 3 })
     expect(resolveTimestripZoomLevel(909)).toEqual({ zoomLevel: 'z909', denominator: 909 })
-    expect(resolveTimestripZoomLevel(1001)).toEqual({ zoomLevel: 'z1000', denominator: 1000 })
+    expect(resolveTimestripZoomLevel(1001)).toEqual({ zoomLevel: 'z1001', denominator: 1001 })
+    expect(resolveTimestripZoomLevel(1_000_001)).toEqual({ zoomLevel: 'z1000000', denominator: 1_000_000 })
   })
 
   it('builds tile keys from LOD and tile coordinates', () => {
@@ -53,7 +55,7 @@ describe('timestripLayout', () => {
     })
   })
 
-  it('converts scrollLeft into world microseconds', () => {
+  it('converts scrollLeft into world nanoseconds', () => {
     expect(scrollLeftToWorldUs(25, 1000)).toBe(25_000)
   })
 

@@ -5,8 +5,8 @@ import type { TimestripThemePalette } from './timestripTheme'
 export type TimestripDigitalDetailLevel = 1 | 2 | 3
 
 export const TIMESTRIP_DIGITAL_DETAIL_BREAKPOINTS = {
-  level3MaxZoomDenominator: 5,
-  level2MaxZoomDenominator: 100,
+  level3MaxZoomDenominator: 5_000,
+  level2MaxZoomDenominator: 100_000,
 } as const
 
 export interface TimestripDigitalComponent {
@@ -79,17 +79,17 @@ export const getTimestripDigitalQueryRange = (
   scrollLeftPx: number,
   viewportWidthPx: number,
   zoomDenominator: number,
-  worldStartWallClockUs: number,
+  worldStartTimestampUs: bigint,
   overscanPx: number,
-): { startWallClockUs: bigint; endWallClockUs: bigint } => {
-  const startWorldUs = Math.max(0, Math.floor((scrollLeftPx - overscanPx) * zoomDenominator))
-  const endWorldUs = Math.max(
-    startWorldUs,
+): { startTimestampUs: bigint; endTimestampUs: bigint } => {
+  const startWorldNs = Math.max(0, Math.floor((scrollLeftPx - overscanPx) * zoomDenominator))
+  const endWorldNs = Math.max(
+    startWorldNs,
     Math.ceil((scrollLeftPx + viewportWidthPx + overscanPx) * zoomDenominator),
   )
   return {
-    startWallClockUs: BigInt(Math.floor(worldStartWallClockUs + startWorldUs)),
-    endWallClockUs: BigInt(Math.ceil(worldStartWallClockUs + endWorldUs)),
+    startTimestampUs: worldStartTimestampUs + BigInt(Math.floor(startWorldNs / 1000)),
+    endTimestampUs: worldStartTimestampUs + BigInt(Math.ceil(endWorldNs / 1000)),
   }
 }
 
@@ -106,34 +106,31 @@ export const filterTimestripDigitalEntriesForTile = (
 
 export const normalizeCapturedMessageForTimestrip = (
   row: LoggedCapturedMessage,
-  worldStartWallClockUs: number,
+  worldStartTimestampUs: bigint,
 ): TimestripDigitalEntry | null => {
-  if (row.wallClockUs === null) {
-    return null
-  }
-  const startWorldUs = Number(row.wallClockUs) - worldStartWallClockUs
-  if (!Number.isFinite(startWorldUs)) {
+  const startWorldNs = Number((row.startTimestampUs - worldStartTimestampUs) * 1000n)
+  if (!Number.isFinite(startWorldNs)) {
     return null
   }
   if (row.entryKind === 'event') {
     return {
       kind: 'event',
-      worldUs: startWorldUs,
+      worldUs: startWorldNs,
       eventType: row.eventType,
     }
   }
 
-  const deviceDurationUs = Number(row.endTimestampUs - row.startTimestampUs)
-  const durationUs = Number.isFinite(deviceDurationUs) ? Math.max(1, deviceDurationUs) : 1
+  const deviceDurationNs = Number((row.endTimestampUs - row.startTimestampUs) * 1000n)
+  const durationNs = Number.isFinite(deviceDurationNs) ? Math.max(1, deviceDurationNs) : 1
   const frameBytes = Array.from(row.rawSop).concat(Array.from(row.rawDecodedData))
   return {
     kind: 'message',
-    startWorldUs,
-    endWorldUs: startWorldUs + durationUs,
+    startWorldUs: startWorldNs,
+    endWorldUs: startWorldNs + durationNs,
     label: getLogMessageTypeLabel(row),
     pulseWidthsNs: Array.from(row.rawPulseWidths),
     frameBytes,
-    components: buildTimestripDigitalComponents(row, frameBytes, durationUs),
+    components: buildTimestripDigitalComponents(row, frameBytes, durationNs),
   }
 }
 
@@ -147,7 +144,7 @@ export const buildTimestripDigitalComponents = (
       ? Array.from(row.rawPulseWidths.subarray(0, PREAMBLE_PULSE_COUNT)).reduce(
           (sum, value) => sum + value,
           0,
-        ) / 1000
+        )
       : 0
   const remainingDurationUs = Math.max(1, durationUs - preambleDurationUs)
   const nonPreambleByteCount = Math.max(1, frameBytes.length)

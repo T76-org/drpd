@@ -35,26 +35,26 @@ const buildRow = (overrides: Partial<LoggedCapturedMessage> = {}): LoggedCapture
 
 describe('timestripDigitalModel', () => {
   it('selects digital detail levels from zoom denominator', () => {
-    expect(resolveTimestripDigitalDetailLevel(101)).toBe(1)
-    expect(resolveTimestripDigitalDetailLevel(100)).toBe(2)
-    expect(resolveTimestripDigitalDetailLevel(6)).toBe(2)
-    expect(resolveTimestripDigitalDetailLevel(5)).toBe(3)
+    expect(resolveTimestripDigitalDetailLevel(100_001)).toBe(1)
+    expect(resolveTimestripDigitalDetailLevel(100_000)).toBe(2)
+    expect(resolveTimestripDigitalDetailLevel(5_001)).toBe(2)
+    expect(resolveTimestripDigitalDetailLevel(5_000)).toBe(3)
   })
 
-  it('includes overscan in wall-clock query range', () => {
-    expect(getTimestripDigitalQueryRange(100, 300, 10, 1_000_000, 50)).toEqual({
-      startWallClockUs: 1_000_500n,
-      endWallClockUs: 1_004_500n,
+  it('includes overscan in device timestamp query range', () => {
+    expect(getTimestripDigitalQueryRange(100, 300, 10_000, 1_000_000n, 50)).toEqual({
+      startTimestampUs: 1_000_500n,
+      endTimestampUs: 1_004_500n,
     })
   })
 
   it('normalizes a captured message into render data', () => {
-    const entry = normalizeCapturedMessageForTimestrip(buildRow(), 1_700_000_000_000_000)
+    const entry = normalizeCapturedMessageForTimestrip(buildRow(), 0n)
 
     expect(entry).toMatchObject({
       kind: 'message',
-      startWorldUs: 1000,
-      endWorldUs: 1010,
+      startWorldUs: 1_000_000,
+      endWorldUs: 1_010_000,
       label: 'Source Capabilities',
       frameBytes: [0x12, 0x12, 0x12, 0x13, 0x61, 0x01, 0xaa, 0xbb, 0xcc, 0xdd],
     })
@@ -73,10 +73,10 @@ describe('timestripDigitalModel', () => {
         eventText: 'Mark',
         rawDecodedData: new Uint8Array(),
       }),
-      1_700_000_000_000_000,
+      0n,
     )
 
-    expect(eventEntry).toEqual({ kind: 'event', worldUs: 1000, eventType: 'mark' })
+    expect(eventEntry).toEqual({ kind: 'event', worldUs: 1_000_000, eventType: 'mark' })
     expect(getTimestripEventColor('mark', DEFAULT_TIMESTRIP_THEME)).toBe(DEFAULT_TIMESTRIP_THEME.eventMarkColor)
   })
 })

@@ -169,7 +169,7 @@ const drawWaveform = (
   context.beginPath()
   context.moveTo((currentWorldUs - options.worldLeftUs) / options.zoomDenominator, highY)
   for (const pulseWidthNs of entry.pulseWidthsNs) {
-    const nextWorldUs = currentWorldUs + pulseWidthNs / 1000
+    const nextWorldUs = currentWorldUs + pulseWidthNs
     const nextX = (nextWorldUs - options.worldLeftUs) / options.zoomDenominator
     const yValue = high ? highY : lowY
     context.lineTo(nextX, yValue)

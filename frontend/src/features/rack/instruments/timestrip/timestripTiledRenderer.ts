@@ -82,7 +82,7 @@ export class TimestripTiledRenderer {
     this.pendingTiles = new Map()
     this.viewport = {
       scrollLeftPx: 0,
-      zoomDenominator: 1000,
+      zoomDenominator: 1_000_000,
       viewportWidthPx: 0,
       viewportHeightPx: 0,
       dpr: 1,
@@ -98,7 +98,7 @@ export class TimestripTiledRenderer {
     this.cacheDpr = 1
     this.cacheHeightPx = 0
     this.cacheWallClockOriginUs = 0
-    this.cacheZoomDenominator = 1000
+    this.cacheZoomDenominator = 1_000_000
     this.cacheThemeKey = getTimestripThemeCacheKey(DEFAULT_TIMESTRIP_THEME)
     this.cacheDigitalDataRevision = 0
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()

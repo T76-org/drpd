@@ -97,7 +97,7 @@ describe('DrpdTimeStripInstrumentView', () => {
   it('renders zoom as passive header text without button or popover controls', () => {
     renderTimestrip()
 
-    expect(screen.getByLabelText('Zoom 1:1000')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 1:1000000')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /zoom/i })).toBeNull()
     expect(screen.queryByRole('slider')).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
@@ -122,12 +122,12 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 1:909')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 1:909091')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBe(0)
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
 
-    expect(screen.getByLabelText('Zoom 1:1000')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 1:1000000')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBe(0)
   })
 
@@ -152,17 +152,22 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 1:909')).toBeInTheDocument()
-    expect(viewport.scrollLeft).toBeCloseTo(5515.57, 2)
+    expect(screen.getByLabelText('Zoom 1:909091')).toBeInTheDocument()
+    expect(viewport.scrollLeft).toBeCloseTo(5515, 2)
   })
 
-  it('sizes the timeline from message-log wall-clock range when available', async () => {
+  it('sizes the timeline from message-log device timestamp range when available', async () => {
     const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
       {
-        wallClockUs:
+        wallClockUs: 1_700_000_000_000_000n,
+        startTimestampUs:
           query.sortOrder === 'desc'
-            ? 1_700_000_004_000_000n
-            : 1_700_000_000_000_000n,
+            ? 10_000_000n
+            : 6_000_000n,
+        endTimestampUs:
+          query.sortOrder === 'desc'
+            ? 10_000_000n
+            : 6_000_000n,
       },
     ])
     renderTimestrip(buildDeviceState(queryCapturedMessages))

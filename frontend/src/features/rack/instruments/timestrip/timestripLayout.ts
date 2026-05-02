@@ -1,5 +1,5 @@
 const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 1
-const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 1000
+const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 1_000_000
 export const TIMESTRIP_TILE_WIDTH_PX = 512
 export const TIMESTRIP_TILE_OVERSCAN = 1
 
@@ -7,7 +7,7 @@ export const TIMESTRIP_TILE_OVERSCAN = 1
  * Clamp a user-provided timestrip zoom denominator into the supported range.
  *
  * @param value - Candidate denominator.
- * @returns Integer denominator from 1 to 1000.
+ * @returns Integer denominator from 1 to 1,000,000.
  */
 export const clampTimestripZoomDenominator = (value: number | string): number => {
   const parsed = typeof value === 'number' ? value : Number(value)
@@ -23,19 +23,19 @@ export const clampTimestripZoomDenominator = (value: number | string): number =>
 /**
  * Calculate the timeline container width for a capture duration and zoom level.
  *
- * @param durationUs - Timeline duration in microseconds.
- * @param zoomDenominator - Zoom denominator where 1:N means N microseconds per CSS pixel.
+ * @param durationNs - Timeline duration in nanoseconds.
+ * @param zoomDenominator - Zoom denominator where 1:N means N nanoseconds per CSS pixel.
  * @param viewportWidthPx - Current visible viewport width in CSS pixels.
  * @returns Timeline width in CSS pixels.
  */
 export const calculateTimestripWidthPx = (
-  durationUs: bigint,
+  durationNs: bigint,
   zoomDenominator: number,
   viewportWidthPx: number,
 ): number => {
   const normalizedZoom = clampTimestripZoomDenominator(zoomDenominator)
   const normalizedViewportWidth = Math.max(0, Math.floor(viewportWidthPx))
-  const duration = durationUs > 0n ? durationUs : 0n
+  const duration = durationNs > 0n ? durationNs : 0n
   const zoom = BigInt(normalizedZoom)
   const timelineWidth = Number((duration + zoom - 1n) / zoom)
   return Math.max(normalizedViewportWidth, timelineWidth)
@@ -44,7 +44,7 @@ export const calculateTimestripWidthPx = (
 export interface TimestripZoomLevel {
   ///< Stable LOD identifier used in tile cache keys.
   zoomLevel: string
-  ///< Quantized microseconds-per-CSS-pixel denominator for this LOD.
+  ///< Quantized nanoseconds-per-CSS-pixel denominator for this LOD.
   denominator: number
 }
 
@@ -57,11 +57,11 @@ export interface TimestripVisibleTile {
   tileY: 0
   ///< LOD identifier.
   zoomLevel: string
-  ///< LOD denominator in microseconds per CSS pixel.
+  ///< LOD denominator in nanoseconds per CSS pixel.
   zoomLevelDenominator: number
-  ///< Tile left edge in world microseconds.
+  ///< Tile left edge in world nanoseconds.
   worldLeftUs: number
-  ///< Tile width in world microseconds.
+  ///< Tile width in world nanoseconds.
   worldWidthUs: number
   ///< Tile width in CSS pixels at its own LOD.
   widthPx: number
@@ -74,7 +74,7 @@ export interface TimestripVisibleTile {
 /**
  * Return the exact render zoom level for a zoom denominator.
  *
- * @param zoomDenominator - Current microseconds-per-CSS-pixel denominator.
+ * @param zoomDenominator - Current nanoseconds-per-CSS-pixel denominator.
  * @returns Exact zoom level.
  */
 export const resolveTimestripZoomLevel = (zoomDenominator: number): TimestripZoomLevel => {
@@ -97,11 +97,11 @@ export const buildTimestripTileKey = (zoomLevel: string, tileX: number, tileY: n
   `${zoomLevel}:${tileX}:${tileY}`
 
 /**
- * Convert a viewport scroll position into world microseconds.
+ * Convert a viewport scroll position into world nanoseconds.
  *
  * @param scrollLeftPx - Viewport scrollLeft in CSS pixels.
- * @param zoomDenominator - Current microseconds-per-CSS-pixel denominator.
- * @returns World X position in microseconds.
+ * @param zoomDenominator - Current nanoseconds-per-CSS-pixel denominator.
+ * @returns World X position in nanoseconds.
  */
 export const scrollLeftToWorldUs = (scrollLeftPx: number, zoomDenominator: number): number =>
   Math.max(0, scrollLeftPx) * clampTimestripZoomDenominator(zoomDenominator)
@@ -110,7 +110,7 @@ export const scrollLeftToWorldUs = (scrollLeftPx: number, zoomDenominator: numbe
  * Calculate visible full-height timestrip tiles.
  *
  * @param scrollLeftPx - Viewport scrollLeft in CSS pixels.
- * @param zoomDenominator - Current microseconds-per-CSS-pixel denominator.
+ * @param zoomDenominator - Current nanoseconds-per-CSS-pixel denominator.
  * @param viewportWidthPx - Visible viewport width in CSS pixels.
  * @param viewportHeightPx - Visible viewport height in CSS pixels.
  * @param overscanTiles - Extra tiles before/after visible bounds.
