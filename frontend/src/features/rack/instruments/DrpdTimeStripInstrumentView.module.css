@@ -18,32 +18,12 @@
   min-height: 100%;
 }
 
-.zoomPopover {
-  display: grid;
-  gap: var(--space-10);
-  min-width: 18rem;
-}
-
-.zoomField {
-  display: grid;
-  gap: var(--space-4);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-header-popup-text);
-}
-
-.zoomLabel {
+.zoomReadout {
   color: var(--color-text-muted);
-  font-size: var(--font-size-header-popup-label);
+  font-size: inherit;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
   text-transform: uppercase;
-}
-
-.zoomInput {
-  width: 100%;
-  min-width: 0;
-  border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-panel);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-header-popup-input);
-  padding: var(--space-4) var(--space-6);
+  letter-spacing: inherit;
+  white-space: nowrap;
 }

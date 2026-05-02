@@ -1,5 +1,4 @@
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { DrpdTimeStripInstrumentView } from './DrpdTimeStripInstrumentView'
@@ -39,23 +38,65 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(container.querySelector('svg')).toBeNull()
   })
 
-  it('updates the zoom label and timeline width from the zoom control', async () => {
-    const user = userEvent.setup()
+  it('renders zoom as passive header text without button or popover controls', () => {
     renderTimestrip()
 
-    expect(screen.getByRole('button', { name: 'Zoom 1:1000' })).toBeInTheDocument()
-    expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-      width: '10000px',
-    })
+    expect(screen.getByLabelText('Zoom 1:1000')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /zoom/i })).toBeNull()
+    expect(screen.queryByRole('slider')).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+  })
 
-    await user.click(screen.getByRole('button', { name: 'Zoom 1:1000' }))
-    const zoomInput = screen.getByRole('spinbutton')
-    await user.clear(zoomInput)
-    await user.type(zoomInput, '1')
+  it('maps mouse wheel movement to horizontal viewport scroll', () => {
+    renderTimestrip()
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
+    Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
 
-    expect(screen.getByRole('button', { name: 'Zoom 1:1' })).toBeInTheDocument()
-    expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-      width: '10000000px',
-    })
+    fireEvent.wheel(viewport, { deltaY: 240 })
+
+    expect(viewport.scrollLeft).toBe(240)
+  })
+
+  it('uses ctrl wheel to change zoom instead of scrolling', () => {
+    renderTimestrip()
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
+    Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
+
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -240 })
+
+    expect(screen.getByLabelText('Zoom 1:909')).toBeInTheDocument()
+    expect(viewport.scrollLeft).toBe(0)
+
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
+
+    expect(screen.getByLabelText('Zoom 1:1000')).toBeInTheDocument()
+    expect(viewport.scrollLeft).toBe(0)
+  })
+
+  it('keeps the timestamp under the pointer stable during ctrl wheel zoom', () => {
+    renderTimestrip()
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
+    Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
+    viewport.scrollLeft = 5000
+    viewport.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        right: 600,
+        top: 0,
+        bottom: 100,
+        width: 500,
+        height: 100,
+        x: 100,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+
+    expect(screen.getByLabelText('Zoom 1:909')).toBeInTheDocument()
+    expect(viewport.scrollLeft).toBeCloseTo(5515.57, 2)
   })
 })

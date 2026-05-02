@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import styles from './DrpdTimeStripInstrumentView.module.css'
@@ -10,6 +11,7 @@ import {
 const PLACEHOLDER_TIMELINE_START_US = 0n
 const PLACEHOLDER_TIMELINE_END_US = 10_000_000n
 const DEFAULT_ZOOM_DENOMINATOR = 1000
+const CTRL_WHEEL_ZOOM_STEP = 1.1
 
 /**
  * Standalone DRPD timestrip instrument shell.
@@ -28,7 +30,6 @@ export const DrpdTimeStripInstrumentView = ({
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [viewportWidthPx, setViewportWidthPx] = useState(0)
   const [zoomDenominator, setZoomDenominator] = useState(DEFAULT_ZOOM_DENOMINATOR)
-  const [zoomInputValue, setZoomInputValue] = useState(DEFAULT_ZOOM_DENOMINATOR.toString())
   const timelineDurationUs = PLACEHOLDER_TIMELINE_END_US - PLACEHOLDER_TIMELINE_START_US
   const timelineWidthPx = calculateTimestripWidthPx(
     timelineDurationUs,
@@ -38,57 +39,32 @@ export const DrpdTimeStripInstrumentView = ({
   const commitZoomDenominator = useCallback((value: number | string) => {
     const nextZoomDenominator = clampTimestripZoomDenominator(value)
     setZoomDenominator(nextZoomDenominator)
-    setZoomInputValue(nextZoomDenominator.toString())
   }, [])
-  const headerControls = useMemo(
-    () => [
-      {
-        id: 'timestrip-zoom',
-        label: `Zoom 1:${zoomDenominator}`,
-        renderPopover: () => (
-          <div className={styles.zoomPopover}>
-            <label className={styles.zoomField}>
-              <span className={styles.zoomLabel}>Zoom ratio</span>
-              <input
-                type="range"
-                min="1"
-                max="1000"
-                step="1"
-                value={zoomDenominator}
-                onChange={(event) => {
-                  commitZoomDenominator(event.currentTarget.value)
-                }}
-              />
-            </label>
-            <label className={styles.zoomField}>
-              <span className={styles.zoomLabel}>1:</span>
-              <input
-                type="number"
-                min="1"
-                max="1000"
-                step="1"
-                value={zoomInputValue}
-                className={styles.zoomInput}
-                onChange={(event) => {
-                  const nextValue = event.currentTarget.value
-                  setZoomInputValue(nextValue)
-                  if (nextValue !== '') {
-                    commitZoomDenominator(nextValue)
-                  }
-                }}
-                onBlur={() => {
-                  if (zoomInputValue === '') {
-                    setZoomInputValue(zoomDenominator.toString())
-                  }
-                }}
-              />
-            </label>
-          </div>
-        ),
-      },
-    ],
-    [commitZoomDenominator, zoomDenominator, zoomInputValue],
-  )
+  const handleViewportWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const viewport = event.currentTarget
+    if (event.ctrlKey) {
+      event.preventDefault()
+      const direction = event.deltaY < 0 ? -1 : 1
+      const scale = direction < 0 ? 1 / CTRL_WHEEL_ZOOM_STEP : CTRL_WHEEL_ZOOM_STEP
+      const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
+      const viewportRect = viewport.getBoundingClientRect()
+      const pointerX = Math.max(0, event.clientX - viewportRect.left)
+      const timestampUnderPointerUs = (viewport.scrollLeft + pointerX) * zoomDenominator
+      const nextScrollLeft = Math.max(0, timestampUnderPointerUs / nextZoomDenominator - pointerX)
+      flushSync(() => {
+        commitZoomDenominator(nextZoomDenominator)
+      })
+      viewport.scrollLeft = nextScrollLeft
+      return
+    }
+
+    const scrollDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+    if (scrollDelta === 0 || viewport.scrollWidth <= viewport.clientWidth) {
+      return
+    }
+    event.preventDefault()
+    viewport.scrollLeft += scrollDelta
+  }, [commitZoomDenominator, zoomDenominator])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -122,7 +98,11 @@ export const DrpdTimeStripInstrumentView = ({
       displayName={displayName}
       isEditMode={isEditMode}
       contentClassName={styles.content}
-      headerControls={headerControls}
+      headerAccessory={
+        <span className={styles.zoomReadout} aria-label={`Zoom 1:${zoomDenominator}`}>
+          Zoom 1:{zoomDenominator}
+        </span>
+      }
       onClose={
         onRemove
           ? () => {
@@ -135,6 +115,7 @@ export const DrpdTimeStripInstrumentView = ({
         ref={viewportRef}
         className={styles.viewport}
         data-testid="drpd-timestrip-viewport"
+        onWheel={handleViewportWheel}
       >
         <div
           className={styles.timeline}
