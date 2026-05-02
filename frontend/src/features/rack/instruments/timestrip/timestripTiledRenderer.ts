@@ -43,8 +43,12 @@ interface TilePoolEntry {
   context: CanvasRenderingContext2D | null
   tile: TimestripVisibleTile | null
   tileKey: string | null
+  pendingTile: TimestripVisibleTile | null
+  pendingTileKey: string | null
   requestId: number | null
   generation: number
+  readyBitmap: ImageBitmap | null
+  needsRerender: boolean
 }
 
 /**
@@ -156,6 +160,7 @@ export class TimestripTiledRenderer {
     this.pendingTiles.clear()
     this.worker?.terminate()
     for (const entry of this.pool) {
+      entry.readyBitmap?.close()
       entry.canvas.remove()
     }
     this.pool.length = 0
@@ -180,11 +185,9 @@ export class TimestripTiledRenderer {
     this.generation += 1
     this.pendingTiles.clear()
     for (const entry of this.pool) {
-      entry.tile = null
-      entry.tileKey = null
-      entry.requestId = null
+      this.cancelPendingReplacement(entry)
       entry.generation = this.generation
-      this.clearTileCanvas(entry)
+      entry.needsRerender = true
     }
     this.scheduleFrame()
   }
@@ -211,12 +214,9 @@ export class TimestripTiledRenderer {
       if (tileEnd < start || tileStart > end) {
         continue
       }
-      this.pendingTiles.delete(entry.tileKey)
-      entry.tile = null
-      entry.tileKey = null
-      entry.requestId = null
+      this.cancelPendingReplacement(entry)
       entry.generation = this.generation
-      this.clearTileCanvas(entry)
+      entry.needsRerender = true
     }
     this.scheduleFrame()
   }
@@ -262,12 +262,17 @@ export class TimestripTiledRenderer {
         context: canvas.getContext('2d'),
         tile: null,
         tileKey: null,
+        pendingTile: null,
+        pendingTileKey: null,
         requestId: null,
         generation: this.generation,
+        readyBitmap: null,
+        needsRerender: false,
       })
     }
     while (this.pool.length > targetSize) {
       const entry = this.pool.pop()
+      entry?.readyBitmap?.close()
       entry?.canvas.remove()
     }
     this.resizePoolCanvases()
@@ -281,12 +286,10 @@ export class TimestripTiledRenderer {
     for (const entry of this.pool) {
       entry.canvas.style.width = `${cssWidth}px`
       entry.canvas.style.height = `${cssHeight}px`
-      if (entry.canvas.width !== backingWidth) {
-        entry.canvas.width = backingWidth
+      if (entry.tileKey || entry.pendingTileKey || entry.readyBitmap) {
+        continue
       }
-      if (entry.canvas.height !== backingHeight) {
-        entry.canvas.height = backingHeight
-      }
+      this.resizeCanvasBackingStore(entry, backingWidth, backingHeight)
     }
   }
 
@@ -294,11 +297,9 @@ export class TimestripTiledRenderer {
     this.generation += 1
     this.pendingTiles.clear()
     for (const entry of this.pool) {
-      entry.tile = null
-      entry.tileKey = null
-      entry.requestId = null
+      this.cancelPendingReplacement(entry)
       entry.generation = this.generation
-      this.clearTileCanvas(entry)
+      entry.needsRerender = true
     }
   }
 
@@ -331,33 +332,66 @@ export class TimestripTiledRenderer {
     const visibleKeys = new Set(visibleTiles.map((tile) => tile.key))
 
     for (const entry of this.pool) {
-      if (entry.tileKey && !visibleKeys.has(entry.tileKey)) {
-        entry.tile = null
-        entry.tileKey = null
-        entry.requestId = null
-        this.clearTileCanvas(entry)
+      if (entry.tile) {
+        this.positionTileCanvas(entry, entry.tile)
+      }
+      if (!entry.readyBitmap) {
+        continue
+      }
+      if (entry.pendingTileKey && visibleKeys.has(entry.pendingTileKey)) {
+        this.commitPendingTile(entry)
+      } else {
+        this.cancelPendingReplacement(entry)
       }
     }
 
     for (const tile of visibleTiles) {
-      let entry = this.pool.find((candidate) => candidate.tileKey === tile.key)
+      let entry = this.pool.find((candidate) => (
+        candidate.tileKey === tile.key ||
+        candidate.pendingTileKey === tile.key
+      ))
       if (!entry) {
-        entry = this.pool.find((candidate) => candidate.tileKey === null)
+        entry = this.pool.find((candidate) => (
+          candidate.tileKey === null &&
+          candidate.pendingTileKey === null
+        ))
+      }
+      if (!entry) {
+        entry = this.pool.find((candidate) => (
+          candidate.tileKey !== null &&
+          !visibleKeys.has(candidate.tileKey) &&
+          candidate.pendingTileKey === null
+        ))
+      }
+      if (!entry) {
+        entry = this.pool.find((candidate) => (
+          candidate.pendingTileKey !== null &&
+          !visibleKeys.has(candidate.pendingTileKey)
+        ))
+        if (entry) {
+          this.cancelPendingReplacement(entry)
+        }
       }
       if (!entry) {
         continue
       }
-      if (entry.tileKey !== tile.key) {
-        entry.tile = tile
-        entry.tileKey = tile.key
-        entry.requestId = null
-        entry.generation = this.generation
-        this.clearTileCanvas(entry)
+      if (entry.tileKey !== tile.key && entry.pendingTileKey !== tile.key) {
         this.enqueueTile(entry, tile)
       } else {
-        entry.tile = tile
+        if (entry.tileKey === tile.key) {
+          entry.tile = tile
+        } else {
+          entry.pendingTile = tile
+        }
+        if (entry.needsRerender && entry.pendingTileKey !== tile.key) {
+          this.enqueueTile(entry, tile)
+        }
       }
-      this.positionTileCanvas(entry, tile)
+      if (entry.tileKey === tile.key) {
+        this.positionTileCanvas(entry, tile)
+      } else if (!entry.tileKey && entry.pendingTileKey === tile.key) {
+        this.positionTileCanvas(entry, tile)
+      }
     }
   }
 
@@ -368,8 +402,19 @@ export class TimestripTiledRenderer {
   }
 
   protected enqueueTile(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
+    if (entry.pendingTileKey === tile.key) {
+      return
+    }
+    this.cancelPendingReplacement(entry)
     const requestId = ++this.requestId
     entry.requestId = requestId
+    entry.pendingTile = tile
+    entry.pendingTileKey = tile.key
+    entry.generation = this.generation
+    entry.needsRerender = false
+    if (!entry.tileKey) {
+      this.positionTileCanvas(entry, tile)
+    }
     this.pendingTiles.set(tile.key, requestId)
     const digitalEntries = filterTimestripDigitalEntriesForTile(
       this.viewport.digitalEntries ?? [],
@@ -392,6 +437,9 @@ export class TimestripTiledRenderer {
     }
 
     if (entry.context) {
+      const backingWidth = Math.max(1, Math.ceil(TIMESTRIP_TILE_WIDTH_PX * this.viewport.dpr))
+      const backingHeight = Math.max(1, Math.ceil(Math.max(1, this.viewport.viewportHeightPx) * this.viewport.dpr))
+      this.resizeCanvasBackingStore(entry, backingWidth, backingHeight)
       drawTimestripTile(
         entry.context,
         tile,
@@ -400,6 +448,13 @@ export class TimestripTiledRenderer {
         digitalEntries,
         this.viewport.worldStartWallClockUs,
       )
+      entry.tile = tile
+      entry.tileKey = tile.key
+      entry.pendingTile = null
+      entry.pendingTileKey = null
+      entry.requestId = null
+      entry.generation = this.generation
+      this.positionTileCanvas(entry, tile)
     }
     this.pendingTiles.delete(tile.key)
   }
@@ -410,7 +465,7 @@ export class TimestripTiledRenderer {
       return
     }
     const entry = this.pool.find((candidate) => (
-      candidate.tileKey === message.tileKey &&
+      candidate.pendingTileKey === message.tileKey &&
       candidate.requestId === message.requestId &&
       candidate.generation === message.generation
     ))
@@ -418,12 +473,52 @@ export class TimestripTiledRenderer {
       message.bitmap.close()
       return
     }
+    entry.readyBitmap?.close()
+    entry.readyBitmap = message.bitmap
+    this.scheduleFrame()
+  }
+
+  protected commitPendingTile(entry: TilePoolEntry): void {
+    if (!entry.context || !entry.readyBitmap || !entry.pendingTile || !entry.pendingTileKey) {
+      return
+    }
+    const backingWidth = Math.max(1, Math.ceil(TIMESTRIP_TILE_WIDTH_PX * this.viewport.dpr))
+    const backingHeight = Math.max(1, Math.ceil(Math.max(1, this.viewport.viewportHeightPx) * this.viewport.dpr))
+    this.resizeCanvasBackingStore(entry, backingWidth, backingHeight)
     entry.context.setTransform(1, 0, 0, 1, 0, 0)
     entry.context.clearRect(0, 0, entry.canvas.width, entry.canvas.height)
-    entry.context.drawImage(message.bitmap, 0, 0)
-    message.bitmap.close()
-    this.pendingTiles.delete(message.tileKey)
+    entry.context.drawImage(entry.readyBitmap, 0, 0)
+    entry.readyBitmap.close()
+    entry.readyBitmap = null
+    this.pendingTiles.delete(entry.pendingTileKey)
+    entry.tile = entry.pendingTile
+    entry.tileKey = entry.pendingTileKey
+    entry.pendingTile = null
+    entry.pendingTileKey = null
     entry.requestId = null
+    entry.generation = this.generation
+    entry.needsRerender = false
+    this.positionTileCanvas(entry, entry.tile)
+  }
+
+  protected cancelPendingReplacement(entry: TilePoolEntry): void {
+    if (entry.pendingTileKey) {
+      this.pendingTiles.delete(entry.pendingTileKey)
+    }
+    entry.readyBitmap?.close()
+    entry.readyBitmap = null
+    entry.pendingTile = null
+    entry.pendingTileKey = null
+    entry.requestId = null
+  }
+
+  protected resizeCanvasBackingStore(entry: TilePoolEntry, backingWidth: number, backingHeight: number): void {
+    if (entry.canvas.width !== backingWidth) {
+      entry.canvas.width = backingWidth
+    }
+    if (entry.canvas.height !== backingHeight) {
+      entry.canvas.height = backingHeight
+    }
   }
 
   protected clearTileCanvas(entry: TilePoolEntry): void {

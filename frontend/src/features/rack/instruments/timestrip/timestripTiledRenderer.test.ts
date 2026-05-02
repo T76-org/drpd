@@ -46,6 +46,10 @@ class TestWorker {
   public readonly terminate = vi.fn()
 }
 
+const makeBitmap = () => ({
+  close: vi.fn(),
+}) as unknown as ImageBitmap
+
 describe('TimestripTiledRenderer', () => {
   it('sizes the tile canvas pool to visible tiles plus left/right spare', () => {
     expect(calculateTimestripTilePoolSize(0)).toBe(3)
@@ -149,6 +153,134 @@ describe('TimestripTiledRenderer', () => {
     expect(Array.from(tileLayer.querySelectorAll('canvas'))).toEqual(initialTileCanvases)
     expect(worker.postMessage.mock.calls.length).toBe(primedRequestCount + 1)
     expect(worker.postMessage.mock.calls.at(-1)?.[0].tile.key).toBe('z1000:3:0')
+
+    renderer.dispose()
+  })
+
+  it('keeps committed tile pixels until a replacement bitmap is ready', () => {
+    const contexts = [
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+    ]
+    let contextIndex = 0
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () => contexts[Math.min(contextIndex++, contexts.length - 1)] as unknown as CanvasRenderingContext2D,
+    )
+    const tileLayer = document.createElement('div')
+    const frameCallbacks: FrameRequestCallback[] = []
+    const worker = new TestWorker()
+    const renderer = new TimestripTiledRenderer({
+      tileLayer,
+      createWorker: () => worker as unknown as Worker,
+      requestAnimationFrame: (callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      },
+      cancelAnimationFrame: vi.fn(),
+    })
+
+    renderer.setViewport(buildViewport(1000))
+    frameCallbacks.shift()?.(0)
+    const firstRequest = worker.postMessage.mock.calls[0][0]
+    worker.onmessage?.({
+      data: {
+        type: 'tileRendered',
+        requestId: firstRequest.requestId,
+        tileKey: firstRequest.tile.key,
+        tile: firstRequest.tile,
+        bitmap: makeBitmap(),
+        generation: firstRequest.generation,
+      },
+    } as MessageEvent<unknown>)
+    frameCallbacks.shift()?.(16)
+    const firstCanvasContext = contexts[0]
+    const committedClearCount = vi.mocked(firstCanvasContext.clearRect).mock.calls.length
+
+    renderer.invalidateAllTiles()
+    frameCallbacks.shift()?.(32)
+
+    expect(firstCanvasContext.clearRect).toHaveBeenCalledTimes(committedClearCount)
+    expect(worker.postMessage.mock.calls.length).toBeGreaterThan(2)
+
+    renderer.dispose()
+  })
+
+  it('defers backing-store resize for committed canvases until replacement pixels are ready', () => {
+    const contexts = [
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+    ]
+    let contextIndex = 0
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () => contexts[Math.min(contextIndex++, contexts.length - 1)] as unknown as CanvasRenderingContext2D,
+    )
+    const tileLayer = document.createElement('div')
+    const frameCallbacks: FrameRequestCallback[] = []
+    const worker = new TestWorker()
+    const renderer = new TimestripTiledRenderer({
+      tileLayer,
+      createWorker: () => worker as unknown as Worker,
+      requestAnimationFrame: (callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      },
+      cancelAnimationFrame: vi.fn(),
+    })
+
+    renderer.setViewport(buildViewport(1000))
+    frameCallbacks.shift()?.(0)
+    const firstRequest = worker.postMessage.mock.calls[0][0]
+    worker.onmessage?.({
+      data: {
+        type: 'tileRendered',
+        requestId: firstRequest.requestId,
+        tileKey: firstRequest.tile.key,
+        tile: firstRequest.tile,
+        bitmap: makeBitmap(),
+        generation: firstRequest.generation,
+      },
+    } as MessageEvent<unknown>)
+    frameCallbacks.shift()?.(16)
+    const firstCanvas = tileLayer.querySelector('canvas')
+    const firstCanvasContext = contexts[0]
+    const committedClearCount = vi.mocked(firstCanvasContext.clearRect).mock.calls.length
+
+    renderer.setViewport({
+      ...buildViewport(1000),
+      viewportHeightPx: 180,
+    })
+    frameCallbacks.shift()?.(32)
+
+    expect(firstCanvas?.style.height).toBe('180px')
+    expect(firstCanvas?.height).toBe(120)
+    expect(firstCanvasContext.clearRect).toHaveBeenCalledTimes(committedClearCount)
+
+    let replacementRequest = firstRequest
+    for (let index = worker.postMessage.mock.calls.length - 1; index >= 0; index -= 1) {
+      const request = worker.postMessage.mock.calls[index][0]
+      if (request.tile.key === firstRequest.tile.key) {
+        replacementRequest = request
+        break
+      }
+    }
+    worker.onmessage?.({
+      data: {
+        type: 'tileRendered',
+        requestId: replacementRequest.requestId,
+        tileKey: replacementRequest.tile.key,
+        tile: replacementRequest.tile,
+        bitmap: makeBitmap(),
+        generation: replacementRequest.generation,
+      },
+    } as MessageEvent<unknown>)
+    frameCallbacks.shift()?.(48)
+
+    expect(firstCanvas?.height).toBe(180)
+    expect(firstCanvasContext.clearRect).toHaveBeenCalledTimes(committedClearCount + 1)
 
     renderer.dispose()
   })
