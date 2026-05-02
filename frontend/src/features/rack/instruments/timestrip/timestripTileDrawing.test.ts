@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { TimestripVisibleTile } from './timestripLayout'
 import { drawTimestripTile } from './timestripTileDrawing'
+import { DEFAULT_TIMESTRIP_THEME } from './timestripTheme'
 
 const buildContext = () =>
   ({
@@ -42,10 +43,25 @@ describe('timestripTileDrawing', () => {
   it('draws lane backgrounds without tile-local tick labels', () => {
     const context = buildContext()
 
-    drawTimestripTile(context, tile, 2, 1_700_000_000_000_000)
+    drawTimestripTile(context, tile, 2, DEFAULT_TIMESTRIP_THEME)
 
     expect(context.scale).toHaveBeenCalledWith(2, 2)
     expect(context.fillRect).toHaveBeenCalled()
     expect(context.fillText).not.toHaveBeenCalled()
+  })
+
+  it('uses the provided theme for lane backgrounds', () => {
+    const context = buildContext()
+
+    drawTimestripTile(context, tile, 1, {
+      canvasBackground: '#ffffff',
+      timeAxisBackground: '#eeeeee',
+      digitalBackground: '#dddddd',
+      analogBackground: '#cccccc',
+      tickColor: '#222222',
+      tickTextColor: '#111111',
+    })
+
+    expect(context.fillStyle).toBe('#cccccc')
   })
 })

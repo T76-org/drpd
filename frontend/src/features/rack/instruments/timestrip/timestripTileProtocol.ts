@@ -1,11 +1,12 @@
 import type { TimestripVisibleTile } from './timestripLayout'
+import type { TimestripThemePalette } from './timestripTheme'
 
 export interface TimestripTileRenderRequest {
   type: 'renderTile'
   requestId: number
   tile: TimestripVisibleTile
   dpr: number
-  worldStartWallClockUs: number
+  theme: TimestripThemePalette
 }
 
 export interface TimestripTileRenderResponse {

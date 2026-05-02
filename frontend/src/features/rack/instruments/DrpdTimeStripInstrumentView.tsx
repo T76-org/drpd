@@ -8,6 +8,7 @@ import {
   calculateTimestripWidthPx,
   clampTimestripZoomDenominator,
 } from './timestrip/timestripLayout'
+import { getTimestripThemePalette } from './timestrip/timestripTheme'
 import { TimestripTiledRenderer } from './timestrip/timestripTiledRenderer'
 
 const PLACEHOLDER_TIMELINE_START_US = 0n
@@ -16,6 +17,9 @@ const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const DEFAULT_ZOOM_DENOMINATOR = 1000
 const CTRL_WHEEL_ZOOM_STEP = 1.1
 const RANGE_SYNC_INTERVAL_MS = 1200
+const readThemeName = () => (
+  typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
+)
 
 /**
  * Standalone DRPD timestrip instrument shell.
@@ -44,6 +48,8 @@ export const DrpdTimeStripInstrumentView = ({
   const [viewportHeightPx, setViewportHeightPx] = useState(0)
   const [scrollLeftPx, setScrollLeftPx] = useState(0)
   const [zoomDenominator, setZoomDenominator] = useState(DEFAULT_ZOOM_DENOMINATOR)
+  const [themeName, setThemeName] = useState(readThemeName)
+  const theme = getTimestripThemePalette(themeName)
   const timelineWidthPx = calculateTimestripWidthPx(
     timelineRange.durationUs,
     zoomDenominator,
@@ -108,6 +114,23 @@ export const DrpdTimeStripInstrumentView = ({
       setViewportHeightPx(Math.max(0, Math.floor(blockSize ?? viewport.clientHeight)))
     })
     observer.observe(viewport)
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof MutationObserver === 'undefined') {
+      return undefined
+    }
+
+    const observer = new MutationObserver(() => {
+      setThemeName(readThemeName())
+    })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    })
     return () => {
       observer.disconnect()
     }
@@ -199,9 +222,11 @@ export const DrpdTimeStripInstrumentView = ({
       viewportHeightPx,
       dpr: window.devicePixelRatio || 1,
       worldStartWallClockUs: timelineRange.worldStartWallClockUs,
+      theme,
     })
   }, [
     scrollLeftPx,
+    theme,
     timelineRange.worldStartWallClockUs,
     viewportHeightPx,
     viewportWidthPx,

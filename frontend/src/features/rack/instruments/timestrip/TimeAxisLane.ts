@@ -1,6 +1,7 @@
 import { scaleTime } from 'd3'
 import { scrollLeftToWorldUs, type TimestripVisibleTile } from './timestripLayout'
 import type { TimestripLaneLayout } from './timestripLaneLayout'
+import type { TimestripThemePalette } from './timestripTheme'
 
 export interface TimestripTick {
   date: Date
@@ -54,7 +55,7 @@ export const selectTimeAxisTicks = (
     const ticks = scale.ticks(count).map((date) => ({
       date,
       label: formatTimestripTickLabel(date),
-      xPx: scale(date),
+      xPx: scale(date) as number,
     }))
     if (ticks.length === 0) {
       continue
@@ -86,8 +87,9 @@ export const drawTimeAxisLane = (
   tile: TimestripVisibleTile,
   layout: TimestripLaneLayout,
   worldStartWallClockUs: number,
+  theme: TimestripThemePalette,
 ): void => {
-  context.fillStyle = '#161d26'
+  context.fillStyle = theme.timeAxisBackground
   context.fillRect(-tile.bleedPx, layout.timeAxis.y, tile.widthPx + tile.bleedPx * 2, layout.timeAxis.height)
 
   const ticks = selectTimeAxisTicks(context, tile, layout, worldStartWallClockUs)
@@ -95,8 +97,8 @@ export const drawTimeAxisLane = (
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
   context.textAlign = 'center'
   context.textBaseline = 'top'
-  context.strokeStyle = 'rgba(255, 255, 255, 0.34)'
-  context.fillStyle = 'rgba(255, 255, 255, 0.82)'
+  context.strokeStyle = theme.tickColor
+  context.fillStyle = theme.tickTextColor
   context.lineWidth = 1
 
   const tickTop = layout.timeAxis.height - layout.timeAxis.tickHeightPx
@@ -130,6 +132,7 @@ export const drawTimeAxisViewportOverlay = (
   scrollLeftPx: number,
   layout: TimestripLaneLayout,
   worldStartWallClockUs: number,
+  theme: TimestripThemePalette,
 ): void => {
   const scrollWorldUs = scrollLeftToWorldUs(scrollLeftPx, zoomDenominator)
   const startWallClockMs = (worldStartWallClockUs + scrollWorldUs) / 1000
@@ -143,8 +146,8 @@ export const drawTimeAxisViewportOverlay = (
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
   context.textAlign = 'center'
   context.textBaseline = 'top'
-  context.strokeStyle = 'rgba(255, 255, 255, 0.34)'
-  context.fillStyle = 'rgba(255, 255, 255, 0.82)'
+  context.strokeStyle = theme.tickColor
+  context.fillStyle = theme.tickTextColor
   context.lineWidth = 1
 
   const tickTop = layout.timeAxis.height - layout.timeAxis.tickHeightPx
@@ -171,7 +174,7 @@ const selectTicksForScale = (
     const ticks = scale.ticks(count).map((date) => ({
       date,
       label: formatTimestripTickLabel(date),
-      xPx: scale(date),
+      xPx: scale(date) as number,
     }))
     if (ticks.length === 0) {
       continue

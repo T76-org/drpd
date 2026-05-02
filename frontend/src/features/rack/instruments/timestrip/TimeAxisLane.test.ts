@@ -6,6 +6,7 @@ import {
   selectTimeAxisTicks,
 } from './TimeAxisLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
+import { DEFAULT_TIMESTRIP_THEME } from './timestripTheme'
 
 const buildContext = (labelWidth: number) =>
   ({
@@ -68,6 +69,7 @@ describe('TimeAxisLane', () => {
       0,
       buildTimestripLaneLayout(240),
       1_700_000_000_000_000,
+      DEFAULT_TIMESTRIP_THEME,
     )
 
     expect(context.fillText).toHaveBeenCalled()

@@ -10,6 +10,11 @@ import {
 import { drawTimestripTile } from './timestripTileDrawing'
 import { drawTimeAxisViewportOverlay } from './TimeAxisLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
+import {
+  DEFAULT_TIMESTRIP_THEME,
+  getTimestripThemeCacheKey,
+  type TimestripThemePalette,
+} from './timestripTheme'
 
 const DEFAULT_MAX_TILE_COUNT = 96
 
@@ -20,6 +25,7 @@ export interface TimestripRendererViewport {
   viewportHeightPx: number
   dpr: number
   worldStartWallClockUs: number
+  theme?: TimestripThemePalette
 }
 
 export interface TimestripRendererOptions {
@@ -51,11 +57,13 @@ export class TimestripTiledRenderer {
   protected viewport: TimestripRendererViewport ///< Latest viewport state.
   protected frameHandle: number | null ///< Pending RAF handle.
   protected requestId: number ///< Monotonic tile request id.
+  protected minimumRequestId: number ///< Oldest tile response accepted after cache resets.
   protected disposed: boolean ///< True after disposal.
   protected cacheDpr: number ///< DPR used by current cache.
   protected cacheHeightPx: number ///< Tile height used by current cache.
   protected cacheWallClockOriginUs: number ///< Wall-clock origin used by current cache.
   protected cacheZoomDenominator: number ///< Zoom denominator used by current cache.
+  protected cacheThemeKey: string ///< Theme palette identity used by current cache.
 
   /**
    * Create a tiled renderer.
@@ -77,14 +85,17 @@ export class TimestripTiledRenderer {
       viewportHeightPx: 0,
       dpr: 1,
       worldStartWallClockUs: 0,
+      theme: DEFAULT_TIMESTRIP_THEME,
     }
     this.frameHandle = null
     this.requestId = 0
+    this.minimumRequestId = 0
     this.disposed = false
     this.cacheDpr = 1
     this.cacheHeightPx = 0
     this.cacheWallClockOriginUs = 0
     this.cacheZoomDenominator = 1000
+    this.cacheThemeKey = getTimestripThemeCacheKey(DEFAULT_TIMESTRIP_THEME)
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()
     if (this.worker) {
       this.worker.onmessage = (event: MessageEvent<TimestripTileWorkerResponse>) => {
@@ -107,16 +118,19 @@ export class TimestripTiledRenderer {
       nextViewport.dpr !== this.cacheDpr ||
       nextViewport.viewportHeightPx !== this.cacheHeightPx ||
       nextViewport.worldStartWallClockUs !== this.cacheWallClockOriginUs ||
-      nextViewport.zoomDenominator !== this.cacheZoomDenominator
+      nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
+      getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
     this.viewport = nextViewport
     this.resizeCanvas()
     if (shouldResetCache) {
       this.clearCache()
       this.pendingTiles.clear()
+      this.minimumRequestId = this.requestId + 1
       this.cacheDpr = nextViewport.dpr
       this.cacheHeightPx = nextViewport.viewportHeightPx
       this.cacheWallClockOriginUs = nextViewport.worldStartWallClockUs
       this.cacheZoomDenominator = nextViewport.zoomDenominator
+      this.cacheThemeKey = getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME)
     }
     this.scheduleComposite()
   }
@@ -177,6 +191,7 @@ export class TimestripTiledRenderer {
       return
     }
     const { viewportWidthPx, viewportHeightPx, dpr, scrollLeftPx, zoomDenominator } = this.viewport
+    const theme = this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME
     if (viewportWidthPx <= 0 || viewportHeightPx <= 0) {
       return
     }
@@ -192,7 +207,7 @@ export class TimestripTiledRenderer {
 
     this.context.setTransform(dpr, 0, 0, dpr, 0, 0)
     this.context.clearRect(0, 0, viewportWidthPx, viewportHeightPx)
-    this.context.fillStyle = '#10141a'
+    this.context.fillStyle = theme.canvasBackground
     this.context.fillRect(0, 0, viewportWidthPx, viewportHeightPx)
 
     const scrollWorldUs = scrollLeftToWorldUs(scrollLeftPx, zoomDenominator)
@@ -221,6 +236,7 @@ export class TimestripTiledRenderer {
       scrollLeftPx,
       buildTimestripLaneLayout(viewportHeightPx),
       this.viewport.worldStartWallClockUs,
+      theme,
     )
 
     this.evictTiles(visibleKeys)
@@ -236,7 +252,7 @@ export class TimestripTiledRenderer {
       requestId: ++this.requestId,
       tile,
       dpr: this.viewport.dpr,
-      worldStartWallClockUs: this.viewport.worldStartWallClockUs,
+      theme: this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
     }
     if (this.worker) {
       this.worker.postMessage(request)
@@ -257,13 +273,17 @@ export class TimestripTiledRenderer {
     canvas.height = Math.max(1, Math.ceil(tile.heightPx * dpr))
     const context = canvas.getContext('2d')
     if (context) {
-      drawTimestripTile(context, tile, dpr, this.viewport.worldStartWallClockUs)
+      drawTimestripTile(context, tile, dpr, this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME)
     }
     return canvas
   }
 
   protected handleWorkerMessage(message: TimestripTileWorkerResponse): void {
-    if (this.disposed || message.type !== 'tileRendered') {
+    if (
+      this.disposed ||
+      message.type !== 'tileRendered' ||
+      message.requestId < this.minimumRequestId
+    ) {
       message.bitmap.close()
       return
     }
@@ -327,4 +347,5 @@ export const normalizeViewport = (viewport: TimestripRendererViewport): Timestri
   worldStartWallClockUs: Number.isFinite(viewport.worldStartWallClockUs)
     ? viewport.worldStartWallClockUs
     : 0,
+  theme: viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
 })

@@ -2,6 +2,7 @@ import type { TimestripVisibleTile } from './timestripLayout'
 import { drawAnalogTraceLane } from './AnalogTraceLane'
 import { drawDigitalTraceLane } from './DigitalTraceLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
+import type { TimestripThemePalette } from './timestripTheme'
 
 /**
  * Draw a deterministic timestrip tile.
@@ -9,13 +10,13 @@ import { buildTimestripLaneLayout } from './timestripLaneLayout'
  * @param context - Canvas 2D rendering context.
  * @param tile - Tile descriptor.
  * @param dpr - Device pixel ratio.
- * @param worldStartWallClockUs - Wall-clock microseconds at world X = 0.
+ * @param theme - Current theme palette.
  */
 export const drawTimestripTile = (
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   tile: TimestripVisibleTile,
   dpr: number,
-  _worldStartWallClockUs: number,
+  theme: TimestripThemePalette,
 ): void => {
   const width = tile.widthPx
   const bleed = tile.bleedPx
@@ -27,10 +28,10 @@ export const drawTimestripTile = (
   context.translate(bleed, 0)
 
   const layout = buildTimestripLaneLayout(height)
-  context.fillStyle = '#161d26'
+  context.fillStyle = theme.timeAxisBackground
   context.fillRect(0, layout.timeAxis.y, width, layout.timeAxis.height)
-  drawDigitalTraceLane(context, layout, width)
-  drawAnalogTraceLane(context, layout, width)
+  drawDigitalTraceLane(context, layout, width, theme)
+  drawAnalogTraceLane(context, layout, width, theme)
 
   context.restore()
 }
