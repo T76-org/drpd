@@ -15,6 +15,10 @@ import {
   getTimestripThemeCacheKey,
   type TimestripThemePalette,
 } from './timestripTheme'
+import {
+  filterTimestripDigitalEntriesForTile,
+  type TimestripDigitalEntry,
+} from './timestripDigitalModel'
 
 const DEFAULT_MAX_TILE_COUNT = 96
 
@@ -26,6 +30,8 @@ export interface TimestripRendererViewport {
   dpr: number
   worldStartWallClockUs: number
   theme?: TimestripThemePalette
+  digitalEntries?: TimestripDigitalEntry[]
+  digitalDataRevision?: number
 }
 
 export interface TimestripRendererOptions {
@@ -64,6 +70,7 @@ export class TimestripTiledRenderer {
   protected cacheWallClockOriginUs: number ///< Wall-clock origin used by current cache.
   protected cacheZoomDenominator: number ///< Zoom denominator used by current cache.
   protected cacheThemeKey: string ///< Theme palette identity used by current cache.
+  protected cacheDigitalDataRevision: number ///< Digital data revision used by current cache.
 
   /**
    * Create a tiled renderer.
@@ -86,6 +93,8 @@ export class TimestripTiledRenderer {
       dpr: 1,
       worldStartWallClockUs: 0,
       theme: DEFAULT_TIMESTRIP_THEME,
+      digitalEntries: [],
+      digitalDataRevision: 0,
     }
     this.frameHandle = null
     this.requestId = 0
@@ -96,6 +105,7 @@ export class TimestripTiledRenderer {
     this.cacheWallClockOriginUs = 0
     this.cacheZoomDenominator = 1000
     this.cacheThemeKey = getTimestripThemeCacheKey(DEFAULT_TIMESTRIP_THEME)
+    this.cacheDigitalDataRevision = 0
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()
     if (this.worker) {
       this.worker.onmessage = (event: MessageEvent<TimestripTileWorkerResponse>) => {
@@ -119,7 +129,8 @@ export class TimestripTiledRenderer {
       nextViewport.viewportHeightPx !== this.cacheHeightPx ||
       nextViewport.worldStartWallClockUs !== this.cacheWallClockOriginUs ||
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
-      getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
+      getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey ||
+      (nextViewport.digitalDataRevision ?? 0) !== this.cacheDigitalDataRevision
     this.viewport = nextViewport
     this.resizeCanvas()
     if (shouldResetCache) {
@@ -131,6 +142,7 @@ export class TimestripTiledRenderer {
       this.cacheWallClockOriginUs = nextViewport.worldStartWallClockUs
       this.cacheZoomDenominator = nextViewport.zoomDenominator
       this.cacheThemeKey = getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME)
+      this.cacheDigitalDataRevision = nextViewport.digitalDataRevision ?? 0
     }
     this.scheduleComposite()
   }
@@ -253,6 +265,11 @@ export class TimestripTiledRenderer {
       tile,
       dpr: this.viewport.dpr,
       theme: this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
+      digitalEntries: filterTimestripDigitalEntriesForTile(
+        this.viewport.digitalEntries ?? [],
+        tile.worldLeftUs - tile.bleedPx * tile.zoomLevelDenominator,
+        tile.worldLeftUs + tile.worldWidthUs + tile.bleedPx * tile.zoomLevelDenominator,
+      ),
     }
     if (this.worker) {
       this.worker.postMessage(request)
@@ -273,7 +290,17 @@ export class TimestripTiledRenderer {
     canvas.height = Math.max(1, Math.ceil(tile.heightPx * dpr))
     const context = canvas.getContext('2d')
     if (context) {
-      drawTimestripTile(context, tile, dpr, this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME)
+      drawTimestripTile(
+        context,
+        tile,
+        dpr,
+        this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
+        filterTimestripDigitalEntriesForTile(
+          this.viewport.digitalEntries ?? [],
+          tile.worldLeftUs - tile.bleedPx * tile.zoomLevelDenominator,
+          tile.worldLeftUs + tile.worldWidthUs + tile.bleedPx * tile.zoomLevelDenominator,
+        ),
+      )
     }
     return canvas
   }
@@ -348,4 +375,6 @@ export const normalizeViewport = (viewport: TimestripRendererViewport): Timestri
     ? viewport.worldStartWallClockUs
     : 0,
   theme: viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
+  digitalEntries: viewport.digitalEntries ?? [],
+  digitalDataRevision: Math.max(0, Math.floor(viewport.digitalDataRevision ?? 0)),
 })

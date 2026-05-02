@@ -12,6 +12,8 @@ const buildContext = () =>
     lineTo: vi.fn(),
     measureText: vi.fn((text: string) => ({ width: text.length * 6 })),
     moveTo: vi.fn(),
+    clip: vi.fn(),
+    rect: vi.fn(),
     restore: vi.fn(),
     save: vi.fn(),
     scale: vi.fn(),
@@ -60,6 +62,18 @@ describe('timestripTileDrawing', () => {
       analogBackground: '#cccccc',
       tickColor: '#222222',
       tickTextColor: '#111111',
+      messageFillColor: '#aaaaaa',
+      messageStrokeColor: '#999999',
+      messageTextColor: '#888888',
+      waveformColor: '#777777',
+      componentFillColor: '#666666',
+      byteFillColor: '#555555',
+      eventCaptureColor: '#f00',
+      eventRoleColor: '#0f0',
+      eventStatusColor: '#00f',
+      eventMarkColor: '#ff0',
+      eventOvpColor: '#f0f',
+      eventOcpColor: '#0ff',
     })
 
     expect(context.fillStyle).toBe('#cccccc')

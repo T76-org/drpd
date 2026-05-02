@@ -133,6 +133,8 @@ export interface CapturedMessageQuery {
   startTimestampUs: bigint
   ///< Inclusive end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Timestamp column used for start/end filtering.
+  timeBasis?: 'device' | 'wallClock'
   ///< Sort order by start timestamp.
   sortOrder?: 'asc' | 'desc'
   ///< Optional message kind filter.

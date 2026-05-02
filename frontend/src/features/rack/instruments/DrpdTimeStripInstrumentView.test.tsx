@@ -13,6 +13,8 @@ const buildCanvasContext = () => ({
   lineTo: vi.fn(),
   measureText: vi.fn((text: string) => ({ width: text.length * 6 })),
   moveTo: vi.fn(),
+  clip: vi.fn(),
+  rect: vi.fn(),
   restore: vi.fn(),
   save: vi.fn(),
   scale: vi.fn(),

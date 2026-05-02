@@ -3,6 +3,7 @@ import { drawAnalogTraceLane } from './AnalogTraceLane'
 import { drawDigitalTraceLane } from './DigitalTraceLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
 import type { TimestripThemePalette } from './timestripTheme'
+import type { TimestripDigitalEntry } from './timestripDigitalModel'
 
 /**
  * Draw a deterministic timestrip tile.
@@ -17,6 +18,7 @@ export const drawTimestripTile = (
   tile: TimestripVisibleTile,
   dpr: number,
   theme: TimestripThemePalette,
+  digitalEntries: TimestripDigitalEntry[] = [],
 ): void => {
   const width = tile.widthPx
   const bleed = tile.bleedPx
@@ -30,7 +32,11 @@ export const drawTimestripTile = (
   const layout = buildTimestripLaneLayout(height)
   context.fillStyle = theme.timeAxisBackground
   context.fillRect(0, layout.timeAxis.y, width, layout.timeAxis.height)
-  drawDigitalTraceLane(context, layout, width, theme)
+  drawDigitalTraceLane(context, layout, width, theme, {
+    worldLeftUs: tile.worldLeftUs,
+    zoomDenominator: tile.zoomLevelDenominator,
+    entries: digitalEntries,
+  })
   drawAnalogTraceLane(context, layout, width, theme)
 
   context.restore()

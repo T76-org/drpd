@@ -7,9 +7,17 @@ import styles from './DrpdTimeStripInstrumentView.module.css'
 import {
   calculateTimestripWidthPx,
   clampTimestripZoomDenominator,
+  TIMESTRIP_TILE_BLEED_PX,
+  TIMESTRIP_TILE_OVERSCAN,
+  TIMESTRIP_TILE_WIDTH_PX,
 } from './timestrip/timestripLayout'
 import { getTimestripThemePalette } from './timestrip/timestripTheme'
 import { TimestripTiledRenderer } from './timestrip/timestripTiledRenderer'
+import {
+  getTimestripDigitalQueryRange,
+  normalizeCapturedMessageForTimestrip,
+  type TimestripDigitalEntry,
+} from './timestrip/timestripDigitalModel'
 
 const PLACEHOLDER_TIMELINE_START_US = 0n
 const PLACEHOLDER_TIMELINE_END_US = 10_000_000n
@@ -17,8 +25,16 @@ const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const DEFAULT_ZOOM_DENOMINATOR = 1000
 const CTRL_WHEEL_ZOOM_STEP = 1.1
 const RANGE_SYNC_INTERVAL_MS = 1200
+const DIGITAL_SYNC_INTERVAL_MS = 600
+const DIGITAL_QUERY_LIMIT = 5000
+const DIGITAL_QUERY_OVERSCAN_PX =
+  TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1) + TIMESTRIP_TILE_BLEED_PX
 const readThemeName = () => (
   typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
+)
+const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
+  themeName,
+  typeof window === 'undefined' ? undefined : window.getComputedStyle(document.documentElement),
 )
 
 /**
@@ -49,7 +65,9 @@ export const DrpdTimeStripInstrumentView = ({
   const [scrollLeftPx, setScrollLeftPx] = useState(0)
   const [zoomDenominator, setZoomDenominator] = useState(DEFAULT_ZOOM_DENOMINATOR)
   const [themeName, setThemeName] = useState(readThemeName)
-  const theme = getTimestripThemePalette(themeName)
+  const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
+  const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
+  const [digitalDataRevision, setDigitalDataRevision] = useState(0)
   const timelineWidthPx = calculateTimestripWidthPx(
     timelineRange.durationUs,
     zoomDenominator,
@@ -125,7 +143,9 @@ export const DrpdTimeStripInstrumentView = ({
     }
 
     const observer = new MutationObserver(() => {
-      setThemeName(readThemeName())
+      const nextThemeName = readThemeName()
+      setThemeName(nextThemeName)
+      setTheme(readTimestripTheme(nextThemeName))
     })
     observer.observe(document.documentElement, {
       attributes: true,
@@ -135,6 +155,10 @@ export const DrpdTimeStripInstrumentView = ({
       observer.disconnect()
     }
   }, [])
+
+  useEffect(() => {
+    setTheme(readTimestripTheme(themeName))
+  }, [themeName])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -215,6 +239,63 @@ export const DrpdTimeStripInstrumentView = ({
   }, [deviceState?.drpdDriver])
 
   useEffect(() => {
+    const driver = deviceState?.drpdDriver
+    if (!driver || viewportWidthPx <= 0) {
+      setDigitalEntries([])
+      setDigitalDataRevision((revision) => revision + 1)
+      return undefined
+    }
+
+    let isActive = true
+    let queryGeneration = 0
+    const refreshDigitalEntries = async () => {
+      const generation = ++queryGeneration
+      const range = getTimestripDigitalQueryRange(
+        scrollLeftPx,
+        viewportWidthPx,
+        zoomDenominator,
+        timelineRange.worldStartWallClockUs,
+        DIGITAL_QUERY_OVERSCAN_PX,
+      )
+      try {
+        const rows = await driver.queryCapturedMessages({
+          startTimestampUs: range.startWallClockUs,
+          endTimestampUs: range.endWallClockUs,
+          timeBasis: 'wallClock',
+          sortOrder: 'asc',
+          limit: DIGITAL_QUERY_LIMIT,
+        })
+        if (!isActive || generation !== queryGeneration) {
+          return
+        }
+        const nextEntries = rows.flatMap((row) => {
+          const entry = normalizeCapturedMessageForTimestrip(row, timelineRange.worldStartWallClockUs)
+          return entry ? [entry] : []
+        })
+        setDigitalEntries(nextEntries)
+        setDigitalDataRevision((revision) => revision + 1)
+      } catch {
+        // Keep the last rendered entries when the log store is temporarily unavailable.
+      }
+    }
+
+    void refreshDigitalEntries()
+    const timer = window.setInterval(() => {
+      void refreshDigitalEntries()
+    }, DIGITAL_SYNC_INTERVAL_MS)
+    return () => {
+      isActive = false
+      window.clearInterval(timer)
+    }
+  }, [
+    deviceState?.drpdDriver,
+    scrollLeftPx,
+    timelineRange.worldStartWallClockUs,
+    viewportWidthPx,
+    zoomDenominator,
+  ])
+
+  useEffect(() => {
     rendererRef.current?.setViewport({
       scrollLeftPx,
       zoomDenominator,
@@ -223,8 +304,12 @@ export const DrpdTimeStripInstrumentView = ({
       dpr: window.devicePixelRatio || 1,
       worldStartWallClockUs: timelineRange.worldStartWallClockUs,
       theme,
+      digitalEntries,
+      digitalDataRevision,
     })
   }, [
+    digitalDataRevision,
+    digitalEntries,
     scrollLeftPx,
     theme,
     timelineRange.worldStartWallClockUs,

@@ -1,5 +1,6 @@
 import type { TimestripVisibleTile } from './timestripLayout'
 import type { TimestripThemePalette } from './timestripTheme'
+import type { TimestripDigitalEntry } from './timestripDigitalModel'
 
 export interface TimestripTileRenderRequest {
   type: 'renderTile'
@@ -7,6 +8,7 @@ export interface TimestripTileRenderRequest {
   tile: TimestripVisibleTile
   dpr: number
   theme: TimestripThemePalette
+  digitalEntries: TimestripDigitalEntry[]
 }
 
 export interface TimestripTileRenderResponse {

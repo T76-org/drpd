@@ -15,11 +15,6 @@ import {
   type DRPDLogSelectionState,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
-import {
-  CONTROL_MESSAGE_TYPES,
-  DATA_MESSAGE_TYPES,
-  EXTENDED_MESSAGE_TYPES,
-} from '../../../lib/device/drpd/usb-pd/message'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -36,6 +31,7 @@ import {
   type MessageLogColumnVisibility,
   type MessageLogColumnWidths,
 } from '../overlays/usbPdLog/messageLogColumns'
+import { getLogMessageTypeLabel } from '../messageLogExport'
 import { formatWallClock } from '../messageLogFormat'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLog.config'
@@ -116,7 +112,6 @@ const EMPTY_FILTERS: MessageLogFilters = {
   crcValid: { include: [], exclude: [] },
 }
 
-const INVALID_MESSAGE_TYPE_LABEL = 'Invalid message'
 const CRC_VALID_LABEL = 'Valid'
 const CRC_INVALID_LABEL = 'Invalid'
 
@@ -146,24 +141,6 @@ const normalizeSopType = (value: string | null): string => {
     default:
       return '--'
   }
-}
-
-const resolveMessageTypeLabel = (row: LoggedCapturedMessage): string => {
-  if (row.entryKind === 'message' && (row.decodeResult !== 0 || row.parseError)) {
-    return INVALID_MESSAGE_TYPE_LABEL
-  }
-  if (!row.messageKind || row.messageType == null) {
-    return '--'
-  }
-  const mapping =
-    row.messageKind === 'CONTROL'
-      ? CONTROL_MESSAGE_TYPES[row.messageType]
-      : row.messageKind === 'DATA'
-        ? DATA_MESSAGE_TYPES[row.messageType]
-        : row.messageKind === 'EXTENDED'
-          ? EXTENDED_MESSAGE_TYPES[row.messageType]
-          : undefined
-  return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
 }
 
 const isRowCrcValid = (row: LoggedCapturedMessage): boolean =>
@@ -224,7 +201,7 @@ const messageMatchesFilters = (
   }
   const senderReceiver = resolveSenderReceiver(row)
   return (
-    filterRuleMatches(filters.messageTypes, resolveMessageTypeLabel(row)) &&
+    filterRuleMatches(filters.messageTypes, getLogMessageTypeLabel(row)) &&
     filterRuleMatches(filters.senders, senderReceiver.sender) &&
     filterRuleMatches(filters.receivers, senderReceiver.receiver) &&
     filterRuleMatches(filters.sopTypes, normalizeSopType(row.sopKind)) &&
@@ -276,7 +253,7 @@ const toDisplayRows = (
       duration: formatMicroseconds(durationUs),
       delta: formatMicroseconds(deltaUs),
       messageId: row.messageId == null ? '--' : row.messageId.toString(),
-      messageType: resolveMessageTypeLabel(row),
+        messageType: getLogMessageTypeLabel(row),
       sender: senderReceiver.sender,
       receiver: senderReceiver.receiver,
       sopType: normalizeSopType(row.sopKind),

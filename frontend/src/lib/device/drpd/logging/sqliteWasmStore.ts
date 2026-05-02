@@ -786,6 +786,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
       query.limit != null && Number.isFinite(query.limit) && query.limit > 0
         ? Math.floor(query.limit)
         : null
+    const isWallClockQuery = query.timeBasis === 'wallClock'
+    const getRowQueryTimestamp = (row: LoggedCapturedMessage): bigint | null =>
+      isWallClockQuery ? row.wallClockUs : row.startTimestampUs
     if (this.memoryFallback) {
       const hasMessageKinds = Boolean(query.messageKinds?.length)
       const hasSenderPowerRoles = Boolean(query.senderPowerRoles?.length)
@@ -793,7 +796,12 @@ export class SQLiteWasmStore implements DRPDLogStore {
       const hasSopKinds = Boolean(query.sopKinds?.length)
       const rows = this.memoryFallback.capturedMessages
         .filter((row) => {
-          if (row.startTimestampUs < query.startTimestampUs || row.startTimestampUs > query.endTimestampUs) {
+          const queryTimestamp = getRowQueryTimestamp(row)
+          if (
+            queryTimestamp === null ||
+            queryTimestamp < query.startTimestampUs ||
+            queryTimestamp > query.endTimestampUs
+          ) {
             return false
           }
           if (hasMessageKinds && (!row.messageKind || !query.messageKinds?.includes(row.messageKind))) {
@@ -816,13 +824,15 @@ export class SQLiteWasmStore implements DRPDLogStore {
           }
           return true
         })
-        .sort((left, right) =>
-          left.startTimestampUs < right.startTimestampUs
+        .sort((left, right) => {
+          const leftTimestamp = getRowQueryTimestamp(left) ?? 0n
+          const rightTimestamp = getRowQueryTimestamp(right) ?? 0n
+          return leftTimestamp < rightTimestamp
             ? -1
-            : left.startTimestampUs > right.startTimestampUs
+            : leftTimestamp > rightTimestamp
               ? 1
-              : 0,
-        )
+              : 0
+        })
       const sortedRows = sortOrder === 'desc' ? rows.reverse() : rows
       const pagedRows = offset > 0 ? sortedRows.slice(offset) : sortedRows
       if (limit === null) {
@@ -830,9 +840,13 @@ export class SQLiteWasmStore implements DRPDLogStore {
       }
       return pagedRows.slice(0, limit)
     }
+    const firstPendingQueryTimestamp =
+      this.pendingCapturedMessages.length > 0
+        ? getRowQueryTimestamp(this.pendingCapturedMessages[0].row)
+        : null
     const hasPending =
-      this.pendingCapturedMessages.length > 0 &&
-      query.endTimestampUs >= this.pendingCapturedMessages[0]?.row.startTimestampUs
+      firstPendingQueryTimestamp !== null &&
+      query.endTimestampUs >= firstPendingQueryTimestamp
     if (!hasPending) {
       return await this.queryCommittedCapturedMessages(query)
     }
@@ -840,6 +854,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const isUnfilteredFullRange =
       query.startTimestampUs === 0n &&
       query.endTimestampUs === SQLITE_MAX_TIMESTAMP_US &&
+      !isWallClockQuery &&
       !query.messageKinds?.length &&
       !query.senderPowerRoles?.length &&
       !query.senderDataRoles?.length &&
@@ -893,9 +908,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
     })
     const mergedRows = committedRows.concat(pendingRows).sort((left, right) => {
       const cmp =
-        left.startTimestampUs < right.startTimestampUs
+        (getRowQueryTimestamp(left) ?? 0n) < (getRowQueryTimestamp(right) ?? 0n)
           ? -1
-          : left.startTimestampUs > right.startTimestampUs
+          : (getRowQueryTimestamp(left) ?? 0n) > (getRowQueryTimestamp(right) ?? 0n)
             ? 1
             : left.createdAtMs - right.createdAtMs
       return sortOrder === 'desc' ? -cmp : cmp
@@ -964,7 +979,8 @@ export class SQLiteWasmStore implements DRPDLogStore {
       query.limit != null && Number.isFinite(query.limit) && query.limit > 0
         ? Math.floor(query.limit)
         : null
-    const clauses = ['start_timestamp_us >= ?', 'start_timestamp_us <= ?']
+    const timeColumn = query.timeBasis === 'wallClock' ? 'wall_clock_us' : 'start_timestamp_us'
+    const clauses = [`${timeColumn} >= ?`, `${timeColumn} <= ?`]
     const bind: Array<SqlValue> = [
       clampSqliteTimestampUs(query.startTimestampUs),
       clampSqliteTimestampUs(query.endTimestampUs),
@@ -992,7 +1008,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
       'FROM captured_messages',
       `WHERE ${clauses.join(' AND ')}`,
-      `ORDER BY start_timestamp_us ${sortOrder.toUpperCase()}, id ${sortOrder.toUpperCase()}`,
+      `ORDER BY ${timeColumn} ${sortOrder.toUpperCase()}, id ${sortOrder.toUpperCase()}`,
     ]
     if (limit !== null) {
       sqlParts.push('LIMIT ?')
@@ -1054,9 +1070,17 @@ export class SQLiteWasmStore implements DRPDLogStore {
    */
   protected filterPendingCapturedMessages(query: CapturedMessageQuery): LoggedCapturedMessage[] {
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    const isWallClockQuery = query.timeBasis === 'wallClock'
+    const getRowQueryTimestamp = (row: LoggedCapturedMessage): bigint | null =>
+      isWallClockQuery ? row.wallClockUs : row.startTimestampUs
     const rows = this.pendingCapturedMessages
       .filter(({ row }) => {
-        if (row.startTimestampUs < query.startTimestampUs || row.startTimestampUs > query.endTimestampUs) {
+        const queryTimestamp = getRowQueryTimestamp(row)
+        if (
+          queryTimestamp === null ||
+          queryTimestamp < query.startTimestampUs ||
+          queryTimestamp > query.endTimestampUs
+        ) {
           return false
         }
         if (query.messageKinds?.length && (!row.messageKind || !query.messageKinds.includes(row.messageKind))) {
@@ -1081,9 +1105,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
       })
       .sort((left, right) => {
         const cmp =
-          left.row.startTimestampUs < right.row.startTimestampUs
+          (getRowQueryTimestamp(left.row) ?? 0n) < (getRowQueryTimestamp(right.row) ?? 0n)
             ? -1
-            : left.row.startTimestampUs > right.row.startTimestampUs
+            : (getRowQueryTimestamp(left.row) ?? 0n) > (getRowQueryTimestamp(right.row) ?? 0n)
               ? 1
               : left.sequence - right.sequence
         return sortOrder === 'desc' ? -cmp : cmp

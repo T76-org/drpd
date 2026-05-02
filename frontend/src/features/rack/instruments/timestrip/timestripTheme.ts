@@ -5,6 +5,18 @@ export interface TimestripThemePalette {
   analogBackground: string
   tickColor: string
   tickTextColor: string
+  messageFillColor: string
+  messageStrokeColor: string
+  messageTextColor: string
+  waveformColor: string
+  componentFillColor: string
+  byteFillColor: string
+  eventCaptureColor: string
+  eventRoleColor: string
+  eventStatusColor: string
+  eventMarkColor: string
+  eventOvpColor: string
+  eventOcpColor: string
 }
 
 export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -14,6 +26,18 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   analogBackground: '#10151d',
   tickColor: 'rgba(255, 255, 255, 0.34)',
   tickTextColor: 'rgba(255, 255, 255, 0.82)',
+  messageFillColor: 'rgba(5, 186, 250, 0.18)',
+  messageStrokeColor: 'rgba(5, 186, 250, 0.72)',
+  messageTextColor: 'rgba(255, 255, 255, 0.84)',
+  waveformColor: 'rgba(1, 168, 4, 0.88)',
+  componentFillColor: 'rgba(255, 255, 255, 0.08)',
+  byteFillColor: 'rgba(255, 255, 255, 0.12)',
+  eventCaptureColor: '#F6941F',
+  eventRoleColor: '#05BAFA',
+  eventStatusColor: '#01A804',
+  eventMarkColor: '#d67bff',
+  eventOvpColor: '#ff7c5c',
+  eventOcpColor: '#f0c04d',
 }
 
 const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -23,13 +47,38 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   analogBackground: '#f3f6fb',
   tickColor: 'rgba(28, 31, 42, 0.34)',
   tickTextColor: 'rgba(28, 31, 42, 0.82)',
+  messageFillColor: 'rgba(26, 115, 232, 0.14)',
+  messageStrokeColor: 'rgba(26, 115, 232, 0.62)',
+  messageTextColor: 'rgba(28, 31, 42, 0.84)',
+  waveformColor: 'rgba(1, 128, 4, 0.82)',
+  componentFillColor: 'rgba(28, 31, 42, 0.06)',
+  byteFillColor: 'rgba(28, 31, 42, 0.1)',
+  eventCaptureColor: '#F6941F',
+  eventRoleColor: '#05BAFA',
+  eventStatusColor: '#01A804',
+  eventMarkColor: '#d67bff',
+  eventOvpColor: '#ff7c5c',
+  eventOcpColor: '#f0c04d',
 }
 
 const DARK_TIMESTRIP_THEME = DEFAULT_TIMESTRIP_THEME
 
-export const getTimestripThemePalette = (themeName: string | null | undefined): TimestripThemePalette => (
-  themeName === 'light' ? LIGHT_TIMESTRIP_THEME : DARK_TIMESTRIP_THEME
-)
+export const getTimestripThemePalette = (
+  themeName: string | null | undefined,
+  computedStyle?: CSSStyleDeclaration,
+): TimestripThemePalette => {
+  const fallback = themeName === 'light' ? LIGHT_TIMESTRIP_THEME : DARK_TIMESTRIP_THEME
+  const readColor = (name: string, value: string) => computedStyle?.getPropertyValue(name).trim() || value
+  return {
+    ...fallback,
+    eventCaptureColor: readColor('--color-log-event-capture', fallback.eventCaptureColor),
+    eventRoleColor: readColor('--color-log-event-role', fallback.eventRoleColor),
+    eventStatusColor: readColor('--color-log-event-status', fallback.eventStatusColor),
+    eventMarkColor: readColor('--color-log-event-mark', fallback.eventMarkColor),
+    eventOvpColor: readColor('--color-log-event-ovp', fallback.eventOvpColor),
+    eventOcpColor: readColor('--color-log-event-ocp', fallback.eventOcpColor),
+  }
+}
 
 export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): string => (
   [
@@ -39,5 +88,17 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.analogBackground,
     palette.tickColor,
     palette.tickTextColor,
+    palette.messageFillColor,
+    palette.messageStrokeColor,
+    palette.messageTextColor,
+    palette.waveformColor,
+    palette.componentFillColor,
+    palette.byteFillColor,
+    palette.eventCaptureColor,
+    palette.eventRoleColor,
+    palette.eventStatusColor,
+    palette.eventMarkColor,
+    palette.eventOvpColor,
+    palette.eventOcpColor,
   ].join('|')
 )
