@@ -58,6 +58,15 @@ Starter guidance for contributors and AI agents working in this repo.
   - `--font-size-header-popup-button`
   Do not hardcode popup font sizes in instrument CSS modules.
 
+## Timestrip North Star
+
+For all work on the DRPD timestrip component:
+
+- Use D3.js for scales, time math, ticks, and render orchestration.
+- Render with Canvas, not SVG.
+- Put performance above all other implementation preferences.
+- Avoid memory leaks aggressively: clean up animation frames, observers, timers, event listeners, workers, and retained data references.
+
 ## Testing
 - Unit tests live near sources (e.g. `src/**/__tests__` or `*.test.ts/tsx`).
 - Prefer testing user-visible behavior with React Testing Library (if present).
