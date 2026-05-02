@@ -37,8 +37,8 @@ export const drawTimestripTile = (
     worldLeftUs: tile.worldLeftUs,
     zoomDenominator: tile.zoomLevelDenominator,
     entries: digitalEntries,
-  })
-  drawAnalogTraceLane(context, layout, width, theme)
+  }, bleed)
+  drawAnalogTraceLane(context, layout, width, theme, bleed)
 
   context.restore()
 }

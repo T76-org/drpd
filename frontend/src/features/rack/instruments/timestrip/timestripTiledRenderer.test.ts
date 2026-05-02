@@ -48,10 +48,10 @@ class TestWorker {
 
 describe('TimestripTiledRenderer', () => {
   it('sizes the tile canvas pool to visible tiles plus left/right spare', () => {
-    expect(calculateTimestripTilePoolSize(0)).toBe(2)
-    expect(calculateTimestripTilePoolSize(1)).toBe(3)
-    expect(calculateTimestripTilePoolSize(512)).toBe(3)
-    expect(calculateTimestripTilePoolSize(513)).toBe(4)
+    expect(calculateTimestripTilePoolSize(0)).toBe(3)
+    expect(calculateTimestripTilePoolSize(1)).toBe(4)
+    expect(calculateTimestripTilePoolSize(512)).toBe(4)
+    expect(calculateTimestripTilePoolSize(513)).toBe(5)
   })
 
   it('creates a bounded tile canvas pool and requests visible tiles', () => {
@@ -74,8 +74,8 @@ describe('TimestripTiledRenderer', () => {
     renderer.setViewport(buildViewport(1000))
     frameCallbacks.shift()?.(0)
 
-    expect(renderer.getPoolSize()).toBe(3)
-    expect(tileLayer.querySelectorAll('canvas[data-timestrip-tile-canvas="true"]')).toHaveLength(3)
+    expect(renderer.getPoolSize()).toBe(4)
+    expect(tileLayer.querySelectorAll('canvas[data-timestrip-tile-canvas="true"]')).toHaveLength(4)
     expect(worker.postMessage).toHaveBeenCalledTimes(2)
     expect(worker.postMessage.mock.calls[0][0].tile.key.startsWith('z1000:')).toBe(true)
     expect(worker.postMessage.mock.calls[0][0].worldStartWallClockUs).toBe(1_700_000_000_000_000)
@@ -133,14 +133,16 @@ describe('TimestripTiledRenderer', () => {
     renderer.setViewport(buildViewport(1000))
     frameCallbacks.shift()?.(0)
     const initialTileCanvases = Array.from(tileLayer.querySelectorAll('canvas'))
-    const initialRequestCount = worker.postMessage.mock.calls.length
 
-    renderer.setViewport(buildViewport(1000, 513))
+    renderer.setViewport(buildViewport(1000, 1))
     frameCallbacks.shift()?.(16)
+    const primedRequestCount = worker.postMessage.mock.calls.length
+    renderer.setViewport(buildViewport(1000, 513))
+    frameCallbacks.shift()?.(32)
 
     expect(Array.from(tileLayer.querySelectorAll('canvas'))).toEqual(initialTileCanvases)
-    expect(worker.postMessage.mock.calls.length).toBeGreaterThan(initialRequestCount)
-    expect(worker.postMessage.mock.calls.at(-1)?.[0].tile.key).toBe('z1000:2:0')
+    expect(worker.postMessage.mock.calls.length).toBe(primedRequestCount + 1)
+    expect(worker.postMessage.mock.calls.at(-1)?.[0].tile.key).toBe('z1000:3:0')
 
     renderer.dispose()
   })
@@ -168,7 +170,7 @@ describe('TimestripTiledRenderer', () => {
     frameCallbacks.shift()?.(16)
 
     expect(worker.postMessage.mock.calls.at(-1)?.[0].tile.key.startsWith('z909:')).toBe(true)
-    expect(renderer.getPoolSize()).toBe(3)
+    expect(renderer.getPoolSize()).toBe(4)
 
     renderer.dispose()
   })

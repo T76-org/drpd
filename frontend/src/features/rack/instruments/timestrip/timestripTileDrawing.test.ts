@@ -49,6 +49,9 @@ describe('timestripTileDrawing', () => {
 
     expect(context.scale).toHaveBeenCalledWith(2, 2)
     expect(context.fillRect).toHaveBeenCalled()
+    expect(
+      vi.mocked(context.fillRect).mock.calls.filter(([x, , width]) => x === -160 && width === 832),
+    ).toHaveLength(3)
     expect(context.fillText).toHaveBeenCalled()
   })
 

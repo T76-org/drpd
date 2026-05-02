@@ -89,8 +89,8 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
     expect(screen.getByTestId('drpd-timestrip-tile-layer')).toBeInTheDocument()
     expect(screen.queryByTestId('drpd-timestrip-tick-canvas')).toBeNull()
-    expect(screen.getByTestId('drpd-timestrip-tile-layer').querySelectorAll('canvas')).toHaveLength(2)
-    expect(container.querySelectorAll('canvas')).toHaveLength(2)
+    expect(screen.getByTestId('drpd-timestrip-tile-layer').querySelectorAll('canvas')).toHaveLength(3)
+    expect(container.querySelectorAll('canvas')).toHaveLength(3)
     expect(container.querySelector('svg')).toBeNull()
   })
 
