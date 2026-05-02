@@ -1,0 +1,49 @@
+.content {
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+}
+
+.viewport {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.timeline {
+  height: 100%;
+  min-height: 100%;
+}
+
+.zoomPopover {
+  display: grid;
+  gap: var(--space-10);
+  min-width: 18rem;
+}
+
+.zoomField {
+  display: grid;
+  gap: var(--space-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-text);
+}
+
+.zoomLabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-label);
+  text-transform: uppercase;
+}
+
+.zoomInput {
+  width: 100%;
+  min-width: 0;
+  border: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-input);
+  padding: var(--space-4) var(--space-6);
+}
