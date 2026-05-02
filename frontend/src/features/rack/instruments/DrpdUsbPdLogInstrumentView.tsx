@@ -36,9 +36,9 @@ import {
   type MessageLogColumnVisibility,
   type MessageLogColumnWidths,
 } from '../overlays/usbPdLog/messageLogColumns'
+import { formatWallClock } from '../messageLogFormat'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
-import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLogTimeStrip.config'
-import { formatWallClock } from './DrpdUsbPdLogTimeStrip.utils'
+import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLog.config'
 
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const ROW_HEIGHT_PX = DRPD_USB_PD_LOG_CONFIG.tableLayout.rowHeightPx

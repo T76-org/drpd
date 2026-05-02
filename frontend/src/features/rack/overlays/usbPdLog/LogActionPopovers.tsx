@@ -33,7 +33,7 @@ export const MessageLogClearPopover = ({
     title="Clear logs"
     description={
       clearError ??
-      'This will permanently delete all logged messages and analog samples, and clear the time strip.'
+      'This will permanently delete all logged messages and analog samples.'
     }
     dismissible={!isClearing}
     footer={

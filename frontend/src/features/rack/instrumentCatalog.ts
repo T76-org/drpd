@@ -149,11 +149,11 @@ export class DrpdUsbPdLogInstrument extends Instrument {
 }
 
 /**
- * Standalone timestrip instrument for Dr. PD capture logs.
+ * Standalone timestrip shell instrument.
  */
 export class DrpdTimeStripInstrument extends Instrument {
   /**
-   * Create a standalone timestrip instrument definition.
+   * Create a standalone timestrip shell instrument definition.
    */
   public constructor() {
     super({

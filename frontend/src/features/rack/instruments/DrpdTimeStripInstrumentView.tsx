@@ -1,22 +1,18 @@
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
-import type { RackDeviceState } from '../RackRenderer'
 import logStyles from './DrpdUsbPdLogInstrumentView.module.css'
-import { DrpdUsbPdLogTimeStrip } from './DrpdUsbPdLogTimeStrip'
 
 /**
- * Standalone DRPD timestrip instrument view.
+ * Standalone DRPD timestrip instrument shell.
  */
 export const DrpdTimeStripInstrumentView = ({
   instrument,
   displayName,
-  deviceState,
   isEditMode,
   onRemove,
 }: {
   instrument: RackInstrument
   displayName: string
-  deviceState?: RackDeviceState
   isEditMode: boolean
   onRemove?: (instrumentId: string) => void
 }) => {
@@ -33,11 +29,6 @@ export const DrpdTimeStripInstrumentView = ({
             }
           : undefined
       }
-    >
-      <DrpdUsbPdLogTimeStrip
-        driver={deviceState?.drpdDriver}
-        isEditMode={isEditMode}
-      />
-    </InstrumentBase>
+    />
   )
 }

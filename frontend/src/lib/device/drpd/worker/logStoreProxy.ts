@@ -16,8 +16,6 @@ import type {
   LogExportResult,
   LoggedAnalogSample,
   LoggedCapturedMessage,
-  MessageLogTimeStripQuery,
-  MessageLogTimeStripWindow,
 } from '../logging/types'
 import { DRPDWorkerServiceClient } from './service'
 
@@ -130,24 +128,6 @@ export class DRPDWorkerLogStoreProxy implements DRPDLogStore {
     return await this.client.callWorker<LoggedCapturedMessage[]>('logStore.call', {
       logStoreId: this.id,
       op: 'queryCapturedMessages',
-      query,
-    })
-  }
-
-  /**
-   * Query a worker-optimized time-strip render window.
-   *
-   * @param query - Time-strip query criteria.
-   * @returns Prepared window payload.
-   */
-  public async queryMessageLogTimeStripWindow(
-    query: MessageLogTimeStripQuery,
-  ): Promise<MessageLogTimeStripWindow> {
-    this.ensureOpen()
-    await this.ensureCreated()
-    return await this.client.callWorker<MessageLogTimeStripWindow>('logStore.call', {
-      logStoreId: this.id,
-      op: 'queryMessageLogTimeStripWindow',
       query,
     })
   }

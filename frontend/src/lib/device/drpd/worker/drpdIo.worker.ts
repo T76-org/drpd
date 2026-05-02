@@ -431,8 +431,6 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           return await store.queryAnalogSamples(request.params.query)
         case 'queryCapturedMessages':
           return await store.queryCapturedMessages(request.params.query)
-        case 'queryMessageLogTimeStripWindow':
-          return await store.queryMessageLogTimeStripWindow(request.params.query)
         case 'exportData':
           return await store.exportData(request.params.request)
         case 'clear':
@@ -543,8 +541,6 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             return await session.device.queryAnalogSamples(args[0] as never)
           case 'queryCapturedMessages':
             return await session.device.queryCapturedMessages(args[0] as never)
-          case 'queryMessageLogTimeStripWindow':
-            return await session.device.queryMessageLogTimeStripWindow(args[0] as never)
           case 'markLog':
             await session.device.markLog()
             return null

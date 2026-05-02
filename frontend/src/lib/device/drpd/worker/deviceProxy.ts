@@ -31,7 +31,6 @@ import type {
   TriggerInfo,
   TriggerSyncMode,
 } from '../types'
-import type { MessageLogTimeStripQuery, MessageLogTimeStripWindow } from '../logging'
 import { DRPDDevice } from '../device'
 import type { WorkerUSBDeviceSelection } from './protocol'
 import { deserializeWorkerError } from './serialization'
@@ -382,18 +381,6 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   public async queryCapturedMessages(query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
     return (await this.callDevice('queryCapturedMessages', query)) as LoggedCapturedMessage[]
-  }
-
-  /**
-   * Query a worker-optimized time-strip render window.
-   *
-   * @param query - Time-strip query criteria.
-   * @returns Prepared window payload.
-   */
-  public async queryMessageLogTimeStripWindow(
-    query: MessageLogTimeStripQuery,
-  ): Promise<MessageLogTimeStripWindow> {
-    return (await this.callDevice('queryMessageLogTimeStripWindow', query)) as MessageLogTimeStripWindow
   }
 
   /**

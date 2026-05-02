@@ -349,7 +349,6 @@ const renderInstrument = ({
         <DrpdTimeStripInstrumentView
           instrument={instrument}
           displayName={definition?.displayName ?? 'Instrument'}
-          deviceState={deviceState}
           isEditMode={isEditMode}
           onRemove={onRemove}
         />

@@ -6,7 +6,7 @@ import {
   setBits,
   toBytes32,
 } from '../../lib/device/drpd/usb-pd/messages/messageTestUtils'
-import { formatWallClock } from './instruments/DrpdUsbPdLogTimeStrip.utils'
+import { formatWallClock } from './messageLogFormat'
 import { buildSelectedMessageLogCsv } from './messageLogExport'
 
 const SOP = [0x18, 0x18, 0x18, 0x11]

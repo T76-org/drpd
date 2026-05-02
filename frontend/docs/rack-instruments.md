@@ -32,7 +32,7 @@ The Rack document is stored in localStorage under `drpd:rack:document` via `load
 
 Each row can store `flex`. Each instrument stores an `instrumentIdentifier` plus instance-specific fields (`flex`, `fullScreen`, `resizable`, `config`). `flex` is a relative CSS flex weight. If a saved document omits it, `RowRenderer` falls back to the instrument definition default.
 
-The default document built by `loadRackDocument` is a populated Dr. PD rack: status/control instruments on the first row, a full-width timestrip on the second row, and log/detail instruments on the third row. IDs are stable for persistence, but the important contract is the layout and instrument identifiers.
+The default document built by `loadRackDocument` is a populated Dr. PD rack: status/control instruments on the first row, a full-width timestrip shell on the second row, and log/detail instruments on the third row. IDs are stable for persistence, but the important contract is the layout and instrument identifiers.
 
 If any instrument has `fullScreen: true`, the rack renderer shows a full-screen overlay instead of the row layout.
 
