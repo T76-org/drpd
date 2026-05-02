@@ -38,6 +38,69 @@ const formatStructuredVDMName = (vdmHeader: ParsedVDMHeader): string => {
   return `${commandName} ${commandTypeName}`
 }
 
+const describeStructuredVDMMeaning = (vdmHeader: ParsedVDMHeader): string | null => {
+  if (vdmHeader.vdmType !== 'STRUCTURED' || !vdmHeader.commandName || !vdmHeader.commandTypeName) {
+    return null
+  }
+
+  const commandTypeName = vdmHeader.commandTypeName
+  const responsePrefix = {
+    ACK: 'Accepts the request and returns the requested command data.',
+    NAK: 'Declines the request; the requested command data or mode transition is not available.',
+    BUSY: 'Temporarily cannot complete the request; the requester can retry later.',
+  }[commandTypeName]
+
+  if (responsePrefix) {
+    switch (vdmHeader.commandName) {
+      case 'DISCOVER_IDENTITY':
+        return commandTypeName === 'ACK'
+          ? 'Returns identity information such as product type, USB VID/PID, certification ID, and product-type VDOs.'
+          : responsePrefix
+      case 'DISCOVER_SVIDS':
+        return commandTypeName === 'ACK'
+          ? 'Returns the list of Standard or Vendor IDs supported for alternate modes or vendor-defined functions.'
+          : responsePrefix
+      case 'DISCOVER_MODES':
+        return commandTypeName === 'ACK'
+          ? 'Returns mode VDOs describing the modes supported for the selected Standard or Vendor ID.'
+          : responsePrefix
+      case 'ENTER_MODE':
+        return commandTypeName === 'ACK'
+          ? 'Confirms entry into the requested alternate or vendor-defined mode.'
+          : responsePrefix
+      case 'EXIT_MODE':
+        return commandTypeName === 'ACK'
+          ? 'Confirms exit from the requested alternate or vendor-defined mode.'
+          : responsePrefix
+      case 'ATTENTION':
+        return 'Reports an asynchronous mode-specific status change to the partner.'
+      case 'SVID_SPECIFIC':
+        return `${commandTypeName} for an SVID-specific command whose detailed meaning is defined by Standard or Vendor ID ${formatHex16(vdmHeader.svid)}.`
+      default:
+        return responsePrefix
+    }
+  }
+
+  switch (vdmHeader.commandName) {
+    case 'DISCOVER_IDENTITY':
+      return 'Requests identity information from the partner, including product type, USB VID/PID, certification ID, and product-type VDOs.'
+    case 'DISCOVER_SVIDS':
+      return 'Requests the list of Standard or Vendor IDs supported by the partner.'
+    case 'DISCOVER_MODES':
+      return `Requests mode VDOs for Standard or Vendor ID ${formatHex16(vdmHeader.svid)}.`
+    case 'ENTER_MODE':
+      return 'Requests entry into the selected alternate or vendor-defined mode.'
+    case 'EXIT_MODE':
+      return 'Requests exit from the selected alternate or vendor-defined mode.'
+    case 'ATTENTION':
+      return 'Reports an asynchronous mode-specific status change to the partner.'
+    case 'SVID_SPECIFIC':
+      return `Carries an SVID-specific command whose detailed meaning is defined by Standard or Vendor ID ${formatHex16(vdmHeader.svid)}.`
+    default:
+      return null
+  }
+}
+
 const formatYesNo = (value: boolean): string => value ? 'yes' : 'no'
 
 const formatPlugType = (code: number): string => {
@@ -330,6 +393,10 @@ export class VendorDefinedMessage extends DataMessage {
     } else {
       lines.push(`**Structured Vendor Defined Message:** ${formatStructuredVDMName(this.vdmHeader)}`)
       lines.push('')
+      const commandMeaning = describeStructuredVDMMeaning(this.vdmHeader)
+      if (commandMeaning) {
+        lines.push(`- Meaning: ${commandMeaning}`)
+      }
       lines.push(`- Standard or Vendor ID: ${formatHex16(this.vdmHeader.svid)}`)
       if (this.vdmHeader.objectPosition !== null && this.vdmHeader.objectPosition > 0) {
         lines.push(`- Object position: ${this.vdmHeader.objectPosition}`)

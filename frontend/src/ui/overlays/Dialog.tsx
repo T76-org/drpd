@@ -6,7 +6,7 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react'
-import { useId, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import { useId, type ComponentPropsWithoutRef, type CSSProperties, type ReactNode } from 'react'
 import styles from './Dialog.module.css'
 
 export type DialogProps = {
@@ -26,6 +26,8 @@ export type DialogProps = {
   dismissible?: boolean
   ///< Accessible label override when title is not plain text.
   ariaLabel?: string
+  ///< Optional style override for dialog shell.
+  dialogStyle?: CSSProperties
 }
 
 /**
@@ -40,6 +42,7 @@ export const Dialog = ({
   footer,
   dismissible = true,
   ariaLabel,
+  dialogStyle,
 }: DialogProps) => {
   const titleId = useId()
   const descriptionId = useId()
@@ -65,7 +68,7 @@ export const Dialog = ({
             {...getFloatingProps({
               ref: refs.setFloating,
               className: styles.dialog,
-              style: { zIndex: 10000 },
+              style: { zIndex: 10000, ...dialogStyle },
               role: 'dialog',
               'aria-modal': true,
               'aria-label': ariaLabel,

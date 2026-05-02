@@ -578,6 +578,7 @@ describe('USB-PD data message decoding', () => {
     expect(decoded.discoverSVIDs).toContain(0x1234)
     const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
     expect(summary?.value).toContain('DISCOVER_SVIDS ACK')
+    expect(summary?.value).toContain('- Meaning: Returns the list of Standard or Vendor IDs supported for alternate modes or vendor-defined functions.')
     expect(summary?.value).toContain('**Discovered Standard or Vendor IDs:**')
     expect(summary?.value).toContain('- 0x1234')
     expect(summary?.value).toContain('- 0x5678')
@@ -586,6 +587,29 @@ describe('USB-PD data message decoding', () => {
     expect(discoverSvidVdos?.getEntry('vdo1')?.type).toBe('OrderedDictionary')
     expect(discoverSvidVdos?.getEntry('vdo1')?.getEntry('svid0')?.value).toBe('0x5678')
     expect(discoverSvidVdos?.getEntry('vdo1')?.getEntry('svid1')?.value).toBe('0x1234')
+  })
+
+  it('summarizes Vendor_Defined command meaning for Discover Identity REQ', () => {
+    let vdm = 0
+    vdm = setBits(vdm, 31, 16, 0xff00)
+    vdm = setBits(vdm, 15, 15, 1)
+    vdm = setBits(vdm, 14, 13, 1)
+    vdm = setBits(vdm, 12, 11, 1)
+    vdm = setBits(vdm, 7, 6, 0)
+    vdm = setBits(vdm, 4, 0, 1)
+    const header = makeMessageHeader({
+      extended: false,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x0f,
+    })
+    const message = parseUSBPDMessage(buildMessage(SOP, header, toBytes32(vdm)))
+    expect(message).toBeInstanceOf(VendorDefinedMessage)
+    const decoded = message as VendorDefinedMessage
+    expect(decoded.vdmHeader?.commandName).toBe('DISCOVER_IDENTITY')
+    expect(decoded.vdmHeader?.commandTypeName).toBe('REQ')
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('DISCOVER_IDENTITY REQ')
+    expect(summary?.value).toContain('- Meaning: Requests identity information from the partner, including product type, USB VID/PID, certification ID, and product-type VDOs.')
   })
 
   it('decodes Vendor_Defined Enter Mode payload VDOs', () => {
@@ -614,6 +638,7 @@ describe('USB-PD data message decoding', () => {
     expect(enterModePayloadVdos?.getEntry('vdo1')?.getEntry('raw')?.value).toBe('0x12345678')
     const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
     expect(summary?.value).toContain('ENTER_MODE REQ')
+    expect(summary?.value).toContain('- Meaning: Requests entry into the selected alternate or vendor-defined mode.')
     expect(summary?.value).toContain('- Object position: 1')
     expect(summary?.value).toContain('**ENTER_MODE payload Vendor Data Objects:**')
     expect(summary?.value).toContain('- 0x12345678')
@@ -647,6 +672,7 @@ describe('USB-PD data message decoding', () => {
     expect(decoded.parseErrors).toEqual([])
     const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
     expect(summary?.value).toContain('DISCOVER_IDENTITY ACK')
+    expect(summary?.value).toContain('- Meaning: Returns identity information such as product type, USB VID/PID, certification ID, and product-type VDOs.')
     expect(summary?.value).toContain('**Discover Identity data:**')
     expect(summary?.value).toContain('- USB Vendor ID: 0x0000')
     expect(summary?.value).toContain('Passive Cable Vendor Data Object:')
