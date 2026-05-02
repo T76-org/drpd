@@ -23,7 +23,14 @@ workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
     return
   }
 
-  drawTimestripTile(context, message.tile, message.dpr, message.theme, message.digitalEntries)
+  drawTimestripTile(
+    context,
+    message.tile,
+    message.dpr,
+    message.theme,
+    message.digitalEntries,
+    message.worldStartWallClockUs,
+  )
   const bitmap = canvas.transferToImageBitmap()
   const response: TimestripTileWorkerResponse = {
     type: 'tileRendered',

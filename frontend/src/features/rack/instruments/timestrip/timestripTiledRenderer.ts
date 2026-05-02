@@ -10,8 +10,6 @@ import {
   type TimestripTileWorkerResponse,
 } from './timestripTileProtocol'
 import { drawTimestripTile } from './timestripTileDrawing'
-import { drawTimeAxisViewportOverlay } from './TimeAxisLane'
-import { buildTimestripLaneLayout } from './timestripLaneLayout'
 import {
   DEFAULT_TIMESTRIP_THEME,
   getTimestripThemeCacheKey,
@@ -36,7 +34,6 @@ export interface TimestripRendererViewport {
 
 export interface TimestripRendererOptions {
   tileLayer: HTMLElement
-  tickCanvas: HTMLCanvasElement
   createWorker?: () => Worker | null
   requestAnimationFrame?: (callback: FrameRequestCallback) => number
   cancelAnimationFrame?: (handle: number) => void
@@ -56,8 +53,6 @@ interface TilePoolEntry {
  */
 export class TimestripTiledRenderer {
   protected readonly tileLayer: HTMLElement ///< Sticky viewport tile layer.
-  protected readonly tickCanvas: HTMLCanvasElement ///< Viewport-sized tick overlay canvas.
-  protected readonly tickContext: CanvasRenderingContext2D | null ///< Tick overlay context.
   protected readonly worker: Worker | null ///< Optional tile rendering worker.
   protected readonly requestFrame: (callback: FrameRequestCallback) => number ///< RAF scheduler.
   protected readonly cancelFrame: (handle: number) => void ///< RAF cancellation.
@@ -82,8 +77,6 @@ export class TimestripTiledRenderer {
    */
   public constructor(options: TimestripRendererOptions) {
     this.tileLayer = options.tileLayer
-    this.tickCanvas = options.tickCanvas
-    this.tickContext = this.tickCanvas.getContext('2d')
     this.requestFrame = options.requestAnimationFrame ?? window.requestAnimationFrame.bind(window)
     this.cancelFrame = options.cancelAnimationFrame ?? window.cancelAnimationFrame.bind(window)
     this.pool = []
@@ -136,7 +129,6 @@ export class TimestripTiledRenderer {
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
       getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
     this.viewport = nextViewport
-    this.resizeTickCanvas()
     this.resizeTileLayer()
     this.ensurePoolSize()
     if (shouldResetPool) {
@@ -250,17 +242,6 @@ export class TimestripTiledRenderer {
       return null
     }
     return new Worker(new URL('./timestripTileWorker.ts', import.meta.url), { type: 'module' })
-  }
-
-  protected resizeTickCanvas(): void {
-    const width = Math.max(1, Math.ceil(this.viewport.viewportWidthPx * this.viewport.dpr))
-    const height = Math.max(1, Math.ceil(this.viewport.viewportHeightPx * this.viewport.dpr))
-    if (this.tickCanvas.width !== width) {
-      this.tickCanvas.width = width
-    }
-    if (this.tickCanvas.height !== height) {
-      this.tickCanvas.height = height
-    }
   }
 
   protected resizeTileLayer(): void {
@@ -382,39 +363,12 @@ export class TimestripTiledRenderer {
       }
       this.positionTileCanvas(entry, tile)
     }
-
-    this.drawTickOverlay()
   }
 
   protected positionTileCanvas(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
     const scrollWorldUs = scrollLeftToWorldUs(this.viewport.scrollLeftPx, this.viewport.zoomDenominator)
     const screenX = (tile.worldLeftUs - scrollWorldUs) / this.viewport.zoomDenominator
     entry.canvas.style.transform = `translate3d(${screenX - tile.bleedPx}px, 0, 0)`
-  }
-
-  protected drawTickOverlay(): void {
-    const context = this.tickContext
-    if (!context) {
-      return
-    }
-    const { viewportWidthPx, viewportHeightPx, dpr, zoomDenominator, scrollLeftPx } = this.viewport
-    console.log('[timestrip] render on-screen tick canvas', {
-      scrollLeftPx,
-      viewportWidthPx,
-      viewportHeightPx,
-      zoomDenominator,
-    })
-    context.setTransform(dpr, 0, 0, dpr, 0, 0)
-    context.clearRect(0, 0, viewportWidthPx, viewportHeightPx)
-    drawTimeAxisViewportOverlay(
-      context,
-      viewportWidthPx,
-      zoomDenominator,
-      scrollLeftPx,
-      buildTimestripLaneLayout(viewportHeightPx),
-      this.viewport.worldStartWallClockUs,
-      this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
-    )
   }
 
   protected enqueueTile(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
@@ -435,6 +389,7 @@ export class TimestripTiledRenderer {
         theme: this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
         digitalEntries,
         generation: this.generation,
+        worldStartWallClockUs: this.viewport.worldStartWallClockUs,
       }
       this.worker.postMessage(request)
       return
@@ -452,6 +407,7 @@ export class TimestripTiledRenderer {
         this.viewport.dpr,
         this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
         digitalEntries,
+        this.viewport.worldStartWallClockUs,
       )
     }
     this.pendingTiles.delete(tile.key)

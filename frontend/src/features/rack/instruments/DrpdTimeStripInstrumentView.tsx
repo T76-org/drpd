@@ -71,7 +71,6 @@ export const DrpdTimeStripInstrumentView = ({
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const tileLayerRef = useRef<HTMLDivElement | null>(null)
-  const tickCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
   const digitalEntriesSignatureRef = useRef('')
   const digitalQueryRangeRef = useRef<{ startWallClockUs: bigint; endWallClockUs: bigint } | null>(null)
@@ -217,11 +216,10 @@ export const DrpdTimeStripInstrumentView = ({
 
   useEffect(() => {
     const tileLayer = tileLayerRef.current
-    const tickCanvas = tickCanvasRef.current
-    if (!tileLayer || !tickCanvas) {
+    if (!tileLayer) {
       return undefined
     }
-    const renderer = new TimestripTiledRenderer({ tileLayer, tickCanvas })
+    const renderer = new TimestripTiledRenderer({ tileLayer })
     rendererRef.current = renderer
     return () => {
       renderer.dispose()
@@ -505,15 +503,6 @@ export const DrpdTimeStripInstrumentView = ({
           ref={tileLayerRef}
           className={styles.tileLayer}
           data-testid="drpd-timestrip-tile-layer"
-          style={{
-            width: `${viewportWidthPx}px`,
-            height: `${viewportHeightPx}px`,
-          }}
-        />
-        <canvas
-          ref={tickCanvasRef}
-          className={styles.tickCanvas}
-          data-testid="drpd-timestrip-tick-canvas"
           style={{
             width: `${viewportWidthPx}px`,
             height: `${viewportHeightPx}px`,

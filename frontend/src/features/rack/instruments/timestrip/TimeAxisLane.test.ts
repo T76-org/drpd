@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { TimestripVisibleTile } from './timestripLayout'
 import {
-  drawTimeAxisViewportOverlay,
+  drawTimeAxisLane,
   formatTimestripTickLabel,
   selectTimeAxisTicks,
 } from './TimeAxisLane'
@@ -11,6 +11,7 @@ import { DEFAULT_TIMESTRIP_THEME } from './timestripTheme'
 const buildContext = (labelWidth: number) =>
   ({
     beginPath: vi.fn(),
+    fillRect: vi.fn(),
     fillText: vi.fn(),
     lineTo: vi.fn(),
     font: '',
@@ -59,19 +60,34 @@ describe('TimeAxisLane', () => {
     }
   })
 
-  it('draws tick labels as a viewport overlay', () => {
+  it('draws tick labels inside the tile including bleed', () => {
     const context = buildContext(70)
 
-    drawTimeAxisViewportOverlay(
+    drawTimeAxisLane(
       context,
-      512,
-      1000,
-      0,
+      buildTile(512_000),
       buildTimestripLaneLayout(240),
       1_700_000_000_000_000,
       DEFAULT_TIMESTRIP_THEME,
     )
 
     expect(context.fillText).toHaveBeenCalled()
+  })
+
+  it('selects ticks that intersect the horizontal bleed area', () => {
+    const context = buildContext(70)
+    const tile = {
+      ...buildTile(512_000),
+      worldLeftUs: 512_000,
+    }
+
+    const ticks = selectTimeAxisTicks(
+      context,
+      tile,
+      buildTimestripLaneLayout(240),
+      1_700_000_000_000_000,
+    )
+
+    expect(ticks.some((tick) => tick.xPx > tile.widthPx)).toBe(true)
   })
 })

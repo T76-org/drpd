@@ -80,7 +80,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders a viewport, timeline spacer, tile layer, and tick overlay without svg', () => {
+  it('renders a viewport, timeline spacer, and tile canvas layer without svg', () => {
     const { container } = renderTimestrip()
 
     expect(screen.getByTestId('drpd-timestrip-viewport')).toBeInTheDocument()
@@ -88,9 +88,9 @@ describe('DrpdTimeStripInstrumentView', () => {
       width: '10000px',
     })
     expect(screen.getByTestId('drpd-timestrip-tile-layer')).toBeInTheDocument()
-    expect(screen.getByTestId('drpd-timestrip-tick-canvas')).toBeInstanceOf(HTMLCanvasElement)
+    expect(screen.queryByTestId('drpd-timestrip-tick-canvas')).toBeNull()
     expect(screen.getByTestId('drpd-timestrip-tile-layer').querySelectorAll('canvas')).toHaveLength(2)
-    expect(container.querySelectorAll('canvas')).toHaveLength(3)
+    expect(container.querySelectorAll('canvas')).toHaveLength(2)
     expect(container.querySelector('svg')).toBeNull()
   })
 

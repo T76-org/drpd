@@ -1,5 +1,5 @@
 import { scaleTime } from 'd3'
-import { scrollLeftToWorldUs, type TimestripVisibleTile } from './timestripLayout'
+import type { TimestripVisibleTile } from './timestripLayout'
 import type { TimestripLaneLayout } from './timestripLaneLayout'
 import type { TimestripThemePalette } from './timestripTheme'
 
@@ -90,7 +90,12 @@ export const drawTimeAxisLane = (
   theme: TimestripThemePalette,
 ): void => {
   context.fillStyle = theme.timeAxisBackground
-  context.fillRect(-tile.bleedPx, layout.timeAxis.y, tile.widthPx + tile.bleedPx * 2, layout.timeAxis.height)
+  context.fillRect(
+    -tile.bleedPx,
+    layout.timeAxis.y,
+    tile.widthPx + tile.bleedPx * 2,
+    layout.timeAxis.height,
+  )
 
   const ticks = selectTimeAxisTicks(context, tile, layout, worldStartWallClockUs)
   context.save()
@@ -111,88 +116,6 @@ export const drawTimeAxisLane = (
     context.fillText(tick.label, tick.xPx, 5)
   }
   context.restore()
-}
-
-/**
- * Draw viewport-level time-axis ticks after tile composition.
- *
- * Keeps labels independent from tile boundaries so text cannot be overpainted by adjacent tiles.
- *
- * @param context - Visible viewport Canvas 2D context.
- * @param viewportWidthPx - Viewport width in CSS pixels.
- * @param zoomDenominator - Microseconds per CSS pixel.
- * @param scrollLeftPx - Viewport scrollLeft in CSS pixels.
- * @param layout - Lane layout.
- * @param worldStartWallClockUs - Wall-clock microseconds at world X = 0.
- */
-export const drawTimeAxisViewportOverlay = (
-  context: CanvasRenderingContext2D,
-  viewportWidthPx: number,
-  zoomDenominator: number,
-  scrollLeftPx: number,
-  layout: TimestripLaneLayout,
-  worldStartWallClockUs: number,
-  theme: TimestripThemePalette,
-): void => {
-  const scrollWorldUs = scrollLeftToWorldUs(scrollLeftPx, zoomDenominator)
-  const startWallClockMs = (worldStartWallClockUs + scrollWorldUs) / 1000
-  const endWallClockMs = (worldStartWallClockUs + scrollWorldUs + viewportWidthPx * zoomDenominator) / 1000
-  const scale = scaleTime()
-    .domain([new Date(startWallClockMs), new Date(endWallClockMs)])
-    .range([0, viewportWidthPx])
-  const ticks = selectTicksForScale(context, scale, layout.timeAxis.labelFontPx, layout.timeAxis.labelPaddingPx)
-
-  context.save()
-  context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
-  context.textAlign = 'center'
-  context.textBaseline = 'top'
-  context.strokeStyle = theme.tickColor
-  context.fillStyle = theme.tickTextColor
-  context.lineWidth = 1
-
-  const tickTop = layout.timeAxis.height - layout.timeAxis.tickHeightPx
-  for (const tick of ticks) {
-    const x = Math.round(tick.xPx) + 0.5
-    context.beginPath()
-    context.moveTo(x, tickTop)
-    context.lineTo(x, layout.timeAxis.height)
-    context.stroke()
-    context.fillText(tick.label, tick.xPx, 5)
-  }
-  context.restore()
-}
-
-const selectTicksForScale = (
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  scale: ReturnType<typeof scaleTime>,
-  labelFontPx: number,
-  labelPaddingPx: number,
-): TimestripTick[] => {
-  context.save()
-  context.font = `${labelFontPx}px sans-serif`
-  for (let count = MAX_TICK_COUNT; count >= MIN_TICK_COUNT; count -= 1) {
-    const ticks = scale.ticks(count).map((date) => ({
-      date,
-      label: formatTimestripTickLabel(date),
-      xPx: scale(date) as number,
-    }))
-    if (ticks.length === 0) {
-      continue
-    }
-    const maxLabelWidth = Math.max(
-      ...ticks.map((tick) => context.measureText(tick.label).width),
-      0,
-    )
-    if (
-      ticks.length === 1 ||
-      getMinimumTickSpacing(ticks) >= maxLabelWidth + labelPaddingPx
-    ) {
-      context.restore()
-      return ticks
-    }
-  }
-  context.restore()
-  return []
 }
 
 const getMinimumTickSpacing = (ticks: TimestripTick[]): number => {

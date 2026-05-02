@@ -10,6 +10,7 @@ export interface TimestripTileRenderRequest {
   theme: TimestripThemePalette
   digitalEntries: TimestripDigitalEntry[]
   generation: number
+  worldStartWallClockUs: number
 }
 
 export interface TimestripTileRenderResponse {

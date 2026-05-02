@@ -16,8 +16,7 @@
   overflow-y: hidden;
 }
 
-.tileLayer,
-.tickCanvas {
+.tileLayer {
   grid-area: 1 / 1;
   position: sticky;
   left: 0;
@@ -25,15 +24,8 @@
   display: block;
   pointer-events: none;
   z-index: 1;
-}
-
-.tileLayer {
   overflow: hidden;
   contain: strict;
-}
-
-.tickCanvas {
-  z-index: 2;
 }
 
 .timeline {

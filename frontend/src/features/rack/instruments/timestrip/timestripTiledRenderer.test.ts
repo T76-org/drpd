@@ -59,12 +59,10 @@ describe('TimestripTiledRenderer', () => {
       () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
     )
     const tileLayer = document.createElement('div')
-    const tickCanvas = document.createElement('canvas')
     const frameCallbacks: FrameRequestCallback[] = []
     const worker = new TestWorker()
     const renderer = new TimestripTiledRenderer({
       tileLayer,
-      tickCanvas,
       createWorker: () => worker as unknown as Worker,
       requestAnimationFrame: (callback) => {
         frameCallbacks.push(callback)
@@ -80,6 +78,7 @@ describe('TimestripTiledRenderer', () => {
     expect(tileLayer.querySelectorAll('canvas[data-timestrip-tile-canvas="true"]')).toHaveLength(3)
     expect(worker.postMessage).toHaveBeenCalledTimes(2)
     expect(worker.postMessage.mock.calls[0][0].tile.key.startsWith('z1000:')).toBe(true)
+    expect(worker.postMessage.mock.calls[0][0].worldStartWallClockUs).toBe(1_700_000_000_000_000)
 
     renderer.dispose()
   })
@@ -89,12 +88,10 @@ describe('TimestripTiledRenderer', () => {
       () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
     )
     const tileLayer = document.createElement('div')
-    const tickCanvas = document.createElement('canvas')
     const frameCallbacks: FrameRequestCallback[] = []
     const worker = new TestWorker()
     const renderer = new TimestripTiledRenderer({
       tileLayer,
-      tickCanvas,
       createWorker: () => worker as unknown as Worker,
       requestAnimationFrame: (callback) => {
         frameCallbacks.push(callback)
@@ -121,12 +118,10 @@ describe('TimestripTiledRenderer', () => {
       () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
     )
     const tileLayer = document.createElement('div')
-    const tickCanvas = document.createElement('canvas')
     const frameCallbacks: FrameRequestCallback[] = []
     const worker = new TestWorker()
     const renderer = new TimestripTiledRenderer({
       tileLayer,
-      tickCanvas,
       createWorker: () => worker as unknown as Worker,
       requestAnimationFrame: (callback) => {
         frameCallbacks.push(callback)
@@ -155,12 +150,10 @@ describe('TimestripTiledRenderer', () => {
       () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
     )
     const tileLayer = document.createElement('div')
-    const tickCanvas = document.createElement('canvas')
     const frameCallbacks: FrameRequestCallback[] = []
     const worker = new TestWorker()
     const renderer = new TimestripTiledRenderer({
       tileLayer,
-      tickCanvas,
       createWorker: () => worker as unknown as Worker,
       requestAnimationFrame: (callback) => {
         frameCallbacks.push(callback)

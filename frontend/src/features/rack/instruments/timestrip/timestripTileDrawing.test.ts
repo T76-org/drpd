@@ -42,14 +42,14 @@ const tile: TimestripVisibleTile = {
 }
 
 describe('timestripTileDrawing', () => {
-  it('draws lane backgrounds without tile-local tick labels', () => {
+  it('draws lane backgrounds and tile-local tick labels', () => {
     const context = buildContext()
 
-    drawTimestripTile(context, tile, 2, DEFAULT_TIMESTRIP_THEME)
+    drawTimestripTile(context, tile, 2, DEFAULT_TIMESTRIP_THEME, [], 1_700_000_000_000_000)
 
     expect(context.scale).toHaveBeenCalledWith(2, 2)
     expect(context.fillRect).toHaveBeenCalled()
-    expect(context.fillText).not.toHaveBeenCalled()
+    expect(context.fillText).toHaveBeenCalled()
   })
 
   it('uses the provided theme for lane backgrounds', () => {
