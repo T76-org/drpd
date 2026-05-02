@@ -40,6 +40,18 @@ const buildTile = (worldWidthUs: number): TimestripVisibleTile => ({
   bleedPx: 0,
 })
 
+const buildZoomedTile = (tileX: number, zoomDenominator: number): TimestripVisibleTile => {
+  const worldWidthUs = 512 * zoomDenominator
+  return {
+    ...buildTile(worldWidthUs),
+    key: `z${zoomDenominator}:${tileX}:0`,
+    tileX,
+    zoomLevel: `z${zoomDenominator}`,
+    zoomLevelDenominator: zoomDenominator,
+    worldLeftUs: tileX * worldWidthUs,
+  }
+}
+
 describe('TimeAxisLane', () => {
   it('formats wall-clock labels with clock time', () => {
     expect(formatTimestripTickLabel(new Date(1_700_000_000_123))).toMatch(/\d\d:\d\d:\d\d\.123/)
@@ -106,5 +118,48 @@ describe('TimeAxisLane', () => {
     )
 
     expect(ticks.some((tick) => tick.xPx > tile.widthPx && tick.xPx - 35 <= tile.widthPx)).toBe(true)
+  })
+
+  it('keeps tick cadence uniform across adjacent tiles', () => {
+    const context = buildContext(70)
+    const layout = buildTimestripLaneLayout(240)
+    const zoomDenominator = 23
+    const worldStartWallClockUs = 1_700_000_000_000_000
+    const tile0 = buildZoomedTile(0, zoomDenominator)
+    const tile1 = buildZoomedTile(1, zoomDenominator)
+    const tickWallClockUs = new Set(
+      [tile0, tile1].flatMap((tile) =>
+        selectTimeAxisTicks(context, tile, layout, worldStartWallClockUs)
+          .map((tick) => tick.date.getTime() * 1000)
+          .filter((wallClockUs) =>
+            wallClockUs >= worldStartWallClockUs &&
+            wallClockUs <= worldStartWallClockUs + tile0.worldWidthUs + tile1.worldWidthUs,
+          ),
+      ),
+    )
+    const sortedTicks = Array.from(tickWallClockUs).sort((left, right) => left - right)
+
+    expect(sortedTicks.length).toBeGreaterThan(2)
+    for (let index = 1; index < sortedTicks.length; index += 1) {
+      expect(sortedTicks[index] - sortedTicks[index - 1]).toBe(5_000)
+    }
+  })
+
+  it('positions millisecond ticks at exact pixel intervals at high zoom', () => {
+    const context = buildContext(70)
+    const tile = buildZoomedTile(1, 5)
+
+    const ticks = selectTimeAxisTicks(
+      context,
+      tile,
+      buildTimestripLaneLayout(240),
+      1_700_000_000_000_000,
+    )
+    const visibleTicks = ticks.filter((tick) => tick.xPx >= 0 && tick.xPx <= tile.widthPx)
+
+    expect(visibleTicks.length).toBeGreaterThan(2)
+    for (let index = 1; index < visibleTicks.length; index += 1) {
+      expect(visibleTicks[index].xPx - visibleTicks[index - 1].xPx).toBeCloseTo(200, 6)
+    }
   })
 })

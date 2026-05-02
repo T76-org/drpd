@@ -1,4 +1,3 @@
-import { scaleTime } from 'd3'
 import type { TimestripVisibleTile } from './timestripLayout'
 import type { TimestripLaneLayout } from './timestripLaneLayout'
 import type { TimestripThemePalette } from './timestripTheme'
@@ -9,9 +8,30 @@ export interface TimestripTick {
   xPx: number
 }
 
-const MIN_TICK_COUNT = 2
-const MAX_TICK_COUNT = 12
 const TICK_EDGE_SEARCH_PX = 160
+const TICK_INTERVALS_US = [
+  1_000,
+  2_000,
+  5_000,
+  10_000,
+  20_000,
+  50_000,
+  100_000,
+  200_000,
+  500_000,
+  1_000_000,
+  2_000_000,
+  5_000_000,
+  10_000_000,
+  15_000_000,
+  30_000_000,
+  60_000_000,
+  120_000_000,
+  300_000_000,
+  600_000_000,
+  1_800_000_000,
+  3_600_000_000,
+] as const
 
 /**
  * Format a wall-clock tick label.
@@ -43,41 +63,44 @@ export const selectTimeAxisTicks = (
   worldStartWallClockUs: number,
 ): TimestripTick[] => {
   const startWallClockMs = (worldStartWallClockUs + tile.worldLeftUs) / 1000
-  const endWallClockMs = (worldStartWallClockUs + tile.worldLeftUs + tile.worldWidthUs) / 1000
-  const scale = scaleTime()
-    .domain([new Date(startWallClockMs), new Date(endWallClockMs)])
-    .range([0, tile.widthPx])
-  const edgeSearchMs = (TICK_EDGE_SEARCH_PX * tile.zoomLevelDenominator) / 1000
-  const candidateScale = scaleTime()
-    .domain([new Date(startWallClockMs - edgeSearchMs), new Date(endWallClockMs + edgeSearchMs)])
-    .range([-TICK_EDGE_SEARCH_PX, tile.widthPx + TICK_EDGE_SEARCH_PX])
+  const worldUsPerPx = tile.worldWidthUs / tile.widthPx
 
   context.save()
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
-  for (let count = MAX_TICK_COUNT; count >= MIN_TICK_COUNT; count -= 1) {
-    const ticks = candidateScale.ticks(count).map((date) => ({
-      date,
-      label: formatTimestripTickLabel(date),
-      xPx: scale(date) as number,
-    })).filter((tick) => {
-      const labelWidth = context.measureText(tick.label).width
-      return tick.xPx + labelWidth / 2 >= 0 && tick.xPx - labelWidth / 2 <= tile.widthPx
-    })
-    if (ticks.length === 0) {
+  const sampleLabel = formatTimestripTickLabel(new Date(startWallClockMs))
+  const minimumSpacingPx = context.measureText(sampleLabel).width + layout.timeAxis.labelPaddingPx
+  const intervalUs = selectTickIntervalUs(minimumSpacingPx, worldUsPerPx)
+  const searchStartWallClockUs =
+    worldStartWallClockUs + tile.worldLeftUs - TICK_EDGE_SEARCH_PX * worldUsPerPx
+  const searchEndWallClockUs =
+    worldStartWallClockUs +
+    tile.worldLeftUs +
+    tile.worldWidthUs +
+    TICK_EDGE_SEARCH_PX * worldUsPerPx
+  const firstTickWallClockUs = Math.floor(searchStartWallClockUs / intervalUs) * intervalUs
+  const ticks: TimestripTick[] = []
+  for (
+    let tickWallClockUs = firstTickWallClockUs;
+    tickWallClockUs <= searchEndWallClockUs;
+    tickWallClockUs += intervalUs
+  ) {
+    const date = new Date(tickWallClockUs / 1000)
+    const label = formatTimestripTickLabel(date)
+    const xPx = (tickWallClockUs - worldStartWallClockUs - tile.worldLeftUs) / worldUsPerPx
+    const labelWidth = context.measureText(label).width
+    if (xPx + labelWidth / 2 < 0 || xPx - labelWidth / 2 > tile.widthPx) {
       continue
     }
-    const maxLabelWidth = Math.max(
-      ...ticks.map((tick) => context.measureText(tick.label).width),
-      0,
-    )
-    const minimumSpacing = getMinimumTickSpacing(ticks)
-    if (ticks.length === 1 || minimumSpacing >= maxLabelWidth + layout.timeAxis.labelPaddingPx) {
-      context.restore()
-      return ticks
-    }
+    ticks.push({ date, label, xPx })
   }
   context.restore()
-  return []
+  return ticks
+}
+
+const selectTickIntervalUs = (minimumSpacingPx: number, zoomDenominator: number): number => {
+  const minimumIntervalUs = minimumSpacingPx * zoomDenominator
+  return TICK_INTERVALS_US.find((intervalUs) => intervalUs >= minimumIntervalUs) ??
+    TICK_INTERVALS_US[TICK_INTERVALS_US.length - 1]
 }
 
 /**
@@ -117,12 +140,4 @@ export const drawTimeAxisLane = (
     context.fillText(tick.label, tick.xPx, 5)
   }
   context.restore()
-}
-
-const getMinimumTickSpacing = (ticks: TimestripTick[]): number => {
-  let minimum = Number.POSITIVE_INFINITY
-  for (let index = 1; index < ticks.length; index += 1) {
-    minimum = Math.min(minimum, ticks[index].xPx - ticks[index - 1].xPx)
-  }
-  return minimum
 }
