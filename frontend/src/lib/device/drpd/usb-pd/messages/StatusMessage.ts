@@ -10,10 +10,19 @@ import {
 } from '../DataObjects'
 
 const formatHexByte = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
-const LEGACY_SOP_STATUS_LENGTH = 6
-const USB_PD_3_2_SOP_STATUS_LENGTH = 7
+const MIN_SOP_STATUS_LENGTH = 6
 
-const describePresentInputs = (value: number): string[] => {
+const describeInternalTemperature = (value: number): string => {
+  if (value === 0) {
+    return 'unsupported'
+  }
+  if (value === 1) {
+    return '<2C'
+  }
+  return `${value}C`
+}
+
+const describePresentInputs = (value: number): string => {
   const inputs: string[] = []
   if ((value & (1 << 1)) !== 0) {
     inputs.push((value & (1 << 2)) !== 0 ? 'external AC power' : 'external DC power')
@@ -24,10 +33,23 @@ const describePresentInputs = (value: number): string[] => {
   if ((value & (1 << 4)) !== 0) {
     inputs.push('internal non-battery power')
   }
-  return inputs
+  return inputs.length > 0 ? inputs.join(', ') : 'none'
 }
 
-const describeEventFlags = (value: number): string[] => {
+const describePresentBatteryInput = (value: number): string => {
+  const fixedBatteries = value & 0x0f
+  const hotSwappableBatteries = (value >> 4) & 0x0f
+  const values: string[] = []
+  if (fixedBatteries !== 0) {
+    values.push(`fixed battery bits 0x${fixedBatteries.toString(16).toUpperCase()}`)
+  }
+  if (hotSwappableBatteries !== 0) {
+    values.push(`hot-swappable battery bits 0x${hotSwappableBatteries.toString(16).toUpperCase()}`)
+  }
+  return values.length > 0 ? values.join(', ') : 'none'
+}
+
+const describeEventFlags = (value: number): string => {
   const events: string[] = []
   if ((value & (1 << 1)) !== 0) {
     events.push('over-current protection event')
@@ -41,7 +63,7 @@ const describeEventFlags = (value: number): string[] => {
   if ((value & (1 << 4)) !== 0) {
     events.push('current-limit mode for Programmable Power Supply')
   }
-  return events
+  return events.length > 0 ? events.join(', ') : 'none'
 }
 
 const describeTemperatureStatus = (value: number): string => {
@@ -59,7 +81,7 @@ const describeTemperatureStatus = (value: number): string => {
   }
 }
 
-const describePowerStatus = (value: number): string[] => {
+const describePowerStatus = (value: number): string => {
   const statuses: string[] = []
   if ((value & (1 << 1)) !== 0) {
     statuses.push('limited by cable-supported current')
@@ -76,7 +98,7 @@ const describePowerStatus = (value: number): string[] => {
   if ((value & (1 << 5)) !== 0) {
     statuses.push('limited by temperature')
   }
-  return statuses
+  return statuses.length > 0 ? statuses.join(', ') : 'not limited'
 }
 
 const describePowerStateChange = (value: number): string => {
@@ -139,20 +161,8 @@ export class StatusMessage extends ExtendedMessage {
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
     if (this.sop.kind === 'SOP') {
       this.sopStatusDataBlock =
-        dataBlock.length >= LEGACY_SOP_STATUS_LENGTH ? parseSOPStatusDataBlock(dataBlock) : null
+        dataBlock.length >= MIN_SOP_STATUS_LENGTH ? parseSOPStatusDataBlock(dataBlock) : null
       this.sopPrimeStatusDataBlock = null
-      if (dataBlock.length === LEGACY_SOP_STATUS_LENGTH) {
-        this.parseErrors.push(
-          'Legacy 6-byte SOP Status Data Block: missing Power State Change byte required by USB PD 3.2.',
-        )
-      } else if (
-        dataBlock.length > LEGACY_SOP_STATUS_LENGTH &&
-        dataBlock.length < USB_PD_3_2_SOP_STATUS_LENGTH
-      ) {
-        this.parseErrors.push(
-          `Status message expected ${USB_PD_3_2_SOP_STATUS_LENGTH} bytes for USB PD 3.2 but received ${dataBlock.length}`,
-        )
-      }
     } else {
       this.sopStatusDataBlock = null
       this.sopPrimeStatusDataBlock =
@@ -171,42 +181,16 @@ export class StatusMessage extends ExtendedMessage {
       const lines = [
         '**Port status:**',
         '',
-        `- Internal temperature: ${block.internalTemp}C`,
+        `- Internal temperature: ${describeInternalTemperature(block.internalTemp)}`,
+        `- Present inputs: ${describePresentInputs(block.presentInput)}`,
+        `- Present battery input: ${describePresentBatteryInput(block.presentBatteryInput)}`,
+        `- Event flags: ${describeEventFlags(block.eventFlags)}`,
+        `- Temperature status: ${describeTemperatureStatus(block.temperatureStatus)}`,
+        `- Power status: ${describePowerStatus(block.powerStatus)}`,
+        block.powerStateChange === null
+          ? '- Power state change: not present in 6-byte SDB'
+          : `- Power state change: ${describePowerStateChange(block.powerStateChange)}`,
       ]
-
-      const presentInputs = describePresentInputs(block.presentInput)
-      if (presentInputs.length > 0) {
-        lines.push(`- Present inputs: ${presentInputs.join(', ')}`)
-      }
-
-      const fixedBatteries = block.presentBatteryInput & 0x0f
-      const hotSwappableBatteries = (block.presentBatteryInput >> 4) & 0x0f
-      if (fixedBatteries !== 0) {
-        lines.push(`- Present fixed battery bitfield: 0b${fixedBatteries.toString(2).padStart(4, '0')}`)
-      }
-      if (hotSwappableBatteries !== 0) {
-        lines.push(`- Present hot-swappable battery bitfield: 0b${hotSwappableBatteries.toString(2).padStart(4, '0')}`)
-      }
-
-      const events = describeEventFlags(block.eventFlags)
-      if (events.length > 0) {
-        lines.push('', '**Active event flags:**')
-        events.forEach((event) => {
-          lines.push(`- ${event}`)
-        })
-      }
-
-      lines.push('', '**Status fields:**', `- Temperature status: ${describeTemperatureStatus(block.temperatureStatus)}`)
-
-      const powerStatus = describePowerStatus(block.powerStatus)
-      if (powerStatus.length > 0) {
-        lines.push(`- Source power is ${powerStatus.join(', ')}.`)
-      }
-      if (block.powerStateChange === null) {
-        lines.push('- Power state change: unavailable (legacy 6-byte SDB).')
-      } else if (block.powerStateChange !== 0) {
-        lines.push(`- Power state change: ${describePowerStateChange(block.powerStateChange)}.`)
-      }
 
       if (this.parseErrors.length > 0) {
         lines.push('', `**Could not decode all status data:** ${this.parseErrors.join(' ')}`)
@@ -219,7 +203,7 @@ export class StatusMessage extends ExtendedMessage {
       return [
         '**Cable status:**',
         '',
-        `- Internal temperature: ${this.sopPrimeStatusDataBlock.internalTemp}C`,
+        `- Internal temperature: ${describeInternalTemperature(this.sopPrimeStatusDataBlock.internalTemp)}`,
         `- Flags: ${formatHexByte(this.sopPrimeStatusDataBlock.flags)}`,
       ].join('\n')
     }

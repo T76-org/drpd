@@ -1438,8 +1438,8 @@ export interface ParsedSOPStatusDataBlock {
   powerStatus: number
   ///< Power state change bitfield.
   powerStateChange: number | null
-  ///< True when the data block is the legacy 6-byte form without Power State Change.
-  legacy6ByteBlock: boolean
+  ///< True when the data block is the 6-byte form without Power State Change.
+  sixByteBlock: boolean
 }
 
 /**
@@ -1675,7 +1675,7 @@ export const parseSOPStatusDataBlock = (data: Uint8Array): ParsedSOPStatusDataBl
     temperatureStatus: data[4] ?? 0,
     powerStatus: data[5] ?? 0,
     powerStateChange: data.length >= 7 ? (data[6] ?? 0) : null,
-    legacy6ByteBlock: data.length === 6,
+    sixByteBlock: data.length === 6,
   }
 }
 
@@ -2436,6 +2436,16 @@ const formatPowerStatus = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
+const formatInternalTemperature = (value: number): string => {
+  if (value === 0) {
+    return 'Unsupported'
+  }
+  if (value === 1) {
+    return '<2 C'
+  }
+  return `${value} C`
+}
+
 const formatPowerStateChange = (value: number): string => {
   const state = value & 0b111
   const indicator = (value >> 3) & 0b111
@@ -3038,14 +3048,14 @@ export const buildSourceCapabilitiesExtendedDataBlockMetadata = (block: ParsedSo
 
 export const buildSOPStatusDataBlockMetadata = (block: ParsedSOPStatusDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('SOP Status Data Block', 'Metadata describing the SOP Status data block carried by a Status message.')
-  addNumberMetadataField(container, 'internalTemp', 'Internal Temperature', block.internalTemp, 'Internal temperature value reported in the SOP Status Data Block.', 'C')
+  addStringMetadataField(container, 'internalTemp', 'Internal Temperature', formatInternalTemperature(block.internalTemp), 'Internal temperature value reported in the SOP Status Data Block.')
   addStringMetadataField(container, 'presentInput', 'Present Input', formatPresentInput(block.presentInput), 'Present-input bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'presentBatteryInput', 'Present Battery Input', formatPresentBatteryInput(block.presentBatteryInput), 'Present-battery-input bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'eventFlags', 'Event Flags', formatStatusEventFlags(block.eventFlags), 'Event flag bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'temperatureStatus', 'Temperature Status', formatTemperatureStatus(block.temperatureStatus), 'Temperature-status bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'powerStatus', 'Power Status', formatPowerStatus(block.powerStatus), 'Power-status bitfield from the SOP Status Data Block.')
   if (block.powerStateChange === null) {
-    addStringMetadataField(container, 'powerStateChange', 'Power State Change', 'Unavailable (legacy 6-byte SDB)', 'USB PD 3.2 requires this byte at offset 6; this data block omits it.')
+    addStringMetadataField(container, 'powerStateChange', 'Power State Change', 'Not present in 6-byte SDB', 'Power State Change byte is not present in this 6-byte Status Data Block.')
   } else {
     addStringMetadataField(container, 'powerStateChange', 'Power State Change', formatPowerStateChange(block.powerStateChange), 'Power-state-change bitfield from the SOP Status Data Block.')
   }
@@ -3054,7 +3064,7 @@ export const buildSOPStatusDataBlockMetadata = (block: ParsedSOPStatusDataBlock)
 
 export const buildSOPPrimeStatusDataBlockMetadata = (block: ParsedSOPPrimeStatusDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('SOP\' Status Data Block', 'Metadata describing the cable-directed Status data block carried by a Status message.')
-  addNumberMetadataField(container, 'internalTemp', 'Internal Temperature', block.internalTemp, 'Internal temperature value reported in the SOP\' Status Data Block.', 'C')
+  addStringMetadataField(container, 'internalTemp', 'Internal Temperature', formatInternalTemperature(block.internalTemp), 'Internal temperature value reported in the SOP\' Status Data Block.')
   addStringMetadataField(container, 'flags', 'Flags', `0x${block.flags.toString(16).toUpperCase()}`, 'Status flag bitfield from the SOP\' Status Data Block.')
   return container
 }
