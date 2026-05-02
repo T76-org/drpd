@@ -52,6 +52,47 @@ const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string 
   }).join('|')
 
 type DigitalInvalidation = 'all' | { startWorldUs: number; endWorldUs: number }
+type DigitalQueryRange = { startWallClockUs: bigint; endWallClockUs: bigint }
+
+const calculateDigitalQueryInvalidation = (
+  loadedRange: DigitalQueryRange | null,
+  nextRange: DigitalQueryRange,
+  worldStartWallClockUs: number,
+): DigitalInvalidation => {
+  if (!loadedRange) {
+    return 'all'
+  }
+  if (
+    nextRange.endWallClockUs < loadedRange.startWallClockUs ||
+    nextRange.startWallClockUs > loadedRange.endWallClockUs
+  ) {
+    return 'all'
+  }
+
+  let startWallClockUs: bigint | null = null
+  let endWallClockUs: bigint | null = null
+  if (nextRange.startWallClockUs < loadedRange.startWallClockUs) {
+    startWallClockUs = nextRange.startWallClockUs
+    endWallClockUs = loadedRange.startWallClockUs
+  }
+  if (nextRange.endWallClockUs > loadedRange.endWallClockUs) {
+    startWallClockUs =
+      startWallClockUs === null
+        ? loadedRange.endWallClockUs
+        : startWallClockUs
+    endWallClockUs = nextRange.endWallClockUs
+  }
+  if (startWallClockUs === null || endWallClockUs === null) {
+    return {
+      startWorldUs: 0,
+      endWorldUs: 0,
+    }
+  }
+  return {
+    startWorldUs: Number(startWallClockUs) - worldStartWallClockUs,
+    endWorldUs: Number(endWallClockUs) - worldStartWallClockUs,
+  }
+}
 
 /**
  * Standalone DRPD timestrip instrument shell.
@@ -73,7 +114,7 @@ export const DrpdTimeStripInstrumentView = ({
   const tileLayerRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
   const digitalEntriesSignatureRef = useRef('')
-  const digitalQueryRangeRef = useRef<{ startWallClockUs: bigint; endWallClockUs: bigint } | null>(null)
+  const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const pendingDigitalInvalidationRef = useRef<DigitalInvalidation | null>(null)
   const [timelineRange, setTimelineRange] = useState(() => ({
     durationUs: PLACEHOLDER_TIMELINE_END_US - PLACEHOLDER_TIMELINE_START_US,
@@ -323,12 +364,17 @@ export const DrpdTimeStripInstrumentView = ({
         if (!isActive) {
           return
         }
+        const invalidation = calculateDigitalQueryInvalidation(
+          loadedRange,
+          range,
+          timelineRange.worldStartWallClockUs,
+        )
         digitalQueryRangeRef.current = range
         const nextEntries = rows.flatMap((row) => {
           const entry = normalizeCapturedMessageForTimestrip(row, timelineRange.worldStartWallClockUs)
           return entry ? [entry] : []
         })
-        commitDigitalEntries(nextEntries, 'all')
+        commitDigitalEntries(nextEntries, invalidation)
       } catch {
         // Keep the last rendered entries when the log store is temporarily unavailable.
       }

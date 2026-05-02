@@ -69,6 +69,7 @@ export class TimestripTiledRenderer {
   protected cacheZoomDenominator: number ///< Zoom denominator used by current pool.
   protected cacheThemeKey: string ///< Theme palette identity used by current pool.
   protected cacheDigitalDataRevision: number ///< Digital data revision used by current pool.
+  protected shouldLogNextScrollFrame: boolean ///< True when next frame should emit scroll diagnostics.
 
   /**
    * Create a tiled renderer.
@@ -102,6 +103,7 @@ export class TimestripTiledRenderer {
     this.cacheZoomDenominator = 1000
     this.cacheThemeKey = getTimestripThemeCacheKey(DEFAULT_TIMESTRIP_THEME)
     this.cacheDigitalDataRevision = 0
+    this.shouldLogNextScrollFrame = false
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()
     if (this.worker) {
       this.worker.onmessage = (event: MessageEvent<TimestripTileWorkerResponse>) => {
@@ -122,6 +124,7 @@ export class TimestripTiledRenderer {
     const nextViewport = normalizeViewport(viewport)
     const currentRenderKey = this.getViewportRenderKey(this.viewport)
     const nextRenderKey = this.getViewportRenderKey(nextViewport)
+    const didScroll = nextViewport.scrollLeftPx !== this.viewport.scrollLeftPx
     const shouldResetPool =
       nextViewport.dpr !== this.cacheDpr ||
       nextViewport.viewportHeightPx !== this.cacheHeightPx ||
@@ -139,6 +142,9 @@ export class TimestripTiledRenderer {
       this.cacheZoomDenominator = nextViewport.zoomDenominator
       this.cacheThemeKey = getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME)
       this.cacheDigitalDataRevision = nextViewport.digitalDataRevision ?? 0
+    }
+    if (didScroll) {
+      this.shouldLogNextScrollFrame = true
     }
     if (shouldResetPool || nextRenderKey !== currentRenderKey) {
       this.scheduleFrame()
@@ -333,6 +339,7 @@ export class TimestripTiledRenderer {
       viewportHeightPx,
     )
     const visibleKeys = new Set(visibleTiles.map((tile) => tile.key))
+    let renderedTilesThisFrame = 0
 
     for (const entry of this.pool) {
       if (entry.tileKey && !visibleKeys.has(entry.tileKey)) {
@@ -358,10 +365,19 @@ export class TimestripTiledRenderer {
         entry.generation = this.generation
         this.clearTileCanvas(entry)
         this.enqueueTile(entry, tile)
+        renderedTilesThisFrame += 1
       } else {
         entry.tile = tile
       }
       this.positionTileCanvas(entry, tile)
+    }
+    if (this.shouldLogNextScrollFrame) {
+      this.shouldLogNextScrollFrame = false
+      console.log('[timestrip] scroll', {
+        leftX: scrollLeftPx,
+        rightX: scrollLeftPx + viewportWidthPx,
+        tilesRendered: renderedTilesThisFrame,
+      })
     }
   }
 
@@ -396,11 +412,6 @@ export class TimestripTiledRenderer {
     }
 
     if (entry.context) {
-      console.log('[timestrip] render on-screen tile canvas fallback', {
-        tileKey: tile.key,
-        requestId,
-        generation: this.generation,
-      })
       drawTimestripTile(
         entry.context,
         tile,
@@ -427,11 +438,6 @@ export class TimestripTiledRenderer {
       message.bitmap.close()
       return
     }
-    console.log('[timestrip] render on-screen tile canvas', {
-      tileKey: message.tileKey,
-      requestId: message.requestId,
-      generation: message.generation,
-    })
     entry.context.setTransform(1, 0, 0, 1, 0, 0)
     entry.context.clearRect(0, 0, entry.canvas.width, entry.canvas.height)
     entry.context.drawImage(message.bitmap, 0, 0)
