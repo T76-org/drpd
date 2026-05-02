@@ -2,7 +2,7 @@ import {
   type TimestripTileWorkerRequest,
   type TimestripTileWorkerResponse,
 } from './timestripTileProtocol'
-import { drawTimestripPlaceholderTile } from './timestripTileDrawing'
+import { drawTimestripTile } from './timestripTileDrawing'
 
 const workerScope = self as unknown as {
   onmessage: ((event: MessageEvent<TimestripTileWorkerRequest>) => void) | null
@@ -23,7 +23,7 @@ workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
     return
   }
 
-  drawTimestripPlaceholderTile(context, message.tile, message.dpr)
+  drawTimestripTile(context, message.tile, message.dpr, message.worldStartWallClockUs)
   const bitmap = canvas.transferToImageBitmap()
   const response: TimestripTileWorkerResponse = {
     type: 'tileRendered',

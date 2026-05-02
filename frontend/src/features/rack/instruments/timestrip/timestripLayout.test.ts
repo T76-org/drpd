@@ -29,10 +29,11 @@ describe('timestripLayout', () => {
     expect(calculateTimestripWidthPx(-1n, 1000, 320)).toBe(320)
   })
 
-  it('quantizes zoom denominators into stable LOD buckets', () => {
+  it('uses exact zoom denominators as tile render levels', () => {
     expect(resolveTimestripZoomLevel(1)).toEqual({ zoomLevel: 'z1', denominator: 1 })
-    expect(resolveTimestripZoomLevel(3)).toEqual({ zoomLevel: 'z4', denominator: 4 })
-    expect(resolveTimestripZoomLevel(900)).toEqual({ zoomLevel: 'z1000', denominator: 1000 })
+    expect(resolveTimestripZoomLevel(3)).toEqual({ zoomLevel: 'z3', denominator: 3 })
+    expect(resolveTimestripZoomLevel(909)).toEqual({ zoomLevel: 'z909', denominator: 909 })
+    expect(resolveTimestripZoomLevel(1001)).toEqual({ zoomLevel: 'z1000', denominator: 1000 })
   })
 
   it('builds tile keys from LOD and tile coordinates', () => {
@@ -53,5 +54,13 @@ describe('timestripLayout', () => {
 
   it('converts scrollLeft into world microseconds', () => {
     expect(scrollLeftToWorldUs(25, 1000)).toBe(25_000)
+  })
+
+  it('uses exact zoom for tile world width so composited width is one tile', () => {
+    const [tile] = calculateVisibleTimestripTiles(0, 909, 200, 240, 0)
+
+    expect(tile.key).toBe('z909:0:0')
+    expect(tile.worldWidthUs).toBe(512 * 909)
+    expect(tile.worldWidthUs / 909).toBe(512)
   })
 })

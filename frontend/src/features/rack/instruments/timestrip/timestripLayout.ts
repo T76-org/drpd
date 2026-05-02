@@ -1,7 +1,5 @@
 const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 1
 const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 1000
-const TIMESTRIP_ZOOM_LEVEL_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1000] as const
-
 export const TIMESTRIP_TILE_WIDTH_PX = 512
 export const TIMESTRIP_TILE_OVERSCAN = 1
 
@@ -72,18 +70,13 @@ export interface TimestripVisibleTile {
 }
 
 /**
- * Return the nearest discrete zoom LOD for a zoom denominator.
+ * Return the exact render zoom level for a zoom denominator.
  *
  * @param zoomDenominator - Current microseconds-per-CSS-pixel denominator.
- * @returns Quantized zoom level.
+ * @returns Exact zoom level.
  */
 export const resolveTimestripZoomLevel = (zoomDenominator: number): TimestripZoomLevel => {
-  const normalized = clampTimestripZoomDenominator(zoomDenominator)
-  const denominator = TIMESTRIP_ZOOM_LEVEL_DENOMINATORS.reduce((best, candidate) => {
-    const bestDistance = Math.abs(Math.log2(normalized / best))
-    const candidateDistance = Math.abs(Math.log2(normalized / candidate))
-    return candidateDistance < bestDistance ? candidate : best
-  })
+  const denominator = clampTimestripZoomDenominator(zoomDenominator)
   return {
     zoomLevel: `z${denominator}`,
     denominator,

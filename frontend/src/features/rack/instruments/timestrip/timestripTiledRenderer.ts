@@ -7,7 +7,7 @@ import {
   type TimestripTileWorkerRequest,
   type TimestripTileWorkerResponse,
 } from './timestripTileProtocol'
-import { drawTimestripPlaceholderTile } from './timestripTileDrawing'
+import { drawTimestripTile } from './timestripTileDrawing'
 
 const DEFAULT_MAX_TILE_COUNT = 96
 
@@ -17,6 +17,7 @@ export interface TimestripRendererViewport {
   viewportWidthPx: number
   viewportHeightPx: number
   dpr: number
+  worldStartWallClockUs: number
 }
 
 export interface TimestripRendererOptions {
@@ -51,6 +52,8 @@ export class TimestripTiledRenderer {
   protected disposed: boolean ///< True after disposal.
   protected cacheDpr: number ///< DPR used by current cache.
   protected cacheHeightPx: number ///< Tile height used by current cache.
+  protected cacheWallClockOriginUs: number ///< Wall-clock origin used by current cache.
+  protected cacheZoomDenominator: number ///< Zoom denominator used by current cache.
 
   /**
    * Create a tiled renderer.
@@ -71,12 +74,15 @@ export class TimestripTiledRenderer {
       viewportWidthPx: 0,
       viewportHeightPx: 0,
       dpr: 1,
+      worldStartWallClockUs: 0,
     }
     this.frameHandle = null
     this.requestId = 0
     this.disposed = false
     this.cacheDpr = 1
     this.cacheHeightPx = 0
+    this.cacheWallClockOriginUs = 0
+    this.cacheZoomDenominator = 1000
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()
     if (this.worker) {
       this.worker.onmessage = (event: MessageEvent<TimestripTileWorkerResponse>) => {
@@ -96,7 +102,10 @@ export class TimestripTiledRenderer {
     }
     const nextViewport = normalizeViewport(viewport)
     const shouldResetCache =
-      nextViewport.dpr !== this.cacheDpr || nextViewport.viewportHeightPx !== this.cacheHeightPx
+      nextViewport.dpr !== this.cacheDpr ||
+      nextViewport.viewportHeightPx !== this.cacheHeightPx ||
+      nextViewport.worldStartWallClockUs !== this.cacheWallClockOriginUs ||
+      nextViewport.zoomDenominator !== this.cacheZoomDenominator
     this.viewport = nextViewport
     this.resizeCanvas()
     if (shouldResetCache) {
@@ -104,6 +113,8 @@ export class TimestripTiledRenderer {
       this.pendingTiles.clear()
       this.cacheDpr = nextViewport.dpr
       this.cacheHeightPx = nextViewport.viewportHeightPx
+      this.cacheWallClockOriginUs = nextViewport.worldStartWallClockUs
+      this.cacheZoomDenominator = nextViewport.zoomDenominator
     }
     this.scheduleComposite()
   }
@@ -208,6 +219,7 @@ export class TimestripTiledRenderer {
       requestId: ++this.requestId,
       tile,
       dpr: this.viewport.dpr,
+      worldStartWallClockUs: this.viewport.worldStartWallClockUs,
     }
     if (this.worker) {
       this.worker.postMessage(request)
@@ -228,7 +240,7 @@ export class TimestripTiledRenderer {
     canvas.height = Math.max(1, Math.ceil(tile.heightPx * dpr))
     const context = canvas.getContext('2d')
     if (context) {
-      drawTimestripPlaceholderTile(context, tile, dpr)
+      drawTimestripTile(context, tile, dpr, this.viewport.worldStartWallClockUs)
     }
     return canvas
   }
@@ -295,4 +307,7 @@ export const normalizeViewport = (viewport: TimestripRendererViewport): Timestri
   viewportWidthPx: Math.max(0, Math.floor(viewport.viewportWidthPx)),
   viewportHeightPx: Math.max(0, Math.floor(viewport.viewportHeightPx)),
   dpr: Number.isFinite(viewport.dpr) && viewport.dpr > 0 ? viewport.dpr : 1,
+  worldStartWallClockUs: Number.isFinite(viewport.worldStartWallClockUs)
+    ? viewport.worldStartWallClockUs
+    : 0,
 })

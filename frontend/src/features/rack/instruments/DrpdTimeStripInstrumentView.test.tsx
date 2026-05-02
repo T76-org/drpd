@@ -5,18 +5,24 @@ import { DrpdTimeStripInstrumentView } from './DrpdTimeStripInstrumentView'
 
 const buildCanvasContext = () => ({
   clearRect: vi.fn(),
+  beginPath: vi.fn(),
   drawImage: vi.fn(),
   fillRect: vi.fn(),
   fillText: vi.fn(),
+  lineTo: vi.fn(),
+  measureText: vi.fn((text: string) => ({ width: text.length * 6 })),
+  moveTo: vi.fn(),
   restore: vi.fn(),
   save: vi.fn(),
   scale: vi.fn(),
   setTransform: vi.fn(),
+  stroke: vi.fn(),
   strokeRect: vi.fn(),
   fillStyle: '',
   font: '',
   lineWidth: 1,
   strokeStyle: '',
+  textAlign: 'start',
   textBaseline: 'alphabetic',
 })
 

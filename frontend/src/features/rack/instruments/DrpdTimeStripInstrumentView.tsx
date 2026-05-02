@@ -31,6 +31,7 @@ export const DrpdTimeStripInstrumentView = ({
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
+  const [worldStartWallClockUs] = useState(() => Date.now() * 1000)
   const [viewportWidthPx, setViewportWidthPx] = useState(0)
   const [viewportHeightPx, setViewportHeightPx] = useState(0)
   const [scrollLeftPx, setScrollLeftPx] = useState(0)
@@ -127,8 +128,9 @@ export const DrpdTimeStripInstrumentView = ({
       viewportWidthPx,
       viewportHeightPx,
       dpr: window.devicePixelRatio || 1,
+      worldStartWallClockUs,
     })
-  }, [scrollLeftPx, viewportHeightPx, viewportWidthPx, zoomDenominator])
+  }, [scrollLeftPx, viewportHeightPx, viewportWidthPx, worldStartWallClockUs, zoomDenominator])
 
   return (
     <InstrumentBase

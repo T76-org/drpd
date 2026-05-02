@@ -5,6 +5,7 @@ export interface TimestripTileRenderRequest {
   requestId: number
   tile: TimestripVisibleTile
   dpr: number
+  worldStartWallClockUs: number
 }
 
 export interface TimestripTileRenderResponse {
