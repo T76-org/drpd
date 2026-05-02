@@ -106,6 +106,7 @@ export const SinkRequestPopover = ({
     onOpenChange={onOpenChange}
     title="Sink request tuning"
     description="Choose a PDO and request voltage/current."
+    dialogStyle={{ width: 'min(520px, calc(100vw - var(--space-32)))' }}
     footer={
       <>
         <DialogButton onClick={onCancel}>Cancel</DialogButton>

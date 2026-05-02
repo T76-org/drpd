@@ -1415,7 +1415,9 @@ export interface ParsedSourceCapabilitiesExtendedDataBlock {
   ///< SPR source PDP rating.
   sprSourcePdpRating: number
   ///< EPR source PDP rating.
-  eprSourcePdpRating: number
+  eprSourcePdpRating: number | null
+  ///< True when the data block is the legacy 24-byte form without EPR Source PDP Rating.
+  legacy24ByteBlock: boolean
 }
 
 /**
@@ -1435,7 +1437,9 @@ export interface ParsedSOPStatusDataBlock {
   ///< Power status bitfield.
   powerStatus: number
   ///< Power state change bitfield.
-  powerStateChange: number
+  powerStateChange: number | null
+  ///< True when the data block is the 6-byte form without Power State Change.
+  sixByteBlock: boolean
 }
 
 /**
@@ -1549,11 +1553,13 @@ export interface ParsedSinkCapabilitiesExtendedDataBlock {
   ///< SPR sink maximum PDP.
   sprSinkMaximumPdp: number
   ///< EPR sink minimum PDP.
-  eprSinkMinimumPdp: number
+  eprSinkMinimumPdp: number | null
   ///< EPR sink operational PDP.
-  eprSinkOperationalPdp: number
+  eprSinkOperationalPdp: number | null
   ///< EPR sink maximum PDP.
-  eprSinkMaximumPdp: number
+  eprSinkMaximumPdp: number | null
+  ///< True when the data block is the legacy 21-byte form without EPR Sink PDP fields.
+  legacy21ByteBlock: boolean
 }
 
 /**
@@ -1649,7 +1655,8 @@ export const parseSourceCapabilitiesExtendedDataBlock = (
     hotSwappableBatterySlots: (data[22] ?? 0) >> 4,
     fixedBatteries: (data[22] ?? 0) & 0x0f,
     sprSourcePdpRating: (data[23] ?? 0) & 0x7f,
-    eprSourcePdpRating: data[24] ?? 0,
+    eprSourcePdpRating: data.length >= 25 ? (data[24] ?? 0) : null,
+    legacy24ByteBlock: data.length === 24,
   }
 }
 
@@ -1667,7 +1674,8 @@ export const parseSOPStatusDataBlock = (data: Uint8Array): ParsedSOPStatusDataBl
     eventFlags: data[3] ?? 0,
     temperatureStatus: data[4] ?? 0,
     powerStatus: data[5] ?? 0,
-    powerStateChange: data[6] ?? 0,
+    powerStateChange: data.length >= 7 ? (data[6] ?? 0) : null,
+    sixByteBlock: data.length === 6,
   }
 }
 
@@ -1808,9 +1816,10 @@ export const parseSinkCapabilitiesExtendedDataBlock = (
     sprSinkMinimumPdp: data[18] ?? 0,
     sprSinkOperationalPdp: data[19] ?? 0,
     sprSinkMaximumPdp: data[20] ?? 0,
-    eprSinkMinimumPdp: data[21] ?? 0,
-    eprSinkOperationalPdp: data[22] ?? 0,
-    eprSinkMaximumPdp: data[23] ?? 0,
+    eprSinkMinimumPdp: data.length >= 22 ? (data[21] ?? 0) : null,
+    eprSinkOperationalPdp: data.length >= 23 ? (data[22] ?? 0) : null,
+    eprSinkMaximumPdp: data.length >= 24 ? (data[23] ?? 0) : null,
+    legacy21ByteBlock: data.length === 21,
   }
 }
 
@@ -2322,15 +2331,15 @@ const formatStructuredVdmCommandType = (commandType: number): string => {
   }
 }
 
-const formatVoltageRegulation = (value: number): string => {
+export const formatVoltageRegulation = (value: number): string => {
   const slew = value & 0b11
   const magnitude = (value >> 2) & 0b1
-  const slewText = slew === 0b00 ? '150 mA/us load step' : slew === 0b01 ? '500 mA/us load step' : 'Reserved'
+  const slewText = slew === 0b00 ? '150 mA/µs load step' : slew === 0b01 ? '500 mA/µs load step' : 'Reserved'
   const magnitudeText = magnitude === 0b0 ? '25% IoC' : '90% IoC'
   return `0b${value.toString(2).padStart(8, '0')} (Load Step Slew Rate: ${slewText}; Load Step Magnitude: ${magnitudeText})`
 }
 
-const formatComplianceBits = (value: number): string => {
+export const formatComplianceBits = (value: number): string => {
   const meanings: string[] = []
   if ((value & (1 << 0)) !== 0) meanings.push('LPS')
   if ((value & (1 << 1)) !== 0) meanings.push('PS1')
@@ -2338,7 +2347,7 @@ const formatComplianceBits = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
-const formatTouchCurrent = (value: number): string => {
+export const formatTouchCurrent = (value: number): string => {
   const meanings: string[] = []
   if ((value & (1 << 0)) !== 0) meanings.push('Low touch current EPS')
   if ((value & (1 << 1)) !== 0) meanings.push('Ground pin supported')
@@ -2346,7 +2355,7 @@ const formatTouchCurrent = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
-const formatTouchTempSource = (value: number): string => {
+export const formatTouchTempSource = (value: number): string => {
   switch (value) {
     case 0: return '0x00 (IEC 60950-1)'
     case 1: return '0x01 (IEC 62368-1 TS1)'
@@ -2365,7 +2374,7 @@ const formatTouchTempSink = (value: number): string => {
   }
 }
 
-const formatSourceInputs = (value: number): string => {
+export const formatSourceInputs = (value: number): string => {
   const meanings: string[] = []
   if ((value & (1 << 0)) !== 0) {
     meanings.push('External supply present')
@@ -2375,7 +2384,7 @@ const formatSourceInputs = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
-const formatPeakCurrentField = (value: number): string => {
+export const formatPeakCurrentField = (value: number): string => {
   const percentOverload = value & 0x1f
   const overloadPeriod = (value >> 5) & 0x3f
   const dutyCycle = (value >> 11) & 0x0f
@@ -2427,6 +2436,16 @@ const formatPowerStatus = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
+const formatInternalTemperature = (value: number): string => {
+  if (value === 0) {
+    return 'Unsupported'
+  }
+  if (value === 1) {
+    return '<2 C'
+  }
+  return `${value} C`
+}
+
 const formatPowerStateChange = (value: number): string => {
   const state = value & 0b111
   const indicator = (value >> 3) & 0b111
@@ -2450,7 +2469,7 @@ const formatSkedbVersion = (value: number): string =>
 
 const formatSinkLoadStep = (value: number): string => {
   const slew = value & 0b11
-  const slewText = slew === 0b00 ? '150 mA/us load step' : slew === 0b01 ? '500 mA/us load step' : 'Reserved'
+  const slewText = slew === 0b00 ? '150 mA/µs load step' : slew === 0b01 ? '500 mA/µs load step' : 'Reserved'
   return `0b${value.toString(2).padStart(8, '0')} (Load Step Slew Rate: ${slewText})`
 }
 
@@ -3019,25 +3038,33 @@ export const buildSourceCapabilitiesExtendedDataBlockMetadata = (block: ParsedSo
   addNumberMetadataField(container, 'hotSwappableBatterySlots', 'Hot Swappable Battery Slots', block.hotSwappableBatterySlots, 'Number of hot-swappable battery slots reported by the source.')
   addNumberMetadataField(container, 'fixedBatteries', 'Fixed Batteries', block.fixedBatteries, 'Number of fixed batteries reported by the source.')
   addNumberMetadataField(container, 'sprSourcePdpRating', 'SPR Source PDP Rating', block.sprSourcePdpRating, 'SPR Power Data Profile rating reported by the source.', 'W')
-  addNumberMetadataField(container, 'eprSourcePdpRating', 'EPR Source PDP Rating', block.eprSourcePdpRating, 'EPR Power Data Profile rating reported by the source.', 'W')
+  if (block.eprSourcePdpRating === null) {
+    addStringMetadataField(container, 'eprSourcePdpRating', 'EPR Source PDP Rating', 'Unavailable (legacy 24-byte SCEDB)', 'USB PD 3.2 requires this byte at offset 24; this data block omits it.')
+  } else {
+    addNumberMetadataField(container, 'eprSourcePdpRating', 'EPR Source PDP Rating', block.eprSourcePdpRating, 'EPR Power Data Profile rating reported by the source.', 'W')
+  }
   return container
 }
 
 export const buildSOPStatusDataBlockMetadata = (block: ParsedSOPStatusDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('SOP Status Data Block', 'Metadata describing the SOP Status data block carried by a Status message.')
-  addNumberMetadataField(container, 'internalTemp', 'Internal Temperature', block.internalTemp, 'Internal temperature value reported in the SOP Status Data Block.', 'C')
+  addStringMetadataField(container, 'internalTemp', 'Internal Temperature', formatInternalTemperature(block.internalTemp), 'Internal temperature value reported in the SOP Status Data Block.')
   addStringMetadataField(container, 'presentInput', 'Present Input', formatPresentInput(block.presentInput), 'Present-input bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'presentBatteryInput', 'Present Battery Input', formatPresentBatteryInput(block.presentBatteryInput), 'Present-battery-input bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'eventFlags', 'Event Flags', formatStatusEventFlags(block.eventFlags), 'Event flag bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'temperatureStatus', 'Temperature Status', formatTemperatureStatus(block.temperatureStatus), 'Temperature-status bitfield from the SOP Status Data Block.')
   addStringMetadataField(container, 'powerStatus', 'Power Status', formatPowerStatus(block.powerStatus), 'Power-status bitfield from the SOP Status Data Block.')
-  addStringMetadataField(container, 'powerStateChange', 'Power State Change', formatPowerStateChange(block.powerStateChange), 'Power-state-change bitfield from the SOP Status Data Block.')
+  if (block.powerStateChange === null) {
+    addStringMetadataField(container, 'powerStateChange', 'Power State Change', 'Not present in 6-byte SDB', 'Power State Change byte is not present in this 6-byte Status Data Block.')
+  } else {
+    addStringMetadataField(container, 'powerStateChange', 'Power State Change', formatPowerStateChange(block.powerStateChange), 'Power-state-change bitfield from the SOP Status Data Block.')
+  }
   return container
 }
 
 export const buildSOPPrimeStatusDataBlockMetadata = (block: ParsedSOPPrimeStatusDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('SOP\' Status Data Block', 'Metadata describing the cable-directed Status data block carried by a Status message.')
-  addNumberMetadataField(container, 'internalTemp', 'Internal Temperature', block.internalTemp, 'Internal temperature value reported in the SOP\' Status Data Block.', 'C')
+  addStringMetadataField(container, 'internalTemp', 'Internal Temperature', formatInternalTemperature(block.internalTemp), 'Internal temperature value reported in the SOP\' Status Data Block.')
   addStringMetadataField(container, 'flags', 'Flags', `0x${block.flags.toString(16).toUpperCase()}`, 'Status flag bitfield from the SOP\' Status Data Block.')
   return container
 }
@@ -3104,9 +3131,21 @@ export const buildSinkCapabilitiesExtendedDataBlockMetadata = (block: ParsedSink
   addNumberMetadataField(container, 'sprSinkMinimumPdp', 'SPR Sink Minimum PDP', block.sprSinkMinimumPdp, 'Minimum SPR Power Data Profile level reported by the sink.', 'W')
   addNumberMetadataField(container, 'sprSinkOperationalPdp', 'SPR Sink Operational PDP', block.sprSinkOperationalPdp, 'Operational SPR Power Data Profile level reported by the sink.', 'W')
   addNumberMetadataField(container, 'sprSinkMaximumPdp', 'SPR Sink Maximum PDP', block.sprSinkMaximumPdp, 'Maximum SPR Power Data Profile level reported by the sink.', 'W')
-  addNumberMetadataField(container, 'eprSinkMinimumPdp', 'EPR Sink Minimum PDP', block.eprSinkMinimumPdp, 'Minimum EPR Power Data Profile level reported by the sink.', 'W')
-  addNumberMetadataField(container, 'eprSinkOperationalPdp', 'EPR Sink Operational PDP', block.eprSinkOperationalPdp, 'Operational EPR Power Data Profile level reported by the sink.', 'W')
-  addNumberMetadataField(container, 'eprSinkMaximumPdp', 'EPR Sink Maximum PDP', block.eprSinkMaximumPdp, 'Maximum EPR Power Data Profile level reported by the sink.', 'W')
+  if (block.eprSinkMinimumPdp === null) {
+    addStringMetadataField(container, 'eprSinkMinimumPdp', 'EPR Sink Minimum PDP', 'Unavailable (legacy 21-byte SKEDB)', 'USB PD 3.2 requires this byte at offset 21; this data block omits it.')
+  } else {
+    addNumberMetadataField(container, 'eprSinkMinimumPdp', 'EPR Sink Minimum PDP', block.eprSinkMinimumPdp, 'Minimum EPR Power Data Profile level reported by the sink.', 'W')
+  }
+  if (block.eprSinkOperationalPdp === null) {
+    addStringMetadataField(container, 'eprSinkOperationalPdp', 'EPR Sink Operational PDP', 'Unavailable (legacy 21-byte SKEDB)', 'USB PD 3.2 requires this byte at offset 22; this data block omits it.')
+  } else {
+    addNumberMetadataField(container, 'eprSinkOperationalPdp', 'EPR Sink Operational PDP', block.eprSinkOperationalPdp, 'Operational EPR Power Data Profile level reported by the sink.', 'W')
+  }
+  if (block.eprSinkMaximumPdp === null) {
+    addStringMetadataField(container, 'eprSinkMaximumPdp', 'EPR Sink Maximum PDP', 'Unavailable (legacy 21-byte SKEDB)', 'USB PD 3.2 requires this byte at offset 23; this data block omits it.')
+  } else {
+    addNumberMetadataField(container, 'eprSinkMaximumPdp', 'EPR Sink Maximum PDP', block.eprSinkMaximumPdp, 'Maximum EPR Power Data Profile level reported by the sink.', 'W')
+  }
   return container
 }
 

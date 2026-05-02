@@ -7,16 +7,58 @@ import {
 } from '../DataObjects'
 
 const formatHex = (value: number, width: number): string => `0x${value.toString(16).toUpperCase().padStart(width, '0')}`
+const LEGACY_SCEDB_LENGTH = 24
+const USB_PD_3_2_SCEDB_LENGTH = 25
 
-const describeSourceInputs = (sourceInputs: number): string[] => {
-  const inputs: string[] = []
-  if ((sourceInputs & (1 << 0)) !== 0) {
-    inputs.push((sourceInputs & (1 << 1)) !== 0 ? 'unconstrained external supply' : 'constrained external supply')
+const describeVoltageRegulation = (value: number): string => {
+  const slew = value & 0b11
+  const magnitude = (value >> 2) & 0b1
+  const slewText = slew === 0b00 ? '150 mA/µs load step' : slew === 0b01 ? '500 mA/µs load step' : 'reserved load step'
+  const magnitudeText = magnitude === 0b0 ? '25% IoC load step magnitude' : '90% IoC load step magnitude'
+  return `${slewText}; ${magnitudeText}`
+}
+
+const describeCompliance = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('LPS')
+  if ((value & (1 << 1)) !== 0) meanings.push('PS1')
+  if ((value & (1 << 2)) !== 0) meanings.push('PS2')
+  return meanings.length > 0 ? meanings.join(', ') : 'No asserted compliance flags'
+}
+
+const describeTouchCurrent = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) meanings.push('low touch current EPS')
+  if ((value & (1 << 1)) !== 0) meanings.push('ground pin supported')
+  if ((value & (1 << 2)) !== 0) meanings.push('ground pin intended for protective earth')
+  return meanings.length > 0 ? meanings.join(', ') : 'No asserted touch-current flags'
+}
+
+const describePeakCurrent = (value: number): string => {
+  const percentOverload = value & 0x1f
+  const overloadPeriod = (value >> 5) & 0x3f
+  const dutyCycle = (value >> 11) & 0x0f
+  const droop = ((value >> 15) & 0x1) === 1
+  return `${Math.min(percentOverload, 25) * 10}% overload for ${overloadPeriod * 20} ms at ${dutyCycle * 5}% duty cycle; VBUS voltage droop ${droop ? 'allowed' : 'not allowed'}`
+}
+
+const describeTouchTemp = (value: number): string => {
+  switch (value) {
+    case 0: return 'IEC 60950-1'
+    case 1: return 'IEC 62368-1 TS1'
+    case 2: return 'IEC 62368-1 TS2'
+    default: return 'Reserved'
   }
-  if ((sourceInputs & (1 << 2)) !== 0) {
-    inputs.push('internal battery')
+}
+
+const describeSourceInputs = (value: number): string => {
+  const meanings: string[] = []
+  if ((value & (1 << 0)) !== 0) {
+    meanings.push('external supply present')
+    meanings.push((value & (1 << 1)) !== 0 ? 'external supply unconstrained' : 'external supply constrained')
   }
-  return inputs
+  if ((value & (1 << 2)) !== 0) meanings.push('internal battery present')
+  return meanings.length > 0 ? meanings.join(', ') : 'No asserted source inputs'
 }
 
 /**
@@ -68,7 +110,16 @@ export class SourceCapabilitiesExtendedMessage extends ExtendedMessage {
     }
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
     this.sourceCapabilitiesExtended =
-      dataBlock.length >= 25 ? parseSourceCapabilitiesExtendedDataBlock(dataBlock) : null
+      dataBlock.length >= LEGACY_SCEDB_LENGTH ? parseSourceCapabilitiesExtendedDataBlock(dataBlock) : null
+    if (dataBlock.length === LEGACY_SCEDB_LENGTH) {
+      this.parseErrors.push(
+        'Legacy 24-byte Source Capabilities Extended Data Block: missing EPR Source PDP Rating byte required by USB PD 3.2.',
+      )
+    } else if (dataBlock.length > LEGACY_SCEDB_LENGTH && dataBlock.length < USB_PD_3_2_SCEDB_LENGTH) {
+      this.parseErrors.push(
+        `Source_Capabilities_Extended expected ${USB_PD_3_2_SCEDB_LENGTH} bytes for USB PD 3.2 but received ${dataBlock.length}`,
+      )
+    }
   }
 
   /**
@@ -86,7 +137,6 @@ export class SourceCapabilitiesExtendedMessage extends ExtendedMessage {
     }
 
     const block = this.sourceCapabilitiesExtended
-    const sourceInputs = describeSourceInputs(block.sourceInputs)
     const lines = [
       '**Source capabilities extended information:**',
       '',
@@ -95,19 +145,22 @@ export class SourceCapabilitiesExtendedMessage extends ExtendedMessage {
       `- XID value: ${formatHex(block.xid, 8)}`,
       `- Firmware version: ${block.fwVersion}`,
       `- Hardware version: ${block.hwVersion}`,
+      `- Voltage regulation: ${describeVoltageRegulation(block.voltageRegulation)}`,
+      `- Holdup time: ${block.holdupTimeMs} ms`,
+      `- Compliance: ${describeCompliance(block.compliance)}`,
+      `- Touch current: ${describeTouchCurrent(block.touchCurrent)}`,
+      `- Peak current 1: ${describePeakCurrent(block.peakCurrent1)}`,
+      `- Peak current 2: ${describePeakCurrent(block.peakCurrent2)}`,
+      `- Peak current 3: ${describePeakCurrent(block.peakCurrent3)}`,
+      `- Touch temperature: ${describeTouchTemp(block.touchTemp)}`,
+      `- Source inputs: ${describeSourceInputs(block.sourceInputs)}`,
+      `- Fixed batteries: ${block.fixedBatteries}`,
+      `- Hot-swappable battery slots: ${block.hotSwappableBatterySlots}`,
       `- Standard Power Range source power data profile rating: ${block.sprSourcePdpRating}W`,
-      `- Extended Power Range source power data profile rating: ${block.eprSourcePdpRating}W`,
+      block.eprSourcePdpRating === null
+        ? '- Extended Power Range source power data profile rating: unavailable (legacy 24-byte SCEDB)'
+        : `- Extended Power Range source power data profile rating: ${block.eprSourcePdpRating}W`,
     ]
-
-    if (sourceInputs.length > 0) {
-      lines.push(`- Source inputs: ${sourceInputs.join(', ')}`)
-    }
-    if (block.fixedBatteries > 0) {
-      lines.push(`- Fixed batteries: ${block.fixedBatteries}`)
-    }
-    if (block.hotSwappableBatterySlots > 0) {
-      lines.push(`- Hot-swappable battery slots: ${block.hotSwappableBatterySlots}`)
-    }
 
     if (this.parseErrors.length > 0) {
       lines.push('', `**Could not decode all source capability data:** ${this.parseErrors.join(' ')}`)

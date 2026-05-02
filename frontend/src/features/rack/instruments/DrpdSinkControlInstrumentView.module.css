@@ -133,6 +133,8 @@
 }
 
 .control {
+  box-sizing: border-box;
+  width: 72px;
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-instrument);
   color: var(--color-text-primary);
@@ -141,6 +143,7 @@
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
   min-width: 0;
+  text-align: right;
 }
 
 .control[readonly] {
@@ -179,16 +182,13 @@
 
 .advancedPanel {
   position: static;
-  width: 250px;
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
-  max-width: calc(100vw - 24px);
-  border: var(--border-thin) solid var(--color-border-panel);
-  background: var(--color-surface-instrument);
-  padding: var(--space-6);
-  box-shadow: var(--shadow-strong);
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-10);
   font-size: var(--font-size-header-popup-base);
 }
 
@@ -201,9 +201,10 @@
 
 .advancedLayout {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.95fr);
   gap: var(--space-12);
   align-items: stretch;
+  min-width: 0;
 }
 
 .pdoListPane {
@@ -213,14 +214,14 @@
 }
 
 .pdoList {
-  --pdo-list-row-height: 28px;
+  --pdo-list-row-height: 52px;
 
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-instrument) 92%, black 8%);
   display: grid;
   align-content: start;
   overflow-y: auto;
-  max-height: calc(5 * var(--pdo-list-row-height));
+  max-height: calc(5 * var(--pdo-list-row-height) + var(--border-thin));
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
@@ -239,7 +240,7 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  padding: var(--space-2) var(--space-8);
+  padding: var(--space-6) var(--space-8);
   min-height: var(--pdo-list-row-height);
   cursor: pointer;
   display: grid;
@@ -271,6 +272,7 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   line-height: var(--line-height-tight);
+  white-space: nowrap;
 }
 
 .pdoListItemDetail {
@@ -278,6 +280,7 @@
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   line-height: var(--line-height-tight);
+  white-space: nowrap;
 }
 
 .requestPane {
@@ -295,8 +298,11 @@
 
 .requestBody {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: max-content minmax(72px, 1fr);
   align-items: center;
+  column-gap: var(--space-8);
+  row-gap: var(--space-4);
+  min-width: 0;
 }
 
 .fieldMeta {
@@ -310,6 +316,7 @@
   margin-top: calc(var(--space-2) * -1);
   white-space: normal;
   line-height: var(--line-height-tight);
+  min-width: 0;
 }
 
 .requestActions {
@@ -324,6 +331,7 @@
   font-size: var(--font-size-header-popup-text);
   color: var(--color-text-muted);
   line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
 }
 
 .messageError {
@@ -332,6 +340,12 @@
 
 .messageSuccess {
   color: var(--color-status-success);
+}
+
+@media (max-width: 560px) {
+  .advancedLayout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .srOnly {
