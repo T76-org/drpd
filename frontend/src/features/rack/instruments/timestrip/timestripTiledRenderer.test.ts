@@ -2,11 +2,24 @@ import { describe, expect, it, vi } from 'vitest'
 import { TimestripTiledRenderer, type TimestripRendererViewport } from './timestripTiledRenderer'
 
 const buildCanvasContext = () => ({
+  beginPath: vi.fn(),
   clearRect: vi.fn(),
   drawImage: vi.fn(),
   fillRect: vi.fn(),
+  fillText: vi.fn(),
+  lineTo: vi.fn(),
+  measureText: vi.fn((text: string) => ({ width: text.length * 6 })),
+  moveTo: vi.fn(),
+  restore: vi.fn(),
+  save: vi.fn(),
   setTransform: vi.fn(),
+  stroke: vi.fn(),
   fillStyle: '',
+  font: '',
+  lineWidth: 1,
+  strokeStyle: '',
+  textAlign: 'start',
+  textBaseline: 'alphabetic',
 })
 
 const buildViewport = (zoomDenominator: number): TimestripRendererViewport => ({

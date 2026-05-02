@@ -39,12 +39,13 @@ const tile: TimestripVisibleTile = {
 }
 
 describe('timestripTileDrawing', () => {
-  it('draws wall-time tick labels in the time-axis lane', () => {
+  it('draws lane backgrounds without tile-local tick labels', () => {
     const context = buildContext()
 
     drawTimestripTile(context, tile, 2, 1_700_000_000_000_000)
 
     expect(context.scale).toHaveBeenCalledWith(2, 2)
-    expect(context.fillText).toHaveBeenCalled()
+    expect(context.fillRect).toHaveBeenCalled()
+    expect(context.fillText).not.toHaveBeenCalled()
   })
 })

@@ -8,6 +8,8 @@ import {
   type TimestripTileWorkerResponse,
 } from './timestripTileProtocol'
 import { drawTimestripTile } from './timestripTileDrawing'
+import { drawTimeAxisViewportOverlay } from './TimeAxisLane'
+import { buildTimestripLaneLayout } from './timestripLaneLayout'
 
 const DEFAULT_MAX_TILE_COUNT = 96
 
@@ -211,6 +213,15 @@ export class TimestripTiledRenderer {
         viewportHeightPx,
       )
     }
+
+    drawTimeAxisViewportOverlay(
+      this.context,
+      viewportWidthPx,
+      zoomDenominator,
+      scrollLeftPx,
+      buildTimestripLaneLayout(viewportHeightPx),
+      this.viewport.worldStartWallClockUs,
+    )
 
     this.evictTiles(visibleKeys)
   }

@@ -1,7 +1,6 @@
 import type { TimestripVisibleTile } from './timestripLayout'
 import { drawAnalogTraceLane } from './AnalogTraceLane'
 import { drawDigitalTraceLane } from './DigitalTraceLane'
-import { drawTimeAxisLane } from './TimeAxisLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
 
 /**
@@ -16,7 +15,7 @@ export const drawTimestripTile = (
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   tile: TimestripVisibleTile,
   dpr: number,
-  worldStartWallClockUs: number,
+  _worldStartWallClockUs: number,
 ): void => {
   const width = tile.widthPx
   const bleed = tile.bleedPx
@@ -28,9 +27,10 @@ export const drawTimestripTile = (
   context.translate(bleed, 0)
 
   const layout = buildTimestripLaneLayout(height)
-  drawTimeAxisLane(context, tile, layout, worldStartWallClockUs)
-  drawDigitalTraceLane(context, layout, width, bleed)
-  drawAnalogTraceLane(context, layout, width, bleed)
+  context.fillStyle = '#161d26'
+  context.fillRect(0, layout.timeAxis.y, width, layout.timeAxis.height)
+  drawDigitalTraceLane(context, layout, width)
+  drawAnalogTraceLane(context, layout, width)
 
   context.restore()
 }

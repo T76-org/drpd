@@ -1,14 +1,28 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { TimestripVisibleTile } from './timestripLayout'
-import { formatTimestripTickLabel, selectTimeAxisTicks } from './TimeAxisLane'
+import {
+  drawTimeAxisViewportOverlay,
+  formatTimestripTickLabel,
+  selectTimeAxisTicks,
+} from './TimeAxisLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
 
 const buildContext = (labelWidth: number) =>
   ({
+    beginPath: vi.fn(),
+    fillText: vi.fn(),
+    lineTo: vi.fn(),
     font: '',
     measureText: vi.fn(() => ({ width: labelWidth })),
+    moveTo: vi.fn(),
     restore: vi.fn(),
     save: vi.fn(),
+    stroke: vi.fn(),
+    fillStyle: '',
+    lineWidth: 1,
+    strokeStyle: '',
+    textAlign: 'start',
+    textBaseline: 'alphabetic',
   }) as unknown as CanvasRenderingContext2D
 
 const buildTile = (worldWidthUs: number): TimestripVisibleTile => ({
@@ -42,5 +56,20 @@ describe('TimeAxisLane', () => {
     for (let index = 1; index < ticks.length; index += 1) {
       expect(ticks[index].xPx - ticks[index - 1].xPx).toBeGreaterThanOrEqual(94)
     }
+  })
+
+  it('draws tick labels as a viewport overlay', () => {
+    const context = buildContext(70)
+
+    drawTimeAxisViewportOverlay(
+      context,
+      512,
+      1000,
+      0,
+      buildTimestripLaneLayout(240),
+      1_700_000_000_000_000,
+    )
+
+    expect(context.fillText).toHaveBeenCalled()
   })
 })
