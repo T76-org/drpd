@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { DRPDDevice, type LoggedCapturedMessage } from '../../../lib/device'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -24,8 +25,6 @@ const PLACEHOLDER_TIMELINE_END_US = 10_000_000n
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const DEFAULT_ZOOM_DENOMINATOR = 1000
 const CTRL_WHEEL_ZOOM_STEP = 1.1
-const RANGE_SYNC_INTERVAL_MS = 1200
-const DIGITAL_SYNC_INTERVAL_MS = 600
 const DIGITAL_QUERY_LIMIT = 5000
 const DIGITAL_QUERY_OVERSCAN_PX =
   TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1) + TIMESTRIP_TILE_BLEED_PX
@@ -36,6 +35,23 @@ const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
   themeName,
   typeof window === 'undefined' ? undefined : window.getComputedStyle(document.documentElement),
 )
+const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string =>
+  entries.map((entry) => {
+    if (entry.kind === 'event') {
+      return `e:${entry.worldUs}:${entry.eventType ?? ''}`
+    }
+    return [
+      'm',
+      entry.startWorldUs,
+      entry.endWorldUs,
+      entry.label,
+      entry.frameBytes.length,
+      entry.pulseWidthsNs.length,
+      entry.components.length,
+    ].join(':')
+  }).join('|')
+
+type DigitalInvalidation = 'all' | { startWorldUs: number; endWorldUs: number }
 
 /**
  * Standalone DRPD timestrip instrument shell.
@@ -54,8 +70,12 @@ export const DrpdTimeStripInstrumentView = ({
   onRemove?: (instrumentId: string) => void
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const tileLayerRef = useRef<HTMLDivElement | null>(null)
+  const tickCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
+  const digitalEntriesSignatureRef = useRef('')
+  const digitalQueryRangeRef = useRef<{ startWallClockUs: bigint; endWallClockUs: bigint } | null>(null)
+  const pendingDigitalInvalidationRef = useRef<DigitalInvalidation | null>(null)
   const [timelineRange, setTimelineRange] = useState(() => ({
     durationUs: PLACEHOLDER_TIMELINE_END_US - PLACEHOLDER_TIMELINE_START_US,
     worldStartWallClockUs: Date.now() * 1000,
@@ -77,36 +97,71 @@ export const DrpdTimeStripInstrumentView = ({
     const nextZoomDenominator = clampTimestripZoomDenominator(value)
     setZoomDenominator(nextZoomDenominator)
   }, [])
-  const handleViewportWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-    const viewport = event.currentTarget
-    if (event.ctrlKey) {
-      event.preventDefault()
-      const direction = event.deltaY < 0 ? -1 : 1
-      const scale = direction < 0 ? 1 / CTRL_WHEEL_ZOOM_STEP : CTRL_WHEEL_ZOOM_STEP
-      const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
-      const viewportRect = viewport.getBoundingClientRect()
-      const pointerX = Math.max(0, event.clientX - viewportRect.left)
-      const timestampUnderPointerUs = (viewport.scrollLeft + pointerX) * zoomDenominator
-      const nextScrollLeft = Math.max(0, timestampUnderPointerUs / nextZoomDenominator - pointerX)
-      flushSync(() => {
-        commitZoomDenominator(nextZoomDenominator)
-      })
-      viewport.scrollLeft = nextScrollLeft
+  const queueDigitalInvalidation = useCallback((invalidation: DigitalInvalidation) => {
+    const current = pendingDigitalInvalidationRef.current
+    if (current === 'all' || invalidation === 'all' || current === null) {
+      pendingDigitalInvalidationRef.current = invalidation
       return
     }
-
-    const scrollDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-    if (scrollDelta === 0 || viewport.scrollWidth <= viewport.clientWidth) {
+    pendingDigitalInvalidationRef.current = {
+      startWorldUs: Math.min(current.startWorldUs, invalidation.startWorldUs),
+      endWorldUs: Math.max(current.endWorldUs, invalidation.endWorldUs),
+    }
+  }, [])
+  const commitDigitalEntries = useCallback((
+    nextEntries: TimestripDigitalEntry[],
+    invalidation: DigitalInvalidation,
+  ) => {
+    const nextSignature = buildDigitalEntriesSignature(nextEntries)
+    if (nextSignature === digitalEntriesSignatureRef.current) {
       return
     }
-    event.preventDefault()
-    viewport.scrollLeft += scrollDelta
-    setScrollLeftPx(viewport.scrollLeft)
-  }, [commitZoomDenominator, zoomDenominator])
-
+    digitalEntriesSignatureRef.current = nextSignature
+    queueDigitalInvalidation(invalidation)
+    setDigitalEntries(nextEntries)
+    setDigitalDataRevision((revision) => revision + 1)
+  }, [queueDigitalInvalidation])
   const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     setScrollLeftPx(event.currentTarget.scrollLeft)
   }, [])
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      return undefined
+    }
+
+    const handleViewportWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        event.preventDefault()
+        const direction = event.deltaY < 0 ? -1 : 1
+        const scale = direction < 0 ? 1 / CTRL_WHEEL_ZOOM_STEP : CTRL_WHEEL_ZOOM_STEP
+        const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
+        const viewportRect = viewport.getBoundingClientRect()
+        const pointerX = Math.max(0, event.clientX - viewportRect.left)
+        const timestampUnderPointerUs = (viewport.scrollLeft + pointerX) * zoomDenominator
+        const nextScrollLeft = Math.max(0, timestampUnderPointerUs / nextZoomDenominator - pointerX)
+        flushSync(() => {
+          commitZoomDenominator(nextZoomDenominator)
+        })
+        viewport.scrollLeft = nextScrollLeft
+        return
+      }
+
+      const scrollDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+      if (scrollDelta === 0 || viewport.scrollWidth <= viewport.clientWidth) {
+        return
+      }
+      event.preventDefault()
+      viewport.scrollLeft += scrollDelta
+      setScrollLeftPx(viewport.scrollLeft)
+    }
+
+    viewport.addEventListener('wheel', handleViewportWheel, { passive: false })
+    return () => {
+      viewport.removeEventListener('wheel', handleViewportWheel)
+    }
+  }, [commitZoomDenominator, zoomDenominator])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -161,11 +216,12 @@ export const DrpdTimeStripInstrumentView = ({
   }, [themeName])
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) {
+    const tileLayer = tileLayerRef.current
+    const tickCanvas = tickCanvasRef.current
+    if (!tileLayer || !tickCanvas) {
       return undefined
     }
-    const renderer = new TimestripTiledRenderer({ canvas })
+    const renderer = new TimestripTiledRenderer({ tileLayer, tickCanvas })
     rendererRef.current = renderer
     return () => {
       renderer.dispose()
@@ -228,28 +284,21 @@ export const DrpdTimeStripInstrumentView = ({
     }
 
     void refreshTimelineRange()
-    const timer = window.setInterval(() => {
-      void refreshTimelineRange()
-    }, RANGE_SYNC_INTERVAL_MS)
-
     return () => {
       isActive = false
-      window.clearInterval(timer)
     }
   }, [deviceState?.drpdDriver])
 
   useEffect(() => {
     const driver = deviceState?.drpdDriver
     if (!driver || viewportWidthPx <= 0) {
-      setDigitalEntries([])
-      setDigitalDataRevision((revision) => revision + 1)
+      digitalQueryRangeRef.current = null
+      commitDigitalEntries([], 'all')
       return undefined
     }
 
     let isActive = true
-    let queryGeneration = 0
     const refreshDigitalEntries = async () => {
-      const generation = ++queryGeneration
       const range = getTimestripDigitalQueryRange(
         scrollLeftPx,
         viewportWidthPx,
@@ -257,6 +306,14 @@ export const DrpdTimeStripInstrumentView = ({
         timelineRange.worldStartWallClockUs,
         DIGITAL_QUERY_OVERSCAN_PX,
       )
+      const loadedRange = digitalQueryRangeRef.current
+      if (
+        loadedRange &&
+        range.startWallClockUs >= loadedRange.startWallClockUs &&
+        range.endWallClockUs <= loadedRange.endWallClockUs
+      ) {
+        return
+      }
       try {
         const rows = await driver.queryCapturedMessages({
           startTimestampUs: range.startWallClockUs,
@@ -265,29 +322,26 @@ export const DrpdTimeStripInstrumentView = ({
           sortOrder: 'asc',
           limit: DIGITAL_QUERY_LIMIT,
         })
-        if (!isActive || generation !== queryGeneration) {
+        if (!isActive) {
           return
         }
+        digitalQueryRangeRef.current = range
         const nextEntries = rows.flatMap((row) => {
           const entry = normalizeCapturedMessageForTimestrip(row, timelineRange.worldStartWallClockUs)
           return entry ? [entry] : []
         })
-        setDigitalEntries(nextEntries)
-        setDigitalDataRevision((revision) => revision + 1)
+        commitDigitalEntries(nextEntries, 'all')
       } catch {
         // Keep the last rendered entries when the log store is temporarily unavailable.
       }
     }
 
     void refreshDigitalEntries()
-    const timer = window.setInterval(() => {
-      void refreshDigitalEntries()
-    }, DIGITAL_SYNC_INTERVAL_MS)
     return () => {
       isActive = false
-      window.clearInterval(timer)
     }
   }, [
+    commitDigitalEntries,
     deviceState?.drpdDriver,
     scrollLeftPx,
     timelineRange.worldStartWallClockUs,
@@ -296,7 +350,104 @@ export const DrpdTimeStripInstrumentView = ({
   ])
 
   useEffect(() => {
-    rendererRef.current?.setViewport({
+    const driver = deviceState?.drpdDriver
+    if (!driver || typeof driver.addEventListener !== 'function') {
+      return undefined
+    }
+
+    const handleAdded = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      if (detail?.kind !== 'message' && detail?.kind !== 'event') {
+        return
+      }
+      const row = detail.row as LoggedCapturedMessage | undefined
+      if (!row?.wallClockUs) {
+        return
+      }
+
+      const rowWallClockUs = row.wallClockUs
+      const rowWorldStartUs = Number(rowWallClockUs) - timelineRange.worldStartWallClockUs
+      const rowDurationUs =
+        row.entryKind === 'message'
+          ? Math.max(1, Number(row.endTimestampUs - row.startTimestampUs))
+          : 1
+      const rowWorldEndUs = rowWorldStartUs + rowDurationUs
+      setTimelineRange((current) => {
+        if (rowWallClockUs < BigInt(Math.floor(current.worldStartWallClockUs))) {
+          digitalQueryRangeRef.current = null
+          commitDigitalEntries([], 'all')
+          return {
+            worldStartWallClockUs: Number(rowWallClockUs),
+            durationUs: current.durationUs,
+          }
+        }
+        const currentEndWallClockUs = BigInt(Math.floor(current.worldStartWallClockUs)) + current.durationUs
+        const nextEndWallClockUs = rowWallClockUs + BigInt(Math.ceil(rowDurationUs))
+        if (nextEndWallClockUs <= currentEndWallClockUs) {
+          return current
+        }
+        return {
+          ...current,
+          durationUs: nextEndWallClockUs - BigInt(Math.floor(current.worldStartWallClockUs)),
+        }
+      })
+
+      const loadedRange = digitalQueryRangeRef.current
+      if (
+        !loadedRange ||
+        rowWallClockUs < loadedRange.startWallClockUs ||
+        rowWallClockUs > loadedRange.endWallClockUs
+      ) {
+        return
+      }
+
+      const entry = normalizeCapturedMessageForTimestrip(row, timelineRange.worldStartWallClockUs)
+      if (!entry) {
+        return
+      }
+      const nextEntries = [...digitalEntries, entry].sort((left, right) => {
+        const leftWorldUs = left.kind === 'event' ? left.worldUs : left.startWorldUs
+        const rightWorldUs = right.kind === 'event' ? right.worldUs : right.startWorldUs
+        return leftWorldUs - rightWorldUs
+      })
+      commitDigitalEntries(nextEntries, {
+        startWorldUs: rowWorldStartUs,
+        endWorldUs: rowWorldEndUs,
+      })
+    }
+
+    const handleDeleted = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      if (!detail?.messagesDeleted) {
+        return
+      }
+      digitalQueryRangeRef.current = null
+      commitDigitalEntries([], 'all')
+      if (detail.reason === 'clear') {
+        setTimelineRange({
+          durationUs: PLACEHOLDER_TIMELINE_END_US - PLACEHOLDER_TIMELINE_START_US,
+          worldStartWallClockUs: Date.now() * 1000,
+        })
+      }
+    }
+
+    driver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
+    driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+    return () => {
+      driver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
+      driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+    }
+  }, [
+    commitDigitalEntries,
+    deviceState?.drpdDriver,
+    digitalEntries,
+    timelineRange.durationUs,
+    timelineRange.worldStartWallClockUs,
+  ])
+
+  useEffect(() => {
+    const renderer = rendererRef.current
+    renderer?.setViewport({
       scrollLeftPx,
       zoomDenominator,
       viewportWidthPx,
@@ -307,6 +458,13 @@ export const DrpdTimeStripInstrumentView = ({
       digitalEntries,
       digitalDataRevision,
     })
+    const invalidation = pendingDigitalInvalidationRef.current
+    pendingDigitalInvalidationRef.current = null
+    if (invalidation === 'all') {
+      renderer?.invalidateAllTiles()
+    } else if (invalidation) {
+      renderer?.invalidateWorldRange(invalidation.startWorldUs, invalidation.endWorldUs)
+    }
   }, [
     digitalDataRevision,
     digitalEntries,
@@ -341,13 +499,21 @@ export const DrpdTimeStripInstrumentView = ({
         ref={viewportRef}
         className={styles.viewport}
         data-testid="drpd-timestrip-viewport"
-        onWheel={handleViewportWheel}
         onScroll={handleViewportScroll}
       >
+        <div
+          ref={tileLayerRef}
+          className={styles.tileLayer}
+          data-testid="drpd-timestrip-tile-layer"
+          style={{
+            width: `${viewportWidthPx}px`,
+            height: `${viewportHeightPx}px`,
+          }}
+        />
         <canvas
-          ref={canvasRef}
-          className={styles.canvas}
-          data-testid="drpd-timestrip-canvas"
+          ref={tickCanvasRef}
+          className={styles.tickCanvas}
+          data-testid="drpd-timestrip-tick-canvas"
           style={{
             width: `${viewportWidthPx}px`,
             height: `${viewportHeightPx}px`,

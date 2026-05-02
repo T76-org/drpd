@@ -31,6 +31,7 @@ workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
     tileKey: message.tile.key,
     tile: message.tile,
     bitmap,
+    generation: message.generation,
   }
   workerScope.postMessage(response, [bitmap])
 }

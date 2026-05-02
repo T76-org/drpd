@@ -9,6 +9,7 @@ export interface TimestripTileRenderRequest {
   dpr: number
   theme: TimestripThemePalette
   digitalEntries: TimestripDigitalEntry[]
+  generation: number
 }
 
 export interface TimestripTileRenderResponse {
@@ -17,6 +18,7 @@ export interface TimestripTileRenderResponse {
   tileKey: string
   tile: TimestripVisibleTile
   bitmap: ImageBitmap
+  generation: number
 }
 
 export type TimestripTileWorkerRequest = TimestripTileRenderRequest

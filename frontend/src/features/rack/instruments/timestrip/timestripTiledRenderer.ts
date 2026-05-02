@@ -1,6 +1,8 @@
 import {
   calculateVisibleTimestripTiles,
   scrollLeftToWorldUs,
+  TIMESTRIP_TILE_BLEED_PX,
+  TIMESTRIP_TILE_WIDTH_PX,
   type TimestripVisibleTile,
 } from './timestripLayout'
 import {
@@ -20,8 +22,6 @@ import {
   type TimestripDigitalEntry,
 } from './timestripDigitalModel'
 
-const DEFAULT_MAX_TILE_COUNT = 96
-
 export interface TimestripRendererViewport {
   scrollLeftPx: number
   zoomDenominator: number
@@ -35,56 +35,59 @@ export interface TimestripRendererViewport {
 }
 
 export interface TimestripRendererOptions {
-  canvas: HTMLCanvasElement
+  tileLayer: HTMLElement
+  tickCanvas: HTMLCanvasElement
   createWorker?: () => Worker | null
   requestAnimationFrame?: (callback: FrameRequestCallback) => number
   cancelAnimationFrame?: (handle: number) => void
-  maxTileCount?: number
 }
 
-interface TileCacheEntry {
-  tile: TimestripVisibleTile
-  bitmap: CanvasImageSource & { close?: () => void }
-  lastUsed: number
+interface TilePoolEntry {
+  canvas: HTMLCanvasElement
+  context: CanvasRenderingContext2D | null
+  tile: TimestripVisibleTile | null
+  tileKey: string | null
+  requestId: number | null
+  generation: number
 }
 
 /**
- * Tiled timestrip renderer that composites cached tile bitmaps into one viewport canvas.
+ * Tiled timestrip renderer backed by a bounded pool of DOM canvases.
  */
 export class TimestripTiledRenderer {
-  protected readonly canvas: HTMLCanvasElement ///< Visible viewport canvas.
-  protected readonly context: CanvasRenderingContext2D | null ///< Visible canvas context.
+  protected readonly tileLayer: HTMLElement ///< Sticky viewport tile layer.
+  protected readonly tickCanvas: HTMLCanvasElement ///< Viewport-sized tick overlay canvas.
+  protected readonly tickContext: CanvasRenderingContext2D | null ///< Tick overlay context.
   protected readonly worker: Worker | null ///< Optional tile rendering worker.
   protected readonly requestFrame: (callback: FrameRequestCallback) => number ///< RAF scheduler.
   protected readonly cancelFrame: (handle: number) => void ///< RAF cancellation.
-  protected readonly maxTileCount: number ///< Tile cache size budget.
-  protected readonly cache: Map<string, TileCacheEntry> ///< Rendered tile cache.
-  protected readonly pendingTiles: Set<string> ///< Tile keys already queued.
+  protected readonly pool: TilePoolEntry[] ///< Bounded visible tile canvas pool.
+  protected readonly pendingTiles: Map<string, number> ///< Tile key to latest request id.
   protected viewport: TimestripRendererViewport ///< Latest viewport state.
   protected frameHandle: number | null ///< Pending RAF handle.
   protected requestId: number ///< Monotonic tile request id.
-  protected minimumRequestId: number ///< Oldest tile response accepted after cache resets.
+  protected generation: number ///< Increments when all tile assignments must be invalidated.
   protected disposed: boolean ///< True after disposal.
-  protected cacheDpr: number ///< DPR used by current cache.
-  protected cacheHeightPx: number ///< Tile height used by current cache.
-  protected cacheWallClockOriginUs: number ///< Wall-clock origin used by current cache.
-  protected cacheZoomDenominator: number ///< Zoom denominator used by current cache.
-  protected cacheThemeKey: string ///< Theme palette identity used by current cache.
-  protected cacheDigitalDataRevision: number ///< Digital data revision used by current cache.
+  protected cacheDpr: number ///< DPR used by current pool.
+  protected cacheHeightPx: number ///< Tile height used by current pool.
+  protected cacheWallClockOriginUs: number ///< Wall-clock origin used by current pool.
+  protected cacheZoomDenominator: number ///< Zoom denominator used by current pool.
+  protected cacheThemeKey: string ///< Theme palette identity used by current pool.
+  protected cacheDigitalDataRevision: number ///< Digital data revision used by current pool.
 
   /**
    * Create a tiled renderer.
    *
-   * @param options - Renderer dependencies and budgets.
+   * @param options - Renderer dependencies.
    */
   public constructor(options: TimestripRendererOptions) {
-    this.canvas = options.canvas
-    this.context = this.canvas.getContext('2d')
+    this.tileLayer = options.tileLayer
+    this.tickCanvas = options.tickCanvas
+    this.tickContext = this.tickCanvas.getContext('2d')
     this.requestFrame = options.requestAnimationFrame ?? window.requestAnimationFrame.bind(window)
     this.cancelFrame = options.cancelAnimationFrame ?? window.cancelAnimationFrame.bind(window)
-    this.maxTileCount = options.maxTileCount ?? DEFAULT_MAX_TILE_COUNT
-    this.cache = new Map()
-    this.pendingTiles = new Set()
+    this.pool = []
+    this.pendingTiles = new Map()
     this.viewport = {
       scrollLeftPx: 0,
       zoomDenominator: 1000,
@@ -98,7 +101,7 @@ export class TimestripTiledRenderer {
     }
     this.frameHandle = null
     this.requestId = 0
-    this.minimumRequestId = 0
+    this.generation = 0
     this.disposed = false
     this.cacheDpr = 1
     this.cacheHeightPx = 0
@@ -115,7 +118,7 @@ export class TimestripTiledRenderer {
   }
 
   /**
-   * Update viewport state and schedule a composite pass.
+   * Update viewport state and schedule a render pass.
    *
    * @param viewport - Next viewport state.
    */
@@ -124,19 +127,20 @@ export class TimestripTiledRenderer {
       return
     }
     const nextViewport = normalizeViewport(viewport)
-    const shouldResetCache =
+    const currentRenderKey = this.getViewportRenderKey(this.viewport)
+    const nextRenderKey = this.getViewportRenderKey(nextViewport)
+    const shouldResetPool =
       nextViewport.dpr !== this.cacheDpr ||
       nextViewport.viewportHeightPx !== this.cacheHeightPx ||
       nextViewport.worldStartWallClockUs !== this.cacheWallClockOriginUs ||
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
-      getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey ||
-      (nextViewport.digitalDataRevision ?? 0) !== this.cacheDigitalDataRevision
+      getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
     this.viewport = nextViewport
-    this.resizeCanvas()
-    if (shouldResetCache) {
-      this.clearCache()
-      this.pendingTiles.clear()
-      this.minimumRequestId = this.requestId + 1
+    this.resizeTickCanvas()
+    this.resizeTileLayer()
+    this.ensurePoolSize()
+    if (shouldResetPool) {
+      this.resetPoolAssignments()
       this.cacheDpr = nextViewport.dpr
       this.cacheHeightPx = nextViewport.viewportHeightPx
       this.cacheWallClockOriginUs = nextViewport.worldStartWallClockUs
@@ -144,7 +148,9 @@ export class TimestripTiledRenderer {
       this.cacheThemeKey = getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME)
       this.cacheDigitalDataRevision = nextViewport.digitalDataRevision ?? 0
     }
-    this.scheduleComposite()
+    if (shouldResetPool || nextRenderKey !== currentRenderKey) {
+      this.scheduleFrame()
+    }
   }
 
   /**
@@ -156,18 +162,87 @@ export class TimestripTiledRenderer {
       this.cancelFrame(this.frameHandle)
       this.frameHandle = null
     }
-    this.clearCache()
     this.pendingTiles.clear()
     this.worker?.terminate()
+    for (const entry of this.pool) {
+      entry.canvas.remove()
+    }
+    this.pool.length = 0
   }
 
   /**
-   * Return cached tile count, for tests and diagnostics.
+   * Return pooled tile canvas count, for tests and diagnostics.
    *
-   * @returns Tile count.
+   * @returns Tile canvas count.
    */
-  public getCacheSize(): number {
-    return this.cache.size
+  public getPoolSize(): number {
+    return this.pool.length
+  }
+
+  /**
+   * Re-render all currently assigned tile canvases.
+   */
+  public invalidateAllTiles(): void {
+    if (this.disposed) {
+      return
+    }
+    this.generation += 1
+    this.pendingTiles.clear()
+    for (const entry of this.pool) {
+      entry.tile = null
+      entry.tileKey = null
+      entry.requestId = null
+      entry.generation = this.generation
+      this.clearTileCanvas(entry)
+    }
+    this.scheduleFrame()
+  }
+
+  /**
+   * Re-render assigned tile canvases that intersect a world range.
+   *
+   * @param startWorldUs - Inclusive world start in microseconds.
+   * @param endWorldUs - Inclusive world end in microseconds.
+   */
+  public invalidateWorldRange(startWorldUs: number, endWorldUs: number): void {
+    if (this.disposed) {
+      return
+    }
+    const start = Math.min(startWorldUs, endWorldUs)
+    const end = Math.max(startWorldUs, endWorldUs)
+    this.generation += 1
+    for (const entry of this.pool) {
+      if (!entry.tile || !entry.tileKey) {
+        continue
+      }
+      const tileStart = entry.tile.worldLeftUs - entry.tile.bleedPx * entry.tile.zoomLevelDenominator
+      const tileEnd =
+        entry.tile.worldLeftUs +
+        entry.tile.worldWidthUs +
+        entry.tile.bleedPx * entry.tile.zoomLevelDenominator
+      if (tileEnd < start || tileStart > end) {
+        continue
+      }
+      this.pendingTiles.delete(entry.tileKey)
+      entry.tile = null
+      entry.tileKey = null
+      entry.requestId = null
+      entry.generation = this.generation
+      this.clearTileCanvas(entry)
+    }
+    this.scheduleFrame()
+  }
+
+  protected getViewportRenderKey(viewport: TimestripRendererViewport): string {
+    return [
+      viewport.scrollLeftPx,
+      viewport.zoomDenominator,
+      viewport.viewportWidthPx,
+      viewport.viewportHeightPx,
+      viewport.dpr,
+      viewport.worldStartWallClockUs,
+      getTimestripThemeCacheKey(viewport.theme ?? DEFAULT_TIMESTRIP_THEME),
+    ].join('|')
   }
 
   protected createDefaultWorker(): Worker | null {
@@ -177,187 +252,255 @@ export class TimestripTiledRenderer {
     return new Worker(new URL('./timestripTileWorker.ts', import.meta.url), { type: 'module' })
   }
 
-  protected resizeCanvas(): void {
+  protected resizeTickCanvas(): void {
     const width = Math.max(1, Math.ceil(this.viewport.viewportWidthPx * this.viewport.dpr))
     const height = Math.max(1, Math.ceil(this.viewport.viewportHeightPx * this.viewport.dpr))
-    if (this.canvas.width !== width) {
-      this.canvas.width = width
+    if (this.tickCanvas.width !== width) {
+      this.tickCanvas.width = width
     }
-    if (this.canvas.height !== height) {
-      this.canvas.height = height
+    if (this.tickCanvas.height !== height) {
+      this.tickCanvas.height = height
     }
   }
 
-  protected scheduleComposite(): void {
+  protected resizeTileLayer(): void {
+    this.tileLayer.style.width = `${this.viewport.viewportWidthPx}px`
+    this.tileLayer.style.height = `${this.viewport.viewportHeightPx}px`
+  }
+
+  protected ensurePoolSize(): void {
+    const targetSize = calculateTimestripTilePoolSize(this.viewport.viewportWidthPx)
+    while (this.pool.length < targetSize) {
+      const canvas = document.createElement('canvas')
+      canvas.dataset.timestripTileCanvas = 'true'
+      canvas.style.position = 'absolute'
+      canvas.style.left = '0'
+      canvas.style.top = '0'
+      canvas.style.display = 'block'
+      canvas.style.pointerEvents = 'none'
+      canvas.style.willChange = 'transform'
+      this.tileLayer.appendChild(canvas)
+      this.pool.push({
+        canvas,
+        context: canvas.getContext('2d'),
+        tile: null,
+        tileKey: null,
+        requestId: null,
+        generation: this.generation,
+      })
+    }
+    while (this.pool.length > targetSize) {
+      const entry = this.pool.pop()
+      entry?.canvas.remove()
+    }
+    this.resizePoolCanvases()
+  }
+
+  protected resizePoolCanvases(): void {
+    const cssWidth = TIMESTRIP_TILE_WIDTH_PX + TIMESTRIP_TILE_BLEED_PX * 2
+    const cssHeight = Math.max(1, this.viewport.viewportHeightPx)
+    const backingWidth = Math.max(1, Math.ceil(cssWidth * this.viewport.dpr))
+    const backingHeight = Math.max(1, Math.ceil(cssHeight * this.viewport.dpr))
+    for (const entry of this.pool) {
+      entry.canvas.style.width = `${cssWidth}px`
+      entry.canvas.style.height = `${cssHeight}px`
+      if (entry.canvas.width !== backingWidth) {
+        entry.canvas.width = backingWidth
+      }
+      if (entry.canvas.height !== backingHeight) {
+        entry.canvas.height = backingHeight
+      }
+    }
+  }
+
+  protected resetPoolAssignments(): void {
+    this.generation += 1
+    this.pendingTiles.clear()
+    for (const entry of this.pool) {
+      entry.tile = null
+      entry.tileKey = null
+      entry.requestId = null
+      entry.generation = this.generation
+      this.clearTileCanvas(entry)
+    }
+  }
+
+  protected scheduleFrame(): void {
     if (this.frameHandle !== null) {
       return
     }
     this.frameHandle = this.requestFrame(() => {
       this.frameHandle = null
-      this.composite()
+      this.renderFrame()
     })
   }
 
-  protected composite(): void {
-    if (this.disposed || !this.context) {
+  protected renderFrame(): void {
+    if (this.disposed) {
       return
     }
-    const { viewportWidthPx, viewportHeightPx, dpr, scrollLeftPx, zoomDenominator } = this.viewport
-    const theme = this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME
+    const { viewportWidthPx, viewportHeightPx, scrollLeftPx, zoomDenominator } = this.viewport
     if (viewportWidthPx <= 0 || viewportHeightPx <= 0) {
       return
     }
 
+    this.ensurePoolSize()
     const visibleTiles = calculateVisibleTimestripTiles(
       scrollLeftPx,
       zoomDenominator,
       viewportWidthPx,
       viewportHeightPx,
     )
-    const now = performance.now()
     const visibleKeys = new Set(visibleTiles.map((tile) => tile.key))
 
-    this.context.setTransform(dpr, 0, 0, dpr, 0, 0)
-    this.context.clearRect(0, 0, viewportWidthPx, viewportHeightPx)
-    this.context.fillStyle = theme.canvasBackground
-    this.context.fillRect(0, 0, viewportWidthPx, viewportHeightPx)
-
-    const scrollWorldUs = scrollLeftToWorldUs(scrollLeftPx, zoomDenominator)
-    for (const tile of visibleTiles) {
-      const cached = this.cache.get(tile.key)
-      if (!cached) {
-        this.enqueueTile(tile)
-        continue
+    for (const entry of this.pool) {
+      if (entry.tileKey && !visibleKeys.has(entry.tileKey)) {
+        entry.tile = null
+        entry.tileKey = null
+        entry.requestId = null
+        this.clearTileCanvas(entry)
       }
-      cached.lastUsed = now
-      const screenX = (tile.worldLeftUs - scrollWorldUs) / zoomDenominator
-      const screenWidth = tile.worldWidthUs / zoomDenominator
-      this.context.drawImage(
-        cached.bitmap,
-        screenX - tile.bleedPx,
-        0,
-        screenWidth + tile.bleedPx * 2,
-        viewportHeightPx,
-      )
     }
 
+    for (const tile of visibleTiles) {
+      let entry = this.pool.find((candidate) => candidate.tileKey === tile.key)
+      if (!entry) {
+        entry = this.pool.find((candidate) => candidate.tileKey === null)
+      }
+      if (!entry) {
+        continue
+      }
+      if (entry.tileKey !== tile.key) {
+        entry.tile = tile
+        entry.tileKey = tile.key
+        entry.requestId = null
+        entry.generation = this.generation
+        this.clearTileCanvas(entry)
+        this.enqueueTile(entry, tile)
+      } else {
+        entry.tile = tile
+      }
+      this.positionTileCanvas(entry, tile)
+    }
+
+    this.drawTickOverlay()
+  }
+
+  protected positionTileCanvas(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
+    const scrollWorldUs = scrollLeftToWorldUs(this.viewport.scrollLeftPx, this.viewport.zoomDenominator)
+    const screenX = (tile.worldLeftUs - scrollWorldUs) / this.viewport.zoomDenominator
+    entry.canvas.style.transform = `translate3d(${screenX - tile.bleedPx}px, 0, 0)`
+  }
+
+  protected drawTickOverlay(): void {
+    const context = this.tickContext
+    if (!context) {
+      return
+    }
+    const { viewportWidthPx, viewportHeightPx, dpr, zoomDenominator, scrollLeftPx } = this.viewport
+    console.log('[timestrip] render on-screen tick canvas', {
+      scrollLeftPx,
+      viewportWidthPx,
+      viewportHeightPx,
+      zoomDenominator,
+    })
+    context.setTransform(dpr, 0, 0, dpr, 0, 0)
+    context.clearRect(0, 0, viewportWidthPx, viewportHeightPx)
     drawTimeAxisViewportOverlay(
-      this.context,
+      context,
       viewportWidthPx,
       zoomDenominator,
       scrollLeftPx,
       buildTimestripLaneLayout(viewportHeightPx),
       this.viewport.worldStartWallClockUs,
-      theme,
+      this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
     )
-
-    this.evictTiles(visibleKeys)
   }
 
-  protected enqueueTile(tile: TimestripVisibleTile): void {
-    if (this.pendingTiles.has(tile.key) || this.cache.has(tile.key)) {
-      return
-    }
-    this.pendingTiles.add(tile.key)
-    const request: TimestripTileWorkerRequest = {
-      type: 'renderTile',
-      requestId: ++this.requestId,
-      tile,
-      dpr: this.viewport.dpr,
-      theme: this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
-      digitalEntries: filterTimestripDigitalEntriesForTile(
-        this.viewport.digitalEntries ?? [],
-        tile.worldLeftUs - tile.bleedPx * tile.zoomLevelDenominator,
-        tile.worldLeftUs + tile.worldWidthUs + tile.bleedPx * tile.zoomLevelDenominator,
-      ),
-    }
+  protected enqueueTile(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
+    const requestId = ++this.requestId
+    entry.requestId = requestId
+    this.pendingTiles.set(tile.key, requestId)
+    const digitalEntries = filterTimestripDigitalEntriesForTile(
+      this.viewport.digitalEntries ?? [],
+      tile.worldLeftUs - tile.bleedPx * tile.zoomLevelDenominator,
+      tile.worldLeftUs + tile.worldWidthUs + tile.bleedPx * tile.zoomLevelDenominator,
+    )
     if (this.worker) {
+      const request: TimestripTileWorkerRequest = {
+        type: 'renderTile',
+        requestId,
+        tile,
+        dpr: this.viewport.dpr,
+        theme: this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
+        digitalEntries,
+        generation: this.generation,
+      }
       this.worker.postMessage(request)
       return
     }
-    const bitmap = this.renderFallbackTile(tile, this.viewport.dpr)
-    this.storeTile(tile, bitmap)
-    this.pendingTiles.delete(tile.key)
-    this.scheduleComposite()
-  }
 
-  protected renderFallbackTile(
-    tile: TimestripVisibleTile,
-    dpr: number,
-  ): CanvasImageSource & { close?: () => void } {
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.ceil((tile.widthPx + tile.bleedPx * 2) * dpr))
-    canvas.height = Math.max(1, Math.ceil(tile.heightPx * dpr))
-    const context = canvas.getContext('2d')
-    if (context) {
+    if (entry.context) {
+      console.log('[timestrip] render on-screen tile canvas fallback', {
+        tileKey: tile.key,
+        requestId,
+        generation: this.generation,
+      })
       drawTimestripTile(
-        context,
+        entry.context,
         tile,
-        dpr,
+        this.viewport.dpr,
         this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
-        filterTimestripDigitalEntriesForTile(
-          this.viewport.digitalEntries ?? [],
-          tile.worldLeftUs - tile.bleedPx * tile.zoomLevelDenominator,
-          tile.worldLeftUs + tile.worldWidthUs + tile.bleedPx * tile.zoomLevelDenominator,
-        ),
+        digitalEntries,
       )
     }
-    return canvas
+    this.pendingTiles.delete(tile.key)
   }
 
   protected handleWorkerMessage(message: TimestripTileWorkerResponse): void {
-    if (
-      this.disposed ||
-      message.type !== 'tileRendered' ||
-      message.requestId < this.minimumRequestId
-    ) {
+    if (this.disposed || message.type !== 'tileRendered') {
       message.bitmap.close()
       return
     }
-    this.pendingTiles.delete(message.tileKey)
-    this.storeTile(message.tile, message.bitmap)
-    this.scheduleComposite()
-  }
-
-  protected storeTile(
-    tile: TimestripVisibleTile,
-    bitmap: CanvasImageSource & { close?: () => void },
-  ): void {
-    const previous = this.cache.get(tile.key)
-    previous?.bitmap.close?.()
-    this.cache.set(tile.key, {
-      tile,
-      bitmap,
-      lastUsed: performance.now(),
-    })
-  }
-
-  protected evictTiles(visibleKeys: Set<string>): void {
-    if (this.cache.size <= this.maxTileCount) {
+    const entry = this.pool.find((candidate) => (
+      candidate.tileKey === message.tileKey &&
+      candidate.requestId === message.requestId &&
+      candidate.generation === message.generation
+    ))
+    if (!entry || !entry.context || message.generation !== this.generation) {
+      message.bitmap.close()
       return
     }
-    const entries = Array.from(this.cache.entries()).sort(
-      (left, right) => left[1].lastUsed - right[1].lastUsed,
-    )
-    for (const [key, entry] of entries) {
-      if (this.cache.size <= this.maxTileCount) {
-        break
-      }
-      if (visibleKeys.has(key)) {
-        continue
-      }
-      entry.bitmap.close?.()
-      this.cache.delete(key)
-    }
+    console.log('[timestrip] render on-screen tile canvas', {
+      tileKey: message.tileKey,
+      requestId: message.requestId,
+      generation: message.generation,
+    })
+    entry.context.setTransform(1, 0, 0, 1, 0, 0)
+    entry.context.clearRect(0, 0, entry.canvas.width, entry.canvas.height)
+    entry.context.drawImage(message.bitmap, 0, 0)
+    message.bitmap.close()
+    this.pendingTiles.delete(message.tileKey)
+    entry.requestId = null
   }
 
-  protected clearCache(): void {
-    for (const entry of this.cache.values()) {
-      entry.bitmap.close?.()
+  protected clearTileCanvas(entry: TilePoolEntry): void {
+    if (!entry.context) {
+      return
     }
-    this.cache.clear()
+    entry.context.setTransform(1, 0, 0, 1, 0, 0)
+    entry.context.clearRect(0, 0, entry.canvas.width, entry.canvas.height)
   }
 }
+
+/**
+ * Calculate bounded tile canvas pool size.
+ *
+ * @param viewportWidthPx - Viewport width in CSS pixels.
+ * @returns Number of tile canvases needed for visible area plus left/right spare.
+ */
+export const calculateTimestripTilePoolSize = (viewportWidthPx: number): number =>
+  Math.max(2, Math.ceil(Math.max(0, viewportWidthPx) / TIMESTRIP_TILE_WIDTH_PX) + 2)
 
 /**
  * Normalize viewport values.
