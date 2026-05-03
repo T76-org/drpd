@@ -125,6 +125,9 @@ export class TimestripTiledRenderer {
     const nextViewport = normalizeViewport(viewport)
     const currentRenderKey = this.getViewportRenderKey(this.viewport)
     const nextRenderKey = this.getViewportRenderKey(nextViewport)
+    const shouldDetachCommittedTiles =
+      nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
+      nextViewport.worldStartWallClockUs !== this.cacheWallClockOriginUs
     const shouldResetPool =
       nextViewport.dpr !== this.cacheDpr ||
       nextViewport.viewportHeightPx !== this.cacheHeightPx ||
@@ -136,7 +139,7 @@ export class TimestripTiledRenderer {
     this.resizeTileLayer()
     this.ensurePoolSize()
     if (shouldResetPool) {
-      this.resetPoolAssignments()
+      this.resetPoolAssignments({ detachCommittedTiles: shouldDetachCommittedTiles })
       this.cacheDpr = nextViewport.dpr
       this.cacheHeightPx = nextViewport.viewportHeightPx
       this.cacheWallClockOriginUs = nextViewport.worldStartWallClockUs
@@ -294,13 +297,23 @@ export class TimestripTiledRenderer {
     }
   }
 
-  protected resetPoolAssignments(): void {
+  protected resetPoolAssignments({
+    detachCommittedTiles = false,
+  }: {
+    detachCommittedTiles?: boolean
+  } = {}): void {
     this.generation += 1
     this.pendingTiles.clear()
     for (const entry of this.pool) {
       this.cancelPendingReplacement(entry)
       entry.generation = this.generation
       entry.needsRerender = true
+      if (!detachCommittedTiles) {
+        continue
+      }
+      entry.tile = null
+      entry.tileKey = null
+      this.clearTileCanvas(entry)
     }
   }
 

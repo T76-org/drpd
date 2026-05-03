@@ -287,8 +287,15 @@ describe('TimestripTiledRenderer', () => {
   })
 
   it('resets pool assignments when zoom changes', () => {
+    const contexts = [
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+    ]
+    let contextIndex = 0
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
-      () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
+      () => contexts[Math.min(contextIndex++, contexts.length - 1)] as unknown as CanvasRenderingContext2D,
     )
     const tileLayer = document.createElement('div')
     const frameCallbacks: FrameRequestCallback[] = []
@@ -305,9 +312,26 @@ describe('TimestripTiledRenderer', () => {
 
     renderer.setViewport(buildViewport(1000))
     frameCallbacks.shift()?.(0)
+    const firstRequest = worker.postMessage.mock.calls[0][0]
+    worker.onmessage?.({
+      data: {
+        type: 'tileRendered',
+        requestId: firstRequest.requestId,
+        tileKey: firstRequest.tile.key,
+        tile: firstRequest.tile,
+        bitmap: makeBitmap(),
+        generation: firstRequest.generation,
+      },
+    } as MessageEvent<unknown>)
+    frameCallbacks.shift()?.(8)
+    const firstCanvas = tileLayer.querySelector('canvas')
+    expect(firstCanvas?.style.transform).toBe('translate3d(0px, 0, 0)')
+
     renderer.setViewport(buildViewport(909))
     frameCallbacks.shift()?.(16)
 
+    expect(contexts[0].clearRect).toHaveBeenCalled()
+    expect(firstCanvas?.style.transform).toBe('translate3d(0px, 0, 0)')
     expect(worker.postMessage.mock.calls.at(-1)?.[0].tile.key.startsWith('z909:')).toBe(true)
     expect(renderer.getPoolSize()).toBe(4)
 

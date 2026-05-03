@@ -176,8 +176,8 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 20ms per pixel')).toBeInTheDocument()
-    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('20000000')
+    expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('50000000')
     expect(viewport.scrollLeft).toBe(0)
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
@@ -207,8 +207,8 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 20ms per pixel')).toBeInTheDocument()
-    expect(viewport.scrollLeft).toBeCloseTo(25600, 2)
+    expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
+    expect(viewport.scrollLeft).toBeCloseTo(10150, 2)
   })
 
   it('sizes the timeline from message-log wall-clock range when available', async () => {
