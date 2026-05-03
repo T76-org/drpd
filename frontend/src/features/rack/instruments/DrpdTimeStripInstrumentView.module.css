@@ -4,6 +4,17 @@
   padding: 0;
 }
 
+.frame {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 36px;
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .viewport {
   position: relative;
   display: grid;
@@ -32,6 +43,46 @@
   grid-area: 1 / 1;
   height: 100%;
   min-height: 100%;
+}
+
+.legend {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.legendTick {
+  position: absolute;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-overflow: clip;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+.voltageLegend {
+  color: var(--color-metric-voltage);
+}
+
+.voltageLegend .legendTick {
+  right: 6px;
+  text-align: right;
+}
+
+.currentLegend {
+  color: var(--color-metric-current);
+}
+
+.currentLegend .legendTick {
+  left: 6px;
+  text-align: left;
 }
 
 .zoomReadout {

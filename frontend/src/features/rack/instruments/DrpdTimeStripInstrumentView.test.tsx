@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DRPDDevice, type LoggedAnalogSample, type LoggedCapturedMessage } from '../../../lib/device'
@@ -141,6 +141,7 @@ describe('DrpdTimeStripInstrumentView', () => {
   it('renders a viewport, timeline spacer, and tile canvas layer without svg', () => {
     const { container } = renderTimestrip()
 
+    expect(screen.getByTestId('drpd-timestrip-frame')).toBeInTheDocument()
     expect(screen.getByTestId('drpd-timestrip-viewport')).toBeInTheDocument()
     expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
       width: '100px',
@@ -150,6 +151,29 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(screen.getByTestId('drpd-timestrip-tile-layer').querySelectorAll('canvas')).toHaveLength(3)
     expect(container.querySelectorAll('canvas')).toHaveLength(3)
     expect(container.querySelector('svg')).toBeNull()
+  })
+
+  it('renders voltage and current analog lane legends outside the viewport', () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+
+    renderTimestrip()
+
+    const frame = screen.getByTestId('drpd-timestrip-frame')
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    const voltageLegend = screen.getByTestId('drpd-timestrip-voltage-legend')
+    const currentLegend = screen.getByTestId('drpd-timestrip-current-legend')
+
+    expect(frame.children[0]).toBe(voltageLegend)
+    expect(frame.children[1]).toBe(viewport)
+    expect(frame.children[2]).toBe(currentLegend)
+    expect(within(voltageLegend).getByText('60V')).toBeInTheDocument()
+    expect(within(voltageLegend).getByText('0V')).toBeInTheDocument()
+    expect(within(currentLegend).getByText('6A')).toBeInTheDocument()
+    expect(within(currentLegend).getByText('0A')).toBeInTheDocument()
+    expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+      width: '500px',
+    })
   })
 
   it('renders zoom as passive header text without button or popover controls', () => {

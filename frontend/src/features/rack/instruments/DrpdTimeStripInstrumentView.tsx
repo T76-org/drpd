@@ -23,6 +23,7 @@ import {
   normalizeAnalogSampleForTimestrip,
   type TimestripAnalogSample,
 } from './timestrip/timestripAnalogModel'
+import { buildTimestripAnalogLegendTicks } from './timestrip/timestripAnalogLegend'
 
 const PLACEHOLDER_TIMELINE_END_NS = 10_000_000_000n
 const LOG_START_TIMESTAMP_US = 0n
@@ -215,6 +216,7 @@ export const DrpdTimeStripInstrumentView = ({
     zoomDenominator,
     viewportWidthPx,
   )
+  const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
   const commitZoomDenominator = useCallback((value: number | string) => {
     const nextZoomDenominator = clampTimestripZoomDenominator(value)
     writeStoredZoomDenominator(nextZoomDenominator)
@@ -882,26 +884,53 @@ export const DrpdTimeStripInstrumentView = ({
           : undefined
       }
     >
-      <div
-        ref={viewportRef}
-        className={styles.viewport}
-        data-testid="drpd-timestrip-viewport"
-        onScroll={handleViewportScroll}
-      >
+      <div className={styles.frame} data-testid="drpd-timestrip-frame">
+        <div className={`${styles.legend} ${styles.voltageLegend}`} data-testid="drpd-timestrip-voltage-legend">
+          {analogLegendTicks.voltage.map((tick) => (
+            <span
+              key={tick.value}
+              className={styles.legendTick}
+              style={{ top: `${tick.y}px` }}
+            >
+              {tick.label}
+            </span>
+          ))}
+        </div>
         <div
-          ref={tileLayerRef}
-          className={styles.tileLayer}
-          data-testid="drpd-timestrip-tile-layer"
-          style={{
-            width: `${viewportWidthPx}px`,
-            height: `${viewportHeightPx}px`,
-          }}
-        />
+          ref={viewportRef}
+          className={styles.viewport}
+          data-testid="drpd-timestrip-viewport"
+          onScroll={handleViewportScroll}
+        >
+          <div
+            ref={tileLayerRef}
+            className={styles.tileLayer}
+            data-testid="drpd-timestrip-tile-layer"
+            style={{
+              width: `${viewportWidthPx}px`,
+              height: `${viewportHeightPx}px`,
+            }}
+          />
+          <div
+            className={styles.timeline}
+            data-testid="drpd-timestrip-timeline"
+            style={{ width: `${timelineWidthPx}px` }}
+          />
+        </div>
         <div
-          className={styles.timeline}
-          data-testid="drpd-timestrip-timeline"
-          style={{ width: `${timelineWidthPx}px` }}
-        />
+          className={`${styles.legend} ${styles.currentLegend}`}
+          data-testid="drpd-timestrip-current-legend"
+        >
+          {analogLegendTicks.current.map((tick) => (
+            <span
+              key={tick.value}
+              className={styles.legendTick}
+              style={{ top: `${tick.y}px` }}
+            >
+              {tick.label}
+            </span>
+          ))}
+        </div>
       </div>
     </InstrumentBase>
   )
