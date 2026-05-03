@@ -1,4 +1,4 @@
-import { scaleLinear } from 'd3-scale'
+import { ticks } from 'd3-array'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
 import {
   TIMESTRIP_ANALOG_CURRENT_MAX_A,
@@ -29,13 +29,11 @@ const buildLegendTicks = (
   const layout = buildTimestripLaneLayout(viewportHeightPx)
   const top = layout.analog.y + ANALOG_TRACE_PADDING_PX
   const bottom = layout.analog.y + layout.analog.height - ANALOG_TRACE_PADDING_PX
-  const scale = scaleLinear()
-    .domain([0, maxValue])
-    .range([bottom, top])
+  const height = Math.max(1, bottom - top)
 
-  return scale.ticks(ANALOG_TICK_COUNT).map((value) => ({
+  return ticks(0, maxValue, ANALOG_TICK_COUNT).map((value) => ({
     value,
-    y: scale(value),
+    y: bottom - (value / maxValue) * height,
     label: formatLegendTick(value, unit),
   }))
 }
