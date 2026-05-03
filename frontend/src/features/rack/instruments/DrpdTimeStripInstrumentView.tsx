@@ -203,6 +203,39 @@ const analogToTimelinePoint = (row: LoggedAnalogSample): TimelineRangePoint => (
   wallClockUs: row.wallClockUs,
 })
 
+const getCapturedRowBasisTimestampUs = (
+  row: LoggedCapturedMessage,
+  hasWallClockBasis: boolean,
+): bigint | null => {
+  if (!hasWallClockBasis) {
+    return row.startTimestampUs
+  }
+  return row.wallClockUs
+}
+
+const getClosestCapturedRow = (
+  rows: LoggedCapturedMessage[],
+  targetTimestampUs: bigint,
+  hasWallClockBasis: boolean,
+): LoggedCapturedMessage | null => {
+  let closestRow: LoggedCapturedMessage | null = null
+  let closestDistance: bigint | null = null
+  for (const row of rows) {
+    const rowTimestampUs = getCapturedRowBasisTimestampUs(row, hasWallClockBasis)
+    if (rowTimestampUs === null) {
+      continue
+    }
+    const distance = rowTimestampUs > targetTimestampUs
+      ? rowTimestampUs - targetTimestampUs
+      : targetTimestampUs - rowTimestampUs
+    if (closestDistance === null || distance < closestDistance) {
+      closestDistance = distance
+      closestRow = row
+    }
+  }
+  return closestRow
+}
+
 const getAnalogSampleBasisTimestampUs = (
   row: LoggedAnalogSample,
   hasWallClockBasis: boolean,
@@ -359,6 +392,74 @@ export const DrpdTimeStripInstrumentView = ({
     const rect = viewport.getBoundingClientRect()
     updateAnalogHoverAtViewportPoint(event.clientX - rect.left, event.clientY - rect.top)
   }, [updateAnalogHoverAtViewportPoint])
+  const selectClosestLogEntry = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const driver = deviceState?.drpdDriver
+    const viewport = viewportRef.current
+    if (
+      !driver ||
+      typeof driver.queryCapturedMessages !== 'function' ||
+      typeof driver.setLogSelectionState !== 'function' ||
+      !viewport ||
+      viewportWidthPx <= 0
+    ) {
+      return
+    }
+
+    const rect = viewport.getBoundingClientRect()
+    const viewportX = Math.max(0, Math.min(viewportWidthPx, event.clientX - rect.left))
+    const worldNs = Math.max(0, Math.floor((scrollLeftPx + viewportX) * zoomDenominator))
+    const timelineStartUs = timelineRange.hasWallClockBasis
+      ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+      : timelineRange.worldStartTimestampUs
+    const targetTimestampUs = timelineStartUs + BigInt(Math.floor(worldNs / 1000))
+    const timeBasis = timelineRange.hasWallClockBasis ? 'wallClock' : 'device'
+
+    void (async () => {
+      try {
+        const [previousRows, nextRows] = await Promise.all([
+          driver.queryCapturedMessages({
+            startTimestampUs: LOG_START_TIMESTAMP_US,
+            endTimestampUs: targetTimestampUs,
+            timeBasis,
+            sortOrder: 'desc',
+            limit: 1,
+          }),
+          targetTimestampUs < LOG_END_TIMESTAMP_US
+            ? driver.queryCapturedMessages({
+              startTimestampUs: targetTimestampUs + 1n,
+              endTimestampUs: LOG_END_TIMESTAMP_US,
+              timeBasis,
+              sortOrder: 'asc',
+              limit: 1,
+            })
+            : Promise.resolve([]),
+        ])
+        const closestRow = getClosestCapturedRow(
+          [...previousRows, ...nextRows],
+          targetTimestampUs,
+          timelineRange.hasWallClockBasis,
+        )
+        if (!closestRow) {
+          return
+        }
+        await Promise.resolve(driver.setLogSelectionState({
+          selectedKeys: [buildCapturedLogSelectionKey(closestRow)],
+          anchorIndex: null,
+          activeIndex: null,
+        }))
+      } catch {
+        // Keep the current selection if the log store is temporarily unavailable.
+      }
+    })()
+  }, [
+    deviceState?.drpdDriver,
+    scrollLeftPx,
+    timelineRange.worldStartTimestampUs,
+    timelineRange.worldStartWallClockUs,
+    timelineRange.hasWallClockBasis,
+    viewportWidthPx,
+    zoomDenominator,
+  ])
   const clearAnalogHover = useCallback(() => {
     analogHoverPointerRef.current = null
     setAnalogHover(null)
@@ -1266,6 +1367,7 @@ export const DrpdTimeStripInstrumentView = ({
           className={styles.viewport}
           data-testid="drpd-timestrip-viewport"
           onScroll={handleViewportScroll}
+          onClick={selectClosestLogEntry}
           onMouseMove={updateAnalogHover}
           onMouseLeave={clearAnalogHover}
           onPointerMove={updateAnalogHover}

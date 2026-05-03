@@ -602,6 +602,106 @@ describe('DrpdTimeStripInstrumentView', () => {
     }))
   })
 
+  it('selects the nearest message-log row when clicking the timestrip', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const rows = [
+      buildCapturedMessage({
+        startTimestampUs: 10_000_000n,
+        endTimestampUs: 10_001_000n,
+        createdAtMs: 1,
+      }),
+      buildCapturedMessage({
+        entryKind: 'event',
+        eventType: 'mark',
+        eventText: 'Mark',
+        startTimestampUs: 15_000_000n,
+        endTimestampUs: 15_000_000n,
+        rawSop: new Uint8Array(),
+        rawDecodedData: new Uint8Array(),
+        createdAtMs: 2,
+      }),
+      buildCapturedMessage({
+        startTimestampUs: 20_000_000n,
+        endTimestampUs: 20_001_000n,
+        createdAtMs: 3,
+      }),
+    ]
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+      limit?: number
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      const matches = rows
+        .filter((row) => (
+          row.startTimestampUs >= query.startTimestampUs &&
+          row.startTimestampUs <= query.endTimestampUs
+        ))
+        .sort((left, right) => {
+          const cmp = left.startTimestampUs < right.startTimestampUs
+            ? -1
+            : left.startTimestampUs > right.startTimestampUs
+              ? 1
+              : 0
+          return query.sortOrder === 'desc' ? -cmp : cmp
+        })
+      return typeof query.limit === 'number' ? matches.slice(0, query.limit) : matches
+    })
+    const setLogSelectionState = vi.fn(async () => undefined)
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        setLogSelectionState,
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    viewport.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        right: 600,
+        top: 10,
+        bottom: 110,
+        width: 500,
+        height: 100,
+        x: 100,
+        y: 10,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '500px',
+      })
+    })
+
+    fireEvent.click(viewport, { clientX: 152, clientY: 60 })
+
+    await waitFor(() => {
+      expect(setLogSelectionState).toHaveBeenCalledWith({
+        selectedKeys: [buildCapturedLogSelectionKey(rows[1])],
+        anchorIndex: null,
+        activeIndex: null,
+      })
+    })
+    expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+      endTimestampUs: 15_200_000n,
+      sortOrder: 'desc',
+      limit: 1,
+    }))
+    expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+      startTimestampUs: 15_200_001n,
+      sortOrder: 'asc',
+      limit: 1,
+    }))
+  })
+
   it('uses a scaled scrollbar when the zoomed timeline exceeds browser scrollable width limits', async () => {
     window.localStorage.setItem('drpd:timestrip:zoom-denominator', '500')
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
