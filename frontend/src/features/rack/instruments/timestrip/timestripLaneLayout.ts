@@ -22,7 +22,7 @@ const TICK_LABEL_FONT_PX = 11
 const TICK_HEIGHT_PX = 10
 const TICK_LABEL_PADDING_PX = 24
 const SEPARATOR_HEIGHT_PX = 1
-const DIGITAL_LANE_HEIGHT_RATIO = 0.42
+const DIGITAL_LANE_HEIGHT_PX = 86
 
 /**
  * Build fixed-lane timestrip layout in CSS pixels.
@@ -31,10 +31,10 @@ const DIGITAL_LANE_HEIGHT_RATIO = 0.42
  * @returns Lane layout.
  */
 export const buildTimestripLaneLayout = (tileHeightPx: number): TimestripLaneLayout => {
-  const height = Math.max(TIME_AXIS_HEIGHT_PX + SEPARATOR_HEIGHT_PX * 2 + 1, tileHeightPx)
-  const contentHeight = Math.max(1, height - TIME_AXIS_HEIGHT_PX - SEPARATOR_HEIGHT_PX * 2)
-  const digitalHeight = Math.max(1, Math.floor(contentHeight * DIGITAL_LANE_HEIGHT_RATIO))
-  const analogHeight = Math.max(1, contentHeight - digitalHeight)
+  const minimumHeight = TIME_AXIS_HEIGHT_PX + SEPARATOR_HEIGHT_PX * 2 + DIGITAL_LANE_HEIGHT_PX + 1
+  const height = Math.max(minimumHeight, tileHeightPx)
+  const digitalHeight = DIGITAL_LANE_HEIGHT_PX
+  const analogHeight = Math.max(1, height - TIME_AXIS_HEIGHT_PX - SEPARATOR_HEIGHT_PX * 2 - digitalHeight)
   const digitalY = TIME_AXIS_HEIGHT_PX + SEPARATOR_HEIGHT_PX
   const analogY = digitalY + digitalHeight + SEPARATOR_HEIGHT_PX
 

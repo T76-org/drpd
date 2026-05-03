@@ -188,6 +188,8 @@ export const DrpdTimeStripInstrumentView = ({
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const tileLayerRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
+  const resizeFrameRef = useRef<number | null>(null)
+  const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
   const digitalEntriesSignatureRef = useRef('')
   const analogSamplesSignatureRef = useRef('')
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
@@ -307,26 +309,57 @@ export const DrpdTimeStripInstrumentView = ({
       return undefined
     }
 
-    const updateViewportWidth = () => {
-      setViewportWidthPx(Math.max(0, Math.floor(viewport.clientWidth)))
-      setViewportHeightPx(Math.max(0, Math.floor(viewport.clientHeight)))
+    const commitViewportSize = (width: number, height: number) => {
+      setViewportWidthPx(width)
+      setViewportHeightPx(height)
     }
-    updateViewportWidth()
+    const queueViewportSize = (width: number, height: number) => {
+      pendingViewportSizeRef.current = { width, height }
+      if (resizeFrameRef.current !== null) {
+        return
+      }
+      resizeFrameRef.current = window.requestAnimationFrame(() => {
+        resizeFrameRef.current = null
+        const nextSize = pendingViewportSizeRef.current
+        pendingViewportSizeRef.current = null
+        if (!nextSize) {
+          return
+        }
+        commitViewportSize(nextSize.width, nextSize.height)
+      })
+    }
+    commitViewportSize(
+      Math.max(0, Math.floor(viewport.clientWidth)),
+      Math.max(0, Math.floor(viewport.clientHeight)),
+    )
 
     if (typeof ResizeObserver === 'undefined') {
-      return undefined
+      return () => {
+        if (resizeFrameRef.current !== null) {
+          window.cancelAnimationFrame(resizeFrameRef.current)
+          resizeFrameRef.current = null
+        }
+        pendingViewportSizeRef.current = null
+      }
     }
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       const inlineSize = entry?.contentBoxSize?.[0]?.inlineSize ?? entry?.contentRect.width
       const blockSize = entry?.contentBoxSize?.[0]?.blockSize ?? entry?.contentRect.height
-      setViewportWidthPx(Math.max(0, Math.floor(inlineSize ?? viewport.clientWidth)))
-      setViewportHeightPx(Math.max(0, Math.floor(blockSize ?? viewport.clientHeight)))
+      queueViewportSize(
+        Math.max(0, Math.floor(inlineSize ?? viewport.clientWidth)),
+        Math.max(0, Math.floor(blockSize ?? viewport.clientHeight)),
+      )
     })
     observer.observe(viewport)
     return () => {
       observer.disconnect()
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current)
+        resizeFrameRef.current = null
+      }
+      pendingViewportSizeRef.current = null
     }
   }, [])
 

@@ -3,7 +3,7 @@ import { buildTimestripAnalogLegendTicks } from './timestripAnalogLegend'
 
 describe('timestripAnalogLegend', () => {
   it('builds d3 ticks for the fixed voltage and current ranges', () => {
-    const ticks = buildTimestripAnalogLegendTicks(100)
+    const ticks = buildTimestripAnalogLegendTicks(240)
 
     expect(ticks.voltage.map((tick) => tick.value)).toEqual([0, 20, 40, 60])
     expect(ticks.voltage.map((tick) => tick.label)).toEqual(['0V', '20V', '40V', '60V'])
@@ -12,7 +12,7 @@ describe('timestripAnalogLegend', () => {
   })
 
   it('maps larger values toward the top of the analog lane', () => {
-    const ticks = buildTimestripAnalogLegendTicks(100)
+    const ticks = buildTimestripAnalogLegendTicks(240)
 
     expect(ticks.voltage[0].y).toBeGreaterThan(ticks.voltage.at(-1)!.y)
     expect(ticks.current[0].y).toBeGreaterThan(ticks.current.at(-1)!.y)

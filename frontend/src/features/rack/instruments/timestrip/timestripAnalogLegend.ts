@@ -16,7 +16,7 @@ export interface TimestripAnalogLegendTicks {
   current: TimestripAnalogLegendTick[]
 }
 
-const ANALOG_TRACE_PADDING_PX = 4
+export const ANALOG_TRACE_PADDING_PX = 4
 const ANALOG_TICK_COUNT = 4
 
 const formatLegendTick = (value: number, unit: 'V' | 'A'): string => `${Number.isInteger(value) ? value : value.toFixed(1)}${unit}`

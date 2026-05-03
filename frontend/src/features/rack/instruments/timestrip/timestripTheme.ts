@@ -24,6 +24,7 @@ export interface TimestripThemePalette {
   eventOcpColor: string
   voltageTraceColor: string
   currentTraceColor: string
+  analogGridColor: string
 }
 
 export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -52,6 +53,7 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   eventOcpColor: '#f0c04d',
   voltageTraceColor: '#05BAFA',
   currentTraceColor: '#01A804',
+  analogGridColor: 'rgba(255, 255, 255, 0.09)',
 }
 
 const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -80,6 +82,7 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   eventOcpColor: '#f0c04d',
   voltageTraceColor: '#05BAFA',
   currentTraceColor: '#01A804',
+  analogGridColor: 'rgba(28, 31, 42, 0.1)',
 }
 
 const DARK_TIMESTRIP_THEME = DEFAULT_TIMESTRIP_THEME
@@ -100,6 +103,7 @@ export const getTimestripThemePalette = (
     eventOcpColor: readColor('--color-log-event-ocp', fallback.eventOcpColor),
     voltageTraceColor: readColor('--color-metric-voltage', fallback.voltageTraceColor),
     currentTraceColor: readColor('--color-metric-current', fallback.currentTraceColor),
+    analogGridColor: fallback.analogGridColor,
   }
 }
 
@@ -130,5 +134,6 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.eventOcpColor,
     palette.voltageTraceColor,
     palette.currentTraceColor,
+    palette.analogGridColor,
   ].join('|')
 )

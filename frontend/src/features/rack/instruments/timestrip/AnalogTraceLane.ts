@@ -5,6 +5,7 @@ import {
   TIMESTRIP_ANALOG_VOLTAGE_MAX_V,
   type TimestripAnalogSample,
 } from './timestripAnalogModel'
+import { ANALOG_TRACE_PADDING_PX, buildTimestripAnalogLegendTicks } from './timestripAnalogLegend'
 
 interface AnalogTraceLaneOptions {
   worldLeftUs: number
@@ -27,8 +28,8 @@ const drawTrace = (
     return
   }
 
-  const top = layout.analog.y + 4
-  const height = Math.max(1, layout.analog.height - 8)
+  const top = layout.analog.y + ANALOG_TRACE_PADDING_PX
+  const height = Math.max(1, layout.analog.height - ANALOG_TRACE_PADDING_PX * 2)
   context.save()
   context.beginPath()
   samples.forEach((sample, index) => {
@@ -42,6 +43,26 @@ const drawTrace = (
   })
   context.strokeStyle = color
   context.lineWidth = 1.5
+  context.stroke()
+  context.restore()
+}
+
+const drawAnalogGridLines = (
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  layout: TimestripLaneLayout,
+  widthPx: number,
+  theme: TimestripThemePalette,
+): void => {
+  const ticks = buildTimestripAnalogLegendTicks(layout.analog.y + layout.analog.height).voltage
+  context.save()
+  context.beginPath()
+  for (const tick of ticks) {
+    const y = Math.round(tick.y) + 0.5
+    context.moveTo(0, y)
+    context.lineTo(widthPx, y)
+  }
+  context.strokeStyle = theme.analogGridColor
+  context.lineWidth = 1
   context.stroke()
   context.restore()
 }
@@ -66,6 +87,7 @@ export const drawAnalogTraceLane = (
 ): void => {
   context.fillStyle = theme.analogBackground
   context.fillRect(0, layout.analog.y, widthPx, layout.analog.height)
+  drawAnalogGridLines(context, layout, widthPx, theme)
   drawTrace(
     context,
     layout,

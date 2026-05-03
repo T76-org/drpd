@@ -119,6 +119,7 @@ describe('timestripTileDrawing', () => {
       eventOcpColor: '#0ff',
       voltageTraceColor: '#05BAFA',
       currentTraceColor: '#01A804',
+      analogGridColor: 'rgba(255, 255, 255, 0.09)',
     })
 
     expect(context.fillStyle).toBe('#cccccc')
@@ -179,5 +180,15 @@ describe('timestripTileDrawing', () => {
     expect(context.moveTo).toHaveBeenCalledWith(10, expect.any(Number))
     expect(context.lineTo).toHaveBeenCalledWith(20, expect.any(Number))
     expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('draws faint analog grid lines across the tile', () => {
+    const context = buildContext()
+
+    drawTimestripTile(context, tile, 1, DEFAULT_TIMESTRIP_THEME)
+
+    expect(context.moveTo).toHaveBeenCalledWith(0, expect.any(Number))
+    expect(context.lineTo).toHaveBeenCalledWith(512, expect.any(Number))
+    expect(context.strokeStyle).toBe(DEFAULT_TIMESTRIP_THEME.analogGridColor)
   })
 })

@@ -286,6 +286,68 @@ describe('TimestripTiledRenderer', () => {
     renderer.dispose()
   })
 
+  it('keeps tile assignments during height-only resize while requesting replacements', () => {
+    const contexts = [
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+      buildCanvasContext(),
+    ]
+    let contextIndex = 0
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () => contexts[Math.min(contextIndex++, contexts.length - 1)] as unknown as CanvasRenderingContext2D,
+    )
+    const tileLayer = document.createElement('div')
+    const frameCallbacks: FrameRequestCallback[] = []
+    const worker = new TestWorker()
+    const renderer = new TimestripTiledRenderer({
+      tileLayer,
+      createWorker: () => worker as unknown as Worker,
+      requestAnimationFrame: (callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      },
+      cancelAnimationFrame: vi.fn(),
+    })
+
+    renderer.setViewport(buildViewport(1000))
+    frameCallbacks.shift()?.(0)
+    const firstRequest = worker.postMessage.mock.calls[0][0]
+    worker.onmessage?.({
+      data: {
+        type: 'tileRendered',
+        requestId: firstRequest.requestId,
+        tileKey: firstRequest.tile.key,
+        tile: firstRequest.tile,
+        bitmap: makeBitmap(),
+        generation: firstRequest.generation,
+      },
+    } as MessageEvent<unknown>)
+    frameCallbacks.shift()?.(16)
+    const firstCanvas = tileLayer.querySelector('canvas')
+    const committedClearCount = vi.mocked(contexts[0].clearRect).mock.calls.length
+    const requestCount = worker.postMessage.mock.calls.length
+
+    renderer.setViewport({
+      ...buildViewport(1000),
+      viewportHeightPx: 180,
+    })
+    frameCallbacks.shift()?.(32)
+
+    expect(firstCanvas?.style.height).toBe('180px')
+    expect(firstCanvas?.height).toBe(120)
+    expect(firstCanvas?.style.transform).toBe('translate3d(0px, 0, 0)')
+    expect(contexts[0].clearRect).toHaveBeenCalledTimes(committedClearCount)
+    expect(worker.postMessage.mock.calls.length).toBeGreaterThan(requestCount)
+    expect(
+      worker.postMessage.mock.calls
+        .slice(requestCount)
+        .map((call) => call[0].tile.key),
+    ).toContain(firstRequest.tile.key)
+
+    renderer.dispose()
+  })
+
   it('resets pool assignments when zoom changes', () => {
     const contexts = [
       buildCanvasContext(),
