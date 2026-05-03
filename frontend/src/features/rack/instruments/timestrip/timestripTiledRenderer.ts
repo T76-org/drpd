@@ -130,6 +130,7 @@ export class TimestripTiledRenderer {
       nextViewport.viewportHeightPx !== this.cacheHeightPx ||
       nextViewport.worldStartWallClockUs !== this.cacheWallClockOriginUs ||
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
+      (nextViewport.digitalDataRevision ?? 0) !== this.cacheDigitalDataRevision ||
       getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
     this.viewport = nextViewport
     this.resizeTileLayer()

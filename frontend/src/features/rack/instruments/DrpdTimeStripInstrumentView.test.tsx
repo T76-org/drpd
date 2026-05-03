@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DRPDDevice, type LoggedCapturedMessage } from '../../../lib/device'
 import type { RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdTimeStripInstrumentView } from './DrpdTimeStripInstrumentView'
@@ -69,8 +71,49 @@ const buildDeviceState = (queryCapturedMessages: ReturnType<typeof vi.fn>): Rack
     },
   }) as unknown as RackDeviceState
 
+const buildCapturedMessage = (overrides: Partial<LoggedCapturedMessage> = {}): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
+  wallClockUs: null,
+  startTimestampUs: 6_000_000n,
+  endTimestampUs: 10_000_000n,
+  displayTimestampUs: null,
+  decodeResult: 0,
+  sopKind: 'SOP',
+  messageKind: 'DATA',
+  messageType: 1,
+  messageId: 0,
+  senderPowerRole: 'SOURCE',
+  senderDataRole: 'DFP',
+  pulseCount: 0,
+  rawPulseWidths: new Float64Array(),
+  rawSop: Uint8Array.from([0x12, 0x12, 0x12, 0x13]),
+  rawDecodedData: Uint8Array.from([0x61, 0x01, 0xaa, 0xbb, 0xcc, 0xdd]),
+  parseError: null,
+  createdAtMs: 1,
+  ...overrides,
+})
+
+const localStorageItems = new Map<string, string>()
+const localStorageMock = {
+  getItem: vi.fn((key: string) => localStorageItems.get(key) ?? null),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageItems.set(key, value)
+  }),
+  removeItem: vi.fn((key: string) => {
+    localStorageItems.delete(key)
+  }),
+  clear: vi.fn(() => {
+    localStorageItems.clear()
+  }),
+}
+
 describe('DrpdTimeStripInstrumentView', () => {
   beforeEach(() => {
+    localStorageMock.clear()
+    vi.stubGlobal('localStorage', localStorageMock)
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
       buildCanvasContext() as unknown as CanvasRenderingContext2D,
     )
@@ -85,7 +128,7 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     expect(screen.getByTestId('drpd-timestrip-viewport')).toBeInTheDocument()
     expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-      width: '10000px',
+      width: '100px',
     })
     expect(screen.getByTestId('drpd-timestrip-tile-layer')).toBeInTheDocument()
     expect(screen.queryByTestId('drpd-timestrip-tick-canvas')).toBeNull()
@@ -97,10 +140,21 @@ describe('DrpdTimeStripInstrumentView', () => {
   it('renders zoom as passive header text without button or popover controls', () => {
     renderTimestrip()
 
-    expect(screen.getByLabelText('Zoom 1ms per pixel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /zoom/i })).toBeNull()
     expect(screen.queryByRole('slider')).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
+  })
+
+  it('restores zoom from local storage', () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
+
+    renderTimestrip()
+
+    expect(screen.getByLabelText('Zoom 1µs per pixel')).toBeInTheDocument()
+    expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+      width: '10000000px',
+    })
   })
 
   it('maps mouse wheel movement to horizontal viewport scroll', () => {
@@ -122,12 +176,13 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 909.091µs per pixel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 90.909ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('90909091')
     expect(viewport.scrollLeft).toBe(0)
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
 
-    expect(screen.getByLabelText('Zoom 1ms per pixel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBe(0)
   })
 
@@ -152,7 +207,7 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 909.091µs per pixel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 90.909ms per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBeCloseTo(5515, 2)
   })
 
@@ -174,7 +229,36 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-        width: '4000px',
+        width: '40px',
+      })
+    })
+  })
+
+  it('uses the first appended log row as the timeline origin even without wall-clock sync', async () => {
+    const eventTarget = new EventTarget()
+    const queryCapturedMessages = vi.fn(async () => [])
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage(),
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '40px',
       })
     })
   })

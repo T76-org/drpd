@@ -1,5 +1,5 @@
 const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 500
-const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 1_000_000
+const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 100_000_000
 export const TIMESTRIP_TILE_WIDTH_PX = 512
 export const TIMESTRIP_TILE_OVERSCAN = 1
 
@@ -7,7 +7,7 @@ export const TIMESTRIP_TILE_OVERSCAN = 1
  * Clamp a user-provided timestrip zoom denominator into the supported range.
  *
  * @param value - Candidate denominator.
- * @returns Integer denominator from 500 to 1,000,000.
+ * @returns Integer denominator from 500 to 100,000,000.
  */
 export const clampTimestripZoomDenominator = (value: number | string): number => {
   const parsed = typeof value === 'number' ? value : Number(value)
@@ -31,7 +31,7 @@ const formatCompactDecimal = (value: number): string => {
  * Format the current zoom denominator as time per CSS pixel.
  *
  * @param value - Nanoseconds-per-CSS-pixel denominator.
- * @returns Compact zoom label, e.g. `500ns`, `1µs`, or `1ms`.
+ * @returns Compact zoom label, e.g. `500ns`, `1µs`, `1ms`, or `100ms`.
  */
 export const formatTimestripZoomDenominator = (value: number | string): string => {
   const denominator = clampTimestripZoomDenominator(value)

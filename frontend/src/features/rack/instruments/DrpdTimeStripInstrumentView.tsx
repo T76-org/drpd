@@ -22,7 +22,8 @@ import {
 
 const PLACEHOLDER_TIMELINE_END_NS = 10_000_000_000n
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
-const DEFAULT_ZOOM_DENOMINATOR = 1_000_000
+const DEFAULT_ZOOM_DENOMINATOR = 100_000_000
+const ZOOM_DENOMINATOR_STORAGE_KEY = 'drpd:timestrip:zoom-denominator'
 const CTRL_WHEEL_ZOOM_STEP = 1.1
 const DIGITAL_QUERY_LIMIT = 5000
 const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
@@ -33,6 +34,27 @@ const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
   themeName,
   typeof window === 'undefined' ? undefined : window.getComputedStyle(document.documentElement),
 )
+const readStoredZoomDenominator = (): number => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_ZOOM_DENOMINATOR
+  }
+  try {
+    const rawValue = window.localStorage.getItem(ZOOM_DENOMINATOR_STORAGE_KEY)
+    return rawValue == null ? DEFAULT_ZOOM_DENOMINATOR : clampTimestripZoomDenominator(rawValue)
+  } catch {
+    return DEFAULT_ZOOM_DENOMINATOR
+  }
+}
+const writeStoredZoomDenominator = (zoomDenominator: number): void => {
+  if (typeof window === 'undefined') {
+    return
+  }
+  try {
+    window.localStorage.setItem(ZOOM_DENOMINATOR_STORAGE_KEY, zoomDenominator.toString())
+  } catch {
+    // Ignore persistence errors; zoom still updates for the current session.
+  }
+}
 const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string =>
   entries.map((entry) => {
     if (entry.kind === 'event') {
@@ -119,10 +141,11 @@ export const DrpdTimeStripInstrumentView = ({
     worldStartTimestampUs: 0n,
     worldStartWallClockUs: Date.now() * 1000,
   }))
+  const [hasLogTimelineRange, setHasLogTimelineRange] = useState(false)
   const [viewportWidthPx, setViewportWidthPx] = useState(0)
   const [viewportHeightPx, setViewportHeightPx] = useState(0)
   const [scrollLeftPx, setScrollLeftPx] = useState(0)
-  const [zoomDenominator, setZoomDenominator] = useState(DEFAULT_ZOOM_DENOMINATOR)
+  const [zoomDenominator, setZoomDenominator] = useState(readStoredZoomDenominator)
   const [themeName, setThemeName] = useState(readThemeName)
   const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
@@ -135,6 +158,7 @@ export const DrpdTimeStripInstrumentView = ({
   )
   const commitZoomDenominator = useCallback((value: number | string) => {
     const nextZoomDenominator = clampTimestripZoomDenominator(value)
+    writeStoredZoomDenominator(nextZoomDenominator)
     setZoomDenominator(nextZoomDenominator)
   }, [])
   const queueDigitalInvalidation = useCallback((invalidation: DigitalInvalidation) => {
@@ -291,17 +315,16 @@ export const DrpdTimeStripInstrumentView = ({
           sortOrder: 'desc',
           limit: 1,
         })
-        if (
-          !isActive ||
-          firstMessage?.wallClockUs == null ||
-          lastMessage?.wallClockUs == null
-        ) {
+        if (!isActive || !firstMessage || !lastMessage) {
           return
         }
 
         const startTimestampUs = firstMessage.startTimestampUs
         const endTimestampUs = lastMessage.endTimestampUs
-        const startWallClockUs = Number(firstMessage.wallClockUs)
+        const startWallClockUs =
+          firstMessage.wallClockUs == null
+            ? Date.now() * 1000
+            : Number(firstMessage.wallClockUs)
         if (!Number.isFinite(startWallClockUs) || endTimestampUs < startTimestampUs) {
           return
         }
@@ -322,6 +345,7 @@ export const DrpdTimeStripInstrumentView = ({
             durationNs: nextDurationNs,
           }
         })
+        setHasLogTimelineRange(true)
       } catch {
         // Keep the existing timeline when logging data is temporarily unavailable.
       }
@@ -395,6 +419,7 @@ export const DrpdTimeStripInstrumentView = ({
     scrollLeftPx,
     timelineRange.worldStartTimestampUs,
     timelineRange.worldStartWallClockUs,
+    viewportHeightPx,
     viewportWidthPx,
     zoomDenominator,
   ])
@@ -411,7 +436,7 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       const row = detail.row as LoggedCapturedMessage | undefined
-      if (!row?.wallClockUs) {
+      if (!row) {
         return
       }
 
@@ -422,14 +447,25 @@ export const DrpdTimeStripInstrumentView = ({
           ? Math.max(1, Number((row.endTimestampUs - row.startTimestampUs) * 1000n))
           : 1
       const rowWorldEndUs = rowWorldStartUs + rowDurationNs
+      if (!hasLogTimelineRange) {
+        digitalQueryRangeRef.current = null
+        commitDigitalEntries([], 'all')
+      }
       setTimelineRange((current) => {
+        if (!hasLogTimelineRange) {
+          return {
+            worldStartTimestampUs: rowTimestampUs,
+            worldStartWallClockUs: row.wallClockUs == null ? Date.now() * 1000 : Number(row.wallClockUs),
+            durationNs: BigInt(rowDurationNs),
+          }
+        }
         if (rowTimestampUs < current.worldStartTimestampUs) {
           digitalQueryRangeRef.current = null
           commitDigitalEntries([], 'all')
           return {
             ...current,
             worldStartTimestampUs: rowTimestampUs,
-            worldStartWallClockUs: Number(row.wallClockUs),
+            worldStartWallClockUs: row.wallClockUs == null ? current.worldStartWallClockUs : Number(row.wallClockUs),
             durationNs: current.durationNs,
           }
         }
@@ -445,9 +481,11 @@ export const DrpdTimeStripInstrumentView = ({
           durationNs: (nextEndTimestampUs - current.worldStartTimestampUs) * 1000n,
         }
       })
+      setHasLogTimelineRange(true)
 
       const loadedRange = digitalQueryRangeRef.current
       if (
+        !hasLogTimelineRange ||
         !loadedRange ||
         rowTimestampUs < loadedRange.startTimestampUs ||
         rowTimestampUs > loadedRange.endTimestampUs
@@ -483,6 +521,7 @@ export const DrpdTimeStripInstrumentView = ({
           worldStartTimestampUs: 0n,
           worldStartWallClockUs: Date.now() * 1000,
         })
+        setHasLogTimelineRange(false)
       }
     }
 
@@ -496,6 +535,7 @@ export const DrpdTimeStripInstrumentView = ({
     commitDigitalEntries,
     deviceState?.drpdDriver,
     digitalEntries,
+    hasLogTimelineRange,
     timelineRange.durationNs,
     timelineRange.worldStartTimestampUs,
     timelineRange.worldStartWallClockUs,

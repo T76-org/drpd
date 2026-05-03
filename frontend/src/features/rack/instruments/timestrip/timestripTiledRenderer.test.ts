@@ -4,6 +4,7 @@ import {
   TimestripTiledRenderer,
   type TimestripRendererViewport,
 } from './timestripTiledRenderer'
+import type { TimestripDigitalEntry } from './timestripDigitalModel'
 
 const buildCanvasContext = () => ({
   beginPath: vi.fn(),
@@ -309,6 +310,53 @@ describe('TimestripTiledRenderer', () => {
 
     expect(worker.postMessage.mock.calls.at(-1)?.[0].tile.key.startsWith('z909:')).toBe(true)
     expect(renderer.getPoolSize()).toBe(4)
+
+    renderer.dispose()
+  })
+
+  it('requests replacement tiles when digital data revision changes', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
+    )
+    const tileLayer = document.createElement('div')
+    const frameCallbacks: FrameRequestCallback[] = []
+    const worker = new TestWorker()
+    const renderer = new TimestripTiledRenderer({
+      tileLayer,
+      createWorker: () => worker as unknown as Worker,
+      requestAnimationFrame: (callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      },
+      cancelAnimationFrame: vi.fn(),
+    })
+
+    renderer.setViewport(buildViewport(1000))
+    frameCallbacks.shift()?.(0)
+    const requestCount = worker.postMessage.mock.calls.length
+    const digitalEntry: TimestripDigitalEntry = {
+      kind: 'message',
+      startWorldUs: 0,
+      endWorldUs: 1000,
+      label: 'GoodCRC',
+      pulseWidthsNs: [],
+      frameBytes: [],
+      components: [],
+    }
+
+    renderer.setViewport({
+      ...buildViewport(1000),
+      digitalEntries: [digitalEntry],
+      digitalDataRevision: 1,
+    })
+    frameCallbacks.shift()?.(16)
+
+    const replacementRequest = worker.postMessage.mock.calls
+      .slice(requestCount)
+      .map((call) => call[0])
+      .find((request) => request.tile.key === 'z1000:0:0')
+    expect(worker.postMessage.mock.calls.length).toBeGreaterThan(requestCount)
+    expect(replacementRequest?.digitalEntries).toContain(digitalEntry)
 
     renderer.dispose()
   })
