@@ -211,10 +211,13 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(viewport.scrollLeft).toBeCloseTo(5515, 2)
   })
 
-  it('sizes the timeline from message-log device timestamp range when available', async () => {
+  it('sizes the timeline from message-log wall-clock range when available', async () => {
     const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
       {
-        wallClockUs: 1_700_000_000_000_000n,
+        wallClockUs:
+          query.sortOrder === 'desc'
+            ? 1_700_000_004_000_000n
+            : 1_700_000_000_000_000n,
         startTimestampUs:
           query.sortOrder === 'desc'
             ? 10_000_000n
@@ -231,6 +234,45 @@ describe('DrpdTimeStripInstrumentView', () => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
         width: '40px',
       })
+    })
+  })
+
+  it('queries visible digital rows by wall-clock time when wall-clock sync is available', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { timeBasis?: 'device' | 'wallClock'; sortOrder?: 'asc' | 'desc' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return [
+          {
+            ...buildCapturedMessage({
+              wallClockUs:
+                query.sortOrder === 'desc'
+                  ? 1_700_000_004_000_000n
+                  : 1_700_000_000_000_000n,
+              startTimestampUs:
+                query.sortOrder === 'desc'
+                  ? 10_000_000n
+                  : 6_000_000n,
+              endTimestampUs:
+                query.sortOrder === 'desc'
+                  ? 10_000_000n
+                  : 6_000_000n,
+            }),
+          },
+        ]
+      }
+      return []
+    })
+    renderTimestrip(buildDeviceState(queryCapturedMessages))
+
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timeBasis: 'wallClock',
+          startTimestampUs: 1_700_000_000_000_000n,
+          endTimestampUs: 1_700_000_152_400_000n,
+        }),
+      )
     })
   })
 

@@ -79,7 +79,7 @@ export const getTimestripDigitalQueryRange = (
   scrollLeftPx: number,
   viewportWidthPx: number,
   zoomDenominator: number,
-  worldStartTimestampUs: bigint,
+  worldStartUs: bigint,
   overscanPx: number,
 ): { startTimestampUs: bigint; endTimestampUs: bigint } => {
   const startWorldNs = Math.max(0, Math.floor((scrollLeftPx - overscanPx) * zoomDenominator))
@@ -88,8 +88,8 @@ export const getTimestripDigitalQueryRange = (
     Math.ceil((scrollLeftPx + viewportWidthPx + overscanPx) * zoomDenominator),
   )
   return {
-    startTimestampUs: worldStartTimestampUs + BigInt(Math.floor(startWorldNs / 1000)),
-    endTimestampUs: worldStartTimestampUs + BigInt(Math.ceil(endWorldNs / 1000)),
+    startTimestampUs: worldStartUs + BigInt(Math.floor(startWorldNs / 1000)),
+    endTimestampUs: worldStartUs + BigInt(Math.ceil(endWorldNs / 1000)),
   }
 }
 
@@ -107,8 +107,12 @@ export const filterTimestripDigitalEntriesForTile = (
 export const normalizeCapturedMessageForTimestrip = (
   row: LoggedCapturedMessage,
   worldStartTimestampUs: bigint,
+  worldStartWallClockUs?: bigint,
 ): TimestripDigitalEntry | null => {
-  const startWorldNs = Number((row.startTimestampUs - worldStartTimestampUs) * 1000n)
+  const startWorldNs =
+    worldStartWallClockUs != null && row.wallClockUs != null
+      ? Number((row.wallClockUs - worldStartWallClockUs) * 1000n)
+      : Number((row.startTimestampUs - worldStartTimestampUs) * 1000n)
   if (!Number.isFinite(startWorldNs)) {
     return null
   }
