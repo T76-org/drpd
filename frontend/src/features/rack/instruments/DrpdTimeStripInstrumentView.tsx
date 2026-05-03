@@ -19,6 +19,10 @@ import {
   normalizeCapturedMessageForTimestrip,
   type TimestripDigitalEntry,
 } from './timestrip/timestripDigitalModel'
+import {
+  normalizeAnalogSampleForTimestrip,
+  type TimestripAnalogSample,
+} from './timestrip/timestripAnalogModel'
 
 const PLACEHOLDER_TIMELINE_END_NS = 10_000_000_000n
 const LOG_START_TIMESTAMP_US = 0n
@@ -27,7 +31,9 @@ const DEFAULT_ZOOM_DENOMINATOR = 100_000_000
 const ZOOM_DENOMINATOR_STORAGE_KEY = 'drpd:timestrip:zoom-denominator'
 const CTRL_WHEEL_ZOOM_STEP = 2
 const DIGITAL_QUERY_LIMIT = 5000
+const ANALOG_QUERY_LIMIT = 8000
 const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
+const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
 const readThemeName = () => (
   typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
 )
@@ -72,7 +78,14 @@ const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string 
     ].join(':')
   }).join('|')
 
-type DigitalInvalidation = 'all' | { startWorldUs: number; endWorldUs: number }
+const buildAnalogSamplesSignature = (samples: TimestripAnalogSample[]): string =>
+  samples.map((sample) => [
+    sample.worldUs,
+    sample.voltageV,
+    sample.currentA,
+  ].join(':')).join('|')
+
+type TimestripInvalidation = 'all' | { startWorldUs: number; endWorldUs: number }
 type DigitalQueryRange = { startTimestampUs: bigint; endTimestampUs: bigint }
 type TimelineRange = {
   durationNs: bigint
@@ -85,11 +98,11 @@ type TimelineRangePoint = {
   wallClockUs: bigint | null
 }
 
-const calculateDigitalQueryInvalidation = (
+const calculateQueryInvalidation = (
   loadedRange: DigitalQueryRange | null,
   nextRange: DigitalQueryRange,
   worldStartTimestampUs: bigint,
-): DigitalInvalidation => {
+): TimestripInvalidation => {
   if (!loadedRange) {
     return 'all'
   }
@@ -175,8 +188,10 @@ export const DrpdTimeStripInstrumentView = ({
   const tileLayerRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
   const digitalEntriesSignatureRef = useRef('')
+  const analogSamplesSignatureRef = useRef('')
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
-  const pendingDigitalInvalidationRef = useRef<DigitalInvalidation | null>(null)
+  const analogQueryRangeRef = useRef<DigitalQueryRange | null>(null)
+  const pendingTileInvalidationRef = useRef<TimestripInvalidation | null>(null)
   const [timelineRange, setTimelineRange] = useState<TimelineRange>(() => ({
     durationNs: PLACEHOLDER_TIMELINE_END_NS,
     worldStartTimestampUs: 0n,
@@ -192,6 +207,8 @@ export const DrpdTimeStripInstrumentView = ({
   const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
   const [digitalDataRevision, setDigitalDataRevision] = useState(0)
+  const [analogSamples, setAnalogSamples] = useState<TimestripAnalogSample[]>([])
+  const [analogDataRevision, setAnalogDataRevision] = useState(0)
   const zoomReadout = formatTimestripZoomDenominator(zoomDenominator)
   const timelineWidthPx = calculateTimestripWidthPx(
     timelineRange.durationNs,
@@ -203,30 +220,43 @@ export const DrpdTimeStripInstrumentView = ({
     writeStoredZoomDenominator(nextZoomDenominator)
     setZoomDenominator(nextZoomDenominator)
   }, [])
-  const queueDigitalInvalidation = useCallback((invalidation: DigitalInvalidation) => {
-    const current = pendingDigitalInvalidationRef.current
+  const queueTileInvalidation = useCallback((invalidation: TimestripInvalidation) => {
+    const current = pendingTileInvalidationRef.current
     if (current === 'all' || invalidation === 'all' || current === null) {
-      pendingDigitalInvalidationRef.current = invalidation
+      pendingTileInvalidationRef.current = invalidation
       return
     }
-    pendingDigitalInvalidationRef.current = {
+    pendingTileInvalidationRef.current = {
       startWorldUs: Math.min(current.startWorldUs, invalidation.startWorldUs),
       endWorldUs: Math.max(current.endWorldUs, invalidation.endWorldUs),
     }
   }, [])
   const commitDigitalEntries = useCallback((
     nextEntries: TimestripDigitalEntry[],
-    invalidation: DigitalInvalidation,
+    invalidation: TimestripInvalidation,
   ) => {
     const nextSignature = buildDigitalEntriesSignature(nextEntries)
     if (nextSignature === digitalEntriesSignatureRef.current) {
       return
     }
     digitalEntriesSignatureRef.current = nextSignature
-    queueDigitalInvalidation(invalidation)
+    queueTileInvalidation(invalidation)
     setDigitalEntries(nextEntries)
     setDigitalDataRevision((revision) => revision + 1)
-  }, [queueDigitalInvalidation])
+  }, [queueTileInvalidation])
+  const commitAnalogSamples = useCallback((
+    nextSamples: TimestripAnalogSample[],
+    invalidation: TimestripInvalidation,
+  ) => {
+    const nextSignature = buildAnalogSamplesSignature(nextSamples)
+    if (nextSignature === analogSamplesSignatureRef.current) {
+      return
+    }
+    analogSamplesSignatureRef.current = nextSignature
+    queueTileInvalidation(invalidation)
+    setAnalogSamples(nextSamples)
+    setAnalogDataRevision((revision) => revision + 1)
+  }, [queueTileInvalidation])
   const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     setScrollLeftPx(event.currentTarget.scrollLeft)
   }, [])
@@ -500,7 +530,7 @@ export const DrpdTimeStripInstrumentView = ({
         if (!isActive) {
           return
         }
-        const invalidation = calculateDigitalQueryInvalidation(
+        const invalidation = calculateQueryInvalidation(
           loadedRange,
           range,
           timelineRange.hasWallClockBasis
@@ -530,6 +560,84 @@ export const DrpdTimeStripInstrumentView = ({
     }
   }, [
     commitDigitalEntries,
+    deviceState?.drpdDriver,
+    scrollLeftPx,
+    timelineRange.worldStartTimestampUs,
+    timelineRange.worldStartWallClockUs,
+    timelineRange.hasWallClockBasis,
+    viewportHeightPx,
+    viewportWidthPx,
+    zoomDenominator,
+  ])
+
+  useEffect(() => {
+    const driver = deviceState?.drpdDriver
+    if (!driver || typeof driver.queryAnalogSamples !== 'function' || viewportWidthPx <= 0) {
+      analogQueryRangeRef.current = null
+      commitAnalogSamples([], 'all')
+      return undefined
+    }
+
+    let isActive = true
+    const refreshAnalogSamples = async () => {
+      const range = getTimestripDigitalQueryRange(
+        scrollLeftPx,
+        viewportWidthPx,
+        zoomDenominator,
+        timelineRange.hasWallClockBasis
+          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+          : timelineRange.worldStartTimestampUs,
+        ANALOG_QUERY_OVERSCAN_PX,
+      )
+      const loadedRange = analogQueryRangeRef.current
+      if (
+        loadedRange &&
+        range.startTimestampUs >= loadedRange.startTimestampUs &&
+        range.endTimestampUs <= loadedRange.endTimestampUs
+      ) {
+        return
+      }
+      try {
+        const rows = await driver.queryAnalogSamples({
+          startTimestampUs: range.startTimestampUs,
+          endTimestampUs: range.endTimestampUs,
+          timeBasis: timelineRange.hasWallClockBasis ? 'wallClock' : 'device',
+          sortOrder: 'asc',
+          limit: ANALOG_QUERY_LIMIT,
+        })
+        if (!isActive) {
+          return
+        }
+        const invalidation = calculateQueryInvalidation(
+          loadedRange,
+          range,
+          timelineRange.hasWallClockBasis
+            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+            : timelineRange.worldStartTimestampUs,
+        )
+        analogQueryRangeRef.current = range
+        const nextSamples = rows.flatMap((row) => {
+          const sample = normalizeAnalogSampleForTimestrip(
+            row,
+            timelineRange.worldStartTimestampUs,
+            timelineRange.hasWallClockBasis
+              ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+              : undefined,
+          )
+          return sample ? [sample] : []
+        })
+        commitAnalogSamples(nextSamples, invalidation)
+      } catch {
+        // Keep the last rendered samples when the log store is temporarily unavailable.
+      }
+    }
+
+    void refreshAnalogSamples()
+    return () => {
+      isActive = false
+    }
+  }, [
+    commitAnalogSamples,
     deviceState?.drpdDriver,
     scrollLeftPx,
     timelineRange.worldStartTimestampUs,
@@ -572,7 +680,9 @@ export const DrpdTimeStripInstrumentView = ({
       const rowWorldEndUs = rowWorldStartUs + rowDurationNs
       if (!hasLogTimelineRange) {
         digitalQueryRangeRef.current = null
+        analogQueryRangeRef.current = null
         commitDigitalEntries([], 'all')
+        commitAnalogSamples([], 'all')
       }
       setTimelineRange((current) => {
         const rowDurationUs = BigInt(Math.ceil(rowDurationNs / 1000))
@@ -597,7 +707,9 @@ export const DrpdTimeStripInstrumentView = ({
         }
         if (rowStartBasisUs < currentStartBasisUs) {
           digitalQueryRangeRef.current = null
+          analogQueryRangeRef.current = null
           commitDigitalEntries([], 'all')
+          commitAnalogSamples([], 'all')
           return {
             ...current,
             worldStartTimestampUs: rowTimestampUs,
@@ -617,6 +729,34 @@ export const DrpdTimeStripInstrumentView = ({
       setHasLogTimelineRange(true)
 
       if (isAnalogRow) {
+        const analogRow = row as LoggedAnalogSample
+        const loadedRange = analogQueryRangeRef.current
+        if (
+          !hasLogTimelineRange ||
+          !loadedRange ||
+          (timelineRange.hasWallClockBasis && analogRow.wallClockUs == null) ||
+          (timelineRange.hasWallClockBasis
+            ? analogRow.wallClockUs! < loadedRange.startTimestampUs || analogRow.wallClockUs! > loadedRange.endTimestampUs
+            : analogRow.timestampUs < loadedRange.startTimestampUs || analogRow.timestampUs > loadedRange.endTimestampUs)
+        ) {
+          return
+        }
+
+        const sample = normalizeAnalogSampleForTimestrip(
+          analogRow,
+          timelineRange.worldStartTimestampUs,
+          timelineRange.hasWallClockBasis
+            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+            : undefined,
+        )
+        if (!sample) {
+          return
+        }
+        const nextSamples = [...analogSamples, sample].sort((left, right) => left.worldUs - right.worldUs)
+        commitAnalogSamples(nextSamples, {
+          startWorldUs: rowWorldStartUs,
+          endWorldUs: rowWorldEndUs,
+        })
         return
       }
       const messageRow = row as LoggedCapturedMessage
@@ -659,7 +799,9 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       digitalQueryRangeRef.current = null
+      analogQueryRangeRef.current = null
       commitDigitalEntries([], 'all')
+      commitAnalogSamples([], 'all')
       if (detail.reason === 'clear') {
         setTimelineRange({
           durationNs: PLACEHOLDER_TIMELINE_END_NS,
@@ -678,6 +820,8 @@ export const DrpdTimeStripInstrumentView = ({
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     }
   }, [
+    analogSamples,
+    commitAnalogSamples,
     commitDigitalEntries,
     deviceState?.drpdDriver,
     digitalEntries,
@@ -700,9 +844,11 @@ export const DrpdTimeStripInstrumentView = ({
       theme,
       digitalEntries,
       digitalDataRevision,
+      analogSamples,
+      analogDataRevision,
     })
-    const invalidation = pendingDigitalInvalidationRef.current
-    pendingDigitalInvalidationRef.current = null
+    const invalidation = pendingTileInvalidationRef.current
+    pendingTileInvalidationRef.current = null
     if (invalidation === 'all') {
       renderer?.invalidateAllTiles()
     } else if (invalidation) {
@@ -711,6 +857,8 @@ export const DrpdTimeStripInstrumentView = ({
   }, [
     digitalDataRevision,
     digitalEntries,
+    analogDataRevision,
+    analogSamples,
     scrollLeftPx,
     theme,
     timelineRange.worldStartWallClockUs,

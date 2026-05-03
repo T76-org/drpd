@@ -1,6 +1,7 @@
 import type { TimestripVisibleTile } from './timestripLayout'
 import type { TimestripThemePalette } from './timestripTheme'
 import type { TimestripDigitalEntry } from './timestripDigitalModel'
+import type { TimestripAnalogSample } from './timestripAnalogModel'
 
 export interface TimestripTileRenderRequest {
   type: 'renderTile'
@@ -9,6 +10,7 @@ export interface TimestripTileRenderRequest {
   dpr: number
   theme: TimestripThemePalette
   digitalEntries: TimestripDigitalEntry[]
+  analogSamples: TimestripAnalogSample[]
   generation: number
   worldStartWallClockUs: number
 }

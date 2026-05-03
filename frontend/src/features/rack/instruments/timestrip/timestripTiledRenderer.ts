@@ -18,6 +18,10 @@ import {
   filterTimestripDigitalEntriesForTile,
   type TimestripDigitalEntry,
 } from './timestripDigitalModel'
+import {
+  filterTimestripAnalogSamplesForTile,
+  type TimestripAnalogSample,
+} from './timestripAnalogModel'
 
 export interface TimestripRendererViewport {
   scrollLeftPx: number
@@ -29,6 +33,8 @@ export interface TimestripRendererViewport {
   theme?: TimestripThemePalette
   digitalEntries?: TimestripDigitalEntry[]
   digitalDataRevision?: number
+  analogSamples?: TimestripAnalogSample[]
+  analogDataRevision?: number
 }
 
 export interface TimestripRendererOptions {
@@ -72,6 +78,7 @@ export class TimestripTiledRenderer {
   protected cacheZoomDenominator: number ///< Zoom denominator used by current pool.
   protected cacheThemeKey: string ///< Theme palette identity used by current pool.
   protected cacheDigitalDataRevision: number ///< Digital data revision used by current pool.
+  protected cacheAnalogDataRevision: number ///< Analog data revision used by current pool.
 
   /**
    * Create a tiled renderer.
@@ -94,6 +101,8 @@ export class TimestripTiledRenderer {
       theme: DEFAULT_TIMESTRIP_THEME,
       digitalEntries: [],
       digitalDataRevision: 0,
+      analogSamples: [],
+      analogDataRevision: 0,
     }
     this.frameHandle = null
     this.requestId = 0
@@ -105,6 +114,7 @@ export class TimestripTiledRenderer {
     this.cacheZoomDenominator = 1_000_000
     this.cacheThemeKey = getTimestripThemeCacheKey(DEFAULT_TIMESTRIP_THEME)
     this.cacheDigitalDataRevision = 0
+    this.cacheAnalogDataRevision = 0
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()
     if (this.worker) {
       this.worker.onmessage = (event: MessageEvent<TimestripTileWorkerResponse>) => {
@@ -134,6 +144,7 @@ export class TimestripTiledRenderer {
       nextViewport.worldStartWallClockUs !== this.cacheWallClockOriginUs ||
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
       (nextViewport.digitalDataRevision ?? 0) !== this.cacheDigitalDataRevision ||
+      (nextViewport.analogDataRevision ?? 0) !== this.cacheAnalogDataRevision ||
       getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
     this.viewport = nextViewport
     this.resizeTileLayer()
@@ -146,6 +157,7 @@ export class TimestripTiledRenderer {
       this.cacheZoomDenominator = nextViewport.zoomDenominator
       this.cacheThemeKey = getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME)
       this.cacheDigitalDataRevision = nextViewport.digitalDataRevision ?? 0
+      this.cacheAnalogDataRevision = nextViewport.analogDataRevision ?? 0
     }
     if (shouldResetPool || nextRenderKey !== currentRenderKey) {
       this.scheduleFrame()
@@ -435,6 +447,11 @@ export class TimestripTiledRenderer {
       tile.worldLeftUs,
       tile.worldLeftUs + tile.worldWidthUs,
     )
+    const analogSamples = filterTimestripAnalogSamplesForTile(
+      this.viewport.analogSamples ?? [],
+      tile.worldLeftUs,
+      tile.worldLeftUs + tile.worldWidthUs,
+    )
     if (this.worker) {
       const request: TimestripTileWorkerRequest = {
         type: 'renderTile',
@@ -443,6 +460,7 @@ export class TimestripTiledRenderer {
         dpr: this.viewport.dpr,
         theme: this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
         digitalEntries,
+        analogSamples,
         generation: this.generation,
         worldStartWallClockUs: this.viewport.worldStartWallClockUs,
       }
@@ -460,6 +478,7 @@ export class TimestripTiledRenderer {
         this.viewport.dpr,
         this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
         digitalEntries,
+        analogSamples,
         this.viewport.worldStartWallClockUs,
       )
       entry.tile = tile
@@ -571,4 +590,6 @@ export const normalizeViewport = (viewport: TimestripRendererViewport): Timestri
   theme: viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
   digitalEntries: viewport.digitalEntries ?? [],
   digitalDataRevision: Math.max(0, Math.floor(viewport.digitalDataRevision ?? 0)),
+  analogSamples: viewport.analogSamples ?? [],
+  analogDataRevision: Math.max(0, Math.floor(viewport.analogDataRevision ?? 0)),
 })

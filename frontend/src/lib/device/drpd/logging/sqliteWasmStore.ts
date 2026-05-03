@@ -323,6 +323,11 @@ const toSerializableAnalog = (row: LoggedAnalogSample): Record<string, unknown> 
   }
 }
 
+const getAnalogSampleQueryTimestamp = (
+  row: LoggedAnalogSample,
+  timeBasis: AnalogSampleQuery['timeBasis'],
+): bigint | null => (timeBasis === 'wallClock' ? row.wallClockUs : row.timestampUs)
+
 /**
  * Build a deterministic JSON-safe captured message row.
  *
@@ -725,13 +730,17 @@ export class SQLiteWasmStore implements DRPDLogStore {
   public async queryAnalogSamples(query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
     this.ensureInitialized()
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    const timeBasis = query.timeBasis === 'wallClock' ? 'wallClock' : 'device'
     if (this.memoryFallback) {
       const rows = this.memoryFallback.analogSamples
-        .filter(
-          (row) => row.timestampUs >= query.startTimestampUs && row.timestampUs <= query.endTimestampUs,
-        )
+        .filter((row) => {
+          const timestampUs = getAnalogSampleQueryTimestamp(row, timeBasis)
+          return timestampUs != null && timestampUs >= query.startTimestampUs && timestampUs <= query.endTimestampUs
+        })
         .sort((left, right) => {
-          const cmp = left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+          const leftTimestampUs = getAnalogSampleQueryTimestamp(left, timeBasis) ?? 0n
+          const rightTimestampUs = getAnalogSampleQueryTimestamp(right, timeBasis) ?? 0n
+          const cmp = leftTimestampUs < rightTimestampUs ? -1 : leftTimestampUs > rightTimestampUs ? 1 : 0
           return sortOrder === 'desc' ? -cmp : cmp
         })
       if (!query.limit || query.limit <= 0) {
@@ -740,16 +749,17 @@ export class SQLiteWasmStore implements DRPDLogStore {
       return rows.slice(0, query.limit)
     }
     const pendingRows = this.pendingAnalogSamples
-      .filter(
-        (sample) =>
-          sample.row.timestampUs >= query.startTimestampUs &&
-          sample.row.timestampUs <= query.endTimestampUs,
-      )
+      .filter((sample) => {
+        const timestampUs = getAnalogSampleQueryTimestamp(sample.row, timeBasis)
+        return timestampUs != null && timestampUs >= query.startTimestampUs && timestampUs <= query.endTimestampUs
+      })
       .sort((left, right) => {
+        const leftTimestampUs = getAnalogSampleQueryTimestamp(left.row, timeBasis) ?? 0n
+        const rightTimestampUs = getAnalogSampleQueryTimestamp(right.row, timeBasis) ?? 0n
         const cmp =
-          left.row.timestampUs < right.row.timestampUs
+          leftTimestampUs < rightTimestampUs
             ? -1
-            : left.row.timestampUs > right.row.timestampUs
+            : leftTimestampUs > rightTimestampUs
               ? 1
               : left.sequence - right.sequence
         return sortOrder === 'desc' ? -cmp : cmp
@@ -763,7 +773,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
           : query.limit,
     })
     const rows = committedRows.concat(pendingRows).sort((left, right) => {
-      const cmp = left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+      const leftTimestampUs = getAnalogSampleQueryTimestamp(left, timeBasis) ?? 0n
+      const rightTimestampUs = getAnalogSampleQueryTimestamp(right, timeBasis) ?? 0n
+      const cmp = leftTimestampUs < rightTimestampUs ? -1 : leftTimestampUs > rightTimestampUs ? 1 : 0
       return sortOrder === 'desc' ? -cmp : cmp
     })
     if (!query.limit || query.limit <= 0) {
@@ -931,11 +943,12 @@ export class SQLiteWasmStore implements DRPDLogStore {
    * @returns Matching committed rows.
    */
   protected async queryCommittedAnalogSamples(query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
+    const timeColumn = query.timeBasis === 'wallClock' ? 'wall_clock_us' : 'timestamp_us'
     const sql = [
       'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
       'FROM analog_samples',
-      'WHERE timestamp_us >= ? AND timestamp_us <= ?',
-      `ORDER BY timestamp_us ${query.sortOrder === 'desc' ? 'DESC' : 'ASC'}, id ${query.sortOrder === 'desc' ? 'DESC' : 'ASC'}`,
+      `WHERE ${timeColumn} >= ? AND ${timeColumn} <= ?`,
+      `ORDER BY ${timeColumn} ${query.sortOrder === 'desc' ? 'DESC' : 'ASC'}, id ${query.sortOrder === 'desc' ? 'DESC' : 'ASC'}`,
       query.limit && query.limit > 0 ? 'LIMIT ?' : '',
     ]
       .filter(Boolean)

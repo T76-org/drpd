@@ -333,6 +333,44 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
+  it('queries visible analog rows by the same wall-clock basis as the timeline', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
+      buildCapturedMessage({
+        wallClockUs:
+          query.sortOrder === 'desc'
+            ? 1_700_000_004_000_000n
+            : 1_700_000_000_000_000n,
+        startTimestampUs:
+          query.sortOrder === 'desc'
+            ? 10_000_000n
+            : 6_000_000n,
+        endTimestampUs:
+          query.sortOrder === 'desc'
+            ? 10_000_000n
+            : 6_000_000n,
+      }),
+    ])
+    const queryAnalogSamples = vi.fn(async () => [
+      buildAnalogSample({
+        wallClockUs: 1_700_000_001_000_000n,
+        timestampUs: 7_000_000n,
+      }),
+    ])
+    renderTimestrip(buildDeviceState(queryCapturedMessages, queryAnalogSamples))
+
+    await waitFor(() => {
+      expect(queryAnalogSamples).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timeBasis: 'wallClock',
+          startTimestampUs: 1_700_000_000_000_000n,
+          endTimestampUs: 1_700_000_152_400_000n,
+        }),
+      )
+    })
+  })
+
   it('uses the first appended log row as the timeline origin even without wall-clock sync', async () => {
     const eventTarget = new EventTarget()
     const queryCapturedMessages = vi.fn(async () => [])

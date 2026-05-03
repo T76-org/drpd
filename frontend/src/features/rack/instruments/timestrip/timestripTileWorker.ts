@@ -29,6 +29,7 @@ workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
     message.dpr,
     message.theme,
     message.digitalEntries,
+    message.analogSamples,
     message.worldStartWallClockUs,
   )
   const bitmap = canvas.transferToImageBitmap()
