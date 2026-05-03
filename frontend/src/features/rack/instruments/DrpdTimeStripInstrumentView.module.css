@@ -39,7 +39,7 @@
   font-size: inherit;
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
-  text-transform: uppercase;
+  text-transform: capitalize;
   letter-spacing: inherit;
   white-space: nowrap;
 }

@@ -35,10 +35,10 @@ const buildRow = (overrides: Partial<LoggedCapturedMessage> = {}): LoggedCapture
 
 describe('timestripDigitalModel', () => {
   it('selects digital detail levels from zoom denominator', () => {
-    expect(resolveTimestripDigitalDetailLevel(100_001)).toBe(1)
-    expect(resolveTimestripDigitalDetailLevel(100_000)).toBe(2)
-    expect(resolveTimestripDigitalDetailLevel(5_001)).toBe(2)
-    expect(resolveTimestripDigitalDetailLevel(5_000)).toBe(3)
+    expect(resolveTimestripDigitalDetailLevel(6_401)).toBe(1)
+    expect(resolveTimestripDigitalDetailLevel(6_400)).toBe(2)
+    expect(resolveTimestripDigitalDetailLevel(1_401)).toBe(2)
+    expect(resolveTimestripDigitalDetailLevel(1_400)).toBe(3)
   })
 
   it('includes overscan in device timestamp query range', () => {

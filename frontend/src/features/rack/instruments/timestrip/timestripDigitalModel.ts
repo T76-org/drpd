@@ -5,8 +5,8 @@ import type { TimestripThemePalette } from './timestripTheme'
 export type TimestripDigitalDetailLevel = 1 | 2 | 3
 
 export const TIMESTRIP_DIGITAL_DETAIL_BREAKPOINTS = {
-  level3MaxZoomDenominator: 5_000,
-  level2MaxZoomDenominator: 100_000,
+  level3MaxZoomDenominator: 1_400,
+  level2MaxZoomDenominator: 6_400,
 } as const
 
 export interface TimestripDigitalComponent {

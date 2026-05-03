@@ -31,7 +31,7 @@ const formatCompactDecimal = (value: number): string => {
  * Format the current zoom denominator as time per CSS pixel.
  *
  * @param value - Nanoseconds-per-CSS-pixel denominator.
- * @returns Compact zoom label, e.g. `500ns`, `1us`, or `1ms`.
+ * @returns Compact zoom label, e.g. `500ns`, `1µs`, or `1ms`.
  */
 export const formatTimestripZoomDenominator = (value: number | string): string => {
   const denominator = clampTimestripZoomDenominator(value)
@@ -39,7 +39,7 @@ export const formatTimestripZoomDenominator = (value: number | string): string =
     return `${denominator}ns`
   }
   if (denominator < 1_000_000) {
-    return `${formatCompactDecimal(denominator / 1000)}us`
+    return `${formatCompactDecimal(denominator / 1000)}µs`
   }
   return `${formatCompactDecimal(denominator / 1_000_000)}ms`
 }

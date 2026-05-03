@@ -24,9 +24,9 @@ describe('timestripLayout', () => {
   it('formats zoom denominators as time per pixel', () => {
     expect(formatTimestripZoomDenominator(1)).toBe('500ns')
     expect(formatTimestripZoomDenominator(500)).toBe('500ns')
-    expect(formatTimestripZoomDenominator(1000)).toBe('1us')
-    expect(formatTimestripZoomDenominator(1500)).toBe('1.5us')
-    expect(formatTimestripZoomDenominator(909_091)).toBe('909.091us')
+    expect(formatTimestripZoomDenominator(1000)).toBe('1µs')
+    expect(formatTimestripZoomDenominator(1500)).toBe('1.5µs')
+    expect(formatTimestripZoomDenominator(909_091)).toBe('909.091µs')
     expect(formatTimestripZoomDenominator(1_000_000)).toBe('1ms')
   })
 

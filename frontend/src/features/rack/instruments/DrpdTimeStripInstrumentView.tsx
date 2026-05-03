@@ -540,7 +540,7 @@ export const DrpdTimeStripInstrumentView = ({
       contentClassName={styles.content}
       headerAccessory={
         <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
-          Zoom {zoomReadout}
+          ZOOM {zoomReadout}
         </span>
       }
       onClose={

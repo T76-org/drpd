@@ -122,7 +122,7 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 909.091us per pixel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 909.091µs per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBe(0)
 
     fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
@@ -152,7 +152,7 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
 
-    expect(screen.getByLabelText('Zoom 909.091us per pixel')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 909.091µs per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBeCloseTo(5515, 2)
   })
 
