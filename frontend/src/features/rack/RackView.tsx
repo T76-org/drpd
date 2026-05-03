@@ -48,6 +48,7 @@ import {
   type FirmwareUpdateChannel,
 } from '../../lib/firmware'
 import { loadRackDocument, saveRackDocument } from '../../lib/rack/loadRack'
+import { usePWAInstallPrompt } from '../../lib/pwa/usePWAInstallPrompt'
 import { openPreferredDRPDTransport } from '../../lib/transport/drpdUsb'
 import WinUSBTransport from '../../lib/transport/winusb'
 import { DRPDWorkerServiceClient } from '../../lib/device/drpd/worker'
@@ -779,6 +780,7 @@ const buildSinkRequestArgs = ({
  * Render the rack view with rack selection and layout rendering.
  */
 export const RackView = () => {
+  const { canInstall, promptInstall } = usePWAInstallPrompt()
   const [rackDocument, setRackDocument] = useState<RackDocument | null>(null)
   const [activeRack, setActiveRack] = useState<RackDefinition | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -2682,6 +2684,21 @@ export const RackView = () => {
         id: 'help',
         label: 'Help',
         items: [
+          ...(canInstall
+            ? [
+                {
+                  id: 'install-drpd',
+                  label: 'Install Dr.PD...',
+                  onSelect: () => {
+                    void promptInstall()
+                  },
+                },
+                {
+                  id: 'help-separator-install',
+                  type: 'separator' as const,
+                },
+              ]
+            : []),
           {
             id: 'user-manual',
             label: 'User manual...',
@@ -2695,6 +2712,7 @@ export const RackView = () => {
     activeDriver,
     activeDriverState?.role,
     addMessageLogMarker,
+    canInstall,
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,
@@ -2729,6 +2747,7 @@ export const RackView = () => {
     openGlobalSinkRequestDialog,
     openGlobalTriggerConfigureDialog,
     pairedDevices,
+    promptInstall,
     showTimestrip,
     theme,
     timeSinceMeterReset,

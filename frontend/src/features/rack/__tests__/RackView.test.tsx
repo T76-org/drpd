@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DRPDDeviceDefinition } from '../../../lib/device'
+import type { BeforeInstallPromptEvent } from '../../../lib/pwa/usePWAInstallPrompt'
 import { saveRackDocument } from '../../../lib/rack/loadRack'
 import type { RackDocument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
@@ -654,6 +655,20 @@ const chooseFirmwareChannelFromMenu = async (name: string | RegExp): Promise<voi
   await openApplicationSubmenu('Firmware updates')
   await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
   await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
+}
+
+const dispatchBeforeInstallPrompt = (): BeforeInstallPromptEvent => {
+  const event = new Event('beforeinstallprompt', { cancelable: true }) as BeforeInstallPromptEvent
+  Object.defineProperties(event, {
+    platforms: { value: ['web'] },
+    prompt: { value: vi.fn(async () => undefined) },
+    userChoice: { value: Promise.resolve({ outcome: 'accepted', platform: 'web' }) },
+  })
+
+  act(() => {
+    window.dispatchEvent(event)
+  })
+  return event
 }
 
 /**
@@ -1562,6 +1577,22 @@ describe('RackView', () => {
 
     fireEvent.keyDown(document, { key: 'K' })
     expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+  })
+
+  it('prompts PWA installation from the Help menu when available', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([])
+    render(<RackView />)
+
+    const installPrompt = dispatchBeforeInstallPrompt()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Help' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Install Dr.PD...' }))
+
+    expect(installPrompt.prompt).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(screen.queryByRole('menuitem', { name: 'Install Dr.PD...' })).not.toBeInTheDocument()
+    })
   })
 
   it('persists layout mode from the Display menu', async () => {
