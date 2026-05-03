@@ -127,11 +127,18 @@ describe('SQLiteWasmStore', () => {
       startTimestampUs: 0n,
       endTimestampUs: 100n,
     })
+    const latestAnalog = await store.queryAnalogSamples({
+      startTimestampUs: 0n,
+      endTimestampUs: 100n,
+      sortOrder: 'desc',
+      limit: 1,
+    })
     const messages = await store.queryCapturedMessages({
       startTimestampUs: 0n,
       endTimestampUs: 10_000n,
     })
     expect(analog.map((row) => row.timestampUs)).toEqual([5n, 6n, 7n, 8n, 9n])
+    expect(latestAnalog.map((row) => row.timestampUs)).toEqual([9n])
     expect(messages.map((row) => row.startTimestampUs)).toEqual([1006n, 1007n, 1008n])
   })
 

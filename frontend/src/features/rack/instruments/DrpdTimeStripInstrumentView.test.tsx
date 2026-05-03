@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DRPDDevice, type LoggedCapturedMessage } from '../../../lib/device'
+import { DRPDDevice, type LoggedAnalogSample, type LoggedCapturedMessage } from '../../../lib/device'
 import type { RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdTimeStripInstrumentView } from './DrpdTimeStripInstrumentView'
@@ -56,7 +56,10 @@ const renderTimestrip = (deviceState?: RackDeviceState) => {
   )
 }
 
-const buildDeviceState = (queryCapturedMessages: ReturnType<typeof vi.fn>): RackDeviceState =>
+const buildDeviceState = (
+  queryCapturedMessages: ReturnType<typeof vi.fn>,
+  queryAnalogSamples?: ReturnType<typeof vi.fn>,
+): RackDeviceState =>
   ({
     record: {
       id: 'device-1',
@@ -68,6 +71,7 @@ const buildDeviceState = (queryCapturedMessages: ReturnType<typeof vi.fn>): Rack
     status: 'connected',
     drpdDriver: {
       queryCapturedMessages,
+      queryAnalogSamples,
     },
   }) as unknown as RackDeviceState
 
@@ -92,6 +96,17 @@ const buildCapturedMessage = (overrides: Partial<LoggedCapturedMessage> = {}): L
   rawSop: Uint8Array.from([0x12, 0x12, 0x12, 0x13]),
   rawDecodedData: Uint8Array.from([0x61, 0x01, 0xaa, 0xbb, 0xcc, 0xdd]),
   parseError: null,
+  createdAtMs: 1,
+  ...overrides,
+})
+
+const buildAnalogSample = (overrides: Partial<LoggedAnalogSample> = {}): LoggedAnalogSample => ({
+  timestampUs: 6_000_000n,
+  displayTimestampUs: null,
+  wallClockUs: null,
+  vbusV: 5,
+  ibusA: 0.1,
+  role: null,
   createdAtMs: 1,
   ...overrides,
 })
@@ -235,6 +250,48 @@ describe('DrpdTimeStripInstrumentView', () => {
         width: '40px',
       })
     })
+  })
+
+  it('includes analog samples when sizing the timeline range', async () => {
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
+      buildCapturedMessage({
+        wallClockUs:
+          query.sortOrder === 'desc'
+            ? 1_700_000_004_000_000n
+            : 1_700_000_002_000_000n,
+        startTimestampUs:
+          query.sortOrder === 'desc'
+            ? 10_000_000n
+            : 8_000_000n,
+        endTimestampUs:
+          query.sortOrder === 'desc'
+            ? 10_000_000n
+            : 8_000_000n,
+      }),
+    ])
+    const queryAnalogSamples = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
+      buildAnalogSample({
+        wallClockUs:
+          query.sortOrder === 'desc'
+            ? 1_700_000_010_000_000n
+            : 1_700_000_000_000_000n,
+        timestampUs:
+          query.sortOrder === 'desc'
+            ? 16_000_000n
+            : 6_000_000n,
+      }),
+    ])
+    renderTimestrip(buildDeviceState(queryCapturedMessages, queryAnalogSamples))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '100px',
+      })
+    })
+    expect(queryAnalogSamples).toHaveBeenCalledWith(expect.objectContaining({
+      sortOrder: 'desc',
+      limit: 1,
+    }))
   })
 
   it('queries visible digital rows by wall-clock time when wall-clock sync is available', async () => {

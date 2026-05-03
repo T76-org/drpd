@@ -121,6 +121,8 @@ export interface AnalogSampleQuery {
   startTimestampUs: bigint
   ///< Inclusive end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Sort order by timestamp.
+  sortOrder?: 'asc' | 'desc'
   ///< Optional row limit.
   limit?: number
 }

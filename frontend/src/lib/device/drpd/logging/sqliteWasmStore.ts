@@ -724,14 +724,16 @@ export class SQLiteWasmStore implements DRPDLogStore {
    */
   public async queryAnalogSamples(query: AnalogSampleQuery): Promise<LoggedAnalogSample[]> {
     this.ensureInitialized()
+    const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
     if (this.memoryFallback) {
       const rows = this.memoryFallback.analogSamples
         .filter(
           (row) => row.timestampUs >= query.startTimestampUs && row.timestampUs <= query.endTimestampUs,
         )
-        .sort((left, right) =>
-          left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
-        )
+        .sort((left, right) => {
+          const cmp = left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+          return sortOrder === 'desc' ? -cmp : cmp
+        })
       if (!query.limit || query.limit <= 0) {
         return rows
       }
@@ -743,13 +745,15 @@ export class SQLiteWasmStore implements DRPDLogStore {
           sample.row.timestampUs >= query.startTimestampUs &&
           sample.row.timestampUs <= query.endTimestampUs,
       )
-      .sort((left, right) =>
-        left.row.timestampUs < right.row.timestampUs
-          ? -1
-          : left.row.timestampUs > right.row.timestampUs
-            ? 1
-            : left.sequence - right.sequence,
-      )
+      .sort((left, right) => {
+        const cmp =
+          left.row.timestampUs < right.row.timestampUs
+            ? -1
+            : left.row.timestampUs > right.row.timestampUs
+              ? 1
+              : left.sequence - right.sequence
+        return sortOrder === 'desc' ? -cmp : cmp
+      })
       .map((sample) => sample.row)
     const committedRows = await this.queryCommittedAnalogSamples({
       ...query,
@@ -758,9 +762,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
           ? query.limit + pendingRows.length
           : query.limit,
     })
-    const rows = committedRows.concat(pendingRows).sort((left, right) =>
-      left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0,
-    )
+    const rows = committedRows.concat(pendingRows).sort((left, right) => {
+      const cmp = left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+      return sortOrder === 'desc' ? -cmp : cmp
+    })
     if (!query.limit || query.limit <= 0) {
       return rows
     }
@@ -930,7 +935,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       'SELECT timestamp_us, display_timestamp_us, wall_clock_us, vbus_v, ibus_a, role, created_at_ms',
       'FROM analog_samples',
       'WHERE timestamp_us >= ? AND timestamp_us <= ?',
-      'ORDER BY timestamp_us ASC, id ASC',
+      `ORDER BY timestamp_us ${query.sortOrder === 'desc' ? 'DESC' : 'ASC'}, id ${query.sortOrder === 'desc' ? 'DESC' : 'ASC'}`,
       query.limit && query.limit > 0 ? 'LIMIT ?' : '',
     ]
       .filter(Boolean)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { DRPDDevice, type LoggedCapturedMessage } from '../../../lib/device'
+import { DRPDDevice, type LoggedAnalogSample, type LoggedCapturedMessage } from '../../../lib/device'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -80,6 +80,10 @@ type TimelineRange = {
   worldStartWallClockUs: number
   hasWallClockBasis: boolean
 }
+type TimelineRangePoint = {
+  timestampUs: bigint
+  wallClockUs: bigint | null
+}
 
 const calculateDigitalQueryInvalidation = (
   loadedRange: DigitalQueryRange | null,
@@ -120,6 +124,36 @@ const calculateDigitalQueryInvalidation = (
     endWorldUs: Number((endTimestampUs - worldStartTimestampUs) * 1000n),
   }
 }
+
+const compareTimelinePointDeviceTime = (left: TimelineRangePoint, right: TimelineRangePoint): number =>
+  left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+
+const compareTimelinePointWallClock = (left: TimelineRangePoint, right: TimelineRangePoint): number => {
+  if (left.wallClockUs === null && right.wallClockUs === null) {
+    return compareTimelinePointDeviceTime(left, right)
+  }
+  if (left.wallClockUs === null) {
+    return 1
+  }
+  if (right.wallClockUs === null) {
+    return -1
+  }
+  return left.wallClockUs < right.wallClockUs
+    ? -1
+    : left.wallClockUs > right.wallClockUs
+      ? 1
+      : compareTimelinePointDeviceTime(left, right)
+}
+
+const messageToTimelinePoint = (row: LoggedCapturedMessage): TimelineRangePoint => ({
+  timestampUs: row.startTimestampUs,
+  wallClockUs: row.wallClockUs,
+})
+
+const analogToTimelinePoint = (row: LoggedAnalogSample): TimelineRangePoint => ({
+  timestampUs: row.timestampUs,
+  wallClockUs: row.wallClockUs,
+})
 
 /**
  * Standalone DRPD timestrip instrument shell.
@@ -325,6 +359,23 @@ export const DrpdTimeStripInstrumentView = ({
           sortOrder: 'desc',
           limit: 1,
         })
+        const canQueryAnalogSamples = typeof driver.queryAnalogSamples === 'function'
+        const [firstAnalogSample] = canQueryAnalogSamples
+          ? await driver.queryAnalogSamples({
+            startTimestampUs: LOG_START_TIMESTAMP_US,
+            endTimestampUs: LOG_END_TIMESTAMP_US,
+            sortOrder: 'asc',
+            limit: 1,
+          })
+          : [null]
+        const [lastAnalogSample] = canQueryAnalogSamples
+          ? await driver.queryAnalogSamples({
+            startTimestampUs: LOG_START_TIMESTAMP_US,
+            endTimestampUs: LOG_END_TIMESTAMP_US,
+            sortOrder: 'desc',
+            limit: 1,
+          })
+          : [null]
         const [firstDeviceMessage] = firstWallClockMessage && lastWallClockMessage
           ? [null]
           : await driver.queryCapturedMessages({
@@ -341,23 +392,35 @@ export const DrpdTimeStripInstrumentView = ({
             sortOrder: 'desc',
             limit: 1,
           })
-        const firstMessage = firstWallClockMessage ?? firstDeviceMessage
-        const lastMessage = lastWallClockMessage ?? lastDeviceMessage
-        const hasWallClockBasis = firstWallClockMessage != null && lastWallClockMessage != null
-        if (!isActive || !firstMessage || !lastMessage) {
+        const candidatePoints = [
+          firstWallClockMessage ? messageToTimelinePoint(firstWallClockMessage) : null,
+          lastWallClockMessage ? messageToTimelinePoint(lastWallClockMessage) : null,
+          firstDeviceMessage ? messageToTimelinePoint(firstDeviceMessage) : null,
+          lastDeviceMessage ? messageToTimelinePoint(lastDeviceMessage) : null,
+          firstAnalogSample ? analogToTimelinePoint(firstAnalogSample) : null,
+          lastAnalogSample ? analogToTimelinePoint(lastAnalogSample) : null,
+        ].filter((point): point is TimelineRangePoint => point !== null)
+        const wallClockCandidatePoints = candidatePoints.filter((point) => point.wallClockUs !== null)
+        const hasWallClockBasis = wallClockCandidatePoints.length === candidatePoints.length
+        const sortedPoints = [...(hasWallClockBasis ? wallClockCandidatePoints : candidatePoints)].sort(
+          hasWallClockBasis ? compareTimelinePointWallClock : compareTimelinePointDeviceTime,
+        )
+        const firstPoint = sortedPoints[0]
+        const lastPoint = sortedPoints.at(-1)
+        if (!isActive || !firstPoint || !lastPoint) {
           return
         }
 
-        const startTimestampUs = firstMessage.startTimestampUs
-        const endTimestampUs = lastMessage.endTimestampUs
+        const startTimestampUs = firstPoint.timestampUs
+        const endTimestampUs = lastPoint.timestampUs
         const startWallClockUs =
-          firstMessage.wallClockUs == null
+          firstPoint.wallClockUs == null
             ? Date.now() * 1000
-            : Number(firstMessage.wallClockUs)
+            : Number(firstPoint.wallClockUs)
         const endWallClockUs =
-          lastMessage.wallClockUs == null
+          lastPoint.wallClockUs == null
             ? null
-            : Number(lastMessage.wallClockUs)
+            : Number(lastPoint.wallClockUs)
         if (
           !Number.isFinite(startWallClockUs) ||
           endTimestampUs < startTimestampUs ||
@@ -485,22 +548,26 @@ export const DrpdTimeStripInstrumentView = ({
 
     const handleAdded = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (detail?.kind !== 'message' && detail?.kind !== 'event') {
+      if (detail?.kind !== 'message' && detail?.kind !== 'event' && detail?.kind !== 'analog') {
         return
       }
-      const row = detail.row as LoggedCapturedMessage | undefined
+      const row = detail.row as LoggedCapturedMessage | LoggedAnalogSample | undefined
       if (!row) {
         return
       }
 
-      const rowTimestampUs = row.startTimestampUs
+      const isAnalogRow = detail.kind === 'analog'
+      const rowTimestampUs = isAnalogRow
+        ? (row as LoggedAnalogSample).timestampUs
+        : (row as LoggedCapturedMessage).startTimestampUs
+      const rowWallClockUs = row.wallClockUs
       const rowWorldStartUs =
-        timelineRange.hasWallClockBasis && row.wallClockUs != null
-          ? Number((row.wallClockUs - BigInt(Math.floor(timelineRange.worldStartWallClockUs))) * 1000n)
+        timelineRange.hasWallClockBasis && rowWallClockUs != null
+          ? Number((rowWallClockUs - BigInt(Math.floor(timelineRange.worldStartWallClockUs))) * 1000n)
           : Number((rowTimestampUs - timelineRange.worldStartTimestampUs) * 1000n)
       const rowDurationNs =
-        row.entryKind === 'message'
-          ? Math.max(1, Number((row.endTimestampUs - row.startTimestampUs) * 1000n))
+        !isAnalogRow && (row as LoggedCapturedMessage).entryKind === 'message'
+          ? Math.max(1, Number(((row as LoggedCapturedMessage).endTimestampUs - (row as LoggedCapturedMessage).startTimestampUs) * 1000n))
           : 1
       const rowWorldEndUs = rowWorldStartUs + rowDurationNs
       if (!hasLogTimelineRange) {
@@ -513,19 +580,19 @@ export const DrpdTimeStripInstrumentView = ({
           ? BigInt(Math.floor(current.worldStartWallClockUs))
           : current.worldStartTimestampUs
         const currentEndBasisUs = currentStartBasisUs + (current.durationNs + 999n) / 1000n
-        const usesWallClockBasis = current.hasWallClockBasis && row.wallClockUs != null
-        const rowStartBasisUs = usesWallClockBasis ? row.wallClockUs! : rowTimestampUs
+        const usesWallClockBasis = current.hasWallClockBasis && rowWallClockUs != null
+        const rowStartBasisUs = usesWallClockBasis ? rowWallClockUs! : rowTimestampUs
         const rowEndBasisUs = usesWallClockBasis
           ? rowStartBasisUs + rowDurationUs
-          : row.endTimestampUs > rowTimestampUs
-            ? row.endTimestampUs
+          : !isAnalogRow && (row as LoggedCapturedMessage).endTimestampUs > rowTimestampUs
+            ? (row as LoggedCapturedMessage).endTimestampUs
             : rowTimestampUs + rowDurationUs
         if (!hasLogTimelineRange) {
           return {
             worldStartTimestampUs: rowTimestampUs,
-            worldStartWallClockUs: row.wallClockUs == null ? Date.now() * 1000 : Number(row.wallClockUs),
+            worldStartWallClockUs: rowWallClockUs == null ? Date.now() * 1000 : Number(rowWallClockUs),
             durationNs: BigInt(rowDurationNs),
-            hasWallClockBasis: row.wallClockUs != null,
+            hasWallClockBasis: rowWallClockUs != null,
           }
         }
         if (rowStartBasisUs < currentStartBasisUs) {
@@ -534,9 +601,9 @@ export const DrpdTimeStripInstrumentView = ({
           return {
             ...current,
             worldStartTimestampUs: rowTimestampUs,
-            worldStartWallClockUs: row.wallClockUs == null ? current.worldStartWallClockUs : Number(row.wallClockUs),
+            worldStartWallClockUs: rowWallClockUs == null ? current.worldStartWallClockUs : Number(rowWallClockUs),
             durationNs: (currentEndBasisUs - rowStartBasisUs) * 1000n,
-            hasWallClockBasis: current.hasWallClockBasis && row.wallClockUs != null,
+            hasWallClockBasis: current.hasWallClockBasis && rowWallClockUs != null,
           }
         }
         if (rowEndBasisUs <= currentEndBasisUs) {
@@ -549,20 +616,24 @@ export const DrpdTimeStripInstrumentView = ({
       })
       setHasLogTimelineRange(true)
 
+      if (isAnalogRow) {
+        return
+      }
+      const messageRow = row as LoggedCapturedMessage
       const loadedRange = digitalQueryRangeRef.current
       if (
         !hasLogTimelineRange ||
         !loadedRange ||
-        (timelineRange.hasWallClockBasis && row.wallClockUs == null) ||
+        (timelineRange.hasWallClockBasis && messageRow.wallClockUs == null) ||
         (timelineRange.hasWallClockBasis
-          ? row.wallClockUs! < loadedRange.startTimestampUs || row.wallClockUs! > loadedRange.endTimestampUs
+          ? messageRow.wallClockUs! < loadedRange.startTimestampUs || messageRow.wallClockUs! > loadedRange.endTimestampUs
           : rowTimestampUs < loadedRange.startTimestampUs || rowTimestampUs > loadedRange.endTimestampUs)
       ) {
         return
       }
 
       const entry = normalizeCapturedMessageForTimestrip(
-        row,
+        messageRow,
         timelineRange.worldStartTimestampUs,
         timelineRange.hasWallClockBasis
           ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
