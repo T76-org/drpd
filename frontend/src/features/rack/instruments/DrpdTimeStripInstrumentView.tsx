@@ -406,22 +406,18 @@ export const DrpdTimeStripInstrumentView = ({
             limit: 1,
           })
           : [null]
-        const [firstDeviceMessage] = firstWallClockMessage && lastWallClockMessage
-          ? [null]
-          : await driver.queryCapturedMessages({
-            startTimestampUs: LOG_START_TIMESTAMP_US,
-            endTimestampUs: LOG_END_TIMESTAMP_US,
-            sortOrder: 'asc',
-            limit: 1,
-          })
-        const [lastDeviceMessage] = firstWallClockMessage && lastWallClockMessage
-          ? [null]
-          : await driver.queryCapturedMessages({
-            startTimestampUs: LOG_START_TIMESTAMP_US,
-            endTimestampUs: LOG_END_TIMESTAMP_US,
-            sortOrder: 'desc',
-            limit: 1,
-          })
+        const [firstDeviceMessage] = await driver.queryCapturedMessages({
+          startTimestampUs: LOG_START_TIMESTAMP_US,
+          endTimestampUs: LOG_END_TIMESTAMP_US,
+          sortOrder: 'asc',
+          limit: 1,
+        })
+        const [lastDeviceMessage] = await driver.queryCapturedMessages({
+          startTimestampUs: LOG_START_TIMESTAMP_US,
+          endTimestampUs: LOG_END_TIMESTAMP_US,
+          sortOrder: 'desc',
+          limit: 1,
+        })
         const candidatePoints = [
           firstWallClockMessage ? messageToTimelinePoint(firstWallClockMessage) : null,
           lastWallClockMessage ? messageToTimelinePoint(lastWallClockMessage) : null,

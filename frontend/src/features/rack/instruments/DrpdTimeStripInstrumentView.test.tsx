@@ -294,6 +294,58 @@ describe('DrpdTimeStripInstrumentView', () => {
     }))
   })
 
+  it('keeps older device-time rows in range when active capture has newer wall-clock rows', async () => {
+    const queryCapturedMessages = vi.fn(
+      async (query: { timeBasis?: 'device' | 'wallClock'; sortOrder?: 'asc' | 'desc' }) => {
+        if (query.timeBasis === 'wallClock') {
+          return [
+            buildCapturedMessage({
+              wallClockUs:
+                query.sortOrder === 'desc'
+                  ? 1_700_000_015_000_000n
+                  : 1_700_000_010_000_000n,
+              startTimestampUs:
+                query.sortOrder === 'desc'
+                  ? 20_000_000n
+                  : 15_000_000n,
+              endTimestampUs:
+                query.sortOrder === 'desc'
+                  ? 20_000_000n
+                  : 15_000_000n,
+            }),
+          ]
+        }
+        return [
+          buildCapturedMessage({
+            wallClockUs: null,
+            startTimestampUs:
+              query.sortOrder === 'desc'
+                ? 20_000_000n
+                : 1_000_000n,
+            endTimestampUs:
+              query.sortOrder === 'desc'
+                ? 20_000_000n
+                : 1_000_000n,
+          }),
+        ]
+      },
+    )
+    renderTimestrip(buildDeviceState(queryCapturedMessages))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '190px',
+      })
+    })
+    expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+      timeBasis: 'wallClock',
+      sortOrder: 'asc',
+    }))
+    expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+      sortOrder: 'asc',
+    }))
+  })
+
   it('queries visible digital rows by wall-clock time when wall-clock sync is available', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
