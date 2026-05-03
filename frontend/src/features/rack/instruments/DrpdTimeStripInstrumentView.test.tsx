@@ -531,6 +531,80 @@ describe('DrpdTimeStripInstrumentView', () => {
     }))
   })
 
+  it('uses a scaled scrollbar when the zoomed timeline exceeds browser scrollable width limits', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '500')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const selectedRow = buildCapturedMessage({
+      startTimestampUs: 990_000_000n,
+      endTimestampUs: 990_001_000n,
+      createdAtMs: 77,
+    })
+    const selectedKey = buildCapturedLogSelectionKey(selectedRow)
+    let logSelection: DRPDLogSelectionState = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (
+        query.startTimestampUs === selectedRow.startTimestampUs &&
+        query.endTimestampUs === selectedRow.endTimestampUs
+      ) {
+        return [selectedRow]
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 1_000_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 1_000_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        getLogSelectionState: vi.fn(() => logSelection),
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '16000000px',
+      })
+    })
+
+    act(() => {
+      logSelection = {
+        selectedKeys: [selectedKey],
+        anchorIndex: 10,
+        activeIndex: 10,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBeGreaterThan(15_000_000)
+    })
+    expect(viewport.scrollLeft).toBeLessThan(16_000_000)
+  })
+
   it('shows interpolated analog values when hovering the analog lane', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240)

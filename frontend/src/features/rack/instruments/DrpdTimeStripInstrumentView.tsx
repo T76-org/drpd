@@ -44,6 +44,7 @@ const DIGITAL_QUERY_LIMIT = 5000
 const ANALOG_QUERY_LIMIT = 8000
 const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
 const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
+const MAX_DOM_TIMELINE_WIDTH_PX = 16_000_000
 const readThemeName = () => (
   typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
 )
@@ -98,6 +99,22 @@ const buildAnalogSamplesSignature = (samples: TimestripAnalogSample[]): string =
 
 const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
   `${value.toFixed(unit === 'V' ? 2 : 3)}${unit}`
+
+const calculateDomTimelineWidthPx = (timelineWidthPx: number, viewportWidthPx: number): number =>
+  Math.max(viewportWidthPx, Math.min(timelineWidthPx, MAX_DOM_TIMELINE_WIDTH_PX))
+
+const calculateScrollScale = (
+  timelineWidthPx: number,
+  domTimelineWidthPx: number,
+  viewportWidthPx: number,
+): number => {
+  const logicalScrollableWidth = Math.max(0, timelineWidthPx - viewportWidthPx)
+  const domScrollableWidth = Math.max(0, domTimelineWidthPx - viewportWidthPx)
+  if (logicalScrollableWidth <= 0 || domScrollableWidth <= 0) {
+    return 1
+  }
+  return logicalScrollableWidth / domScrollableWidth
+}
 
 type TimestripInvalidation = 'all' | { startWorldUs: number; endWorldUs: number }
 type DigitalQueryRange = { startTimestampUs: bigint; endTimestampUs: bigint }
@@ -269,8 +286,16 @@ export const DrpdTimeStripInstrumentView = ({
     zoomDenominator,
     viewportWidthPx,
   )
+  const domTimelineWidthPx = calculateDomTimelineWidthPx(timelineWidthPx, viewportWidthPx)
+  const scrollScale = calculateScrollScale(timelineWidthPx, domTimelineWidthPx, viewportWidthPx)
+  const domScrollLeftToLogical = useCallback((domScrollLeftPx: number): number =>
+    Math.max(0, domScrollLeftPx) * scrollScale,
+  [scrollScale])
+  const logicalScrollLeftToDom = useCallback((logicalScrollLeftPx: number): number =>
+    Math.max(0, logicalScrollLeftPx) / scrollScale,
+  [scrollScale])
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
-  const updateAnalogHoverAtViewportPoint = useCallback((x: number, y: number) => {
+  const updateAnalogHoverAtViewportPoint = useCallback((x: number, y: number, logicalScrollLeftPx = scrollLeftPx) => {
     const viewport = viewportRef.current
     if (!viewport || viewportWidthPx <= 0 || viewportHeightPx <= 0) {
       analogHoverPointerRef.current = null
@@ -286,10 +311,10 @@ export const DrpdTimeStripInstrumentView = ({
       return
     }
     analogHoverPointerRef.current = { x: viewportX, y: viewportY }
-    const worldUs = (viewport.scrollLeft + viewportX) * zoomDenominator
+    const worldUs = (logicalScrollLeftPx + viewportX) * zoomDenominator
     const value = interpolateTimestripAnalogSample(analogSamples, worldUs)
     setAnalogHover(value ? { x: viewportX, y: viewportY, value } : null)
-  }, [analogSamples, viewportHeightPx, viewportWidthPx, zoomDenominator])
+  }, [analogSamples, scrollLeftPx, viewportHeightPx, viewportWidthPx, zoomDenominator])
   const updateAnalogHover = useCallback((event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
     const viewport = viewportRef.current
     if (!viewport) {
@@ -346,12 +371,13 @@ export const DrpdTimeStripInstrumentView = ({
     setAnalogDataRevision((revision) => revision + 1)
   }, [queueTileInvalidation])
   const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    setScrollLeftPx(event.currentTarget.scrollLeft)
+    const nextScrollLeftPx = domScrollLeftToLogical(event.currentTarget.scrollLeft)
+    setScrollLeftPx(nextScrollLeftPx)
     const pointer = analogHoverPointerRef.current
     if (pointer) {
-      updateAnalogHoverAtViewportPoint(pointer.x, pointer.y)
+      updateAnalogHoverAtViewportPoint(pointer.x, pointer.y, nextScrollLeftPx)
     }
-  }, [updateAnalogHoverAtViewportPoint])
+  }, [domScrollLeftToLogical, updateAnalogHoverAtViewportPoint])
   const readSelectedLogMessageKey = useCallback(async (): Promise<string | null> => {
     const driver = deviceState?.drpdDriver
     if (!driver || typeof driver.getLogSelectionState !== 'function') {
@@ -378,12 +404,21 @@ export const DrpdTimeStripInstrumentView = ({
         const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
         const viewportRect = viewport.getBoundingClientRect()
         const pointerX = Math.max(0, event.clientX - viewportRect.left)
-        const timestampUnderPointerNs = (viewport.scrollLeft + pointerX) * zoomDenominator
+        const logicalScrollLeftPx = domScrollLeftToLogical(viewport.scrollLeft)
+        const timestampUnderPointerNs = (logicalScrollLeftPx + pointerX) * zoomDenominator
         const nextScrollLeft = Math.max(0, timestampUnderPointerNs / nextZoomDenominator - pointerX)
+        const nextTimelineWidthPx = calculateTimestripWidthPx(
+          timelineRange.durationNs,
+          nextZoomDenominator,
+          viewportWidthPx,
+        )
+        const nextDomTimelineWidthPx = calculateDomTimelineWidthPx(nextTimelineWidthPx, viewportWidthPx)
+        const nextScrollScale = calculateScrollScale(nextTimelineWidthPx, nextDomTimelineWidthPx, viewportWidthPx)
         flushSync(() => {
           commitZoomDenominator(nextZoomDenominator)
         })
-        viewport.scrollLeft = nextScrollLeft
+        viewport.scrollLeft = nextScrollLeft / nextScrollScale
+        setScrollLeftPx(nextScrollLeft)
         return
       }
 
@@ -392,15 +427,23 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       event.preventDefault()
-      viewport.scrollLeft += scrollDelta
-      setScrollLeftPx(viewport.scrollLeft)
+      const nextScrollLeft = Math.max(0, domScrollLeftToLogical(viewport.scrollLeft) + scrollDelta)
+      viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
+      setScrollLeftPx(domScrollLeftToLogical(viewport.scrollLeft))
     }
 
     viewport.addEventListener('wheel', handleViewportWheel, { passive: false })
     return () => {
       viewport.removeEventListener('wheel', handleViewportWheel)
     }
-  }, [commitZoomDenominator, zoomDenominator])
+  }, [
+    commitZoomDenominator,
+    domScrollLeftToLogical,
+    logicalScrollLeftToDom,
+    timelineRange.durationNs,
+    viewportWidthPx,
+    zoomDenominator,
+  ])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -461,6 +504,22 @@ export const DrpdTimeStripInstrumentView = ({
       pendingViewportSizeRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport || viewportWidthPx <= 0) {
+      return
+    }
+    const maxLogicalScrollLeft = Math.max(0, timelineWidthPx - viewportWidthPx)
+    const nextLogicalScrollLeft = Math.max(0, Math.min(maxLogicalScrollLeft, scrollLeftPx))
+    const nextDomScrollLeft = logicalScrollLeftToDom(nextLogicalScrollLeft)
+    if (Math.abs(viewport.scrollLeft - nextDomScrollLeft) > 1) {
+      viewport.scrollLeft = nextDomScrollLeft
+    }
+    if (nextLogicalScrollLeft !== scrollLeftPx) {
+      setScrollLeftPx(nextLogicalScrollLeft)
+    }
+  }, [logicalScrollLeftToDom, scrollLeftPx, timelineWidthPx, viewportWidthPx])
 
   useEffect(() => {
     if (typeof MutationObserver === 'undefined') {
@@ -704,19 +763,14 @@ export const DrpdTimeStripInstrumentView = ({
         }
         const maxScrollLeft = Math.max(
           0,
-          Math.max(
-            viewport.scrollWidth > viewport.clientWidth
-              ? viewport.scrollWidth - viewport.clientWidth
-              : 0,
-            timelineWidthPx - viewportWidthPx,
-          ),
+          timelineWidthPx - viewportWidthPx,
         )
         const nextScrollLeft = Math.max(
           0,
           Math.min(maxScrollLeft, rowWorldStartNs / zoomDenominator - viewportWidthPx / 2),
         )
-        viewport.scrollLeft = nextScrollLeft
-        setScrollLeftPx(viewport.scrollLeft)
+        viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
+        setScrollLeftPx(nextScrollLeft)
         centeredSelectionKeyRef.current = selectedLogMessageKey
       } catch {
         // Keep the current viewport if the selected row is no longer available.
@@ -735,6 +789,7 @@ export const DrpdTimeStripInstrumentView = ({
     timelineRange.worldStartWallClockUs,
     timelineRange.hasWallClockBasis,
     timelineWidthPx,
+    logicalScrollLeftToDom,
     viewportWidthPx,
     zoomDenominator,
   ])
@@ -1169,7 +1224,7 @@ export const DrpdTimeStripInstrumentView = ({
           <div
             className={styles.timeline}
             data-testid="drpd-timestrip-timeline"
-            style={{ width: `${timelineWidthPx}px` }}
+            style={{ width: `${domTimelineWidthPx}px` }}
           />
         </div>
         {analogHover ? (
