@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   filterTimestripAnalogSamplesForTile,
+  interpolateTimestripAnalogSample,
   normalizeAnalogSampleForTimestrip,
 } from './timestripAnalogModel'
 
@@ -38,5 +39,23 @@ describe('timestripAnalogModel', () => {
       samples[2],
       samples[3],
     ])
+  })
+
+  it('interpolates voltage and current at a timeline point', () => {
+    expect(interpolateTimestripAnalogSample([
+      { worldUs: 0, voltageV: 5, currentA: 0.5 },
+      { worldUs: 100, voltageV: 15, currentA: 1.5 },
+    ], 25)).toEqual({
+      worldUs: 25,
+      voltageV: 7.5,
+      currentA: 0.75,
+    })
+  })
+
+  it('does not extrapolate hover values outside loaded samples', () => {
+    expect(interpolateTimestripAnalogSample([
+      { worldUs: 10, voltageV: 5, currentA: 0.5 },
+      { worldUs: 100, voltageV: 15, currentA: 1.5 },
+    ], 9)).toBeNull()
   })
 })

@@ -45,6 +45,36 @@
   min-height: 100%;
 }
 
+.analogHoverOverlay {
+  position: absolute;
+  z-index: 2;
+  grid-area: 1 / 1;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  max-width: 180px;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border-instrument);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-surface-panel) 88%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(8px, -50%);
+  white-space: nowrap;
+}
+
+.analogHoverVoltage {
+  color: var(--color-metric-voltage);
+}
+
+.analogHoverCurrent {
+  color: var(--color-metric-current);
+}
+
 .legend {
   position: relative;
   min-width: 0;

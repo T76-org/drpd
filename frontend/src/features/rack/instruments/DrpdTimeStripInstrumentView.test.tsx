@@ -447,6 +447,55 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
+  it('shows interpolated analog values when hovering the analog lane', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240)
+    const queryCapturedMessages = vi.fn(async () => [])
+    const queryAnalogSamples = vi.fn(async () => [
+      buildAnalogSample({
+        timestampUs: 0n,
+        vbusV: 10,
+        ibusA: 1,
+      }),
+      buildAnalogSample({
+        timestampUs: 50_000_000n,
+        vbusV: 20,
+        ibusA: 2,
+      }),
+    ])
+    renderTimestrip(buildDeviceState(queryCapturedMessages, queryAnalogSamples))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    viewport.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        right: 600,
+        top: 10,
+        bottom: 250,
+        width: 500,
+        height: 240,
+        x: 100,
+        y: 10,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    await waitFor(() => {
+      expect(queryAnalogSamples).toHaveBeenCalledWith(expect.objectContaining({
+        sortOrder: 'asc',
+        limit: 8000,
+      }))
+    })
+
+    fireEvent.mouseMove(viewport, { clientX: 350, clientY: 150 })
+
+    const overlay = await screen.findByTestId('drpd-timestrip-analog-hover')
+    expect(overlay).toHaveTextContent('15.00V')
+    expect(overlay).toHaveTextContent('1.500A')
+
+    fireEvent.mouseLeave(viewport)
+
+    expect(screen.queryByTestId('drpd-timestrip-analog-hover')).toBeNull()
+  })
+
   it('uses the first appended log row as the timeline origin even without wall-clock sync', async () => {
     const eventTarget = new EventTarget()
     const queryCapturedMessages = vi.fn(async () => [])
