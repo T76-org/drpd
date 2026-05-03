@@ -1,7 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DRPDDevice, type LoggedAnalogSample, type LoggedCapturedMessage } from '../../../lib/device'
+import {
+  buildCapturedLogSelectionKey,
+  DRPDDevice,
+  type DRPDLogSelectionState,
+  type LoggedAnalogSample,
+  type LoggedCapturedMessage,
+} from '../../../lib/device'
 import type { RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdTimeStripInstrumentView } from './DrpdTimeStripInstrumentView'
@@ -445,6 +451,84 @@ describe('DrpdTimeStripInstrumentView', () => {
         }),
       )
     })
+  })
+
+  it('centers the beginning of the selected message on the timestrip', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const selectedRow = buildCapturedMessage({
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_001_000n,
+      createdAtMs: 77,
+    })
+    const selectedKey = buildCapturedLogSelectionKey(selectedRow)
+    let logSelection: DRPDLogSelectionState = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (
+        query.startTimestampUs === selectedRow.startTimestampUs &&
+        query.endTimestampUs === selectedRow.endTimestampUs
+      ) {
+        return [selectedRow]
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 100_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 100_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        getLogSelectionState: vi.fn(() => logSelection),
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '1000px',
+      })
+    })
+
+    act(() => {
+      logSelection = {
+        selectedKeys: [selectedKey],
+        anchorIndex: 10,
+        activeIndex: 10,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBe(350)
+    })
+    expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_001_000n,
+      timeBasis: 'device',
+      sortOrder: 'asc',
+    }))
   })
 
   it('shows interpolated analog values when hovering the analog lane', async () => {

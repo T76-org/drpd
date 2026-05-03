@@ -422,6 +422,7 @@ describe('TimestripTiledRenderer', () => {
     const requestCount = worker.postMessage.mock.calls.length
     const digitalEntry: TimestripDigitalEntry = {
       kind: 'message',
+      selectionKey: 'message:0:1:1',
       startWorldUs: 0,
       endWorldUs: 1000,
       label: 'GoodCRC',
@@ -443,6 +444,43 @@ describe('TimestripTiledRenderer', () => {
       .find((request) => request.tile.key === 'z1000:0:0')
     expect(worker.postMessage.mock.calls.length).toBeGreaterThan(requestCount)
     expect(replacementRequest?.digitalEntries).toContain(digitalEntry)
+
+    renderer.dispose()
+  })
+
+  it('requests replacement tiles when the selected message key changes', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
+    )
+    const tileLayer = document.createElement('div')
+    const frameCallbacks: FrameRequestCallback[] = []
+    const worker = new TestWorker()
+    const renderer = new TimestripTiledRenderer({
+      tileLayer,
+      createWorker: () => worker as unknown as Worker,
+      requestAnimationFrame: (callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      },
+      cancelAnimationFrame: vi.fn(),
+    })
+
+    renderer.setViewport(buildViewport(1000))
+    frameCallbacks.shift()?.(0)
+    const requestCount = worker.postMessage.mock.calls.length
+
+    renderer.setViewport({
+      ...buildViewport(1000),
+      selectedMessageKey: 'message:0:1:1',
+    })
+    frameCallbacks.shift()?.(16)
+
+    const replacementRequest = worker.postMessage.mock.calls
+      .slice(requestCount)
+      .map((call) => call[0])
+      .find((request) => request.tile.key === 'z1000:0:0')
+    expect(worker.postMessage.mock.calls.length).toBeGreaterThan(requestCount)
+    expect(replacementRequest?.selectedMessageKey).toBe('message:0:1:1')
 
     renderer.dispose()
   })

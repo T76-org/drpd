@@ -8,6 +8,7 @@ export interface TimestripThemePalette {
   messageFillColor: string
   messageStrokeColor: string
   messageTextColor: string
+  selectedMessageBackgroundColor: string
   waveformColor: string
   componentFillColor: string
   byteFillColor: string
@@ -37,6 +38,7 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   messageFillColor: 'rgba(5, 186, 250, 0.18)',
   messageStrokeColor: 'rgba(5, 186, 250, 0.72)',
   messageTextColor: 'rgba(255, 255, 255, 0.84)',
+  selectedMessageBackgroundColor: 'rgba(5, 186, 250, 0.16)',
   waveformColor: 'rgba(1, 168, 4, 0.88)',
   componentFillColor: 'rgba(255, 255, 255, 0.08)',
   byteFillColor: 'rgba(255, 255, 255, 0.12)',
@@ -66,6 +68,7 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   messageFillColor: 'rgba(26, 115, 232, 0.14)',
   messageStrokeColor: 'rgba(26, 115, 232, 0.62)',
   messageTextColor: 'rgba(28, 31, 42, 0.84)',
+  selectedMessageBackgroundColor: 'rgba(26, 115, 232, 0.14)',
   waveformColor: 'rgba(1, 128, 4, 0.82)',
   componentFillColor: 'rgba(28, 31, 42, 0.06)',
   byteFillColor: 'rgba(28, 31, 42, 0.1)',
@@ -118,6 +121,7 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.messageFillColor,
     palette.messageStrokeColor,
     palette.messageTextColor,
+    palette.selectedMessageBackgroundColor,
     palette.waveformColor,
     palette.componentFillColor,
     palette.byteFillColor,

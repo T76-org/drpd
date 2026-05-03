@@ -35,6 +35,7 @@ export interface TimestripRendererViewport {
   digitalDataRevision?: number
   analogSamples?: TimestripAnalogSample[]
   analogDataRevision?: number
+  selectedMessageKey?: string | null
 }
 
 export interface TimestripRendererOptions {
@@ -79,6 +80,7 @@ export class TimestripTiledRenderer {
   protected cacheThemeKey: string ///< Theme palette identity used by current pool.
   protected cacheDigitalDataRevision: number ///< Digital data revision used by current pool.
   protected cacheAnalogDataRevision: number ///< Analog data revision used by current pool.
+  protected cacheSelectedMessageKey: string | null ///< Selected message key used by current pool.
 
   /**
    * Create a tiled renderer.
@@ -103,6 +105,7 @@ export class TimestripTiledRenderer {
       digitalDataRevision: 0,
       analogSamples: [],
       analogDataRevision: 0,
+      selectedMessageKey: null,
     }
     this.frameHandle = null
     this.requestId = 0
@@ -115,6 +118,7 @@ export class TimestripTiledRenderer {
     this.cacheThemeKey = getTimestripThemeCacheKey(DEFAULT_TIMESTRIP_THEME)
     this.cacheDigitalDataRevision = 0
     this.cacheAnalogDataRevision = 0
+    this.cacheSelectedMessageKey = null
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()
     if (this.worker) {
       this.worker.onmessage = (event: MessageEvent<TimestripTileWorkerResponse>) => {
@@ -144,6 +148,7 @@ export class TimestripTiledRenderer {
       nextViewport.zoomDenominator === this.cacheZoomDenominator &&
       (nextViewport.digitalDataRevision ?? 0) === this.cacheDigitalDataRevision &&
       (nextViewport.analogDataRevision ?? 0) === this.cacheAnalogDataRevision &&
+      (nextViewport.selectedMessageKey ?? null) === this.cacheSelectedMessageKey &&
       getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) === this.cacheThemeKey
     const shouldDetachCommittedTiles =
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
@@ -155,6 +160,7 @@ export class TimestripTiledRenderer {
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
       (nextViewport.digitalDataRevision ?? 0) !== this.cacheDigitalDataRevision ||
       (nextViewport.analogDataRevision ?? 0) !== this.cacheAnalogDataRevision ||
+      (nextViewport.selectedMessageKey ?? null) !== this.cacheSelectedMessageKey ||
       getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
     this.viewport = nextViewport
     this.resizeTileLayer()
@@ -174,6 +180,7 @@ export class TimestripTiledRenderer {
       this.cacheThemeKey = getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME)
       this.cacheDigitalDataRevision = nextViewport.digitalDataRevision ?? 0
       this.cacheAnalogDataRevision = nextViewport.analogDataRevision ?? 0
+      this.cacheSelectedMessageKey = nextViewport.selectedMessageKey ?? null
     }
     if (shouldResetPool || nextRenderKey !== currentRenderKey) {
       this.scheduleFrame()
@@ -486,6 +493,7 @@ export class TimestripTiledRenderer {
         theme: this.viewport.theme ?? DEFAULT_TIMESTRIP_THEME,
         digitalEntries,
         analogSamples,
+        selectedMessageKey: this.viewport.selectedMessageKey ?? null,
         generation: this.generation,
         worldStartWallClockUs: this.viewport.worldStartWallClockUs,
       }
@@ -505,6 +513,7 @@ export class TimestripTiledRenderer {
         digitalEntries,
         analogSamples,
         this.viewport.worldStartWallClockUs,
+        this.viewport.selectedMessageKey ?? null,
       )
       entry.tile = tile
       entry.tileKey = tile.key
@@ -617,4 +626,5 @@ export const normalizeViewport = (viewport: TimestripRendererViewport): Timestri
   digitalDataRevision: Math.max(0, Math.floor(viewport.digitalDataRevision ?? 0)),
   analogSamples: viewport.analogSamples ?? [],
   analogDataRevision: Math.max(0, Math.floor(viewport.analogDataRevision ?? 0)),
+  selectedMessageKey: viewport.selectedMessageKey ?? null,
 })

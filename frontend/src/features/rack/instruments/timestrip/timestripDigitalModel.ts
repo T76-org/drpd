@@ -1,4 +1,4 @@
-import type { LoggedCapturedEventType, LoggedCapturedMessage } from '../../../../lib/device'
+import { buildCapturedLogSelectionKey, type LoggedCapturedEventType, type LoggedCapturedMessage } from '../../../../lib/device'
 import { getLogMessageTypeLabel } from '../../messageLogExport'
 import type { TimestripThemePalette } from './timestripTheme'
 
@@ -19,6 +19,7 @@ export interface TimestripDigitalComponent {
 
 export interface TimestripDigitalMessageEntry {
   kind: 'message'
+  selectionKey: string
   startWorldUs: number
   endWorldUs: number
   label: string
@@ -129,6 +130,7 @@ export const normalizeCapturedMessageForTimestrip = (
   const frameBytes = Array.from(row.rawSop).concat(Array.from(row.rawDecodedData))
   return {
     kind: 'message',
+    selectionKey: buildCapturedLogSelectionKey(row),
     startWorldUs: startWorldNs,
     endWorldUs: startWorldNs + durationNs,
     label: getLogMessageTypeLabel(row),

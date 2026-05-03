@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { DRPDDevice, type LoggedAnalogSample, type LoggedCapturedMessage } from '../../../lib/device'
+import {
+  buildCapturedLogSelectionKey,
+  DRPDDevice,
+  type DRPDLogSelectionState,
+  type LoggedAnalogSample,
+  type LoggedCapturedMessage,
+} from '../../../lib/device'
 import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
@@ -75,6 +81,7 @@ const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string 
       'm',
       entry.startWorldUs,
       entry.endWorldUs,
+      entry.selectionKey,
       entry.label,
       entry.frameBytes.length,
       entry.pulseWidthsNs.length,
@@ -103,6 +110,10 @@ type TimelineRange = {
 type TimelineRangePoint = {
   timestampUs: bigint
   wallClockUs: bigint | null
+}
+type MessageSelectionKeyParts = {
+  startTimestampUs: bigint
+  endTimestampUs: bigint
 }
 
 const calculateQueryInvalidation = (
@@ -175,6 +186,32 @@ const analogToTimelinePoint = (row: LoggedAnalogSample): TimelineRangePoint => (
   wallClockUs: row.wallClockUs,
 })
 
+const parseMessageSelectionKey = (selectionKey: string): MessageSelectionKeyParts | null => {
+  const parts = selectionKey.split(':')
+  if (parts.length !== 4 || parts[0] !== 'message') {
+    return null
+  }
+  try {
+    return {
+      startTimestampUs: BigInt(parts[1]),
+      endTimestampUs: BigInt(parts[2]),
+    }
+  } catch {
+    return null
+  }
+}
+
+const normalizeSelectionState = (value: unknown): DRPDLogSelectionState => {
+  const probe = value as Partial<DRPDLogSelectionState>
+  return {
+    selectedKeys: Array.isArray(probe?.selectedKeys)
+      ? probe.selectedKeys.filter((key): key is string => typeof key === 'string')
+      : [],
+    anchorIndex: typeof probe?.anchorIndex === 'number' ? probe.anchorIndex : null,
+    activeIndex: typeof probe?.activeIndex === 'number' ? probe.activeIndex : null,
+  }
+}
+
 /**
  * Standalone DRPD timestrip instrument shell.
  */
@@ -197,6 +234,7 @@ export const DrpdTimeStripInstrumentView = ({
   const resizeFrameRef = useRef<number | null>(null)
   const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
   const analogHoverPointerRef = useRef<{ x: number; y: number } | null>(null)
+  const centeredSelectionKeyRef = useRef<string | null>(null)
   const digitalEntriesSignatureRef = useRef('')
   const analogSamplesSignatureRef = useRef('')
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
@@ -224,6 +262,7 @@ export const DrpdTimeStripInstrumentView = ({
     y: number
     value: TimestripAnalogHoverValue
   } | null>(null)
+  const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
   const zoomReadout = formatTimestripZoomDenominator(zoomDenominator)
   const timelineWidthPx = calculateTimestripWidthPx(
     timelineRange.durationNs,
@@ -313,6 +352,17 @@ export const DrpdTimeStripInstrumentView = ({
       updateAnalogHoverAtViewportPoint(pointer.x, pointer.y)
     }
   }, [updateAnalogHoverAtViewportPoint])
+  const readSelectedLogMessageKey = useCallback(async (): Promise<string | null> => {
+    const driver = deviceState?.drpdDriver
+    if (!driver || typeof driver.getLogSelectionState !== 'function') {
+      return null
+    }
+    const selection = normalizeSelectionState(await Promise.resolve(driver.getLogSelectionState()))
+    if (selection.selectedKeys.length !== 1 || !selection.selectedKeys[0].startsWith('message:')) {
+      return null
+    }
+    return selection.selectedKeys[0]
+  }, [deviceState?.drpdDriver])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -571,6 +621,123 @@ export const DrpdTimeStripInstrumentView = ({
       isActive = false
     }
   }, [deviceState?.drpdDriver])
+
+  useEffect(() => {
+    const driver = deviceState?.drpdDriver
+    if (!driver || typeof driver.addEventListener !== 'function') {
+      setSelectedLogMessageKey(null)
+      return undefined
+    }
+
+    let isActive = true
+    const refreshSelectedLogMessageKey = () => {
+      void readSelectedLogMessageKey().then((nextSelectionKey) => {
+        if (isActive) {
+          setSelectedLogMessageKey(nextSelectionKey)
+        }
+      })
+    }
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed : []
+      if (changed.includes('logSelection')) {
+        refreshSelectedLogMessageKey()
+      }
+    }
+
+    refreshSelectedLogMessageKey()
+    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    return () => {
+      isActive = false
+      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [deviceState?.drpdDriver, readSelectedLogMessageKey])
+
+  useEffect(() => {
+    const driver = deviceState?.drpdDriver
+    const viewport = viewportRef.current
+    if (!selectedLogMessageKey) {
+      centeredSelectionKeyRef.current = null
+      return undefined
+    }
+    if (
+      !driver ||
+      !viewport ||
+      !hasLogTimelineRange ||
+      viewportWidthPx <= 0 ||
+      timelineWidthPx <= 0 ||
+      centeredSelectionKeyRef.current === selectedLogMessageKey
+    ) {
+      return undefined
+    }
+    const selectionKeyParts = parseMessageSelectionKey(selectedLogMessageKey)
+    if (!selectionKeyParts) {
+      return undefined
+    }
+
+    let isActive = true
+    const centerSelectedMessage = async () => {
+      try {
+        const rows = await driver.queryCapturedMessages({
+          startTimestampUs: selectionKeyParts.startTimestampUs,
+          endTimestampUs: selectionKeyParts.endTimestampUs,
+          timeBasis: 'device',
+          sortOrder: 'asc',
+          limit: 25,
+        })
+        if (!isActive) {
+          return
+        }
+        const selectedRow = rows.find((row) => buildCapturedLogSelectionKey(row) === selectedLogMessageKey)
+        if (!selectedRow) {
+          return
+        }
+        const basisStartUs = timelineRange.hasWallClockBasis && selectedRow.wallClockUs != null
+          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+          : timelineRange.worldStartTimestampUs
+        const rowStartUs = timelineRange.hasWallClockBasis && selectedRow.wallClockUs != null
+          ? selectedRow.wallClockUs
+          : selectedRow.startTimestampUs
+        const rowWorldStartNs = Number((rowStartUs - basisStartUs) * 1000n)
+        if (!Number.isFinite(rowWorldStartNs)) {
+          return
+        }
+        const maxScrollLeft = Math.max(
+          0,
+          Math.max(
+            viewport.scrollWidth > viewport.clientWidth
+              ? viewport.scrollWidth - viewport.clientWidth
+              : 0,
+            timelineWidthPx - viewportWidthPx,
+          ),
+        )
+        const nextScrollLeft = Math.max(
+          0,
+          Math.min(maxScrollLeft, rowWorldStartNs / zoomDenominator - viewportWidthPx / 2),
+        )
+        viewport.scrollLeft = nextScrollLeft
+        setScrollLeftPx(viewport.scrollLeft)
+        centeredSelectionKeyRef.current = selectedLogMessageKey
+      } catch {
+        // Keep the current viewport if the selected row is no longer available.
+      }
+    }
+
+    void centerSelectedMessage()
+    return () => {
+      isActive = false
+    }
+  }, [
+    deviceState?.drpdDriver,
+    hasLogTimelineRange,
+    selectedLogMessageKey,
+    timelineRange.worldStartTimestampUs,
+    timelineRange.worldStartWallClockUs,
+    timelineRange.hasWallClockBasis,
+    timelineWidthPx,
+    viewportWidthPx,
+    zoomDenominator,
+  ])
 
   useEffect(() => {
     const driver = deviceState?.drpdDriver
@@ -926,6 +1093,7 @@ export const DrpdTimeStripInstrumentView = ({
       digitalDataRevision,
       analogSamples,
       analogDataRevision,
+      selectedMessageKey: selectedLogMessageKey,
     })
     const invalidation = pendingTileInvalidationRef.current
     pendingTileInvalidationRef.current = null
@@ -939,6 +1107,7 @@ export const DrpdTimeStripInstrumentView = ({
     digitalEntries,
     analogDataRevision,
     analogSamples,
+    selectedLogMessageKey,
     scrollLeftPx,
     theme,
     timelineRange.worldStartWallClockUs,

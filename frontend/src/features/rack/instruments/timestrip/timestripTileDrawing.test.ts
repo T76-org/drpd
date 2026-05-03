@@ -103,6 +103,7 @@ describe('timestripTileDrawing', () => {
       messageFillColor: '#aaaaaa',
       messageStrokeColor: '#999999',
       messageTextColor: '#888888',
+      selectedMessageBackgroundColor: '#bbbbbb',
       waveformColor: '#777777',
       componentFillColor: '#666666',
       byteFillColor: '#555555',
@@ -136,6 +137,7 @@ describe('timestripTileDrawing', () => {
       [
         {
           kind: 'message',
+          selectionKey: 'message:20:220:1',
           startWorldUs: 20_000,
           endWorldUs: 220_000,
           label: 'Source Capabilities',
@@ -159,6 +161,35 @@ describe('timestripTileDrawing', () => {
     expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.headerFillColor)
     expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.dataFillColor)
     expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.crc32FillColor)
+  })
+
+  it('draws a subtle digital-lane background behind the selected message', () => {
+    const { context, fillStyles } = buildTrackingContext()
+
+    drawTimestripTile(
+      context,
+      { ...tile, zoomLevel: 'z1000', zoomLevelDenominator: 1000 },
+      1,
+      DEFAULT_TIMESTRIP_THEME,
+      [
+        {
+          kind: 'message',
+          selectionKey: 'message:20:220:1',
+          startWorldUs: 20_000,
+          endWorldUs: 220_000,
+          label: 'Source Capabilities',
+          pulseWidthsNs: [],
+          frameBytes: [],
+          components: [],
+        },
+      ],
+      [],
+      1_700_000_000_000_000,
+      'message:20:220:1',
+    )
+
+    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.selectedMessageBackgroundColor)
+    expect(context.fillRect).toHaveBeenCalledWith(20, 34, 200, 84)
   })
 
   it('draws voltage and current samples at their tile-local timeline positions', () => {

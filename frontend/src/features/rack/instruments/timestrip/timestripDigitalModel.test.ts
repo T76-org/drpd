@@ -53,6 +53,7 @@ describe('timestripDigitalModel', () => {
 
     expect(entry).toMatchObject({
       kind: 'message',
+      selectionKey: 'message:1000:1010:1',
       startWorldUs: 1_000_000,
       endWorldUs: 1_010_000,
       label: 'Source Capabilities',

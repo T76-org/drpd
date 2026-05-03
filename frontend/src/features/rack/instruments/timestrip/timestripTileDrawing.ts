@@ -23,6 +23,7 @@ export const drawTimestripTile = (
   digitalEntries: TimestripDigitalEntry[] = [],
   analogSamples: TimestripAnalogSample[] = [],
   worldStartWallClockUs = 0,
+  selectedMessageKey: string | null = null,
 ): void => {
   const width = tile.widthPx
   const height = tile.heightPx
@@ -36,6 +37,7 @@ export const drawTimestripTile = (
     worldLeftUs: tile.worldLeftUs,
     zoomDenominator: tile.zoomLevelDenominator,
     entries: digitalEntries,
+    selectedMessageKey,
   })
   drawAnalogTraceLane(context, layout, width, theme, {
     worldLeftUs: tile.worldLeftUs,

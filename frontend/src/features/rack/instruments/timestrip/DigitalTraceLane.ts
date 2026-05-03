@@ -14,6 +14,7 @@ export interface DigitalTraceLaneRenderOptions {
   worldLeftUs: number
   zoomDenominator: number
   entries: TimestripDigitalEntry[]
+  selectedMessageKey?: string | null
 }
 
 /**
@@ -51,7 +52,15 @@ export const drawDigitalTraceLane = (
       drawDigitalEvent(context, layout, entry, options, theme)
       continue
     }
-    drawDigitalMessage(context, layout, entry, options, theme, detailLevel)
+    drawDigitalMessage(
+      context,
+      layout,
+      entry,
+      options,
+      theme,
+      detailLevel,
+      options.selectedMessageKey === entry.selectionKey,
+    )
   }
   context.restore()
 }
@@ -78,9 +87,13 @@ const drawDigitalMessage = (
   options: DigitalTraceLaneRenderOptions,
   theme: TimestripThemePalette,
   detailLevel: 1 | 2 | 3,
+  isSelected: boolean,
 ): void => {
   const x = (entry.startWorldUs - options.worldLeftUs) / options.zoomDenominator
   const width = Math.max(1, (entry.endWorldUs - entry.startWorldUs) / options.zoomDenominator)
+  if (isSelected) {
+    drawSelectedMessageBackground(context, layout, x, width, theme)
+  }
   if (detailLevel === 3) {
     drawDetailedMessage(context, layout, entry, options, theme, x, width)
     return
@@ -92,6 +105,19 @@ const drawDigitalMessage = (
   if (detailLevel >= 2 && width >= MIN_TEXT_WIDTH_PX) {
     drawClippedText(context, entry.label, x, y, width, height, theme.messageTextColor)
   }
+}
+
+const drawSelectedMessageBackground = (
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  layout: TimestripLaneLayout,
+  x: number,
+  width: number,
+  theme: TimestripThemePalette,
+): void => {
+  const y = layout.digital.y + 1
+  const height = Math.max(1, layout.digital.height - 2)
+  context.fillStyle = theme.selectedMessageBackgroundColor
+  context.fillRect(x, y, width, height)
 }
 
 const drawDetailedMessage = (

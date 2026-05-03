@@ -11,6 +11,7 @@ export interface TimestripTileRenderRequest {
   theme: TimestripThemePalette
   digitalEntries: TimestripDigitalEntry[]
   analogSamples: TimestripAnalogSample[]
+  selectedMessageKey: string | null
   generation: number
   worldStartWallClockUs: number
 }
