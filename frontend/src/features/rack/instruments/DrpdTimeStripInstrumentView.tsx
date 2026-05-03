@@ -203,6 +203,41 @@ const analogToTimelinePoint = (row: LoggedAnalogSample): TimelineRangePoint => (
   wallClockUs: row.wallClockUs,
 })
 
+const getAnalogSampleBasisTimestampUs = (
+  row: LoggedAnalogSample,
+  hasWallClockBasis: boolean,
+): bigint | null => {
+  if (!hasWallClockBasis) {
+    return row.timestampUs
+  }
+  return row.wallClockUs
+}
+
+const mergeAnalogSampleRows = (
+  rows: LoggedAnalogSample[],
+  hasWallClockBasis: boolean,
+): LoggedAnalogSample[] => {
+  const seen = new Set<string>()
+  return rows
+    .filter((row) => {
+      const timestampUs = getAnalogSampleBasisTimestampUs(row, hasWallClockBasis)
+      if (timestampUs === null) {
+        return false
+      }
+      const key = `${row.timestampUs}:${row.wallClockUs ?? 'null'}:${row.createdAtMs}`
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+      return true
+    })
+    .sort((left, right) => {
+      const leftTimestampUs = getAnalogSampleBasisTimestampUs(left, hasWallClockBasis) ?? 0n
+      const rightTimestampUs = getAnalogSampleBasisTimestampUs(right, hasWallClockBasis) ?? 0n
+      return leftTimestampUs < rightTimestampUs ? -1 : leftTimestampUs > rightTimestampUs ? 1 : 0
+    })
+}
+
 const parseMessageSelectionKey = (selectionKey: string): MessageSelectionKeyParts | null => {
   const parts = selectionKey.split(':')
   if (parts.length !== 4 || parts[0] !== 'message') {
@@ -900,13 +935,34 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       try {
-        const rows = await driver.queryAnalogSamples({
-          startTimestampUs: range.startTimestampUs,
-          endTimestampUs: range.endTimestampUs,
-          timeBasis: timelineRange.hasWallClockBasis ? 'wallClock' : 'device',
-          sortOrder: 'asc',
-          limit: ANALOG_QUERY_LIMIT,
-        })
+        const timeBasis = timelineRange.hasWallClockBasis ? 'wallClock' : 'device'
+        const [previousRows, visibleRows, nextRows] = await Promise.all([
+          range.startTimestampUs > LOG_START_TIMESTAMP_US
+            ? driver.queryAnalogSamples({
+              startTimestampUs: LOG_START_TIMESTAMP_US,
+              endTimestampUs: range.startTimestampUs - 1n,
+              timeBasis,
+              sortOrder: 'desc',
+              limit: 1,
+            })
+            : Promise.resolve([]),
+          driver.queryAnalogSamples({
+            startTimestampUs: range.startTimestampUs,
+            endTimestampUs: range.endTimestampUs,
+            timeBasis,
+            sortOrder: 'asc',
+            limit: ANALOG_QUERY_LIMIT,
+          }),
+          range.endTimestampUs < LOG_END_TIMESTAMP_US
+            ? driver.queryAnalogSamples({
+              startTimestampUs: range.endTimestampUs + 1n,
+              endTimestampUs: LOG_END_TIMESTAMP_US,
+              timeBasis,
+              sortOrder: 'asc',
+              limit: 1,
+            })
+            : Promise.resolve([]),
+        ])
         if (!isActive) {
           return
         }
@@ -918,7 +974,10 @@ export const DrpdTimeStripInstrumentView = ({
             : timelineRange.worldStartTimestampUs,
         )
         analogQueryRangeRef.current = range
-        const nextSamples = rows.flatMap((row) => {
+        const nextSamples = mergeAnalogSampleRows(
+          [...previousRows, ...visibleRows, ...nextRows],
+          timelineRange.hasWallClockBasis,
+        ).flatMap((row) => {
           const sample = normalizeAnalogSampleForTimestrip(
             row,
             timelineRange.worldStartTimestampUs,

@@ -453,6 +453,77 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
+  it('loads analog samples around the visible range so sparse traces render on initial high zoom', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '32000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
+      buildCapturedMessage({
+        startTimestampUs: query.sortOrder === 'desc' ? 1_000_000n : 0n,
+        endTimestampUs: query.sortOrder === 'desc' ? 1_000_000n : 1_000n,
+        createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+      }),
+    ])
+    const analogRows = [
+      buildAnalogSample({ timestampUs: 260_000n, vbusV: 10, ibusA: 1, createdAtMs: 1 }),
+      buildAnalogSample({ timestampUs: 400_000n, vbusV: 20, ibusA: 2, createdAtMs: 2 }),
+    ]
+    const queryAnalogSamples = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      limit?: number
+    }) => {
+      const rows = analogRows
+        .filter((row) => row.timestampUs >= query.startTimestampUs && row.timestampUs <= query.endTimestampUs)
+        .sort((left, right) => {
+          const cmp = left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+          return query.sortOrder === 'desc' ? -cmp : cmp
+        })
+      return typeof query.limit === 'number' ? rows.slice(0, query.limit) : rows
+    })
+    renderTimestrip(buildDeviceState(queryCapturedMessages, queryAnalogSamples))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    viewport.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        right: 600,
+        top: 10,
+        bottom: 250,
+        width: 500,
+        height: 240,
+        x: 100,
+        y: 10,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Zoom 32µs per pixel')).toBeInTheDocument()
+    })
+
+    viewport.scrollLeft = 10_000
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(queryAnalogSamples).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 287_231n,
+        sortOrder: 'desc',
+        limit: 1,
+      }))
+      expect(queryAnalogSamples).toHaveBeenCalledWith(expect.objectContaining({
+        startTimestampUs: 368_769n,
+        sortOrder: 'asc',
+        limit: 1,
+      }))
+    })
+
+    fireEvent.mouseMove(viewport, { clientX: 350, clientY: 150 })
+
+    const overlay = await screen.findByTestId('drpd-timestrip-analog-hover')
+    expect(overlay).toHaveTextContent('14.86V')
+    expect(overlay).toHaveTextContent('1.486A')
+  })
+
   it('centers the beginning of the selected message on the timestrip', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)

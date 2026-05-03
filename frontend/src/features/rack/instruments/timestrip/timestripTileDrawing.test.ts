@@ -208,9 +208,30 @@ describe('timestripTileDrawing', () => {
       1_700_000_000_000_000,
     )
 
-    expect(context.moveTo).toHaveBeenCalledWith(10, expect.any(Number))
+    expect(context.moveTo).toHaveBeenCalledWith(0, expect.any(Number))
+    expect(context.lineTo).toHaveBeenCalledWith(10, expect.any(Number))
     expect(context.lineTo).toHaveBeenCalledWith(20, expect.any(Number))
     expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('extends the first analog sample to the tile edge', () => {
+    const context = buildContext()
+
+    drawTimestripTile(
+      context,
+      { ...tile, zoomLevelDenominator: 1000, worldLeftUs: 1_000 },
+      1,
+      DEFAULT_TIMESTRIP_THEME,
+      [],
+      [
+        { worldUs: 11_000, voltageV: 30, currentA: 3 },
+        { worldUs: 21_000, voltageV: 60, currentA: 6 },
+      ],
+      1_700_000_000_000_000,
+    )
+
+    expect(context.moveTo).toHaveBeenCalledWith(0, expect.any(Number))
+    expect(context.lineTo).toHaveBeenCalledWith(10, expect.any(Number))
   })
 
   it('draws faint analog grid lines across the tile', () => {
