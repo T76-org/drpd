@@ -127,11 +127,18 @@ describe('SQLiteWasmStore', () => {
       startTimestampUs: 0n,
       endTimestampUs: 100n,
     })
+    const latestAnalog = await store.queryAnalogSamples({
+      startTimestampUs: 0n,
+      endTimestampUs: 100n,
+      sortOrder: 'desc',
+      limit: 1,
+    })
     const messages = await store.queryCapturedMessages({
       startTimestampUs: 0n,
       endTimestampUs: 10_000n,
     })
     expect(analog.map((row) => row.timestampUs)).toEqual([5n, 6n, 7n, 8n, 9n])
+    expect(latestAnalog.map((row) => row.timestampUs)).toEqual([9n])
     expect(messages.map((row) => row.startTimestampUs)).toEqual([1006n, 1007n, 1008n])
   })
 
@@ -256,143 +263,6 @@ describe('SQLiteWasmStore', () => {
     })
     expect(exportData.payload).toContain('entry_kind,event_type,event_text,event_wall_clock_ms,wall_clock_us')
     expect(exportData.payload).toContain('event,capture_changed')
-  })
-
-  it('returns a bounded time-strip render window with wall-clock anchors', async () => {
-    const store = new SQLiteWasmStore()
-    await store.init()
-
-    for (let index = 0; index < 20; index += 1) {
-      await store.insertAnalogSample({
-        timestampUs: BigInt(index * 100),
-        displayTimestampUs: BigInt(index * 100),
-        wallClockUs: BigInt(1_700_000_000_000_000 + index * 100),
-        vbusV: 5 + index,
-        ibusA: 0.1 * index,
-        role: 'OBSERVER',
-        createdAtMs: 1_700_000_000_000 + index * 10,
-      })
-    }
-    await store.insertCapturedMessage(buildMessage(4))
-    await store.insertCapturedMessage(buildEvent(5))
-
-    const window = await store.queryMessageLogTimeStripWindow({
-      windowStartUs: 900n,
-      windowDurationUs: 400n,
-      analogPointBudget: 5,
-    })
-
-    expect(window.analogPoints.length).toBeLessThanOrEqual(5)
-    expect(Array.isArray(window.timeAnchors)).toBe(true)
-    expect(window.windowEndUs).toBe(window.windowStartUs + window.windowDurationUs)
-  })
-
-  it('uses analog and message boundaries for time-strip scrolling when analog extends beyond the message range', async () => {
-    const store = new SQLiteWasmStore()
-    await store.init()
-
-    await store.insertAnalogSample({
-      timestampUs: 10n,
-      displayTimestampUs: 10n,
-      wallClockUs: 10n,
-      vbusV: 5,
-      ibusA: 0.1,
-      role: 'OBSERVER',
-      createdAtMs: 1,
-    })
-    await store.insertAnalogSample({
-      timestampUs: 50_000n,
-      displayTimestampUs: 50_000n,
-      wallClockUs: 50_000n,
-      vbusV: 6,
-      ibusA: 0.2,
-      role: 'OBSERVER',
-      createdAtMs: 2,
-    })
-    await store.insertCapturedMessage({
-      ...buildMessage(0),
-      startTimestampUs: 1_000n,
-      endTimestampUs: 1_250n,
-      displayTimestampUs: 1_000n,
-    })
-    await store.insertCapturedMessage({
-      ...buildMessage(1),
-      startTimestampUs: 2_000n,
-      endTimestampUs: 2_400n,
-      displayTimestampUs: 2_000n,
-    })
-
-    const window = await store.queryMessageLogTimeStripWindow({
-      windowStartUs: 0n,
-      windowDurationUs: 200n,
-      analogPointBudget: 10,
-    })
-
-    expect(window.earliestTimestampUs).toBe(10n)
-    expect(window.latestTimestampUs).toBe(50_000n)
-    expect(window.earliestDisplayTimestampUs).toBe(10n)
-    expect(window.latestDisplayTimestampUs).toBe(50_000n)
-  })
-
-  it('ignores SQLite max timestamp sentinel rows for time-strip bounds', async () => {
-    const store = new SQLiteWasmStore()
-    await store.init()
-
-    await store.insertAnalogSample({
-      timestampUs: 50_000n,
-      displayTimestampUs: 50_000n,
-      wallClockUs: 50_000n,
-      vbusV: 5,
-      ibusA: 0.1,
-      role: 'OBSERVER',
-      createdAtMs: 1,
-    })
-    await store.insertCapturedMessage({
-      ...buildMessage(0),
-      startTimestampUs: 1_000n,
-      endTimestampUs: BigInt('9223372036854775807'),
-      displayTimestampUs: 1_000n,
-    })
-
-    const window = await store.queryMessageLogTimeStripWindow({
-      windowStartUs: 0n,
-      windowDurationUs: 1_000n,
-      analogPointBudget: 10,
-    })
-
-    expect(window.latestTimestampUs).toBe(50_000n)
-    expect(window.pulses).toEqual([])
-  })
-
-  it('keeps a pulse visible while its waveform still overlaps the window', async () => {
-    const store = new SQLiteWasmStore()
-    await store.init()
-
-    await store.insertCapturedMessage({
-      ...buildMessage(0),
-      startTimestampUs: 1_000n,
-      endTimestampUs: 1_001n,
-      displayTimestampUs: 1_000n,
-      rawPulseWidths: Float64Array.from([1_200, 1_300, 1_400]),
-    })
-    await store.insertCapturedMessage({
-      ...buildMessage(1),
-      startTimestampUs: 2_000n,
-      endTimestampUs: 2_001n,
-      displayTimestampUs: 2_000n,
-      rawPulseWidths: Float64Array.from([100]),
-    })
-
-    const window = await store.queryMessageLogTimeStripWindow({
-      windowStartUs: 1_003n,
-      windowDurationUs: 2n,
-      analogPointBudget: 10,
-    })
-
-    expect(window.pulses).toHaveLength(1)
-    expect(window.pulses[0]?.endTimestampUs).toBe(1_001n)
-    expect(window.pulses[0]?.traceEndTimestampUs).toBe(1_004n)
-    expect(window.windowStartUs).toBe(1_003n)
   })
 
   it('exports deterministic JSON and CSV payloads and clears scoped tables', async () => {

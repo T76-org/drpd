@@ -1,0 +1,127 @@
+.content {
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+}
+
+.frame {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 36px;
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.viewport {
+  position: relative;
+  display: grid;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tileLayer {
+  grid-area: 1 / 1;
+  position: sticky;
+  left: 0;
+  top: 0;
+  display: block;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  contain: strict;
+}
+
+.timeline {
+  grid-area: 1 / 1;
+  height: 100%;
+  min-height: 100%;
+}
+
+.analogHoverOverlay {
+  position: absolute;
+  z-index: 2;
+  grid-area: 1 / 1;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  max-width: 180px;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border-instrument);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-surface-panel) 88%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(8px, -50%);
+  white-space: nowrap;
+}
+
+.analogHoverVoltage {
+  color: var(--color-metric-voltage);
+}
+
+.analogHoverCurrent {
+  color: var(--color-metric-current);
+}
+
+.legend {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.legendTick {
+  position: absolute;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-overflow: clip;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+.voltageLegend {
+  color: var(--color-metric-voltage);
+}
+
+.voltageLegend .legendTick {
+  right: 6px;
+  text-align: right;
+}
+
+.currentLegend {
+  color: var(--color-metric-current);
+}
+
+.currentLegend .legendTick {
+  left: 6px;
+  text-align: left;
+}
+
+.zoomReadout {
+  color: var(--color-text-muted);
+  font-size: inherit;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  text-transform: capitalize;
+  letter-spacing: inherit;
+  white-space: nowrap;
+}

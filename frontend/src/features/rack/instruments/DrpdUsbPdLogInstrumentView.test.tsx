@@ -8,22 +8,15 @@ import {
   type LoggedAnalogSample,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
-import {
-  CONTROL_MESSAGE_TYPES,
-  DATA_MESSAGE_TYPES,
-  EXTENDED_MESSAGE_TYPES,
-} from '../../../lib/device/drpd/usb-pd/message'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
 import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
-import { computePulseTraceEndTimestampUs } from './DrpdUsbPdLogTimeStrip.utils'
 
 class TestLogDriver extends EventTarget {
   public analogRows: LoggedAnalogSample[]
   public rows: LoggedCapturedMessage[]
   public clearScopes: string[]
   public logSelection: DRPDLogSelectionState
-  public timeStripQueries: Array<{ windowStartUs: bigint; windowDurationUs: bigint; analogPointBudget: number }>
   public markCalls: number
 
   public constructor(rows: LoggedCapturedMessage[], analogRows: LoggedAnalogSample[] = []) {
@@ -31,7 +24,6 @@ class TestLogDriver extends EventTarget {
     this.analogRows = analogRows
     this.rows = rows
     this.clearScopes = []
-    this.timeStripQueries = []
     this.markCalls = 0
     this.logSelection = {
       selectedKeys: [],
@@ -105,133 +97,6 @@ class TestLogDriver extends EventTarget {
     return sorted.slice(offset, offset + limit)
   }
 
-  public async queryMessageLogTimeStripWindow(query: {
-    windowStartUs: bigint
-    windowDurationUs: bigint
-    analogPointBudget: number
-  }) {
-    this.timeStripQueries.push(query)
-    const messageRows = this.rows.filter((row) => row.entryKind === 'message')
-    const eventRows = this.rows.filter(
-      (row): row is LoggedCapturedMessage & { eventType: NonNullable<LoggedCapturedMessage['eventType']> } =>
-        row.entryKind === 'event' && row.eventType !== null,
-    )
-    const earliestMessageTimestampUs = messageRows[0]?.startTimestampUs ?? null
-    const latestMessageTimestampUs =
-      messageRows.length > 0 ? messageRows[messageRows.length - 1]?.endTimestampUs ?? null : null
-    const earliestAnalogTimestampUs = this.analogRows[0]?.timestampUs ?? null
-    const latestAnalogTimestampUs =
-      this.analogRows.length > 0 ? this.analogRows[this.analogRows.length - 1]?.timestampUs ?? null : null
-    const earliestTimestampUs =
-      earliestMessageTimestampUs === null
-        ? earliestAnalogTimestampUs
-        : earliestAnalogTimestampUs === null
-          ? earliestMessageTimestampUs
-          : earliestMessageTimestampUs < earliestAnalogTimestampUs
-            ? earliestMessageTimestampUs
-            : earliestAnalogTimestampUs
-    const latestTimestampUs =
-      latestMessageTimestampUs === null
-        ? latestAnalogTimestampUs
-        : latestAnalogTimestampUs === null
-          ? latestMessageTimestampUs
-          : latestMessageTimestampUs > latestAnalogTimestampUs
-            ? latestMessageTimestampUs
-            : latestAnalogTimestampUs
-    const earliestDisplayTimestampUs = (() => {
-      const candidates = [
-        messageRows[0]?.displayTimestampUs ?? null,
-        this.analogRows[0]?.displayTimestampUs ?? null,
-      ].filter((value): value is bigint => value !== null)
-      if (candidates.length === 0) {
-        return null
-      }
-      return candidates.reduce((minimum, value) => value < minimum ? value : minimum)
-    })()
-    const latestDisplayTimestampUs = (() => {
-      const latestMessage = messageRows[messageRows.length - 1]
-      const candidates = [
-        latestMessage && latestMessage.displayTimestampUs !== null
-          ? latestMessage.displayTimestampUs + (latestMessage.endTimestampUs - latestMessage.startTimestampUs)
-          : null,
-        this.analogRows.length > 0 ? this.analogRows[this.analogRows.length - 1]?.displayTimestampUs ?? null : null,
-      ].filter((value): value is bigint => value !== null)
-      if (candidates.length === 0) {
-        return null
-      }
-      return candidates.reduce((maximum, value) => value > maximum ? value : maximum)
-    })()
-    const timeAnchors = [
-      ...messageRows.flatMap((row) => (
-        row.displayTimestampUs === null
-          ? []
-          : [{
-              timestampUs: row.startTimestampUs,
-              displayTimestampUs: row.displayTimestampUs,
-              wallClockUs: BigInt(row.createdAtMs) * 1000n,
-              approximate: false,
-            }]
-      )),
-      ...this.analogRows.flatMap((row) => (
-        row.displayTimestampUs === null
-          ? []
-          : [{
-              timestampUs: row.timestampUs,
-              displayTimestampUs: row.displayTimestampUs,
-              wallClockUs: BigInt(row.createdAtMs) * 1000n,
-              approximate: false,
-            }]
-      )),
-    ]
-    return {
-      windowStartUs: query.windowStartUs,
-      windowEndUs: query.windowStartUs + query.windowDurationUs,
-      windowDurationUs: query.windowDurationUs,
-      earliestTimestampUs,
-      latestTimestampUs,
-      earliestDisplayTimestampUs,
-      latestDisplayTimestampUs,
-      windowStartDisplayTimestampUs: earliestDisplayTimestampUs,
-      windowEndDisplayTimestampUs: latestDisplayTimestampUs,
-      hasMoreBefore: false,
-      hasMoreAfter: false,
-      pulses: messageRows.map((row) => ({
-        selectionKey: buildCapturedLogSelectionKey(row),
-        startTimestampUs: row.startTimestampUs,
-        endTimestampUs: row.endTimestampUs,
-        traceEndTimestampUs: computePulseTraceEndTimestampUs(
-          row.startTimestampUs,
-          row.rawPulseWidths,
-          row.endTimestampUs,
-        ),
-        displayStartTimestampUs: row.displayTimestampUs,
-        displayEndTimestampUs:
-          row.displayTimestampUs === null
-            ? null
-            : row.displayTimestampUs + (row.endTimestampUs - row.startTimestampUs),
-        wallClockUs: BigInt(row.createdAtMs) * 1000n,
-        sopLabel: normalizeSopType(row.sopKind),
-        messageLabel: resolvePulseMessageLabel(row),
-        pulseWidthsNs: row.rawPulseWidths,
-      })),
-      analogPoints: this.analogRows.slice(0, query.analogPointBudget).map((row) => ({
-        timestampUs: row.timestampUs,
-        displayTimestampUs: row.displayTimestampUs,
-        wallClockUs: BigInt(row.createdAtMs) * 1000n,
-        vbusV: row.vbusV,
-        ibusA: row.ibusA,
-      })),
-      events: eventRows.map((row) => ({
-        selectionKey: buildCapturedLogSelectionKey(row),
-        eventType: row.eventType,
-        timestampUs: row.startTimestampUs,
-        displayTimestampUs: row.displayTimestampUs,
-        wallClockUs: BigInt(row.createdAtMs) * 1000n,
-      })),
-      timeAnchors,
-    }
-  }
-
   public async clearLogs(scope: string): Promise<void> {
     this.clearScopes.push(scope)
     if (scope === 'all' || scope === 'analog') {
@@ -267,38 +132,6 @@ class TestLogDriver extends EventTarget {
       }),
     )
   }
-}
-
-const normalizeSopType = (value: string | null): string | null => {
-  switch (value) {
-    case 'SOP':
-      return 'SOP'
-    case 'SOP_PRIME':
-      return "SOP'"
-    case 'SOP_DOUBLE_PRIME':
-      return "SOP''"
-    case 'SOP_DEBUG_PRIME':
-      return "SOP'-D"
-    case 'SOP_DEBUG_DOUBLE_PRIME':
-      return "SOP''-D"
-    default:
-      return null
-  }
-}
-
-const resolvePulseMessageLabel = (row: LoggedCapturedMessage): string | null => {
-  if (!row.messageKind || row.messageType == null) {
-    return null
-  }
-  const mapping =
-    row.messageKind === 'CONTROL'
-      ? CONTROL_MESSAGE_TYPES[row.messageType]
-      : row.messageKind === 'DATA'
-        ? DATA_MESSAGE_TYPES[row.messageType]
-        : row.messageKind === 'EXTENDED'
-          ? EXTENDED_MESSAGE_TYPES[row.messageType]
-          : undefined
-  return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
 }
 
 const buildInstrument = (): RackInstrument => ({
@@ -392,7 +225,7 @@ afterEach(() => {
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
-  it('renders the message table without the timestrip', async () => {
+  it('renders the message table', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1)])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -410,7 +243,6 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     )
 
     expect(await screen.findByText('Wall time')).toBeInTheDocument()
-    expect(screen.queryByTestId('drpd-usbpd-log-timestrip')).not.toBeInTheDocument()
   })
 
   it('updates visible message table columns from global column settings', async () => {

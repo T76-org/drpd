@@ -121,6 +121,10 @@ export interface AnalogSampleQuery {
   startTimestampUs: bigint
   ///< Inclusive end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Timestamp column used for start/end filtering.
+  timeBasis?: 'device' | 'wallClock'
+  ///< Sort order by timestamp.
+  sortOrder?: 'asc' | 'desc'
   ///< Optional row limit.
   limit?: number
 }
@@ -133,6 +137,8 @@ export interface CapturedMessageQuery {
   startTimestampUs: bigint
   ///< Inclusive end timestamp in microseconds.
   endTimestampUs: bigint
+  ///< Timestamp column used for start/end filtering.
+  timeBasis?: 'device' | 'wallClock'
   ///< Sort order by start timestamp.
   sortOrder?: 'asc' | 'desc'
   ///< Optional message kind filter.
@@ -147,90 +153,6 @@ export interface CapturedMessageQuery {
   offset?: number
   ///< Optional row limit.
   limit?: number
-}
-
-/**
- * Time-strip render query criteria.
- */
-export interface MessageLogTimeStripQuery {
-  ///< Inclusive visible window start timestamp in microseconds.
-  windowStartUs: bigint
-  ///< Visible window width in microseconds.
-  windowDurationUs: bigint
-  ///< Maximum returned analog samples after worker-side downsampling.
-  analogPointBudget: number
-}
-
-/**
- * One analog point prepared for time-strip rendering.
- */
-export interface MessageLogAnalogPoint {
-  ///< Capture timestamp in microseconds.
-  timestampUs: bigint
-  ///< Display timestamp in microseconds relative to the active logging epoch.
-  displayTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in microseconds.
-  wallClockUs: bigint | null
-  ///< VBUS voltage in volts.
-  vbusV: number
-  ///< IBUS current in amps.
-  ibusA: number
-}
-
-/**
- * One message pulse segment prepared for time-strip rendering.
- */
-export interface MessageLogPulseSegment {
-  ///< Stable message selection key.
-  selectionKey: string
-  ///< Capture start timestamp in microseconds.
-  startTimestampUs: bigint
-  ///< Capture end timestamp in microseconds.
-  endTimestampUs: bigint
-  ///< Waveform end timestamp derived from the pulse sequence.
-  traceEndTimestampUs: bigint
-  ///< Display start timestamp in microseconds relative to the active logging epoch.
-  displayStartTimestampUs: bigint | null
-  ///< Display end timestamp in microseconds relative to the active logging epoch.
-  displayEndTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in microseconds.
-  wallClockUs: bigint | null
-  ///< Decoded SOP label for message annotations.
-  sopLabel: string | null
-  ///< Decoded message label for message annotations.
-  messageLabel: string | null
-  ///< Pulse widths converted to nanoseconds.
-  pulseWidthsNs: Float64Array
-}
-
-/**
- * One significant event marker prepared for time-strip rendering.
- */
-export interface MessageLogEventMarker {
-  ///< Stable event selection key.
-  selectionKey: string
-  ///< Significant event type.
-  eventType: LoggedCapturedEventType
-  ///< Capture timestamp in microseconds.
-  timestampUs: bigint
-  ///< Display timestamp in microseconds relative to the active logging epoch.
-  displayTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in microseconds.
-  wallClockUs: bigint | null
-}
-
-/**
- * Host/device anchor pair used to derive the secondary wall-clock axis.
- */
-export interface MessageLogTimeAnchor {
-  ///< Capture timestamp in microseconds.
-  timestampUs: bigint
-  ///< Display timestamp in microseconds relative to the active logging epoch.
-  displayTimestampUs: bigint | null
-  ///< Host wall-clock timestamp in microseconds.
-  wallClockUs: bigint | null
-  ///< True when the mapping is approximate rather than exact.
-  approximate: boolean
 }
 
 /**
@@ -249,42 +171,6 @@ export interface DRPDClockSyncSnapshot {
   approximate: boolean
   ///< Sync source.
   source: 'connect' | 'periodic'
-}
-
-/**
- * Worker-prepared time-strip window payload.
- */
-export interface MessageLogTimeStripWindow {
-  ///< Effective visible window start timestamp in microseconds.
-  windowStartUs: bigint
-  ///< Effective visible window end timestamp in microseconds.
-  windowEndUs: bigint
-  ///< Effective visible window width in microseconds.
-  windowDurationUs: bigint
-  ///< Earliest known timestamp across analog samples and messages.
-  earliestTimestampUs: bigint | null
-  ///< Latest known timestamp across analog samples and messages.
-  latestTimestampUs: bigint | null
-  ///< Earliest known display timestamp.
-  earliestDisplayTimestampUs: bigint | null
-  ///< Latest known display timestamp.
-  latestDisplayTimestampUs: bigint | null
-  ///< Visible window start on the display timeline.
-  windowStartDisplayTimestampUs: bigint | null
-  ///< Visible window end on the display timeline.
-  windowEndDisplayTimestampUs: bigint | null
-  ///< True when older data exists before the current window.
-  hasMoreBefore: boolean
-  ///< True when newer data exists after the current window.
-  hasMoreAfter: boolean
-  ///< Message pulse spans overlapping the current window.
-  pulses: MessageLogPulseSegment[]
-  ///< Analog samples for the current window after worker-side downsampling.
-  analogPoints: MessageLogAnalogPoint[]
-  ///< Significant event markers overlapping the current window.
-  events: MessageLogEventMarker[]
-  ///< Host/device anchors for the secondary wall-clock axis.
-  timeAnchors: MessageLogTimeAnchor[]
 }
 
 /**
@@ -428,14 +314,6 @@ export interface DRPDLogStore {
    * @returns Matching rows.
    */
   queryCapturedMessages(query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]>
-
-  /**
-   * Query a worker-optimized time-strip render window.
-   *
-   * @param query - Time-strip window criteria.
-   * @returns Prepared render payload.
-   */
-  queryMessageLogTimeStripWindow(query: MessageLogTimeStripQuery): Promise<MessageLogTimeStripWindow>
 
   /**
    * Export selected log data.

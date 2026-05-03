@@ -105,6 +105,12 @@
   position: relative;
 }
 
+.headerAccessory {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .headerControlButton {
   border: var(--border-thin) solid var(--color-border-panel);
   background: var(--color-surface-panel);

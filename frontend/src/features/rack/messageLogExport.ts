@@ -8,7 +8,7 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../lib/device/drpd/usb-pd/message'
-import { formatWallClock } from './instruments/DrpdUsbPdLogTimeStrip.utils'
+import { formatWallClock } from './messageLogFormat'
 
 const toCsvField = (value: string): string =>
   /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value

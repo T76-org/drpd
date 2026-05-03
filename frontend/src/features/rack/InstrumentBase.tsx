@@ -27,6 +27,7 @@ export const InstrumentBase = ({
   isEditMode = false,
   onClose,
   headerControls,
+  headerAccessory,
   contentClassName,
   children
 }: {
@@ -35,6 +36,7 @@ export const InstrumentBase = ({
   isEditMode?: boolean
   onClose?: () => void
   headerControls?: InstrumentHeaderControl[]
+  headerAccessory?: ReactNode
   contentClassName?: string
   children?: ReactNode
 }) => {
@@ -160,6 +162,9 @@ export const InstrumentBase = ({
       <div className={styles.header}>
         <span className={styles.name}>{displayName}</span>
         <div className={styles.headerActions} ref={controlsRef}>
+          {headerAccessory ? (
+            <div className={styles.headerAccessory}>{headerAccessory}</div>
+          ) : null}
           {(headerControls ?? []).map((control) => {
             const hasPopover = typeof control.renderPopover === 'function'
             const isOpen = openControlId === control.id
