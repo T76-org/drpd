@@ -196,6 +196,7 @@ export const DrpdTimeStripInstrumentView = ({
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
   const resizeFrameRef = useRef<number | null>(null)
   const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
+  const analogHoverPointerRef = useRef<{ x: number; y: number } | null>(null)
   const digitalEntriesSignatureRef = useRef('')
   const analogSamplesSignatureRef = useRef('')
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
@@ -230,25 +231,37 @@ export const DrpdTimeStripInstrumentView = ({
     viewportWidthPx,
   )
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
-  const updateAnalogHover = useCallback((event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+  const updateAnalogHoverAtViewportPoint = useCallback((x: number, y: number) => {
     const viewport = viewportRef.current
     if (!viewport || viewportWidthPx <= 0 || viewportHeightPx <= 0) {
+      analogHoverPointerRef.current = null
+      setAnalogHover(null)
+      return
+    }
+    const viewportX = Math.max(0, Math.min(viewportWidthPx, x))
+    const viewportY = Math.max(0, Math.min(viewportHeightPx, y))
+    const layout = buildTimestripLaneLayout(viewportHeightPx)
+    if (viewportY < layout.analog.y || viewportY > layout.analog.y + layout.analog.height) {
+      analogHoverPointerRef.current = null
+      setAnalogHover(null)
+      return
+    }
+    analogHoverPointerRef.current = { x: viewportX, y: viewportY }
+    const worldUs = (viewport.scrollLeft + viewportX) * zoomDenominator
+    const value = interpolateTimestripAnalogSample(analogSamples, worldUs)
+    setAnalogHover(value ? { x: viewportX, y: viewportY, value } : null)
+  }, [analogSamples, viewportHeightPx, viewportWidthPx, zoomDenominator])
+  const updateAnalogHover = useCallback((event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+    const viewport = viewportRef.current
+    if (!viewport) {
       setAnalogHover(null)
       return
     }
     const rect = viewport.getBoundingClientRect()
-    const x = Math.max(0, Math.min(viewportWidthPx, event.clientX - rect.left))
-    const y = Math.max(0, Math.min(viewportHeightPx, event.clientY - rect.top))
-    const layout = buildTimestripLaneLayout(viewportHeightPx)
-    if (y < layout.analog.y || y > layout.analog.y + layout.analog.height) {
-      setAnalogHover(null)
-      return
-    }
-    const worldUs = (viewport.scrollLeft + x) * zoomDenominator
-    const value = interpolateTimestripAnalogSample(analogSamples, worldUs)
-    setAnalogHover(value ? { x: viewport.scrollLeft + x, y, value } : null)
-  }, [analogSamples, viewportHeightPx, viewportWidthPx, zoomDenominator])
+    updateAnalogHoverAtViewportPoint(event.clientX - rect.left, event.clientY - rect.top)
+  }, [updateAnalogHoverAtViewportPoint])
   const clearAnalogHover = useCallback(() => {
+    analogHoverPointerRef.current = null
     setAnalogHover(null)
   }, [])
   const commitZoomDenominator = useCallback((value: number | string) => {
@@ -295,7 +308,11 @@ export const DrpdTimeStripInstrumentView = ({
   }, [queueTileInvalidation])
   const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     setScrollLeftPx(event.currentTarget.scrollLeft)
-  }, [])
+    const pointer = analogHoverPointerRef.current
+    if (pointer) {
+      updateAnalogHoverAtViewportPoint(pointer.x, pointer.y)
+    }
+  }, [updateAnalogHoverAtViewportPoint])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -985,24 +1002,24 @@ export const DrpdTimeStripInstrumentView = ({
             data-testid="drpd-timestrip-timeline"
             style={{ width: `${timelineWidthPx}px` }}
           />
-          {analogHover ? (
-            <div
-              className={styles.analogHoverOverlay}
-              data-testid="drpd-timestrip-analog-hover"
-              style={{
-                left: `${analogHover.x}px`,
-                top: `${analogHover.y}px`,
-              }}
-            >
-              <span className={styles.analogHoverVoltage}>
-                {formatAnalogHoverValue(analogHover.value.voltageV, 'V')}
-              </span>
-              <span className={styles.analogHoverCurrent}>
-                {formatAnalogHoverValue(analogHover.value.currentA, 'A')}
-              </span>
-            </div>
-          ) : null}
         </div>
+        {analogHover ? (
+          <div
+            className={styles.analogHoverOverlay}
+            data-testid="drpd-timestrip-analog-hover"
+            style={{
+              left: `${44 + analogHover.x}px`,
+              top: `${analogHover.y}px`,
+            }}
+          >
+            <span className={styles.analogHoverVoltage}>
+              {formatAnalogHoverValue(analogHover.value.voltageV, 'V')}
+            </span>
+            <span className={styles.analogHoverCurrent}>
+              {formatAnalogHoverValue(analogHover.value.currentA, 'A')}
+            </span>
+          </div>
+        ) : null}
         <div
           className={`${styles.legend} ${styles.currentLegend}`}
           data-testid="drpd-timestrip-current-legend"

@@ -5,6 +5,7 @@
 }
 
 .frame {
+  position: relative;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 36px;
   grid-template-rows: minmax(0, 1fr);
