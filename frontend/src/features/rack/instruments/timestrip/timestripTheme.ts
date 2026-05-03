@@ -11,6 +11,11 @@ export interface TimestripThemePalette {
   waveformColor: string
   componentFillColor: string
   byteFillColor: string
+  preambleFillColor: string
+  sopFillColor: string
+  headerFillColor: string
+  dataFillColor: string
+  crc32FillColor: string
   eventCaptureColor: string
   eventRoleColor: string
   eventStatusColor: string
@@ -32,6 +37,11 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   waveformColor: 'rgba(1, 168, 4, 0.88)',
   componentFillColor: 'rgba(255, 255, 255, 0.08)',
   byteFillColor: 'rgba(255, 255, 255, 0.12)',
+  preambleFillColor: '#334155',
+  sopFillColor: '#0f4a46',
+  headerFillColor: '#1d356f',
+  dataFillColor: '#4f2e14',
+  crc32FillColor: '#5a1830',
   eventCaptureColor: '#F6941F',
   eventRoleColor: '#05BAFA',
   eventStatusColor: '#01A804',
@@ -53,6 +63,11 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   waveformColor: 'rgba(1, 128, 4, 0.82)',
   componentFillColor: 'rgba(28, 31, 42, 0.06)',
   byteFillColor: 'rgba(28, 31, 42, 0.1)',
+  preambleFillColor: '#d8e0ea',
+  sopFillColor: '#b6dedb',
+  headerFillColor: '#bdccf4',
+  dataFillColor: '#efd1ad',
+  crc32FillColor: '#efb5cb',
   eventCaptureColor: '#F6941F',
   eventRoleColor: '#05BAFA',
   eventStatusColor: '#01A804',
@@ -94,6 +109,11 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.waveformColor,
     palette.componentFillColor,
     palette.byteFillColor,
+    palette.preambleFillColor,
+    palette.sopFillColor,
+    palette.headerFillColor,
+    palette.dataFillColor,
+    palette.crc32FillColor,
     palette.eventCaptureColor,
     palette.eventRoleColor,
     palette.eventStatusColor,

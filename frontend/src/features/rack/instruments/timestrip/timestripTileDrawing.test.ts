@@ -28,6 +28,39 @@ const buildContext = () =>
     textBaseline: 'alphabetic',
   }) as unknown as CanvasRenderingContext2D
 
+const buildTrackingContext = () => {
+  const fillStyles: string[] = []
+  const context = {
+    beginPath: vi.fn(),
+    clearRect: vi.fn(),
+    fillRect: vi.fn(() => {
+      fillStyles.push(context.fillStyle)
+    }),
+    fillText: vi.fn(),
+    lineTo: vi.fn(),
+    measureText: vi.fn((text: string) => ({ width: text.length * 6 })),
+    moveTo: vi.fn(),
+    clip: vi.fn(),
+    rect: vi.fn(),
+    restore: vi.fn(),
+    save: vi.fn(),
+    scale: vi.fn(),
+    stroke: vi.fn(),
+    strokeRect: vi.fn(),
+    translate: vi.fn(),
+    fillStyle: '',
+    font: '',
+    lineWidth: 1,
+    strokeStyle: '',
+    textAlign: 'start',
+    textBaseline: 'alphabetic',
+  }
+  return {
+    context: context as unknown as CanvasRenderingContext2D,
+    fillStyles,
+  }
+}
+
 const tile: TimestripVisibleTile = {
   key: 'z1000:0:0',
   tileX: 0,
@@ -73,6 +106,11 @@ describe('timestripTileDrawing', () => {
       waveformColor: '#777777',
       componentFillColor: '#666666',
       byteFillColor: '#555555',
+      preambleFillColor: '#444444',
+      sopFillColor: '#333333',
+      headerFillColor: '#222222',
+      dataFillColor: '#111111',
+      crc32FillColor: '#000000',
       eventCaptureColor: '#f00',
       eventRoleColor: '#0f0',
       eventStatusColor: '#00f',
@@ -82,5 +120,40 @@ describe('timestripTileDrawing', () => {
     })
 
     expect(context.fillStyle).toBe('#cccccc')
+  })
+
+  it('colors detailed digital components and bytes by message segment', () => {
+    const { context, fillStyles } = buildTrackingContext()
+
+    drawTimestripTile(
+      context,
+      { ...tile, zoomLevel: 'z1000', zoomLevelDenominator: 1000 },
+      1,
+      DEFAULT_TIMESTRIP_THEME,
+      [
+        {
+          kind: 'message',
+          startWorldUs: 20_000,
+          endWorldUs: 220_000,
+          label: 'Source Capabilities',
+          pulseWidthsNs: [10_000, 10_000],
+          frameBytes: [0x18, 0x18, 0x18, 0x11, 0xb0, 0x99, 0x04, 0x00, 0xb8, 0xe1, 0x4e, 0x58],
+          components: [
+            { label: 'Preamble', startUs: 0, durationUs: 20_000, byteStart: 0, byteLength: 0 },
+            { label: 'SOP', startUs: 20_000, durationUs: 40_000, byteStart: 0, byteLength: 4 },
+            { label: 'Header', startUs: 60_000, durationUs: 20_000, byteStart: 4, byteLength: 2 },
+            { label: 'Data', startUs: 80_000, durationUs: 20_000, byteStart: 6, byteLength: 2 },
+            { label: 'CRC32', startUs: 100_000, durationUs: 40_000, byteStart: 8, byteLength: 4 },
+          ],
+        },
+      ],
+      1_700_000_000_000_000,
+    )
+
+    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.preambleFillColor)
+    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.sopFillColor)
+    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.headerFillColor)
+    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.dataFillColor)
+    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.crc32FillColor)
   })
 })

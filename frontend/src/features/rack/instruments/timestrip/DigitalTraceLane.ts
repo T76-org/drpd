@@ -120,7 +120,8 @@ const drawDetailedMessage = (
   for (const component of entry.components) {
     const componentX = x + component.startUs / options.zoomDenominator
     const componentWidth = Math.max(1, component.durationUs / options.zoomDenominator)
-    drawRect(context, componentX, componentY, componentWidth, componentHeight, theme.componentFillColor, theme.messageStrokeColor)
+    const componentFill = getDigitalComponentFillColor(component.label, theme)
+    drawRect(context, componentX, componentY, componentWidth, componentHeight, componentFill, theme.messageStrokeColor)
     if (componentWidth >= MIN_TEXT_WIDTH_PX) {
       drawClippedText(context, component.label, componentX, componentY, componentWidth, componentHeight, theme.messageTextColor)
     }
@@ -135,7 +136,8 @@ const drawDetailedMessage = (
   for (let index = 0; index < entry.frameBytes.length; index += 1) {
     const byteX = x + (firstByteStartUs + index * byteDurationUs) / options.zoomDenominator
     const byteWidth = Math.max(1, byteDurationUs / options.zoomDenominator)
-    drawRect(context, byteX, byteY, byteWidth, byteHeight, theme.byteFillColor, theme.messageStrokeColor)
+    const byteFill = getDigitalByteFillColor(entry, index, theme)
+    drawRect(context, byteX, byteY, byteWidth, byteHeight, byteFill, theme.messageStrokeColor)
     if (byteWidth >= 20) {
       drawClippedText(
         context,
@@ -148,6 +150,36 @@ const drawDetailedMessage = (
       )
     }
   }
+}
+
+const getDigitalComponentFillColor = (label: string, theme: TimestripThemePalette): string => {
+  switch (label) {
+    case 'Preamble':
+      return theme.preambleFillColor
+    case 'SOP':
+      return theme.sopFillColor
+    case 'Header':
+      return theme.headerFillColor
+    case 'Data':
+      return theme.dataFillColor
+    case 'CRC32':
+      return theme.crc32FillColor
+    default:
+      return theme.componentFillColor
+  }
+}
+
+const getDigitalByteFillColor = (
+  entry: TimestripDigitalMessageEntry,
+  byteIndex: number,
+  theme: TimestripThemePalette,
+): string => {
+  const component = entry.components.find((candidate) => (
+    candidate.byteLength > 0 &&
+    byteIndex >= candidate.byteStart &&
+    byteIndex < candidate.byteStart + candidate.byteLength
+  ))
+  return component ? getDigitalComponentFillColor(component.label, theme) : theme.byteFillColor
 }
 
 const drawWaveform = (
