@@ -6,7 +6,7 @@ import asyncio
 import threading
 import unittest
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, PropertyMock, patch
 
 from usb.core import Device as USBDevice
@@ -91,13 +91,14 @@ class TestDeviceDisconnect(unittest.IsolatedAsyncioTestCase):
             idProduct=0x000A,
         )
         internal = DeviceInternal(cast(USBDevice, usb_device), lambda *_: None)
-        internal.instrument = SimpleNamespace(
+        cast(Any, internal).instrument = SimpleNamespace(
             disable_event=lambda *_: None,
             uninstall_handler=lambda *_: None,
             close=lambda: None,
         )
-        internal._resource_manager = SimpleNamespace(close=lambda: None)
-        internal._wrapped_interrupt_handler = object()
+        cast(Any, internal)._resource_manager = SimpleNamespace(
+            close=lambda: None)
+        cast(Any, internal)._wrapped_interrupt_handler = object()
         disconnect_errors = []
 
         internal._lock.acquire()

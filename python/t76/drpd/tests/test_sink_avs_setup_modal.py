@@ -3,6 +3,7 @@ Unit tests for AVS setup modal.
 """
 
 import unittest
+from typing import Union
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 from t76.drpd.app.main_screen.sink_avs_setup_modal import SinkAVSSetupModal
@@ -21,7 +22,7 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
 
     def _build_modal(
         self,
-        pdo: SPR_PDOAVs | EPR_PDOAVs,
+        pdo: Union[SPR_PDOAVs, EPR_PDOAVs],
         pdo_index: int = 1,
     ) -> tuple[SinkAVSSetupModal, MagicMock, _FakeInput, _FakeInput, MagicMock]:
         """Create modal with mocked dependencies and inputs."""
