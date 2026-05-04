@@ -6,6 +6,7 @@ Unit tests for the DeviceEventManager class.
 
 import asyncio
 import unittest
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 from t76.drpd.device.device_events import DeviceEvents
@@ -283,7 +284,7 @@ class TestDeviceEventManagerIntegration(
         """Test that an observer can unregister itself during handling.
         """
         call_count = [0]
-        observer_func: DeviceEvents.EventObserver | None = None
+        observer_func: Optional[DeviceEvents.EventObserver] = None
 
         def self_unregistering_observer(
                 _: DeviceEvent) -> None:

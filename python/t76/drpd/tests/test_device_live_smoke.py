@@ -5,18 +5,20 @@ Optional live smoke test for an attached Dr. PD USBTMC device.
 from __future__ import annotations
 
 import unittest
+from typing import Iterable, Optional, cast
 
 import usb.core
+from usb.core import Device as USBDevice
 
 from t76.drpd.device.device import Device
 
 
-def _find_live_drpd():
-    devices = list(usb.core.find(
+def _find_live_drpd() -> Optional[USBDevice]:
+    devices = list(cast(Iterable[USBDevice], usb.core.find(
         find_all=True,
         idVendor=0x2E8A,
         idProduct=0x000A,
-    ))
+    )))
     return devices[0] if devices else None
 
 

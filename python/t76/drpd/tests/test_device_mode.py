@@ -4,6 +4,7 @@ Unit tests for device mode parsing and selection.
 
 import unittest
 from types import SimpleNamespace
+from typing import Any, cast
 
 from textual._context import active_app
 from textual.widgets import OptionList
@@ -27,7 +28,8 @@ class TestModeSelectionModal(unittest.TestCase):
     def test_modal_exposes_only_supported_modes(self) -> None:
         """The modal should list Disabled, Observer, and Sink only."""
         modal = ModeSelectionModal()
-        token = active_app.set(SimpleNamespace(_compose_stacks=[[]], _composed=[[]]))
+        token = active_app.set(cast(
+            Any, SimpleNamespace(_compose_stacks=[[]], _composed=[[]])))
         try:
             option_list = next(
                 widget for widget in modal.compose() if isinstance(widget, OptionList)
