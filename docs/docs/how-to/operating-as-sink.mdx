@@ -1,0 +1,35 @@
+---
+sidebar_position: 2
+---
+
+# Operating Dr. PD as a sink
+
+In addition to [observer mode](./observing-connection.mdx), Dr. PD can also be used in _Sink Mode,_ where it acts as a USB-PD sink device that can be powered by a compatible source. 
+
+This mode allows you to safely test and characterize source devices and cables without risking damage to your actual devices, and with more control over power contracts and energy use than you would have with a real sink.
+
+## Set up
+
+To enter sink mode, click on Mode -> Select Mode -> Sink from the menu, or press the S key on your keyboard. You should see the Mode indicator in the control app's header change to "Sink," and the Status indicator will read "Unattached" until you connect a source device.
+
+Connect your source device to Port 1 (the left port) using a USB-C cable of your choice. If all goes well, you should see the Status indicator change to “Attached,” and the VBUS voltage and Power Profile indicators will show the current power contract between the source and Dr. PD, which will normally be the default 5V/3A contract that most sources will offer to a sink that does not have any special capabilities.
+
+## Changing the power contract
+
+In sink mode, Dr. PD takes note of the contracts that the source offers, and allows you to establish a new contract with the source by selecting one of the offered contracts from the Power Profile selection dialog (Mode -> Choose Power Contract…). This allows you to test the behavior of the source under different power conditions, and to perform energy measurements at different power levels.
+
+## Drawing power from the source
+
+In sink mode, you can use the banana connectors to monitor the VBUS voltage with an external voltmeter, and to draw current from the source using an external load—for example, to perform energy measurements or test the source's protection mechanisms.
+
+:::note
+
+In this mode, Port 2 is disconnected from the USB-PD bus and VBUS line in order to protect any device that you might have inadvertently left connected to that port, and so you will not be able to use Port 2 for any USB-PD communication or power delivery while in sink mode.
+
+:::
+
+:::warning[Safety mechanisms]
+
+In addition to the protection mechanisms implemented by your source device, Dr. PD implements its own set of overvoltage/overcurrent protections. You can use them in tandem with native protections in order to make sure that you don't damage your source device or Dr. PD itself while testing, but Dr. PD does not automatically set any protection mechanisms for you (beyond the default 60V / 6A limits that are hardcoded into the firmware to prevent damage to Dr. PD itself), so you should make sure to set appropriate limits for your tests in order to avoid damage to your source device or Dr. PD.
+
+:::
