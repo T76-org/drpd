@@ -1,0 +1,44 @@
+usb-pd:
+  label: USB-PD
+  permalink: /usb-pd
+  description: USB Power Delivery protocol analysis, negotiation, and behavior.
+
+protocol-analysis:
+  label: Protocol Analysis
+  permalink: /protocol-analysis
+  description: Message capture, decoding, correlation, triggering, and debugging.
+
+programmable-sink:
+  label: Programmable Sink
+  permalink: /programmable-sink
+  description: Sink emulation, load scenarios, and charger characterization.
+
+epr:
+  label: EPR
+  permalink: /epr
+  description: Extended Power Range testing up to 48V, 5A, and 240W.
+
+pps-avs:
+  label: PPS/AVS
+  permalink: /pps-avs
+  description: Programmable Power Supply and Adjustable Voltage Supply workflows.
+
+automation:
+  label: Automation
+  permalink: /automation
+  description: Python, JavaScript, SCPI, and USBTMC automation workflows.
+
+hardware:
+  label: Hardware
+  permalink: /hardware
+  description: Board design, validation, measurement, and production notes.
+
+firmware:
+  label: Firmware
+  permalink: /firmware
+  description: Device firmware, USB-PD stack behavior, and update notes.
+
+validation:
+  label: Validation
+  permalink: /validation
+  description: Test coverage, device validation, compliance checks, and release readiness.

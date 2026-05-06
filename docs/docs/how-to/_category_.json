@@ -1,0 +1,8 @@
+{
+  "label": "How to…",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "How to use Dr. PD to do common tasks, such as testing a USB source or sink, or debugging a USB connection."
+  }
+}
