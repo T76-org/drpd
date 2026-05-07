@@ -40,6 +40,8 @@ If you select one of the messages in the log, you can see a detailed breakdown o
 
 Clicking on the Message Log -> Configure… menu item will open a dialog where you can configure the fields that are shown in the message log table. You can also resize the various columns in the log by dragging their edges, and the software will remember your preferences for the next time you open it. This can be useful to focus on the specific information that is relevant to your analysis, and to hide any fields that you find less useful.
 
+You can quickly restore the table to its default configuration by clicking on the Message Log -> Restore Table Layout menu item.
+
 :::note[Adjusting capture duration]
 The configuration dialog can also be used to adjust the memory depth of the capture buffer.By default, the control software will capture up to 1,000,000 data points, which corresponds to approximately 2.5 days of continuous capture time. You can adjust this setting to increase or decrease the capture duration, depending on your needs and the available memory on your computer. Keep in mind that increasing the capture duration will require more memory, and may affect the performance of the software if you are capturing a large amount of data.
 :::
@@ -52,7 +54,7 @@ Some captures can be very long and contain a lot of messages, which can make it 
 GoodCRC messages are control messages that are sent by the receiver to acknowledge the receipt of a message. They are very common in USB-PD communication, and can clutter the log if you are not interested in them. You can choose to hide GoodCRC messages from the log by clicking on Messages -> Hide GoodCRC Messages, or by pressing the G key. This will make it easier to focus on the more relevant messages in the capture.
 :::
 
-## Log events
+## Logging events
 
 Dr. PD injects _events_ in the message log when certain conditions occur during a capture. These include starting or stopping a capture, changes in the connection state, and overvoltage/overprotection triggers. These events are marked with a different color in the log, and can be used to correlate changes in the connection state or power delivery with the messages being exchanged between the devices.
 
@@ -60,9 +62,13 @@ Dr. PD injects _events_ in the message log when certain conditions occur during 
 You can add a “Manual Marker” event to the log by clicking on Message Log -> Add Marker, or by pressing the M key. This can be useful to mark a specific point in the capture, for example when you perform a specific action on the device, or when you want to highlight a particular message or sequence of messages.
 :::
 
+## Clearing the log
+
+You can clear the message buffer at any time by clicking on Message Log -> Clear Log, or by pressing the X key.
+
 ## Exporting a capture
 
-You can export any selected messages from the log to either CSV or JSON files by selecting the appropriate option from the Message Log -> Export menu. This can be useful to analyze the captured messages in other tools, or to share them with others for debugging purposes.
+You can export any selected messages from the log to either CSV or JSON files by selecting the appropriate option from the Message Log -> Export Selected... menu. This can be useful to analyze the captured messages in other tools, or to share them with others for debugging purposes.
 
 The two export formats serve different purposes:
 
