@@ -1648,9 +1648,47 @@ export const RackView = () => {
       }
     }
 
+    const handleLogEntryAdded = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      if (detail?.kind !== 'message' && detail?.kind !== 'event') {
+        return
+      }
+      if (!isLoggedCapturedMessageLike(detail.row)) {
+        return
+      }
+      const row = detail.row
+      setMessageLogFilterRows((current) => {
+        const key = buildCapturedLogSelectionKey(row)
+        if (current.some((candidate) => buildCapturedLogSelectionKey(candidate) === key)) {
+          return current
+        }
+        return [...current, row]
+      })
+    }
+
+    const handleLogEntryDeleted = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const deletedCount = Number(detail?.messagesDeleted)
+      if (!Number.isFinite(deletedCount) || deletedCount <= 0) {
+        return
+      }
+      void activeDriver
+        .queryCapturedMessages({
+          startTimestampUs: 0n,
+          endTimestampUs: LOG_END_TIMESTAMP_US,
+          sortOrder: 'asc',
+        })
+        .then(setMessageLogFilterRows)
+        .catch(() => setMessageLogFilterRows([]))
+    }
+
     activeDriver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleLogEntryAdded)
+    activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleLogEntryDeleted)
     return () => {
       activeDriver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+      activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleLogEntryAdded)
+      activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleLogEntryDeleted)
     }
   }, [activeDriver])
 
@@ -1778,7 +1816,7 @@ export const RackView = () => {
 
   /** Open DRPD documentation in a new tab. */
   const handleOpenDocumentation = () => {
-    window.open('https://t76.org/drpd/help', '_blank', 'noopener,noreferrer')
+    window.open('https://t76.org/drpd/docs', '_blank', 'noopener,noreferrer')
   }
 
   /** Connect a new device using the WebUSB picker. */
