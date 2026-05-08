@@ -1,0 +1,41 @@
+# Using Dr. PD's protection mechanisms
+
+The USB-PD protocol includes a set of safety mechanisms that are designed to protect both the source and sink devices from damage in case of abnormal conditions, such as overvoltage, overcurrent, or short circuits. These have their limitations, but are normally “good enough” for most applications.
+
+Dr. PD is designed to let you explore and test USB-PD devices in ways that are not always compatible with these protection mechanisms, and so it implements its own set of protections that are designed to work in tandem with their native counterparts, and to allow you to safely test and characterize USB-PD devices without risking damage to Dr. PD itself or to the devices you are testing.
+
+:::danger
+While Dr. PD's protection mechanisms are designed to prevent damage to Dr. PD and to the devices you are testing, they are not foolproof, and there is always a risk of damage when testing USB-PD devices, especially if you are testing at high power levels or with devices that have unknown or poorly implemented protection mechanisms.
+
+Therefore, it's important to always take appropriate safety precautions when testing USB-PD devices with Dr. PD, such as using high-quality cables and connectors, making sure that your devices are on a non-flammable surface, and keeping a fire extinguisher nearby just in case. We also recommend not leaving Dr. PD unattended while testing, especially when testing at high power levels or with devices that have unknown or poorly implemented protection mechanisms.
+:::
+
+## Overvoltage and overcurrent protection
+
+Dr. PD implements its own set of configurable overvoltage and overcurrent protections. These protections are designed to exhibit a very specific set of behaviours:
+
+- They act as on/off switches that cut the power delivery between ports 1 and 2 and between port 1 and the banana connectors when triggered. Dr. PD does not implement any kind of current limiting or voltage clamping behavior, and instead relies on cutting the power delivery to protect itself and the devices you are testing.
+- They are implemented in firmware; while this means that they remain active even when Dr. PD is not connected to a host device, it also means that there is a small delay between the moment when the overage condition occurs and when the protection mechanism is triggered—typically on the order of 100µs.
+- They have no built-in tolerance, and will trigger as soon as the voltage or current exceeds the configured threshold.
+- They are bidirectional, and will cut the power delivery in both directions between ports 1 and 2 and between port 1 and the banana connectors when triggered. This means that if you have a device connected to port 2 or to the banana connectors while testing a source device on port 1, they will also be protected by the overvoltage and overcurrent protections of Dr. PD.
+- Once triggered, they will _never_ reset automatically, and will require a manual reset by the user in order to resume normal operation. This is to prevent any kind of “auto-retry” behaviour that could potentially cause damage to Dr. PD or to the devices you are testing.
+
+You can configure the overvoltage and overcurrent protection thresholds in the control app by selecting Protection -> Set thresholds… from the menu. The thresholds are set in terms of voltage and current levels, and you can set them to any values that are appropriate for your tests, as long as they are within the limits of Dr. PD's hardware (60V and 6A).
+
+When a protection mechanism is triggered, the OVP or OCP indicator in the control app's header will flash red until you reset it. You can reset the protection mechanism by selecting Protection -> Reset from the menu.
+
+:::info
+The OVP/OCP thresholds that you set in the control app are stored in non-volatile memory on Dr. PD, and will persist across power cycles. This means that if you set a threshold and then power cycle Dr. PD, the threshold will still be in effect when you power it back on. This can be useful for ensuring that your tests are always protected by the same thresholds, even if you forget to set them before each test, but it also means that you should be careful when setting the thresholds, and make sure to set them to appropriate values for your tests in order to avoid accidentally triggering the protection mechanisms and having to reset them before you can resume testing.
+:::
+
+## Port 2 lock-out
+
+In addition to the overvoltage and overcurrent protections, Dr. PD also implements a port 2 lock-out mechanism that is designed to protect any device that you might have inadvertently left connected to port 2 while testing a source device on port 1 in Sink mode.
+
+When the port 2 lock-out is enabled, Dr. PD will disconnect the USB-PD bus and the VBUS line from port 2, effectively preventing any power delivery or communication between port 1 and port 2. This means that if you have a device connected to port 2 while testing a source device on port 1, it will be protected from any potential damage that could occur if the source device were to malfunction or if you were to accidentally set inappropriate overvoltage or overcurrent thresholds.
+
+## Reverse polarity protection
+
+The banana connectors also feature a reverse polarity protection mechanism that is designed to prevent damage to Dr. PD and to the devices you are testing in case you accidentally connect the positive and negative of an external power source or load in reverse while testing a source device on port 1.
+
+When the reverse polarity protection is triggered, Dr. PD will disconnect the VBUS line from the banana connectors, effectively preventing any power delivery between both ports and the banana connectors. There is no indication in the control app when the reverse polarity protection is triggered, but you will notice that the VBUS voltage on the banana connectors will drop to 0V, and that any devices connected to the banana connectors will stop receiving power.
