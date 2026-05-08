@@ -1,0 +1,60 @@
+# Using triggers and the sync output
+
+Dr. PD features a sync output on the back panel that can be used to synchronize external devices with specific events within a USB-PD connection. For example, you can connect an oscilloscope to both the CC and sync output to visualize the precise timing of a device's signalling, identify runt pulses, or measure the duration of specific events.
+
+## Sync mechanisms
+
+The sync output can be configure to trigger in three ways:
+
+- High-going pulse: The sync output goes high for a short duration when the specified event occurs.
+- Low-going pulse: The sync output goes low for a short duration when the specified event occurs.
+- Toggle: The sync output toggles its state (from high to low or low to high) each time the specified event occurs.
+- Pull-down: The sync output is in high-impedance state by default and pulls an external signal to ground when the specified event occurs.
+
+In all cases, you can also configure the duration of the pulse or toggle, which can be set from 1 microsecond to 1 second.
+
+:::danger
+When using the pull-down trigger mode, ensure that the sync port is not connected to a voltage that exceeds its specifications, as this could damage your Dr. PD unit.
+
+The sync port is limited to 3.3V and 10mA. It includes a series resistor to limit current, and a shunt diode to protect against voltage spikes, and so can resist brief exposure to higher voltages, but it is not designed to handle continuous exposure to voltages above 3.3V.
+:::
+
+## Configuring triggers
+
+You can configure the sync mode and trigger events in the control app by selecting Trigger -> Configure… from the menu. This will open a dialog where you can choose the desired trigger mode and specify which events should activate the sync output.
+
+You can trigger on the following events:
+
+- **Preamble start:** Triggers at the very beginning of a USB-PD communication, when the preamble is transmitted.
+- **SOP start:** Triggers at the start of a Start of Packet (SOP) transmission, which is the point when the first bit of the packet is sent.
+- **Header start:** Triggers at the start of the packet header, which is the point when the first bit of the header is sent.
+- **Data start:** Triggers at the start of the data payload, which is the point when the first bit of the data is sent. Note that this trigger will not activate for packets that do not contain a data payload, such as control messages.
+- **Message Complete:** Triggers at the end of a USB-PD communication, when the last bit of the packet is transmitted and the communication is complete.
+- **Hard Reset:** Triggers when a Hard Reset signal is detected on the CC line, which indicates a reset of the USB-PD communication.
+- **Invalid K-Code:** Triggers when an invalid K-code is detected in the USB-PD communication, which can indicate a communication error or a non-compliant device.
+- **CRC Error:** Triggers when a CRC error is detected in the USB-PD communication, which can indicate data corruption or a communication issue.
+- **Timeout Error:** Triggers when a timeout occurs during the USB-PD communication, which can indicate a communication failure or a non-responsive device.
+- **Runt Pulse:** Triggers when a runt pulse is detected on the CC line, which can indicate a signal integrity issue or a non-compliant device.
+- **Any Error:** Triggers when any of the above errors (Invalid K-Code, CRC Error, Timeout Error) are detected in the USB-PD communication.
+
+You can also trigger based on the sender of a packet, and filter on up to 8 specific message types.
+
+:::info
+Not all event types can be filtered by sender or message type, because Dr. PD needs to successfully receive a full header in order to determine which device sent it or what kind of message it represents.
+:::
+
+## Trigger latency
+
+The trigger mechanism is managed in firmware, and there is a small—but not negligible—amount of latency between the occurrence of the specified event and the activation of the sync output caused by the time it takes for the firmware to process and decode the USB-PD communication stream. This latency is typically less than 30µs, but can vary based on the complexity of the communication and the specific events being triggered on. When using the sync output for precise timing measurements, it's important to take this latency into account.
+
+## Using threshold and autorepeat
+
+Certain events can occur multiple times during a USB-PD negotiation, and so it might be convenient to only trigger on the nth occurrence of an event, or to automatically repeat the trigger every n occurrences. For example, you might want to trigger on the 3rd SOP start event, which would correspond to the 3rd packet in a negotiation, or you might want to trigger on every 5th SOP start event.
+
+You can configure these options in the trigger configuration dialog. The threshold option allows you to specify that the trigger should only activate on the nth occurrence of the selected event(s). The autorepeat option allows you to specify that the trigger should automatically repeat every n occurrences of the selected event(s) after the initial trigger.
+
+## Resetting the trigger
+
+Under normal circumstances, the trigger will stay active until you manually reset it by clicking on Trigger -> Reset from the menu or pressing the R key. You can see the status of the trigger in the header under “Sync State,” which will show as “Triggered” in red when the trigger has been activated.
+
+A notable exception to this behaviour occurs when autorepeat is set. In this case, the trigger will automatically reset itself after each activation and will be ready to trigger again on the next occurrence of the specified event(s) based on the autorepeat configuration.
