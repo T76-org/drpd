@@ -1,0 +1,44 @@
+---
+sidebar_position: 3
+---
+
+# Testing a USB-PD source
+
+One of the many uses of Dr. PD is to test and characterize USB-PD sources such as chargers, power banks, and USB-C ports on laptops. 
+
+This section will guide you through the steps required to get your first capture of a USB-PD source, and introduce some of the features of the control software that can help you analyze and understand the captured data.
+
+## Connecting the source
+
+To test a USB-PD source, you will need to connect it to Port 1 (the left port) on the front of Dr. PD using a USB-C cable. For this initial test, any USB-PD source and cable should work. Since our goal is to ensure that your Dr. PD unit is working well, we recommend using a charger and cable that you are confident work correctly. If you have a USB-C laptop charger, that is a great choice for this test.
+
+## Placing Dr. PD in sink mode
+
+Dr. PD can behave like a USB-PD sink device, simulating the behaviour of a laptop, phone, or other device that draws power from a USB-PD source. This allows you to capture and analyze the USB-PD messages sent by the source without the need for a physical sink device connected to the other port of Dr. PD.
+
+In order to capture USB-PD messages from the source, therefore, we need to first place Dr. PD in sink mode. This is accomplished by selecting Mode -> Select Mode -> Sink from the menu, or pressing the S key on your keyboard. You should see the Mode indicator in the control app's header change to "Sink" and, if a source is connected to Port 1, the Status indicator should change to “Attached.”
+
+At the same time, the VBUS voltage indicator should show 5V, and the Power Profile indicator should read “Fixed 5V @ 3A” or similar. This indicates that the source and Dr. PD have successfully established a USB-PD contract for the default 5V power profile, and that Dr. PD is now ready to capture and decode USB-PD messages from the source. 
+
+:::tip
+When Dr. PD's VBUS input is floating, the VBUS voltage indicator will show a small, arbitrary voltage level that can fluctuate randomly. This is normal and does not indicate any issue with your Dr. PD unit. Once you connect a source to Port 1, the VBUS voltage should stabilize at the level corresponding to the power profile offered by the source (usually 5V for the default profile).
+:::
+
+## Capturing USB-PD messages
+
+Before you can capture USB-PD messages, you need to start a capture session. This is done by selecting Capture -> Enable Capture from the menu, or pressing the C key. This causes Dr. PD to record both analog measurements (VBUS voltage and current) and digital protocol messages (USB-PD messages) in real time, and send this data to the control software for display and analysis.
+
+With capture enabled, you can now interact with the source to trigger USB-PD messages. For example, click on Mode -> Choose Power Contract… (or press the P key) to cause Dr. PD to negotiate a new power contract with the source. For example, if the source supports, say, a 15V profile, you can select it from the list and click on the Set PDO button to cause Dr. PD to request that profile from the source. This will trigger a USB-PD negotiation sequence, which should display messages similar to the following in the capture log:
+
+| Length | Message type | Sender | Receiver | Message Summary |
+|---:|---|---|---|---|
+| 624µs | Request | Sink | Source | **Power request:**<br/><br/>- Selected source object position: 4<br/>- Operating current: 3A<br/>- Maximum operating current: 3A<br/><br/>**Asserted request flags:**<br/>- Requests no USB suspend while using this contract.<br/>- Supports unchunked extended messages.<br/>- Extended Power Range capable. |
+| 492µs | GoodCRC | Source | Sink |  |
+| 492µs | Accept | Source | Sink |  |
+| 492µs | GoodCRC | Sink | Source |  |
+| 493µs | PS RDY | Source | Sink |  |
+| 492µs | GoodCRC | Sink | Source |  |
+
+## Where to go from here
+
+This quickstart guide is just the beginning of what you can do with Dr. PD. The control software has many features and settings that allow you to customize your testing and analysis experience, and there are many more use cases for Dr. PD beyond testing USB-PD sources. We encourage you to explore the control software and the documentation to discover all that Dr. PD has to offer, and to experiment with different devices, cables, and testing scenarios. Happy testing!

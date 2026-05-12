@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DRPDDeviceDefinition } from '../../../lib/device'
+import { DRPDDevice, DRPDDeviceDefinition, type LoggedCapturedMessage } from '../../../lib/device'
 import type { BeforeInstallPromptEvent } from '../../../lib/pwa/usePWAInstallPrompt'
 import { saveRackDocument } from '../../../lib/rack/loadRack'
 import type { RackDocument } from '../../../lib/rack/types'
@@ -423,6 +423,30 @@ const buildMinimalFirmwareUf2 = (): Uint8Array => {
   return block
 }
 
+const buildLoggedMessage = (index: number, messageType = 3): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
+  wallClockUs: BigInt(1_700_000_000_000_000 + index * 10),
+  startTimestampUs: BigInt(1000 + index * 10),
+  endTimestampUs: BigInt(1005 + index * 10),
+  displayTimestampUs: BigInt(index * 10),
+  decodeResult: 0,
+  sopKind: 'SOP',
+  messageKind: 'CONTROL',
+  messageType,
+  messageId: index,
+  senderPowerRole: 'SOURCE',
+  senderDataRole: 'DFP',
+  pulseCount: 3,
+  rawPulseWidths: Float64Array.from([1, 2, 3]),
+  rawSop: Uint8Array.from([0x12, 0x34, 0x56, 0x78]),
+  rawDecodedData: Uint8Array.from([0xaa, 0xbb]),
+  parseError: null,
+  createdAtMs: 1_700_000_000_000 + index,
+})
+
 const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
 
 const buildHydratedRackDocument = (): RackDocument =>
@@ -799,6 +823,43 @@ describe('RackView', () => {
     const widths = JSON.parse(window.localStorage.getItem('drpd:message-log:column-widths') ?? '{}')
     expect(Object.values(columns).every((visible) => visible === true)).toBe(true)
     expect(widths.messageType).toBe(200)
+  })
+
+  it('shows filter options for messages added after device connection', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Device' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /pair new device/i }))
+    await waitFor(() => {
+      expect(
+        (window as unknown as {
+          __drpdLogs?: { driver: () => EventTarget }
+        }).__drpdLogs?.driver(),
+      ).toBeTruthy()
+    })
+
+    const driver = (window as unknown as {
+      __drpdLogs: { driver: () => EventTarget }
+    }).__drpdLogs.driver()
+    act(() => {
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'message', row: buildLoggedMessage(0, 3) },
+        }),
+      )
+    })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Message Log' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Filter/ }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Filter message log' })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByText('Accept')).toBeInTheDocument()
+    expect(within(dialog).getByText('Source')).toBeInTheDocument()
+    expect(within(dialog).getByText('Valid')).toBeInTheDocument()
+    expect(within(dialog).getAllByRole('button', { name: 'Include' }).length).toBeGreaterThan(0)
   })
 
   it('resolves system theme from matchMedia', async () => {

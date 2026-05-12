@@ -1,0 +1,38 @@
+---
+sidebar_position: 1
+---
+
+# Observing a USB connection
+
+In _Observer Mode,_ Dr. PD can be used to observe and analyze the USB-PD communication between two USB-C devices without interfering with the connection. This is useful for debugging and understanding the behavior of USB-PD devices, as well as for learning about the USB-PD protocol.
+
+## Set up
+
+In order to observe a USB connection, you will need to connect Dr. PD inline between two devices, and this requires two USB-C cables.
+
+The observation mechanism is bidirectional, and so you can connect each device at either end, regardless of which one is going source and sink power (in fact, in some cases, the source and sink roles may change dynamically during the connection, and Dr. PD will be able to observe this as well).
+
+### Picking the right cables
+
+Since you need to connect _two_ devices to Dr. PD, you will need two USB-C cables. The USB-PD protocol is not designed for this kind of operation—in many configurations, the cable incorporates a chip called an [e-marker](https://en.wikipedia.org/wiki/USB-C#E-marker) that actively participates in the communication between the devices, and there is no provision for two distinct cables to be part of the same connection.
+
+Therefore, it is best if one of the cables in the connection chain is a simple, passive USB-C cable, without an e-marker chip. This fools the two devices into thinking they are connected through a single cable, and prevents any issues that may arise from having two e-markers in the connection. The other cable can be any USB-C cable, including one with an e-marker.
+
+Note that it is using two e-marked cables may still work, but in our experience it can cause weird issues as both e-markers try to respond to being interrogated from the devices, and the devices may get confused about the capabilities of the connection. If you have two e-marked cables and are experiencing issues with observing a connection, try swapping one of them out for a passive cable and see if that resolves the issue.
+
+## Entering observer mode
+
+To enter observer mode, select Mode -> Select Mode -> Observer from the menu, or press the O key on your keyboard. You should see the Mode indicator in the control app's header change to "Observer," and the state change to reflect the current conditions of the connection:
+
+- If no devices are detected at either end, the Status indicator will read "Unattached.” This can also occur if a device that is only capable of acting as a sink is attached at one end, since Dr. PD is not able to detect a connection in that case.
+- If a device that is capable of acting as a source is detected at one end, and the other end is unattached, the Status indicator will read "Source Attached."
+- When both a source and a sink are detected and they have established a USB-PD connection, the Status indicator will read "Attached," and the VBUS voltage and Power Profile indicators will show the current power contract between the devices.
+
+## Observing the connection
+
+Once you have successfully entered observer mode, you can perform various actions on the source and sink devices:
+
+- Capture USB-PD messages and VBUS voltage and current measurements in real time
+- Troubleshoot a connection that is not working as expected
+- Discover the capabilities of your devices and cables
+- Perform energy measurements and power profiling of your devices

@@ -1,0 +1,77 @@
+# Capturing USB-PD messages
+
+In either Observer or Sink mode, Dr. PD can capture and log USB-PD messages. This can be useful both for debugging purposes and to understand how a particular device behaves.
+
+## Setting up the capture
+
+You can turn capture on and off at any time by clicking Message Log -> Enable/Disable Capture in the menu, or by pressing the C key on your keboard. 
+
+When capture is enabled, Dr. PD will log both analog VBUS information (voltage and current) and the decoded USB-PD messages, and correlate both so that you can visualize how messaging affects the power delivery.
+
+Capture can remain on at all times, even when no device is connected to Dr. PD. When the capture buffer is full, the oldest data points will be overwritten by new ones.
+
+:::note
+
+In Sink mode, if you want to capture what happens when you connect a device to Dr. PD, you should enable capture _before_ connecting the device. This way, you can capture the entire connection process, including the initial power negotiation.
+
+In Observer mode, you should connect one of the two devices, enable capture, and then connect the other device to complete the USB-PD connection.
+
+In both modes, you can click on Mode -> Cycle USB Connection, or press the T key, to simulate a physical disconnection and reconnection of the devices. This can be useful to trigger a new USB-PD negotiation, and to capture the messages that are exchanged during the connection process.
+
+:::
+
+## Viewing the captured messages
+
+Captured messages are displayed in the Message Log panel. The log shows:
+
+- The timestamp of each message, referenced to the wall clock of your computer.
+- The duration of the message in microseconds.
+- The the time difference, again in microseconds, between the current message and the previous one (Δt). This can be useful to understand the timing of messages and identify any delays or gaps in communication.
+- The USB-PD ID of the message. This is a unique, three-bit identifier that is incremented for each new message, and can be used to track the sequence of messages in a conversation.
+- The type of message, which can be either a USB-PD control message (e.g. GoodCRC, Accept, etc.) or a data message (e.g. Source Capabilities, Request, etc.).
+- The sender (Source or Sink) of the message.
+- The receiver (Source or Sink) of the message.
+- The Start-of-Packet (SOP) type, which indicates the type of USB-PD communication (e.g. SOP, SOP', etc.).
+- Whether the message has a valid CRC32 checksum.
+
+If you select one of the messages in the log, you can see a detailed breakdown of its contents in the Message Detail panel. This includes the raw message data, the decoded fields of the message, and any errors or warnings associated with it. The Message Detail view contains a lot of information, and can be overwhelming at first, but it can be very useful to understand the inner workings of USB-PD communication and to debug any issues that may arise. Most of the fields in the Message Detail provide a tooltip with an explanation of their meaning and how they are decoded from the raw message data.
+
+## Configuring the message log
+
+Clicking on the Message Log -> Configure… menu item will open a dialog where you can configure the fields that are shown in the message log table. You can also resize the various columns in the log by dragging their edges, and the software will remember your preferences for the next time you open it. This can be useful to focus on the specific information that is relevant to your analysis, and to hide any fields that you find less useful.
+
+You can quickly restore the table to its default configuration by clicking on the Message Log -> Restore Table Layout menu item.
+
+:::note[Adjusting capture duration]
+The configuration dialog can also be used to adjust the memory depth of the capture buffer.By default, the control software will capture up to 1,000,000 data points, which corresponds to approximately 2.5 days of continuous capture time. You can adjust this setting to increase or decrease the capture duration, depending on your needs and the available memory on your computer. Keep in mind that increasing the capture duration will require more memory, and may affect the performance of the software if you are capturing a large amount of data.
+:::
+
+## Filtering messages
+
+Some captures can be very long and contain a lot of messages, which can make it difficult to find the specific messages you are interested in. Dr. PD provides several filtering options to help you narrow down the log to the messages that are relevant to your analysis. You can filter messages by clicking on Messages -> Filter… in the menu, or pressing the F key. This will open a dialog where you can specify various criteria to filter the messages, such as the message type, sender, receiver, SOP type, and more. You can also use the search bar at the top of the Message Log panel to quickly find messages that contain specific text in their decoded fields.
+
+:::note[Hiding GoodCRC messages]
+GoodCRC messages are control messages that are sent by the receiver to acknowledge the receipt of a message. They are very common in USB-PD communication, and can clutter the log if you are not interested in them. You can choose to hide GoodCRC messages from the log by clicking on Messages -> Hide GoodCRC Messages, or by pressing the G key. This will make it easier to focus on the more relevant messages in the capture.
+:::
+
+## Logging events
+
+Dr. PD injects _events_ in the message log when certain conditions occur during a capture. These include starting or stopping a capture, changes in the connection state, and overvoltage/overprotection triggers. These events are marked with a different color in the log, and can be used to correlate changes in the connection state or power delivery with the messages being exchanged between the devices.
+
+:::note[Adding manual markers]
+You can add a “Manual Marker” event to the log by clicking on Message Log -> Add Marker, or by pressing the M key. This can be useful to mark a specific point in the capture, for example when you perform a specific action on the device, or when you want to highlight a particular message or sequence of messages.
+:::
+
+## Clearing the log
+
+You can clear the message buffer at any time by clicking on Message Log -> Clear Log, or by pressing the X key.
+
+## Exporting a capture
+
+You can export any selected messages from the log to either CSV or JSON files by selecting the appropriate option from the Message Log -> Export Selected... menu. This can be useful to analyze the captured messages in other tools, or to share them with others for debugging purposes.
+
+The two export formats serve different purposes:
+
+- The CSV format is a simple, tabular representation of the message log; it includes the same columns as the log view table, as well as a human-readable representation of the decoded message fields. This format is useful for quick analysis in spreadsheet software, or for sharing with others who may not be familiar with the raw message data.
+- The JSON format is a more structured representation of the captured messages, which includes all the raw message data, as well as the decoded fields and any associated errors or warnings. This format is useful for more in-depth analysis, or for importing the captured messages into other tools that can parse JSON data.
+
