@@ -69,11 +69,23 @@ namespace T76::DRPD::PHY {
         void initCore1();
 
         /**
-         * @brief Set the VBUS pass-through state
+         * @brief Set both VBUS pass-through enable outputs to the same state
          * 
          * @param en True to enable the VBUS pass-through, false to disable
          */
         void enabled(bool en);
+
+        /**
+         * @brief Set the VBUS pass-through enable outputs independently.
+         *
+         * The main VBUS enable controls the DUT-side pass-through path. The
+         * USDS VBUS enable controls the USDS-side path. If the manager is in a
+         * fault state, requests that would enable either output are ignored.
+         *
+         * @param mainEnabled True to drive VBUS_EN high.
+         * @param usdsEnabled True to drive VBUS_EN_USDS high.
+         */
+        void enabled(bool mainEnabled, bool usdsEnabled);
 
         /**
          * @brief Get the VBUS pass-through state
@@ -153,7 +165,8 @@ namespace T76::DRPD::PHY {
         AnalogMonitor &_analogMonitor; ///< Reference to the AnalogMonitor instance for voltage/current readings
 
         bool _fault = false; ///< Current fault state. The component will refuse to enable VBUS if true.
-        bool _enabled = false; ///< Current enabled state
+        bool _enabled = false; ///< Requested VBUS_EN state
+        bool _usdsEnabled = false; ///< Requested VBUS_EN_USDS state
         VBusState _state = VBusState::Disabled; ///< Current VBUS state
 
         float _ovpThreshold = 48.0f;  ///< Overvoltage protection threshold in volts
