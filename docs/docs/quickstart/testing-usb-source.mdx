@@ -20,6 +20,10 @@ In order to capture USB-PD messages from the source, therefore, we need to first
 
 At the same time, the VBUS voltage indicator should show 5V, and the Power Profile indicator should read “Fixed 5V @ 3A” or similar. This indicates that the source and Dr. PD have successfully established a USB-PD contract for the default 5V power profile, and that Dr. PD is now ready to capture and decode USB-PD messages from the source. 
 
+:::tip
+When Dr. PD's VBUS input is floating, the VBUS voltage indicator will show a small, arbitrary voltage level that can fluctuate randomly. This is normal and does not indicate any issue with your Dr. PD unit. Once you connect a source to Port 1, the VBUS voltage should stabilize at the level corresponding to the power profile offered by the source (usually 5V for the default profile).
+:::
+
 ## Capturing USB-PD messages
 
 Before you can capture USB-PD messages, you need to start a capture session. This is done by selecting Capture -> Enable Capture from the menu, or pressing the C key. This causes Dr. PD to record both analog measurements (VBUS voltage and current) and digital protocol messages (USB-PD messages) in real time, and send this data to the control software for display and analysis.
