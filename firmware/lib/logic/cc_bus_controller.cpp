@@ -51,7 +51,7 @@ void CCBusController::role(CCBusRole role) {
             _ccRoleManager.cc1Role(PHY::CCRole::Off);
             _ccRoleManager.cc2Role(PHY::CCRole::Off);
 
-            _vbusManager.enabled(true);
+            _vbusManager.enabled(true, true);
             break;
 
         case CCBusRole::Sink:
@@ -60,7 +60,7 @@ void CCBusController::role(CCBusRole role) {
             _ccRoleManager.cc1Role(PHY::CCRole::Sink);
             _ccRoleManager.cc2Role(PHY::CCRole::Sink);
 
-            _vbusManager.enabled(true);
+            _vbusManager.enabled(true, false);
             break;
 
         default:
@@ -69,7 +69,7 @@ void CCBusController::role(CCBusRole role) {
             _ccRoleManager.cc1Role(PHY::CCRole::Off);
             _ccRoleManager.cc2Role(PHY::CCRole::Off);
             
-            _vbusManager.enabled(false);
+            _vbusManager.enabled(false, false);
     }
 }
 

@@ -46,20 +46,23 @@ bool VBusManager::enabled() {
 }
 
 void VBusManager::enabled(bool value) {
-    if (_fault && value) {
+    enabled(value, value);
+}
+
+void VBusManager::enabled(bool mainEnabled, bool usdsEnabled) {
+    if (_fault && (mainEnabled || usdsEnabled)) {
         // Refuse to enable if in fault state
         return;
     }
 
-    bool previousState = _enabled;
-
     if (!_fault) {
-        _enabled = value;
-        _state = value ? VBusState::Enabled : VBusState::Disabled;
+        _enabled = mainEnabled;
+        _usdsEnabled = usdsEnabled;
+        _state = (mainEnabled || usdsEnabled) ? VBusState::Enabled : VBusState::Disabled;
     }
 
-    gpio_put(PHY_VBUS_MANAGER_VBUS_EN_PIN, value);
-    gpio_put(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN, value);
+    gpio_put(PHY_VBUS_MANAGER_VBUS_EN_PIN, mainEnabled);
+    gpio_put(PHY_VBUS_MANAGER_VBUS_EN_USDS_PIN, usdsEnabled);
 
     if (_managerChangedCallback) {
         _managerChangedCallback();
@@ -109,7 +112,7 @@ void VBusManager::reset() {
     _lastOvpEventTimestampUs = 0;
     _lastOcpEventTimestampUs = 0;
 
-    enabled(_enabled); // Re-apply the enabled state (will trigger notification)
+    enabled(_enabled, _usdsEnabled); // Re-apply the enabled state (will trigger notification)
 }
 
 float VBusManager::ovpThreshold() const {
@@ -171,12 +174,12 @@ bool VBusManager::_timerCallback(repeating_timer_t *rt) {
             manager->_lastOvpEventTimestampUs = time_us_64();
             manager->_state = VBusState::OverVoltage;
             manager->_fault = true;
-            manager->enabled(false); // Disable VBUS on fault (will trigger notification)
+            manager->enabled(false, false); // Disable VBUS on fault (will trigger notification)
         } else if (current > manager->_ocpThreshold) {
             manager->_lastOcpEventTimestampUs = time_us_64();
             manager->_state = VBusState::OverCurrent;
             manager->_fault = true;
-            manager->enabled(false); // Disable VBUS on fault (will trigger notification)
+            manager->enabled(false, false); // Disable VBUS on fault (will trigger notification)
         }
     }
 
