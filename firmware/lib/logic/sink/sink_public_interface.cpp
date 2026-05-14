@@ -37,13 +37,26 @@ float Sink::negotiatedCurrent() const {
     return _runtimeState._negotiatedCurrent;
 }
 
-bool Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
+SinkRequestResult Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
     if (!_enabled.load()) {
-        return false;
+        return SinkRequestResult::failure("Sink is disabled");
+    }
+
+    const SinkRequestResult validation = _context.validatePDORequest(
+        pdoIndex,
+        voltageMV,
+        currentMA
+    );
+    if (!validation) {
+        return validation;
     }
 
     const PendingPDORequest request{pdoIndex, voltageMV, currentMA};
-    return queue_try_add(&_pendingRequestQueue, &request);
+    if (!queue_try_add(&_pendingRequestQueue, &request)) {
+        return SinkRequestResult::failure("Sink request queue is full");
+    }
+
+    return SinkRequestResult::ok();
 }
 
 SinkState Sink::state() const {

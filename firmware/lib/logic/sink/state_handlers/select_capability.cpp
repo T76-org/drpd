@@ -35,17 +35,25 @@ void SelectCapabilityStateHandler::_onResponseTimeout() {
 }
 
 
-bool SelectCapabilityStateHandler::requestPDO(SinkContext& context, size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
+SinkRequestResult SelectCapabilityStateHandler::requestPDO(
+    SinkContext& context,
+    size_t pdoIndex,
+    uint32_t voltageMV,
+    uint32_t currentMA) {
     _bindContext(context);
     // Request against the active capability view (SPR-only before EPR retrieval,
     // EPR capability set after retrieval).
+    if (context.totalPDOCount() == 0) {
+        return SinkRequestResult::failure("No source PDOs are available");
+    }
+
     if (pdoIndex >= context.totalPDOCount()) {
-        return false;
+        return SinkRequestResult::failure("PDO index out of range");
     }
 
     const auto pdoOpt = context.pdoAtIndex(pdoIndex);
     if (!pdoOpt.has_value()) {
-        return false;
+        return SinkRequestResult::failure("PDO is unavailable");
     }
 
     const auto& pdoVariant = pdoOpt.value();
@@ -71,13 +79,13 @@ bool SelectCapabilityStateHandler::requestPDO(SinkContext& context, size_t pdoIn
     return _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
 }
 
-bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
-                                              const Proto::PDOVariant& pdoVariant,
-                                              uint32_t voltageMV,
-                                              uint32_t currentMA,
-                                              Proto::Request& request) {
+SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
+                                                            const Proto::PDOVariant& pdoVariant,
+                                                            uint32_t voltageMV,
+                                                            uint32_t currentMA,
+                                                            Proto::Request& request) {
     if (_context == nullptr) {
-        return false;
+        return SinkRequestResult::failure("Sink request context is not bound");
     }
 
     auto& context = *_context;
@@ -85,7 +93,7 @@ bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
 
     const auto objectPosition = context.requestObjectPositionAtIndex(pdoIndex);
     if (!objectPosition.has_value()) {
-        return false;
+        return SinkRequestResult::failure("PDO request object position is unavailable");
     }
 
     context.transitionTo(SinkState::PE_SNK_Select_Capability);
@@ -126,7 +134,7 @@ bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
         requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
         context.sendMessageAndAwaitGoodCRC(requestMessage);
-        return true;
+        return SinkRequestResult::ok();
     }
 
     PHY::BMCEncodedMessage requestMessage(
@@ -140,10 +148,13 @@ bool SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
 
     context.sendMessageAndAwaitGoodCRC(requestMessage);
 
-    return true;
+    return SinkRequestResult::ok();
 }
 
-bool SelectCapabilityStateHandler::_requestFixedPDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t currentMA) {
+SinkRequestResult SelectCapabilityStateHandler::_requestFixedPDO(
+    size_t pdoIndex,
+    const Proto::PDOVariant& pdoVariant,
+    uint32_t currentMA) {
     Proto::FixedSupplyPDO fixedPDO = std::get<Proto::FixedSupplyPDO>(pdoVariant);
 
     uint32_t requestedMilliamps = currentMA;
@@ -165,7 +176,10 @@ bool SelectCapabilityStateHandler::_requestFixedPDO(size_t pdoIndex, const Proto
     return _requestPDO(pdoIndex, pdoVariant, fixedPDO.voltageMillivolts(), requestedMilliamps, request);
 }
 
-bool SelectCapabilityStateHandler::_requestVariablePDO(size_t pdoIndex, const Proto::PDOVariant &pdoVariant, uint32_t currentMA) {
+SinkRequestResult SelectCapabilityStateHandler::_requestVariablePDO(
+    size_t pdoIndex,
+    const Proto::PDOVariant &pdoVariant,
+    uint32_t currentMA) {
     const Proto::VariableSupplyPDO& variablePDO = std::get<Proto::VariableSupplyPDO>(pdoVariant);
 
     uint32_t requestedMilliamps = currentMA;
@@ -182,7 +196,11 @@ bool SelectCapabilityStateHandler::_requestVariablePDO(size_t pdoIndex, const Pr
     return _requestPDO(pdoIndex, pdoVariant, variablePDO.minVoltageMillivolts(), requestedMilliamps, request);
 }
 
-bool SelectCapabilityStateHandler::_requestBatteryPDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t voltageMV, uint32_t currentMA) {
+SinkRequestResult SelectCapabilityStateHandler::_requestBatteryPDO(
+    size_t pdoIndex,
+    const Proto::PDOVariant& pdoVariant,
+    uint32_t voltageMV,
+    uint32_t currentMA) {
     const Proto::BatterySupplyPDO& batteryPDO = std::get<Proto::BatterySupplyPDO>(pdoVariant);
 
     uint32_t requestedPowerMilliwatts = static_cast<uint32_t>(voltageMV * currentMA / 1000.0f);
@@ -199,7 +217,11 @@ bool SelectCapabilityStateHandler::_requestBatteryPDO(size_t pdoIndex, const Pro
     return _requestPDO(pdoIndex, pdoVariant, voltageMV, currentMA, request);
 }
 
-bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t voltageMV, uint32_t currentMA) {
+SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
+    size_t pdoIndex,
+    const Proto::PDOVariant& pdoVariant,
+    uint32_t voltageMV,
+    uint32_t currentMA) {
     // Handle SPR PPS APDO
     if (std::holds_alternative<Proto::SPRPPSAPDO>(pdoVariant)) {
         const Proto::SPRPPSAPDO& sprPps = std::get<Proto::SPRPPSAPDO>(pdoVariant);
@@ -244,7 +266,7 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
         );
 
         if (requestedVoltageMillivolts == 0) {
-            return false;
+            return SinkRequestResult::failure("SPR AVS requested voltage is invalid");
         }
 
         const bool use20VBand = requestedVoltageMillivolts > 15000;
@@ -252,7 +274,7 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
             ? sprAvs.maxCurrent20VMilliamps()
             : sprAvs.maxCurrent15VMilliamps();
         if (maxBandCurrentMA == 0) {
-            return false;
+            return SinkRequestResult::failure("SPR AVS selected voltage band has no available current");
         }
         const uint32_t requestedCurrentMA = currentMA <= 0
             ? maxBandCurrentMA
@@ -282,7 +304,7 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
         );
 
         if (requestedVoltageMillivolts == 0) {
-            return false;
+            return SinkRequestResult::failure("EPR AVS requested voltage is invalid");
         }
 
         uint32_t requestedCurrentMA = currentMA <= 0
@@ -298,7 +320,7 @@ bool SelectCapabilityStateHandler::_requestAugmentedPDO(size_t pdoIndex, const P
         return _requestPDO(pdoIndex, pdoVariant, requestedVoltageMillivolts, requestedCurrentMA, request);
     }
 
-    return false;
+    return SinkRequestResult::failure("Unsupported augmented PDO type");
 }
 
 void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76::DRPD::PHY::BMCDecodedMessage *message) {
@@ -406,10 +428,10 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
     }
 }
 
-bool SelectCapabilityStateHandler::_requestPendingPDO(SinkContext& context) {
+SinkRequestResult SelectCapabilityStateHandler::_requestPendingPDO(SinkContext& context) {
     auto& state = context.runtimeState();
     if (!state._pendingRequestedPDO.has_value()) {
-        return false;
+        return SinkRequestResult::failure("No pending PDO request is available");
     }
 
     int pdoIndex = -1;

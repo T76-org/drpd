@@ -176,9 +176,9 @@ namespace T76::DRPD::Logic {
          * @param pdoIndex Zero-based PDO index in active view.
          * @param voltageMV Requested voltage in millivolts.
          * @param currentMA Requested current in milliamps.
-         * @return True if request was accepted for dispatch; otherwise false.
+         * @return Request result describing acceptance or immediate rejection.
          */
-        bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
+        SinkRequestResult requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
         /**
          * @brief Get current Sink policy state.

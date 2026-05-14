@@ -17,13 +17,13 @@ using namespace T76::DRPD;
 void App::_querySinkAvailablePDOCount(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 
@@ -34,13 +34,13 @@ void App::_querySinkAvailablePDOCount(const std::vector<T76::SCPI::ParameterValu
 void App::_querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 
@@ -49,7 +49,7 @@ void App::_querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterVa
 
     std::optional<Proto::PDOVariant> pdoOpt = sink->pdo(index);
     if (!pdoOpt.has_value()) {
-        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. PDO index out of range.");
         return;
     }
 
@@ -105,20 +105,20 @@ void App::_querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterVa
 void App::_setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 
     if (sink->state() != Logic::SinkState::Disconnected &&
         sink->state() != Logic::SinkState::PE_SNK_Ready &&
         sink->state() != Logic::SinkState::PE_SNK_EPR_Keepalive) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Sink not in a valid state (" + std::to_string(static_cast<int>(sink->state())) + ").");
         return;
     }
 
@@ -130,21 +130,24 @@ void App::_setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t voltageMillivolts = static_cast<uint32_t>(params[1].numberValue);
     uint32_t currentMilliamps = static_cast<uint32_t>(params[2].numberValue);
 
-    if (!sink->requestPDO(pdoIndex, voltageMillivolts, currentMilliamps)) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+    const Logic::SinkRequestResult result =
+        sink->requestPDO(pdoIndex, voltageMillivolts, currentMilliamps);
+    if (!result) {
+        const char *error = result.error != nullptr ? result.error : "Unable to request PDO.";
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. " + std::string(error));
     }
 }
 
 void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 
@@ -203,13 +206,13 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
 void App::_querySinkNegotiatedPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 
@@ -271,13 +274,13 @@ void App::_querySinkNegotiatedPDO(const std::vector<T76::SCPI::ParameterValue> &
 void App::_querySinkNegotiatedVoltage(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 
@@ -288,13 +291,13 @@ void App::_querySinkNegotiatedVoltage(const std::vector<T76::SCPI::ParameterValu
 void App::_querySinkNegotiatedCurrent(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 
@@ -305,13 +308,13 @@ void App::_querySinkNegotiatedCurrent(const std::vector<T76::SCPI::ParameterValu
 void App::_querySinkErrorStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict");
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
         return;
     }
 
     Logic::Sink* sink = _ccBusController.sink();
     if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error");
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
         return;
     }
 

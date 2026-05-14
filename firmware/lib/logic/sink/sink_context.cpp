@@ -295,14 +295,52 @@ void SinkContext::sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& messa
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
 
-bool SinkContext::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
+SinkRequestResult SinkContext::validatePDORequest(
+    size_t pdoIndex,
+    uint32_t voltageMV,
+    uint32_t currentMA) const {
+    (void)currentMA;
+
     const bool isValidState = _runtimeState._state == SinkState::PE_SNK_Ready ||
         _runtimeState._state == SinkState::PE_SNK_Wait_for_Capabilities ||
         _runtimeState._state == SinkState::PE_SNK_Get_Source_Cap ||
         _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive;
 
     if (!isValidState) {
-        return false;
+        return SinkRequestResult::failure("Sink state does not allow PDO requests");
+    }
+
+    if (totalPDOCount() == 0) {
+        return SinkRequestResult::failure("No source PDOs are available");
+    }
+
+    if (pdoIndex >= totalPDOCount()) {
+        return SinkRequestResult::failure("PDO index out of range");
+    }
+
+    const auto pdoOpt = pdoAtIndex(pdoIndex);
+    if (!pdoOpt.has_value()) {
+        return SinkRequestResult::failure("PDO is unavailable");
+    }
+
+    if (!requestObjectPositionAtIndex(pdoIndex).has_value()) {
+        return SinkRequestResult::failure("PDO request object position is unavailable");
+    }
+
+    const auto& pdoVariant = pdoOpt.value();
+    if (std::holds_alternative<Proto::SPRPPSAPDO>(pdoVariant) ||
+        std::holds_alternative<Proto::SPRAVSAPDO>(pdoVariant) ||
+        std::holds_alternative<Proto::EPRAVSAPDO>(pdoVariant)) {
+        return _validateAugmentedPDORequest(pdoVariant, voltageMV);
+    }
+
+    return SinkRequestResult::ok();
+}
+
+SinkRequestResult SinkContext::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
+    const SinkRequestResult validation = validatePDORequest(pdoIndex, voltageMV, currentMA);
+    if (!validation) {
+        return validation;
     }
 
     return _selectCapabilityStateHandler.requestPDO(*this, pdoIndex, voltageMV, currentMA);
@@ -339,6 +377,58 @@ bool SinkContext::_sourceEPRCapable() const {
     }
 
     return false;
+}
+
+SinkRequestResult SinkContext::_validateAugmentedPDORequest(
+    const Proto::PDOVariant& pdoVariant,
+    uint32_t voltageMV) const {
+    if (std::holds_alternative<Proto::SPRPPSAPDO>(pdoVariant)) {
+        return SinkRequestResult::ok();
+    }
+
+    if (std::holds_alternative<Proto::SPRAVSAPDO>(pdoVariant)) {
+        const Proto::SPRAVSAPDO& sprAvs = std::get<Proto::SPRAVSAPDO>(pdoVariant);
+        uint32_t requestedVoltageMillivolts = voltageMV == 0 ? 15000 : voltageMV;
+        requestedVoltageMillivolts = std::clamp(
+            requestedVoltageMillivolts,
+            sprAvs.minVoltageMillivolts(),
+            sprAvs.maxVoltageMillivolts()
+        );
+
+        if (requestedVoltageMillivolts == 0) {
+            return SinkRequestResult::failure("SPR AVS requested voltage is invalid");
+        }
+
+        const bool use20VBand = requestedVoltageMillivolts > 15000;
+        const uint32_t maxBandCurrentMA = use20VBand
+            ? sprAvs.maxCurrent20VMilliamps()
+            : sprAvs.maxCurrent15VMilliamps();
+        if (maxBandCurrentMA == 0) {
+            return SinkRequestResult::failure("SPR AVS selected voltage band has no available current");
+        }
+
+        return SinkRequestResult::ok();
+    }
+
+    if (std::holds_alternative<Proto::EPRAVSAPDO>(pdoVariant)) {
+        const Proto::EPRAVSAPDO& eprAvs = std::get<Proto::EPRAVSAPDO>(pdoVariant);
+        uint32_t requestedVoltageMillivolts = voltageMV == 0
+            ? eprAvs.minVoltageMillivolts()
+            : voltageMV;
+        requestedVoltageMillivolts = std::clamp(
+            requestedVoltageMillivolts,
+            eprAvs.minVoltageMillivolts(),
+            eprAvs.maxVoltageMillivolts()
+        );
+
+        if (requestedVoltageMillivolts == 0) {
+            return SinkRequestResult::failure("EPR AVS requested voltage is invalid");
+        }
+
+        return SinkRequestResult::ok();
+    }
+
+    return SinkRequestResult::failure("Unsupported augmented PDO type");
 }
 
 void SinkContext::_notifySinkInfoChanged(SinkInfoChange change) {

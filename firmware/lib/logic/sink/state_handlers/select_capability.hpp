@@ -85,9 +85,9 @@ namespace T76::DRPD::Logic {
          * @param pdoIndex Zero-based PDO index.
          * @param voltageMV Requested voltage in millivolts.
          * @param currentMA Requested current in milliamps.
-         * @return True if request message was dispatched; otherwise false.
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool requestPDO(
+        SinkRequestResult requestPDO(
             SinkContext& context,
             size_t pdoIndex,
             uint32_t voltageMV,
@@ -102,13 +102,13 @@ namespace T76::DRPD::Logic {
          * @param voltageMV Requested voltage in millivolts
          * @param currentMA Requested current in milliamps
          * @param request The Request message to send
-         * @return true if the Request message was sent successfully, false otherwise
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool _requestPDO(size_t pdoIndex,
-                         const Proto::PDOVariant& pdoVariant,
-                         uint32_t voltageMV,
-                         uint32_t currentMA,
-                         Proto::Request& request);
+        SinkRequestResult _requestPDO(size_t pdoIndex,
+                                      const Proto::PDOVariant& pdoVariant,
+                                      uint32_t voltageMV,
+                                      uint32_t currentMA,
+                                      Proto::Request& request);
 
         /**
          * @brief Send the Fixed PDO Request message after validation
@@ -116,9 +116,12 @@ namespace T76::DRPD::Logic {
          * @param pdoIndex Index of the PDO in the source capabilities
          * @param pdoVariant The PDO variant being requested
          * @param currentMA Requested current in milliamps
-         * @return true if the Request message was sent successfully, false otherwise
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool _requestFixedPDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t currentMA);
+        SinkRequestResult _requestFixedPDO(
+            size_t pdoIndex,
+            const Proto::PDOVariant& pdoVariant,
+            uint32_t currentMA);
 
         /**
          * @brief Send a Variable PDO Request message after validation
@@ -126,9 +129,12 @@ namespace T76::DRPD::Logic {
          * @param pdoIndex Index of the PDO in the source capabilities
          * @param pdoVariant The PDO variant being requested
          * @param currentMA Requested current in milliamps
-         * @return true if the Request message was sent successfully, false otherwise
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool _requestVariablePDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t currentMA);
+        SinkRequestResult _requestVariablePDO(
+            size_t pdoIndex,
+            const Proto::PDOVariant& pdoVariant,
+            uint32_t currentMA);
 
         /**
          * @brief Send a Battery PDO Request message after validation
@@ -137,9 +143,13 @@ namespace T76::DRPD::Logic {
          * @param pdoVariant The PDO variant being requested
          * @param voltageMV Requested voltage in millivolts
          * @param currentMA Requested current in milliamps
-         * @return true if the Request message was sent successfully, false otherwise
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool _requestBatteryPDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t voltageMV, uint32_t currentMA);
+        SinkRequestResult _requestBatteryPDO(
+            size_t pdoIndex,
+            const Proto::PDOVariant& pdoVariant,
+            uint32_t voltageMV,
+            uint32_t currentMA);
 
         /**
          * @brief Send an Augmented (PPS) PDO Request message after validation
@@ -148,17 +158,21 @@ namespace T76::DRPD::Logic {
          * @param pdoVariant The PDO variant being requested
          * @param voltageMV Requested voltage in millivolts
          * @param currentMA Requested current in milliamps
-         * @return true if the Request message was sent successfully, false otherwise
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool _requestAugmentedPDO(size_t pdoIndex, const Proto::PDOVariant& pdoVariant, uint32_t voltageMV, uint32_t currentMA);
+        SinkRequestResult _requestAugmentedPDO(
+            size_t pdoIndex,
+            const Proto::PDOVariant& pdoVariant,
+            uint32_t voltageMV,
+            uint32_t currentMA);
 
         /**
          * @brief Re-request the pending PDO against the active capability set.
          *
          * @param context Shared sink context.
-         * @return true if a Request message was dispatched, false otherwise.
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool _requestPendingPDO(SinkContext& context);
+        SinkRequestResult _requestPendingPDO(SinkContext& context);
 
         alarm_id_t _responseTimeoutAlarmId = -1;  ///< Alarm ID for response timeout timer
 
