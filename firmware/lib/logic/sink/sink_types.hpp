@@ -79,4 +79,41 @@ namespace T76::DRPD::Logic {
         SinkTimeoutEventType type;
     };
 
+    /**
+     * @brief Result for host/policy Sink PDO request attempts.
+     *
+     * Request APIs use this lightweight result instead of a bare boolean so
+     * callers can preserve simple success checks while surfacing a static
+     * diagnostic string for rejected requests.
+     */
+    struct SinkRequestResult {
+        bool success = false;          ///< True when the request was accepted or dispatched.
+        const char *error = nullptr;   ///< Static error description when success is false.
+
+        /**
+         * @brief Construct a successful request result.
+         * @return Successful SinkRequestResult.
+         */
+        static constexpr SinkRequestResult ok() {
+            return SinkRequestResult{true, nullptr};
+        }
+
+        /**
+         * @brief Construct a failed request result.
+         * @param message Static error message describing the rejection.
+         * @return Failed SinkRequestResult with diagnostic text.
+         */
+        static constexpr SinkRequestResult failure(const char *message) {
+            return SinkRequestResult{false, message};
+        }
+
+        /**
+         * @brief Allow result objects to be used in boolean checks.
+         * @return True when the request succeeded.
+         */
+        explicit constexpr operator bool() const {
+            return success;
+        }
+    };
+
 } // namespace T76::DRPD::Logic

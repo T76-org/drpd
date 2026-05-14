@@ -203,13 +203,25 @@ namespace T76::DRPD::Logic {
         void sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message);
 
         /**
+         * @brief Validate whether a PDO request can be attempted without mutating policy state.
+         * @param pdoIndex Zero-based PDO index in active capabilities view.
+         * @param voltageMV Requested voltage in millivolts.
+         * @param currentMA Requested current in milliamps.
+         * @return Request result describing validation success or rejection reason.
+         */
+        SinkRequestResult validatePDORequest(
+            size_t pdoIndex,
+            uint32_t voltageMV,
+            uint32_t currentMA) const;
+
+        /**
          * @brief Request a PDO through Select_Capability path when current state allows it.
          * @param pdoIndex Zero-based PDO index in active capabilities view.
          * @param voltageMV Requested voltage in millivolts.
          * @param currentMA Requested current in milliamps.
-         * @return True if request was dispatched; false if state/index/validation rejected it.
+         * @return Request result describing dispatch or rejection reason.
          */
-        bool requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
+        SinkRequestResult requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
         /**
          * @brief Add one-shot timer in the Sink-owned alarm pool.
@@ -260,6 +272,16 @@ namespace T76::DRPD::Logic {
          * @return True if source fixed PDO #1 advertises EPR capable.
          */
         bool _sourceEPRCapable() const;
+
+        /**
+         * @brief Validate augmented PDO request constraints without mutating state.
+         * @param pdoVariant Augmented PDO variant being requested.
+         * @param voltageMV Requested voltage in millivolts.
+         * @return Request result describing validation success or rejection reason.
+         */
+        SinkRequestResult _validateAugmentedPDORequest(
+            const Proto::PDOVariant& pdoVariant,
+            uint32_t voltageMV) const;
 
         /**
          * @brief Emit sink info change callback if registered.

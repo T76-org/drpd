@@ -130,8 +130,11 @@ void App::_setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
     uint32_t voltageMillivolts = static_cast<uint32_t>(params[1].numberValue);
     uint32_t currentMilliamps = static_cast<uint32_t>(params[2].numberValue);
 
-    if (!sink->requestPDO(pdoIndex, voltageMillivolts, currentMilliamps)) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Unable to request PDO.");
+    const Logic::SinkRequestResult result =
+        sink->requestPDO(pdoIndex, voltageMillivolts, currentMilliamps);
+    if (!result) {
+        const char *error = result.error != nullptr ? result.error : "Unable to request PDO.";
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. " + std::string(error));
     }
 }
 
