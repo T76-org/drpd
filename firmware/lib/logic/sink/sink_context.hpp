@@ -119,6 +119,11 @@ namespace T76::DRPD::Logic {
         void performReset(SinkResetType resetType);
 
         /**
+         * @brief Complete receiver-side Soft_Reset handling after the PHY GoodCRC.
+         */
+        void handleReceivedSoftReset();
+
+        /**
          * @brief Cache latest SPR Source_Capabilities and notify listeners.
          * @param sourceCapabilities Decoded SPR source capabilities to cache.
          */

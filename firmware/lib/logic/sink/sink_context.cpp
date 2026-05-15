@@ -132,6 +132,29 @@ void SinkContext::performReset(SinkResetType resetType) {
     }
 }
 
+void SinkContext::handleReceivedSoftReset() {
+    _messageSender.reset();
+
+    if (_runtimeState._currentStateHandler) {
+        _runtimeState._currentStateHandler->reset(*this);
+    }
+
+    _runtimeState.reset();
+
+    if (_ccBusController.state() != CCBusState::Attached) {
+        transitionTo(SinkState::Disconnected);
+        return;
+    }
+
+    _messageSender.sendMessageAndAwaitGoodCRC(
+        PHY::BMCEncodedMessage::acceptMessage(
+            Proto::PDHeader::PortDataRole::UFP,
+            Proto::PDHeader::PortPowerRole::Sink
+        )
+    );
+    transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+}
+
 void SinkContext::setSourceCapabilities(const Proto::SourceCapabilities& sourceCapabilities) {
     _runtimeState._sourceCapabilities = sourceCapabilities;
     _runtimeState._sourceSupportsEpr = _sourceEPRCapable();

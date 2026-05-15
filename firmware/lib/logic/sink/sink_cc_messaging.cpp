@@ -47,7 +47,8 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Soft_Reset) {
-            reset();
+            _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
+            _context.handleReceivedSoftReset();
             return;
         }
     }
