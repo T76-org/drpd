@@ -23,6 +23,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _eprModeEntryStateHandler(),
     _getPPSStatusStateHandler(),
     _readySinkStateHandler(),
+    _sendResponseStateHandler(),
     _sendSoftResetStateHandler(),
     _selectCapabilityStateHandler(),
     _transitionSinkStateHandler(),
@@ -44,6 +45,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _eprModeEntryStateHandler,
         _getPPSStatusStateHandler,
         _readySinkStateHandler,
+        _sendResponseStateHandler,
         _sendSoftResetStateHandler,
         _selectCapabilityStateHandler,
         _transitionSinkStateHandler,
@@ -93,7 +95,7 @@ void Sink::loopCore1() {
 
             if (result == ExtendedFragmentResult::UnsupportedType) {
                 if (_runtimeState._state == SinkState::PE_SNK_Ready) {
-                    _context.sendNotSupportedMessage();
+                    _context.sendNotSupportedResponse();
                 } else {
                     reset(SinkResetType::SoftReset);
                 }
@@ -195,7 +197,7 @@ void Sink::_processTimeoutEvents() {
             if (_chunkingNotSupportedPending &&
                 _runtimeState._state == SinkState::PE_SNK_Ready) {
                 _chunkingNotSupportedPending = false;
-                _context.sendNotSupportedMessage();
+                _context.sendNotSupportedResponse();
             }
             continue;
         }

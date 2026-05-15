@@ -213,19 +213,19 @@ void ReadySinkStateHandler::handleMessage(
         const auto controlMessageType = decodedHeader.controlMessageType();
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Get_Sink_Cap) {
-            context.sendSinkCapabilities();
+            context.sendSinkCapabilitiesResponse();
             return;
         }
 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Get_Sink_Cap_Extended) {
-            context.sendSinkCapabilitiesExtended();
+            context.sendSinkCapabilitiesExtendedResponse();
             return;
         }
 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Get_Revision) {
-            context.sendRevision();
+            context.sendRevisionResponse();
             return;
         }
     }
@@ -262,11 +262,11 @@ void ReadySinkStateHandler::handleMessage(
             const auto requestPayload =
                 context.takeCompletedExtendedPayload(Proto::ExtendedMessageType::Get_Manufacturer_Info);
             if (!requestPayload.has_value()) {
-                context.sendNotSupportedMessage();
+                context.sendNotSupportedResponse();
                 return;
             }
 
-            context.sendManufacturerInfo(requestPayload->span());
+            context.sendManufacturerInfoResponse(requestPayload->span());
             return;
         }
 
@@ -286,7 +286,7 @@ void ReadySinkStateHandler::handleMessage(
     }
 
     if (action == ReadyMessageAction::NotSupported) {
-        context.sendNotSupportedMessage();
+        context.sendNotSupportedResponse();
     }
 }
 

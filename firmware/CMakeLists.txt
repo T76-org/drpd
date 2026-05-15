@@ -103,6 +103,7 @@ add_executable(drpd-firmware
         lib/logic/sink/state_handlers/epr_mode_exit.cpp
         lib/logic/sink/state_handlers/epr_mode_entry.cpp
         lib/logic/sink/state_handlers/get_pps_status.cpp
+        lib/logic/sink/state_handlers/send_response.cpp
         lib/logic/sink/state_handlers/send_soft_reset.cpp
         lib/logic/sink/state_handlers/select_capability.cpp
         lib/logic/sink/state_handlers/ready.cpp

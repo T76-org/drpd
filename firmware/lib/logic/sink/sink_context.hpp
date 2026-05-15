@@ -53,6 +53,7 @@ namespace T76::DRPD::Logic {
     class EPRModeEntryStateHandler;
     class GetPPSStatusStateHandler;
     class ReadySinkStateHandler;
+    class SendResponseStateHandler;
     class SendSoftResetStateHandler;
     class SelectCapabilityStateHandler;
     class TransitionSinkStateHandler;
@@ -99,6 +100,7 @@ namespace T76::DRPD::Logic {
             EPRModeEntryStateHandler& eprModeEntryStateHandler,
             GetPPSStatusStateHandler& getPPSStatusStateHandler,
             ReadySinkStateHandler& readySinkStateHandler,
+            SendResponseStateHandler& sendResponseStateHandler,
             SendSoftResetStateHandler& sendSoftResetStateHandler,
             SelectCapabilityStateHandler& selectCapabilityStateHandler,
             TransitionSinkStateHandler& transitionSinkStateHandler,
@@ -218,9 +220,19 @@ namespace T76::DRPD::Logic {
         void sendNotSupportedMessage();
 
         /**
+         * @brief Send a Not_Supported response and remain out of Ready until GoodCRC.
+         */
+        void sendNotSupportedResponse();
+
+        /**
          * @brief Send minimal SPR Sink_Capabilities for Get_Sink_Cap.
          */
         void sendSinkCapabilities();
+
+        /**
+         * @brief Send SPR Sink_Capabilities response and remain out of Ready until GoodCRC.
+         */
+        void sendSinkCapabilitiesResponse();
 
         /**
          * @brief Send minimal Sink_Capabilities_Extended for Get_Sink_Cap_Extended.
@@ -228,9 +240,19 @@ namespace T76::DRPD::Logic {
         void sendSinkCapabilitiesExtended();
 
         /**
+         * @brief Send Sink_Capabilities_Extended response and remain out of Ready until GoodCRC.
+         */
+        void sendSinkCapabilitiesExtendedResponse();
+
+        /**
          * @brief Send local PD Revision information for Get_Revision.
          */
         void sendRevision();
+
+        /**
+         * @brief Send local Revision response and remain out of Ready until GoodCRC.
+         */
+        void sendRevisionResponse();
 
         /**
          * @brief Send Get_PPS_Status for the current PPS contract.
@@ -242,6 +264,12 @@ namespace T76::DRPD::Logic {
          * @param requestPayload GMIDB payload from the received request.
          */
         void sendManufacturerInfo(std::span<const uint8_t> requestPayload);
+
+        /**
+         * @brief Send Manufacturer_Info response and remain out of Ready until GoodCRC.
+         * @param requestPayload GMIDB payload from the received request.
+         */
+        void sendManufacturerInfoResponse(std::span<const uint8_t> requestPayload);
 
         /**
          * @brief Send EPR_Mode data message.
@@ -328,6 +356,7 @@ namespace T76::DRPD::Logic {
         EPRModeEntryStateHandler& _eprModeEntryStateHandler;             ///< Handler for EPR Mode Entry.
         GetPPSStatusStateHandler& _getPPSStatusStateHandler;             ///< Handler for PPS status query.
         ReadySinkStateHandler& _readySinkStateHandler;                   ///< Handler for Ready.
+        SendResponseStateHandler& _sendResponseStateHandler;             ///< Handler for Ready responses.
         SendSoftResetStateHandler& _sendSoftResetStateHandler;           ///< Handler for Send Soft Reset.
         SelectCapabilityStateHandler& _selectCapabilityStateHandler;     ///< Handler for Select Capability.
         TransitionSinkStateHandler& _transitionSinkStateHandler;         ///< Handler for Transition Sink.

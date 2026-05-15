@@ -16,6 +16,7 @@
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
 #include "state_handlers/ready.hpp"
+#include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
 #include "state_handlers/transition_sink.hpp"
@@ -34,6 +35,7 @@ SinkContext::SinkContext(
     EPRModeEntryStateHandler& eprModeEntryStateHandler,
     GetPPSStatusStateHandler& getPPSStatusStateHandler,
     ReadySinkStateHandler& readySinkStateHandler,
+    SendResponseStateHandler& sendResponseStateHandler,
     SendSoftResetStateHandler& sendSoftResetStateHandler,
     SelectCapabilityStateHandler& selectCapabilityStateHandler,
     TransitionSinkStateHandler& transitionSinkStateHandler,
@@ -50,6 +52,7 @@ SinkContext::SinkContext(
     _eprModeEntryStateHandler(eprModeEntryStateHandler),
     _getPPSStatusStateHandler(getPPSStatusStateHandler),
     _readySinkStateHandler(readySinkStateHandler),
+    _sendResponseStateHandler(sendResponseStateHandler),
     _sendSoftResetStateHandler(sendSoftResetStateHandler),
     _selectCapabilityStateHandler(selectCapabilityStateHandler),
     _transitionSinkStateHandler(transitionSinkStateHandler),
@@ -99,6 +102,10 @@ void SinkContext::transitionTo(SinkState state) {
 
         case SinkState::PE_SNK_Ready:
             _runtimeState._currentStateHandler = &_readySinkStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Send_Response:
+            _runtimeState._currentStateHandler = &_sendResponseStateHandler;
             break;
 
         case SinkState::PE_SNK_Send_EPR_Mode_Entry:
@@ -314,6 +321,16 @@ void SinkContext::sendNotSupportedMessage() {
     );
 }
 
+void SinkContext::sendNotSupportedResponse() {
+    _sendResponseStateHandler.prepareResponse(
+        PHY::BMCEncodedMessage::notAcceptedMessage(
+            Proto::PDHeader::PortDataRole::UFP,
+            Proto::PDHeader::PortPowerRole::Sink
+        )
+    );
+    transitionTo(SinkState::PE_SNK_Send_Response);
+}
+
 void SinkContext::sendSinkCapabilities() {
     const Proto::SinkCapabilities sinkCapabilities =
         Proto::SinkCapabilities::fixedSupply(5000, 500);
@@ -328,6 +345,23 @@ void SinkContext::sendSinkCapabilities() {
     header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
+void SinkContext::sendSinkCapabilitiesResponse() {
+    const Proto::SinkCapabilities sinkCapabilities =
+        Proto::SinkCapabilities::fixedSupply(5000, 500);
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        sinkCapabilities
+    );
+
+    auto &header = message.header();
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _sendResponseStateHandler.prepareResponse(message);
+    transitionTo(SinkState::PE_SNK_Send_Response);
 }
 
 void SinkContext::sendSinkCapabilitiesExtended() {
@@ -354,6 +388,31 @@ void SinkContext::sendSinkCapabilitiesExtended() {
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
 
+void SinkContext::sendSinkCapabilitiesExtendedResponse() {
+    constexpr uint8_t kMinimalSPRPDPW = 3;
+
+    const Proto::SinkCapabilitiesExtended sinkCapabilities =
+        Proto::SinkCapabilitiesExtended::minimalSPR(
+            T76_IC_USB_VENDOR_ID,
+            T76_IC_USB_PRODUCT_ID,
+            kMinimalSPRPDPW
+        );
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        sinkCapabilities
+    );
+
+    auto &header = message.header();
+    header.extended(true);
+    header.extendedMessageType(Proto::ExtendedMessageType::Sink_Capabilities_Extended);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _sendResponseStateHandler.prepareResponse(message);
+    transitionTo(SinkState::PE_SNK_Send_Response);
+}
+
 void SinkContext::sendRevision() {
     const Proto::Revision revision = Proto::Revision::revision3p2Version1p1();
     PHY::BMCEncodedMessage message(
@@ -367,6 +426,22 @@ void SinkContext::sendRevision() {
     header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
+void SinkContext::sendRevisionResponse() {
+    const Proto::Revision revision = Proto::Revision::revision3p2Version1p1();
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        revision
+    );
+
+    auto &header = message.header();
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _sendResponseStateHandler.prepareResponse(message);
+    transitionTo(SinkState::PE_SNK_Send_Response);
 }
 
 void SinkContext::sendGetPPSStatus() {
@@ -413,6 +488,36 @@ void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) 
     header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
+void SinkContext::sendManufacturerInfoResponse(std::span<const uint8_t> requestPayload) {
+    const bool isPortRequest =
+        requestPayload.size() == 2 &&
+        requestPayload[0] == 0 &&
+        requestPayload[1] == 0;
+
+    const Proto::ManufacturerInfo manufacturerInfo = isPortRequest
+        ? Proto::ManufacturerInfo::port(
+            T76_IC_USB_VENDOR_ID,
+            T76_IC_USB_PRODUCT_ID,
+            T76_IC_USB_MANUFACTURER_STRING
+        )
+        : Proto::ManufacturerInfo::unsupported();
+
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        manufacturerInfo
+    );
+
+    auto &header = message.header();
+    header.extended(true);
+    header.extendedMessageType(Proto::ExtendedMessageType::Manufacturer_Info);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _sendResponseStateHandler.prepareResponse(message);
+    transitionTo(SinkState::PE_SNK_Send_Response);
 }
 
 void SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {

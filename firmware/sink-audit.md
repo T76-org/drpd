@@ -382,11 +382,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P1 - Message Sending and Timing
 
-- [ ] Track successful transmission of response messages before returning to previous state.
+- [x] Track successful transmission of response messages before returning to previous state.
   - Spec anchor: Not Supported, Give Sink Cap, Soft Reset state diagrams.
-  - Current issue: many responses call `sendMessageAndAwaitGoodCRC()` but state transitions often do not wait for GoodCRC or completion.
-  - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `sink_context.cpp`.
-  - Verification: missing GoodCRC for response triggers retry then Soft/Hard Reset as appropriate.
+  - Current issue: fixed for Ready-originated responses; DRPD now enters `PE_SNK_Send_Response`, waits for `GoodCRCReceived`, then returns to Ready. `GoodCRCTimeout` falls into Soft Reset recovery.
+  - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `send_response.cpp`, `sink_context.cpp`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Apply Sink collision avoidance before Sink-initiated AMS messages.
   - Spec anchor: 6.10 Collision Avoidance, 6.6.16.

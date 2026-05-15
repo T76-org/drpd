@@ -70,6 +70,7 @@
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
 #include "state_handlers/ready.hpp"
+#include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
 #include "state_handlers/transition_sink.hpp"
@@ -264,6 +265,7 @@ namespace T76::DRPD::Logic {
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
         GetPPSStatusStateHandler _getPPSStatusStateHandler;      ///< PPS status query state handler.
         ReadySinkStateHandler _readySinkStateHandler;            ///< Ready state handler.
+        SendResponseStateHandler _sendResponseStateHandler;      ///< Ready response state handler.
         SendSoftResetStateHandler _sendSoftResetStateHandler;    ///< Send Soft Reset state handler.
         SelectCapabilityStateHandler _selectCapabilityStateHandler; ///< Select capability handler.
         TransitionSinkStateHandler _transitionSinkStateHandler;  ///< Transition sink handler.

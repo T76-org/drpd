@@ -233,6 +233,9 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
         case Logic::SinkState::PE_SNK_Give_Sink_Cap:
             _sendTransportTextResponse("PE_SNK_GIVE_SINK_CAP", true);
             break;
+        case Logic::SinkState::PE_SNK_Send_Response:
+            _sendTransportTextResponse("PE_SNK_SEND_RESPONSE", true);
+            break;
         case Logic::SinkState::PE_SNK_Get_Source_Cap:
             _sendTransportTextResponse("PE_SNK_GET_SOURCE_CAP", true);
             break;

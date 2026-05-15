@@ -48,6 +48,7 @@ namespace T76::DRPD::Logic {
         PE_SNK_EPR_Keepalive,               ///< EPR keepalive maintenance.
         PE_SNK_Hard_Reset,                  ///< Hard reset processing.
         PE_SNK_Transition_To_Default,       ///< Transition to default state.
+        PE_SNK_Send_Response,               ///< Send Ready-originated response and wait for GoodCRC.
 
         Error,                              ///< Error/fault state.
     };
