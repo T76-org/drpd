@@ -98,7 +98,15 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     const Proto::PDExtendedHeader extHeader(rawExtHeader);
     const size_t fragmentPayloadBytes = rawBody.size() - 2;
 
-    if (extHeader.dataSizeBytes() == 0 || extHeader.requestChunk()) {
+    if (extHeader.requestChunk()) {
+        if (!extHeader.chunked() || extHeader.dataSizeBytes() != 0) {
+            return ExtendedFragmentResult::Malformed;
+        }
+
+        return ExtendedFragmentResult::UnsupportedType;
+    }
+
+    if (extHeader.dataSizeBytes() == 0) {
         return ExtendedFragmentResult::Malformed;
     }
 

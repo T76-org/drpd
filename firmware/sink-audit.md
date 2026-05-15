@@ -318,11 +318,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P1 - Extended Messages and Chunking
 
-- [ ] Correct Extended Message `Request Chunk` validation.
+- [x] Correct Extended Message `Request Chunk` validation.
   - Spec anchor: 6.2.1.2.3.
-  - Current issue: `_handleExtendedMessageFragment()` treats any received `requestChunk()` as malformed and Soft Resets. If Sink ever supports responses to chunk requests, it must respond with requested chunk; if not applicable, classify correctly.
+  - Current issue: fixed; malformed chunk requests still Soft Reset, but syntactically valid inbound chunk requests are classified as unsupported instead of malformed because DRPD does not implement chunked Tx responses.
   - Code anchor: `firmware/lib/logic/sink/sink_cc_messaging.cpp`.
-  - Verification: chunk request for supported outbound extended message returns chunk or expected unsupported behavior.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] For unsupported multi-chunk incoming messages, use `ChunkingNotSupportedTimer` before `Not_Supported`.
   - Spec anchor: 6.6.18.1, 8.3.3.6.2.3.
