@@ -14,6 +14,7 @@ using namespace T76::DRPD::Logic;
 void EPRModeExitStateHandler::_completeExitToWaitForCapabilities(SinkContext& context) {
     context.setEPRModeActive(false);
     context.clearEPRSourceCapabilities();
+    // Wait_for_Capabilities owns tTypeCSinkWaitCap and Hard Resets if SPR Source_Capabilities do not arrive.
     context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
 }
 
@@ -27,6 +28,7 @@ void EPRModeExitStateHandler::_completeExitWithSourceCapabilities(
     context.clearEPRSourceCapabilities();
     context.setSourceCapabilities(Proto::SourceCapabilities(
         message->rawBody(), decodedHeader.numDataObjects()));
+    // Enter Wait_for_Capabilities so SPR renegotiation uses the same timer/cancel path as a delayed response.
     context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
     (void)context.requestPDO(0, 0, 0);
 }

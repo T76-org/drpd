@@ -266,11 +266,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] After commanded EPR exit, wait for SPR `Source_Capabilities` and Hard Reset if missing.
+- [x] After commanded EPR exit, wait for SPR `Source_Capabilities` and Hard Reset if missing.
   - Spec anchor: 6.4.10.3.1.
-  - Current issue: code transitions directly to Ready or Wait_for_Capabilities without specific exit timer/expectation.
-  - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: Sink Exit -> Source_Capabilities within tTypeCSinkWaitCap; timeout Hard Reset.
+  - Current issue: fixed; `PE_SNK_Send_EPR_Mode_Exit` transitions to `PE_SNK_Wait_for_Capabilities` after Exit GoodCRC, and that state owns the tTypeCSinkWaitCap timer and Hard Reset timeout path.
+  - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_exit.cpp`, `firmware/lib/logic/sink/state_handlers/wait_for_capabilities.cpp`.
+  - Verification: existing `cmake --build firmware/build --target drpd-firmware` passed; analyzer/source capture still pending.
 
 - [ ] Treat unsolicited SPR `Source_Capabilities` in EPR Mode as Hard Reset condition unless it was requested with `Get_Source_Cap`.
   - Spec anchor: 6.4.10.2, 6.4.10.3.3, 8.3.3.3.8.
