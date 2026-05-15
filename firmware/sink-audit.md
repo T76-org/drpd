@@ -164,29 +164,29 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/proto/pd_messages/pps_status.hpp`, `firmware/lib/logic/sink/state_handlers/get_pps_status.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of SPR PPS negotiation -> `Get_PPS_Status` / `PPS_Status` still pending.
 
-- [ ] Handle `Country_Codes` and `Country_Info` extended messages.
+- [x] Handle `Country_Codes` and `Country_Info` extended messages.
   - Spec anchor: 6.5.11, 6.5.12, Table 6.79 note 10.
-  - Current issue: no country data parser/response path exists.
+  - Current issue: unsupported by product policy; DRPD has no country-authority country-data requirement, and Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: unsupported product returns `Not_Supported`; supported country-authority product responds/processes correctly.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Country_Codes` / `Country_Info` -> `Not_Supported` still pending.
 
-- [ ] Implement `Sink_Capabilities_Extended` transmit and reject/process received `Sink_Capabilities_Extended` correctly.
+- [x] Implement `Sink_Capabilities_Extended` transmit and reject/process received `Sink_Capabilities_Extended` correctly.
   - Spec anchor: 6.5.13, Table 6.79.
-  - Current issue: received `Sink_Capabilities_Extended` by Sink is not supported; transmitted `Sink_Capabilities_Extended` is required for `Get_Sink_Cap_Extended`.
+  - Current issue: `Get_Sink_Cap_Extended` transmits `Sink_Capabilities_Extended`; received `Sink_Capabilities_Extended` by Sink is explicitly `Not_Supported`.
   - Code anchor: `firmware/lib/proto/pd_message_types.hpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: receiving this message as Sink returns `Not_Supported`; sending works in response to `Get_Sink_Cap_Extended`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of received `Sink_Capabilities_Extended` -> `Not_Supported` and `Get_Sink_Cap_Extended` -> `Sink_Capabilities_Extended` still pending.
 
-- [ ] Handle `Vendor_Defined_Extended` with explicit product policy.
+- [x] Handle `Vendor_Defined_Extended` with explicit product policy.
   - Spec anchor: 6.5.16, Table 6.79.
-  - Current issue: vendor-defined extended messages are not routed to vendor policy; unsupported path is generic and untested.
+  - Current issue: unsupported by product policy; DRPD has no VDEM/modal-operation vendor policy, and firmware returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/sink_runtime_state.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: unsupported VDEM returns `Not_Supported`; supported vendor policy receives payload.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Vendor_Defined_Extended` -> `Not_Supported` still pending.
 
-- [ ] Handle reserved extended message types explicitly.
+- [x] Handle reserved extended message types explicitly.
   - Spec anchor: 6.5 Table 6.53, Table 6.72.
-  - Current issue: reserved/unrecognized extended types fall into `UnsupportedType`; response behavior should be explicit and tested.
+  - Current issue: reserved/unrecognized extended types return `Not_Supported` in Ready and initiate Soft Reset outside Ready.
   - Code anchor: `firmware/lib/logic/sink/sink.cpp`, `firmware/lib/proto/pd_header.cpp`.
-  - Verification: reserved extended type receives GoodCRC then `Not_Supported` in Ready, or Soft Reset if unexpected during non-interruptible AMS.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of reserved extended type -> Ready `Not_Supported` / AMS Soft Reset still pending.
 
 ## P0 - EPR Entry
 

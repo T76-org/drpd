@@ -89,7 +89,11 @@ void Sink::loopCore1() {
             }
 
             if (result == ExtendedFragmentResult::UnsupportedType) {
-                _context.sendNotSupportedMessage();
+                if (_runtimeState._state == SinkState::PE_SNK_Ready) {
+                    _context.sendNotSupportedMessage();
+                } else {
+                    reset(SinkResetType::SoftReset);
+                }
                 continue;
             }
 
