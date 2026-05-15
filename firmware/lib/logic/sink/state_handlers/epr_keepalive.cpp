@@ -80,6 +80,12 @@ void EPRKeepaliveStateHandler::_exitEPRMode() {
         return;
     }
 
+    if (!_context->eprExitContractReady()) {
+        _context->runtimeState()._eprSourceExitRequested = true;
+        (void)_context->requestPDO(0, 0, 0);
+        return;
+    }
+
     _context->transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
 }
 
@@ -197,6 +203,11 @@ void EPRKeepaliveStateHandler::handleMessage(
             const Proto::EPRMode eprMode(rawEprMode);
 
             if (eprMode.action() == Proto::EPRMode::Action::Exit) {
+                if (!context.eprExitContractReady()) {
+                    context.performReset(SinkResetType::HardReset);
+                    return;
+                }
+
                 context.setEPRModeActive(false);
                 context.clearEPRSourceCapabilities();
                 context.transitionTo(SinkState::PE_SNK_Ready);

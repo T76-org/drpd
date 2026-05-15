@@ -85,6 +85,12 @@ void EPRModeExitStateHandler::handleMessageSenderStateChange(
 
 void EPRModeExitStateHandler::enter(SinkContext& context) {
     _bindContext(context);
+
+    if (!context.eprExitContractReady()) {
+        context.performReset(SinkResetType::HardReset);
+        return;
+    }
+
     context.sendEPRMode(Proto::EPRMode::Action::Exit, 0);
 }
 

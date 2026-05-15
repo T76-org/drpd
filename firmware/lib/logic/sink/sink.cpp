@@ -230,5 +230,11 @@ void Sink::_processPendingPolicyRequests() {
         return;
     }
 
+    if (!_context.eprExitContractReady()) {
+        _runtimeState._eprSourceExitRequested = true;
+        (void)_context.requestPDO(0, 0, 0);
+        return;
+    }
+
     _context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
 }

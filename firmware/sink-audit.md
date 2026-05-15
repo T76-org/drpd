@@ -260,11 +260,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P0 - EPR Exit and Error Handling
 
-- [ ] Enforce EPR exit precondition: explicit contract must be SPR `(A)PDO` at 20 V or less before sending or accepting `EPR_Mode(Exit)`.
+- [x] Enforce EPR exit precondition: explicit contract must be SPR `(A)PDO` at 20 V or less before sending or accepting `EPR_Mode(Exit)`.
   - Spec anchor: 2.5.3, 6.4.10.3.1, 6.4.10.3.3.
-  - Current issue: `_exitEPRMode()` sends Exit immediately; incoming Exit immediately exits regardless of current contract.
+  - Current issue: fixed; Sink-initiated exit requests first negotiate PDO #0 when the active contract is not SPR <=20 V, and incoming `EPR_Mode(Exit)` causes Hard Reset if the precondition is not met.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: Exit while contracted above 20 V causes Hard Reset; graceful exit first negotiates <=20 V EPR/SPR contract.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] After commanded EPR exit, wait for SPR `Source_Capabilities` and Hard Reset if missing.
   - Spec anchor: 6.4.10.3.1.

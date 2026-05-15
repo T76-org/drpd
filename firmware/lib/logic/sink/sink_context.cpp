@@ -234,6 +234,19 @@ bool SinkContext::eprEntryEnabled() const {
     return _runtimeState._eprEntryEnabled;
 }
 
+bool SinkContext::eprExitContractReady() const {
+    if (!_runtimeState._negotiatedPDO.has_value()) {
+        return false;
+    }
+
+    if (std::holds_alternative<Proto::EPRAVSAPDO>(_runtimeState._negotiatedPDO.value())) {
+        return false;
+    }
+
+    return _runtimeState._negotiatedVoltage > 0.0f &&
+        _runtimeState._negotiatedVoltage <= 20000.0f;
+}
+
 size_t SinkContext::totalPDOCount() const {
     if (_runtimeState._eprModeActive && _runtimeState._eprCapabilities.has_value()) {
         return _runtimeState._eprCapabilities->pdoCount();

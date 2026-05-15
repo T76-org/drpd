@@ -34,6 +34,7 @@ void SinkRuntimeState::reset() {
     _hasExplicitContract = false;
     _eprModeActive = false;
     _eprEntryAttempted = false;
+    _eprSourceExitRequested = false;
 
     resetStoredReceivedMessageId();
 

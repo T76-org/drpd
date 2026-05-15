@@ -167,6 +167,12 @@ namespace T76::DRPD::Logic {
         void setEPRModeActive(bool active);
 
         /**
+         * @brief Return whether current explicit contract is valid before EPR_Mode Exit.
+         * @return True when negotiated contract is an SPR PDO/APDO at 20 V or lower.
+         */
+        [[nodiscard]] bool eprExitContractReady() const;
+
+        /**
          * @brief Set whether local policy allows EPR entry.
          * @param enabled True to allow EPR entry on the next eligible SPR contract.
          */
