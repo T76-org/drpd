@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 
@@ -21,7 +22,31 @@ namespace T76::DRPD::Logic {
      */
     enum class SinkInfoChange : uint32_t {
         PDOListUpdated,     ///< Source/EPR PDO list changed.
-        OtherInfoChanged    ///< Non-PDO sink state changed.
+        OtherInfoChanged,   ///< Non-PDO sink state changed.
+        RequestOutcomeUpdated ///< Last Sink request outcome changed.
+    };
+
+    /**
+     * @brief Host-visible outcome for the most recent Sink PDO request.
+     */
+    enum class SinkRequestOutcome : uint32_t {
+        None,         ///< No Sink request has been attempted.
+        Pending,      ///< Request has been dispatched and is awaiting Source response.
+        Accepted,     ///< Source accepted the request.
+        Rejected,     ///< Source rejected the request.
+        Wait,         ///< Source replied Wait to the request.
+        NotSupported, ///< Source replied Not_Supported to the request.
+        Timeout       ///< Source did not respond before SenderResponseTimer expired.
+    };
+
+    /**
+     * @brief Snapshot of the most recent Sink PDO request and Source outcome.
+     */
+    struct SinkRequestStatus {
+        SinkRequestOutcome outcome = SinkRequestOutcome::None; ///< Latest request outcome.
+        size_t pdoIndex = 0;                                   ///< Requested active-view PDO index.
+        uint32_t voltageMV = 0;                                ///< Requested voltage in millivolts.
+        uint32_t currentMA = 0;                                ///< Requested current in milliamps.
     };
 
     /**

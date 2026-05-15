@@ -39,6 +39,7 @@ void SinkRuntimeState::reset() {
     resetStoredReceivedMessageId();
 
     _pendingRequestedPDO.reset();
+    _pendingPDOIndex = 0;
     _pendingVoltage = 0.0f;
     _pendingCurrent = 0.0f;
 

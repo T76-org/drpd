@@ -13,6 +13,31 @@
 
 using namespace T76::DRPD;
 
+namespace {
+
+const char *sinkRequestOutcomeName(Logic::SinkRequestOutcome outcome) {
+    switch (outcome) {
+        case Logic::SinkRequestOutcome::None:
+            return "NONE";
+        case Logic::SinkRequestOutcome::Pending:
+            return "PENDING";
+        case Logic::SinkRequestOutcome::Accepted:
+            return "ACCEPTED";
+        case Logic::SinkRequestOutcome::Rejected:
+            return "REJECTED";
+        case Logic::SinkRequestOutcome::Wait:
+            return "WAIT";
+        case Logic::SinkRequestOutcome::NotSupported:
+            return "NOT_SUPPORTED";
+        case Logic::SinkRequestOutcome::Timeout:
+            return "TIMEOUT";
+    }
+
+    return "UNKNOWN";
+}
+
+} // namespace
+
 
 void App::_querySinkAvailablePDOCount(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
@@ -136,6 +161,30 @@ void App::_setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
         const char *error = result.error != nullptr ? result.error : "Unable to request PDO.";
         _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. " + std::string(error));
     }
+}
+
+void App::_querySinkRequestStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
+    (void)params;
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    const Logic::SinkRequestStatus status = sink->lastRequestStatus();
+    std::string response = sinkRequestOutcomeName(status.outcome);
+    response += ",";
+    response += std::to_string(status.pdoIndex);
+    response += ",";
+    response += std::to_string(status.voltageMV);
+    response += ",";
+    response += std::to_string(status.currentMA);
+    _sendTransportTextResponse(response, true);
 }
 
 void App::_querySinkCapabilityCount(const std::vector<T76::SCPI::ParameterValue> &params) {

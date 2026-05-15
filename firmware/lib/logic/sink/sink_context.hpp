@@ -204,6 +204,12 @@ namespace T76::DRPD::Logic {
         void setNegotiatedValues(const Proto::PDOVariant pdoVariant, float voltage, float current);
 
         /**
+         * @brief Store host-visible outcome for the current pending Sink PDO request.
+         * @param outcome Source response or timeout outcome to record.
+         */
+        void setRequestOutcome(SinkRequestOutcome outcome);
+
+        /**
          * @brief Mark EPR mode activity flag and notify listeners.
          * @param active True if EPR mode is active; false otherwise.
          */

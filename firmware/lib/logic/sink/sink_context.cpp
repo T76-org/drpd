@@ -291,6 +291,16 @@ void SinkContext::setNegotiatedValues(const Proto::PDOVariant pdoVariant, float 
     _notifySinkInfoChanged(SinkInfoChange::OtherInfoChanged);
 }
 
+void SinkContext::setRequestOutcome(SinkRequestOutcome outcome) {
+    _runtimeState._lastRequestStatus = SinkRequestStatus{
+        .outcome = outcome,
+        .pdoIndex = _runtimeState._pendingPDOIndex,
+        .voltageMV = static_cast<uint32_t>(_runtimeState._pendingVoltage),
+        .currentMA = static_cast<uint32_t>(_runtimeState._pendingCurrent),
+    };
+    _notifySinkInfoChanged(SinkInfoChange::RequestOutcomeUpdated);
+}
+
 void SinkContext::setEPRModeActive(bool active) {
     _runtimeState._eprModeActive = active;
     _runtimeState._eprEntryAttempted = _runtimeState._eprEntryAttempted || active;

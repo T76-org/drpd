@@ -218,6 +218,12 @@ namespace T76::DRPD::Logic {
         SinkRequestResult requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
         /**
+         * @brief Get status for the most recent Sink PDO request.
+         * @return Last request status snapshot.
+         */
+        [[nodiscard]] SinkRequestStatus lastRequestStatus() const;
+
+        /**
          * @brief Set whether local policy allows automatic EPR entry.
          * @param enabled True to allow EPR entry after an eligible SPR contract.
          */

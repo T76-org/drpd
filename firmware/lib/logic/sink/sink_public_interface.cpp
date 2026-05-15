@@ -90,6 +90,10 @@ SinkRequestResult Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t
     return SinkRequestResult::ok();
 }
 
+SinkRequestStatus Sink::lastRequestStatus() const {
+    return _runtimeState._lastRequestStatus;
+}
+
 void Sink::eprEntryEnabled(bool enabled) {
     _context.setEPREntryEnabled(enabled);
 

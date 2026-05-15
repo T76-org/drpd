@@ -408,11 +408,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: app config, SCPI sink interface, proto messages.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Add policy callback/result reporting for Reject/Wait/Not_Supported outcomes.
+- [x] Add policy callback/result reporting for Reject/Wait/Not_Supported outcomes.
   - Spec anchor: Policy Engine state diagrams inform DPM on outcomes.
-  - Current issue: code has TODO for request rejected; app cannot distinguish failed negotiation cause.
-  - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`, public Sink API.
-  - Verification: app/UI receives structured event for Reject, Wait, Not_Supported, timeout.
+  - Current issue: fixed; Sink policy records the latest PDO request outcome (`PENDING`, `ACCEPTED`, `REJECTED`, `WAIT`, `NOT_SUPPORTED`, `TIMEOUT`) and notifies the app when it changes.
+  - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`, public Sink API, `SINK:REQUEST:STATUS?`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Add tests or capture fixtures for Sink message response matrix.
   - Spec anchor: Table 6.72, Tables 6.77-6.79.

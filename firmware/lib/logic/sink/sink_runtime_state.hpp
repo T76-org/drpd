@@ -114,8 +114,10 @@ namespace T76::DRPD::Logic {
         std::optional<Proto::EPRSourceCapabilities> _eprCapabilities;      ///< Cached EPR capabilities.
 
         std::optional<Proto::PDOVariant> _pendingRequestedPDO;    ///< Pending request PDO.
+        size_t _pendingPDOIndex = 0;                              ///< Pending request active-view PDO index.
         float _pendingVoltage = 0.0f;                             ///< Pending request voltage (mV context).
         float _pendingCurrent = 0.0f;                             ///< Pending request current (mA context).
+        SinkRequestStatus _lastRequestStatus;                     ///< Last host-visible Sink request outcome.
 
         std::optional<Proto::PDOVariant> _negotiatedPDO;          ///< Current negotiated PDO.
         float _negotiatedVoltage = 0.0f;                          ///< Negotiated voltage.

@@ -31,7 +31,12 @@ int64_t SelectCapabilityStateHandler::_onResponseTimeoutCallback(
 }
 
 void SelectCapabilityStateHandler::_onResponseTimeout() {
-    // TODO: Perform a hard reset
+    if (_context == nullptr) {
+        return;
+    }
+
+    _context->setRequestOutcome(SinkRequestOutcome::Timeout);
+    _context->performReset(SinkResetType::HardReset);
 }
 
 
@@ -110,8 +115,10 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
     context.transitionTo(SinkState::PE_SNK_Select_Capability);
 
     state._pendingRequestedPDO = pdoVariant;
+    state._pendingPDOIndex = pdoIndex;
     state._pendingVoltage = voltageMV;
     state._pendingCurrent = currentMA;
+    context.setRequestOutcome(SinkRequestOutcome::Pending);
 
     request.objectPosition(objectPosition.value());
     request.giveBackFlag(false);
@@ -403,8 +410,10 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
                 state._pendingVoltage,
                 state._pendingCurrent
             );
+            context.setRequestOutcome(SinkRequestOutcome::Accepted);
 
             state._pendingRequestedPDO = std::nullopt;
+            state._pendingPDOIndex = 0;
             state._pendingCurrent = 0.0f;
             state._pendingVoltage = 0.0f;
 
@@ -422,7 +431,9 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
             // TODO: Need a mechanism to signal that the request was rejected to the higher-level application
 
             auto& state = context.runtimeState();
+            context.setRequestOutcome(SinkRequestOutcome::Rejected);
             state._pendingRequestedPDO = std::nullopt;
+            state._pendingPDOIndex = 0;
             state._pendingCurrent = 0.0f;
             state._pendingVoltage = 0.0f;
 
@@ -441,7 +452,26 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
             // - We have an explicit contract already, we transition to the PE_SNK_Ready state
             // - We don't have an explicit contract, we transition back to the PE_SNK_Wait_for_Capabilities state
 
+            context.setRequestOutcome(SinkRequestOutcome::Wait);
+
             if (context.runtimeState()._negotiatedPDO.has_value()) {
+                context.transitionTo(SinkState::PE_SNK_Ready);
+            } else {
+                context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+            }
+
+            return;
+        }
+
+        if (controlMessageType.value() == Proto::ControlMessageType::Not_Supported) {
+            auto& state = context.runtimeState();
+            context.setRequestOutcome(SinkRequestOutcome::NotSupported);
+            state._pendingRequestedPDO = std::nullopt;
+            state._pendingPDOIndex = 0;
+            state._pendingCurrent = 0.0f;
+            state._pendingVoltage = 0.0f;
+
+            if (state._negotiatedPDO.has_value()) {
                 context.transitionTo(SinkState::PE_SNK_Ready);
             } else {
                 context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);

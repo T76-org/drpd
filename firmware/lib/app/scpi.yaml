@@ -417,6 +417,22 @@ commands:
         description: "The device is not in Sink role, the Sink state cannot accept a PDO request, or the sink policy rejected the request."
     handler:      _setSinkPDO
 
+  - syntax:       "SINK:REQUEST:STATUS?"
+    description:  |
+                    Query the most recent Sink PDO request outcome. This is intended for
+                    source-test observability: SINK:PDO accepts the host command before
+                    the Source replies, while this query reports the later Accept, Reject,
+                    Wait, Not_Supported, or timeout outcome.
+                    Returns "OUTCOME,index,voltage_mv,current_ma".
+    errors:
+      -200:
+        message:     "Execution error"
+        description: "The CC bus controller is in Sink role, but no Sink object is available."
+      -221:
+        message:     "Settings conflict"
+        description: "The device is not currently operating in Sink role."
+    handler:      _querySinkRequestStatus
+
   - syntax:       "SINK:CAPability:SPR:COUNT?"
     description:  "Query the number of configured local SPR Sink capability PDOs."
     handler:      _querySinkCapabilityCount
