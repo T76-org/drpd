@@ -84,6 +84,19 @@ namespace T76::DRPD::Logic {
         void resetStoredReceivedMessageId();
 
         /**
+         * @brief Return true when the received MessageID is a retry.
+         * @param messageId Incoming MessageID masked to 3 bits.
+         * @return True if a stored MessageID exists and matches messageId.
+         */
+        [[nodiscard]] bool isDuplicateReceivedMessageId(uint8_t messageId) const;
+
+        /**
+         * @brief Store the received MessageID after accepting a new message.
+         * @param messageId Incoming MessageID masked to 3 bits.
+         */
+        void storeReceivedMessageId(uint8_t messageId);
+
+        /**
          * @brief Resolve tracked slot index for supported extended message type.
          * @param type Extended message type to map.
          * @return Slot index if tracked; otherwise std::nullopt.

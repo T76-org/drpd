@@ -55,14 +55,13 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
     const uint8_t receivedMessageId = static_cast<uint8_t>(decodedHeader.messageId() & 0x7);
 
-    if (_runtimeState._hasStoredReceivedMessageId && receivedMessageId == _runtimeState._storedReceivedMessageId) {
+    if (_runtimeState.isDuplicateReceivedMessageId(receivedMessageId)) {
         // Retransmission due to missing GoodCRC. Acknowledge but do not process twice.
         _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
         return;
     }
 
-    _runtimeState._hasStoredReceivedMessageId = true;
-    _runtimeState._storedReceivedMessageId = receivedMessageId;
+    _runtimeState.storeReceivedMessageId(receivedMessageId);
     _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
 
     const T76::DRPD::PHY::BMCDecodedMessage* messagePtr = message;

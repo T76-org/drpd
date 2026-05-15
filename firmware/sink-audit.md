@@ -32,11 +32,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/message_sender.cpp`, `firmware/lib/logic/sink/sink_runtime_state.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; capture/harness verification of post-reset MessageID 0 still pending.
 
-- [ ] Do not treat every same MessageID as duplicate without considering SOP/message sequence reset boundaries.
+- [x] Do not treat every same MessageID as duplicate without considering SOP/message sequence reset boundaries.
   - Spec anchor: 6.12.2.3.4 `PRL_Rx_Check_MessageID`.
   - Current issue: duplicate check only compares last 3-bit MessageID; no explicit handling for protocol reset boundaries beyond broad runtime reset.
   - Code anchor: `firmware/lib/logic/sink/sink_cc_messaging.cpp`.
-  - Verification: retransmission of same message gets GoodCRC only; new AMS after reset with MessageID 0 is processed.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; capture/harness verification for duplicate drop vs post-reset MessageID 0 still pending.
 
 ## P0 - Ready-State Response Matrix
 

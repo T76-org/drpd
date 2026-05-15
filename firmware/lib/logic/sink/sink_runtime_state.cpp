@@ -58,6 +58,15 @@ void SinkRuntimeState::resetStoredReceivedMessageId() {
     _storedReceivedMessageId = 0;
 }
 
+bool SinkRuntimeState::isDuplicateReceivedMessageId(uint8_t messageId) const {
+    return _hasStoredReceivedMessageId && _storedReceivedMessageId == messageId;
+}
+
+void SinkRuntimeState::storeReceivedMessageId(uint8_t messageId) {
+    _hasStoredReceivedMessageId = true;
+    _storedReceivedMessageId = messageId;
+}
+
 std::optional<size_t> SinkRuntimeState::trackedTypeIndex(Proto::ExtendedMessageType type) {
     switch (type) {
         case Proto::ExtendedMessageType::EPR_Source_Capabilities:
