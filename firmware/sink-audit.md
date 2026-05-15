@@ -272,11 +272,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_exit.cpp`, `firmware/lib/logic/sink/state_handlers/wait_for_capabilities.cpp`.
   - Verification: existing `cmake --build firmware/build --target drpd-firmware` passed; analyzer/source capture still pending.
 
-- [ ] Treat unsolicited SPR `Source_Capabilities` in EPR Mode as Hard Reset condition unless it was requested with `Get_Source_Cap`.
+- [x] Treat unsolicited SPR `Source_Capabilities` in EPR Mode as Hard Reset condition unless it was requested with `Get_Source_Cap`.
   - Spec anchor: 6.4.10.2, 6.4.10.3.3, 8.3.3.3.8.
-  - Current issue: handler performs internal reset and requests PDO.
+  - Current issue: fixed; DRPD does not issue in-EPR SPR `Get_Source_Cap` in this state, so received SPR `Source_Capabilities` now triggers Hard Reset.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: unsolicited SPR caps in EPR cause Hard Reset; requested SPR caps are informational per request path.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [x] Handle Source-initiated "no EPR PDOs" exit flow.
   - Spec anchor: 6.5.15.2, 6.4.10.3.1.
@@ -284,11 +284,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`, `EPRSourceCapabilities`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Escalate EPR critical errors to Hard Reset, not internal reset or Ready fallback.
+- [x] Escalate EPR critical errors to Hard Reset, not internal reset or Ready fallback.
   - Spec anchor: 6.4.10.3.3.
-  - Current issue: invalid EPR caps and several EPR anomalies call Soft Reset or Ready fallback.
+  - Current issue: fixed; invalid EPR capabilities, malformed EPR object positions, SPR mirror/padding failures, inability to issue required EPR_Request, Exit under an invalid contract, and unsolicited Source_Capabilities now Hard Reset in EPR mode.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`, `epr_mode_entry.cpp`.
-  - Verification: invalid EPR object positions, Exit under EPR PDO, unsolicited Source_Capabilities trigger Hard Reset.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 ## P0 - EPR Keepalive
 

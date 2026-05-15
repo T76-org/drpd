@@ -118,9 +118,7 @@ void EPRKeepaliveStateHandler::handleMessage(
 
             const Proto::EPRSourceCapabilities eprCapabilities(payload.value().span());
             if (eprCapabilities.isMessageInvalid()) {
-                context.performReset(eprCapabilities.hasEPRPDOInSPRPositions()
-                    ? SinkResetType::HardReset
-                    : SinkResetType::SoftReset);
+                context.performReset(SinkResetType::HardReset);
                 return;
             }
 
@@ -137,7 +135,7 @@ void EPRKeepaliveStateHandler::handleMessage(
             // Per EPR flow, establish an explicit EPR contract before entering ready.
             // Start from EPR PDO #0 (commonly the 5V EPR entry contract).
             if (!context.requestPDO(0, 5000, 0)) {
-                context.performReset(SinkResetType::SoftReset);
+                context.performReset(SinkResetType::HardReset);
             }
             return;
         }
@@ -217,16 +215,10 @@ void EPRKeepaliveStateHandler::handleMessage(
 
         if (dataType.has_value() &&
             dataType.value() == Proto::DataMessageType::Source_Capabilities) {
-            // Receiving SPR Source_Capabilities while actively in EPR keepalive
-            // indicates the source restarted its policy engine (for example after
-            // a reset). Drop EPR runtime state and restart negotiation from the
-            // beginning using this newly advertised SPR capability set.
-            const Proto::SourceCapabilities sourceCapabilities(
-                message->rawBody(), decodedHeader.numDataObjects());
-
-            context.performReset(SinkResetType::Internal);
-            context.setSourceCapabilities(sourceCapabilities);
-            context.requestPDO(0, 0, 0);
+            // SPR Source_Capabilities in EPR Mode are only informational when
+            // explicitly requested with Get_Source_Cap. DRPD does not issue that
+            // request in this state, so treat this as an EPR critical error.
+            context.performReset(SinkResetType::HardReset);
             return;
         }
     }
