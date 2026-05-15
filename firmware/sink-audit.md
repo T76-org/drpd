@@ -336,11 +336,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink_cc_messaging.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Set Data Size to zero in generated Chunk Request messages.
+- [x] Set Data Size to zero in generated Chunk Request messages.
   - Spec anchor: 6.2.1.2.3.
-  - Current issue: `_sendExtendedChunkRequest()` sets `dataSizeBytes(payloadSizeBytes)` for request chunk; spec says Data Size field is zero when Request Chunk is one.
+  - Current issue: fixed; generated Chunk Request messages set Data Size to zero and preserve the validated chunk number.
   - Code anchor: `firmware/lib/logic/sink/sink_public_interface.cpp`.
-  - Verification: captured Chunk Request has Request Chunk=1 and Data Size=0.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Decide whether unchunked extended messages are supported and advertise/request consistently.
   - Spec anchor: 6.2.1.2.1, Request unchunked extended support bit.

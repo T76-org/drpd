@@ -104,11 +104,13 @@ void Sink::_sendExtendedChunkRequest(
     Proto::ExtendedMessageType type,
     uint16_t payloadSizeBytes,
     uint8_t chunkNumber) {
+    (void)payloadSizeBytes;
+
     Proto::PDExtendedHeader extHeader(0);
-    extHeader.dataSizeBytes(payloadSizeBytes);
+    extHeader.dataSizeBytes(0);
     extHeader.requestChunk(true);
     extHeader.chunked(true);
-    extHeader.chunkNumber(chunkNumber & 0x0F);
+    extHeader.chunkNumber(chunkNumber);
 
     std::array<uint8_t, 4> rawBody = {
         static_cast<uint8_t>(extHeader.raw() & 0xFF),
