@@ -77,6 +77,7 @@ void Sink::loopCore1() {
 
     while (queue_try_remove(&_messageQueue, &messagePtr)) {
         const auto decodedHeader = messagePtr->decodedHeader();
+        _discardPendingOutgoingForReceivedSOP();
 
         if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
             const auto maybeType = decodedHeader.extendedMessageType();
@@ -121,6 +122,20 @@ void Sink::loopCore1() {
         }
 
         _processTimeoutEvents();
+    }
+}
+
+void Sink::_discardPendingOutgoingForReceivedSOP() {
+    if (!_messageSender.hasPendingMessage()) {
+        return;
+    }
+
+    // USB-PD 3.2 section 6.11 requires a received SOP message to discard any
+    // pending outgoing SOP message instead of continuing to retry it.
+    _context.abandonPendingMessage();
+
+    if (_runtimeState._state == SinkState::PE_SNK_Send_Response) {
+        _context.transitionTo(SinkState::PE_SNK_Ready);
     }
 }
 

@@ -74,6 +74,10 @@ void SinkMessageSender::abandonPendingMessage() {
     _goodCRCRetryCount = 0;
 }
 
+bool SinkMessageSender::hasPendingMessage() const {
+    return _pendingMessage.has_value();
+}
+
 void SinkMessageSender::reset() {
     // Cancel any existing GoodCRC timeout timer
     _cancelGoodCRCTimer();

@@ -306,6 +306,11 @@ namespace T76::DRPD::Logic {
             Proto::ExtendedMessageType &completedType);
 
         /**
+         * @brief Apply protocol message-discarding rules before handling a received SOP.
+         */
+        void _discardPendingOutgoingForReceivedSOP();
+
+        /**
          * @brief Send extended chunk request for next fragment.
          * @param type Extended message type being requested.
          * @param payloadSizeBytes Total expected payload size in bytes.

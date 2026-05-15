@@ -102,6 +102,12 @@ namespace T76::DRPD::Logic {
          */
         void abandonPendingMessage();
 
+        /**
+         * @brief Return whether a transmitted message is still pending GoodCRC.
+         * @return True when an outgoing message is pending.
+         */
+        [[nodiscard]] bool hasPendingMessage() const;
+
         /** 
          * @brief Reset the GoodCRC timeout timer and retry count
          * 

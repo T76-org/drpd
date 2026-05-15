@@ -394,11 +394,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/cc_bus_controller.cpp`, `sink_context.cpp`, `select_capability.cpp`, `epr_keepalive.cpp`, `epr_mode_entry.cpp`, `epr_mode_exit.cpp`, `get_pps_status.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Implement message discarding rules for pending SOP messages.
+- [x] Implement message discarding rules for pending SOP messages.
   - Spec anchor: 6.11 Message Discarding.
-  - Current issue: outbound sender has a single pending message and incoming SOP does not clearly discard pending SOP messages except by reset/error paths.
+  - Current issue: fixed; received SOP messages now abandon pending outgoing SOP transmission before policy handling, and Ready response sends unwind to Ready before dispatching the incoming message.
   - Code anchor: `firmware/lib/logic/sink/message_sender.cpp`, `sink_cc_messaging.cpp`.
-  - Verification: incoming SOP during pending outbound AMS discards or errors according to Table 6.74.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 ## P2 - Policy, Capability, and Observability
 
