@@ -20,4 +20,3 @@ uint32_t ControlMessage::numDataObjects() const {
 uint32_t ControlMessage::rawMessageType() const {
     return 0;
 }
-

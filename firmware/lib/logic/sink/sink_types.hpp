@@ -42,6 +42,7 @@ namespace T76::DRPD::Logic {
         PE_SNK_EPR_Mode_Entry,              ///< EPR mode entry handshake.
         PE_SNK_Give_Sink_Cap,               ///< Provide sink capabilities.
         PE_SNK_Get_Source_Cap,              ///< Request source capabilities.
+        PE_SNK_Get_PPS_Status,              ///< Request Source PPS status.
         PE_SNK_EPR_Keepalive,               ///< EPR keepalive maintenance.
         PE_SNK_Hard_Reset,                  ///< Hard reset processing.
         PE_SNK_Transition_To_Default,       ///< Transition to default state.
@@ -69,6 +70,7 @@ namespace T76::DRPD::Logic {
         TransitionSinkTimeout,
         ReadySinkRequestTimeout,
         ReadyPDORefreshTimeout,
+        GetPPSStatusResponseTimeout,
         EPRModeEntryTimeout,
         EPRKeepaliveIntervalTimeout,
         EPRSourceWatchdogTimeout

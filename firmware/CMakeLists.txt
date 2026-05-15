@@ -101,6 +101,7 @@ add_executable(drpd-firmware
         lib/logic/sink/state_handlers/disconnected.cpp
         lib/logic/sink/state_handlers/epr_keepalive.cpp
         lib/logic/sink/state_handlers/epr_mode_entry.cpp
+        lib/logic/sink/state_handlers/get_pps_status.cpp
         lib/logic/sink/state_handlers/send_soft_reset.cpp
         lib/logic/sink/state_handlers/select_capability.cpp
         lib/logic/sink/state_handlers/ready.cpp
@@ -131,6 +132,7 @@ add_executable(drpd-firmware
         lib/proto/pd_messages/pdo/pdo_variable.cpp
         lib/proto/pd_messages/pdo/pdo_battery.cpp
         lib/proto/pd_messages/pdo/pdo_augmented.cpp
+        lib/proto/pd_messages/pps_status.cpp
         lib/proto/pd_messages/request.cpp
         lib/proto/pd_messages/revision.cpp
         lib/proto/pd_messages/sink_capabilities.cpp

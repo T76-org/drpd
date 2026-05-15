@@ -146,23 +146,23 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/proto/pd_messages/manufacturer_info.hpp`, `firmware/lib/proto/pd_messages/manufacturer_info.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Manufacturer_Info` -> `Manufacturer_Info` still pending.
 
-- [ ] Handle USB Security extended messages.
+- [x] Handle USB Security extended messages.
   - Spec anchor: 6.5.8.1, 6.5.8.2, Table 6.79 note 6.
-  - Current issue: `Security_Request` and `Security_Response` are not parsed or feature-gated in firmware Sink policy.
+  - Current issue: unsupported by product policy; DRPD does not support USB Type-C Authentication, and Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/sink_runtime_state.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: if USB Type-C Authentication is unsupported, both receive `Not_Supported`; if supported, request/response AMS works.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Security_Request` / `Security_Response` -> `Not_Supported` still pending.
 
-- [ ] Handle USB PD Firmware Update extended messages.
+- [x] Handle USB PD Firmware Update extended messages.
   - Spec anchor: 6.5.9.1, 6.5.9.2, Table 6.79 note 7.
-  - Current issue: `Firmware_Update_Request` and `Firmware_Update_Response` are not parsed or feature-gated in firmware Sink policy.
+  - Current issue: unsupported by product policy; DRPD firmware updates use the local USB updater, not USB PD Firmware Update over CC, and Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/sink_runtime_state.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: unsupported product returns `Not_Supported`; supported firmware-update path processes requests/responses.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Firmware_Update_Request` / `Firmware_Update_Response` -> `Not_Supported` still pending.
 
-- [ ] Handle `PPS_Status` received by Sink.
+- [x] Handle `PPS_Status` received by Sink.
   - Spec anchor: 6.5.10, Table 6.79 note 9.
-  - Current issue: no PPS status parser or response-processing path exists.
-  - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: if Sink sends `Get_PPS_Status`, incoming `PPS_Status` is accepted; otherwise `Not_Supported`.
+  - Current issue: Sink sends `Get_PPS_Status` after SPR PPS negotiation reaches `PS_RDY`; `PPS_Status` is parsed and stored for that query state, while unsolicited Ready-state `PPS_Status` remains `Not_Supported`.
+  - Code anchor: `firmware/lib/proto/pd_messages/pps_status.hpp`, `firmware/lib/logic/sink/state_handlers/get_pps_status.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of SPR PPS negotiation -> `Get_PPS_Status` / `PPS_Status` still pending.
 
 - [ ] Handle `Country_Codes` and `Country_Info` extended messages.
   - Spec anchor: 6.5.11, 6.5.12, Table 6.79 note 10.

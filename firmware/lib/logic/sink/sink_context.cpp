@@ -13,6 +13,7 @@
 #include "state_handlers/disconnected.hpp"
 #include "state_handlers/epr_keepalive.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
+#include "state_handlers/get_pps_status.hpp"
 #include "state_handlers/ready.hpp"
 #include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
@@ -29,6 +30,7 @@ SinkContext::SinkContext(
     DisconnectedStateHandler& disconnectedStateHandler,
     EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
     EPRModeEntryStateHandler& eprModeEntryStateHandler,
+    GetPPSStatusStateHandler& getPPSStatusStateHandler,
     ReadySinkStateHandler& readySinkStateHandler,
     SendSoftResetStateHandler& sendSoftResetStateHandler,
     SelectCapabilityStateHandler& selectCapabilityStateHandler,
@@ -43,6 +45,7 @@ SinkContext::SinkContext(
     _disconnectedStateHandler(disconnectedStateHandler),
     _eprKeepaliveStateHandler(eprKeepaliveStateHandler),
     _eprModeEntryStateHandler(eprModeEntryStateHandler),
+    _getPPSStatusStateHandler(getPPSStatusStateHandler),
     _readySinkStateHandler(readySinkStateHandler),
     _sendSoftResetStateHandler(sendSoftResetStateHandler),
     _selectCapabilityStateHandler(selectCapabilityStateHandler),
@@ -97,6 +100,10 @@ void SinkContext::transitionTo(SinkState state) {
 
         case SinkState::PE_SNK_EPR_Mode_Entry:
             _runtimeState._currentStateHandler = &_eprModeEntryStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Get_PPS_Status:
+            _runtimeState._currentStateHandler = &_getPPSStatusStateHandler;
             break;
 
         case SinkState::PE_SNK_EPR_Keepalive:
@@ -317,6 +324,23 @@ void SinkContext::sendRevision() {
     );
 
     auto &header = message.header();
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
+void SinkContext::sendGetPPSStatus() {
+    const Proto::ControlMessage getPPSStatus;
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        getPPSStatus
+    );
+
+    auto &header = message.header();
+    header.rawMessageType(static_cast<uint32_t>(Proto::ControlMessageType::Get_PPS_Status));
+    header.numDataObjects(0);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);

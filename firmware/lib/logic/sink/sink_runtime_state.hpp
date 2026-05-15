@@ -27,6 +27,7 @@
 #include "sink_types.hpp"
 
 #include "../../proto/pd_messages/epr_source_capabilities.hpp"
+#include "../../proto/pd_messages/pps_status.hpp"
 #include "../../proto/pd_messages/source_capabilities.hpp"
 #include "../../proto/pd_message_types.hpp"
 
@@ -55,7 +56,8 @@ namespace T76::DRPD::Logic {
             EPRSourceCapabilities = 0,
             ExtendedControl = 1,
             GetManufacturerInfo = 2,
-            ManufacturerInfo = 3
+            ManufacturerInfo = 3,
+            PPSStatus = 4
         };
 
         /**
@@ -123,12 +125,13 @@ namespace T76::DRPD::Logic {
         bool _eprModeActive = false;                              ///< True while in EPR mode.
         bool _eprEntryAttempted = false;                          ///< True once EPR entry attempted.
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.
+        std::optional<Proto::PPSStatus> _ppsStatus;               ///< Last Source PPS status response.
 
         bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
         uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.
 
-        std::array<ExtendedReassemblyState, 4> _extendedReassemblyStates; ///< Per-type reassembly.
-        std::array<std::optional<ExtendedPayloadBuffer>, 4> _completedExtendedPayloads; ///< Completed payloads.
+        std::array<ExtendedReassemblyState, 5> _extendedReassemblyStates; ///< Per-type reassembly.
+        std::array<std::optional<ExtendedPayloadBuffer>, 5> _completedExtendedPayloads; ///< Completed payloads.
     };
 
 } // namespace T76::DRPD::Logic

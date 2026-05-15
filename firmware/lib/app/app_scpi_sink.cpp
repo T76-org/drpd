@@ -188,6 +188,9 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
         case Logic::SinkState::PE_SNK_Get_Source_Cap:
             _sendTransportTextResponse("PE_SNK_GET_SOURCE_CAP", true);
             break;
+        case Logic::SinkState::PE_SNK_Get_PPS_Status:
+            _sendTransportTextResponse("PE_SNK_GET_PPS_STATUS", true);
+            break;
         case Logic::SinkState::PE_SNK_EPR_Keepalive:
             _sendTransportTextResponse("PE_SNK_EPR_KEEPALIVE", true);
             break;

@@ -65,6 +65,7 @@
 #include "state_handlers/disconnected.hpp"
 #include "state_handlers/epr_keepalive.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
+#include "state_handlers/get_pps_status.hpp"
 #include "state_handlers/ready.hpp"
 #include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
@@ -232,6 +233,7 @@ namespace T76::DRPD::Logic {
         DisconnectedStateHandler _disconnectedStateHandler;      ///< Disconnected state handler.
         EPRKeepaliveStateHandler _eprKeepaliveStateHandler;      ///< EPR keepalive state handler.
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
+        GetPPSStatusStateHandler _getPPSStatusStateHandler;      ///< PPS status query state handler.
         ReadySinkStateHandler _readySinkStateHandler;            ///< Ready state handler.
         SendSoftResetStateHandler _sendSoftResetStateHandler;    ///< Send Soft Reset state handler.
         SelectCapabilityStateHandler _selectCapabilityStateHandler; ///< Select capability handler.

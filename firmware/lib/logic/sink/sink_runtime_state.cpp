@@ -28,6 +28,7 @@ void SinkRuntimeState::reset() {
 
     _sourceCapabilities.reset();
     _eprCapabilities.reset();
+    _ppsStatus.reset();
     _sourceSupportsEpr = false;
 
     _hasExplicitContract = false;
@@ -77,6 +78,8 @@ std::optional<size_t> SinkRuntimeState::trackedTypeIndex(Proto::ExtendedMessageT
             return static_cast<size_t>(TrackedExtendedType::GetManufacturerInfo);
         case Proto::ExtendedMessageType::Manufacturer_Info:
             return static_cast<size_t>(TrackedExtendedType::ManufacturerInfo);
+        case Proto::ExtendedMessageType::PPS_Status:
+            return static_cast<size_t>(TrackedExtendedType::PPSStatus);
         default:
             return std::nullopt;
     }

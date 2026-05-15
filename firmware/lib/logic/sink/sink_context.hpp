@@ -32,6 +32,7 @@
 #include "../../phy/bmc_decoder.hpp"
 #include "../../phy/bmc_encoder.hpp"
 #include "../../proto/pd_message_types.hpp"
+#include "../../proto/pd_messages/control.hpp"
 #include "../../proto/pd_messages/epr_mode.hpp"
 #include "../../proto/pd_messages/epr_source_capabilities.hpp"
 #include "../../proto/pd_messages/manufacturer_info.hpp"
@@ -49,6 +50,7 @@ namespace T76::DRPD::Logic {
     class DisconnectedStateHandler;
     class EPRKeepaliveStateHandler;
     class EPRModeEntryStateHandler;
+    class GetPPSStatusStateHandler;
     class ReadySinkStateHandler;
     class SendSoftResetStateHandler;
     class SelectCapabilityStateHandler;
@@ -93,6 +95,7 @@ namespace T76::DRPD::Logic {
             DisconnectedStateHandler& disconnectedStateHandler,
             EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
             EPRModeEntryStateHandler& eprModeEntryStateHandler,
+            GetPPSStatusStateHandler& getPPSStatusStateHandler,
             ReadySinkStateHandler& readySinkStateHandler,
             SendSoftResetStateHandler& sendSoftResetStateHandler,
             SelectCapabilityStateHandler& selectCapabilityStateHandler,
@@ -210,6 +213,11 @@ namespace T76::DRPD::Logic {
         void sendRevision();
 
         /**
+         * @brief Send Get_PPS_Status for the current PPS contract.
+         */
+        void sendGetPPSStatus();
+
+        /**
          * @brief Send local Manufacturer_Info for a Get_Manufacturer_Info request payload.
          * @param requestPayload GMIDB payload from the received request.
          */
@@ -292,6 +300,7 @@ namespace T76::DRPD::Logic {
         DisconnectedStateHandler& _disconnectedStateHandler;             ///< Handler for Disconnected.
         EPRKeepaliveStateHandler& _eprKeepaliveStateHandler;             ///< Handler for EPR Keepalive.
         EPRModeEntryStateHandler& _eprModeEntryStateHandler;             ///< Handler for EPR Mode Entry.
+        GetPPSStatusStateHandler& _getPPSStatusStateHandler;             ///< Handler for PPS status query.
         ReadySinkStateHandler& _readySinkStateHandler;                   ///< Handler for Ready.
         SendSoftResetStateHandler& _sendSoftResetStateHandler;           ///< Handler for Send Soft Reset.
         SelectCapabilityStateHandler& _selectCapabilityStateHandler;     ///< Handler for Select Capability.
