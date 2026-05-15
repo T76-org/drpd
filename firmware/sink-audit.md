@@ -66,11 +66,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P0 - Required Sink Responses
 
-- [ ] Implement `Get_Sink_Cap` response with `Sink_Capabilities`.
+- [x] Implement `Get_Sink_Cap` response with `Sink_Capabilities`.
   - Spec anchor: 6.3.8, Table 6.77, 8.3.3.3.10 `PE_SNK_Give_Sink_Cap`.
   - Current issue: no firmware Sink capability sender exists; Ready falls to `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `firmware/lib/proto/pd_message_types.hpp`.
-  - Verification: Source sends `Get_Sink_Cap`; Sink sends `Sink_Capabilities` and returns Ready.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Sink_Cap` -> `Sink_Capabilities` still pending.
 
 - [ ] Implement `Get_Sink_Cap_Extended` response with `Sink_Capabilities_Extended`.
   - Spec anchor: 6.3.22, 6.5.13, Table 6.77, Table 6.79.

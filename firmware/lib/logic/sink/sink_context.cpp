@@ -269,6 +269,22 @@ void SinkContext::sendNotSupportedMessage() {
     );
 }
 
+void SinkContext::sendSinkCapabilities() {
+    const Proto::SinkCapabilities sinkCapabilities =
+        Proto::SinkCapabilities::fixedSupply(5000, 500);
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        sinkCapabilities
+    );
+
+    auto &header = message.header();
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
 void SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
     const Proto::EPRMode eprMode(action, data);
     PHY::BMCEncodedMessage message(

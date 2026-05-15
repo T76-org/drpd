@@ -39,7 +39,6 @@ namespace {
             case Proto::ControlMessageType::GotoMin:
             case Proto::ControlMessageType::Ping:
             case Proto::ControlMessageType::Get_Source_Cap:
-            case Proto::ControlMessageType::Get_Sink_Cap:
             case Proto::ControlMessageType::DR_Swap:
             case Proto::ControlMessageType::PR_Swap:
             case Proto::ControlMessageType::VCONN_Swap:
@@ -53,6 +52,9 @@ namespace {
             case Proto::ControlMessageType::Get_Source_Info:
             case Proto::ControlMessageType::Get_Revision:
                 return ReadyMessageAction::NotSupported;
+
+            case Proto::ControlMessageType::Get_Sink_Cap:
+                return ReadyMessageAction::Process;
 
             case Proto::ControlMessageType::Soft_Reset:
                 return ReadyMessageAction::Ignore;
@@ -199,6 +201,15 @@ void ReadySinkStateHandler::handleMessage(
     if (action == ReadyMessageAction::SoftReset) {
         context.performReset(SinkResetType::SoftReset);
         return;
+    }
+
+    if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Control) {
+        const auto controlMessageType = decodedHeader.controlMessageType();
+        if (controlMessageType.has_value() &&
+            controlMessageType.value() == Proto::ControlMessageType::Get_Sink_Cap) {
+            context.sendSinkCapabilities();
+            return;
+        }
     }
 
     if (action == ReadyMessageAction::Ignore ||
