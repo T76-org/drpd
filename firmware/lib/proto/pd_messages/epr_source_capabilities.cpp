@@ -18,6 +18,7 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
     }
 
     const size_t pdoWords = payload.size() / 4;
+    _objectWordCount = pdoWords;
     if (pdoWords > MaxPDOCount) {
         _messageInvalid = true;
         return;
@@ -29,6 +30,7 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
             (static_cast<uint32_t>(payload[offset + 1]) << 8) |
             (static_cast<uint32_t>(payload[offset + 2]) << 16) |
             (static_cast<uint32_t>(payload[offset + 3]) << 24);
+        _rawObjects[i] = raw;
 
         if (raw == 0) {
             continue;
@@ -70,6 +72,30 @@ bool EPRSourceCapabilities::isMessageInvalid() const {
 
 bool EPRSourceCapabilities::hasEPRPDOInSPRPositions() const {
     return _eprPDOInSPRPositions;
+}
+
+bool EPRSourceCapabilities::matchesSPRSourceCapabilities(
+    const SourceCapabilities& sourceCapabilities) const {
+    if (sourceCapabilities.isMessageInvalid() ||
+        sourceCapabilities.pdoCount() == 0 ||
+        sourceCapabilities.pdoCount() > 7 ||
+        _objectWordCount < 7) {
+        return false;
+    }
+
+    for (size_t i = 0; i < sourceCapabilities.pdoCount(); ++i) {
+        if (_rawObjects[i] != _rawPDO(sourceCapabilities.pdo(i))) {
+            return false;
+        }
+    }
+
+    for (size_t i = sourceCapabilities.pdoCount(); i < 7; ++i) {
+        if (_rawObjects[i] != 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 size_t EPRSourceCapabilities::pdoCount() const {
@@ -131,5 +157,11 @@ bool EPRSourceCapabilities::_isEPRPDO(const PDOVariant& pdo) {
         } else {
             return false;
         }
+    }, pdo);
+}
+
+uint32_t EPRSourceCapabilities::_rawPDO(const PDOVariant& pdo) {
+    return std::visit([](const auto& typedPDO) {
+        return typedPDO.raw();
     }, pdo);
 }

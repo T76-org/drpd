@@ -23,6 +23,7 @@ namespace T76::DRPD::Proto {
 
         [[nodiscard]] bool isMessageInvalid() const;
         [[nodiscard]] bool hasEPRPDOInSPRPositions() const;
+        [[nodiscard]] bool matchesSPRSourceCapabilities(const SourceCapabilities& sourceCapabilities) const;
         [[nodiscard]] size_t pdoCount() const;
         [[nodiscard]] const PDOVariant &pdo(size_t index) const;
         [[nodiscard]] uint8_t objectPosition(size_t index) const;
@@ -35,12 +36,15 @@ namespace T76::DRPD::Proto {
             FixedSupplyPDO(0), FixedSupplyPDO(0), FixedSupplyPDO(0)
         }};
         std::array<uint8_t, MaxPDOCount> _objectPositions = {};
+        std::array<uint32_t, MaxPDOCount> _rawObjects = {};
         size_t _pdoCount = 0;
+        size_t _objectWordCount = 0;
         bool _messageInvalid = false;
         bool _eprPDOInSPRPositions = false;
 
         [[nodiscard]] static PDOVariant _createPDO(uint32_t raw);
         [[nodiscard]] static bool _isEPRPDO(const PDOVariant& pdo);
+        [[nodiscard]] static uint32_t _rawPDO(const PDOVariant& pdo);
     };
 
 } // namespace T76::DRPD::Proto

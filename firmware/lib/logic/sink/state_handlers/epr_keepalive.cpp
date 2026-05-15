@@ -118,6 +118,13 @@ void EPRKeepaliveStateHandler::handleMessage(
                 return;
             }
 
+            const auto& sourceCapabilities = context.runtimeState()._sourceCapabilities;
+            if (!sourceCapabilities.has_value() ||
+                !eprCapabilities.matchesSPRSourceCapabilities(sourceCapabilities.value())) {
+                context.performReset(SinkResetType::HardReset);
+                return;
+            }
+
             context.setEPRSourceCapabilities(eprCapabilities);
             // Per EPR flow, establish an explicit EPR contract before entering ready.
             // Start from EPR PDO #0 (commonly the 5V EPR entry contract).

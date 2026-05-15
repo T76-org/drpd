@@ -228,11 +228,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/proto/pd_messages/epr_source_capabilities.cpp`, `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture for EPR AVS at position 1 triggering Hard Reset and EPR AVS at position 8 accepted still pending.
 
-- [ ] Validate EPR capabilities construction: first seven positions mirror SPR capability positions and unused positions are zero-filled.
+- [x] Validate EPR capabilities construction: first seven positions mirror SPR capability positions and unused positions are zero-filled.
   - Spec anchor: 6.5.15.1.
-  - Current issue: parser compacts nonzero PDOs and loses zero-padding structure in exposed index list, making policy selection ambiguous.
+  - Current issue: fixed; parser preserves raw EPR capability object slots and EPR-mode policy validates positions 1..SPR count against cached SPR Source_Capabilities plus zero padding through position 7 before accepting EPR capabilities.
   - Code anchor: `firmware/lib/proto/pd_messages/epr_source_capabilities.cpp`, `SinkContext::requestObjectPositionAtIndex`.
-  - Verification: object positions remain spec positions; UI/policy index maps correctly.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture for SPR mirror mismatch and missing zero padding causing Hard Reset still pending.
 
 - [ ] In EPR Mode, every valid `EPR_Source_Capabilities` message must be evaluated and answered with `EPR_Request`.
   - Spec anchor: 6.5.15.2.
