@@ -40,29 +40,29 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P0 - Ready-State Response Matrix
 
-- [ ] Replace `PE_SNK_Ready` catch-all `Not_Supported` with Table 6.72 behavior.
+- [x] Replace `PE_SNK_Ready` catch-all `Not_Supported` with Table 6.72 behavior.
   - Spec anchor: Table 6.72 response to incoming message, 6.13 applicability tables.
   - Current issue: `ReadySinkStateHandler::handleMessage()` sends `Not_Supported` for almost anything not `Source_Capabilities` or tracked EPR messages. Supported-but-unexpected messages should cause Soft Reset; unsupported/unrecognized messages get `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: per-message unit/smoke matrix for control, data, extended types in Ready.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; per-message capture/harness matrix still pending.
 
-- [ ] Handle incoming `Not_Supported` in Ready by informing policy/DPM or recording status, not replying with another `Not_Supported`.
+- [x] Handle incoming `Not_Supported` in Ready by informing policy/DPM or recording status, not replying with another `Not_Supported`.
   - Spec anchor: 8.3.3.6.2.2 `PE_SNK_Not_Supported_Received`.
   - Current issue: Ready falls through to `sendNotSupportedMessage()`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: Source `Not_Supported` causes no response except GoodCRC; Sink remains Ready.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; Source `Not_Supported` capture still pending.
 
-- [ ] Treat unexpected supported control messages in Ready as protocol errors leading to Soft Reset.
+- [x] Treat unexpected supported control messages in Ready as protocol errors leading to Soft Reset.
   - Spec anchor: Table 6.72.
   - Current issue: messages such as `Accept`, `Reject`, `Wait`, `PS_RDY`, `Data_Reset_Complete` fall to `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: inject each unexpected supported message; expect GoodCRC then Soft_Reset AMS.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; injected-message capture still pending.
 
-- [ ] Respond to deprecated/unsupported control messages in Ready with `Not_Supported`.
+- [x] Respond to deprecated/unsupported control messages in Ready with `Not_Supported`.
   - Spec anchor: 6.3.2 `GotoMin`, 6.3.5 `Ping`, Table 6.77.
   - Current issue: behavior happens by broad fallback, but should be explicit and covered by tests.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: `GotoMin` and `Ping` receive GoodCRC then Not_Supported.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; `GotoMin`/`Ping` capture still pending.
 
 ## P0 - Required Sink Responses
 

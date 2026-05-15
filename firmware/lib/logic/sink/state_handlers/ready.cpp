@@ -13,6 +13,112 @@
 using namespace T76::DRPD::Logic;
 
 
+namespace {
+    enum class ReadyMessageAction {
+        Process,
+        SoftReset,
+        NotSupported,
+        Ignore
+    };
+
+    ReadyMessageAction readyControlAction(Proto::ControlMessageType type) {
+        switch (type) {
+            case Proto::ControlMessageType::GoodCRC:
+                return ReadyMessageAction::Ignore;
+
+            case Proto::ControlMessageType::Accept:
+            case Proto::ControlMessageType::Reject:
+            case Proto::ControlMessageType::Wait:
+            case Proto::ControlMessageType::PS_RDY:
+            case Proto::ControlMessageType::Data_Reset_Complete:
+                return ReadyMessageAction::SoftReset;
+
+            case Proto::ControlMessageType::Not_Supported:
+                return ReadyMessageAction::Process;
+
+            case Proto::ControlMessageType::GotoMin:
+            case Proto::ControlMessageType::Ping:
+            case Proto::ControlMessageType::Get_Source_Cap:
+            case Proto::ControlMessageType::Get_Sink_Cap:
+            case Proto::ControlMessageType::DR_Swap:
+            case Proto::ControlMessageType::PR_Swap:
+            case Proto::ControlMessageType::VCONN_Swap:
+            case Proto::ControlMessageType::Data_Reset:
+            case Proto::ControlMessageType::Get_Source_Cap_Extended:
+            case Proto::ControlMessageType::Get_Status:
+            case Proto::ControlMessageType::FR_Swap:
+            case Proto::ControlMessageType::Get_PPS_Status:
+            case Proto::ControlMessageType::Get_Country_Codes:
+            case Proto::ControlMessageType::Get_Sink_Cap_Extended:
+            case Proto::ControlMessageType::Get_Source_Info:
+            case Proto::ControlMessageType::Get_Revision:
+                return ReadyMessageAction::NotSupported;
+
+            case Proto::ControlMessageType::Soft_Reset:
+                return ReadyMessageAction::Ignore;
+        }
+
+        return ReadyMessageAction::NotSupported;
+    }
+
+    ReadyMessageAction readyDataAction(Proto::DataMessageType type) {
+        switch (type) {
+            case Proto::DataMessageType::Source_Capabilities:
+                return ReadyMessageAction::Process;
+
+            case Proto::DataMessageType::Request:
+            case Proto::DataMessageType::BIST:
+            case Proto::DataMessageType::Sink_Capabilities:
+            case Proto::DataMessageType::EPR_Request:
+            case Proto::DataMessageType::Source_Info:
+            case Proto::DataMessageType::Revision:
+                return ReadyMessageAction::SoftReset;
+
+            case Proto::DataMessageType::Battery_Status:
+            case Proto::DataMessageType::Alert:
+            case Proto::DataMessageType::Get_Country_Info:
+            case Proto::DataMessageType::Enter_USB:
+            case Proto::DataMessageType::EPR_Mode:
+            case Proto::DataMessageType::Vendor_Defined:
+                return ReadyMessageAction::NotSupported;
+        }
+
+        return ReadyMessageAction::NotSupported;
+    }
+
+    ReadyMessageAction readyExtendedAction(Proto::ExtendedMessageType type) {
+        switch (type) {
+            case Proto::ExtendedMessageType::EPR_Source_Capabilities:
+            case Proto::ExtendedMessageType::Extended_Control:
+                return ReadyMessageAction::Process;
+
+            case Proto::ExtendedMessageType::Source_Capabilities_Extended:
+            case Proto::ExtendedMessageType::Status:
+            case Proto::ExtendedMessageType::Battery_Capabilities:
+            case Proto::ExtendedMessageType::Manufacturer_Info:
+            case Proto::ExtendedMessageType::Security_Response:
+            case Proto::ExtendedMessageType::Firmware_Update_Response:
+            case Proto::ExtendedMessageType::PPS_Status:
+            case Proto::ExtendedMessageType::Country_Codes:
+            case Proto::ExtendedMessageType::Country_Info:
+            case Proto::ExtendedMessageType::Sink_Capabilities_Extended:
+            case Proto::ExtendedMessageType::EPR_Sink_Capabilities:
+                return ReadyMessageAction::SoftReset;
+
+            case Proto::ExtendedMessageType::Get_Battery_Cap:
+            case Proto::ExtendedMessageType::Get_Battery_Status:
+            case Proto::ExtendedMessageType::Get_Manufacturer_Info:
+            case Proto::ExtendedMessageType::Security_Request:
+            case Proto::ExtendedMessageType::Firmware_Update_Request:
+            case Proto::ExtendedMessageType::Vendor_Defined_Extended:
+                return ReadyMessageAction::NotSupported;
+        }
+
+        return ReadyMessageAction::NotSupported;
+    }
+}
+
+
 int64_t ReadySinkStateHandler::_onSinkRequestTimeoutCallback(
     alarm_id_t id,
     void *user_data) {
@@ -71,6 +177,37 @@ void ReadySinkStateHandler::handleMessage(
 
     const Proto::PDHeader decodedHeader = message->decodedHeader();
 
+    ReadyMessageAction action = ReadyMessageAction::NotSupported;
+
+    if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Control) {
+        const auto controlMessageType = decodedHeader.controlMessageType();
+        action = controlMessageType.has_value()
+            ? readyControlAction(controlMessageType.value())
+            : ReadyMessageAction::NotSupported;
+    } else if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Data) {
+        const auto dataMessageType = decodedHeader.dataMessageType();
+        action = dataMessageType.has_value()
+            ? readyDataAction(dataMessageType.value())
+            : ReadyMessageAction::NotSupported;
+    } else if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
+        const auto extendedType = decodedHeader.extendedMessageType();
+        action = extendedType.has_value()
+            ? readyExtendedAction(extendedType.value())
+            : ReadyMessageAction::NotSupported;
+    }
+
+    if (action == ReadyMessageAction::SoftReset) {
+        context.performReset(SinkResetType::SoftReset);
+        return;
+    }
+
+    if (action == ReadyMessageAction::Ignore ||
+        action == ReadyMessageAction::Process) {
+        if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Control) {
+            return;
+        }
+    }
+
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Data) {
         const auto dataMessageType = decodedHeader.dataMessageType();
 
@@ -100,7 +237,9 @@ void ReadySinkStateHandler::handleMessage(
         }
     }
 
-    context.sendNotSupportedMessage();
+    if (action == ReadyMessageAction::NotSupported) {
+        context.sendNotSupportedMessage();
+    }
 }
 
 void ReadySinkStateHandler::handleMessageSenderStateChange(
