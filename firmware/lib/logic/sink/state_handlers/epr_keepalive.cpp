@@ -37,22 +37,43 @@ int64_t EPRKeepaliveStateHandler::_onSourceWatchdogTimeoutCallback(alarm_id_t id
     return 0;
 }
 
+int64_t EPRKeepaliveStateHandler::_onKeepaliveResponseTimeoutCallback(
+    alarm_id_t id,
+    void *user_data) {
+    (void)id;
+    auto *handler = static_cast<EPRKeepaliveStateHandler *>(user_data);
+    handler->_keepaliveResponseAlarmId = -1;
+    if (handler->_keepaliveTimersActive() && handler->_waitingForKeepaliveAck) {
+        handler->_context->enqueueTimeoutEvent(
+            SinkTimeoutEvent{SinkTimeoutEventType::EPRKeepaliveResponseTimeout}
+        );
+    }
+    return 0;
+}
+
 void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
     if (!_keepaliveTimersActive()) {
         return;
     }
 
-    // Keepalive is periodic best-effort; avoid rapid GoodCRC retry bursts.
+    _waitingForKeepaliveAck = true;
     _context->sendExtendedControlMessage(
         static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive),
-        false);
+        true);
 
-    _keepaliveIntervalAlarmId = _context->addAlarmInUs(
-        LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US,
-        _onKeepaliveIntervalTimeoutCallback,
+    _keepaliveResponseAlarmId = _context->addAlarmInUs(
+        LOGIC_SINK_EPR_KEEPALIVE_RESPONSE_TIMEOUT_US,
+        _onKeepaliveResponseTimeoutCallback,
         this,
         true
     );
+}
+
+void EPRKeepaliveStateHandler::_onKeepaliveResponseTimeout() {
+    if (_keepaliveTimersActive() && _waitingForKeepaliveAck) {
+        _waitingForKeepaliveAck = false;
+        _context->performReset(SinkResetType::HardReset);
+    }
 }
 
 void EPRKeepaliveStateHandler::_onSourceWatchdogTimeout() {
@@ -87,6 +108,26 @@ void EPRKeepaliveStateHandler::_exitEPRMode() {
     }
 
     _context->transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
+}
+
+void EPRKeepaliveStateHandler::_startKeepaliveIntervalTimer(SinkContext& context) {
+    if (_keepaliveIntervalAlarmId != -1) {
+        context.cancelAlarm(_keepaliveIntervalAlarmId);
+    }
+
+    _keepaliveIntervalAlarmId = context.addAlarmInUs(
+        LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US,
+        _onKeepaliveIntervalTimeoutCallback,
+        this,
+        true
+    );
+}
+
+void EPRKeepaliveStateHandler::_stopKeepaliveResponseTimer(SinkContext& context) {
+    if (_keepaliveResponseAlarmId != -1) {
+        context.cancelAlarm(_keepaliveResponseAlarmId);
+        _keepaliveResponseAlarmId = -1;
+    }
 }
 
 bool EPRKeepaliveStateHandler::_keepaliveTimersActive() const {
@@ -166,6 +207,12 @@ void EPRKeepaliveStateHandler::handleMessage(
             if (isKeepalive || isKeepaliveAck) {
                 _keepaliveFailureCount = 0;
 
+                if (isKeepaliveAck && _waitingForKeepaliveAck) {
+                    _waitingForKeepaliveAck = false;
+                    _stopKeepaliveResponseTimer(context);
+                    _startKeepaliveIntervalTimer(context);
+                }
+
                 if (_sourceWatchdogAlarmId != -1) {
                     context.cancelAlarm(_sourceWatchdogAlarmId);
                     _sourceWatchdogAlarmId = -1;
@@ -237,11 +284,11 @@ void EPRKeepaliveStateHandler::handleMessage(
 void EPRKeepaliveStateHandler::handleMessageSenderStateChange(
     SinkContext& context,
     SinkMessageSenderState state) {
-    (void)context;
     if (state == SinkMessageSenderState::GoodCRCTimeout) {
-        _keepaliveFailureCount++;
-        if (_keepaliveFailureCount >= 3) {
-            _exitEPRMode();
+        if (_waitingForKeepaliveAck) {
+            _waitingForKeepaliveAck = false;
+            _stopKeepaliveResponseTimer(context);
+            context.performReset(SinkResetType::HardReset);
         }
     }
 }
@@ -252,6 +299,11 @@ void EPRKeepaliveStateHandler::handleTimeoutEvent(
     (void)context;
     if (eventType == SinkTimeoutEventType::EPRKeepaliveIntervalTimeout) {
         _onKeepaliveIntervalTimeout();
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::EPRKeepaliveResponseTimeout) {
+        _onKeepaliveResponseTimeout();
         return;
     }
 
@@ -269,12 +321,7 @@ void EPRKeepaliveStateHandler::enter(SinkContext& context) {
             static_cast<uint8_t>(Sink::ExtendedControlType::EPR_Get_Source_Cap));
     }
 
-    _keepaliveIntervalAlarmId = context.addAlarmInUs(
-        LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US,
-        _onKeepaliveIntervalTimeoutCallback,
-        this,
-        true
-    );
+    _startKeepaliveIntervalTimer(context);
 
     _sourceWatchdogAlarmId = context.addAlarmInUs(
         LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US,
@@ -290,11 +337,14 @@ void EPRKeepaliveStateHandler::reset(SinkContext& context) {
         _keepaliveIntervalAlarmId = -1;
     }
 
+    _stopKeepaliveResponseTimer(context);
+
     if (_sourceWatchdogAlarmId != -1) {
         context.cancelAlarm(_sourceWatchdogAlarmId);
         _sourceWatchdogAlarmId = -1;
     }
 
     _keepaliveFailureCount = 0;
+    _waitingForKeepaliveAck = false;
     _unbindContext();
 }

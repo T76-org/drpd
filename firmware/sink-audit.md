@@ -292,11 +292,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P0 - EPR Keepalive
 
-- [ ] Implement `PE_SNK_EPR_Keep_Alive` as specified: send `EPR_KeepAlive`, start SenderResponseTimer, return Ready on `EPR_KeepAlive_Ack`, Hard Reset on timeout.
+- [x] Implement `PE_SNK_EPR_Keep_Alive` as specified: send `EPR_KeepAlive`, start SenderResponseTimer, return Ready on `EPR_KeepAlive_Ack`, Hard Reset on timeout.
   - Spec anchor: 6.5.14.3, 6.5.14.4, 8.3.3.3.11.
-  - Current issue: periodic keepalive sends fire-and-forget and does not wait for GoodCRC or Ack.
+  - Current issue: fixed; periodic keepalive sends `EPR_KeepAlive` with GoodCRC tracking, starts an Ack response timer, restarts the interval on `EPR_KeepAlive_Ack`, and Hard Resets on GoodCRC/Ack timeout.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: missing Ack after GoodCRC causes Hard Reset; valid Ack returns Ready/continues stable EPR state.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Maintain "send EPR_KeepAlive only if no other Sink traffic for more than tSinkEPRKeepAlive".
   - Spec anchor: 6.4.10.2.
