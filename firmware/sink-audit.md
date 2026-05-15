@@ -252,11 +252,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Use local EPR Sink Operational PDP, not hard-coded 100 W.
+- [x] Use local EPR Sink Operational PDP, not hard-coded 100 W.
   - Spec anchor: 6.4.10 Table 6.50.
-  - Current issue: `sendEPRMode(Enter, 100)` is hard-coded.
+  - Current issue: fixed; `EPR_Mode(Enter)` uses `LOGIC_SINK_EPR_OPERATIONAL_PDP_W`, a named source-test policy value in 1 W units.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_entry.cpp`.
-  - Verification: configured Sink PDP appears in EPR_Mode Enter data byte.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 ## P0 - EPR Exit and Error Handling
 

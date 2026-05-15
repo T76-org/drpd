@@ -179,8 +179,10 @@ void EPRModeEntryStateHandler::enter(SinkContext& context) {
         _startEntryTimeout(context);
         _startSenderResponseTimeout(context);
 
-        // 100 W operational PDP in 1 W units.
-        context.sendEPRMode(Proto::EPRMode::Action::Enter, 100);
+        // Advertised EPR Sink Operational PDP for source-test policy, in 1 W units.
+        context.sendEPRMode(
+            Proto::EPRMode::Action::Enter,
+            LOGIC_SINK_EPR_OPERATIONAL_PDP_W);
     }
 }
 

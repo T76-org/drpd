@@ -16,6 +16,7 @@ target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_SINK_GET_PPS_STATUS_RESPONSE_TIMEOUT_US=33000          # Timeout for PPS status response (tSenderResponse 33ms)
     LOGIC_SINK_EPR_MODE_ENTRY_SENDER_RESPONSE_TIMEOUT_US=33000   # Timeout waiting for EPR_Mode entry response (tSenderResponse 33ms)
     LOGIC_SINK_EPR_MODE_ENTRY_TIMEOUT_US=500000                  # Timeout for complete EPR mode entry sequence
+    LOGIC_SINK_EPR_OPERATIONAL_PDP_W=100                         # EPR Sink Operational PDP advertised in EPR_Mode(Enter), in 1 W units
     LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US=375000                  # Periodic sink EPR keepalive interval
     LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US=2000000          # Watchdog for source keepalive/acknowledgement
     LOGIC_SINK_EXTENDED_REASSEMBLY_TIMEOUT_US=500000             # Timeout for abandoning incomplete extended chunks
