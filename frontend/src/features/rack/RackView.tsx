@@ -81,6 +81,8 @@ import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
 import {
   MessageLogClearPopover,
   MessageLogConfigurePopover,
+  MessageLogImportConfirmPopover,
+  MessageLogImportPopover,
 } from './overlays/usbPdLog/LogActionPopovers'
 import { MessageLogFilterPopover } from './overlays/usbPdLog/MessageLogFilterPopover'
 import {
@@ -105,6 +107,7 @@ import {
   getLogSenderLabel,
   getLogSopLabel,
 } from './messageLogExport'
+import { parseMessageLogImportJson, serializeMessageLogRow } from './messageLogImport'
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -642,14 +645,32 @@ const downloadMessageLogPayload = (payload: string, mimeType: string, filename: 
   URL.revokeObjectURL(url)
 }
 
+const readTextFile = (file: File): Promise<string> => {
+  if (typeof file.text === 'function') {
+    return file.text()
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      resolve(String(reader.result ?? ''))
+    })
+    reader.addEventListener('error', () => {
+      reject(reader.error ?? new Error('Unable to read selected file.'))
+    })
+    reader.readAsText(file)
+  })
+}
+
 const buildSelectedMessageLogJson = (
   rows: LoggedCapturedMessage[],
   selectionKeys: string[],
 ): string => {
   const selected = new Set(selectionKeys)
   return JSON.stringify(
-    rows.filter((row) => selected.has(buildCapturedLogSelectionKey(row))),
-    (_key, value) => (typeof value === 'bigint' ? value.toString() : value),
+    rows
+      .filter((row) => selected.has(buildCapturedLogSelectionKey(row)))
+      .map(serializeMessageLogRow),
+    null,
     2,
   )
 }
@@ -841,11 +862,16 @@ export const RackView = () => {
   const [isMessageLogFilterDialogOpen, setIsMessageLogFilterDialogOpen] = useState(false)
   const [isMessageLogClearDialogOpen, setIsMessageLogClearDialogOpen] = useState(false)
   const [isMessageLogConfigureDialogOpen, setIsMessageLogConfigureDialogOpen] = useState(false)
+  const [isMessageLogImportDialogOpen, setIsMessageLogImportDialogOpen] = useState(false)
+  const [isMessageLogImportConfirmOpen, setIsMessageLogImportConfirmOpen] = useState(false)
   const [isMessageLogMarking, setIsMessageLogMarking] = useState(false)
   const [isMessageLogClearing, setIsMessageLogClearing] = useState(false)
   const [isMessageLogExporting, setIsMessageLogExporting] = useState(false)
+  const [isMessageLogImporting, setIsMessageLogImporting] = useState(false)
   const [isMessageLogConfiguring, setIsMessageLogConfiguring] = useState(false)
   const [messageLogError, setMessageLogError] = useState<string | null>(null)
+  const [messageLogImportFile, setMessageLogImportFile] = useState<File | null>(null)
+  const [messageLogImportError, setMessageLogImportError] = useState<string | null>(null)
   const [messageLogBufferInput, setMessageLogBufferInput] = useState(
     buildDefaultLoggingConfig().maxCapturedMessages.toString(),
   )
@@ -1574,6 +1600,37 @@ export const RackView = () => {
       })
   }, [activeDriver, hasSelectedMessages, messageLogSelectionKeys])
 
+  const resetMessageLogImportDialog = useCallback(() => {
+    setMessageLogImportFile(null)
+    setMessageLogImportError(null)
+    setIsMessageLogImportDialogOpen(false)
+    setIsMessageLogImportConfirmOpen(false)
+  }, [])
+
+  const confirmMessageLogImport = useCallback(() => {
+    if (!activeDriver || !messageLogImportFile || isMessageLogImporting) {
+      return
+    }
+    setIsMessageLogImporting(true)
+    setMessageLogImportError(null)
+    void readTextFile(messageLogImportFile)
+      .then((payload) => parseMessageLogImportJson(payload))
+      .then((rows) => activeDriver.importCapturedMessages(rows, { clearScope: 'all' }))
+      .then(() => {
+        setMessageLogSelectionKeys([])
+        setMessageLogFilterRows([])
+        resetMessageLogImportDialog()
+      })
+      .catch((error) => {
+        setMessageLogImportError(error instanceof Error ? error.message : String(error))
+        setIsMessageLogImportConfirmOpen(false)
+        setIsMessageLogImportDialogOpen(true)
+      })
+      .finally(() => {
+        setIsMessageLogImporting(false)
+      })
+  }, [activeDriver, isMessageLogImporting, messageLogImportFile, resetMessageLogImportDialog])
+
   const toggleGoodCrcMessages = useCallback(() => {
     const next = isGoodCrcShown
       ? toggleFilterValue(
@@ -1669,7 +1726,11 @@ export const RackView = () => {
     const handleLogEntryDeleted = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
       const deletedCount = Number(detail?.messagesDeleted)
-      if (!Number.isFinite(deletedCount) || deletedCount <= 0) {
+      const importedCount = Number(detail?.messagesImported)
+      if (
+        (!Number.isFinite(deletedCount) || deletedCount <= 0) &&
+        (!Number.isFinite(importedCount) || importedCount <= 0)
+      ) {
         return
       }
       void activeDriver
@@ -2527,6 +2588,20 @@ export const RackView = () => {
             onSelect: addMessageLogMarker,
           },
           {
+            id: 'logging-separator-import',
+            type: 'separator',
+          },
+          {
+            id: 'logging-import-json',
+            label: 'Import JSON...',
+            disabled: !activeDriver || isMessageLogImporting,
+            onSelect: () => {
+              setMessageLogImportFile(null)
+              setMessageLogImportError(null)
+              setIsMessageLogImportDialogOpen(true)
+            },
+          },
+          {
             id: 'logging-export-selected',
             type: 'submenu',
             label: 'Export Selected',
@@ -2778,6 +2853,7 @@ export const RackView = () => {
     isMessageLogClearing,
     isMessageLogConfiguring,
     isMessageLogExporting,
+    isMessageLogImporting,
     isMessageLogMarking,
     layoutMode,
     messageLogColumnVisibility,
@@ -3006,6 +3082,35 @@ export const RackView = () => {
               setIsMessageLogClearing(false)
             })
         }}
+      />
+      <MessageLogImportPopover
+        open={isMessageLogImportDialogOpen}
+        onOpenChange={setIsMessageLogImportDialogOpen}
+        selectedFileName={messageLogImportFile?.name ?? null}
+        importError={messageLogImportError}
+        isImporting={isMessageLogImporting}
+        onCancel={resetMessageLogImportDialog}
+        onFileSelect={(file) => {
+          setMessageLogImportFile(file)
+          setMessageLogImportError(null)
+        }}
+        onImport={() => {
+          if (!messageLogImportFile) {
+            return
+          }
+          setIsMessageLogImportDialogOpen(false)
+          setIsMessageLogImportConfirmOpen(true)
+        }}
+      />
+      <MessageLogImportConfirmPopover
+        open={isMessageLogImportConfirmOpen}
+        onOpenChange={setIsMessageLogImportConfirmOpen}
+        isImporting={isMessageLogImporting}
+        onCancel={() => {
+          setIsMessageLogImportConfirmOpen(false)
+          setIsMessageLogImportDialogOpen(true)
+        }}
+        onConfirm={confirmMessageLogImport}
       />
       <MessageLogConfigurePopover
         open={isMessageLogConfigureDialogOpen}

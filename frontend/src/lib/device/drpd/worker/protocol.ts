@@ -164,6 +164,7 @@ export type WorkerRpcRequest =
               | 'resolveLogSelectionKeysForIndexRange'
               | 'exportLogs'
               | 'clearLogs'
+              | 'importCapturedMessages'
             args: unknown[]
           }
         | {

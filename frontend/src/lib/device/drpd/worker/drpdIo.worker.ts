@@ -561,6 +561,8 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             return await session.device.exportLogs(args[0] as never)
           case 'clearLogs':
             return await session.device.clearLogs(args[0] as never)
+          case 'importCapturedMessages':
+            return await session.device.importCapturedMessages(args[0] as never, args[1] as never)
           default:
             throw new Error(`Unsupported DRPD device method: ${String(method)}`)
         }

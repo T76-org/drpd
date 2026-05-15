@@ -965,10 +965,15 @@ export const DrpdUsbPdLogInstrumentView = ({
       const deletedCount = Number(detail.messagesDeleted)
       const reason = typeof detail.reason === 'string' ? detail.reason : null
 
-      if (reason === 'clear') {
+      if (reason === 'clear' || reason === 'import') {
+        const importedCount = Number(detail.messagesImported)
+        const nextTotal =
+          reason === 'import' && Number.isFinite(importedCount) && importedCount > 0
+            ? importedCount
+            : 0
         setPages(new Map())
-        setTotalRows(0)
-        totalRowsRef.current = 0
+        setTotalRows(nextTotal)
+        totalRowsRef.current = nextTotal
         setSelection({
           selectedKeys: [],
           anchorIndex: null,

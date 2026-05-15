@@ -81,6 +81,30 @@ const buildLoggingConfig = (
   ...overrides,
 })
 
+const buildImportMessage = (index: number): LoggedCapturedMessage => ({
+  entryKind: 'message',
+  eventType: null,
+  eventText: null,
+  eventWallClockMs: null,
+  wallClockUs: BigInt(1_700_000_000_000_000 + index),
+  startTimestampUs: BigInt(1_000 + index),
+  endTimestampUs: BigInt(1_005 + index),
+  displayTimestampUs: BigInt(index),
+  decodeResult: 0,
+  sopKind: 'SOP',
+  messageKind: 'CONTROL',
+  messageType: 3,
+  messageId: index,
+  senderPowerRole: 'SOURCE',
+  senderDataRole: 'DFP',
+  pulseCount: 3,
+  rawPulseWidths: Float64Array.from([1, 2, 3]),
+  rawSop: Uint8Array.from([0x12, 0x34]),
+  rawDecodedData: Uint8Array.from([0xaa, 0xbb]),
+  parseError: null,
+  createdAtMs: 1_700_000_000_000 + index,
+})
+
 /**
  * Force the driver to connected state in tests.
  *
@@ -138,6 +162,41 @@ const setRoleStatusSnapshot = (
 }
 
 describe('DRPD logging integration', () => {
+  it('clears all log data before importing captured messages', async () => {
+    const store = new SQLiteWasmStore(buildLoggingConfig({ storageBackend: 'memory' }))
+    const device = new DRPDDevice(new MockTransport(), {
+      createLogStore: () => store,
+    })
+    const imported = [buildImportMessage(1), buildImportMessage(2)]
+
+    await device.importCapturedMessages([buildImportMessage(0)], { clearScope: 'all' })
+    await store.insertAnalogSample({
+      timestampUs: 1n,
+      displayTimestampUs: 1n,
+      wallClockUs: 1n,
+      vbusV: 5,
+      ibusA: 0.1,
+      role: 'SINK',
+      createdAtMs: 1,
+    })
+
+    const result = await device.importCapturedMessages(imported, { clearScope: 'all' })
+    const counts = await store.getCounts()
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+    })
+
+    expect(result).toEqual({
+      analogDeleted: 1,
+      messagesDeleted: 1,
+      messagesImported: 2,
+    })
+    expect(counts).toEqual({ analog: 0, messages: 2 })
+    expect(rows.map((row) => row.messageId)).toEqual([1, 2])
+  })
+
   it('enters capture mode immediately when connect hydration finds capture already on', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('SYST:TIME?', ['1000'])

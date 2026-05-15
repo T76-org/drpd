@@ -18,3 +18,47 @@
 .columnOption input {
   margin: 0;
 }
+
+.importFileStack {
+  display: grid;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.importError {
+  color: var(--color-status-error);
+  font-size: var(--font-size-header-popup-hint);
+  line-height: var(--line-height-snug);
+  margin: 0;
+}
+
+.dropZone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 84px;
+  position: relative;
+  width: 100%;
+  border: 1px dashed var(--color-border-panel);
+  border-radius: 6px;
+  background: var(--color-surface-panel-accent);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-header-popup-text);
+  line-height: var(--line-height-snug);
+  padding: var(--space-12);
+  text-align: center;
+}
+
+.dropZone:focus-within {
+  border-color: var(--color-text-primary);
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
+.fileInput {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
