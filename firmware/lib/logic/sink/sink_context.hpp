@@ -35,6 +35,7 @@
 #include "../../proto/pd_messages/epr_mode.hpp"
 #include "../../proto/pd_messages/epr_source_capabilities.hpp"
 #include "../../proto/pd_messages/sink_capabilities.hpp"
+#include "../../proto/pd_messages/sink_capabilities_extended.hpp"
 #include "../../proto/pd_messages/source_capabilities.hpp"
 
 
@@ -195,6 +196,11 @@ namespace T76::DRPD::Logic {
          * @brief Send minimal SPR Sink_Capabilities for Get_Sink_Cap.
          */
         void sendSinkCapabilities();
+
+        /**
+         * @brief Send minimal Sink_Capabilities_Extended for Get_Sink_Cap_Extended.
+         */
+        void sendSinkCapabilitiesExtended();
 
         /**
          * @brief Send EPR_Mode data message.

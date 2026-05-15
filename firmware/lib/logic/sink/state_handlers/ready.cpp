@@ -48,12 +48,12 @@ namespace {
             case Proto::ControlMessageType::FR_Swap:
             case Proto::ControlMessageType::Get_PPS_Status:
             case Proto::ControlMessageType::Get_Country_Codes:
-            case Proto::ControlMessageType::Get_Sink_Cap_Extended:
             case Proto::ControlMessageType::Get_Source_Info:
             case Proto::ControlMessageType::Get_Revision:
                 return ReadyMessageAction::NotSupported;
 
             case Proto::ControlMessageType::Get_Sink_Cap:
+            case Proto::ControlMessageType::Get_Sink_Cap_Extended:
                 return ReadyMessageAction::Process;
 
             case Proto::ControlMessageType::Soft_Reset:
@@ -208,6 +208,12 @@ void ReadySinkStateHandler::handleMessage(
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Get_Sink_Cap) {
             context.sendSinkCapabilities();
+            return;
+        }
+
+        if (controlMessageType.has_value() &&
+            controlMessageType.value() == Proto::ControlMessageType::Get_Sink_Cap_Extended) {
+            context.sendSinkCapabilitiesExtended();
             return;
         }
     }
