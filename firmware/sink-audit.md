@@ -310,11 +310,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Treat incoming Source `EPR_KeepAlive` carefully.
+- [x] Treat incoming Source `EPR_KeepAlive` carefully.
   - Spec anchor: 6.5.14.3 says `EPR_KeepAlive` is sent by Sink; 6.5.14.4 says Ack sent by Source.
-  - Current issue: Sink handler accepts incoming `EPR_KeepAlive` and sends `EPR_KeepAlive_Ack`, which appears role-reversed.
+  - Current issue: fixed; Sink treats incoming Source `EPR_KeepAlive` as role-invalid/unsupported, does not send `EPR_KeepAlive_Ack`, and does not refresh EPR liveness for it.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: incoming role-invalid Extended_Control gets proper protocol-error / Not_Supported behavior per message matrix.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 ## P1 - Extended Messages and Chunking
 

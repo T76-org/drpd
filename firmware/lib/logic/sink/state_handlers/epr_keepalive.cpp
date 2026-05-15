@@ -182,14 +182,14 @@ void EPRKeepaliveStateHandler::handleMessage(
                 static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive_Ack);
 
             if (isKeepalive) {
-                // Source keepalive must be acknowledged.
-                context.sendExtendedControlMessage(
-                    static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive_Ack),
-                    false);
+                // EPR_KeepAlive is Sink-transmitted. A Source sending it is
+                // role-invalid, so do not acknowledge it or refresh liveness.
+                context.sendNotSupportedMessage();
+                return;
             }
 
-            if (isKeepalive || isKeepaliveAck) {
-                if (isKeepaliveAck && _waitingForKeepaliveAck) {
+            if (isKeepaliveAck) {
+                if (_waitingForKeepaliveAck) {
                     _waitingForKeepaliveAck = false;
                     _stopKeepaliveResponseTimer(context);
                     _startKeepaliveIntervalTimer(context);
