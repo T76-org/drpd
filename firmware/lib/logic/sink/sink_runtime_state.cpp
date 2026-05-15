@@ -73,6 +73,10 @@ std::optional<size_t> SinkRuntimeState::trackedTypeIndex(Proto::ExtendedMessageT
             return static_cast<size_t>(TrackedExtendedType::EPRSourceCapabilities);
         case Proto::ExtendedMessageType::Extended_Control:
             return static_cast<size_t>(TrackedExtendedType::ExtendedControl);
+        case Proto::ExtendedMessageType::Get_Manufacturer_Info:
+            return static_cast<size_t>(TrackedExtendedType::GetManufacturerInfo);
+        case Proto::ExtendedMessageType::Manufacturer_Info:
+            return static_cast<size_t>(TrackedExtendedType::ManufacturerInfo);
         default:
             return std::nullopt;
     }

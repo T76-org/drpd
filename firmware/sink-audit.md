@@ -116,35 +116,35 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink_runtime_state.cpp`, `firmware/lib/logic/sink/sink.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of unsupported extended messages -> `Not_Supported` still pending.
 
-- [ ] Handle `Source_Capabilities_Extended` received by Sink as conditionally normative or `Not_Supported`.
+- [x] Handle `Source_Capabilities_Extended` received by Sink as conditionally normative or `Not_Supported`.
   - Spec anchor: 6.5.1, Table 6.79 note 2.
-  - Current issue: Sink cannot parse or store Source extended capabilities; unsupported path is not feature-gated.
+  - Current issue: unsupported by product policy; Sink does not transmit `Get_Source_Cap_Extended`, and Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/proto/pd_message_types.hpp`, `firmware/lib/logic/sink/sink_runtime_state.cpp`.
-  - Verification: if Sink can transmit `Get_Source_Cap_Extended`, Source response is accepted; otherwise `Not_Supported`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Source_Capabilities_Extended` -> `Not_Supported` still pending.
 
-- [ ] Handle `Status` received by Sink as conditionally normative or `Not_Supported`.
+- [x] Handle `Status` received by Sink as conditionally normative or `Not_Supported`.
   - Spec anchor: 6.5.2, Table 6.79 note 3.
-  - Current issue: no Status extended-message parser or Ready handling exists.
+  - Current issue: unsupported by product policy; Sink does not transmit `Get_Status`, and Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/proto/pd_message_types.hpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: if Sink can transmit `Get_Status`, Status is processed; otherwise `Not_Supported`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Status` -> `Not_Supported` still pending.
 
-- [ ] Handle `Get_Battery_Cap` and `Get_Battery_Status` received by Sink.
+- [x] Handle `Get_Battery_Cap` and `Get_Battery_Status` received by Sink.
   - Spec anchor: 6.5.3, 6.5.4, Table 6.79 note 1.
-  - Current issue: no battery capability/status response path exists.
+  - Current issue: unsupported by product policy; DRPD does not contain batteries, and Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: battery-capable product returns `Battery_Capabilities`/`Battery_Status`; otherwise `Not_Supported`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Battery_Cap` / `Get_Battery_Status` -> `Not_Supported` still pending.
 
-- [ ] Handle `Battery_Capabilities` and `Battery_Status` received by Sink.
+- [x] Handle `Battery_Capabilities` and `Battery_Status` received by Sink.
   - Spec anchor: 6.5.5, 6.4.5, Table 6.79 note 4, Table 6.78 note 3.
-  - Current issue: no parsers/feature-gated handling in Sink policy.
+  - Current issue: unsupported by product policy; Sink does not transmit `Get_Battery_Cap` or `Get_Battery_Status`, and Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: process responses only when corresponding request was sent; unexpected supported responses trigger protocol-error behavior per AMS state.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Battery_Capabilities` / `Battery_Status` -> `Not_Supported` still pending.
 
-- [ ] Handle `Get_Manufacturer_Info` and `Manufacturer_Info` received by Sink.
+- [x] Handle `Get_Manufacturer_Info` and `Manufacturer_Info` received by Sink.
   - Spec anchor: 6.5.6, 6.5.7, Table 6.79 note 5.
-  - Current issue: no manufacturer-info response or response-processing path exists.
-  - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: supported product responds to `Get_Manufacturer_Info`; unsupported product returns `Not_Supported`.
+  - Current issue: Sink responds to `Get_Manufacturer_Info` for the local port with USB VID/PID and manufacturer string; unsupported target/ref values return a `Manufacturer_Info` payload containing `Not Supported`.
+  - Code anchor: `firmware/lib/proto/pd_messages/manufacturer_info.hpp`, `firmware/lib/proto/pd_messages/manufacturer_info.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Manufacturer_Info` -> `Manufacturer_Info` still pending.
 
 - [ ] Handle USB Security extended messages.
   - Spec anchor: 6.5.8.1, 6.5.8.2, Table 6.79 note 6.

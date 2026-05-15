@@ -125,6 +125,7 @@ add_executable(drpd-firmware
         lib/proto/pd_messages/control.cpp
         lib/proto/pd_messages/epr_mode.cpp
         lib/proto/pd_messages/epr_source_capabilities.cpp
+        lib/proto/pd_messages/manufacturer_info.cpp
         lib/proto/pd_messages/pdo/pdo.cpp
         lib/proto/pd_messages/pdo/pdo_fixed.cpp
         lib/proto/pd_messages/pdo/pdo_variable.cpp

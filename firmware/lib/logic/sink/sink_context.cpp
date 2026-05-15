@@ -324,6 +324,35 @@ void SinkContext::sendRevision() {
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
 
+void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) {
+    const bool isPortRequest =
+        requestPayload.size() == 2 &&
+        requestPayload[0] == 0 &&
+        requestPayload[1] == 0;
+
+    const Proto::ManufacturerInfo manufacturerInfo = isPortRequest
+        ? Proto::ManufacturerInfo::port(
+            T76_IC_USB_VENDOR_ID,
+            T76_IC_USB_PRODUCT_ID,
+            T76_IC_USB_MANUFACTURER_STRING
+        )
+        : Proto::ManufacturerInfo::unsupported();
+
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        manufacturerInfo
+    );
+
+    auto &header = message.header();
+    header.extended(true);
+    header.extendedMessageType(Proto::ExtendedMessageType::Manufacturer_Info);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
 void SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
     const Proto::EPRMode eprMode(action, data);
     PHY::BMCEncodedMessage message(

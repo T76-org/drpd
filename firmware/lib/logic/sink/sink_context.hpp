@@ -34,6 +34,7 @@
 #include "../../proto/pd_message_types.hpp"
 #include "../../proto/pd_messages/epr_mode.hpp"
 #include "../../proto/pd_messages/epr_source_capabilities.hpp"
+#include "../../proto/pd_messages/manufacturer_info.hpp"
 #include "../../proto/pd_messages/revision.hpp"
 #include "../../proto/pd_messages/sink_capabilities.hpp"
 #include "../../proto/pd_messages/sink_capabilities_extended.hpp"
@@ -207,6 +208,12 @@ namespace T76::DRPD::Logic {
          * @brief Send local PD Revision information for Get_Revision.
          */
         void sendRevision();
+
+        /**
+         * @brief Send local Manufacturer_Info for a Get_Manufacturer_Info request payload.
+         * @param requestPayload GMIDB payload from the received request.
+         */
+        void sendManufacturerInfo(std::span<const uint8_t> requestPayload);
 
         /**
          * @brief Send EPR_Mode data message.

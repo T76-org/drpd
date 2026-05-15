@@ -53,7 +53,9 @@ namespace T76::DRPD::Logic {
          */
         enum class TrackedExtendedType : uint8_t {
             EPRSourceCapabilities = 0,
-            ExtendedControl = 1
+            ExtendedControl = 1,
+            GetManufacturerInfo = 2,
+            ManufacturerInfo = 3
         };
 
         /**
@@ -125,8 +127,8 @@ namespace T76::DRPD::Logic {
         bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
         uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.
 
-        std::array<ExtendedReassemblyState, 2> _extendedReassemblyStates; ///< Per-type reassembly.
-        std::array<std::optional<ExtendedPayloadBuffer>, 2> _completedExtendedPayloads; ///< Completed payloads.
+        std::array<ExtendedReassemblyState, 4> _extendedReassemblyStates; ///< Per-type reassembly.
+        std::array<std::optional<ExtendedPayloadBuffer>, 4> _completedExtendedPayloads; ///< Completed payloads.
     };
 
 } // namespace T76::DRPD::Logic

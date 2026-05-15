@@ -92,6 +92,8 @@ namespace {
         switch (type) {
             case Proto::ExtendedMessageType::EPR_Source_Capabilities:
             case Proto::ExtendedMessageType::Extended_Control:
+            case Proto::ExtendedMessageType::Get_Manufacturer_Info:
+            case Proto::ExtendedMessageType::Manufacturer_Info:
                 return ReadyMessageAction::Process;
 
             case Proto::ExtendedMessageType::Source_Capabilities_Extended:
@@ -99,8 +101,6 @@ namespace {
             case Proto::ExtendedMessageType::Get_Battery_Cap:
             case Proto::ExtendedMessageType::Get_Battery_Status:
             case Proto::ExtendedMessageType::Battery_Capabilities:
-            case Proto::ExtendedMessageType::Get_Manufacturer_Info:
-            case Proto::ExtendedMessageType::Manufacturer_Info:
             case Proto::ExtendedMessageType::Security_Request:
             case Proto::ExtendedMessageType::Security_Response:
             case Proto::ExtendedMessageType::Firmware_Update_Request:
@@ -248,6 +248,25 @@ void ReadySinkStateHandler::handleMessage(
 
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
         const auto extendedType = decodedHeader.extendedMessageType();
+
+        if (extendedType.has_value() &&
+            extendedType.value() == Proto::ExtendedMessageType::Get_Manufacturer_Info) {
+            const auto requestPayload =
+                context.takeCompletedExtendedPayload(Proto::ExtendedMessageType::Get_Manufacturer_Info);
+            if (!requestPayload.has_value()) {
+                context.sendNotSupportedMessage();
+                return;
+            }
+
+            context.sendManufacturerInfo(requestPayload->span());
+            return;
+        }
+
+        if (extendedType.has_value() &&
+            extendedType.value() == Proto::ExtendedMessageType::Manufacturer_Info) {
+            (void)context.takeCompletedExtendedPayload(Proto::ExtendedMessageType::Manufacturer_Info);
+            return;
+        }
 
         if (extendedType.has_value() &&
             (extendedType.value() == Proto::ExtendedMessageType::EPR_Source_Capabilities ||
