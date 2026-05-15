@@ -112,7 +112,9 @@ void EPRKeepaliveStateHandler::handleMessage(
 
             const Proto::EPRSourceCapabilities eprCapabilities(payload.value().span());
             if (eprCapabilities.isMessageInvalid()) {
-                context.performReset(SinkResetType::SoftReset);
+                context.performReset(eprCapabilities.hasEPRPDOInSPRPositions()
+                    ? SinkResetType::HardReset
+                    : SinkResetType::SoftReset);
                 return;
             }
 

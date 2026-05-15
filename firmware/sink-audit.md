@@ -222,11 +222,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P0 - EPR Capabilities and Requests
 
-- [ ] Validate `EPR_Source_Capabilities` object-position rules.
+- [x] Validate `EPR_Source_Capabilities` object-position rules.
   - Spec anchor: 6.5.15.1, 6.4.10.3.3, 8.3.3.3.8.
-  - Current issue: parser accepts EPR PDO/APDO in positions 1..7; in EPR Mode this should cause Hard Reset.
+  - Current issue: fixed; parser flags EPR PDO/APDO in positions 1..7 as invalid, and EPR-mode handling escalates that critical error to Hard Reset.
   - Code anchor: `firmware/lib/proto/pd_messages/epr_source_capabilities.cpp`, `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: EPR AVS at position 1 triggers Hard Reset; EPR AVS at position 8 accepted.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture for EPR AVS at position 1 triggering Hard Reset and EPR AVS at position 8 accepted still pending.
 
 - [ ] Validate EPR capabilities construction: first seven positions mirror SPR capability positions and unused positions are zero-filled.
   - Spec anchor: 6.5.15.1.

@@ -5,6 +5,8 @@
 
 #include "epr_source_capabilities.hpp"
 
+#include <type_traits>
+
 
 using namespace T76::DRPD::Proto;
 
@@ -32,11 +34,18 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
             continue;
         }
 
+        const PDOVariant pdo = _createPDO(raw);
+        if (i < 7 && _isEPRPDO(pdo)) {
+            _eprPDOInSPRPositions = true;
+            _messageInvalid = true;
+            return;
+        }
+
         if (_pdoCount >= MaxPDOCount) {
             _messageInvalid = true;
             return;
         }
-        _pdos[_pdoCount] = _createPDO(raw);
+        _pdos[_pdoCount] = pdo;
         _objectPositions[_pdoCount] = static_cast<uint8_t>(i + 1);
         ++_pdoCount;
     }
@@ -57,6 +66,10 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
 
 bool EPRSourceCapabilities::isMessageInvalid() const {
     return _messageInvalid;
+}
+
+bool EPRSourceCapabilities::hasEPRPDOInSPRPositions() const {
+    return _eprPDOInSPRPositions;
 }
 
 size_t EPRSourceCapabilities::pdoCount() const {
@@ -105,4 +118,18 @@ PDOVariant EPRSourceCapabilities::_createPDO(uint32_t raw) {
         default:
             return FixedSupplyPDO(raw);
     }
+}
+
+bool EPRSourceCapabilities::_isEPRPDO(const PDOVariant& pdo) {
+    return std::visit([](const auto& typedPDO) {
+        using T = std::decay_t<decltype(typedPDO)>;
+
+        if constexpr (std::is_same_v<T, FixedSupplyPDO>) {
+            return typedPDO.voltageMillivolts() > 20000;
+        } else if constexpr (std::is_same_v<T, EPRAVSAPDO>) {
+            return true;
+        } else {
+            return false;
+        }
+    }, pdo);
 }
