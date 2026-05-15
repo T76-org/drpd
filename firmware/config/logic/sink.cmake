@@ -26,4 +26,5 @@ target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_SINK_RAW_PD_MESSAGE_MAX_BODY_BYTES=8                   # Static max bytes for sink-generated raw PD payload wrappers
     LOGIC_SINK_READY_SINK_REQUEST_TIMER_US=100000                # Timer for Ready_Sink state to request higher power (tSinkRequest 100ms)
     LOGIC_SINK_READY_PDO_PPS_REFRESH_TIMER_US=9000000            # Timer for PPS/AVS refresh in Ready state (tPPSRequest 9s)
+    LOGIC_SINK_COLLISION_AVOIDANCE_RETRY_US=10000                # Poll interval while waiting for Source Rp=SinkTxOK before Sink AMS
 )

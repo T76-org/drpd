@@ -39,20 +39,26 @@ SinkRequestResult SelectCapabilityStateHandler::requestPDO(
     SinkContext& context,
     size_t pdoIndex,
     uint32_t voltageMV,
-    uint32_t currentMA) {
+    uint32_t currentMA,
+    bool collisionAvoidanceExempt) {
     _bindContext(context);
+    _currentRequestCollisionAvoidanceExempt = collisionAvoidanceExempt;
+
     // Request against the active capability view (SPR-only before EPR retrieval,
     // EPR capability set after retrieval).
     if (context.totalPDOCount() == 0) {
+        _currentRequestCollisionAvoidanceExempt = false;
         return SinkRequestResult::failure("No source PDOs are available");
     }
 
     if (pdoIndex >= context.totalPDOCount()) {
+        _currentRequestCollisionAvoidanceExempt = false;
         return SinkRequestResult::failure("PDO index out of range");
     }
 
     const auto pdoOpt = context.pdoAtIndex(pdoIndex);
     if (!pdoOpt.has_value()) {
+        _currentRequestCollisionAvoidanceExempt = false;
         return SinkRequestResult::failure("PDO is unavailable");
     }
 
@@ -61,28 +67,27 @@ SinkRequestResult SelectCapabilityStateHandler::requestPDO(
 
     if (std::holds_alternative<Proto::EPRAVSAPDO>(pdoVariant) &&
         (!state._eprModeActive || !state._eprCapabilities.has_value())) {
+        _currentRequestCollisionAvoidanceExempt = false;
         return SinkRequestResult::failure("EPR PDO cannot be requested outside EPR mode");
     }
 
+    SinkRequestResult result = SinkRequestResult::failure("Unsupported PDO type");
     if (std::holds_alternative<Proto::FixedSupplyPDO>(pdoVariant)) {
-        return _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
-    }
-
-    if (std::holds_alternative<Proto::VariableSupplyPDO>(pdoVariant)) {
-        return _requestVariablePDO(pdoIndex, pdoVariant, currentMA);
-    }
-
-    if (std::holds_alternative<Proto::BatterySupplyPDO>(pdoVariant)) {
-        return _requestBatteryPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
-    }
-
-    if (std::holds_alternative<Proto::SPRPPSAPDO>(pdoVariant) ||
+        result = _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
+    } else if (std::holds_alternative<Proto::VariableSupplyPDO>(pdoVariant)) {
+        result = _requestVariablePDO(pdoIndex, pdoVariant, currentMA);
+    } else if (std::holds_alternative<Proto::BatterySupplyPDO>(pdoVariant)) {
+        result = _requestBatteryPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
+    } else if (std::holds_alternative<Proto::SPRPPSAPDO>(pdoVariant) ||
         std::holds_alternative<Proto::SPRAVSAPDO>(pdoVariant) ||
         std::holds_alternative<Proto::EPRAVSAPDO>(pdoVariant)) {
-        return _requestAugmentedPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
+        result = _requestAugmentedPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
+    } else {
+        result = _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
     }
 
-    return _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
+    _currentRequestCollisionAvoidanceExempt = false;
+    return result;
 }
 
 SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
@@ -139,7 +144,13 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
         requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
         requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-        context.sendMessageAndAwaitGoodCRC(requestMessage);
+        if (!_currentRequestCollisionAvoidanceExempt &&
+            !context.sendSinkInitiatedMessageAndAwaitGoodCRC(requestMessage)) {
+            return SinkRequestResult::ok();
+        }
+        if (_currentRequestCollisionAvoidanceExempt) {
+            context.sendMessageAndAwaitGoodCRC(requestMessage);
+        }
         return SinkRequestResult::ok();
     }
 
@@ -152,7 +163,13 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
     requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-    context.sendMessageAndAwaitGoodCRC(requestMessage);
+    if (!_currentRequestCollisionAvoidanceExempt &&
+        !context.sendSinkInitiatedMessageAndAwaitGoodCRC(requestMessage)) {
+        return SinkRequestResult::ok();
+    }
+    if (_currentRequestCollisionAvoidanceExempt) {
+        context.sendMessageAndAwaitGoodCRC(requestMessage);
+    }
 
     return SinkRequestResult::ok();
 }
@@ -497,6 +514,11 @@ void SelectCapabilityStateHandler::handleTimeoutEvent(
     (void)context;
     if (eventType == SinkTimeoutEventType::SelectCapabilityResponseTimeout) {
         _onResponseTimeout();
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::SinkTxOKRetryTimeout) {
+        (void)_requestPendingPDO(context);
     }
 }
 

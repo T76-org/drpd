@@ -25,6 +25,15 @@ namespace T76::DRPD::Logic {
     };
 
     /**
+     * @brief Source Rp collision-avoidance permission observed by a Sink.
+     */
+    enum class SinkTransmitPermission : uint32_t {
+        Unknown,  ///< No attached Source/current Rp classification is available.
+        SinkTxNG, ///< Source advertises Sink transmit no-go.
+        SinkTxOK  ///< Source advertises Sink transmit OK.
+    };
+
+    /**
      * @brief High-level policy engine states for Sink mode.
      */
     enum class SinkState : uint32_t {
@@ -79,7 +88,8 @@ namespace T76::DRPD::Logic {
         EPRKeepaliveIntervalTimeout,
         EPRKeepaliveResponseTimeout,
         EPRSourceWatchdogTimeout,
-        ChunkingNotSupportedTimeout
+        ChunkingNotSupportedTimeout,
+        SinkTxOKRetryTimeout
     };
 
     /**

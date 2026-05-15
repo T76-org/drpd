@@ -56,11 +56,13 @@ void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
         return;
     }
 
-    _waitingForKeepaliveAck = true;
-    _context->sendExtendedControlMessage(
+    if (!_context->sendExtendedControlMessage(
         static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive),
-        true);
+        true)) {
+        return;
+    }
 
+    _waitingForKeepaliveAck = true;
     _keepaliveResponseAlarmId = _context->addAlarmInUs(
         LOGIC_SINK_EPR_KEEPALIVE_RESPONSE_TIMEOUT_US,
         _onKeepaliveResponseTimeoutCallback,
@@ -296,15 +298,26 @@ void EPRKeepaliveStateHandler::handleTimeoutEvent(
 
     if (eventType == SinkTimeoutEventType::EPRSourceWatchdogTimeout) {
         _onSourceWatchdogTimeout();
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::SinkTxOKRetryTimeout) {
+        if (!context.runtimeState()._eprCapabilities.has_value()) {
+            enter(context);
+            return;
+        }
+
+        _onKeepaliveIntervalTimeout();
     }
 }
 
 void EPRKeepaliveStateHandler::enter(SinkContext& context) {
     _bindContext(context);
 
-    if (!context.runtimeState()._eprCapabilities.has_value()) {
-        context.sendExtendedControlMessage(
-            static_cast<uint8_t>(Sink::ExtendedControlType::EPR_Get_Source_Cap));
+    if (!context.runtimeState()._eprCapabilities.has_value() &&
+        !context.sendExtendedControlMessage(
+            static_cast<uint8_t>(Sink::ExtendedControlType::EPR_Get_Source_Cap))) {
+        return;
     }
 
     _startKeepaliveIntervalTimer(context);

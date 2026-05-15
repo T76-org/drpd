@@ -444,7 +444,7 @@ void SinkContext::sendRevisionResponse() {
     transitionTo(SinkState::PE_SNK_Send_Response);
 }
 
-void SinkContext::sendGetPPSStatus() {
+bool SinkContext::sendGetPPSStatus() {
     const Proto::ControlMessage getPPSStatus;
     PHY::BMCEncodedMessage message(
         Proto::SOP::SOPType::SOP,
@@ -458,7 +458,7 @@ void SinkContext::sendGetPPSStatus() {
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-    _messageSender.sendMessageAndAwaitGoodCRC(message);
+    return sendSinkInitiatedMessageAndAwaitGoodCRC(message);
 }
 
 void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) {
@@ -520,7 +520,7 @@ void SinkContext::sendManufacturerInfoResponse(std::span<const uint8_t> requestP
     transitionTo(SinkState::PE_SNK_Send_Response);
 }
 
-void SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
+bool SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
     const Proto::EPRMode eprMode(action, data);
     PHY::BMCEncodedMessage message(
         Proto::SOP::SOPType::SOP,
@@ -532,10 +532,10 @@ void SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-    _messageSender.sendMessageAndAwaitGoodCRC(message);
+    return sendSinkInitiatedMessageAndAwaitGoodCRC(message);
 }
 
-void SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGoodCRC) {
+bool SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGoodCRC) {
     Proto::PDExtendedHeader extHeader(0);
     extHeader.dataSizeBytes(2);
     extHeader.requestChunk(false);
@@ -570,11 +570,32 @@ void SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGood
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
+    if (!sinkMayInitiateAMS()) {
+        _scheduleSinkTxOKRetry();
+        return false;
+    }
+
     if (awaitGoodCRC) {
-        _messageSender.sendMessageAndAwaitGoodCRC(message);
+        sendMessageAndAwaitGoodCRC(message);
     } else {
         _messageSender.sendMessage(message);
     }
+
+    return true;
+}
+
+bool SinkContext::sinkMayInitiateAMS() const {
+    return _ccBusController.sinkTransmitPermission() == SinkTransmitPermission::SinkTxOK;
+}
+
+bool SinkContext::sendSinkInitiatedMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message) {
+    if (!sinkMayInitiateAMS()) {
+        _scheduleSinkTxOKRetry();
+        return false;
+    }
+
+    sendMessageAndAwaitGoodCRC(message);
+    return true;
 }
 
 void SinkContext::sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message) {
@@ -627,13 +648,22 @@ SinkRequestResult SinkContext::validatePDORequest(
     return SinkRequestResult::ok();
 }
 
-SinkRequestResult SinkContext::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
+SinkRequestResult SinkContext::requestPDO(
+    size_t pdoIndex,
+    uint32_t voltageMV,
+    uint32_t currentMA,
+    bool collisionAvoidanceExempt) {
     const SinkRequestResult validation = validatePDORequest(pdoIndex, voltageMV, currentMA);
     if (!validation) {
         return validation;
     }
 
-    return _selectCapabilityStateHandler.requestPDO(*this, pdoIndex, voltageMV, currentMA);
+    return _selectCapabilityStateHandler.requestPDO(
+        *this,
+        pdoIndex,
+        voltageMV,
+        currentMA,
+        collisionAvoidanceExempt);
 }
 
 alarm_id_t SinkContext::addAlarmInUs(
@@ -725,6 +755,22 @@ void SinkContext::_notifySinkInfoChanged(SinkInfoChange change) {
     if (_sinkInfoChangedCallback) {
         _sinkInfoChangedCallback(change);
     }
+}
+
+void SinkContext::_scheduleSinkTxOKRetry() {
+    addAlarmInUs(
+        LOGIC_SINK_COLLISION_AVOIDANCE_RETRY_US,
+        _onSinkTxOKRetryTimeoutCallback,
+        this,
+        true
+    );
+}
+
+int64_t SinkContext::_onSinkTxOKRetryTimeoutCallback(alarm_id_t id, void *userData) {
+    (void)id;
+    auto *context = static_cast<SinkContext *>(userData);
+    context->enqueueTimeoutEvent(SinkTimeoutEvent{SinkTimeoutEventType::SinkTxOKRetryTimeout});
+    return 0;
 }
 
 } // namespace T76::DRPD::Logic

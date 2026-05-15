@@ -105,6 +105,23 @@ Sink* CCBusController::sink() {
     return nullptr;
 }
 
+SinkTransmitPermission CCBusController::sinkTransmitPermission() const {
+    if (_role != CCBusRole::Sink || _state != CCBusState::Attached) {
+        return SinkTransmitPermission::Unknown;
+    }
+
+    const float activeCCVoltage = _channelVoltage(_sourcePort, _sourceChannel);
+    if (activeCCVoltage >= LOGIC_CC_BUS_CONTROLLER_SINK_TX_OK_VOLTAGE_THRESHOLD) {
+        return SinkTransmitPermission::SinkTxOK;
+    }
+
+    if (_isSinkPresent(activeCCVoltage)) {
+        return SinkTransmitPermission::SinkTxNG;
+    }
+
+    return SinkTransmitPermission::Unknown;
+}
+
 void CCBusController::applySinkPersistentConfig(const T76::DRPD::SinkPersistentConfig& config) {
     _sink.applyPersistentConfig(config);
 }
@@ -188,16 +205,16 @@ void CCBusController::_repeatSinkInfoChanged(SinkInfoChange change) {
     }
 }
 
-bool inline CCBusController::_isSourcePresent(float voltage) {
+bool inline CCBusController::_isSourcePresent(float voltage) const {
     return voltage > LOGIC_CC_BUS_CONTROLLER_SOURCE_DETECT_VOLTAGE_THRESHOLD;
 }
 
-bool inline CCBusController::_isSinkPresent(float voltage) {
+bool inline CCBusController::_isSinkPresent(float voltage) const {
     return voltage > LOGIC_CC_BUS_CONTROLLER_SINK_DETECT_VOLTAGE_THRESHOLD_LOW &&
         voltage < LOGIC_CC_BUS_CONTROLLER_SINK_DETECT_VOLTAGE_THRESHOLD_HIGH;
 }
 
-float CCBusController::_channelVoltage(CCBusPort port, PHY::CCChannel channel) {
+float CCBusController::_channelVoltage(CCBusPort port, PHY::CCChannel channel) const {
     switch(port) {
         case CCBusPort::DUT:
             switch(channel) {

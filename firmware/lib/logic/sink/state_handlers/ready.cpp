@@ -244,12 +244,7 @@ void ReadySinkStateHandler::handleMessage(
             context.setSourceCapabilities(
                 Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()));
 
-            auto& state = context.runtimeState();
-            state._pendingRequestedPDO = state._negotiatedPDO;
-            state._pendingVoltage = state._negotiatedVoltage;
-            state._pendingCurrent = state._negotiatedCurrent;
-
-            context.transitionTo(SinkState::PE_SNK_Select_Capability);
+            (void)context.requestPDO(0, 0, 0, true);
             return;
         }
     }

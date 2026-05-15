@@ -30,7 +30,7 @@ void EPRModeExitStateHandler::_completeExitWithSourceCapabilities(
         message->rawBody(), decodedHeader.numDataObjects()));
     // Enter Wait_for_Capabilities so SPR renegotiation uses the same timer/cancel path as a delayed response.
     context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
-    (void)context.requestPDO(0, 0, 0);
+    (void)context.requestPDO(0, 0, 0, true);
 }
 
 void EPRModeExitStateHandler::handleMessage(
@@ -85,6 +85,14 @@ void EPRModeExitStateHandler::handleMessageSenderStateChange(
     }
 }
 
+void EPRModeExitStateHandler::handleTimeoutEvent(
+    SinkContext& context,
+    SinkTimeoutEventType eventType) {
+    if (eventType == SinkTimeoutEventType::SinkTxOKRetryTimeout) {
+        enter(context);
+    }
+}
+
 void EPRModeExitStateHandler::enter(SinkContext& context) {
     _bindContext(context);
 
@@ -93,7 +101,7 @@ void EPRModeExitStateHandler::enter(SinkContext& context) {
         return;
     }
 
-    context.sendEPRMode(Proto::EPRMode::Action::Exit, 0);
+    (void)context.sendEPRMode(Proto::EPRMode::Action::Exit, 0);
 }
 
 void EPRModeExitStateHandler::reset(SinkContext& context) {

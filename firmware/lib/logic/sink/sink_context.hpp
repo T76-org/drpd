@@ -256,8 +256,9 @@ namespace T76::DRPD::Logic {
 
         /**
          * @brief Send Get_PPS_Status for the current PPS contract.
+         * @return True if sent; false if deferred by collision avoidance.
          */
-        void sendGetPPSStatus();
+        bool sendGetPPSStatus();
 
         /**
          * @brief Send local Manufacturer_Info for a Get_Manufacturer_Info request payload.
@@ -275,15 +276,30 @@ namespace T76::DRPD::Logic {
          * @brief Send EPR_Mode data message.
          * @param action EPR mode action to encode.
          * @param data Optional action-specific payload byte.
+         * @return True if sent; false if deferred by collision avoidance.
          */
-        void sendEPRMode(Proto::EPRMode::Action action, uint8_t data = 0);
+        bool sendEPRMode(Proto::EPRMode::Action action, uint8_t data = 0);
 
         /**
          * @brief Send Extended_Control message with optional GoodCRC wait.
          * @param controlType Extended control type byte.
          * @param awaitGoodCRC True to wait for GoodCRC; false for fire-and-forget.
+         * @return True if sent; false if deferred by collision avoidance.
          */
-        void sendExtendedControlMessage(uint8_t controlType, bool awaitGoodCRC = true);
+        bool sendExtendedControlMessage(uint8_t controlType, bool awaitGoodCRC = true);
+
+        /**
+         * @brief Return true when Source Rp permits a Sink-initiated AMS now.
+         * @return True only when active CC is classified as SinkTxOK.
+         */
+        [[nodiscard]] bool sinkMayInitiateAMS() const;
+
+        /**
+         * @brief Send a Sink-initiated message after collision-avoidance gating.
+         * @param message Encoded PD message to send.
+         * @return True if the message was sent; false if it was deferred.
+         */
+        bool sendSinkInitiatedMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message);
 
         /**
          * @brief Send an encoded message and await GoodCRC.
@@ -313,9 +329,14 @@ namespace T76::DRPD::Logic {
          * @param pdoIndex Zero-based PDO index in active capabilities view.
          * @param voltageMV Requested voltage in millivolts.
          * @param currentMA Requested current in milliamps.
+         * @param collisionAvoidanceExempt True when this Request is part of a Source-initiated AMS.
          * @return Request result describing dispatch or rejection reason.
          */
-        SinkRequestResult requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
+        SinkRequestResult requestPDO(
+            size_t pdoIndex,
+            uint32_t voltageMV,
+            uint32_t currentMA,
+            bool collisionAvoidanceExempt = false);
 
         /**
          * @brief Add one-shot timer in the Sink-owned alarm pool.
@@ -386,6 +407,16 @@ namespace T76::DRPD::Logic {
          * @param change Sink info change classification to notify.
          */
         void _notifySinkInfoChanged(SinkInfoChange change);
+
+        /**
+         * @brief Schedule a retry after SinkTxNG/unknown collision-avoidance state.
+         */
+        void _scheduleSinkTxOKRetry();
+
+        /**
+         * @brief Static callback for SinkTxOK retry timer.
+         */
+        static int64_t _onSinkTxOKRetryTimeoutCallback(alarm_id_t id, void *userData);
     };
 
 } // namespace T76::DRPD::Logic

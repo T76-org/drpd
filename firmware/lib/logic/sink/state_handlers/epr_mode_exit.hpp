@@ -32,6 +32,13 @@ namespace T76::DRPD::Logic {
         void handleMessageSenderStateChange(SinkContext& context, SinkMessageSenderState state) override;
 
         /**
+         * @brief Retry EPR exit once Source advertises SinkTxOK.
+         * @param context Shared sink context.
+         * @param eventType Timeout event type.
+         */
+        void handleTimeoutEvent(SinkContext& context, SinkTimeoutEventType eventType) override;
+
+        /**
          * @brief Enter EPR exit state and send EPR_Mode Exit.
          * @param context Shared sink context.
          */

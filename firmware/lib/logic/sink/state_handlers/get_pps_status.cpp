@@ -72,12 +72,19 @@ void GetPPSStatusStateHandler::handleTimeoutEvent(
     SinkTimeoutEventType eventType) {
     if (eventType == SinkTimeoutEventType::GetPPSStatusResponseTimeout) {
         _finish(context);
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::SinkTxOKRetryTimeout) {
+        enter(context);
     }
 }
 
 void GetPPSStatusStateHandler::enter(SinkContext& context) {
     _bindContext(context);
-    context.sendGetPPSStatus();
+    if (!context.sendGetPPSStatus()) {
+        return;
+    }
 
     _responseTimeoutAlarmId = context.addAlarmInUs(
         LOGIC_SINK_GET_PPS_STATUS_RESPONSE_TIMEOUT_US,

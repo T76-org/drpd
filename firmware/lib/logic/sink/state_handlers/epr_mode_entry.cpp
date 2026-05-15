@@ -169,7 +169,11 @@ void EPRModeEntryStateHandler::handleMessageSenderStateChange(
 void EPRModeEntryStateHandler::handleTimeoutEvent(
     SinkContext& context,
     SinkTimeoutEventType eventType) {
-    (void)context;
+    if (eventType == SinkTimeoutEventType::SinkTxOKRetryTimeout) {
+        enter(context);
+        return;
+    }
+
     if (eventType == SinkTimeoutEventType::EPRModeEntrySenderResponseTimeout) {
         _onSenderResponseTimeout();
         return;
@@ -184,13 +188,15 @@ void EPRModeEntryStateHandler::enter(SinkContext& context) {
     _bindContext(context);
 
     if (context.runtimeState()._state == SinkState::PE_SNK_Send_EPR_Mode_Entry) {
+        // Advertised EPR Sink Operational PDP for source-test policy, in 1 W units.
+        if (!context.sendEPRMode(
+            Proto::EPRMode::Action::Enter,
+            LOGIC_SINK_EPR_OPERATIONAL_PDP_W)) {
+            return;
+        }
+
         _startEntryTimeout(context);
         _startSenderResponseTimeout(context);
-
-        // Advertised EPR Sink Operational PDP for source-test policy, in 1 W units.
-        context.sendEPRMode(
-            Proto::EPRMode::Action::Enter,
-            LOGIC_SINK_EPR_OPERATIONAL_PDP_W);
     }
 }
 

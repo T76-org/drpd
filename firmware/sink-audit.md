@@ -388,11 +388,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `send_response.cpp`, `sink_context.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Apply Sink collision avoidance before Sink-initiated AMS messages.
+- [x] Apply Sink collision avoidance before Sink-initiated AMS messages.
   - Spec anchor: 6.10 Collision Avoidance, 6.6.16.
-  - Current issue: Sink initiates requests/keepalives without visible Rp SinkTxOK/SinkTxNG gating.
-  - Code anchor: `firmware/lib/logic/sink/sink_public_interface.cpp`, `sink_context.cpp`, CC bus role/monitor code.
-  - Verification: Sink does not start AMS while Source advertises SinkTxNG.
+  - Current issue: fixed; Sink-initiated AMS send helpers now defer while the active CC line is not classified as Rp `SinkTxOK`, while Request messages that are part of a Source_Capabilities flow remain exempt.
+  - Code anchor: `firmware/lib/logic/cc_bus_controller.cpp`, `sink_context.cpp`, `select_capability.cpp`, `epr_keepalive.cpp`, `epr_mode_entry.cpp`, `epr_mode_exit.cpp`, `get_pps_status.cpp`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Implement message discarding rules for pending SOP messages.
   - Spec anchor: 6.11 Message Discarding.
