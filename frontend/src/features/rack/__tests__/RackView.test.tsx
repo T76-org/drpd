@@ -6,6 +6,7 @@ import type { BeforeInstallPromptEvent } from '../../../lib/pwa/usePWAInstallPro
 import { saveRackDocument } from '../../../lib/rack/loadRack'
 import type { RackDocument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
+import { serializeMessageLogRow } from '../messageLogImport'
 import { RackView } from '../RackView'
 
 const mockTransportState = vi.hoisted(() => ({
@@ -860,6 +861,62 @@ describe('RackView', () => {
     expect(within(dialog).getByText('Source')).toBeInTheDocument()
     expect(within(dialog).getByText('Valid')).toBeInTheDocument()
     expect(within(dialog).getAllByRole('button', { name: 'Include' }).length).toBeGreaterThan(0)
+  })
+
+  it('imports Message Log JSON after destructive confirmation', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Device' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /pair new device/i }))
+    await waitFor(() => {
+      expect(
+        (window as unknown as {
+          __drpdLogs?: { driver: () => DRPDDevice }
+        }).__drpdLogs?.driver(),
+      ).toBeTruthy()
+    })
+
+    const driver = (window as unknown as {
+      __drpdLogs: { driver: () => DRPDDevice }
+    }).__drpdLogs.driver()
+    const importSpy = vi.spyOn(driver, 'importCapturedMessages')
+    const file = new File(
+      [JSON.stringify([serializeMessageLogRow(buildLoggedMessage(0))])],
+      'message-log-export.json',
+      { type: 'application/json' },
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Message Log' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Import JSON...' }))
+
+    let dialog = await screen.findByRole('dialog', { name: 'Import message log' })
+    const input = dialog.querySelector('input[type="file"]')
+    expect(input).toBeInstanceOf(HTMLInputElement)
+    await userEvent.upload(input as HTMLInputElement, file)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Import' }))
+
+    const confirm = await screen.findByRole('dialog', { name: 'Replace log contents?' })
+    expect(within(confirm).getByText(/erase all existing log data/i)).toBeInTheDocument()
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    expect(importSpy).not.toHaveBeenCalled()
+
+    dialog = await screen.findByRole('dialog', { name: 'Import message log' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Import' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Replace log contents?' })).getByRole(
+        'button',
+        { name: 'Erase and import' },
+      ),
+    )
+
+    await waitFor(() => {
+      expect(importSpy).toHaveBeenCalledTimes(1)
+    })
+    expect(importSpy.mock.calls[0][1]).toEqual({ clearScope: 'all' })
+    expect(screen.queryByRole('dialog', { name: 'Import message log' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Replace log contents?' })).not.toBeInTheDocument()
   })
 
   it('resolves system theme from matchMedia', async () => {

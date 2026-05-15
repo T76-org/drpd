@@ -58,6 +58,119 @@ export const MessageLogClearPopover = ({
   </Dialog>
 )
 
+export const MessageLogImportPopover = ({
+  open,
+  onOpenChange,
+  selectedFileName,
+  importError,
+  isImporting,
+  onCancel,
+  onFileSelect,
+  onImport,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  selectedFileName: string | null
+  importError: string | null
+  isImporting: boolean
+  onCancel: () => void
+  onFileSelect: (file: File | null) => void
+  onImport: () => void
+}) => (
+  <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="Import message log"
+    description="Choose a JSON export to import into the Message Log."
+    dismissible={!isImporting}
+    footer={
+      <>
+        <DialogButton
+          onClick={onCancel}
+          disabled={isImporting}
+        >
+          Cancel
+        </DialogButton>
+        <DialogButton
+          variant="primary"
+          onClick={onImport}
+          disabled={isImporting || !selectedFileName}
+        >
+          {isImporting ? 'Importing...' : 'Import'}
+        </DialogButton>
+      </>
+    }
+  >
+    <DialogForm>
+      <div className={styles.importFileStack}>
+        <label
+          className={styles.dropZone}
+          onDragOver={(event) => {
+            event.preventDefault()
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            onFileSelect(event.dataTransfer.files.item(0))
+          }}
+        >
+          <input
+            className={styles.fileInput}
+            type="file"
+            accept="application/json,.json"
+            disabled={isImporting}
+            onChange={(event) => {
+              onFileSelect(event.currentTarget.files?.item(0) ?? null)
+            }}
+          />
+          <span>{selectedFileName ?? 'Drop JSON file or choose file'}</span>
+        </label>
+        {importError ? <p className={styles.importError}>{importError}</p> : null}
+      </div>
+    </DialogForm>
+  </Dialog>
+)
+
+export const MessageLogImportConfirmPopover = ({
+  open,
+  onOpenChange,
+  isImporting,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  isImporting: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) => (
+  <Dialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="Replace log contents?"
+    description="Importing will erase all existing log data, including analog samples."
+    dismissible={!isImporting}
+    footer={
+      <>
+        <DialogButton
+          onClick={onCancel}
+          disabled={isImporting}
+        >
+          Cancel
+        </DialogButton>
+        <DialogButton
+          variant="danger"
+          onClick={onConfirm}
+          disabled={isImporting}
+        >
+          {isImporting ? 'Importing...' : 'Erase and import'}
+        </DialogButton>
+      </>
+    }
+  >
+    Continue only if you want to replace current log contents.
+  </Dialog>
+)
+
 export const MessageLogConfigurePopover = ({
   open,
   onOpenChange,

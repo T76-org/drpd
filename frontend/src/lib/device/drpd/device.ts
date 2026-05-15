@@ -18,6 +18,8 @@ import type {
   AnalogMonitorChannels,
   AnalogSampleQuery,
   CapturedMessage,
+  CapturedMessageImportOptions,
+  CapturedMessageImportResult,
   CapturedMessageQuery,
   CCBusRole,
   DRPDDeviceState,
@@ -537,6 +539,54 @@ export class DRPDDevice extends EventTarget {
       }
     }
     return this.logStore.exportData(request)
+  }
+
+  /**
+   * Replace log data with imported captured messages.
+   *
+   * @param rows - Validated captured-message rows to import.
+   * @param options - Import behavior.
+   * @returns Import counts.
+   */
+  public async importCapturedMessages(
+    rows: LoggedCapturedMessage[],
+    options: CapturedMessageImportOptions,
+  ): Promise<CapturedMessageImportResult> {
+    if (!this.logStore) {
+      await this.ensureLogStoreOpen()
+    }
+    if (!this.logStore) {
+      return { analogDeleted: 0, messagesDeleted: 0, messagesImported: 0 }
+    }
+
+    const clearResult = await this.logStore.clear(options.clearScope)
+    this.activeDisplayEpochStartUs = null
+    this.pendingDisplayEpochReset = false
+    this.lastKnownDeviceTimestampUs = null
+    this.clearLogSelection()
+
+    for (const row of rows) {
+      await this.logStore.insertCapturedMessage(row)
+    }
+    await this.logStore.flush?.()
+    await this.logStore.enforceRetention()
+
+    const result: CapturedMessageImportResult = {
+      ...clearResult,
+      messagesImported: rows.length,
+    }
+    this.dispatchEvent(
+      new CustomEvent(DRPDDevice.LOG_ENTRY_DELETED_EVENT, {
+        detail: {
+          scope: options.clearScope,
+          analogDeleted: result.analogDeleted,
+          messagesDeleted: result.messagesDeleted,
+          messagesImported: result.messagesImported,
+          reason: 'import',
+        },
+      }),
+    )
+    return result
   }
 
   /**

@@ -224,6 +224,22 @@ export interface LogClearResult {
 }
 
 /**
+ * Captured-message import options.
+ */
+export interface CapturedMessageImportOptions {
+  ///< Log scope to clear before importing rows.
+  clearScope: LogClearScope
+}
+
+/**
+ * Result of replacing log data with imported captured messages.
+ */
+export interface CapturedMessageImportResult extends LogClearResult {
+  ///< Number of captured messages imported.
+  messagesImported: number
+}
+
+/**
  * Logging backend diagnostics for debug/console inspection.
  */
 export interface DRPDLoggingDiagnostics {

@@ -10,6 +10,8 @@ import type {
   AccumulatedMeasurements,
   AnalogMonitorChannels,
   AnalogSampleQuery,
+  CapturedMessageImportOptions,
+  CapturedMessageImportResult,
   CapturedMessageQuery,
   CCBusRole,
   DeviceIdentity,
@@ -441,6 +443,20 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   public async exportLogs(request: LogExportRequest): Promise<LogExportResult> {
     return (await this.callDevice('exportLogs', request)) as LogExportResult
+  }
+
+  /**
+   * Replace log data with imported captured messages.
+   *
+   * @param rows - Validated captured-message rows.
+   * @param options - Import options.
+   * @returns Import result.
+   */
+  public async importCapturedMessages(
+    rows: LoggedCapturedMessage[],
+    options: CapturedMessageImportOptions,
+  ): Promise<CapturedMessageImportResult> {
+    return (await this.callDevice('importCapturedMessages', rows, options)) as CapturedMessageImportResult
   }
 
   /**
