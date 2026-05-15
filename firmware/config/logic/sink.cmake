@@ -9,6 +9,7 @@ target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_SINK_GOODCRC_RETRIES=3                                 # Number of retries for sending messages awaiting GoodCRC
 
     LOGIC_SINK_WAIT_FOR_CAPABILITIES_TIMEOUT_US=620000           # Timeout for waiting for Source_Capabilities (tTypeCSinkWaitCap 620ms)
+    LOGIC_SINK_SOFT_RESET_RESPONSE_TIMEOUT_US=33000              # Timeout for waiting for Accept after Soft_Reset (tSenderResponse 33ms)
     LOGIC_SINK_SELECT_CAPABILITY_RESPONSE_TIMEOUT_US=33000       # Timeout for waiting for Accept/Reject after Select_Capability (tSenderResponse 33ms)
     LOGIC_SINK_TRANSITION_SINK_TIMEOUT_SPR_US=550000             # Timeout for Transition_Sink state (tPSTransition - SPR Mode 550ms)
     LOGIC_SINK_TRANSITION_SINK_TIMEOUT_EPR_US=1020000            # Timeout for Transition_Sink state (tPSTransition - EPR Mode 1020ms)

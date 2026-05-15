@@ -220,7 +220,8 @@ void Sink::_handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState 
     }
 
     if (state == SinkMessageSenderState::GoodCRCTimeout &&
-        _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive &&
+        (_runtimeState._state == SinkState::PE_SNK_EPR_Keepalive ||
+         _runtimeState._state == SinkState::PE_SNK_Send_Soft_Reset) &&
         _runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;

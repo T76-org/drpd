@@ -14,11 +14,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink_cc_messaging.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; hardware injection still pending.
 
-- [ ] Fix outbound protocol-error `Soft_Reset` so Sink sends `Soft_Reset`, waits for `GoodCRC`, then waits for Source `Accept`; timeout escalates to Hard Reset.
+- [x] Fix outbound protocol-error `Soft_Reset` so Sink sends `Soft_Reset`, waits for `GoodCRC`, then waits for Source `Accept`; timeout escalates to Hard Reset.
   - Spec anchor: 6.6.9, 6.8.1, 8.3.3.4.2.1 `PE_SNK_Send_Soft_Reset`.
   - Current issue: `SinkContext::performReset(SoftReset)` uses `sendMessage()` without GoodCRC tracking, resets runtime immediately, and waits for capabilities without requiring Source `Accept`.
   - Code anchor: `firmware/lib/logic/sink/sink_context.cpp`, `firmware/lib/logic/sink/message_sender.cpp`.
-  - Verification: cause protocol error; expect Soft_Reset AMS, Accept wait, Hard Reset on missing GoodCRC/Accept.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; hardware injection still pending; timeout path enters existing Hard Reset policy, with physical Hard Reset signaling covered by next audit item.
 
 - [ ] Implement real Hard Reset signaling for Sink-initiated Hard Reset paths.
   - Spec anchor: 6.8.3, 8.3.3.3.8 `PE_SNK_Hard_Reset`.

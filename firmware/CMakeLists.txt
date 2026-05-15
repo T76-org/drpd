@@ -101,6 +101,7 @@ add_executable(drpd-firmware
         lib/logic/sink/state_handlers/disconnected.cpp
         lib/logic/sink/state_handlers/epr_keepalive.cpp
         lib/logic/sink/state_handlers/epr_mode_entry.cpp
+        lib/logic/sink/state_handlers/send_soft_reset.cpp
         lib/logic/sink/state_handlers/select_capability.cpp
         lib/logic/sink/state_handlers/ready.cpp
         lib/logic/sink/state_handlers/transition_sink.cpp

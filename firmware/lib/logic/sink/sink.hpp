@@ -66,6 +66,7 @@
 #include "state_handlers/epr_keepalive.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/ready.hpp"
+#include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
 #include "state_handlers/transition_sink.hpp"
 #include "state_handlers/wait_for_capabilities.hpp"
@@ -232,6 +233,7 @@ namespace T76::DRPD::Logic {
         EPRKeepaliveStateHandler _eprKeepaliveStateHandler;      ///< EPR keepalive state handler.
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
         ReadySinkStateHandler _readySinkStateHandler;            ///< Ready state handler.
+        SendSoftResetStateHandler _sendSoftResetStateHandler;    ///< Send Soft Reset state handler.
         SelectCapabilityStateHandler _selectCapabilityStateHandler; ///< Select capability handler.
         TransitionSinkStateHandler _transitionSinkStateHandler;  ///< Transition sink handler.
         WaitForCapabilitiesStateHandler _waitForCapabilitiesStateHandler; ///< Wait-for-capabilities handler.

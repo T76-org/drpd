@@ -14,6 +14,7 @@
 #include "state_handlers/epr_keepalive.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/ready.hpp"
+#include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
 #include "state_handlers/transition_sink.hpp"
 #include "state_handlers/wait_for_capabilities.hpp"
@@ -29,6 +30,7 @@ SinkContext::SinkContext(
     EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
     EPRModeEntryStateHandler& eprModeEntryStateHandler,
     ReadySinkStateHandler& readySinkStateHandler,
+    SendSoftResetStateHandler& sendSoftResetStateHandler,
     SelectCapabilityStateHandler& selectCapabilityStateHandler,
     TransitionSinkStateHandler& transitionSinkStateHandler,
     WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
@@ -42,6 +44,7 @@ SinkContext::SinkContext(
     _eprKeepaliveStateHandler(eprKeepaliveStateHandler),
     _eprModeEntryStateHandler(eprModeEntryStateHandler),
     _readySinkStateHandler(readySinkStateHandler),
+    _sendSoftResetStateHandler(sendSoftResetStateHandler),
     _selectCapabilityStateHandler(selectCapabilityStateHandler),
     _transitionSinkStateHandler(transitionSinkStateHandler),
     _waitForCapabilitiesStateHandler(waitForCapabilitiesStateHandler),
@@ -74,6 +77,10 @@ void SinkContext::transitionTo(SinkState state) {
 
         case SinkState::PE_SNK_Wait_for_Capabilities:
             _runtimeState._currentStateHandler = &_waitForCapabilitiesStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Send_Soft_Reset:
+            _runtimeState._currentStateHandler = &_sendSoftResetStateHandler;
             break;
 
         case SinkState::PE_SNK_Select_Capability:
@@ -111,22 +118,17 @@ void SinkContext::transitionTo(SinkState state) {
 void SinkContext::performReset(SinkResetType resetType) {
     _messageSender.reset();
 
-    if (resetType == SinkResetType::SoftReset) {
-        _messageSender.sendMessage(
-            PHY::BMCEncodedMessage::softResetMessage(
-                Proto::PDHeader::PortDataRole::UFP,
-                Proto::PDHeader::PortPowerRole::Sink
-            )
-        );
-    }
-
     if (_runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->reset(*this);
     }
     _runtimeState.reset();
 
     if (_ccBusController.state() == CCBusState::Attached) {
-        transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+        if (resetType == SinkResetType::SoftReset) {
+            transitionTo(SinkState::PE_SNK_Send_Soft_Reset);
+        } else {
+            transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+        }
     } else {
         transitionTo(SinkState::Disconnected);
     }

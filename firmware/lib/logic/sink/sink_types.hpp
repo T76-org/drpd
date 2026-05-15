@@ -34,6 +34,7 @@ namespace T76::DRPD::Logic {
         PE_SNK_Startup,                     ///< PD startup state.
         PE_SNK_Discovery,                   ///< PD discovery state.
         PE_SNK_Wait_for_Capabilities,       ///< Wait for Source_Capabilities.
+        PE_SNK_Send_Soft_Reset,             ///< Send Soft_Reset and wait for Accept.
         PE_SNK_Evaluate_Capability,         ///< Evaluate received capabilities.
         PE_SNK_Select_Capability,           ///< Send Request for chosen PDO.
         PE_SNK_Transition_Sink,             ///< Wait for PS_RDY after Accept.
@@ -63,6 +64,7 @@ namespace T76::DRPD::Logic {
     enum class SinkTimeoutEventType : uint32_t {
         GoodCRCTimeout,
         WaitForCapabilitiesTimeout,
+        SoftResetResponseTimeout,
         SelectCapabilityResponseTimeout,
         TransitionSinkTimeout,
         ReadySinkRequestTimeout,

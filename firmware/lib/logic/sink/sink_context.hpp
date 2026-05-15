@@ -46,6 +46,7 @@ namespace T76::DRPD::Logic {
     class EPRKeepaliveStateHandler;
     class EPRModeEntryStateHandler;
     class ReadySinkStateHandler;
+    class SendSoftResetStateHandler;
     class SelectCapabilityStateHandler;
     class TransitionSinkStateHandler;
     class WaitForCapabilitiesStateHandler;
@@ -72,6 +73,7 @@ namespace T76::DRPD::Logic {
          * @param eprKeepaliveStateHandler Handler instance for EPR Keepalive state.
          * @param eprModeEntryStateHandler Handler instance for EPR Mode Entry state.
          * @param readySinkStateHandler Handler instance for Ready state.
+         * @param sendSoftResetStateHandler Handler instance for Send Soft Reset state.
          * @param selectCapabilityStateHandler Handler instance for Select Capability state.
          * @param transitionSinkStateHandler Handler instance for Transition Sink state.
          * @param waitForCapabilitiesStateHandler Handler instance for Wait for Capabilities state.
@@ -88,6 +90,7 @@ namespace T76::DRPD::Logic {
             EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
             EPRModeEntryStateHandler& eprModeEntryStateHandler,
             ReadySinkStateHandler& readySinkStateHandler,
+            SendSoftResetStateHandler& sendSoftResetStateHandler,
             SelectCapabilityStateHandler& selectCapabilityStateHandler,
             TransitionSinkStateHandler& transitionSinkStateHandler,
             WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
@@ -265,6 +268,7 @@ namespace T76::DRPD::Logic {
         EPRKeepaliveStateHandler& _eprKeepaliveStateHandler;             ///< Handler for EPR Keepalive.
         EPRModeEntryStateHandler& _eprModeEntryStateHandler;             ///< Handler for EPR Mode Entry.
         ReadySinkStateHandler& _readySinkStateHandler;                   ///< Handler for Ready.
+        SendSoftResetStateHandler& _sendSoftResetStateHandler;           ///< Handler for Send Soft Reset.
         SelectCapabilityStateHandler& _selectCapabilityStateHandler;     ///< Handler for Select Capability.
         TransitionSinkStateHandler& _transitionSinkStateHandler;         ///< Handler for Transition Sink.
         WaitForCapabilitiesStateHandler& _waitForCapabilitiesStateHandler; ///< Handler for Wait for Capabilities.
