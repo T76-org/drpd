@@ -34,8 +34,7 @@ void SinkRuntimeState::reset() {
     _eprModeActive = false;
     _eprEntryAttempted = false;
 
-    _hasLastReceivedMessageId = false;
-    _lastReceivedMessageId = 0;
+    resetStoredReceivedMessageId();
 
     _pendingRequestedPDO.reset();
     _pendingVoltage = 0.0f;
@@ -52,6 +51,11 @@ void SinkRuntimeState::reset() {
     for (auto &payload : _completedExtendedPayloads) {
         payload.reset();
     }
+}
+
+void SinkRuntimeState::resetStoredReceivedMessageId() {
+    _hasStoredReceivedMessageId = false;
+    _storedReceivedMessageId = 0;
 }
 
 std::optional<size_t> SinkRuntimeState::trackedTypeIndex(Proto::ExtendedMessageType type) {

@@ -47,6 +47,12 @@ void SinkMessageSender::sendHardResetSignaling() {
     _bmcEncoder.sendHardResetSignaling();
 }
 
+void SinkMessageSender::resetMessageIdCounter() {
+    _nextMessageId = 0;
+    _goodCRCRetryCount = 0;
+    _pendingMessage.reset();
+}
+
 void SinkMessageSender::handleGoodCRCReceived(uint32_t messageId) {
     if (!_pendingMessage.has_value()) {
         return;
@@ -66,14 +72,7 @@ void SinkMessageSender::reset() {
     // Cancel any existing GoodCRC timeout timer
     _cancelGoodCRCTimer();
 
-    // Reset message ID counter
-    _nextMessageId = 0;
-
-    // Reset retry count
-    _goodCRCRetryCount = 0;
-
-    // Clear pending message
-    _pendingMessage.reset();
+    resetMessageIdCounter();
 }
 
 int64_t SinkMessageSender::_onGoodCRCTimeout(alarm_id_t id, void *user_data) {

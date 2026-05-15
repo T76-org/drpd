@@ -76,6 +76,11 @@ namespace T76::DRPD::Logic {
         void sendHardResetSignaling();
 
         /**
+         * @brief Reset the transmitter MessageIDCounter and retry mechanism.
+         */
+        void resetMessageIdCounter();
+
+        /**
          * @brief Send a message without awaiting GoodCRC response
          * 
          * @param message The BMC encoded message to send

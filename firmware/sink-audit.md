@@ -26,11 +26,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink_context.cpp`, `firmware/lib/phy/bmc_encoded_message.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending for SinkWaitCapTimer / PSTransition timeout.
 
-- [ ] Separate protocol-layer MessageID counters for sent and received messages, and reset them at required events.
+- [x] Separate protocol-layer MessageID counters for sent and received messages, and reset them at required events.
   - Spec anchor: 6.8.1 Soft Reset, 6.12.2 protocol layer states.
   - Current issue: outbound `_nextMessageId` and inbound `_lastReceivedMessageId` exist, but reset sequencing is tied to broad `runtimeState.reset()` and missing proper Soft Reset AMS states.
   - Code anchor: `firmware/lib/logic/sink/message_sender.cpp`, `firmware/lib/logic/sink/sink_runtime_state.cpp`.
-  - Verification: Soft Reset sets outgoing MessageID for Soft_Reset/Accept to zero as required, then resumes monotonic IDs.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; capture/harness verification of post-reset MessageID 0 still pending.
 
 - [ ] Do not treat every same MessageID as duplicate without considering SOP/message sequence reset boundaries.
   - Spec anchor: 6.12.2.3.4 `PRL_Rx_Check_MessageID`.

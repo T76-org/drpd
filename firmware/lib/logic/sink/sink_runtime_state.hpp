@@ -79,6 +79,11 @@ namespace T76::DRPD::Logic {
         void reset();
 
         /**
+         * @brief Clear receiver-side stored MessageID used for duplicate detection.
+         */
+        void resetStoredReceivedMessageId();
+
+        /**
          * @brief Resolve tracked slot index for supported extended message type.
          * @param type Extended message type to map.
          * @return Slot index if tracked; otherwise std::nullopt.
@@ -104,8 +109,8 @@ namespace T76::DRPD::Logic {
         bool _eprEntryAttempted = false;                          ///< True once EPR entry attempted.
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.
 
-        bool _hasLastReceivedMessageId = false;                   ///< Dedup state flag for message ID.
-        uint8_t _lastReceivedMessageId = 0;                       ///< Last processed message ID.
+        bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
+        uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.
 
         std::array<ExtendedReassemblyState, 2> _extendedReassemblyStates; ///< Per-type reassembly.
         std::array<std::optional<ExtendedPayloadBuffer>, 2> _completedExtendedPayloads; ///< Completed payloads.
