@@ -59,7 +59,10 @@ void TransitionSinkStateHandler::handleMessage(
                 return;
             }
 
-            if (state._eprModeActive) {
+            if (state._eprModeActive && state._eprSourceExitRequested) {
+                state._eprSourceExitRequested = false;
+                context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
+            } else if (state._eprModeActive) {
                 context.transitionTo(SinkState::PE_SNK_EPR_Keepalive);
             } else if (state._negotiatedPDO.has_value() &&
                        std::holds_alternative<Proto::SPRPPSAPDO>(state._negotiatedPDO.value())) {

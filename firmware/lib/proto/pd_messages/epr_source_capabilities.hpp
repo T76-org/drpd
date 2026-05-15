@@ -23,6 +23,7 @@ namespace T76::DRPD::Proto {
 
         [[nodiscard]] bool isMessageInvalid() const;
         [[nodiscard]] bool hasEPRPDOInSPRPositions() const;
+        [[nodiscard]] bool hasEPRPDOs() const;
         [[nodiscard]] bool matchesSPRSourceCapabilities(const SourceCapabilities& sourceCapabilities) const;
         [[nodiscard]] size_t pdoCount() const;
         [[nodiscard]] const PDOVariant &pdo(size_t index) const;

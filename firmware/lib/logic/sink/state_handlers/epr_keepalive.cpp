@@ -126,6 +126,8 @@ void EPRKeepaliveStateHandler::handleMessage(
             }
 
             context.setEPRSourceCapabilities(eprCapabilities);
+            context.runtimeState()._eprSourceExitRequested = !eprCapabilities.hasEPRPDOs();
+
             // Per EPR flow, establish an explicit EPR contract before entering ready.
             // Start from EPR PDO #0 (commonly the 5V EPR entry contract).
             if (!context.requestPDO(0, 5000, 0)) {

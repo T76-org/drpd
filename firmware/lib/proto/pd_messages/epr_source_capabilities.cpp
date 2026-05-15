@@ -74,6 +74,16 @@ bool EPRSourceCapabilities::hasEPRPDOInSPRPositions() const {
     return _eprPDOInSPRPositions;
 }
 
+bool EPRSourceCapabilities::hasEPRPDOs() const {
+    for (size_t i = 0; i < _pdoCount; ++i) {
+        if (_isEPRPDO(_pdos[i])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool EPRSourceCapabilities::matchesSPRSourceCapabilities(
     const SourceCapabilities& sourceCapabilities) const {
     if (sourceCapabilities.isMessageInvalid() ||

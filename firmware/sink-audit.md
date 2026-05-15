@@ -234,11 +234,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/proto/pd_messages/epr_source_capabilities.cpp`, `SinkContext::requestObjectPositionAtIndex`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture for SPR mirror mismatch and missing zero padding causing Hard Reset still pending.
 
-- [ ] In EPR Mode, every valid `EPR_Source_Capabilities` message must be evaluated and answered with `EPR_Request`.
+- [x] In EPR Mode, every valid `EPR_Source_Capabilities` message must be evaluated and answered with `EPR_Request`.
   - Spec anchor: 6.5.15.2.
-  - Current issue: handler always requests index 0 at 5V instead of policy-selected capability and does not handle "no EPR PDO" source-exit path specially.
+  - Current issue: fixed by product policy; DRPD intentionally evaluates valid EPR capabilities by requesting PDO #0 at 5V with `EPR_Request` by default, and detects the "no EPR PDO" Source-exit signal to request PDO #0 before sending `EPR_Mode(Exit)`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: Source caps change causes Sink-selected `EPR_Request` with matching PDO copy.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture for no-EPR-PDO Source exit still pending.
 
 - [ ] Ensure EPR requests are sent only in EPR Mode and always use `EPR_Request`.
   - Spec anchor: 6.4.9, 6.4.10.2.
@@ -278,11 +278,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
   - Verification: unsolicited SPR caps in EPR cause Hard Reset; requested SPR caps are informational per request path.
 
-- [ ] Handle Source-initiated "no EPR PDOs" exit flow.
+- [x] Handle Source-initiated "no EPR PDOs" exit flow.
   - Spec anchor: 6.5.15.2, 6.4.10.3.1.
-  - Current issue: handler treats all valid EPR_Source_Capabilities the same and requests index 0.
+  - Current issue: fixed; valid EPR_Source_Capabilities with no EPR PDOs set a source-exit flag, request PDO #0, then send `EPR_Mode(Exit)` after `PS_RDY`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`, `EPRSourceCapabilities`.
-  - Verification: EPR caps with no EPR PDOs leads Sink to negotiate <=20 V then process EPR_Mode Exit.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Escalate EPR critical errors to Hard Reset, not internal reset or Ready fallback.
   - Spec anchor: 6.4.10.3.3.

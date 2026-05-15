@@ -125,6 +125,7 @@ namespace T76::DRPD::Logic {
         bool _eprEntryEnabled = true;                             ///< True when local policy allows EPR entry.
         bool _eprModeActive = false;                              ///< True while in EPR mode.
         bool _eprEntryAttempted = false;                          ///< True once EPR entry attempted.
+        bool _eprSourceExitRequested = false;                     ///< True when Source advertised no EPR PDOs.
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.
         std::optional<Proto::PPSStatus> _ppsStatus;               ///< Last Source PPS status response.
 
