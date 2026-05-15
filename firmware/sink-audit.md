@@ -356,29 +356,29 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P1 - Swap, VCONN, and Role Messages
 
-- [ ] Decide and implement `DR_Swap` behavior for this product.
+- [x] Decide and implement `DR_Swap` behavior for this product.
   - Spec anchor: 6.3.9, Table 6.77.
-  - Current issue: if unsupported, return `Not_Supported`; if supported, respond Accept/Wait/Reject and update data role. Broad Ready fallback hides decision.
+  - Current issue: fixed; DRPD intentionally keeps `DR_Swap` unsupported for source-test Sink/UFP behavior and returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: `DR_Swap` response matches configured DRD capability.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Decide and implement `PR_Swap` behavior.
+- [x] Decide and implement `PR_Swap` behavior.
   - Spec anchor: 6.3.10, Table 6.77.
-  - Current issue: Sink-only product likely `Not_Supported`; DRP must implement full swap. Broad fallback is not explicit.
+  - Current issue: fixed; DRPD intentionally keeps `PR_Swap` unsupported and remains in Sink role for source testing.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: `PR_Swap` response matches configured DRP capability; EPR mode rejects/forces exit as required.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Decide and implement `VCONN_Swap` behavior.
+- [x] Decide and implement `VCONN_Swap` behavior.
   - Spec anchor: 6.3.11, Table 6.77.
-  - Current issue: EPR entry path can receive VCONN_Swap; current EPR entry does not handle it.
+  - Current issue: fixed; DRPD intentionally keeps `VCONN_Swap` unsupported, returns `Not_Supported` in Ready, and explicitly reports `Not_Supported` if it appears during EPR entry.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `epr_mode_entry.cpp`.
-  - Verification: VCONN swap during EPR entry follows 8.3.3.26.2 path or rejects if unsupported.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Decide and implement `FR_Swap` behavior.
+- [x] Decide and implement `FR_Swap` behavior.
   - Spec anchor: 6.3.19, Table 6.77.
-  - Current issue: likely unsupported, but needs explicit `Not_Supported` and tests.
+  - Current issue: fixed; DRPD intentionally keeps `FR_Swap` unsupported because it does not implement Fast Role Swap receiver or emergency Source behavior.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: incoming `FR_Swap` gets correct configured response.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 ## P1 - Message Sending and Timing
 

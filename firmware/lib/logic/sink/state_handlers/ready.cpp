@@ -39,12 +39,20 @@ namespace {
             case Proto::ControlMessageType::GotoMin:
             case Proto::ControlMessageType::Ping:
             case Proto::ControlMessageType::Get_Source_Cap:
+            // DRPD is source-test equipment and does not change USB data role;
+            // respond Not_Supported rather than entering the DR_Swap state machine.
             case Proto::ControlMessageType::DR_Swap:
+            // DRPD is not a power-role swapping DRP; keep the instrument in
+            // Sink role for source testing instead of becoming a Source.
             case Proto::ControlMessageType::PR_Swap:
+            // DRPD does not source VCONN; expose that explicitly to partners
+            // that need VCONN ownership for cable discovery or EPR entry.
             case Proto::ControlMessageType::VCONN_Swap:
             case Proto::ControlMessageType::Data_Reset:
             case Proto::ControlMessageType::Get_Source_Cap_Extended:
             case Proto::ControlMessageType::Get_Status:
+            // DRPD does not implement Fast Role Swap receiver or emergency
+            // Source behavior; source tests keep the port in Sink role.
             case Proto::ControlMessageType::FR_Swap:
             case Proto::ControlMessageType::Get_PPS_Status:
             case Proto::ControlMessageType::Get_Country_Codes:

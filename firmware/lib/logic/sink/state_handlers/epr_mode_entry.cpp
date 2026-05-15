@@ -138,6 +138,14 @@ void EPRModeEntryStateHandler::handleMessage(
         const auto controlType = decodedHeader.controlMessageType();
 
         if (controlType.has_value() &&
+            controlType.value() == Proto::ControlMessageType::VCONN_Swap) {
+            // DRPD does not source VCONN. During EPR entry, report that
+            // explicitly and leave the Source to fail/continue the entry flow.
+            context.sendNotSupportedMessage();
+            return;
+        }
+
+        if (controlType.has_value() &&
             (controlType.value() == Proto::ControlMessageType::Reject ||
              controlType.value() == Proto::ControlMessageType::Not_Supported ||
              controlType.value() == Proto::ControlMessageType::Wait)) {
