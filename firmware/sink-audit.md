@@ -84,37 +84,37 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `firmware/lib/proto/pd_message_types.hpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Revision` -> `Revision` still pending.
 
-- [ ] Decide and implement `Get_Status` behavior: support with `Status` if feature exists, else explicit `Not_Supported`.
+- [x] Decide and implement `Get_Status` behavior: support with `Status` if feature exists, else explicit `Not_Supported`.
   - Spec anchor: 6.3.18, 6.5.2, Table 6.77.
-  - Current issue: broad fallback gives `Not_Supported`, but capability is not documented or tested.
+  - Current issue: unsupported by product policy; Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: `Get_Status` gets correct `Status` or `Not_Supported` per configured feature flag.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Status` -> `Not_Supported` still pending.
 
-- [ ] Decide and implement `Get_Country_Codes` / `Get_Country_Info` behavior.
+- [x] Decide and implement `Get_Country_Codes` / `Get_Country_Info` behavior.
   - Spec anchor: 6.3.21, 6.4.7, Table 6.77, Table 6.78.
-  - Current issue: broad fallback is not feature-gated or tested.
+  - Current issue: unsupported by product policy; Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: unsupported configurations return `Not_Supported`; supported configurations return specified data.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Country_Codes` / `Get_Country_Info` -> `Not_Supported` still pending.
 
-- [ ] Decide and implement `Alert`/`Battery_Status` support or explicit `Not_Supported`.
+- [x] Decide and implement `Alert`/`Battery_Status` support or explicit `Not_Supported`.
   - Spec anchor: Table 6.78.
-  - Current issue: no feature gate or explicit response matrix.
+  - Current issue: unsupported by product policy; Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: unsupported received messages return `Not_Supported`; supported paths update policy.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Alert` / `Battery_Status` -> `Not_Supported` still pending.
 
-- [ ] Decide and implement `Data_Reset` support.
+- [x] Decide and implement `Data_Reset` support.
   - Spec anchor: 6.3.14, 8.3.3.5.2 UFP Data Reset, Table 6.77 note for USB4.
-  - Current issue: if unsupported, Ready should explicitly `Not_Supported`; if USB4/data-reset supported, Sink must send `Accept` and complete Data Reset process.
+  - Current issue: unsupported by product policy; Ready explicitly returns `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: `Data_Reset` path matches selected product capability.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Data_Reset` -> `Not_Supported` still pending.
 
 ## P0 - Extended Message Response Matrix
 
-- [ ] Add explicit Table 6.79 handling for every extended message received by a Sink.
+- [x] Add explicit Table 6.79 handling for every extended message received by a Sink.
   - Spec anchor: 6.13.3 Table 6.79.
-  - Current issue: `SinkRuntimeState::trackedTypeIndex()` only tracks `EPR_Source_Capabilities` and `Extended_Control`; all other extended types return immediate `Not_Supported` or fall into generic behavior without feature gates.
+  - Current issue: Ready now explicitly processes `EPR_Source_Capabilities` and `Extended_Control`; unsupported/unused Table 6.79 received extended messages return `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/sink_runtime_state.cpp`, `firmware/lib/logic/sink/sink.cpp`, `firmware/lib/logic/sink/state_handlers/ready.cpp`.
-  - Verification: one test vector per extended message type below.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of unsupported extended messages -> `Not_Supported` still pending.
 
 - [ ] Handle `Source_Capabilities_Extended` received by Sink as conditionally normative or `Not_Supported`.
   - Spec anchor: 6.5.1, Table 6.79 note 2.

@@ -96,22 +96,20 @@ namespace {
 
             case Proto::ExtendedMessageType::Source_Capabilities_Extended:
             case Proto::ExtendedMessageType::Status:
+            case Proto::ExtendedMessageType::Get_Battery_Cap:
+            case Proto::ExtendedMessageType::Get_Battery_Status:
             case Proto::ExtendedMessageType::Battery_Capabilities:
+            case Proto::ExtendedMessageType::Get_Manufacturer_Info:
             case Proto::ExtendedMessageType::Manufacturer_Info:
+            case Proto::ExtendedMessageType::Security_Request:
             case Proto::ExtendedMessageType::Security_Response:
+            case Proto::ExtendedMessageType::Firmware_Update_Request:
             case Proto::ExtendedMessageType::Firmware_Update_Response:
             case Proto::ExtendedMessageType::PPS_Status:
             case Proto::ExtendedMessageType::Country_Codes:
             case Proto::ExtendedMessageType::Country_Info:
             case Proto::ExtendedMessageType::Sink_Capabilities_Extended:
             case Proto::ExtendedMessageType::EPR_Sink_Capabilities:
-                return ReadyMessageAction::SoftReset;
-
-            case Proto::ExtendedMessageType::Get_Battery_Cap:
-            case Proto::ExtendedMessageType::Get_Battery_Status:
-            case Proto::ExtendedMessageType::Get_Manufacturer_Info:
-            case Proto::ExtendedMessageType::Security_Request:
-            case Proto::ExtendedMessageType::Firmware_Update_Request:
             case Proto::ExtendedMessageType::Vendor_Defined_Extended:
                 return ReadyMessageAction::NotSupported;
         }
