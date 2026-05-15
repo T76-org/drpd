@@ -310,9 +310,14 @@ SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
             return SinkRequestResult::failure("EPR AVS requested voltage is invalid");
         }
 
-        uint32_t requestedCurrentMA = currentMA <= 0
-            ? eprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts
-            : currentMA;
+        const uint32_t maxCurrentMA = eprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts;
+        if (maxCurrentMA == 0) {
+            return SinkRequestResult::failure("EPR AVS selected voltage has no available current");
+        }
+
+        const uint32_t requestedCurrentMA = currentMA <= 0
+            ? maxCurrentMA
+            : std::min(currentMA, maxCurrentMA);
 
         Proto::AugmentedAVSRequest request(0);
 

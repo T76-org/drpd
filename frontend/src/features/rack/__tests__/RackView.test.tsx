@@ -51,6 +51,7 @@ const mockTransportState = vi.hoisted(() => ({
   sinkVoltageResponse: ['5'],
   sinkCurrentResponse: ['2'],
   sinkErrorResponse: ['0'],
+  sinkEprEnabledResponse: ['OFF'],
   timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
   captureCountResponse: ['0'],
@@ -194,6 +195,9 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
       if (command === 'SINK:STATUS:ERROR?') {
         return mockTransportState.sinkErrorResponse
       }
+      if (command === 'SINK:EPR:EN?') {
+        return mockTransportState.sinkEprEnabledResponse
+      }
       return []
     }
 
@@ -209,11 +213,12 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
     /**
      * Stub SCPI command send.
      */
-    public async sendCommand(command: string, value?: string | { raw?: string }): Promise<void> {
-      const normalizedValue =
-        value && typeof value === 'object' && 'raw' in value ? value.raw : value
+    public async sendCommand(command: string, ...values: Array<string | number | { raw?: string }>): Promise<void> {
+      const normalizedValues = values.map((value) =>
+        value && typeof value === 'object' && 'raw' in value ? value.raw : value,
+      )
       mockTransportState.sentCommands.push(
-        normalizedValue == null ? command : `${command} ${normalizedValue}`,
+        normalizedValues.length === 0 ? command : `${command} ${normalizedValues.join(' ')}`,
       )
       return undefined
     }
@@ -759,6 +764,7 @@ const resetMockTransportState = (): void => {
   mockTransportState.sinkVoltageResponse = ['5']
   mockTransportState.sinkCurrentResponse = ['2']
   mockTransportState.sinkErrorResponse = ['0']
+  mockTransportState.sinkEprEnabledResponse = ['OFF']
   mockTransportState.timestampResponse = ['1000']
   mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
   mockTransportState.captureCountResponse = ['0']
@@ -1767,6 +1773,34 @@ describe('RackView', () => {
           'BUS:CC:CAP:EN OFF',
         ]),
       )
+    })
+  })
+
+  it('clamps EPR AVS current from the global Mode menu sink request', async () => {
+    const user = userEvent.setup()
+    mockTransportState.sinkPdoCountResponse = ['1']
+    mockTransportState.sinkPdoResponse = ['EPR_AVS,15.00,48.00,240.00']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: /choose power contract/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /sink request tuning/i })
+    await user.click(await within(dialog).findByRole('option', { name: /epr avs/i }))
+    const voltageInput = within(dialog).getByLabelText(/^voltage$/i)
+    const currentInput = within(dialog).getByLabelText(/^current$/i)
+    expect(currentInput).toHaveValue('5.00')
+    await user.clear(voltageInput)
+    await user.type(voltageInput, '16')
+    expect(within(dialog).getByText('0.00-5.00 A')).toBeInTheDocument()
+    await user.clear(currentInput)
+    await user.type(currentInput, '16')
+    await user.click(within(dialog).getByRole('button', { name: /^set pdo$/i }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:PDO 0 16000 5000')
     })
   })
 

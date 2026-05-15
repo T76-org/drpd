@@ -72,6 +72,11 @@ import { getSupportedDevices } from './deviceCatalog'
 import { getSupportedInstruments } from './instrumentCatalog'
 import { matchRackShortcut } from './shortcuts'
 import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
+import {
+  buildSinkRequestArgs,
+  computeEprAvsMaxCurrentMa,
+  parseSinkRequestField,
+} from './sinkRequest'
 import { Menu, type MenuItem } from '../../ui/overlays'
 import { FirmwareUpdateDialog } from './overlays/firmware/FirmwareUpdateDialog'
 import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
@@ -683,11 +688,6 @@ const notifyMessageLogFiltersChanged = (filters: MessageLogFilters): void => {
   )
 }
 
-const parseSinkField = (value: string): number | null => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
 const isPowerLimitedSinkPdo = (pdo: SinkPdo | null | undefined): boolean => (
   pdo?.type === SinkPdoType.BATTERY ||
   pdo?.type === SinkPdoType.SPR_AVS ||
@@ -709,8 +709,9 @@ const buildDefaultSinkForm = (
       return { voltageV: pdo.minVoltageV.toFixed(2), currentA: pdo.maxCurrentA.toFixed(2) }
     case SinkPdoType.BATTERY:
     case SinkPdoType.SPR_AVS:
-    case SinkPdoType.EPR_AVS:
       return { voltageV: pdo.minVoltageV.toFixed(2), currentA: (pdo.maxPowerW / pdo.minVoltageV).toFixed(2) }
+    case SinkPdoType.EPR_AVS:
+      return { voltageV: pdo.minVoltageV.toFixed(2), currentA: (pdo.maxPowerW / pdo.maxVoltageV).toFixed(2) }
     default:
       return { voltageV: '', currentA: '' }
   }
@@ -740,6 +741,12 @@ const getSinkCurrentConstraints = (
     if (requestedVoltageV <= 0) {
       return { minA: 0, error: 'Voltage must be greater than 0 V.' }
     }
+    if (pdo.type === SinkPdoType.EPR_AVS) {
+      return {
+        minA: 0,
+        maxA: computeEprAvsMaxCurrentMa(pdo, Math.round(requestedVoltageV * 1000)) / 1000,
+      }
+    }
     if ('maxPowerW' in pdo) {
       return { minA: 0, maxA: pdo.maxPowerW / requestedVoltageV }
     }
@@ -756,46 +763,6 @@ const getSinkVoltageHint = (pdo: SinkPdo | null | undefined): string => {
   }
   return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`
 }
-
-const buildSinkRequestArgs = ({
-  pdo,
-  voltageV,
-  currentA,
-}: {
-  pdo: Exclude<SinkPdo, null>
-  voltageV: string
-  currentA: string
-}): { voltageMv?: number; currentMa?: number; error?: string } => {
-  const parsedCurrent = parseSinkField(currentA)
-  if (parsedCurrent == null) {
-    return { error: 'Enter a valid current.' }
-  }
-  if (pdo.type === SinkPdoType.FIXED) {
-    if (parsedCurrent < 0 || parsedCurrent > pdo.maxCurrentA) {
-      return { error: `Current must be between 0 and ${pdo.maxCurrentA.toFixed(2)} A.` }
-    }
-    return { voltageMv: Math.round(pdo.voltageV * 1000), currentMa: Math.round(parsedCurrent * 1000) }
-  }
-
-  const parsedVoltage = parseSinkField(voltageV)
-  if (parsedVoltage == null) {
-    return { error: 'Enter valid voltage and current values.' }
-  }
-  if (parsedVoltage < pdo.minVoltageV || parsedVoltage > pdo.maxVoltageV) {
-    return { error: `Voltage must be between ${pdo.minVoltageV.toFixed(2)} and ${pdo.maxVoltageV.toFixed(2)} V.` }
-  }
-  const constraints = getSinkCurrentConstraints(pdo, parsedVoltage)
-  if (constraints.error || constraints.maxA == null) {
-    return { error: constraints.error ?? 'Current range is unavailable.' }
-  }
-  if (parsedCurrent < constraints.minA || parsedCurrent > constraints.maxA) {
-    return {
-      error: `Current must be between ${constraints.minA.toFixed(2)} and ${constraints.maxA.toFixed(2)} A.`,
-    }
-  }
-  return { voltageMv: Math.round(parsedVoltage * 1000), currentMa: Math.round(parsedCurrent * 1000) }
-}
-
 
 /**
  * Render the rack view with rack selection and layout rendering.
@@ -2374,7 +2341,7 @@ export const RackView = () => {
   const activeVbusInfo = activeDriverState?.vbusInfo ?? null
   const activeTriggerInfo = activeDriverState?.triggerInfo ?? null
   const globalSelectedSinkPdo = globalSinkPdoList[globalSinkSelectedIndex] ?? null
-  const globalSinkParsedVoltage = parseSinkField(
+  const globalSinkParsedVoltage = parseSinkRequestField(
     globalSelectedSinkPdo?.type === SinkPdoType.FIXED
       ? globalSelectedSinkPdo.voltageV.toFixed(2)
       : globalSinkVoltageV,

@@ -246,11 +246,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Clamp EPR AVS requested current to advertised power/current limits.
+- [x] Clamp EPR AVS requested current to advertised power/current limits.
   - Spec anchor: 6.4.2 request data object rules, EPR AVS PDO fields.
-  - Current issue: `_requestAugmentedPDO()` uses caller current directly for EPR AVS when nonzero; no upper clamp against max power at voltage.
+  - Current issue: fixed; EPR AVS current is bounded by advertised PDP divided by requested voltage, with caller-provided current clamped to that maximum.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`.
-  - Verification: out-of-range current request is clamped or rejected before transmit.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Use local EPR Sink Operational PDP, not hard-coded 100 W.
   - Spec anchor: 6.4.10 Table 6.50.
