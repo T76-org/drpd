@@ -1703,7 +1703,7 @@ export const RackView = () => {
       if (changed.includes('logSelection')) {
         readSelection()
       }
-      if (changed.includes('sinkEprEnabled')) {
+      if (changed.includes('role') || changed.includes('sinkEprEnabled')) {
         setDeviceStates((states) =>
           states.map((state) =>
             state.status === 'connected' && state.drpdDriver === activeDriver
@@ -2209,6 +2209,7 @@ export const RackView = () => {
 
     try {
       await state.drpdDriver.ccBus.setRole(nextRole)
+      await state.drpdDriver.refreshState()
       if (persist) {
         await handleUpdateDeviceConfig(state.record.id, (current) => {
           const source = current && typeof current === 'object' ? current : {}

@@ -151,6 +151,7 @@ describe('DRPDDevice state updates', () => {
     const transport = new MockInterruptTransport()
     transport.textResponses.set('STAT:DEV?', ['2'])
     transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
+    transport.textResponses.set('SINK:EPR:EN?', ['ON'])
 
     const device = new DRPDDevice(transport)
     const roleChanges: CCBusRole[] = []
@@ -170,8 +171,9 @@ describe('DRPDDevice state updates', () => {
     await tick()
 
     expect(device.getState().role).toBe(CCBusRole.SINK)
+    expect(device.getState().sinkEprEnabled).toBe(true)
     expect(roleChanges).toEqual([CCBusRole.SINK])
-    expect(stateUpdates).toEqual([['role']])
+    expect(stateUpdates).toEqual([['role'], ['sinkEprEnabled']])
   })
 
   it('emits error event when role fetch fails', async () => {

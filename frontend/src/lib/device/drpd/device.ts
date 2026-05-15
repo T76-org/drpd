@@ -1236,6 +1236,9 @@ export class DRPDDevice extends EventTarget {
         detail: { state: this.getState(), changed: ['role'] },
       }),
     )
+    if (role === 'SINK') {
+      void this.refreshSinkEprEnabledFromDevice()
+    }
   }
 
   /**
@@ -1449,6 +1452,34 @@ export class DRPDDevice extends EventTarget {
         new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
       )
       this.logDebug(`refreshSinkPdoList: error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Refresh sink EPR entry policy from the device.
+   */
+  protected async refreshSinkEprEnabledFromDevice(): Promise<void> {
+    try {
+      if (this.state.role !== 'SINK') {
+        this.logDebug('refreshSinkEprEnabled: skipped (role not SINK)')
+        return
+      }
+      const sinkEprEnabled = await this.sink.getEprEnabled()
+      if (this.state.sinkEprEnabled === sinkEprEnabled) {
+        return
+      }
+      this.state = { ...this.state, sinkEprEnabled }
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+          detail: { state: this.getState(), changed: ['sinkEprEnabled'] },
+        }),
+      )
+      this.logDebug(`refreshSinkEprEnabled: ${sinkEprEnabled ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
+      )
+      this.logDebug(`refreshSinkEprEnabled: error=${String(error)}`)
     }
   }
 
