@@ -348,11 +348,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`, `sink_context.cpp`, `manufacturer_info.cpp`, `sink_capabilities_extended.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Validate extended message body length against `Number of Data Objects` and extended header Data Size.
+- [x] Validate extended message body length against `Number of Data Objects` and extended header Data Size.
   - Spec anchor: 6.2.1.2.4.
-  - Current issue: handler checks minimal sizes, but does not clearly reject impossible NDO/Data Size combinations or trailing garbage beyond allowed padding.
+  - Current issue: fixed; chunked messages must match `NumberOfDataObjects * 4`, unchunked messages must match extended header Data Size, and chunk/request padding must be zero.
   - Code anchor: `firmware/lib/logic/sink/sink_cc_messaging.cpp`.
-  - Verification: malformed NDO/Data Size cases produce expected Soft Reset/protocol error.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 ## P1 - Swap, VCONN, and Role Messages
 

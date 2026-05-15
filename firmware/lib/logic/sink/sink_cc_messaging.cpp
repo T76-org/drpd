@@ -13,6 +13,16 @@ using namespace T76::DRPD::Logic;
 
 namespace {
     constexpr uint8_t kMaxExtendedChunkNumber = 9;
+
+    bool allZero(std::span<const uint8_t> bytes) {
+        for (const uint8_t byte : bytes) {
+            if (byte != 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
 
 
@@ -98,13 +108,23 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     const size_t fragmentPayloadBytes = rawBody.size() - 2;
     const auto extendedType = maybeExtendedType.value();
     const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
+    const size_t declaredPayloadBytes = decodedHeader.numDataObjects() * 4;
 
     if (extHeader.chunked() && extHeader.chunkNumber() > kMaxExtendedChunkNumber) {
         return ExtendedFragmentResult::Malformed;
     }
 
+    if (extHeader.chunked() && rawBody.size() != declaredPayloadBytes) {
+        return ExtendedFragmentResult::Malformed;
+    }
+
     if (extHeader.requestChunk() &&
         (!extHeader.chunked() || extHeader.dataSizeBytes() != 0)) {
+        return ExtendedFragmentResult::Malformed;
+    }
+
+    if (extHeader.requestChunk() &&
+        (rawBody.size() != 4 || !allZero(rawBody.subspan(2)))) {
         return ExtendedFragmentResult::Malformed;
     }
 
@@ -133,7 +153,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     }
 
     if (!extHeader.chunked()) {
-        if (fragmentPayloadBytes < extHeader.dataSizeBytes()) {
+        if (rawBody.size() != static_cast<size_t>(extHeader.dataSizeBytes()) + 2) {
             return ExtendedFragmentResult::Malformed;
         }
 
@@ -187,6 +207,13 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     const size_t remainingBytes =
         reassembly.expectedPayloadBytes - reassembly.contiguousPayloadBytes;
     const size_t bytesToCopy = std::min(remainingBytes, fragmentPayloadBytes);
+    const size_t paddingBytes = fragmentPayloadBytes - bytesToCopy;
+
+    if (paddingBytes > 0 &&
+        !allZero(rawBody.subspan(2 + bytesToCopy, paddingBytes))) {
+        reassembly = SinkRuntimeState::ExtendedReassemblyState{};
+        return ExtendedFragmentResult::Malformed;
+    }
 
     for (size_t i = 0; i < bytesToCopy; ++i) {
         reassembly.payload.bytes[reassembly.payload.length + i] = rawBody[2 + i];
