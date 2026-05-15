@@ -118,6 +118,11 @@ void SinkContext::transitionTo(SinkState state) {
 void SinkContext::performReset(SinkResetType resetType) {
     _messageSender.reset();
 
+    if (resetType == SinkResetType::HardReset &&
+        _ccBusController.state() == CCBusState::Attached) {
+        _messageSender.sendHardResetSignaling();
+    }
+
     if (_runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->reset(*this);
     }

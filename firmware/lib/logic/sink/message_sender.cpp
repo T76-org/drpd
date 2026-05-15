@@ -42,6 +42,11 @@ void SinkMessageSender::sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage&
     _resetGoodCRCTimer();
 }
 
+void SinkMessageSender::sendHardResetSignaling() {
+    reset();
+    _bmcEncoder.sendHardResetSignaling();
+}
+
 void SinkMessageSender::handleGoodCRCReceived(uint32_t messageId) {
     if (!_pendingMessage.has_value()) {
         return;

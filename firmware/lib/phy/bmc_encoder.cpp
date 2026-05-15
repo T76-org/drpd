@@ -12,6 +12,23 @@
 
 using namespace T76::DRPD::PHY;
 
+namespace {
+    constexpr uint8_t kHardResetKCode1 = 0x07;
+    constexpr uint8_t kHardResetKCode2 = 0x19;
+
+    BitPacker hardResetSignalingBits() {
+        BitPacker bitPacker;
+        bitPacker.addBits(0b1010'1010'1010'1010'1010'1010'1010'1010, 32);
+        bitPacker.addBits(0b1010'1010'1010'1010'1010'1010'1010'1010, 32);
+        bitPacker.addBits(kHardResetKCode1, 5);
+        bitPacker.addBits(kHardResetKCode1, 5);
+        bitPacker.addBits(kHardResetKCode1, 5);
+        bitPacker.addBits(kHardResetKCode2, 5);
+        bitPacker.flush();
+        return bitPacker;
+    }
+}
+
 BMCEncoder::BMCEncoder() {
     queue_init(&_messageQueue, sizeof(BitPacker), PHY_BMC_ENCODER_QUEUE_LENGTH);
 }
@@ -112,6 +129,23 @@ void BMCEncoder::encodeAndSendMessage(const BMCEncodedMessage& message) {
     if (!queue_try_add(&_messageQueue, &encoded)) {
         //TODO: Handle queue full (e.g. drop message, signal error, etc.)
     }
+}
+
+void BMCEncoder::sendHardResetSignaling() {
+    if (_dmaChannel != -1) {
+        dma_channel_abort(_dmaChannel);
+    }
+
+    pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, _stateMachine, false);
+    pio_sm_clear_fifos(PHY_BMC_ENCODER_PIO, _stateMachine);
+    _hasMessageInProgress = false;
+
+    BitPacker discarded;
+    while (queue_try_remove(&_messageQueue, &discarded)) {
+    }
+
+    const BitPacker hardReset = hardResetSignalingBits();
+    (void)queue_try_add(&_messageQueue, &hardReset);
 }
 
 void BMCEncoder::sendGoodCRCForDecodedMessage(const BMCDecodedMessage& decodedMessage) {

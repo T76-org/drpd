@@ -70,7 +70,12 @@ namespace T76::DRPD::Logic {
          */
         void sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message);
 
-        /** 
+        /**
+         * @brief Send Hard Reset signaling and clear sender retry state.
+         */
+        void sendHardResetSignaling();
+
+        /**
          * @brief Send a message without awaiting GoodCRC response
          * 
          * @param message The BMC encoded message to send

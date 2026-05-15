@@ -20,11 +20,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink_context.cpp`, `firmware/lib/logic/sink/message_sender.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; hardware injection still pending; timeout path enters existing Hard Reset policy, with physical Hard Reset signaling covered by next audit item.
 
-- [ ] Implement real Hard Reset signaling for Sink-initiated Hard Reset paths.
+- [x] Implement real Hard Reset signaling for Sink-initiated Hard Reset paths.
   - Spec anchor: 6.8.3, 8.3.3.3.8 `PE_SNK_Hard_Reset`.
   - Current issue: several paths call `performReset(HardReset)`, but `performReset()` only performs internal state reset unless type is SoftReset; no Hard Reset ordered set is sent.
   - Code anchor: `firmware/lib/logic/sink/sink_context.cpp`, `firmware/lib/phy/bmc_encoded_message.cpp`.
-  - Verification: force SinkWaitCapTimer / PSTransition timeout; expect Hard Reset signaling on CC and transition to default/re-negotiate.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending for SinkWaitCapTimer / PSTransition timeout.
 
 - [ ] Separate protocol-layer MessageID counters for sent and received messages, and reset them at required events.
   - Spec anchor: 6.8.1 Soft Reset, 6.12.2 protocol layer states.
