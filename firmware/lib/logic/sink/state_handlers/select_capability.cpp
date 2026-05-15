@@ -176,7 +176,9 @@ SinkRequestResult SelectCapabilityStateHandler::_requestFixedPDO(
 
     request.operatingCurrentMilliamps(requestedMilliamps);
     request.maxOperatingCurrentMilliamps(requestedMilliamps);
-    request.unchunkedExtendedMessageSupported(true);
+    // DRPD keeps source-test behavior conservative: advertise chunked-only
+    // extended-message support until full large unchunked RX/TX is validated.
+    request.unchunkedExtendedMessageSupported(false);
 
     return _requestPDO(pdoIndex, pdoVariant, fixedPDO.voltageMillivolts(), requestedMilliamps, request);
 }

@@ -41,7 +41,9 @@ std::span<const uint8_t> ManufacturerInfo::raw() const {
     PDExtendedHeader extHeader;
     extHeader.dataSizeBytes(static_cast<uint16_t>(_midbSize()));
     extHeader.requestChunk(false);
-    extHeader.chunked(false);
+    // Sink policy advertises chunked-only extended-message support, so even
+    // single-fragment responses use chunked framing with Chunk Number 0.
+    extHeader.chunked(true);
     extHeader.chunkNumber(0);
 
     _rawBytes[0] = static_cast<uint8_t>(extHeader.raw() & 0xFF);

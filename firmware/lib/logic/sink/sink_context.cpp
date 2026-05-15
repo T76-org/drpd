@@ -434,7 +434,9 @@ void SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGood
     Proto::PDExtendedHeader extHeader(0);
     extHeader.dataSizeBytes(2);
     extHeader.requestChunk(false);
-    extHeader.chunked(false);
+    // Sink policy advertises chunked-only extended-message support, so even
+    // single-fragment extended control messages use chunked framing.
+    extHeader.chunked(true);
     extHeader.chunkNumber(0);
 
     std::array<uint8_t, 4> rawBody = {

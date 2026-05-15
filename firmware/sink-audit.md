@@ -342,11 +342,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink_public_interface.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Decide whether unchunked extended messages are supported and advertise/request consistently.
+- [x] Decide whether unchunked extended messages are supported and advertise/request consistently.
   - Spec anchor: 6.2.1.2.1, Request unchunked extended support bit.
-  - Current issue: Request sets `unchunkedExtendedMessageSupported(true)` for fixed PDO requests, but extended TX code often sends unchunked messages without clear product-level policy.
-  - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`, `sink_context.cpp`.
-  - Verification: partner behavior uses chunked vs unchunked consistently with RDO advertised bit.
+  - Current issue: fixed; DRPD advertises chunked-only extended-message support and generated extended messages use chunked framing with Chunk Number 0.
+  - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`, `sink_context.cpp`, `manufacturer_info.cpp`, `sink_capabilities_extended.cpp`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Validate extended message body length against `Number of Data Objects` and extended header Data Size.
   - Spec anchor: 6.2.1.2.4.
