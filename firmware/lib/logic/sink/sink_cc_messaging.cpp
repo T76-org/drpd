@@ -11,6 +11,11 @@
 using namespace T76::DRPD::Logic;
 
 
+namespace {
+    constexpr uint8_t kMaxExtendedChunkNumber = 9;
+}
+
+
 void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (!_enabled.load()) {
         return;
@@ -93,6 +98,10 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     const size_t fragmentPayloadBytes = rawBody.size() - 2;
     const auto extendedType = maybeExtendedType.value();
     const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
+
+    if (extHeader.chunked() && extHeader.chunkNumber() > kMaxExtendedChunkNumber) {
+        return ExtendedFragmentResult::Malformed;
+    }
 
     if (extHeader.requestChunk() &&
         (!extHeader.chunked() || extHeader.dataSizeBytes() != 0)) {
@@ -188,7 +197,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
 
     if (reassembly.contiguousPayloadBytes < reassembly.expectedPayloadBytes) {
         const uint8_t nextChunkNumber = static_cast<uint8_t>(extHeader.chunkNumber() + 1);
-        if (nextChunkNumber > 0x0F) {
+        if (nextChunkNumber > kMaxExtendedChunkNumber) {
             reassembly = SinkRuntimeState::ExtendedReassemblyState{};
             return ExtendedFragmentResult::Malformed;
         }

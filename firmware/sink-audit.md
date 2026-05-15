@@ -330,11 +330,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink.cpp`, `sink_cc_messaging.cpp`, `sink_public_interface.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Enforce chunk count maximum of 10 chunks, not 16.
+- [x] Enforce chunk count maximum of 10 chunks, not 16.
   - Spec anchor: 6.2.1.2.2.
-  - Current issue: code permits `nextChunkNumber` through 0x0F; spec allows chunk numbers 0..9 for 10 chunks total.
+  - Current issue: fixed; received and requested extended chunk numbers are capped at 9 via `kMaxExtendedChunkNumber`.
   - Code anchor: `firmware/lib/logic/sink/sink_cc_messaging.cpp`.
-  - Verification: chunk 10+ is treated as malformed/protocol error.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Set Data Size to zero in generated Chunk Request messages.
   - Spec anchor: 6.2.1.2.3.
