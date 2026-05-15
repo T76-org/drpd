@@ -57,6 +57,12 @@ SinkRequestResult SelectCapabilityStateHandler::requestPDO(
     }
 
     const auto& pdoVariant = pdoOpt.value();
+    const auto& state = context.runtimeState();
+
+    if (std::holds_alternative<Proto::EPRAVSAPDO>(pdoVariant) &&
+        (!state._eprModeActive || !state._eprCapabilities.has_value())) {
+        return SinkRequestResult::failure("EPR PDO cannot be requested outside EPR mode");
+    }
 
     if (std::holds_alternative<Proto::FixedSupplyPDO>(pdoVariant)) {
         return _requestFixedPDO(pdoIndex, pdoVariant, currentMA);

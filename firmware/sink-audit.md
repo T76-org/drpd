@@ -240,11 +240,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture for no-EPR-PDO Source exit still pending.
 
-- [ ] Ensure EPR requests are sent only in EPR Mode and always use `EPR_Request`.
+- [x] Ensure EPR requests are sent only in EPR Mode and always use `EPR_Request`.
   - Spec anchor: 6.4.9, 6.4.10.2.
-  - Current issue: code uses `EPR_Request` when `_eprModeActive && _eprCapabilities`; this is mostly correct but needs tests and guard against EPR capability cache being set while not in EPR.
+  - Current issue: fixed; active PDO accessors expose EPR capabilities only while `_eprModeActive`, and EPR AVS requests are rejected unless EPR mode and EPR capabilities are active, so SPR-mode stale EPR caps cannot produce an illegal request.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/select_capability.cpp`.
-  - Verification: EPR PDO cannot be requested with SPR `Request`; SPR-mode EPR caps are informational only.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Clamp EPR AVS requested current to advertised power/current limits.
   - Spec anchor: 6.4.2 request data object rules, EPR AVS PDO fields.

@@ -235,7 +235,7 @@ bool SinkContext::eprEntryEnabled() const {
 }
 
 size_t SinkContext::totalPDOCount() const {
-    if (_runtimeState._eprCapabilities.has_value()) {
+    if (_runtimeState._eprModeActive && _runtimeState._eprCapabilities.has_value()) {
         return _runtimeState._eprCapabilities->pdoCount();
     }
 
@@ -247,7 +247,7 @@ size_t SinkContext::totalPDOCount() const {
 }
 
 std::optional<Proto::PDOVariant> SinkContext::pdoAtIndex(size_t index) const {
-    if (_runtimeState._eprCapabilities.has_value()) {
+    if (_runtimeState._eprModeActive && _runtimeState._eprCapabilities.has_value()) {
         if (index < _runtimeState._eprCapabilities->pdoCount()) {
             return _runtimeState._eprCapabilities->pdo(index);
         }
@@ -263,7 +263,7 @@ std::optional<Proto::PDOVariant> SinkContext::pdoAtIndex(size_t index) const {
 }
 
 std::optional<uint8_t> SinkContext::requestObjectPositionAtIndex(size_t index) const {
-    if (_runtimeState._eprCapabilities.has_value()) {
+    if (_runtimeState._eprModeActive && _runtimeState._eprCapabilities.has_value()) {
         if (index < _runtimeState._eprCapabilities->pdoCount()) {
             return _runtimeState._eprCapabilities->objectPosition(index);
         }
