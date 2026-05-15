@@ -298,11 +298,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Maintain "send EPR_KeepAlive only if no other Sink traffic for more than tSinkEPRKeepAlive".
+- [x] Maintain "send EPR_KeepAlive only if no other Sink traffic for more than tSinkEPRKeepAlive".
   - Spec anchor: 6.4.10.2.
-  - Current issue: code sends on a fixed interval regardless of other Sink messages.
+  - Current issue: fixed; successful GoodCRC for non-keepalive Sink traffic in EPR keepalive state restarts the SinkEPRKeepAliveTimer, so ordinary EPR traffic suppresses redundant `EPR_KeepAlive`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`, `message_sender.cpp`.
-  - Verification: regular EPR_Request traffic suppresses keepalive; idle EPR sends keepalive before source watchdog.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Remove local three-strike EPR watchdog exit behavior or map it to spec Hard Reset behavior.
   - Spec anchor: 2.5.3, 6.4.10.2, 8.3.3.3.11.

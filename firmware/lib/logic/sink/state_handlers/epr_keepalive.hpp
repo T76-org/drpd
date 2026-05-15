@@ -100,6 +100,12 @@ namespace T76::DRPD::Logic {
         void _startKeepaliveIntervalTimer(SinkContext& context);
 
         /**
+         * @brief Restart SinkEPRKeepAliveTimer after non-keepalive Sink traffic.
+         * @param context Shared sink context.
+         */
+        void _restartKeepaliveIntervalAfterSinkTraffic(SinkContext& context);
+
+        /**
          * @brief Stop the EPR_KeepAlive_Ack response timer.
          * @param context Shared sink context.
          */

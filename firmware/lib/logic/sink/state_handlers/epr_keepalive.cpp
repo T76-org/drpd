@@ -123,6 +123,16 @@ void EPRKeepaliveStateHandler::_startKeepaliveIntervalTimer(SinkContext& context
     );
 }
 
+void EPRKeepaliveStateHandler::_restartKeepaliveIntervalAfterSinkTraffic(SinkContext& context) {
+    if (!_keepaliveTimersActive() || _waitingForKeepaliveAck) {
+        return;
+    }
+
+    // The SinkEPRKeepAliveTimer measures idle time since successful Sink-originated
+    // traffic, so ordinary EPR messages suppress an otherwise redundant EPR_KeepAlive.
+    _startKeepaliveIntervalTimer(context);
+}
+
 void EPRKeepaliveStateHandler::_stopKeepaliveResponseTimer(SinkContext& context) {
     if (_keepaliveResponseAlarmId != -1) {
         context.cancelAlarm(_keepaliveResponseAlarmId);
@@ -284,6 +294,11 @@ void EPRKeepaliveStateHandler::handleMessage(
 void EPRKeepaliveStateHandler::handleMessageSenderStateChange(
     SinkContext& context,
     SinkMessageSenderState state) {
+    if (state == SinkMessageSenderState::GoodCRCReceived) {
+        _restartKeepaliveIntervalAfterSinkTraffic(context);
+        return;
+    }
+
     if (state == SinkMessageSenderState::GoodCRCTimeout) {
         if (_waitingForKeepaliveAck) {
             _waitingForKeepaliveAck = false;
