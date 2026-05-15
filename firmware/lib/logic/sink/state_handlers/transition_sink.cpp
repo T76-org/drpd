@@ -54,7 +54,7 @@ void TransitionSinkStateHandler::handleMessage(
                 !state._eprModeActive &&
                 !state._eprEntryAttempted) {
                 state._eprEntryAttempted = true;
-                context.transitionTo(SinkState::PE_SNK_EPR_Mode_Entry);
+                context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Entry);
                 return;
             }
 

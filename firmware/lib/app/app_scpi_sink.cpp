@@ -179,8 +179,11 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
         case Logic::SinkState::PE_SNK_Ready:
             _sendTransportTextResponse("PE_SNK_READY", true);
             break;
-        case Logic::SinkState::PE_SNK_EPR_Mode_Entry:
-            _sendTransportTextResponse("PE_SNK_EPR_MODE_ENTRY", true);
+        case Logic::SinkState::PE_SNK_Send_EPR_Mode_Entry:
+            _sendTransportTextResponse("PE_SNK_SEND_EPR_MODE_ENTRY", true);
+            break;
+        case Logic::SinkState::PE_SNK_EPR_Mode_Wait_For_Response:
+            _sendTransportTextResponse("PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE", true);
             break;
         case Logic::SinkState::PE_SNK_Give_Sink_Cap:
             _sendTransportTextResponse("PE_SNK_GIVE_SINK_CAP", true);

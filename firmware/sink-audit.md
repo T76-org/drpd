@@ -190,29 +190,29 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P0 - EPR Entry
 
-- [ ] Implement full Sink EPR entry state machine with distinct `PE_SNK_Send_EPR_Mode_Entry` and `PE_SNK_EPR_Mode_Wait_For_Response` behavior.
+- [x] Implement full Sink EPR entry state machine with distinct `PE_SNK_Send_EPR_Mode_Entry` and `PE_SNK_EPR_Mode_Wait_For_Response` behavior.
   - Spec anchor: 6.4.10.1, 8.3.3.26.2.
-  - Current issue: one handler accepts `EnterAcknowledged`, waits in same state, then enters EPR keepalive on `EnterSucceeded`.
+  - Current issue: fixed; EPR entry now sends Enter from `PE_SNK_Send_EPR_Mode_Entry`, transitions to `PE_SNK_EPR_Mode_Wait_For_Response` on `EnterAcknowledged`, and moves to the EPR source-capability query path on `EnterSucceeded`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_entry.cpp`.
-  - Verification: EPR entry success follows Enter -> GoodCRC -> EnterAcknowledged -> EnterSucceeded -> wait for EPR capabilities.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of Enter -> GoodCRC -> EnterAcknowledged -> EnterSucceeded -> EPR source-capability query still pending.
 
-- [ ] On EPR entry timeout, non-succeeded EPR_Mode, SenderResponse timeout, or SinkEPREnter timeout, initiate Soft Reset.
+- [x] On EPR entry timeout, non-succeeded EPR_Mode, SenderResponse timeout, or SinkEPREnter timeout, initiate Soft Reset.
   - Spec anchor: 6.4.10.1 steps 3 and 8, 8.3.3.26.2.1, 8.3.3.26.2.2.
-  - Current issue: timeout, `EnterFailed`, `Reject`, `Wait`, `Not_Supported`, and `Exit` return to Ready without Soft Reset.
+  - Current issue: fixed; failed EPR entry responses, control-message refusals, GoodCRC timeout, SenderResponse timeout, and SinkEPREnter timeout now initiate Soft Reset.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_entry.cpp`.
-  - Verification: each failure stimulus produces Soft_Reset AMS.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; each failure stimulus producing Soft_Reset AMS still pending analyzer/source capture.
 
-- [ ] Start both EPR entry SenderResponseTimer and SinkEPREnterTimer at the required times.
+- [x] Start both EPR entry SenderResponseTimer and SinkEPREnterTimer at the required times.
   - Spec anchor: 8.3.3.26.2.1.
-  - Current issue: one timer starts only after Sink's EPR_Mode receives GoodCRC; no full entry timer that persists through all entry states.
+  - Current issue: fixed; `PE_SNK_Send_EPR_Mode_Entry` starts a 33 ms SenderResponse timer and a full entry timer that persists into `PE_SNK_EPR_Mode_Wait_For_Response`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_entry.cpp`, `firmware/config/logic/sink.cmake`.
-  - Verification: missing GoodCRC and missing EnterSucceeded fail differently but both recover by Soft Reset/Hard Reset as specified.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; missing GoodCRC and missing EnterSucceeded analyzer/source captures still pending.
 
-- [ ] After `EnterSucceeded`, transition to EPR wait-for-capabilities/evaluate flow, not immediately to keepalive.
+- [x] After `EnterSucceeded`, transition to EPR wait-for-capabilities/evaluate flow, not immediately to keepalive.
   - Spec anchor: 6.4.10.1, 6.5.15.2, 8.3.3.3.
-  - Current issue: `EnterSucceeded` sets EPR active and transitions to `PE_SNK_EPR_Keepalive`, which sends `EPR_Get_Source_Cap` if cache empty.
+  - Current issue: fixed; `EnterSucceeded` sets EPR active and transitions to `PE_SNK_Get_Source_Cap`, which sends `EPR_Get_Source_Cap` and evaluates `EPR_Source_Capabilities`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_entry.cpp`, `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: after entry, Source `EPR_Source_Capabilities` is evaluated and Sink sends `EPR_Request`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; after-entry analyzer/source capture showing `EPR_Source_Capabilities` evaluation and `EPR_Request` still pending.
 
 - [ ] Do not auto-attempt EPR entry solely because Source fixed PDO has EPR bit set unless local policy says this Sink is EPR-capable and wants EPR.
   - Spec anchor: 6.4.10.1 conditions for EPR entry.

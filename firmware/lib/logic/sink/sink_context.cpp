@@ -98,8 +98,13 @@ void SinkContext::transitionTo(SinkState state) {
             _runtimeState._currentStateHandler = &_readySinkStateHandler;
             break;
 
-        case SinkState::PE_SNK_EPR_Mode_Entry:
+        case SinkState::PE_SNK_Send_EPR_Mode_Entry:
+        case SinkState::PE_SNK_EPR_Mode_Wait_For_Response:
             _runtimeState._currentStateHandler = &_eprModeEntryStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Get_Source_Cap:
+            _runtimeState._currentStateHandler = &_eprKeepaliveStateHandler;
             break;
 
         case SinkState::PE_SNK_Get_PPS_Status:

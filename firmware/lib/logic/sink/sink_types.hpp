@@ -39,7 +39,8 @@ namespace T76::DRPD::Logic {
         PE_SNK_Select_Capability,           ///< Send Request for chosen PDO.
         PE_SNK_Transition_Sink,             ///< Wait for PS_RDY after Accept.
         PE_SNK_Ready,                       ///< Contract established and stable.
-        PE_SNK_EPR_Mode_Entry,              ///< EPR mode entry handshake.
+        PE_SNK_Send_EPR_Mode_Entry,         ///< Send EPR mode entry request.
+        PE_SNK_EPR_Mode_Wait_For_Response,  ///< Wait for EPR mode entry result.
         PE_SNK_Give_Sink_Cap,               ///< Provide sink capabilities.
         PE_SNK_Get_Source_Cap,              ///< Request source capabilities.
         PE_SNK_Get_PPS_Status,              ///< Request Source PPS status.
@@ -71,6 +72,7 @@ namespace T76::DRPD::Logic {
         ReadySinkRequestTimeout,
         ReadyPDORefreshTimeout,
         GetPPSStatusResponseTimeout,
+        EPRModeEntrySenderResponseTimeout,
         EPRModeEntryTimeout,
         EPRKeepaliveIntervalTimeout,
         EPRSourceWatchdogTimeout

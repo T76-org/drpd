@@ -4,8 +4,8 @@
  *
  * This handler implements the EPR mode entry handshake sequence.
  *
- * It sends Enter, tracks acknowledgement/timeout, and transitions policy to
- * EPR keepalive on success or back to ready/fallback on failure/rejection.
+ * It sends Enter, tracks the SenderResponse and SinkEPREnter timers, and
+ * advances through the spec-defined send and wait-for-response phases.
  */
 
 #pragma once
@@ -64,12 +64,36 @@ namespace T76::DRPD::Logic {
         void reset(SinkContext& context) override;
 
     protected:
-        alarm_id_t _entryTimeoutAlarmId = -1; ///< Response timeout while entering EPR mode
+        alarm_id_t _senderResponseTimeoutAlarmId = -1; ///< Timeout waiting for Enter Acknowledge.
+        alarm_id_t _entryTimeoutAlarmId = -1;          ///< Timeout for full EPR entry sequence.
+
+        /**
+         * @brief Start the full EPR entry timer if it is not already running.
+         * @param context Shared sink context.
+         */
+        void _startEntryTimeout(SinkContext& context);
+
+        /**
+         * @brief Start the SenderResponse timer for Enter Acknowledge.
+         * @param context Shared sink context.
+         */
+        void _startSenderResponseTimeout(SinkContext& context);
+
+        /**
+         * @brief Stop the SenderResponse timer if active.
+         * @param context Shared sink context.
+         */
+        void _stopSenderResponseTimeout(SinkContext& context);
 
         /**
          * @brief Handle entry-timeout expiry.
          */
         void _onEntryTimeout();
+
+        /**
+         * @brief Handle SenderResponse timeout expiry.
+         */
+        void _onSenderResponseTimeout();
 
         /**
          * @brief Static timer callback for EPR entry timeout.
@@ -78,6 +102,14 @@ namespace T76::DRPD::Logic {
          * @return 0 to keep timer one-shot.
          */
         static int64_t _onEntryTimeoutCallback(alarm_id_t id, void *user_data);
+
+        /**
+         * @brief Static timer callback for EPR entry SenderResponse timeout.
+         * @param id Alarm id.
+         * @param user_data Pointer to handler instance.
+         * @return 0 to keep timer one-shot.
+         */
+        static int64_t _onSenderResponseTimeoutCallback(alarm_id_t id, void *user_data);
     };
 
 } // namespace T76::DRPD::Logic

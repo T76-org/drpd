@@ -219,7 +219,10 @@ void Sink::_handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState 
     }
 
     if (state == SinkMessageSenderState::GoodCRCTimeout &&
-        (_runtimeState._state == SinkState::PE_SNK_EPR_Keepalive ||
+        (_runtimeState._state == SinkState::PE_SNK_Send_EPR_Mode_Entry ||
+         _runtimeState._state == SinkState::PE_SNK_EPR_Mode_Wait_For_Response ||
+         _runtimeState._state == SinkState::PE_SNK_Get_Source_Cap ||
+         _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive ||
          _runtimeState._state == SinkState::PE_SNK_Send_Soft_Reset ||
          _runtimeState._state == SinkState::PE_SNK_Get_PPS_Status) &&
         _runtimeState._currentStateHandler) {
