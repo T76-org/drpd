@@ -81,12 +81,6 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         return ExtendedFragmentResult::Malformed;
     }
 
-    const auto extendedType = maybeExtendedType.value();
-    const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
-    if (!typeIndex.has_value()) {
-        return ExtendedFragmentResult::UnsupportedType;
-    }
-
     const auto rawBody = message->rawBody();
     if (rawBody.size() < 2) {
         return ExtendedFragmentResult::Malformed;
@@ -97,12 +91,21 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
 
     const Proto::PDExtendedHeader extHeader(rawExtHeader);
     const size_t fragmentPayloadBytes = rawBody.size() - 2;
+    const auto extendedType = maybeExtendedType.value();
+    const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
+
+    if (extHeader.requestChunk() &&
+        (!extHeader.chunked() || extHeader.dataSizeBytes() != 0)) {
+        return ExtendedFragmentResult::Malformed;
+    }
+
+    if (!typeIndex.has_value()) {
+        return extHeader.chunked() && !extHeader.requestChunk()
+            ? ExtendedFragmentResult::UnsupportedChunk
+            : ExtendedFragmentResult::UnsupportedType;
+    }
 
     if (extHeader.requestChunk()) {
-        if (!extHeader.chunked() || extHeader.dataSizeBytes() != 0) {
-            return ExtendedFragmentResult::Malformed;
-        }
-
         return ExtendedFragmentResult::UnsupportedType;
     }
 

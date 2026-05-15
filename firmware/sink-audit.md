@@ -324,11 +324,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/sink_cc_messaging.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] For unsupported multi-chunk incoming messages, use `ChunkingNotSupportedTimer` before `Not_Supported`.
+- [x] For unsupported multi-chunk incoming messages, use `ChunkingNotSupportedTimer` before `Not_Supported`.
   - Spec anchor: 6.6.18.1, 8.3.3.6.2.3.
-  - Current issue: unsupported extended message type returns immediate `Not_Supported`.
-  - Code anchor: `firmware/lib/logic/sink/sink.cpp`, `sink_cc_messaging.cpp`.
-  - Verification: first chunk of unsupported multi-chunk message starts timer, then sends `Not_Supported`.
+  - Current issue: fixed; unsupported chunked extended messages in `PE_SNK_Ready` start `ChunkingNotSupportedTimer` and only send `Not_Supported` after it expires.
+  - Code anchor: `firmware/lib/logic/sink/sink.cpp`, `sink_cc_messaging.cpp`, `sink_public_interface.cpp`.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Enforce chunk count maximum of 10 chunks, not 16.
   - Spec anchor: 6.2.1.2.2.

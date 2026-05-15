@@ -77,7 +77,8 @@ namespace T76::DRPD::Logic {
         EPRModeEntryTimeout,
         EPRKeepaliveIntervalTimeout,
         EPRKeepaliveResponseTimeout,
-        EPRSourceWatchdogTimeout
+        EPRSourceWatchdogTimeout,
+        ChunkingNotSupportedTimeout
     };
 
     /**

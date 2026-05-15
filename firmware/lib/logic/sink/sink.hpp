@@ -235,6 +235,7 @@ namespace T76::DRPD::Logic {
             InProgress,         ///< More chunks required.
             Complete,           ///< Full payload reassembled.
             UnsupportedType,    ///< Message type not supported.
+            UnsupportedChunk,   ///< Unsupported message chunk needs delayed Not_Supported.
             Malformed           ///< Fragment/header invalid.
         };
 
@@ -277,6 +278,8 @@ namespace T76::DRPD::Logic {
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
         std::atomic<bool> _ccBusResetPending = false;            ///< Core-0 state-change reset request latched for core 1.
         std::atomic<bool> _eprExitPending = false;               ///< Core-0 request asking Core 1 to exit active EPR mode.
+        alarm_id_t _chunkingNotSupportedAlarmId = -1;            ///< Delay before Not_Supported for unsupported chunks.
+        bool _chunkingNotSupportedPending = false;               ///< True while delayed Not_Supported is still applicable.
 
         /**
          * @brief Handle CC bus state changes.
@@ -310,6 +313,19 @@ namespace T76::DRPD::Logic {
             Proto::ExtendedMessageType type,
             uint16_t payloadSizeBytes,
             uint8_t chunkNumber);
+
+        /**
+         * @brief Start ChunkingNotSupportedTimer before responding Not_Supported.
+         */
+        void _startChunkingNotSupportedTimer();
+
+        /**
+         * @brief Static callback for ChunkingNotSupportedTimer expiry.
+         * @param id Alarm id.
+         * @param userData Pointer to Sink instance.
+         * @return 0 to keep timer one-shot.
+         */
+        static int64_t _onChunkingNotSupportedTimeout(alarm_id_t id, void *userData);
 
         /**
          * @brief Drain pending timeout events and dispatch in core-1 policy context.

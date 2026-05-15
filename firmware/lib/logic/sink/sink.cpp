@@ -100,6 +100,15 @@ void Sink::loopCore1() {
                 continue;
             }
 
+            if (result == ExtendedFragmentResult::UnsupportedChunk) {
+                if (_runtimeState._state == SinkState::PE_SNK_Ready) {
+                    _startChunkingNotSupportedTimer();
+                } else {
+                    reset(SinkResetType::SoftReset);
+                }
+                continue;
+            }
+
             if (result == ExtendedFragmentResult::InProgress) {
                 continue;
             }
@@ -182,10 +191,43 @@ void Sink::_processTimeoutEvents() {
             continue;
         }
 
+        if (event.type == SinkTimeoutEventType::ChunkingNotSupportedTimeout) {
+            if (_chunkingNotSupportedPending &&
+                _runtimeState._state == SinkState::PE_SNK_Ready) {
+                _chunkingNotSupportedPending = false;
+                _context.sendNotSupportedMessage();
+            }
+            continue;
+        }
+
         if (_runtimeState._currentStateHandler) {
             _runtimeState._currentStateHandler->handleTimeoutEvent(_context, event.type);
         }
     }
+}
+
+int64_t Sink::_onChunkingNotSupportedTimeout(alarm_id_t id, void *userData) {
+    (void)id;
+    auto *sink = static_cast<Sink *>(userData);
+    sink->_chunkingNotSupportedAlarmId = -1;
+    if (sink->_chunkingNotSupportedPending) {
+        sink->_enqueueTimeoutEvent(SinkTimeoutEvent{SinkTimeoutEventType::ChunkingNotSupportedTimeout});
+    }
+    return 0;
+}
+
+void Sink::_startChunkingNotSupportedTimer() {
+    if (_chunkingNotSupportedAlarmId != -1) {
+        _alarmService.cancelAlarm(_chunkingNotSupportedAlarmId);
+    }
+
+    _chunkingNotSupportedPending = true;
+    _chunkingNotSupportedAlarmId = _alarmService.addAlarmInUs(
+        LOGIC_SINK_CHUNKING_NOT_SUPPORTED_TIMEOUT_US,
+        _onChunkingNotSupportedTimeout,
+        this,
+        true
+    );
 }
 
 void Sink::_onCCBusStateChanged(CCBusState newState) {

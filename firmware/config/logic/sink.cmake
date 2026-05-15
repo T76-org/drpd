@@ -20,6 +20,7 @@ target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_SINK_EPR_KEEPALIVE_INTERVAL_US=375000                  # Periodic sink EPR keepalive interval
     LOGIC_SINK_EPR_KEEPALIVE_RESPONSE_TIMEOUT_US=33000           # Timeout waiting for EPR_KeepAlive_Ack (tSenderResponse 33ms)
     LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US=2000000          # Watchdog for source keepalive/acknowledgement
+    LOGIC_SINK_CHUNKING_NOT_SUPPORTED_TIMEOUT_US=45000           # Delay before Not_Supported for unsupported multi-chunk messages
     LOGIC_SINK_EXTENDED_REASSEMBLY_TIMEOUT_US=500000             # Timeout for abandoning incomplete extended chunks
     LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES=512                    # Static max bytes for tracked extended payload buffers
     LOGIC_SINK_RAW_PD_MESSAGE_MAX_BODY_BYTES=8                   # Static max bytes for sink-generated raw PD payload wrappers

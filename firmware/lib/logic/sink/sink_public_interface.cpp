@@ -14,6 +14,13 @@
 namespace T76::DRPD::Logic {
 
 void Sink::reset(SinkResetType resetType) {
+    _chunkingNotSupportedPending = false;
+
+    if (_chunkingNotSupportedAlarmId != -1) {
+        _alarmService.cancelAlarm(_chunkingNotSupportedAlarmId);
+        _chunkingNotSupportedAlarmId = -1;
+    }
+
     _context.performReset(resetType);
 }
 
