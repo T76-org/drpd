@@ -6,6 +6,7 @@
 #include "epr_keepalive.hpp"
 
 #include "../sink.hpp"
+#include "../../../proto/pd_extended_header.hpp"
 
 
 using namespace T76::DRPD::Logic;
@@ -182,6 +183,15 @@ void EPRKeepaliveStateHandler::handleMessage(
                 controlType == static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive);
             const bool isKeepaliveAck = controlType ==
                 static_cast<uint8_t>(Sink::ExtendedControlType::EPR_KeepAlive_Ack);
+            const bool isGetSinkCap =
+                controlType == static_cast<uint8_t>(Sink::ExtendedControlType::EPR_Get_Sink_Cap);
+
+            if (isGetSinkCap) {
+                if (!context.sendEPRSinkCapabilitiesResponse(0, false)) {
+                    context.sendNotSupportedMessage();
+                }
+                return;
+            }
 
             if (isKeepalive) {
                 // EPR_KeepAlive is Sink-transmitted. A Source sending it is
@@ -211,6 +221,28 @@ void EPRKeepaliveStateHandler::handleMessage(
                 return;
             }
 
+            return;
+        }
+
+        if (type.has_value() &&
+            type.value() == Proto::ExtendedMessageType::EPR_Sink_Capabilities) {
+            const auto body = message->rawBody();
+            if (body.size() < 2) {
+                context.performReset(SinkResetType::SoftReset);
+                return;
+            }
+
+            const uint16_t rawExtHeader = static_cast<uint16_t>(body[0]) |
+                (static_cast<uint16_t>(body[1]) << 8);
+            const Proto::PDExtendedHeader extHeader(rawExtHeader);
+            if (!extHeader.requestChunk()) {
+                context.performReset(SinkResetType::SoftReset);
+                return;
+            }
+
+            if (!context.sendEPRSinkCapabilitiesResponse(extHeader.chunkNumber(), false)) {
+                context.sendNotSupportedMessage();
+            }
             return;
         }
     }

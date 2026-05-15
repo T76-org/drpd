@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <array>
 #include <functional>
 #include <optional>
 #include <span>
@@ -155,6 +156,46 @@ namespace T76::DRPD::Logic {
         void clearEPRSourceCapabilities();
 
         /**
+         * @brief Return count of configured local SPR Sink capability PDOs.
+         */
+        [[nodiscard]] size_t localSinkCapabilityCount() const;
+
+        /**
+         * @brief Return configured local SPR Sink capability PDO.
+         * @param index Zero-based local SPR Sink capability index.
+         * @return Raw PDO if index is valid; otherwise std::nullopt.
+         */
+        [[nodiscard]] std::optional<uint32_t> localSinkCapabilityPDO(size_t index) const;
+
+        /**
+         * @brief Set or clear a local SPR Sink capability PDO.
+         * @param index Zero-based local SPR Sink capability index.
+         * @param rawPDO Raw Sink PDO; zero clears the slot.
+         * @return True when index is valid and the model remains non-empty.
+         */
+        bool setLocalSinkCapabilityPDO(size_t index, uint32_t rawPDO);
+
+        /**
+         * @brief Return count of configured local EPR-only Sink capability PDOs.
+         */
+        [[nodiscard]] size_t localEPRSinkCapabilityCount() const;
+
+        /**
+         * @brief Return configured local EPR-only Sink capability PDO.
+         * @param index Zero-based local EPR Sink capability index.
+         * @return Raw PDO if index is valid; otherwise std::nullopt.
+         */
+        [[nodiscard]] std::optional<uint32_t> localEPRSinkCapabilityPDO(size_t index) const;
+
+        /**
+         * @brief Set or clear a local EPR-only Sink capability PDO.
+         * @param index Zero-based local EPR Sink capability index.
+         * @param rawPDO Raw EPR Sink PDO; zero clears the slot.
+         * @return True when index is valid.
+         */
+        bool setLocalEPRSinkCapabilityPDO(size_t index, uint32_t rawPDO);
+
+        /**
          * @brief Store negotiated PDO and electrical values and notify listeners.
          * @param pdoVariant Negotiated PDO variant.
          * @param voltage Negotiated voltage in volts.
@@ -243,6 +284,14 @@ namespace T76::DRPD::Logic {
          * @brief Send Sink_Capabilities_Extended response and remain out of Ready until GoodCRC.
          */
         void sendSinkCapabilitiesExtendedResponse();
+
+        /**
+         * @brief Send EPR_Sink_Capabilities chunk response if local EPR model exists.
+         * @param chunkNumber Extended-message chunk number to send.
+         * @param trackAsReadyResponse True to use PE_SNK_Send_Response for Ready-originated responses.
+         * @return True when response was sent; false when no EPR capability model exists.
+         */
+        bool sendEPRSinkCapabilitiesResponse(uint8_t chunkNumber = 0, bool trackAsReadyResponse = true);
 
         /**
          * @brief Send local PD Revision information for Get_Revision.
@@ -371,6 +420,12 @@ namespace T76::DRPD::Logic {
         SinkMessageSender& _messageSender;                               ///< PD message send transport helper.
         CCBusController& _ccBusController;                               ///< Bus attach/status source.
 
+        static constexpr size_t MaxLocalSPRSinkPDOs = 7;                 ///< Maximum SPR Sink_Capabilities PDOs.
+        static constexpr size_t MaxLocalEPRSinkPDOs = 8;                 ///< Maximum EPR PDOs after first seven SPR positions.
+        static constexpr size_t EPRCapabilityChunkPayloadBytes = 26;     ///< Extended message payload bytes per chunk.
+        std::array<uint32_t, MaxLocalSPRSinkPDOs> _localSinkCapabilityPDOs; ///< Configured local SPR Sink PDOs.
+        std::array<uint32_t, MaxLocalEPRSinkPDOs> _localEPRSinkCapabilityPDOs; ///< Configured local EPR-only Sink PDOs.
+
         DisconnectedStateHandler& _disconnectedStateHandler;             ///< Handler for Disconnected.
         EPRKeepaliveStateHandler& _eprKeepaliveStateHandler;             ///< Handler for EPR Keepalive.
         EPRModeExitStateHandler& _eprModeExitStateHandler;               ///< Handler for EPR Mode Exit.
@@ -407,6 +462,29 @@ namespace T76::DRPD::Logic {
          * @param change Sink info change classification to notify.
          */
         void _notifySinkInfoChanged(SinkInfoChange change);
+
+        /**
+         * @brief Return default local Sink fixed PDO.
+         */
+        [[nodiscard]] static uint32_t _defaultFixedSinkPDO();
+
+        /**
+         * @brief Ensure at least one local SPR Sink PDO is configured.
+         */
+        void _ensureLocalSinkCapabilities();
+
+        /**
+         * @brief Build SPR Sink capability PDO list.
+         * @return Number of non-zero local SPR PDOs copied.
+         */
+        size_t _buildLocalSinkCapabilityPDOs(std::array<uint32_t, MaxLocalSPRSinkPDOs>& pdos) const;
+
+        /**
+         * @brief Build padded EPR Sink capability data payload.
+         * @return Number of payload bytes before extended-message padding.
+         */
+        size_t _localEPRSinkCapabilityPayload(
+            std::array<uint8_t, (MaxLocalSPRSinkPDOs + MaxLocalEPRSinkPDOs) * 4>& payload) const;
 
         /**
          * @brief Schedule a retry after SinkTxNG/unknown collision-avoidance state.

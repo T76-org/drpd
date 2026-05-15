@@ -32,6 +32,30 @@ std::optional<Proto::PDOVariant> Sink::pdo(size_t index) const {
     return _context.pdoAtIndex(index);
 }
 
+size_t Sink::localSinkCapabilityCount() const {
+    return _context.localSinkCapabilityCount();
+}
+
+std::optional<uint32_t> Sink::localSinkCapabilityPDO(size_t index) const {
+    return _context.localSinkCapabilityPDO(index);
+}
+
+bool Sink::setLocalSinkCapabilityPDO(size_t index, uint32_t rawPDO) {
+    return _context.setLocalSinkCapabilityPDO(index, rawPDO);
+}
+
+size_t Sink::localEPRSinkCapabilityCount() const {
+    return _context.localEPRSinkCapabilityCount();
+}
+
+std::optional<uint32_t> Sink::localEPRSinkCapabilityPDO(size_t index) const {
+    return _context.localEPRSinkCapabilityPDO(index);
+}
+
+bool Sink::setLocalEPRSinkCapabilityPDO(size_t index, uint32_t rawPDO) {
+    return _context.setLocalEPRSinkCapabilityPDO(index, rawPDO);
+}
+
 std::optional<Proto::PDOVariant> Sink::negotiatedPDO() const {
     return _runtimeState._negotiatedPDO;
 }

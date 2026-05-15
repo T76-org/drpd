@@ -138,6 +138,120 @@ void App::_setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
     }
 }
 
+void App::_querySinkCapabilityCount(const std::vector<T76::SCPI::ParameterValue> &params) {
+    (void)params;
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    _sendTransportTextResponse(std::to_string(sink->localSinkCapabilityCount()), true);
+}
+
+void App::_querySinkCapabilityPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    const size_t index = static_cast<size_t>(params[0].numberValue);
+    const auto rawPDO = sink->localSinkCapabilityPDO(index);
+    if (!rawPDO.has_value()) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. Sink capability index out of range.");
+        return;
+    }
+
+    _sendTransportTextResponse(std::to_string(rawPDO.value()), true);
+}
+
+void App::_setSinkCapabilityPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    const size_t index = static_cast<size_t>(params[0].numberValue);
+    const uint32_t rawPDO = static_cast<uint32_t>(params[1].numberValue);
+    if (!sink->setLocalSinkCapabilityPDO(index, rawPDO)) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. Sink capabilities must keep at least one valid SPR PDO.");
+    }
+}
+
+void App::_querySinkEPRCapabilityCount(const std::vector<T76::SCPI::ParameterValue> &params) {
+    (void)params;
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    _sendTransportTextResponse(std::to_string(sink->localEPRSinkCapabilityCount()), true);
+}
+
+void App::_querySinkEPRCapabilityPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    const size_t index = static_cast<size_t>(params[0].numberValue);
+    const auto rawPDO = sink->localEPRSinkCapabilityPDO(index);
+    if (!rawPDO.has_value()) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. EPR Sink capability index out of range.");
+        return;
+    }
+
+    _sendTransportTextResponse(std::to_string(rawPDO.value()), true);
+}
+
+void App::_setSinkEPRCapabilityPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    const size_t index = static_cast<size_t>(params[0].numberValue);
+    const uint32_t rawPDO = static_cast<uint32_t>(params[1].numberValue);
+    if (!sink->setLocalEPRSinkCapabilityPDO(index, rawPDO)) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. EPR Sink capability index out of range.");
+    }
+}
+
 void App::_setSinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &params) {
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
         _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");

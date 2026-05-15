@@ -8,6 +8,7 @@
 #include <variant>
 
 #include "../sink.hpp"
+#include "../../../proto/pd_extended_header.hpp"
 
 
 using namespace T76::DRPD::Logic;
@@ -262,6 +263,45 @@ void ReadySinkStateHandler::handleMessage(
             }
 
             context.sendManufacturerInfoResponse(requestPayload->span());
+            return;
+        }
+
+        if (extendedType.has_value() &&
+            extendedType.value() == Proto::ExtendedMessageType::Extended_Control) {
+            const auto payload =
+                context.takeCompletedExtendedPayload(Proto::ExtendedMessageType::Extended_Control);
+            const auto payloadSpan = payload.has_value()
+                ? payload->span()
+                : std::span<const uint8_t>{};
+
+            if (payloadSpan.size() >= 2 &&
+                payloadSpan[0] == static_cast<uint8_t>(Sink::ExtendedControlType::EPR_Get_Sink_Cap)) {
+                if (!context.sendEPRSinkCapabilitiesResponse(0, true)) {
+                    context.sendNotSupportedResponse();
+                }
+                return;
+            }
+        }
+
+        if (extendedType.has_value() &&
+            extendedType.value() == Proto::ExtendedMessageType::EPR_Sink_Capabilities) {
+            const auto body = message->rawBody();
+            if (body.size() < 2) {
+                context.performReset(SinkResetType::SoftReset);
+                return;
+            }
+
+            const uint16_t rawExtHeader = static_cast<uint16_t>(body[0]) |
+                (static_cast<uint16_t>(body[1]) << 8);
+            const Proto::PDExtendedHeader extHeader(rawExtHeader);
+            if (!extHeader.requestChunk()) {
+                context.performReset(SinkResetType::SoftReset);
+                return;
+            }
+
+            if (!context.sendEPRSinkCapabilitiesResponse(extHeader.chunkNumber(), true)) {
+                context.sendNotSupportedResponse();
+            }
             return;
         }
 

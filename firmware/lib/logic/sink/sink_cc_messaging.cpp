@@ -128,6 +128,11 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         return ExtendedFragmentResult::Malformed;
     }
 
+    if (extHeader.requestChunk() &&
+        extendedType == Proto::ExtendedMessageType::EPR_Sink_Capabilities) {
+        return ExtendedFragmentResult::Complete;
+    }
+
     if (!typeIndex.has_value()) {
         return extHeader.chunked() && !extHeader.requestChunk()
             ? ExtendedFragmentResult::UnsupportedChunk

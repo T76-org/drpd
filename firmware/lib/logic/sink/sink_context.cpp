@@ -24,6 +24,15 @@
 
 namespace T76::DRPD::Logic {
 
+namespace {
+    void writeLE32(std::span<uint8_t> bytes, size_t offset, uint32_t value) {
+        bytes[offset + 0] = static_cast<uint8_t>(value & 0xFF);
+        bytes[offset + 1] = static_cast<uint8_t>((value >> 8) & 0xFF);
+        bytes[offset + 2] = static_cast<uint8_t>((value >> 16) & 0xFF);
+        bytes[offset + 3] = static_cast<uint8_t>((value >> 24) & 0xFF);
+    }
+}
+
 SinkContext::SinkContext(
     SinkRuntimeState& runtimeState,
     SinkAlarmService& alarmService,
@@ -46,6 +55,8 @@ SinkContext::SinkContext(
     _alarmService(alarmService),
     _messageSender(messageSender),
     _ccBusController(ccBusController),
+    _localSinkCapabilityPDOs({_defaultFixedSinkPDO()}),
+    _localEPRSinkCapabilityPDOs({}),
     _disconnectedStateHandler(disconnectedStateHandler),
     _eprKeepaliveStateHandler(eprKeepaliveStateHandler),
     _eprModeExitStateHandler(eprModeExitStateHandler),
@@ -210,6 +221,69 @@ void SinkContext::clearEPRSourceCapabilities() {
     }
 }
 
+size_t SinkContext::localSinkCapabilityCount() const {
+    size_t count = 0;
+    for (const uint32_t rawPDO : _localSinkCapabilityPDOs) {
+        if (rawPDO != 0) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::optional<uint32_t> SinkContext::localSinkCapabilityPDO(size_t index) const {
+    if (index >= _localSinkCapabilityPDOs.size()) {
+        return std::nullopt;
+    }
+
+    return _localSinkCapabilityPDOs[index];
+}
+
+bool SinkContext::setLocalSinkCapabilityPDO(size_t index, uint32_t rawPDO) {
+    if (index >= _localSinkCapabilityPDOs.size()) {
+        return false;
+    }
+
+    const uint32_t previous = _localSinkCapabilityPDOs[index];
+    _localSinkCapabilityPDOs[index] = rawPDO;
+    if (localSinkCapabilityCount() == 0) {
+        _localSinkCapabilityPDOs[index] = previous;
+        _ensureLocalSinkCapabilities();
+        return false;
+    }
+
+    _notifySinkInfoChanged(SinkInfoChange::OtherInfoChanged);
+    return true;
+}
+
+size_t SinkContext::localEPRSinkCapabilityCount() const {
+    size_t count = 0;
+    for (const uint32_t rawPDO : _localEPRSinkCapabilityPDOs) {
+        if (rawPDO != 0) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::optional<uint32_t> SinkContext::localEPRSinkCapabilityPDO(size_t index) const {
+    if (index >= _localEPRSinkCapabilityPDOs.size()) {
+        return std::nullopt;
+    }
+
+    return _localEPRSinkCapabilityPDOs[index];
+}
+
+bool SinkContext::setLocalEPRSinkCapabilityPDO(size_t index, uint32_t rawPDO) {
+    if (index >= _localEPRSinkCapabilityPDOs.size()) {
+        return false;
+    }
+
+    _localEPRSinkCapabilityPDOs[index] = rawPDO;
+    _notifySinkInfoChanged(SinkInfoChange::OtherInfoChanged);
+    return true;
+}
+
 void SinkContext::setNegotiatedValues(const Proto::PDOVariant pdoVariant, float voltage, float current) {
     _runtimeState._negotiatedPDO = pdoVariant;
     _runtimeState._negotiatedVoltage = voltage;
@@ -332,8 +406,11 @@ void SinkContext::sendNotSupportedResponse() {
 }
 
 void SinkContext::sendSinkCapabilities() {
-    const Proto::SinkCapabilities sinkCapabilities =
-        Proto::SinkCapabilities::fixedSupply(5000, 500);
+    std::array<uint32_t, MaxLocalSPRSinkPDOs> rawPDOs = {};
+    const size_t pdoCount = _buildLocalSinkCapabilityPDOs(rawPDOs);
+    const Proto::SinkCapabilities sinkCapabilities(
+        std::span<const uint32_t>(rawPDOs.data(), pdoCount)
+    );
     PHY::BMCEncodedMessage message(
         Proto::SOP::SOPType::SOP,
         sinkCapabilities
@@ -348,8 +425,11 @@ void SinkContext::sendSinkCapabilities() {
 }
 
 void SinkContext::sendSinkCapabilitiesResponse() {
-    const Proto::SinkCapabilities sinkCapabilities =
-        Proto::SinkCapabilities::fixedSupply(5000, 500);
+    std::array<uint32_t, MaxLocalSPRSinkPDOs> rawPDOs = {};
+    const size_t pdoCount = _buildLocalSinkCapabilityPDOs(rawPDOs);
+    const Proto::SinkCapabilities sinkCapabilities(
+        std::span<const uint32_t>(rawPDOs.data(), pdoCount)
+    );
     PHY::BMCEncodedMessage message(
         Proto::SOP::SOPType::SOP,
         sinkCapabilities
@@ -411,6 +491,70 @@ void SinkContext::sendSinkCapabilitiesExtendedResponse() {
 
     _sendResponseStateHandler.prepareResponse(message);
     transitionTo(SinkState::PE_SNK_Send_Response);
+}
+
+bool SinkContext::sendEPRSinkCapabilitiesResponse(uint8_t chunkNumber, bool trackAsReadyResponse) {
+    if (!eprEntryEnabled() || localEPRSinkCapabilityCount() == 0) {
+        return false;
+    }
+
+    std::array<uint8_t, (MaxLocalSPRSinkPDOs + MaxLocalEPRSinkPDOs) * 4> payload = {};
+    const size_t payloadBytes = _localEPRSinkCapabilityPayload(payload);
+    if (payloadBytes == 0) {
+        return false;
+    }
+
+    const size_t chunkOffset = static_cast<size_t>(chunkNumber) * EPRCapabilityChunkPayloadBytes;
+    if (chunkOffset >= payloadBytes) {
+        return false;
+    }
+
+    const size_t chunkPayloadBytes = std::min(
+        EPRCapabilityChunkPayloadBytes,
+        payloadBytes - chunkOffset
+    );
+    const size_t rawBodyBytes = 2 + chunkPayloadBytes;
+    const size_t paddedBodyBytes = ((rawBodyBytes + 3) / 4) * 4;
+
+    std::array<uint8_t, 28> rawBody = {};
+    Proto::PDExtendedHeader extHeader;
+    extHeader.dataSizeBytes(static_cast<uint16_t>(payloadBytes));
+    extHeader.requestChunk(false);
+    extHeader.chunked(true);
+    extHeader.chunkNumber(chunkNumber);
+
+    rawBody[0] = static_cast<uint8_t>(extHeader.raw() & 0xFF);
+    rawBody[1] = static_cast<uint8_t>((extHeader.raw() >> 8) & 0xFF);
+    for (size_t i = 0; i < chunkPayloadBytes; ++i) {
+        rawBody[2 + i] = payload[chunkOffset + i];
+    }
+
+    const SinkRawPDMessage rawMessage(
+        std::span<const uint8_t>(rawBody.data(), paddedBodyBytes),
+        static_cast<uint32_t>(paddedBodyBytes / 4),
+        static_cast<uint32_t>(Proto::ExtendedMessageType::EPR_Sink_Capabilities)
+    );
+
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        rawMessage
+    );
+
+    auto &header = message.header();
+    header.extended(true);
+    header.extendedMessageType(Proto::ExtendedMessageType::EPR_Sink_Capabilities);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    if (trackAsReadyResponse) {
+        _sendResponseStateHandler.prepareResponse(message);
+        transitionTo(SinkState::PE_SNK_Send_Response);
+    } else {
+        sendMessageAndAwaitGoodCRC(message);
+    }
+
+    return true;
 }
 
 void SinkContext::sendRevision() {
@@ -755,6 +899,55 @@ void SinkContext::_notifySinkInfoChanged(SinkInfoChange change) {
     if (_sinkInfoChangedCallback) {
         _sinkInfoChangedCallback(change);
     }
+}
+
+uint32_t SinkContext::_defaultFixedSinkPDO() {
+    constexpr uint32_t kVoltage50mV = 5000 / 50;
+    constexpr uint32_t kCurrent10mA = 500 / 10;
+    return ((kVoltage50mV & 0x3FFu) << 10) | (kCurrent10mA & 0x3FFu);
+}
+
+void SinkContext::_ensureLocalSinkCapabilities() {
+    if (localSinkCapabilityCount() == 0) {
+        _localSinkCapabilityPDOs[0] = _defaultFixedSinkPDO();
+    }
+}
+
+size_t SinkContext::_buildLocalSinkCapabilityPDOs(
+    std::array<uint32_t, MaxLocalSPRSinkPDOs>& pdos) const {
+    size_t count = 0;
+    for (const uint32_t rawPDO : _localSinkCapabilityPDOs) {
+        if (rawPDO == 0) {
+            continue;
+        }
+        pdos[count++] = rawPDO;
+    }
+    return count;
+}
+
+size_t SinkContext::_localEPRSinkCapabilityPayload(
+    std::array<uint8_t, (MaxLocalSPRSinkPDOs + MaxLocalEPRSinkPDOs) * 4>& payload) const {
+    std::array<uint32_t, MaxLocalSPRSinkPDOs> sprPDOs = {};
+    const size_t sprCount = _buildLocalSinkCapabilityPDOs(sprPDOs);
+    if (sprCount == 0 || localEPRSinkCapabilityCount() == 0) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < MaxLocalSPRSinkPDOs; ++i) {
+        const uint32_t rawPDO = i < sprCount ? sprPDOs[i] : 0;
+        writeLE32(payload, i * 4, rawPDO);
+    }
+
+    size_t eprIndex = 0;
+    for (const uint32_t rawPDO : _localEPRSinkCapabilityPDOs) {
+        if (rawPDO == 0) {
+            continue;
+        }
+        writeLE32(payload, (MaxLocalSPRSinkPDOs + eprIndex) * 4, rawPDO);
+        ++eprIndex;
+    }
+
+    return (MaxLocalSPRSinkPDOs + eprIndex) * 4;
 }
 
 void SinkContext::_scheduleSinkTxOKRetry() {

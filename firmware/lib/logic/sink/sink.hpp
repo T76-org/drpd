@@ -96,6 +96,7 @@ namespace T76::DRPD::Logic {
          */
         enum class ExtendedControlType : uint8_t {
             EPR_Get_Source_Cap = 0x01,    ///< Request EPR source capabilities.
+            EPR_Get_Sink_Cap = 0x02,      ///< Request EPR sink capabilities.
             EPR_KeepAlive = 0x03,         ///< Send/receive keepalive.
             EPR_KeepAlive_Ack = 0x04      ///< Acknowledge keepalive.
         };
@@ -158,6 +159,36 @@ namespace T76::DRPD::Logic {
          * @return PDO variant if valid; otherwise std::nullopt.
          */
         [[nodiscard]] std::optional<Proto::PDOVariant> pdo(size_t index) const;
+
+        /**
+         * @brief Get count of configured local SPR Sink capability PDOs.
+         */
+        [[nodiscard]] size_t localSinkCapabilityCount() const;
+
+        /**
+         * @brief Get configured local SPR Sink capability PDO.
+         */
+        [[nodiscard]] std::optional<uint32_t> localSinkCapabilityPDO(size_t index) const;
+
+        /**
+         * @brief Set or clear a configured local SPR Sink capability PDO.
+         */
+        bool setLocalSinkCapabilityPDO(size_t index, uint32_t rawPDO);
+
+        /**
+         * @brief Get count of configured local EPR-only Sink capability PDOs.
+         */
+        [[nodiscard]] size_t localEPRSinkCapabilityCount() const;
+
+        /**
+         * @brief Get configured local EPR-only Sink capability PDO.
+         */
+        [[nodiscard]] std::optional<uint32_t> localEPRSinkCapabilityPDO(size_t index) const;
+
+        /**
+         * @brief Set or clear a configured local EPR-only Sink capability PDO.
+         */
+        bool setLocalEPRSinkCapabilityPDO(size_t index, uint32_t rawPDO);
 
         /**
          * @brief Get negotiated PDO.

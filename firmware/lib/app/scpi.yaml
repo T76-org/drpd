@@ -417,6 +417,58 @@ commands:
         description: "The device is not in Sink role, the Sink state cannot accept a PDO request, or the sink policy rejected the request."
     handler:      _setSinkPDO
 
+  - syntax:       "SINK:CAPability:SPR:COUNT?"
+    description:  "Query the number of configured local SPR Sink capability PDOs."
+    handler:      _querySinkCapabilityCount
+
+  - syntax:       "SINK:CAPability:SPR?"
+    description:  "Query a configured local SPR Sink capability raw PDO."
+    parameters:
+      - name:        index
+        type:        number
+        description: "The local SPR Sink capability PDO slot index (0-based)."
+    handler:      _querySinkCapabilityPDO
+
+  - syntax:       "SINK:CAPability:SPR"
+    description:  |
+                    Set a configured local SPR Sink capability raw PDO.
+                    A raw PDO value of 0 clears the slot; at least one SPR
+                    Sink capability PDO must remain configured.
+    parameters:
+      - name:        index
+        type:        number
+        description: "The local SPR Sink capability PDO slot index (0-based)."
+      - name:        raw_pdo
+        type:        number
+        description: "Raw 32-bit Sink PDO value. Use 0 to clear the slot."
+    handler:      _setSinkCapabilityPDO
+
+  - syntax:       "SINK:CAPability:EPR:COUNT?"
+    description:  "Query the number of configured local EPR-only Sink capability PDOs."
+    handler:      _querySinkEPRCapabilityCount
+
+  - syntax:       "SINK:CAPability:EPR?"
+    description:  "Query a configured local EPR-only Sink capability raw PDO."
+    parameters:
+      - name:        index
+        type:        number
+        description: "The local EPR-only Sink capability PDO slot index (0-based)."
+    handler:      _querySinkEPRCapabilityPDO
+
+  - syntax:       "SINK:CAPability:EPR"
+    description:  |
+                    Set a configured local EPR-only Sink capability raw PDO.
+                    A raw PDO value of 0 clears the slot. If no EPR-only PDOs
+                    are configured, EPR_Get_Sink_Cap is answered Not_Supported.
+    parameters:
+      - name:        index
+        type:        number
+        description: "The local EPR-only Sink capability PDO slot index (0-based)."
+      - name:        raw_pdo
+        type:        number
+        description: "Raw 32-bit EPR Sink PDO value. Use 0 to clear the slot."
+    handler:      _setSinkEPRCapabilityPDO
+
   - syntax:       "SINK:EPR:EN"
     description:  |
                     Enable or disable local Sink policy for EPR entry. When disabled,

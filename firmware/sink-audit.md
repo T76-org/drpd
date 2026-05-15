@@ -402,11 +402,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
 
 ## P2 - Policy, Capability, and Observability
 
-- [ ] Add configurable Sink capability model for SPR and EPR.
+- [x] Add configurable Sink capability model for SPR and EPR.
   - Spec anchor: 6.4.1.6 Sink_Capabilities, 6.5.15.3 EPR_Sink_Capabilities.
-  - Current issue: no local Sink capabilities model exists for Get_Sink_Cap / EPR_Get_Sink_Cap.
+  - Current issue: fixed; local raw-PDO SPR and EPR Sink capability models are configurable over SCPI, `Get_Sink_Cap` emits the SPR model, and `EPR_Get_Sink_Cap` emits chunked `EPR_Sink_Capabilities` when EPR capabilities are configured.
   - Code anchor: app config, SCPI sink interface, proto messages.
-  - Verification: host can configure Sink PDOs; emitted capabilities match config.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Add policy callback/result reporting for Reject/Wait/Not_Supported outcomes.
   - Spec anchor: Policy Engine state diagrams inform DPM on outcomes.
