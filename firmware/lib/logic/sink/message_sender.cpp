@@ -68,6 +68,12 @@ void SinkMessageSender::handleGoodCRCReceived(uint32_t messageId) {
     _notifyStateChange(SinkMessageSenderState::GoodCRCReceived);
 }
 
+void SinkMessageSender::abandonPendingMessage() {
+    _cancelGoodCRCTimer();
+    _pendingMessage.reset();
+    _goodCRCRetryCount = 0;
+}
+
 void SinkMessageSender::reset() {
     // Cancel any existing GoodCRC timeout timer
     _cancelGoodCRCTimer();

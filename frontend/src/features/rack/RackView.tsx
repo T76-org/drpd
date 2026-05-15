@@ -1703,6 +1703,15 @@ export const RackView = () => {
       if (changed.includes('logSelection')) {
         readSelection()
       }
+      if (changed.includes('sinkEprEnabled')) {
+        setDeviceStates((states) =>
+          states.map((state) =>
+            state.status === 'connected' && state.drpdDriver === activeDriver
+              ? { ...state }
+              : state,
+          ),
+        )
+      }
     }
 
     const handleLogEntryAdded = (event: Event) => {
@@ -2260,6 +2269,23 @@ export const RackView = () => {
     }
   }, [])
 
+  const handleSetActiveSinkEprEnabled = useCallback(async (enabled: boolean) => {
+    const state = deviceStatesRef.current.find(
+      (entry) => entry.status === 'connected' && entry.drpdDriver,
+    )
+    const driver = state?.drpdDriver
+    if (!driver || driver.getState().role !== CCBusRole.SINK) {
+      return
+    }
+
+    try {
+      await driver.sink.setEprEnabled(enabled)
+      await driver.refreshState()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
   const handleRestoreMessageLogTableLayout = useCallback(() => {
     setMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
     setMessageLogColumnVisibilityInput(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
@@ -2533,6 +2559,10 @@ export const RackView = () => {
             ],
           },
           {
+            id: 'mode-separator-power-contract',
+            type: 'separator',
+          },
+          {
             id: 'choose-power-contract',
             label: 'Choose power contract...',
             meta: 'P',
@@ -2540,6 +2570,24 @@ export const RackView = () => {
             onSelect: () => {
               void openGlobalSinkRequestDialog()
             },
+          },
+          {
+            id: 'sink-behaviour',
+            type: 'submenu',
+            label: 'Sink behaviour',
+            disabled: !activeDriver || !isSinkMode,
+            items: [
+              {
+                id: 'support-epr-mode',
+                type: 'checkbox',
+                label: 'Support EPR mode',
+                checked: activeDriverState?.sinkEprEnabled === true,
+                disabled: !activeDriver || !isSinkMode,
+                onCheckedChange: (checked) => {
+                  void handleSetActiveSinkEprEnabled(checked)
+                },
+              },
+            ],
           },
           {
             id: 'mode-separator-usb-cycle',

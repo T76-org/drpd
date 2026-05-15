@@ -137,6 +137,14 @@ namespace T76::DRPD {
     };
 
     /**
+     * @brief Persisted Sink policy settings.
+     */
+    struct SinkPersistentConfig {
+        bool eprEntryEnabled = true;           ///< True when Sink policy may enter EPR mode.
+        std::array<uint8_t, 3> reserved = {0, 0, 0}; ///< Reserved padding for future schema growth.
+    };
+
+    /**
      * @brief Version 1 persistent payload layout.
      *
      * New schema versions must preserve this struct unchanged and define a new
@@ -147,6 +155,17 @@ namespace T76::DRPD {
         AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
         TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
         SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
+    };
+
+    /**
+     * @brief Version 2 persistent payload layout.
+     */
+    struct PersistentConfigDataV2 {
+        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
+        AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
+        TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
+        SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
+        SinkPersistentConfig sink{};       ///< Persisted Sink policy settings.
     };
 
     /**
@@ -168,8 +187,16 @@ namespace T76::DRPD {
         PersistentConfigDataV1 payload{};  ///< On-flash payload.
     };
 
-    using PersistentConfigDataCurrent = PersistentConfigDataV1;
-    using PersistentConfigImageCurrent = PersistentConfigImageV1;
+    /**
+     * @brief Complete on-flash image for schema version 2.
+     */
+    struct PersistentConfigImageV2 {
+        PersistentConfigHeader header{};   ///< On-flash header.
+        PersistentConfigDataV2 payload{};  ///< On-flash payload.
+    };
+
+    using PersistentConfigDataCurrent = PersistentConfigDataV2;
+    using PersistentConfigImageCurrent = PersistentConfigImageV2;
 
     /**
      * @brief Persistent configuration store backed by a dedicated flash sector.
@@ -180,7 +207,7 @@ namespace T76::DRPD {
      */
     class PersistentConfig {
     public:
-        static constexpr uint32_t CurrentSchemaVersion = 1;   ///< Latest supported schema version.
+        static constexpr uint32_t CurrentSchemaVersion = 2;   ///< Latest supported schema version.
         static constexpr uint32_t Magic = 0x44525044u;        ///< Flash image identification marker.
         static constexpr uint32_t FlashSize = FLASH_SECTOR_SIZE;  ///< Reserved flash region size in bytes.
         static constexpr uint32_t FlashOffset = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;   ///< Offset of the reserved sector from flash base.
@@ -287,6 +314,11 @@ namespace T76::DRPD {
          * @brief Decode a version 1 payload into the current config representation.
          */
         bool _decodeVersion1(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+
+        /**
+         * @brief Decode a version 2 payload into the current config representation.
+         */
+        bool _decodeVersion2(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
 
         /**
          * @brief Decode any supported stored schema into the current representation.

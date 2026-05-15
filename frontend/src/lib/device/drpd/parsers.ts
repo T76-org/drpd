@@ -395,6 +395,8 @@ export const parseSinkState = (value: string): SinkState => {
       return SinkState.PE_SNK_SEND_EPR_MODE_ENTRY
     case SinkState.PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE:
       return SinkState.PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE
+    case SinkState.PE_SNK_SEND_EPR_MODE_EXIT:
+      return SinkState.PE_SNK_SEND_EPR_MODE_EXIT
     case SinkState.PE_SNK_GIVE_SINK_CAP:
       return SinkState.PE_SNK_GIVE_SINK_CAP
     case SinkState.PE_SNK_GET_SOURCE_CAP:

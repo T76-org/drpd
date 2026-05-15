@@ -54,6 +54,8 @@
 #include "state_handler.hpp"
 #include "sink_types.hpp"
 
+#include "../../util/persistent_config.hpp"
+
 #include "../../phy/bmc_decoder.hpp"
 #include "../../phy/bmc_encoder.hpp"
 
@@ -64,6 +66,7 @@
 
 #include "state_handlers/disconnected.hpp"
 #include "state_handlers/epr_keepalive.hpp"
+#include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
 #include "state_handlers/ready.hpp"
@@ -183,6 +186,30 @@ namespace T76::DRPD::Logic {
         SinkRequestResult requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
         /**
+         * @brief Set whether local policy allows automatic EPR entry.
+         * @param enabled True to allow EPR entry after an eligible SPR contract.
+         */
+        void eprEntryEnabled(bool enabled);
+
+        /**
+         * @brief Get whether local policy allows automatic EPR entry.
+         * @return True when EPR entry is enabled.
+         */
+        [[nodiscard]] bool eprEntryEnabled() const;
+
+        /**
+         * @brief Apply persisted Sink policy settings.
+         * @param config Persisted Sink settings.
+         */
+        void applyPersistentConfig(const T76::DRPD::SinkPersistentConfig& config);
+
+        /**
+         * @brief Export current Sink policy settings for persistence.
+         * @return Current Sink persistent settings.
+         */
+        [[nodiscard]] T76::DRPD::SinkPersistentConfig exportPersistentConfig() const;
+
+        /**
          * @brief Get current Sink policy state.
          * @return Current SinkState enum.
          */
@@ -232,6 +259,7 @@ namespace T76::DRPD::Logic {
 
         DisconnectedStateHandler _disconnectedStateHandler;      ///< Disconnected state handler.
         EPRKeepaliveStateHandler _eprKeepaliveStateHandler;      ///< EPR keepalive state handler.
+        EPRModeExitStateHandler _eprModeExitStateHandler;        ///< EPR mode exit state handler.
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
         GetPPSStatusStateHandler _getPPSStatusStateHandler;      ///< PPS status query state handler.
         ReadySinkStateHandler _readySinkStateHandler;            ///< Ready state handler.
@@ -248,6 +276,7 @@ namespace T76::DRPD::Logic {
         SinkContext _context;                                    ///< Handler-facing context facade.
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
         std::atomic<bool> _ccBusResetPending = false;            ///< Core-0 state-change reset request latched for core 1.
+        std::atomic<bool> _eprExitPending = false;               ///< Core-0 request asking Core 1 to exit active EPR mode.
 
         /**
          * @brief Handle CC bus state changes.
@@ -291,6 +320,11 @@ namespace T76::DRPD::Logic {
          * @brief Drain host PDO requests and dispatch in core-1 policy context.
          */
         void _processPendingRequests();
+
+        /**
+         * @brief Drain host policy requests and dispatch in core-1 policy context.
+         */
+        void _processPendingPolicyRequests();
 
         /**
          * @brief Handle message sender state transitions.

@@ -51,6 +51,7 @@ void TransitionSinkStateHandler::handleMessage(
 
             if (firstExplicitContract &&
                 state._sourceSupportsEpr &&
+                state._eprEntryEnabled &&
                 !state._eprModeActive &&
                 !state._eprEntryAttempted) {
                 state._eprEntryAttempted = true;

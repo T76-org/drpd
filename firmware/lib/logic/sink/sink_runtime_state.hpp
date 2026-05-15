@@ -122,6 +122,7 @@ namespace T76::DRPD::Logic {
         float _negotiatedCurrent = 0.0f;                          ///< Negotiated current.
 
         bool _hasExplicitContract = false;                        ///< True after first explicit contract.
+        bool _eprEntryEnabled = true;                             ///< True when local policy allows EPR entry.
         bool _eprModeActive = false;                              ///< True while in EPR mode.
         bool _eprEntryAttempted = false;                          ///< True once EPR entry attempted.
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.

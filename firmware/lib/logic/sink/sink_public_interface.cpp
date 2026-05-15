@@ -59,6 +59,28 @@ SinkRequestResult Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t
     return SinkRequestResult::ok();
 }
 
+void Sink::eprEntryEnabled(bool enabled) {
+    _context.setEPREntryEnabled(enabled);
+
+    if (!enabled && _runtimeState._eprModeActive) {
+        _eprExitPending.store(true, std::memory_order_release);
+    }
+}
+
+bool Sink::eprEntryEnabled() const {
+    return _context.eprEntryEnabled();
+}
+
+void Sink::applyPersistentConfig(const T76::DRPD::SinkPersistentConfig& config) {
+    _context.setEPREntryEnabled(config.eprEntryEnabled);
+}
+
+T76::DRPD::SinkPersistentConfig Sink::exportPersistentConfig() const {
+    return T76::DRPD::SinkPersistentConfig{
+        .eprEntryEnabled = _context.eprEntryEnabled(),
+    };
+}
+
 SinkState Sink::state() const {
     return _runtimeState._state;
 }

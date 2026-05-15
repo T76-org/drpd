@@ -262,6 +262,7 @@ describe('DRPDDevice state updates', () => {
     transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
     transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
     transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('SINK:EPR:EN?', ['ON'])
     transport.textResponses.set('STAT:DEV?', ['0'])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
 
@@ -310,6 +311,7 @@ describe('DRPDDevice state updates', () => {
           maxCurrentA: 3,
         },
       ],
+      sinkEprEnabled: true,
     })
     expect(device.getState().analogMonitor?.vbus).toBe(5)
     expect(device.getState().analogMonitor?.ibus).toBe(0.1)
@@ -359,6 +361,7 @@ describe('DRPDDevice state updates', () => {
     transport.textResponses.set('SINK:STATUS:ERROR?', ['0'])
     transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
     transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
+    transport.textResponses.set('SINK:EPR:EN?', ['OFF'])
     transport.textResponses.set('STAT:DEV?', ['0'])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
 

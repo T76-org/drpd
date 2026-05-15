@@ -214,11 +214,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_mode_entry.cpp`, `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; after-entry analyzer/source capture showing `EPR_Source_Capabilities` evaluation and `EPR_Request` still pending.
 
-- [ ] Do not auto-attempt EPR entry solely because Source fixed PDO has EPR bit set unless local policy says this Sink is EPR-capable and wants EPR.
+- [x] Do not auto-attempt EPR entry solely because Source fixed PDO has EPR bit set unless local policy says this Sink is EPR-capable and wants EPR.
   - Spec anchor: 6.4.10.1 conditions for EPR entry.
-  - Current issue: first explicit contract with `_sourceSupportsEpr` triggers EPR entry automatically.
+  - Current issue: fixed; EPR entry is gated by persisted local `SINK:EPR:EN` policy, defaults ON, and Request RDOs advertise EPR capability only when that policy is enabled.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/transition_sink.cpp`.
-  - Verification: SPR-only local policy stays in SPR Ready even with EPR-capable Source.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; frontend Sink client test passes; touched Python files compile; Python wrapper unittest is blocked in this environment by missing `usb`; SPR-only local policy analyzer/source capture still pending.
 
 ## P0 - EPR Capabilities and Requests
 

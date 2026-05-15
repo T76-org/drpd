@@ -107,7 +107,7 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
     request.capabilityMismatch(false);
     request.usbCommunicationsCapable(false);
     request.noUsbSuspend(true);
-    request.eprModeCapable(true);
+    request.eprModeCapable(state._eprEntryEnabled);
 
     const bool useEprRequestType = state._eprModeActive && state._eprCapabilities.has_value();
 
@@ -170,7 +170,6 @@ SinkRequestResult SelectCapabilityStateHandler::_requestFixedPDO(
 
     request.operatingCurrentMilliamps(requestedMilliamps);
     request.maxOperatingCurrentMilliamps(requestedMilliamps);
-    request.eprModeCapable(true);
     request.unchunkedExtendedMessageSupported(true);
 
     return _requestPDO(pdoIndex, pdoVariant, fixedPDO.voltageMillivolts(), requestedMilliamps, request);
@@ -244,7 +243,6 @@ SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
 
         Proto::AugmentedPPSRequest request(0);
 
-        request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
         request.operatingCurrentMilliamps(requestedMilliamps);
 
@@ -282,7 +280,6 @@ SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
 
         Proto::AugmentedAVSRequest request(0);
 
-        request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
         request.operatingCurrentMilliamps(requestedCurrentMA);
 
@@ -313,7 +310,6 @@ SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
 
         Proto::AugmentedAVSRequest request(0);
 
-        request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
         request.operatingCurrentMilliamps(requestedCurrentMA);
 

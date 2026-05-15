@@ -5,14 +5,17 @@
  * DRPD sink command group.
  */
 
+import { scpiEnum } from '../../transport/usbtmc'
 import type { DRPDTransport } from './transport'
 import {
   buildSinkInfo,
+  parseOnOffResponse,
   parseSingleInt,
   parseSingleScaledMilliInt,
   parseSinkPdo,
   parseSinkStateResponse,
 } from './parsers'
+import { OnOffState } from './types'
 import type { SinkInfo, SinkPdo, SinkState } from './types'
 
 /**
@@ -60,6 +63,28 @@ export class DRPDSink {
    */
   public async requestPdo(index: number, voltageMv: number, currentMa: number): Promise<void> {
     await this.transport.sendCommand('SINK:PDO', index, voltageMv, currentMa)
+  }
+
+  /**
+   * Enable or disable EPR entry policy.
+   *
+   * @param enabled - True to allow EPR entry during future negotiation.
+   */
+  public async setEprEnabled(enabled: boolean): Promise<void> {
+    await this.transport.sendCommand(
+      'SINK:EPR:EN',
+      scpiEnum(enabled ? OnOffState.ON : OnOffState.OFF),
+    )
+  }
+
+  /**
+   * Query whether EPR entry policy is enabled.
+   *
+   * @returns True when EPR entry is enabled.
+   */
+  public async getEprEnabled(): Promise<boolean> {
+    const response = await this.transport.queryText('SINK:EPR:EN?')
+    return parseOnOffResponse(response) === OnOffState.ON
   }
 
   /**

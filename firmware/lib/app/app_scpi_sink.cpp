@@ -138,6 +138,48 @@ void App::_setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &params) {
     }
 }
 
+void App::_setSinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    std::string stateStr = params[0].stringValue;
+    std::transform(stateStr.begin(), stateStr.end(), stateStr.begin(), ::toupper);
+
+    if (stateStr == "ON") {
+        sink->eprEntryEnabled(true);
+    } else if (stateStr == "OFF") {
+        sink->eprEntryEnabled(false);
+    } else {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    _savePersistentConfig();
+}
+
+void App::_querySinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    _sendTransportTextResponse(sink->eprEntryEnabled() ? "ON" : "OFF", true);
+}
+
 void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {
@@ -184,6 +226,9 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
             break;
         case Logic::SinkState::PE_SNK_EPR_Mode_Wait_For_Response:
             _sendTransportTextResponse("PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE", true);
+            break;
+        case Logic::SinkState::PE_SNK_Send_EPR_Mode_Exit:
+            _sendTransportTextResponse("PE_SNK_SEND_EPR_MODE_EXIT", true);
             break;
         case Logic::SinkState::PE_SNK_Give_Sink_Cap:
             _sendTransportTextResponse("PE_SNK_GIVE_SINK_CAP", true);

@@ -161,6 +161,40 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
   })
 })
 
+describe('DRPDWorkerDeviceProxy sink group', () => {
+  it('forwards sink EPR policy calls to the worker session RPC', async () => {
+    const callWorker = vi.fn(async (_method: string, request?: { method?: string }) => {
+      if (request?.method === 'getEprEnabled') {
+        return true
+      }
+      return null
+    })
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const proxy = new TestDRPDWorkerDeviceProxy(client)
+
+    await proxy.sink.setEprEnabled(true)
+    const enabled = await proxy.sink.getEprEnabled()
+
+    expect(enabled).toBe(true)
+    expect(callWorker).toHaveBeenNthCalledWith(1, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'sink',
+      method: 'setEprEnabled',
+      args: [true],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(2, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'sink',
+      method: 'getEprEnabled',
+      args: [],
+    })
+  })
+})
+
 describe('DRPDWorkerDeviceProxy connect flow', () => {
   it('awaits connect-time hydration before resolving handleConnect', async () => {
     const callWorker = vi.fn((method: string, request?: { method?: string }) => {

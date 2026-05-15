@@ -157,6 +157,7 @@ export class DRPDDevice extends EventTarget {
       triggerInfo: null,
       sinkInfo: null,
       sinkPdoList: null,
+      sinkEprEnabled: null,
       logSelection: {
         selectedKeys: [],
         anchorIndex: null,
@@ -778,6 +779,7 @@ export class DRPDDevice extends EventTarget {
     const hadTrigger = this.state.triggerInfo !== null
     const hadSinkInfo = this.state.sinkInfo !== null
     const hadPdoList = this.state.sinkPdoList !== null
+    const hadSinkEprEnabled = this.state.sinkEprEnabled !== null
     if (
       hadRole ||
       hadRoleStatus ||
@@ -786,7 +788,8 @@ export class DRPDDevice extends EventTarget {
       hadCaptureEnabled ||
       hadTrigger ||
       hadSinkInfo ||
-      hadPdoList
+      hadPdoList ||
+      hadSinkEprEnabled
     ) {
     this.state = {
       role: null,
@@ -797,6 +800,7 @@ export class DRPDDevice extends EventTarget {
       triggerInfo: null,
       sinkInfo: null,
       sinkPdoList: null,
+      sinkEprEnabled: null,
       logSelection: {
         selectedKeys: [],
         anchorIndex: null,
@@ -827,6 +831,9 @@ export class DRPDDevice extends EventTarget {
       }
       if (hadPdoList) {
         changed.push('sinkPdoList')
+      }
+      if (hadSinkEprEnabled) {
+        changed.push('sinkEprEnabled')
       }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
@@ -867,7 +874,8 @@ export class DRPDDevice extends EventTarget {
       this.capture.getCaptureEnabled(),
       this.trigger.getInfo(),
       shouldQuerySink ? this.sink.getSinkInfo() : Promise.resolve(null),
-      shouldQuerySink ? this.fetchSinkPdoList() : Promise.resolve(null)
+      shouldQuerySink ? this.fetchSinkPdoList() : Promise.resolve(null),
+      shouldQuerySink ? this.sink.getEprEnabled() : Promise.resolve(null),
     ])
 
     const [
@@ -877,7 +885,8 @@ export class DRPDDevice extends EventTarget {
       captureEnabledResult,
       triggerResult,
       sinkInfoResult,
-      pdoListResult
+      pdoListResult,
+      sinkEprEnabledResult,
     ] = results
 
     if (roleStatusResult.status === 'fulfilled') {
@@ -957,10 +966,21 @@ export class DRPDDevice extends EventTarget {
           new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: pdoListResult.reason } }),
         )
       }
-    } else if (this.state.sinkInfo || this.state.sinkPdoList) {
+      if (sinkEprEnabledResult.status === 'fulfilled') {
+        if (updated.sinkEprEnabled !== sinkEprEnabledResult.value) {
+          updated.sinkEprEnabled = sinkEprEnabledResult.value
+          changed.push('sinkEprEnabled')
+        }
+      } else {
+        this.dispatchEvent(
+          new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: sinkEprEnabledResult.reason } }),
+        )
+      }
+    } else if (this.state.sinkInfo || this.state.sinkPdoList || this.state.sinkEprEnabled !== null) {
       updated.sinkInfo = null
       updated.sinkPdoList = null
-      changed.push('sinkInfo', 'sinkPdoList')
+      updated.sinkEprEnabled = null
+      changed.push('sinkInfo', 'sinkPdoList', 'sinkEprEnabled')
     }
 
     if (!changed.length) {
@@ -1173,11 +1193,13 @@ export class DRPDDevice extends EventTarget {
     const shouldClearSink = role !== 'SINK'
     const previousSinkInfo = this.state.sinkInfo
     const previousSinkPdoList = this.state.sinkPdoList
+    const previousSinkEprEnabled = this.state.sinkEprEnabled
     this.state = {
       ...this.state,
       role,
       sinkInfo: shouldClearSink ? null : this.state.sinkInfo,
-      sinkPdoList: shouldClearSink ? null : this.state.sinkPdoList
+      sinkPdoList: shouldClearSink ? null : this.state.sinkPdoList,
+      sinkEprEnabled: shouldClearSink ? null : this.state.sinkEprEnabled,
     }
     this.dispatchEvent(
       new CustomEvent(DRPDDevice.ROLE_CHANGED_EVENT, {
@@ -1187,7 +1209,7 @@ export class DRPDDevice extends EventTarget {
     if (previousRole !== null) {
       void this.logSignificantEvent('cc_role_changed', `CC role changed to ${role}`)
     }
-    if (shouldClearSink && (previousSinkInfo || previousSinkPdoList)) {
+    if (shouldClearSink && (previousSinkInfo || previousSinkPdoList || previousSinkEprEnabled !== null)) {
       if (previousSinkInfo) {
         this.dispatchEvent(
           new CustomEvent(DRPDDevice.SINK_INFO_CHANGED_EVENT, {
@@ -1204,7 +1226,7 @@ export class DRPDDevice extends EventTarget {
       }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
-          detail: { state: this.getState(), changed: ['role', 'sinkInfo', 'sinkPdoList'] },
+          detail: { state: this.getState(), changed: ['role', 'sinkInfo', 'sinkPdoList', 'sinkEprEnabled'] },
         }),
       )
       return

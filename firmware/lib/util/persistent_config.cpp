@@ -18,6 +18,7 @@
 using namespace T76::DRPD;
 
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV1>);
+static_assert(std::is_trivially_copyable_v<PersistentConfigDataV2>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataCurrent>);
 
 PersistentConfig &PersistentConfig::instance() {
@@ -92,6 +93,9 @@ PersistentConfigDataCurrent PersistentConfig::_defaultConfig() const {
             .mode = 0,
             .pulseWidthUs = 1000,
         },
+        .sink = SinkPersistentConfig{
+            .eprEntryEnabled = true,
+        },
     };
 }
 
@@ -160,7 +164,28 @@ bool PersistentConfig::_decodeVersion1(const uint8_t *payload,
 
     PersistentConfigDataV1 version1{};
     std::memcpy(&version1, payload, sizeof(version1));
-    decoded = version1;
+    decoded = PersistentConfigDataCurrent{
+        .vbus = version1.vbus,
+        .analogMonitor = version1.analogMonitor,
+        .trigger = version1.trigger,
+        .sync = version1.sync,
+        .sink = SinkPersistentConfig{
+            .eprEntryEnabled = true,
+        },
+    };
+    return true;
+}
+
+bool PersistentConfig::_decodeVersion2(const uint8_t *payload,
+                                       uint32_t payloadSize,
+                                       PersistentConfigDataCurrent &decoded) const {
+    if (payloadSize != sizeof(PersistentConfigDataV2)) {
+        return false;
+    }
+
+    PersistentConfigDataV2 version2{};
+    std::memcpy(&version2, payload, sizeof(version2));
+    decoded = version2;
     return true;
 }
 
@@ -171,6 +196,8 @@ bool PersistentConfig::_decodeStoredConfig(uint32_t schemaVersion,
     switch (schemaVersion) {
         case 1:
             return _decodeVersion1(payload, payloadSize, decoded);
+        case 2:
+            return _decodeVersion2(payload, payloadSize, decoded);
         default:
             return false;
     }

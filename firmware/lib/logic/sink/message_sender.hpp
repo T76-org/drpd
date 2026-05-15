@@ -97,6 +97,11 @@ namespace T76::DRPD::Logic {
          */
         void handleGoodCRCReceived(uint32_t messageId);
 
+        /**
+         * @brief Stop awaiting GoodCRC for the current message without resetting MessageIDCounter.
+         */
+        void abandonPendingMessage();
+
         /** 
          * @brief Reset the GoodCRC timeout timer and retry count
          * 

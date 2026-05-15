@@ -17,7 +17,7 @@ int64_t EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeoutCallback(
     (void)id;
     auto *handler = static_cast<EPRKeepaliveStateHandler *>(user_data);
     handler->_keepaliveIntervalAlarmId = -1;
-    if (handler->_context != nullptr) {
+    if (handler->_keepaliveTimersActive()) {
         handler->_context->enqueueTimeoutEvent(
             SinkTimeoutEvent{SinkTimeoutEventType::EPRKeepaliveIntervalTimeout}
         );
@@ -29,7 +29,7 @@ int64_t EPRKeepaliveStateHandler::_onSourceWatchdogTimeoutCallback(alarm_id_t id
     (void)id;
     auto *handler = static_cast<EPRKeepaliveStateHandler *>(user_data);
     handler->_sourceWatchdogAlarmId = -1;
-    if (handler->_context != nullptr) {
+    if (handler->_keepaliveTimersActive()) {
         handler->_context->enqueueTimeoutEvent(
             SinkTimeoutEvent{SinkTimeoutEventType::EPRSourceWatchdogTimeout}
         );
@@ -38,7 +38,7 @@ int64_t EPRKeepaliveStateHandler::_onSourceWatchdogTimeoutCallback(alarm_id_t id
 }
 
 void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
-    if (_context == nullptr) {
+    if (!_keepaliveTimersActive()) {
         return;
     }
 
@@ -56,7 +56,7 @@ void EPRKeepaliveStateHandler::_onKeepaliveIntervalTimeout() {
 }
 
 void EPRKeepaliveStateHandler::_onSourceWatchdogTimeout() {
-    if (_context == nullptr) {
+    if (!_keepaliveTimersActive()) {
         return;
     }
 
@@ -76,19 +76,22 @@ void EPRKeepaliveStateHandler::_onSourceWatchdogTimeout() {
 }
 
 void EPRKeepaliveStateHandler::_exitEPRMode() {
-    if (_context == nullptr) {
+    if (!_keepaliveTimersActive()) {
         return;
     }
 
-    _context->sendEPRMode(Proto::EPRMode::Action::Exit, 0);
-    _context->setEPRModeActive(false);
-    _context->clearEPRSourceCapabilities();
+    _context->transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
+}
 
-    if (_context->runtimeState()._negotiatedPDO.has_value()) {
-        _context->transitionTo(SinkState::PE_SNK_Ready);
-    } else {
-        _context->transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+bool EPRKeepaliveStateHandler::_keepaliveTimersActive() const {
+    if (_context == nullptr) {
+        return false;
     }
+
+    const auto& state = _context->runtimeState();
+    return state._eprModeActive &&
+        (state._state == SinkState::PE_SNK_Get_Source_Cap ||
+         state._state == SinkState::PE_SNK_EPR_Keepalive);
 }
 
 void EPRKeepaliveStateHandler::handleMessage(

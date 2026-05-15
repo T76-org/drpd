@@ -19,6 +19,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _bmcEncoder(bmcEncoder),
     _disconnectedStateHandler(),
     _eprKeepaliveStateHandler(),
+    _eprModeExitStateHandler(),
     _eprModeEntryStateHandler(),
     _getPPSStatusStateHandler(),
     _readySinkStateHandler(),
@@ -39,6 +40,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _ccBusController,
         _disconnectedStateHandler,
         _eprKeepaliveStateHandler,
+        _eprModeExitStateHandler,
         _eprModeEntryStateHandler,
         _getPPSStatusStateHandler,
         _readySinkStateHandler,
@@ -61,6 +63,7 @@ void Sink::initCore1() {
 }
 
 void Sink::loopCore1() {
+    _processPendingPolicyRequests();
     _processPendingRequests();
 
     if (_ccBusResetPending.exchange(false, std::memory_order_acq_rel)) {
@@ -158,6 +161,7 @@ void Sink::disable() {
     while (queue_try_remove(&_pendingRequestQueue, &droppedRequest)) {
     }
     _ccBusResetPending.store(false, std::memory_order_release);
+    _eprExitPending.store(false, std::memory_order_release);
 
     reset();
 }
@@ -199,6 +203,10 @@ void Sink::_enqueueTimeoutEvent(SinkTimeoutEvent event) {
 }
 
 void Sink::_processPendingRequests() {
+    if (_runtimeState._state == SinkState::PE_SNK_Send_EPR_Mode_Exit) {
+        return;
+    }
+
     PendingPDORequest request{};
     while (queue_try_remove(&_pendingRequestQueue, &request)) {
         if (!_enabled.load()) {
@@ -207,4 +215,20 @@ void Sink::_processPendingRequests() {
 
         (void)_context.requestPDO(request.pdoIndex, request.voltageMV, request.currentMA);
     }
+}
+
+void Sink::_processPendingPolicyRequests() {
+    if (!_eprExitPending.exchange(false, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    if (!_enabled.load()) {
+        return;
+    }
+
+    if (!_runtimeState._eprModeActive) {
+        return;
+    }
+
+    _context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
 }

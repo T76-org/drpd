@@ -214,6 +214,7 @@ export const SinkState = {
   PE_SNK_READY: 'PE_SNK_READY',
   PE_SNK_SEND_EPR_MODE_ENTRY: 'PE_SNK_SEND_EPR_MODE_ENTRY',
   PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE: 'PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE',
+  PE_SNK_SEND_EPR_MODE_EXIT: 'PE_SNK_SEND_EPR_MODE_EXIT',
   PE_SNK_GIVE_SINK_CAP: 'PE_SNK_GIVE_SINK_CAP',
   PE_SNK_GET_SOURCE_CAP: 'PE_SNK_GET_SOURCE_CAP',
   PE_SNK_GET_PPS_STATUS: 'PE_SNK_GET_PPS_STATUS',
@@ -633,6 +634,8 @@ export interface DRPDDeviceState {
   sinkInfo: SinkInfo | null
   ///< Sink PDO list snapshot, or null if unknown.
   sinkPdoList: SinkPdo[] | null
+  ///< Sink EPR entry policy, or null if unknown.
+  sinkEprEnabled: boolean | null
   ///< Current message-log selection state.
   logSelection: DRPDLogSelectionState
 }

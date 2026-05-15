@@ -164,6 +164,8 @@ namespace T76::DRPD {
         void _querySinkAvailablePDOCount(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSinkPDO(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setSinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &);
+        void _querySinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkNegotiatedPDO(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkNegotiatedVoltage(const std::vector<T76::SCPI::ParameterValue> &);

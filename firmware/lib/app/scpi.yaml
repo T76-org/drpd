@@ -417,6 +417,46 @@ commands:
         description: "The device is not in Sink role, the Sink state cannot accept a PDO request, or the sink policy rejected the request."
     handler:      _setSinkPDO
 
+  - syntax:       "SINK:EPR:EN"
+    description:  |
+                    Enable or disable local Sink policy for EPR entry. When disabled,
+                    the Sink remains in SPR mode even if the Source advertises EPR.
+                    The setting defaults to ON and is persisted in flash.
+                    If disabled during active EPR mode, the Sink sends EPR_Mode
+                    Exit and returns to SPR policy.
+                    Enabling affects future negotiation and does not force immediate
+                    entry into EPR mode for an existing explicit contract.
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF"]
+        description: "ON enables EPR entry policy; OFF keeps Sink negotiation SPR-only."
+    errors:
+      -200:
+        message:     "Execution error"
+        description: "The CC bus controller is in Sink role, but no Sink object is available."
+      -221:
+        message:     "Settings conflict"
+        description: "The device is not currently operating in Sink role."
+      -224:
+        message:     "Illegal parameter value"
+        description: "The EPR enable state value was not ON or OFF."
+    handler:      _setSinkEPREntryState
+
+  - syntax:       "SINK:EPR:EN?"
+    description:  |
+                    Query whether local Sink policy allows EPR entry.
+                    Returns ON or OFF. The setting defaults to ON and is
+                    persisted in flash.
+    errors:
+      -200:
+        message:     "Execution error"
+        description: "The CC bus controller is in Sink role, but no Sink object is available."
+      -221:
+        message:     "Settings conflict"
+        description: "The device is not currently operating in Sink role."
+    handler:      _querySinkEPREntryState
+
   - syntax:       "SINK:STATUS?"
     description:  |
                     Query the current state of the sink state machine.
@@ -431,6 +471,7 @@ commands:
                     - PE_SNK_READY
                     - PE_SNK_SEND_EPR_MODE_ENTRY
                     - PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE
+                    - PE_SNK_SEND_EPR_MODE_EXIT
                     - PE_SNK_GIVE_SINK_CAP
                     - PE_SNK_GET_SOURCE_CAP
                     - PE_SNK_GET_PPS_STATUS

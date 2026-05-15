@@ -49,6 +49,7 @@ namespace T76::DRPD::Logic {
 
     class DisconnectedStateHandler;
     class EPRKeepaliveStateHandler;
+    class EPRModeExitStateHandler;
     class EPRModeEntryStateHandler;
     class GetPPSStatusStateHandler;
     class ReadySinkStateHandler;
@@ -94,6 +95,7 @@ namespace T76::DRPD::Logic {
             CCBusController& ccBusController,
             DisconnectedStateHandler& disconnectedStateHandler,
             EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
+            EPRModeExitStateHandler& eprModeExitStateHandler,
             EPRModeEntryStateHandler& eprModeEntryStateHandler,
             GetPPSStatusStateHandler& getPPSStatusStateHandler,
             ReadySinkStateHandler& readySinkStateHandler,
@@ -163,6 +165,18 @@ namespace T76::DRPD::Logic {
          * @param active True if EPR mode is active; false otherwise.
          */
         void setEPRModeActive(bool active);
+
+        /**
+         * @brief Set whether local policy allows EPR entry.
+         * @param enabled True to allow EPR entry on the next eligible SPR contract.
+         */
+        void setEPREntryEnabled(bool enabled);
+
+        /**
+         * @brief Get whether local policy allows EPR entry.
+         * @return True when EPR entry is enabled.
+         */
+        [[nodiscard]] bool eprEntryEnabled() const;
 
         /**
          * @brief Return count of currently active PDO view (EPR if present, else SPR).
@@ -244,6 +258,11 @@ namespace T76::DRPD::Logic {
         void sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message);
 
         /**
+         * @brief Stop tracking the current outgoing message without resetting MessageIDCounter.
+         */
+        void abandonPendingMessage();
+
+        /**
          * @brief Validate whether a PDO request can be attempted without mutating policy state.
          * @param pdoIndex Zero-based PDO index in active capabilities view.
          * @param voltageMV Requested voltage in millivolts.
@@ -299,6 +318,7 @@ namespace T76::DRPD::Logic {
 
         DisconnectedStateHandler& _disconnectedStateHandler;             ///< Handler for Disconnected.
         EPRKeepaliveStateHandler& _eprKeepaliveStateHandler;             ///< Handler for EPR Keepalive.
+        EPRModeExitStateHandler& _eprModeExitStateHandler;               ///< Handler for EPR Mode Exit.
         EPRModeEntryStateHandler& _eprModeEntryStateHandler;             ///< Handler for EPR Mode Entry.
         GetPPSStatusStateHandler& _getPPSStatusStateHandler;             ///< Handler for PPS status query.
         ReadySinkStateHandler& _readySinkStateHandler;                   ///< Handler for Ready.

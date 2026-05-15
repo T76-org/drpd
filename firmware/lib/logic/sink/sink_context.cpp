@@ -12,6 +12,7 @@
 #include "../cc_bus_controller.hpp"
 #include "state_handlers/disconnected.hpp"
 #include "state_handlers/epr_keepalive.hpp"
+#include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
 #include "state_handlers/ready.hpp"
@@ -29,6 +30,7 @@ SinkContext::SinkContext(
     CCBusController& ccBusController,
     DisconnectedStateHandler& disconnectedStateHandler,
     EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
+    EPRModeExitStateHandler& eprModeExitStateHandler,
     EPRModeEntryStateHandler& eprModeEntryStateHandler,
     GetPPSStatusStateHandler& getPPSStatusStateHandler,
     ReadySinkStateHandler& readySinkStateHandler,
@@ -44,6 +46,7 @@ SinkContext::SinkContext(
     _ccBusController(ccBusController),
     _disconnectedStateHandler(disconnectedStateHandler),
     _eprKeepaliveStateHandler(eprKeepaliveStateHandler),
+    _eprModeExitStateHandler(eprModeExitStateHandler),
     _eprModeEntryStateHandler(eprModeEntryStateHandler),
     _getPPSStatusStateHandler(getPPSStatusStateHandler),
     _readySinkStateHandler(readySinkStateHandler),
@@ -101,6 +104,10 @@ void SinkContext::transitionTo(SinkState state) {
         case SinkState::PE_SNK_Send_EPR_Mode_Entry:
         case SinkState::PE_SNK_EPR_Mode_Wait_For_Response:
             _runtimeState._currentStateHandler = &_eprModeEntryStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Send_EPR_Mode_Exit:
+            _runtimeState._currentStateHandler = &_eprModeExitStateHandler;
             break;
 
         case SinkState::PE_SNK_Get_Source_Cap:
@@ -212,6 +219,19 @@ void SinkContext::setEPRModeActive(bool active) {
     }
 
     _notifySinkInfoChanged(SinkInfoChange::OtherInfoChanged);
+}
+
+void SinkContext::setEPREntryEnabled(bool enabled) {
+    if (_runtimeState._eprEntryEnabled == enabled) {
+        return;
+    }
+
+    _runtimeState._eprEntryEnabled = enabled;
+    _notifySinkInfoChanged(SinkInfoChange::OtherInfoChanged);
+}
+
+bool SinkContext::eprEntryEnabled() const {
+    return _runtimeState._eprEntryEnabled;
 }
 
 size_t SinkContext::totalPDOCount() const {
@@ -439,6 +459,10 @@ void SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGood
 
 void SinkContext::sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message) {
     _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
+void SinkContext::abandonPendingMessage() {
+    _messageSender.abandonPendingMessage();
 }
 
 SinkRequestResult SinkContext::validatePDORequest(

@@ -87,6 +87,12 @@ namespace T76::DRPD::Logic {
         void _exitEPRMode();
 
         /**
+         * @brief Return true when a keepalive timer event still applies to the active state.
+         * @return True when the bound context is still in an EPR keepalive state.
+         */
+        [[nodiscard]] bool _keepaliveTimersActive() const;
+
+        /**
          * @brief Static callback for keepalive interval timer.
          * @param id Alarm id.
          * @param user_data Pointer to handler instance.

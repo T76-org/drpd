@@ -618,6 +618,13 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         if (method === 'getSinkInfo') {
           return await session.device.sink.getSinkInfo()
         }
+        if (method === 'getEprEnabled') {
+          return await session.device.sink.getEprEnabled()
+        }
+        if (method === 'setEprEnabled') {
+          await session.device.sink.setEprEnabled(args[0] as boolean)
+          return null
+        }
         if (method === 'requestPdo') {
           await session.device.sink.requestPdo(args[0] as number, args[1] as number, args[2] as number)
           return null

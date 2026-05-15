@@ -87,6 +87,8 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getAvailablePdoCount: () => Promise<number>
     getPdoAtIndex: (index: number) => Promise<SinkPdo>
     getSinkInfo: () => Promise<SinkInfo>
+    getEprEnabled: () => Promise<boolean>
+    setEprEnabled: (enabled: boolean) => Promise<void>
     requestPdo: (index: number, voltageMv: number, currentMa: number) => Promise<void>
   } ///< Sink command-group proxy.
   public readonly trigger: {
@@ -191,6 +193,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       triggerInfo: null,
       sinkInfo: null,
       sinkPdoList: null,
+      sinkEprEnabled: null,
       logSelection: {
         selectedKeys: [],
         anchorIndex: null,
@@ -236,6 +239,10 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       getAvailablePdoCount: async () => (await this.callGroup('sink', 'getAvailablePdoCount')) as number,
       getPdoAtIndex: async (index) => (await this.callGroup('sink', 'getPdoAtIndex', index)) as SinkPdo,
       getSinkInfo: async () => (await this.callGroup('sink', 'getSinkInfo')) as SinkInfo,
+      getEprEnabled: async () => (await this.callGroup('sink', 'getEprEnabled')) as boolean,
+      setEprEnabled: async (enabled) => {
+        await this.callGroup('sink', 'setEprEnabled', enabled)
+      },
       requestPdo: async (index, voltageMv, currentMa) => {
         await this.callGroup('sink', 'requestPdo', index, voltageMv, currentMa)
       },

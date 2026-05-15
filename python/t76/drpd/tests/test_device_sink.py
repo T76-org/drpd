@@ -226,6 +226,55 @@ class TestDeviceSinkPDORequest(unittest.IsolatedAsyncioTestCase):
 
         self.mock_internal.write_ascii_and_check.assert_not_called()
 
+    async def test_set_epr_enabled_on(self) -> None:
+        """Test enabling EPR entry policy."""
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "SINK"
+        ]
+
+        await self.device_sink.set_epr_enabled(True)
+
+        self.mock_internal.write_ascii_and_check.assert_called_once_with(
+            "SINK:EPR:EN ON"
+        )
+
+    async def test_set_epr_enabled_off(self) -> None:
+        """Test disabling EPR entry policy."""
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "SINK"
+        ]
+
+        await self.device_sink.set_epr_enabled(False)
+
+        self.mock_internal.write_ascii_and_check.assert_called_once_with(
+            "SINK:EPR:EN OFF"
+        )
+
+    async def test_get_epr_enabled(self) -> None:
+        """Test querying EPR entry policy."""
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["SINK"],
+            ["ON"],
+        ]
+
+        enabled = await self.device_sink.get_epr_enabled()
+
+        self.assertTrue(enabled)
+        self.mock_internal.query_ascii_values_and_check.assert_any_call(
+            "SINK:EPR:EN?", "s"
+        )
+
+    async def test_set_epr_enabled_mode_validation(self) -> None:
+        """Test EPR entry policy command fails if device not in SINK mode."""
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "OBSERVER"
+        ]
+
+        with self.assertRaises(RuntimeError):
+            await self.device_sink.set_epr_enabled(True)
+
+        self.mock_internal.write_ascii_and_check.assert_not_called()
+
 
 class TestDeviceSinkStatusQueries(unittest.IsolatedAsyncioTestCase):
     """Tests for sink status query methods."""

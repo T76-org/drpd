@@ -105,6 +105,14 @@ Sink* CCBusController::sink() {
     return nullptr;
 }
 
+void CCBusController::applySinkPersistentConfig(const T76::DRPD::SinkPersistentConfig& config) {
+    _sink.applyPersistentConfig(config);
+}
+
+T76::DRPD::SinkPersistentConfig CCBusController::exportSinkPersistentConfig() const {
+    return _sink.exportPersistentConfig();
+}
+
 uint32_t CCBusController::addStateChangedCallback(StateChangedCallback callback) {
     if (!callback) {
         return 0;

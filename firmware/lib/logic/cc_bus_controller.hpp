@@ -202,6 +202,18 @@ namespace T76::DRPD::Logic {
         Sink* sink();
 
         /**
+         * @brief Apply persisted Sink policy settings.
+         * @param config Persisted Sink settings.
+         */
+        void applySinkPersistentConfig(const T76::DRPD::SinkPersistentConfig& config);
+
+        /**
+         * @brief Export current Sink policy settings for persistence.
+         * @return Current Sink persistent settings.
+         */
+        [[nodiscard]] T76::DRPD::SinkPersistentConfig exportSinkPersistentConfig() const;
+
+        /**
          * @brief Add a callback function to be called when the state changes
          * 
          * @param callback The callback function to be called when the state changes.
