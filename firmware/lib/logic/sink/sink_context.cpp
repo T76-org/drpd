@@ -309,6 +309,21 @@ void SinkContext::sendSinkCapabilitiesExtended() {
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
 
+void SinkContext::sendRevision() {
+    const Proto::Revision revision = Proto::Revision::revision3p2Version1p1();
+    PHY::BMCEncodedMessage message(
+        Proto::SOP::SOPType::SOP,
+        revision
+    );
+
+    auto &header = message.header();
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+
+    _messageSender.sendMessageAndAwaitGoodCRC(message);
+}
+
 void SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
     const Proto::EPRMode eprMode(action, data);
     PHY::BMCEncodedMessage message(

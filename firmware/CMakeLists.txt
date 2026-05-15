@@ -131,6 +131,7 @@ add_executable(drpd-firmware
         lib/proto/pd_messages/pdo/pdo_battery.cpp
         lib/proto/pd_messages/pdo/pdo_augmented.cpp
         lib/proto/pd_messages/request.cpp
+        lib/proto/pd_messages/revision.cpp
         lib/proto/pd_messages/sink_capabilities.cpp
         lib/proto/pd_messages/sink_capabilities_extended.cpp
         lib/proto/pd_messages/source_capabilities.cpp

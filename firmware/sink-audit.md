@@ -78,11 +78,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `firmware/lib/proto/pd_message_types.hpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Sink_Cap_Extended` -> `Sink_Capabilities_Extended` still pending.
 
-- [ ] Implement `Get_Revision` response with `Revision`.
+- [x] Implement `Get_Revision` response with `Revision`.
   - Spec anchor: 6.3.24, 6.4.12, Table 6.77.
   - Current issue: no firmware `Revision` response path exists for Sink; Ready falls to `Not_Supported`.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/ready.cpp`, `firmware/lib/proto/pd_message_types.hpp`.
-  - Verification: Source sends `Get_Revision`; Sink returns one RMDO for PD Revision 3.2 Version 1.1 or supported local version.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture of `Get_Revision` -> `Revision` still pending.
 
 - [ ] Decide and implement `Get_Status` behavior: support with `Status` if feature exists, else explicit `Not_Supported`.
   - Spec anchor: 6.3.18, 6.5.2, Table 6.77.
