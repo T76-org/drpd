@@ -304,11 +304,11 @@ Use this file as fix backlog. Check each item off only after implementation and 
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`, `message_sender.cpp`.
   - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
-- [ ] Remove local three-strike EPR watchdog exit behavior or map it to spec Hard Reset behavior.
+- [x] Remove local three-strike EPR watchdog exit behavior or map it to spec Hard Reset behavior.
   - Spec anchor: 2.5.3, 6.4.10.2, 8.3.3.3.11.
-  - Current issue: after three failures, code sends EPR Exit and leaves EPR. Spec says communication loss/keepalive failure results in Hard Reset.
+  - Current issue: fixed; source watchdog expiry in EPR keepalive state now performs Hard Reset directly instead of retrying three times and sending commanded EPR Exit.
   - Code anchor: `firmware/lib/logic/sink/state_handlers/epr_keepalive.cpp`.
-  - Verification: no EPR KeepAlive Ack or no required traffic causes Hard Reset, not EPR Exit.
+  - Verification: `cmake --build firmware/build --target drpd-firmware` passes; analyzer/source capture still pending.
 
 - [ ] Treat incoming Source `EPR_KeepAlive` carefully.
   - Spec anchor: 6.5.14.3 says `EPR_KeepAlive` is sent by Sink; 6.5.14.4 says Ack sent by Source.

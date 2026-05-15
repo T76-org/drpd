@@ -81,33 +81,7 @@ void EPRKeepaliveStateHandler::_onSourceWatchdogTimeout() {
         return;
     }
 
-    _keepaliveFailureCount++;
-
-    if (_keepaliveFailureCount >= 3) {
-        _exitEPRMode();
-        return;
-    }
-
-    _sourceWatchdogAlarmId = _context->addAlarmInUs(
-        LOGIC_SINK_EPR_SOURCE_KEEPALIVE_WATCHDOG_US,
-        _onSourceWatchdogTimeoutCallback,
-        this,
-        true
-    );
-}
-
-void EPRKeepaliveStateHandler::_exitEPRMode() {
-    if (!_keepaliveTimersActive()) {
-        return;
-    }
-
-    if (!_context->eprExitContractReady()) {
-        _context->runtimeState()._eprSourceExitRequested = true;
-        (void)_context->requestPDO(0, 0, 0);
-        return;
-    }
-
-    _context->transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
+    _context->performReset(SinkResetType::HardReset);
 }
 
 void EPRKeepaliveStateHandler::_startKeepaliveIntervalTimer(SinkContext& context) {
@@ -215,8 +189,6 @@ void EPRKeepaliveStateHandler::handleMessage(
             }
 
             if (isKeepalive || isKeepaliveAck) {
-                _keepaliveFailureCount = 0;
-
                 if (isKeepaliveAck && _waitingForKeepaliveAck) {
                     _waitingForKeepaliveAck = false;
                     _stopKeepaliveResponseTimer(context);
@@ -329,7 +301,6 @@ void EPRKeepaliveStateHandler::handleTimeoutEvent(
 
 void EPRKeepaliveStateHandler::enter(SinkContext& context) {
     _bindContext(context);
-    _keepaliveFailureCount = 0;
 
     if (!context.runtimeState()._eprCapabilities.has_value()) {
         context.sendExtendedControlMessage(
@@ -359,7 +330,6 @@ void EPRKeepaliveStateHandler::reset(SinkContext& context) {
         _sourceWatchdogAlarmId = -1;
     }
 
-    _keepaliveFailureCount = 0;
     _waitingForKeepaliveAck = false;
     _unbindContext();
 }

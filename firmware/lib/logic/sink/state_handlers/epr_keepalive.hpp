@@ -70,7 +70,6 @@ namespace T76::DRPD::Logic {
         alarm_id_t _keepaliveIntervalAlarmId = -1; ///< Sink keepalive interval timer
         alarm_id_t _keepaliveResponseAlarmId = -1; ///< SenderResponse timer for EPR_KeepAlive_Ack.
         alarm_id_t _sourceWatchdogAlarmId = -1;    ///< Source keepalive watchdog timer
-        uint8_t _keepaliveFailureCount = 0;        ///< Consecutive keepalive failures
         bool _waitingForKeepaliveAck = false;      ///< True after sending EPR_KeepAlive until Ack/timeout.
 
         /**
@@ -87,11 +86,6 @@ namespace T76::DRPD::Logic {
          * @brief Handle source keepalive watchdog expiry.
          */
         void _onSourceWatchdogTimeout();
-
-        /**
-         * @brief Exit EPR mode and transition to appropriate fallback state.
-         */
-        void _exitEPRMode();
 
         /**
          * @brief Start the periodic SinkEPRKeepAliveTimer.
