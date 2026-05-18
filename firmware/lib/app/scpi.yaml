@@ -525,6 +525,44 @@ commands:
         description: "The device is not currently operating in Sink role."
     handler:      _querySinkEPREntryState
 
+  - syntax:       "SINK:PPS:STATUS:EN"
+    description:  |
+                    Enable or disable local Sink policy for sending Get_PPS_Status
+                    after SPR PPS transitions. When disabled, SPR PPS negotiation
+                    and periodic PPS Request refresh remain active, but the Sink
+                    skips the follow-up Get_PPS_Status query after PS_RDY.
+                    The setting defaults to OFF and is persisted in flash.
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF"]
+        description: "ON enables Get_PPS_Status queries after SPR PPS transitions; OFF disables them."
+    errors:
+      -200:
+        message:     "Execution error"
+        description: "The CC bus controller is in Sink role, but no Sink object is available."
+      -221:
+        message:     "Settings conflict"
+        description: "The device is not currently operating in Sink role."
+      -224:
+        message:     "Illegal parameter value"
+        description: "The PPS status query state value was not ON or OFF."
+    handler:      _setSinkPPSStatusQueryState
+
+  - syntax:       "SINK:PPS:STATUS:EN?"
+    description:  |
+                    Query whether local Sink policy sends Get_PPS_Status after
+                    SPR PPS transitions. Returns ON or OFF. The setting defaults
+                    to OFF and is persisted in flash.
+    errors:
+      -200:
+        message:     "Execution error"
+        description: "The CC bus controller is in Sink role, but no Sink object is available."
+      -221:
+        message:     "Settings conflict"
+        description: "The device is not currently operating in Sink role."
+    handler:      _querySinkPPSStatusQueryState
+
   - syntax:       "SINK:STATUS?"
     description:  |
                     Query the current state of the sink state machine.

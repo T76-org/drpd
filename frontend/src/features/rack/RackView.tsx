@@ -1670,7 +1670,11 @@ export const RackView = () => {
       if (changed.includes('logSelection')) {
         readSelection()
       }
-      if (changed.includes('role') || changed.includes('sinkEprEnabled')) {
+      if (
+        changed.includes('role') ||
+        changed.includes('sinkEprEnabled') ||
+        changed.includes('sinkPpsStatusQueryEnabled')
+      ) {
         setDeviceStates((states) =>
           states.map((state) =>
             state.status === 'connected' && state.drpdDriver === activeDriver
@@ -2254,6 +2258,39 @@ export const RackView = () => {
     }
   }, [])
 
+  const handleSetActiveSinkPpsStatusQueryEnabled = useCallback(async (enabled: boolean) => {
+    const state = deviceStatesRef.current.find(
+      (entry) => entry.status === 'connected' && entry.drpdDriver,
+    )
+    const driver = state?.drpdDriver
+    if (!driver || driver.getState().role !== CCBusRole.SINK) {
+      return
+    }
+
+    try {
+      await driver.sink.setPpsStatusQueryEnabled(enabled)
+      await driver.refreshState()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const handleRefreshActiveDeviceState = useCallback(async () => {
+    const state = deviceStatesRef.current.find(
+      (entry) => entry.status === 'connected' && entry.drpdDriver,
+    )
+    const driver = state?.drpdDriver
+    if (!driver) {
+      return
+    }
+
+    try {
+      await driver.refreshState()
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
   const handleRestoreMessageLogTableLayout = useCallback(() => {
     setMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
     setMessageLogColumnVisibilityInput(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
@@ -2553,6 +2590,16 @@ export const RackView = () => {
                 disabled: !activeDriver || !isSinkMode,
                 onCheckedChange: (checked) => {
                   void handleSetActiveSinkEprEnabled(checked)
+                },
+              },
+              {
+                id: 'send-get-pps-status-messages',
+                type: 'checkbox',
+                label: 'Send Get_PPS_Status messages',
+                checked: activeDriverState?.sinkPpsStatusQueryEnabled === true,
+                disabled: !activeDriver || !isSinkMode,
+                onCheckedChange: (checked) => {
+                  void handleSetActiveSinkPpsStatusQueryEnabled(checked)
                 },
               },
             ],
@@ -2857,6 +2904,7 @@ export const RackView = () => {
     handleRestoreMessageLogTableLayout,
     handleSetActiveDeviceRole,
     handleSetProtectionThresholds,
+    handleRefreshActiveDeviceState,
     handleToggleActiveDeviceCapture,
     isFirmwareUploadBusy,
     isCaptureEnabled,
@@ -2882,6 +2930,8 @@ export const RackView = () => {
     theme,
     timeSinceMeterReset,
     toggleGoodCrcMessages,
+    handleSetActiveSinkEprEnabled,
+    handleSetActiveSinkPpsStatusQueryEnabled,
   ])
 
   return (
@@ -2895,11 +2945,28 @@ export const RackView = () => {
                 label={`${menu.label} menu`}
                 align="start"
                 items={menu.items}
-                trigger={(props) => (
-                  <button type="button" className={styles.menuBarButton} {...props}>
-                    {menu.label}
-                  </button>
-                )}
+                trigger={(props) => {
+                  const handleClick: typeof props.onClick = (event) => {
+                    if (menu.id !== 'mode') {
+                      props.onClick?.(event)
+                      return
+                    }
+                    void handleRefreshActiveDeviceState().finally(() => {
+                      props.onClick?.(event)
+                    })
+                  }
+
+                  return (
+                    <button
+                      {...props}
+                      type="button"
+                      className={styles.menuBarButton}
+                      onClick={handleClick}
+                    >
+                      {menu.label}
+                    </button>
+                  )
+                }}
               />
             ))}
           </div>

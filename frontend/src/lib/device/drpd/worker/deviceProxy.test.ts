@@ -193,6 +193,38 @@ describe('DRPDWorkerDeviceProxy sink group', () => {
       args: [],
     })
   })
+
+  it('forwards sink PPS status query policy calls to the worker session RPC', async () => {
+    const callWorker = vi.fn(async (_method: string, request?: { method?: string }) => {
+      if (request?.method === 'getPpsStatusQueryEnabled') {
+        return true
+      }
+      return null
+    })
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const proxy = new TestDRPDWorkerDeviceProxy(client)
+
+    await proxy.sink.setPpsStatusQueryEnabled(true)
+    const enabled = await proxy.sink.getPpsStatusQueryEnabled()
+
+    expect(enabled).toBe(true)
+    expect(callWorker).toHaveBeenNthCalledWith(1, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'sink',
+      method: 'setPpsStatusQueryEnabled',
+      args: [true],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(2, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'sink',
+      method: 'getPpsStatusQueryEnabled',
+      args: [],
+    })
+  })
 })
 
 describe('DRPDWorkerDeviceProxy connect flow', () => {

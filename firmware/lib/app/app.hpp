@@ -173,6 +173,8 @@ namespace T76::DRPD {
         void _querySinkRequestStatus(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setSinkPPSStatusQueryState(const std::vector<T76::SCPI::ParameterValue> &);
+        void _querySinkPPSStatusQueryState(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkNegotiatedPDO(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkNegotiatedVoltage(const std::vector<T76::SCPI::ParameterValue> &);

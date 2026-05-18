@@ -125,6 +125,7 @@ namespace T76::DRPD::Logic {
 
         bool _hasExplicitContract = false;                        ///< True after first explicit contract.
         bool _eprEntryEnabled = true;                             ///< True when local policy allows EPR entry.
+        bool _ppsStatusQueryEnabled = false;                      ///< True when SPR PPS transitions query Source PPS status.
         bool _eprModeActive = false;                              ///< True while in EPR mode.
         bool _eprEntryAttempted = false;                          ///< True once EPR entry attempted.
         bool _eprSourceExitRequested = false;                     ///< True when Source advertised no EPR PDOs.

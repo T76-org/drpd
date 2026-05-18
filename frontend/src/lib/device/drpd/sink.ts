@@ -88,6 +88,28 @@ export class DRPDSink {
   }
 
   /**
+   * Enable or disable Get_PPS_Status queries after SPR PPS transitions.
+   *
+   * @param enabled - True to send Get_PPS_Status after SPR PPS transitions.
+   */
+  public async setPpsStatusQueryEnabled(enabled: boolean): Promise<void> {
+    await this.transport.sendCommand(
+      'SINK:PPS:STATUS:EN',
+      scpiEnum(enabled ? OnOffState.ON : OnOffState.OFF),
+    )
+  }
+
+  /**
+   * Query whether Get_PPS_Status queries are enabled after SPR PPS transitions.
+   *
+   * @returns True when PPS status queries are enabled.
+   */
+  public async getPpsStatusQueryEnabled(): Promise<boolean> {
+    const response = await this.transport.queryText('SINK:PPS:STATUS:EN?')
+    return parseOnOffResponse(response) === OnOffState.ON
+  }
+
+  /**
    * Query the sink state.
    *
    * @returns Sink state.

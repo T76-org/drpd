@@ -141,7 +141,8 @@ namespace T76::DRPD {
      */
     struct SinkPersistentConfig {
         bool eprEntryEnabled = true;           ///< True when Sink policy may enter EPR mode.
-        std::array<uint8_t, 3> reserved = {0, 0, 0}; ///< Reserved padding for future schema growth.
+        bool ppsStatusQueryEnabled = false;    ///< True when Sink policy sends Get_PPS_Status after SPR PPS transitions.
+        std::array<uint8_t, 2> reserved = {0, 0}; ///< Reserved padding for future schema growth.
     };
 
     /**

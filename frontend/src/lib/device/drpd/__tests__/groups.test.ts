@@ -179,6 +179,21 @@ describe('DRPD command groups', () => {
     expect(enabled).toBe(false)
   })
 
+  it('sets and queries sink PPS status query policy', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SINK:PPS:STATUS:EN?', ['OFF'])
+    const group = new DRPDSink(transport)
+
+    await group.setPpsStatusQueryEnabled(true)
+    const enabled = await group.getPpsStatusQueryEnabled()
+
+    expect(transport.commands[0]).toEqual({
+      command: 'SINK:PPS:STATUS:EN',
+      params: [{ raw: 'ON' }],
+    })
+    expect(enabled).toBe(false)
+  })
+
   it('sets trigger configuration using raw enum tokens', async () => {
     const transport = new MockTransport()
     const group = new DRPDTrigger(transport)

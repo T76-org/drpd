@@ -236,6 +236,18 @@ namespace T76::DRPD::Logic {
         [[nodiscard]] bool eprEntryEnabled() const;
 
         /**
+         * @brief Set whether local policy sends Get_PPS_Status after SPR PPS transitions.
+         * @param enabled True to query Source PPS status after SPR PPS PS_RDY.
+         */
+        void ppsStatusQueryEnabled(bool enabled);
+
+        /**
+         * @brief Get whether local policy sends Get_PPS_Status after SPR PPS transitions.
+         * @return True when PPS status queries are enabled.
+         */
+        [[nodiscard]] bool ppsStatusQueryEnabled() const;
+
+        /**
          * @brief Apply persisted Sink policy settings.
          * @param config Persisted Sink settings.
          */

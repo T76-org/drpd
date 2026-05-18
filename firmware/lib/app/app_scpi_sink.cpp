@@ -343,6 +343,48 @@ void App::_querySinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &
     _sendTransportTextResponse(sink->eprEntryEnabled() ? "ON" : "OFF", true);
 }
 
+void App::_setSinkPPSStatusQueryState(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    std::string stateStr = params[0].stringValue;
+    std::transform(stateStr.begin(), stateStr.end(), stateStr.begin(), ::toupper);
+
+    if (stateStr == "ON") {
+        sink->ppsStatusQueryEnabled(true);
+    } else if (stateStr == "OFF") {
+        sink->ppsStatusQueryEnabled(false);
+    } else {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    _savePersistentConfig();
+}
+
+void App::_querySinkPPSStatusQueryState(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+
+    Logic::Sink* sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+
+    _sendTransportTextResponse(sink->ppsStatusQueryEnabled() ? "ON" : "OFF", true);
+}
+
 void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
     // Check if device is in sink mode
     if (_ccBusController.role() != Logic::CCBusRole::Sink) {

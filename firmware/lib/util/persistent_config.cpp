@@ -95,6 +95,7 @@ PersistentConfigDataCurrent PersistentConfig::_defaultConfig() const {
         },
         .sink = SinkPersistentConfig{
             .eprEntryEnabled = true,
+            .ppsStatusQueryEnabled = false,
         },
     };
 }
@@ -171,6 +172,7 @@ bool PersistentConfig::_decodeVersion1(const uint8_t *payload,
         .sync = version1.sync,
         .sink = SinkPersistentConfig{
             .eprEntryEnabled = true,
+            .ppsStatusQueryEnabled = false,
         },
     };
     return true;

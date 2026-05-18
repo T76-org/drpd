@@ -203,6 +203,7 @@ describe('DRPD logging integration', () => {
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
     transport.textResponses.set('SINK:EPR:EN?', ['OFF'])
+    transport.textResponses.set('SINK:PPS:STATUS:EN?', ['OFF'])
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
     transport.textResponses.set('MEAS:ALL?', [
       '1000',
@@ -264,6 +265,7 @@ describe('DRPD logging integration', () => {
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
     transport.textResponses.set('SINK:EPR:EN?', ['OFF'])
+    transport.textResponses.set('SINK:PPS:STATUS:EN?', ['OFF'])
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
     transport.textResponses.set('MEAS:ALL?', [
       '1000',
@@ -1012,6 +1014,7 @@ describe('DRPD logging integration', () => {
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
     transport.textResponses.set('SINK:EPR:EN?', ['OFF'])
+    transport.textResponses.set('SINK:PPS:STATUS:EN?', ['OFF'])
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
     transport.textResponses.set('MEAS:ALL?', [
       '1000',

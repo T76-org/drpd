@@ -325,6 +325,19 @@ bool SinkContext::eprEntryEnabled() const {
     return _runtimeState._eprEntryEnabled;
 }
 
+void SinkContext::setPPSStatusQueryEnabled(bool enabled) {
+    if (_runtimeState._ppsStatusQueryEnabled == enabled) {
+        return;
+    }
+
+    _runtimeState._ppsStatusQueryEnabled = enabled;
+    _notifySinkInfoChanged(SinkInfoChange::OtherInfoChanged);
+}
+
+bool SinkContext::ppsStatusQueryEnabled() const {
+    return _runtimeState._ppsStatusQueryEnabled;
+}
+
 bool SinkContext::eprExitContractReady() const {
     if (!_runtimeState._negotiatedPDO.has_value()) {
         return false;

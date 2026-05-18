@@ -106,13 +106,23 @@ bool Sink::eprEntryEnabled() const {
     return _context.eprEntryEnabled();
 }
 
+void Sink::ppsStatusQueryEnabled(bool enabled) {
+    _context.setPPSStatusQueryEnabled(enabled);
+}
+
+bool Sink::ppsStatusQueryEnabled() const {
+    return _context.ppsStatusQueryEnabled();
+}
+
 void Sink::applyPersistentConfig(const T76::DRPD::SinkPersistentConfig& config) {
     _context.setEPREntryEnabled(config.eprEntryEnabled);
+    _context.setPPSStatusQueryEnabled(config.ppsStatusQueryEnabled);
 }
 
 T76::DRPD::SinkPersistentConfig Sink::exportPersistentConfig() const {
     return T76::DRPD::SinkPersistentConfig{
         .eprEntryEnabled = _context.eprEntryEnabled(),
+        .ppsStatusQueryEnabled = _context.ppsStatusQueryEnabled(),
     };
 }
 

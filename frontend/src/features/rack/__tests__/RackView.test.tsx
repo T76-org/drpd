@@ -52,6 +52,7 @@ const mockTransportState = vi.hoisted(() => ({
   sinkCurrentResponse: ['2'],
   sinkErrorResponse: ['0'],
   sinkEprEnabledResponse: ['OFF'],
+  sinkPpsStatusQueryEnabledResponse: ['OFF'],
   timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
   captureCountResponse: ['0'],
@@ -197,6 +198,9 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
       }
       if (command === 'SINK:EPR:EN?') {
         return mockTransportState.sinkEprEnabledResponse
+      }
+      if (command === 'SINK:PPS:STATUS:EN?') {
+        return mockTransportState.sinkPpsStatusQueryEnabledResponse
       }
       return []
     }
@@ -765,6 +769,7 @@ const resetMockTransportState = (): void => {
   mockTransportState.sinkCurrentResponse = ['2']
   mockTransportState.sinkErrorResponse = ['0']
   mockTransportState.sinkEprEnabledResponse = ['OFF']
+  mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
   mockTransportState.timestampResponse = ['1000']
   mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
   mockTransportState.captureCountResponse = ['0']
@@ -1801,6 +1806,33 @@ describe('RackView', () => {
 
     await waitFor(() => {
       expect(mockTransportState.sentCommands).toContain('SINK:PDO 0 16000 5000')
+    })
+  })
+
+  it('refreshes and toggles Get_PPS_Status sink behaviour from the Mode menu', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    mockTransportState.sinkPpsStatusQueryEnabledResponse = ['ON']
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    const checkbox = await screen.findByRole('menuitemcheckbox', {
+      name: 'Send Get_PPS_Status messages',
+    })
+
+    await waitFor(() => {
+      expect(checkbox).toHaveAttribute('aria-checked', 'true')
+    })
+
+    mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
+    await user.click(checkbox)
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:PPS:STATUS:EN OFF')
     })
   })
 
