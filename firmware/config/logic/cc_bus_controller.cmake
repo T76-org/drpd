@@ -8,4 +8,5 @@ target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_CC_BUS_CONTROLLER_SOURCE_DETECT_VOLTAGE_THRESHOLD=0.5f        # Minimum voltage threshold to detect source presence
     LOGIC_CC_BUS_CONTROLLER_SINK_DETECT_VOLTAGE_THRESHOLD_LOW=0.5f      # Lower voltage threshold to detect sink presence
     LOGIC_CC_BUS_CONTROLLER_SINK_DETECT_VOLTAGE_THRESHOLD_HIGH=2.0f     # Upper voltage threshold to detect sink presence
+    LOGIC_CC_BUS_CONTROLLER_SINK_TX_OK_VOLTAGE_THRESHOLD=1.23f          # Active CC voltage threshold for Source Rp=3A/SinkTxOK
 )

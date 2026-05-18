@@ -9,13 +9,17 @@ import {
   SinkState,
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
+import {
+  buildSinkRequestArgs,
+  computeEprAvsMaxCurrentMa,
+  parseSinkRequestField,
+} from '../sinkRequest'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import { SinkRequestPopover } from '../overlays/sink/SinkRequestPopover'
 import styles from './DrpdSinkControlInstrumentView.module.css'
 
 type RequestStatus = 'idle' | 'sending' | 'success' | 'error'
-type NonNullSinkPdo = Exclude<SinkPdo, null>
 
 /**
  * Format a number using fixed precision.
@@ -68,7 +72,8 @@ const getVoltageConstraints = (
 /**
  * Compute current limit range for a PDO at a requested voltage.
  *
- * For power-limited PDOs the maximum current is derived from `maxPowerW / voltageV`.
+ * For power-limited PDOs the maximum current is derived from `maxPowerW / voltageV`;
+ * EPR AVS also respects the advertised max current at the PDO max voltage.
  *
  * @param pdo - PDO value.
  * @param requestedVoltageV - Requested voltage.
@@ -100,6 +105,12 @@ const getCurrentConstraints = (
     }
     if (requestedVoltageV <= 0) {
       return { minA: 0, error: 'Voltage must be greater than 0 V.' }
+    }
+    if (pdo.type === SinkPdoType.EPR_AVS) {
+      return {
+        minA: 0,
+        maxA: computeEprAvsMaxCurrentMa(pdo, Math.round(requestedVoltageV * 1000)) / 1000,
+      }
     }
     if ('maxPowerW' in pdo) {
       return {
@@ -313,10 +324,14 @@ const buildDefaultForm = (
       }
     case SinkPdoType.BATTERY:
     case SinkPdoType.SPR_AVS:
-    case SinkPdoType.EPR_AVS:
       return {
         voltageV: pdo.minVoltageV.toFixed(2),
         currentA: (pdo.maxPowerW / pdo.minVoltageV).toFixed(2),
+      }
+    case SinkPdoType.EPR_AVS:
+      return {
+        voltageV: pdo.minVoltageV.toFixed(2),
+        currentA: (pdo.maxPowerW / pdo.maxVoltageV).toFixed(2),
       }
     default:
       return { voltageV: '', currentA: '' }
@@ -329,105 +344,6 @@ const buildDefaultForm = (
  * @param value - Input string.
  * @returns Parsed finite number or null.
  */
-const parseField = (value: string): number | null => {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) {
-    return null
-  }
-  return parsed
-}
-
-/**
- * Validate sink request input and compute SCPI argument values.
- *
- * @param pdo - Selected PDO.
- * @param voltageV - Requested voltage.
- * @param currentA - Requested current.
- * @returns Validation result and converted units.
- */
-const buildRequestArgs = ({
-  pdo,
-  voltageV,
-  currentA,
-}: {
-  pdo: NonNullSinkPdo
-  voltageV: string
-  currentA: string
-}): { voltageMv?: number; currentMa?: number; error?: string } => {
-  if (!pdo) {
-    return { error: 'Select a PDO before requesting power.' }
-  }
-  if (pdo.type === SinkPdoType.FIXED) {
-    const parsedCurrent = parseField(currentA)
-    if (parsedCurrent == null) {
-      return { error: 'Enter a valid current.' }
-    }
-    if (parsedCurrent < 0 || parsedCurrent > pdo.maxCurrentA) {
-      return { error: `Current must be between 0 and ${pdo.maxCurrentA.toFixed(2)} A.` }
-    }
-    return {
-      voltageMv: Math.round(pdo.voltageV * 1000),
-      currentMa: Math.round(parsedCurrent * 1000),
-    }
-  }
-
-  if (
-    pdo.type === SinkPdoType.VARIABLE ||
-    pdo.type === SinkPdoType.AUGMENTED ||
-    pdo.type === SinkPdoType.SPR_PPS
-  ) {
-    const parsedVoltage = parseField(voltageV)
-    const parsedCurrent = parseField(currentA)
-    if (parsedVoltage == null || parsedCurrent == null) {
-      return { error: 'Enter valid voltage and current values.' }
-    }
-    if (parsedVoltage < pdo.minVoltageV || parsedVoltage > pdo.maxVoltageV) {
-      return {
-        error: `Voltage must be between ${pdo.minVoltageV.toFixed(2)} and ${pdo.maxVoltageV.toFixed(2)} V.`,
-      }
-    }
-    if (parsedCurrent < 0 || parsedCurrent > pdo.maxCurrentA) {
-      return { error: `Current must be between 0 and ${pdo.maxCurrentA.toFixed(2)} A.` }
-    }
-    return {
-      voltageMv: Math.round(parsedVoltage * 1000),
-      currentMa: Math.round(parsedCurrent * 1000),
-    }
-  }
-
-  if (
-    pdo.type === SinkPdoType.BATTERY ||
-    pdo.type === SinkPdoType.SPR_AVS ||
-    pdo.type === SinkPdoType.EPR_AVS
-  ) {
-    const parsedVoltage = parseField(voltageV)
-    const parsedCurrent = parseField(currentA)
-    if (parsedVoltage == null || parsedCurrent == null) {
-      return { error: 'Enter valid voltage and current values.' }
-    }
-    if (parsedVoltage < pdo.minVoltageV || parsedVoltage > pdo.maxVoltageV) {
-      return {
-        error: `Voltage must be between ${pdo.minVoltageV.toFixed(2)} and ${pdo.maxVoltageV.toFixed(2)} V.`,
-      }
-    }
-    const currentConstraints = getCurrentConstraints(pdo, parsedVoltage)
-    if (currentConstraints.error || currentConstraints.maxA == null) {
-      return { error: currentConstraints.error ?? 'Current range is unavailable.' }
-    }
-    if (parsedCurrent < currentConstraints.minA || parsedCurrent > currentConstraints.maxA) {
-      return {
-        error: `Current must be between ${currentConstraints.minA.toFixed(2)} and ${currentConstraints.maxA.toFixed(2)} A.`,
-      }
-    }
-    return {
-      voltageMv: Math.round(parsedVoltage * 1000),
-      currentMa: Math.round(parsedCurrent * 1000),
-    }
-  }
-
-  return { error: 'Unsupported PDO type.' }
-}
-
 /**
  * Render sink visibility and control UI for Dr.PD.
  */
@@ -478,13 +394,13 @@ export const DrpdSinkControlInstrumentView = ({
   const summaryPdo = negotiatedPdo ?? selectedPdo
   const summaryPdoIndex = negotiatedPdoIndex ?? (summaryPdo ? selectedIndex : null)
   const selectedPdoDetails = getSelectedPdoDetails(summaryPdo, summaryPdoIndex)
-  const parsedVoltageForRange = parseField(
+  const parsedVoltageForRange = parseSinkRequestField(
     selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV,
   )
   const currentConstraints = getCurrentConstraints(selectedPdo, parsedVoltageForRange)
   const voltageConstraints = getVoltageConstraints(selectedPdo)
   const requestPreview = selectedPdo
-    ? buildRequestArgs({ pdo: selectedPdo, voltageV, currentA })
+    ? buildSinkRequestArgs({ pdo: selectedPdo, voltageV, currentA })
     : { error: 'Select a PDO before requesting power.' }
 
   useEffect(() => {
@@ -617,7 +533,7 @@ export const DrpdSinkControlInstrumentView = ({
     if (!driver || !selectedPdo) {
       return
     }
-    const parsed = buildRequestArgs({ pdo: selectedPdo, voltageV, currentA })
+    const parsed = buildSinkRequestArgs({ pdo: selectedPdo, voltageV, currentA })
     if (parsed.error || parsed.voltageMv == null || parsed.currentMa == null) {
       setRequestStatus('error')
       setRequestErrorMessage(parsed.error ?? 'Invalid request parameters.')

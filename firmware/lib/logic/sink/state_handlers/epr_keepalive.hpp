@@ -68,8 +68,9 @@ namespace T76::DRPD::Logic {
 
     protected:
         alarm_id_t _keepaliveIntervalAlarmId = -1; ///< Sink keepalive interval timer
+        alarm_id_t _keepaliveResponseAlarmId = -1; ///< SenderResponse timer for EPR_KeepAlive_Ack.
         alarm_id_t _sourceWatchdogAlarmId = -1;    ///< Source keepalive watchdog timer
-        uint8_t _keepaliveFailureCount = 0;        ///< Consecutive keepalive failures
+        bool _waitingForKeepaliveAck = false;      ///< True after sending EPR_KeepAlive until Ack/timeout.
 
         /**
          * @brief Handle periodic keepalive interval timer expiry.
@@ -77,14 +78,38 @@ namespace T76::DRPD::Logic {
         void _onKeepaliveIntervalTimeout();
 
         /**
+         * @brief Handle EPR keepalive SenderResponse timeout expiry.
+         */
+        void _onKeepaliveResponseTimeout();
+
+        /**
          * @brief Handle source keepalive watchdog expiry.
          */
         void _onSourceWatchdogTimeout();
 
         /**
-         * @brief Exit EPR mode and transition to appropriate fallback state.
+         * @brief Start the periodic SinkEPRKeepAliveTimer.
+         * @param context Shared sink context.
          */
-        void _exitEPRMode();
+        void _startKeepaliveIntervalTimer(SinkContext& context);
+
+        /**
+         * @brief Restart SinkEPRKeepAliveTimer after non-keepalive Sink traffic.
+         * @param context Shared sink context.
+         */
+        void _restartKeepaliveIntervalAfterSinkTraffic(SinkContext& context);
+
+        /**
+         * @brief Stop the EPR_KeepAlive_Ack response timer.
+         * @param context Shared sink context.
+         */
+        void _stopKeepaliveResponseTimer(SinkContext& context);
+
+        /**
+         * @brief Return true when a keepalive timer event still applies to the active state.
+         * @return True when the bound context is still in an EPR keepalive state.
+         */
+        [[nodiscard]] bool _keepaliveTimersActive() const;
 
         /**
          * @brief Static callback for keepalive interval timer.
@@ -93,6 +118,14 @@ namespace T76::DRPD::Logic {
          * @return 0 to keep timer one-shot.
          */
         static int64_t _onKeepaliveIntervalTimeoutCallback(alarm_id_t id, void *user_data);
+
+        /**
+         * @brief Static callback for EPR keepalive response timeout.
+         * @param id Alarm id.
+         * @param user_data Pointer to handler instance.
+         * @return 0 to keep timer one-shot.
+         */
+        static int64_t _onKeepaliveResponseTimeoutCallback(alarm_id_t id, void *user_data);
 
         /**
          * @brief Static callback for source watchdog timer.

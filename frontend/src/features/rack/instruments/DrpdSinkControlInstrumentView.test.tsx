@@ -286,7 +286,7 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(requestSpy).not.toHaveBeenCalled()
   })
 
-  it('supports AVS PDOs using voltage and current inputs', async () => {
+  it('supports EPR AVS PDOs by clamping voltage/current inputs', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
@@ -313,10 +313,13 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     const voltageInput = screen.getByLabelText(/^voltage$/i)
     const currentInput = screen.getByLabelText(/^current$/i)
+    await waitFor(() => {
+      expect(voltageInput).toHaveValue('15.00')
+    })
     await user.clear(voltageInput)
-    await user.type(voltageInput, '20')
+    await user.type(voltageInput, '16')
     await user.clear(currentInput)
-    await user.type(currentInput, '5')
+    await user.type(currentInput, '16')
 
     await user.click(
       within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
@@ -325,12 +328,12 @@ describe('DrpdSinkControlInstrumentView', () => {
     )
 
     await waitFor(() => {
-      expect(requestSpy).toHaveBeenCalledWith(0, 20000, 5000)
+      expect(requestSpy).toHaveBeenCalledWith(0, 16000, 5000)
     })
     expect(refreshSpy).toHaveBeenCalled()
   })
 
-  it('revalidates AVS current when voltage changes', async () => {
+  it('keeps EPR AVS request enabled when voltage changes reduce the current limit', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()
     const driver = new TestDRPDDevice(transport)
@@ -339,6 +342,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       null,
       [{ type: 'EPR_AVS', minVoltageV: 15, maxVoltageV: 28, maxPowerW: 140 }],
     )
+    const requestSpy = vi.spyOn(driver.sink, 'requestPdo').mockResolvedValue(undefined)
 
     render(
       <DrpdSinkControlInstrumentView
@@ -352,6 +356,9 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
     const voltageInput = screen.getByLabelText(/^voltage$/i)
     const currentInput = screen.getByLabelText(/^current$/i)
+    await waitFor(() => {
+      expect(voltageInput).toHaveValue('15.00')
+    })
     await user.clear(currentInput)
     await user.type(currentInput, '6')
     expect(
@@ -363,14 +370,16 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.clear(voltageInput)
     await user.type(voltageInput, '28')
 
-    expect(
-      screen.getByText(/current must be between 0\.00 and 5\.00 a\./i),
-    ).toBeInTheDocument()
-    expect(
+    const submitButton =
       within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
         name: /^set pdo$/i,
-      }),
-    ).toBeDisabled()
+      })
+    expect(submitButton).toBeEnabled()
+
+    await user.click(submitButton)
+    await waitFor(() => {
+      expect(requestSpy).toHaveBeenCalledWith(0, 28000, 5000)
+    })
   })
 
   it('closes the popup on cancel and Escape', async () => {

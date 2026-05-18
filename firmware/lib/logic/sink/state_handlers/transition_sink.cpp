@@ -51,15 +51,22 @@ void TransitionSinkStateHandler::handleMessage(
 
             if (firstExplicitContract &&
                 state._sourceSupportsEpr &&
+                state._eprEntryEnabled &&
                 !state._eprModeActive &&
                 !state._eprEntryAttempted) {
                 state._eprEntryAttempted = true;
-                context.transitionTo(SinkState::PE_SNK_EPR_Mode_Entry);
+                context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Entry);
                 return;
             }
 
-            if (state._eprModeActive) {
+            if (state._eprModeActive && state._eprSourceExitRequested) {
+                state._eprSourceExitRequested = false;
+                context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
+            } else if (state._eprModeActive) {
                 context.transitionTo(SinkState::PE_SNK_EPR_Keepalive);
+            } else if (state._negotiatedPDO.has_value() &&
+                       std::holds_alternative<Proto::SPRPPSAPDO>(state._negotiatedPDO.value())) {
+                context.transitionTo(SinkState::PE_SNK_Get_PPS_Status);
             } else {
                 context.transitionTo(SinkState::PE_SNK_Ready);
             }

@@ -75,6 +75,15 @@ namespace T76::DRPD::PHY {
         static BMCEncodedMessage goodCRCMessageForMessage(const BMCDecodedMessage &decodedMessage);
 
         /** 
+         * @brief Create a BMCEncodedMessage representing an Accept response.
+         * 
+         * @param portDataRole The port data role to set in the header.
+         * @param portPowerRole The port power role to set in the header.
+         * @return BMCEncodedMessage The Accept response message.
+         */
+        static BMCEncodedMessage acceptMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole);
+
+        /** 
          * @brief Create a BMCEncodedMessage representing a Not_Accepted response.
          * 
          * @param portDataRole The port data role to set in the header.

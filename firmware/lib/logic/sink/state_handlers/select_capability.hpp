@@ -85,13 +85,15 @@ namespace T76::DRPD::Logic {
          * @param pdoIndex Zero-based PDO index.
          * @param voltageMV Requested voltage in millivolts.
          * @param currentMA Requested current in milliamps.
+         * @param collisionAvoidanceExempt True when this Request is part of a Source-initiated AMS.
          * @return Request result describing dispatch or rejection reason.
          */
         SinkRequestResult requestPDO(
             SinkContext& context,
             size_t pdoIndex,
             uint32_t voltageMV,
-            uint32_t currentMA);
+            uint32_t currentMA,
+            bool collisionAvoidanceExempt = false);
 
     protected:
         /**
@@ -175,6 +177,7 @@ namespace T76::DRPD::Logic {
         SinkRequestResult _requestPendingPDO(SinkContext& context);
 
         alarm_id_t _responseTimeoutAlarmId = -1;  ///< Alarm ID for response timeout timer
+        bool _currentRequestCollisionAvoidanceExempt = false; ///< True for Source-initiated AMS responses.
 
         /**
          * @brief Called when the response timeout expires

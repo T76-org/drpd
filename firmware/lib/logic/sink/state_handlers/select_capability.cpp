@@ -31,7 +31,12 @@ int64_t SelectCapabilityStateHandler::_onResponseTimeoutCallback(
 }
 
 void SelectCapabilityStateHandler::_onResponseTimeout() {
-    // TODO: Perform a hard reset
+    if (_context == nullptr) {
+        return;
+    }
+
+    _context->setRequestOutcome(SinkRequestOutcome::Timeout);
+    _context->performReset(SinkResetType::HardReset);
 }
 
 
@@ -39,44 +44,55 @@ SinkRequestResult SelectCapabilityStateHandler::requestPDO(
     SinkContext& context,
     size_t pdoIndex,
     uint32_t voltageMV,
-    uint32_t currentMA) {
+    uint32_t currentMA,
+    bool collisionAvoidanceExempt) {
     _bindContext(context);
+    _currentRequestCollisionAvoidanceExempt = collisionAvoidanceExempt;
+
     // Request against the active capability view (SPR-only before EPR retrieval,
     // EPR capability set after retrieval).
     if (context.totalPDOCount() == 0) {
+        _currentRequestCollisionAvoidanceExempt = false;
         return SinkRequestResult::failure("No source PDOs are available");
     }
 
     if (pdoIndex >= context.totalPDOCount()) {
+        _currentRequestCollisionAvoidanceExempt = false;
         return SinkRequestResult::failure("PDO index out of range");
     }
 
     const auto pdoOpt = context.pdoAtIndex(pdoIndex);
     if (!pdoOpt.has_value()) {
+        _currentRequestCollisionAvoidanceExempt = false;
         return SinkRequestResult::failure("PDO is unavailable");
     }
 
     const auto& pdoVariant = pdoOpt.value();
+    const auto& state = context.runtimeState();
 
+    if (std::holds_alternative<Proto::EPRAVSAPDO>(pdoVariant) &&
+        (!state._eprModeActive || !state._eprCapabilities.has_value())) {
+        _currentRequestCollisionAvoidanceExempt = false;
+        return SinkRequestResult::failure("EPR PDO cannot be requested outside EPR mode");
+    }
+
+    SinkRequestResult result = SinkRequestResult::failure("Unsupported PDO type");
     if (std::holds_alternative<Proto::FixedSupplyPDO>(pdoVariant)) {
-        return _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
-    }
-
-    if (std::holds_alternative<Proto::VariableSupplyPDO>(pdoVariant)) {
-        return _requestVariablePDO(pdoIndex, pdoVariant, currentMA);
-    }
-
-    if (std::holds_alternative<Proto::BatterySupplyPDO>(pdoVariant)) {
-        return _requestBatteryPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
-    }
-
-    if (std::holds_alternative<Proto::SPRPPSAPDO>(pdoVariant) ||
+        result = _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
+    } else if (std::holds_alternative<Proto::VariableSupplyPDO>(pdoVariant)) {
+        result = _requestVariablePDO(pdoIndex, pdoVariant, currentMA);
+    } else if (std::holds_alternative<Proto::BatterySupplyPDO>(pdoVariant)) {
+        result = _requestBatteryPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
+    } else if (std::holds_alternative<Proto::SPRPPSAPDO>(pdoVariant) ||
         std::holds_alternative<Proto::SPRAVSAPDO>(pdoVariant) ||
         std::holds_alternative<Proto::EPRAVSAPDO>(pdoVariant)) {
-        return _requestAugmentedPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
+        result = _requestAugmentedPDO(pdoIndex, pdoVariant, voltageMV, currentMA);
+    } else {
+        result = _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
     }
 
-    return _requestFixedPDO(pdoIndex, pdoVariant, currentMA);
+    _currentRequestCollisionAvoidanceExempt = false;
+    return result;
 }
 
 SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
@@ -99,15 +115,17 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
     context.transitionTo(SinkState::PE_SNK_Select_Capability);
 
     state._pendingRequestedPDO = pdoVariant;
+    state._pendingPDOIndex = pdoIndex;
     state._pendingVoltage = voltageMV;
     state._pendingCurrent = currentMA;
+    context.setRequestOutcome(SinkRequestOutcome::Pending);
 
     request.objectPosition(objectPosition.value());
     request.giveBackFlag(false);
     request.capabilityMismatch(false);
     request.usbCommunicationsCapable(false);
     request.noUsbSuspend(true);
-    request.eprModeCapable(true);
+    request.eprModeCapable(state._eprEntryEnabled);
 
     const bool useEprRequestType = state._eprModeActive && state._eprCapabilities.has_value();
 
@@ -133,7 +151,13 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
         requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
         requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-        context.sendMessageAndAwaitGoodCRC(requestMessage);
+        if (!_currentRequestCollisionAvoidanceExempt &&
+            !context.sendSinkInitiatedMessageAndAwaitGoodCRC(requestMessage)) {
+            return SinkRequestResult::ok();
+        }
+        if (_currentRequestCollisionAvoidanceExempt) {
+            context.sendMessageAndAwaitGoodCRC(requestMessage);
+        }
         return SinkRequestResult::ok();
     }
 
@@ -146,7 +170,13 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
     requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
 
-    context.sendMessageAndAwaitGoodCRC(requestMessage);
+    if (!_currentRequestCollisionAvoidanceExempt &&
+        !context.sendSinkInitiatedMessageAndAwaitGoodCRC(requestMessage)) {
+        return SinkRequestResult::ok();
+    }
+    if (_currentRequestCollisionAvoidanceExempt) {
+        context.sendMessageAndAwaitGoodCRC(requestMessage);
+    }
 
     return SinkRequestResult::ok();
 }
@@ -170,8 +200,9 @@ SinkRequestResult SelectCapabilityStateHandler::_requestFixedPDO(
 
     request.operatingCurrentMilliamps(requestedMilliamps);
     request.maxOperatingCurrentMilliamps(requestedMilliamps);
-    request.eprModeCapable(true);
-    request.unchunkedExtendedMessageSupported(true);
+    // DRPD keeps source-test behavior conservative: advertise chunked-only
+    // extended-message support until full large unchunked RX/TX is validated.
+    request.unchunkedExtendedMessageSupported(false);
 
     return _requestPDO(pdoIndex, pdoVariant, fixedPDO.voltageMillivolts(), requestedMilliamps, request);
 }
@@ -244,7 +275,6 @@ SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
 
         Proto::AugmentedPPSRequest request(0);
 
-        request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
         request.operatingCurrentMilliamps(requestedMilliamps);
 
@@ -282,7 +312,6 @@ SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
 
         Proto::AugmentedAVSRequest request(0);
 
-        request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
         request.operatingCurrentMilliamps(requestedCurrentMA);
 
@@ -307,13 +336,17 @@ SinkRequestResult SelectCapabilityStateHandler::_requestAugmentedPDO(
             return SinkRequestResult::failure("EPR AVS requested voltage is invalid");
         }
 
-        uint32_t requestedCurrentMA = currentMA <= 0
-            ? eprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts
-            : currentMA;
+        const uint32_t maxCurrentMA = eprAvs.maxPowerMilliwatts() / requestedVoltageMillivolts;
+        if (maxCurrentMA == 0) {
+            return SinkRequestResult::failure("EPR AVS selected voltage has no available current");
+        }
+
+        const uint32_t requestedCurrentMA = currentMA <= 0
+            ? maxCurrentMA
+            : std::min(currentMA, maxCurrentMA);
 
         Proto::AugmentedAVSRequest request(0);
 
-        request.eprModeCapable(true);
         request.outputVoltageMillivolts(requestedVoltageMillivolts);
         request.operatingCurrentMilliamps(requestedCurrentMA);
 
@@ -377,8 +410,10 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
                 state._pendingVoltage,
                 state._pendingCurrent
             );
+            context.setRequestOutcome(SinkRequestOutcome::Accepted);
 
             state._pendingRequestedPDO = std::nullopt;
+            state._pendingPDOIndex = 0;
             state._pendingCurrent = 0.0f;
             state._pendingVoltage = 0.0f;
 
@@ -396,7 +431,9 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
             // TODO: Need a mechanism to signal that the request was rejected to the higher-level application
 
             auto& state = context.runtimeState();
+            context.setRequestOutcome(SinkRequestOutcome::Rejected);
             state._pendingRequestedPDO = std::nullopt;
+            state._pendingPDOIndex = 0;
             state._pendingCurrent = 0.0f;
             state._pendingVoltage = 0.0f;
 
@@ -415,7 +452,26 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
             // - We have an explicit contract already, we transition to the PE_SNK_Ready state
             // - We don't have an explicit contract, we transition back to the PE_SNK_Wait_for_Capabilities state
 
+            context.setRequestOutcome(SinkRequestOutcome::Wait);
+
             if (context.runtimeState()._negotiatedPDO.has_value()) {
+                context.transitionTo(SinkState::PE_SNK_Ready);
+            } else {
+                context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+            }
+
+            return;
+        }
+
+        if (controlMessageType.value() == Proto::ControlMessageType::Not_Supported) {
+            auto& state = context.runtimeState();
+            context.setRequestOutcome(SinkRequestOutcome::NotSupported);
+            state._pendingRequestedPDO = std::nullopt;
+            state._pendingPDOIndex = 0;
+            state._pendingCurrent = 0.0f;
+            state._pendingVoltage = 0.0f;
+
+            if (state._negotiatedPDO.has_value()) {
                 context.transitionTo(SinkState::PE_SNK_Ready);
             } else {
                 context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
@@ -488,6 +544,11 @@ void SelectCapabilityStateHandler::handleTimeoutEvent(
     (void)context;
     if (eventType == SinkTimeoutEventType::SelectCapabilityResponseTimeout) {
         _onResponseTimeout();
+        return;
+    }
+
+    if (eventType == SinkTimeoutEventType::SinkTxOKRetryTimeout) {
+        (void)_requestPendingPDO(context);
     }
 }
 

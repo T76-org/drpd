@@ -70,7 +70,17 @@ namespace T76::DRPD::Logic {
          */
         void sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message);
 
-        /** 
+        /**
+         * @brief Send Hard Reset signaling and clear sender retry state.
+         */
+        void sendHardResetSignaling();
+
+        /**
+         * @brief Reset the transmitter MessageIDCounter and retry mechanism.
+         */
+        void resetMessageIdCounter();
+
+        /**
          * @brief Send a message without awaiting GoodCRC response
          * 
          * @param message The BMC encoded message to send
@@ -86,6 +96,17 @@ namespace T76::DRPD::Logic {
          * @param messageId The Message ID from the received GoodCRC
          */
         void handleGoodCRCReceived(uint32_t messageId);
+
+        /**
+         * @brief Stop awaiting GoodCRC for the current message without resetting MessageIDCounter.
+         */
+        void abandonPendingMessage();
+
+        /**
+         * @brief Return whether a transmitted message is still pending GoodCRC.
+         * @return True when an outgoing message is pending.
+         */
+        [[nodiscard]] bool hasPendingMessage() const;
 
         /** 
          * @brief Reset the GoodCRC timeout timer and retry count

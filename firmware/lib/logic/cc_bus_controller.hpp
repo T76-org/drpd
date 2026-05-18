@@ -202,6 +202,24 @@ namespace T76::DRPD::Logic {
         Sink* sink();
 
         /**
+         * @brief Return whether the attached Source currently permits Sink AMS initiation.
+         * @return Collision-avoidance transmit permission derived from active CC Rp.
+         */
+        [[nodiscard]] SinkTransmitPermission sinkTransmitPermission() const;
+
+        /**
+         * @brief Apply persisted Sink policy settings.
+         * @param config Persisted Sink settings.
+         */
+        void applySinkPersistentConfig(const T76::DRPD::SinkPersistentConfig& config);
+
+        /**
+         * @brief Export current Sink policy settings for persistence.
+         * @return Current Sink persistent settings.
+         */
+        [[nodiscard]] T76::DRPD::SinkPersistentConfig exportSinkPersistentConfig() const;
+
+        /**
          * @brief Add a callback function to be called when the state changes
          * 
          * @param callback The callback function to be called when the state changes.
@@ -315,7 +333,7 @@ namespace T76::DRPD::Logic {
          * @return true if a source is detected,
          * @return false otherwise
          */
-        bool _isSourcePresent(float voltage);   
+        bool _isSourcePresent(float voltage) const;
 
         /**
          * @brief Utility method to determine if a sink is present based on voltage
@@ -324,7 +342,7 @@ namespace T76::DRPD::Logic {
          * @return true if a sink is detected,
          * @return false otherwise
          */
-        bool _isSinkPresent(float voltage);
+        bool _isSinkPresent(float voltage) const;
 
         /**
          * @brief Get the voltage on a specific CC channel of a given port
@@ -333,7 +351,7 @@ namespace T76::DRPD::Logic {
          * @param channel The CC channel (CC1 or CC2)
          * @return float The voltage reading on the specified channel
          */
-        float _channelVoltage(CCBusPort port, PHY::CCChannel channel);
+        float _channelVoltage(CCBusPort port, PHY::CCChannel channel) const;
 
         /**
          * @brief Update state and notify listeners when it changes

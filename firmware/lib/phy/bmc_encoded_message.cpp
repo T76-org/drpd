@@ -73,6 +73,25 @@ BMCEncodedMessage BMCEncodedMessage::goodCRCMessageForMessage(const BMCDecodedMe
     return encodedMessage;
 }
 
+BMCEncodedMessage BMCEncodedMessage::acceptMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole) {
+    auto controlMessage = Proto::ControlMessage();
+    BMCEncodedMessage encodedMessage(
+      Proto::SOP::SOPType::SOP,
+      controlMessage
+    );
+
+    Proto::PDHeader &header = encodedMessage.header();
+
+    header.messageId(0); // Message ID is set by the sender
+    header.rawMessageType(static_cast<uint32_t>(Proto::ControlMessageType::Accept));
+    header.numDataObjects(0);
+    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x); // PD 3.0
+    header.portDataRole(portDataRole);
+    header.portPowerRole(portPowerRole);
+
+    return encodedMessage;
+}
+
 BMCEncodedMessage BMCEncodedMessage::notAcceptedMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole) {
     auto controlMessage = Proto::ControlMessage();
     BMCEncodedMessage encodedMessage(

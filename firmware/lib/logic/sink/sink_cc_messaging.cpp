@@ -11,6 +11,21 @@
 using namespace T76::DRPD::Logic;
 
 
+namespace {
+    constexpr uint8_t kMaxExtendedChunkNumber = 9;
+
+    bool allZero(std::span<const uint8_t> bytes) {
+        for (const uint8_t byte : bytes) {
+            if (byte != 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+
 void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) {
     if (!_enabled.load()) {
         return;
@@ -47,21 +62,21 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Soft_Reset) {
-            reset();
+            _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
+            _context.handleReceivedSoftReset();
             return;
         }
     }
 
     const uint8_t receivedMessageId = static_cast<uint8_t>(decodedHeader.messageId() & 0x7);
 
-    if (_runtimeState._hasLastReceivedMessageId && receivedMessageId == _runtimeState._lastReceivedMessageId) {
+    if (_runtimeState.isDuplicateReceivedMessageId(receivedMessageId)) {
         // Retransmission due to missing GoodCRC. Acknowledge but do not process twice.
         _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
         return;
     }
 
-    _runtimeState._hasLastReceivedMessageId = true;
-    _runtimeState._lastReceivedMessageId = receivedMessageId;
+    _runtimeState.storeReceivedMessageId(receivedMessageId);
     _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
 
     const T76::DRPD::PHY::BMCDecodedMessage* messagePtr = message;
@@ -81,12 +96,6 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         return ExtendedFragmentResult::Malformed;
     }
 
-    const auto extendedType = maybeExtendedType.value();
-    const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
-    if (!typeIndex.has_value()) {
-        return ExtendedFragmentResult::UnsupportedType;
-    }
-
     const auto rawBody = message->rawBody();
     if (rawBody.size() < 2) {
         return ExtendedFragmentResult::Malformed;
@@ -97,8 +106,44 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
 
     const Proto::PDExtendedHeader extHeader(rawExtHeader);
     const size_t fragmentPayloadBytes = rawBody.size() - 2;
+    const auto extendedType = maybeExtendedType.value();
+    const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
+    const size_t declaredPayloadBytes = decodedHeader.numDataObjects() * 4;
 
-    if (extHeader.dataSizeBytes() == 0 || extHeader.requestChunk()) {
+    if (extHeader.chunked() && extHeader.chunkNumber() > kMaxExtendedChunkNumber) {
+        return ExtendedFragmentResult::Malformed;
+    }
+
+    if (extHeader.chunked() && rawBody.size() != declaredPayloadBytes) {
+        return ExtendedFragmentResult::Malformed;
+    }
+
+    if (extHeader.requestChunk() &&
+        (!extHeader.chunked() || extHeader.dataSizeBytes() != 0)) {
+        return ExtendedFragmentResult::Malformed;
+    }
+
+    if (extHeader.requestChunk() &&
+        (rawBody.size() != 4 || !allZero(rawBody.subspan(2)))) {
+        return ExtendedFragmentResult::Malformed;
+    }
+
+    if (extHeader.requestChunk() &&
+        extendedType == Proto::ExtendedMessageType::EPR_Sink_Capabilities) {
+        return ExtendedFragmentResult::Complete;
+    }
+
+    if (!typeIndex.has_value()) {
+        return extHeader.chunked() && !extHeader.requestChunk()
+            ? ExtendedFragmentResult::UnsupportedChunk
+            : ExtendedFragmentResult::UnsupportedType;
+    }
+
+    if (extHeader.requestChunk()) {
+        return ExtendedFragmentResult::UnsupportedType;
+    }
+
+    if (extHeader.dataSizeBytes() == 0) {
         return ExtendedFragmentResult::Malformed;
     }
 
@@ -113,7 +158,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     }
 
     if (!extHeader.chunked()) {
-        if (fragmentPayloadBytes < extHeader.dataSizeBytes()) {
+        if (rawBody.size() != static_cast<size_t>(extHeader.dataSizeBytes()) + 2) {
             return ExtendedFragmentResult::Malformed;
         }
 
@@ -167,6 +212,13 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     const size_t remainingBytes =
         reassembly.expectedPayloadBytes - reassembly.contiguousPayloadBytes;
     const size_t bytesToCopy = std::min(remainingBytes, fragmentPayloadBytes);
+    const size_t paddingBytes = fragmentPayloadBytes - bytesToCopy;
+
+    if (paddingBytes > 0 &&
+        !allZero(rawBody.subspan(2 + bytesToCopy, paddingBytes))) {
+        reassembly = SinkRuntimeState::ExtendedReassemblyState{};
+        return ExtendedFragmentResult::Malformed;
+    }
 
     for (size_t i = 0; i < bytesToCopy; ++i) {
         reassembly.payload.bytes[reassembly.payload.length + i] = rawBody[2 + i];
@@ -177,7 +229,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
 
     if (reassembly.contiguousPayloadBytes < reassembly.expectedPayloadBytes) {
         const uint8_t nextChunkNumber = static_cast<uint8_t>(extHeader.chunkNumber() + 1);
-        if (nextChunkNumber > 0x0F) {
+        if (nextChunkNumber > kMaxExtendedChunkNumber) {
             reassembly = SinkRuntimeState::ExtendedReassemblyState{};
             return ExtendedFragmentResult::Malformed;
         }
@@ -219,7 +271,14 @@ void Sink::_handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState 
     }
 
     if (state == SinkMessageSenderState::GoodCRCTimeout &&
-        _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive &&
+        (_runtimeState._state == SinkState::PE_SNK_Send_EPR_Mode_Entry ||
+         _runtimeState._state == SinkState::PE_SNK_EPR_Mode_Wait_For_Response ||
+         _runtimeState._state == SinkState::PE_SNK_Send_EPR_Mode_Exit ||
+         _runtimeState._state == SinkState::PE_SNK_Get_Source_Cap ||
+         _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive ||
+         _runtimeState._state == SinkState::PE_SNK_Send_Response ||
+         _runtimeState._state == SinkState::PE_SNK_Send_Soft_Reset ||
+         _runtimeState._state == SinkState::PE_SNK_Get_PPS_Status) &&
         _runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;

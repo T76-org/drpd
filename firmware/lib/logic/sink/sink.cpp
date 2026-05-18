@@ -19,8 +19,12 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _bmcEncoder(bmcEncoder),
     _disconnectedStateHandler(),
     _eprKeepaliveStateHandler(),
+    _eprModeExitStateHandler(),
     _eprModeEntryStateHandler(),
+    _getPPSStatusStateHandler(),
     _readySinkStateHandler(),
+    _sendResponseStateHandler(),
+    _sendSoftResetStateHandler(),
     _selectCapabilityStateHandler(),
     _transitionSinkStateHandler(),
     _waitForCapabilitiesStateHandler(),
@@ -37,8 +41,12 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _ccBusController,
         _disconnectedStateHandler,
         _eprKeepaliveStateHandler,
+        _eprModeExitStateHandler,
         _eprModeEntryStateHandler,
+        _getPPSStatusStateHandler,
         _readySinkStateHandler,
+        _sendResponseStateHandler,
+        _sendSoftResetStateHandler,
         _selectCapabilityStateHandler,
         _transitionSinkStateHandler,
         _waitForCapabilitiesStateHandler,
@@ -57,6 +65,7 @@ void Sink::initCore1() {
 }
 
 void Sink::loopCore1() {
+    _processPendingPolicyRequests();
     _processPendingRequests();
 
     if (_ccBusResetPending.exchange(false, std::memory_order_acq_rel)) {
@@ -68,6 +77,7 @@ void Sink::loopCore1() {
 
     while (queue_try_remove(&_messageQueue, &messagePtr)) {
         const auto decodedHeader = messagePtr->decodedHeader();
+        _discardPendingOutgoingForReceivedSOP();
 
         if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Extended) {
             const auto maybeType = decodedHeader.extendedMessageType();
@@ -85,7 +95,20 @@ void Sink::loopCore1() {
             }
 
             if (result == ExtendedFragmentResult::UnsupportedType) {
-                _context.sendNotSupportedMessage();
+                if (_runtimeState._state == SinkState::PE_SNK_Ready) {
+                    _context.sendNotSupportedResponse();
+                } else {
+                    reset(SinkResetType::SoftReset);
+                }
+                continue;
+            }
+
+            if (result == ExtendedFragmentResult::UnsupportedChunk) {
+                if (_runtimeState._state == SinkState::PE_SNK_Ready) {
+                    _startChunkingNotSupportedTimer();
+                } else {
+                    reset(SinkResetType::SoftReset);
+                }
                 continue;
             }
 
@@ -99,6 +122,20 @@ void Sink::loopCore1() {
         }
 
         _processTimeoutEvents();
+    }
+}
+
+void Sink::_discardPendingOutgoingForReceivedSOP() {
+    if (!_messageSender.hasPendingMessage()) {
+        return;
+    }
+
+    // USB-PD 3.2 section 6.11 requires a received SOP message to discard any
+    // pending outgoing SOP message instead of continuing to retry it.
+    _context.abandonPendingMessage();
+
+    if (_runtimeState._state == SinkState::PE_SNK_Send_Response) {
+        _context.transitionTo(SinkState::PE_SNK_Ready);
     }
 }
 
@@ -150,6 +187,7 @@ void Sink::disable() {
     while (queue_try_remove(&_pendingRequestQueue, &droppedRequest)) {
     }
     _ccBusResetPending.store(false, std::memory_order_release);
+    _eprExitPending.store(false, std::memory_order_release);
 
     reset();
 }
@@ -170,10 +208,43 @@ void Sink::_processTimeoutEvents() {
             continue;
         }
 
+        if (event.type == SinkTimeoutEventType::ChunkingNotSupportedTimeout) {
+            if (_chunkingNotSupportedPending &&
+                _runtimeState._state == SinkState::PE_SNK_Ready) {
+                _chunkingNotSupportedPending = false;
+                _context.sendNotSupportedResponse();
+            }
+            continue;
+        }
+
         if (_runtimeState._currentStateHandler) {
             _runtimeState._currentStateHandler->handleTimeoutEvent(_context, event.type);
         }
     }
+}
+
+int64_t Sink::_onChunkingNotSupportedTimeout(alarm_id_t id, void *userData) {
+    (void)id;
+    auto *sink = static_cast<Sink *>(userData);
+    sink->_chunkingNotSupportedAlarmId = -1;
+    if (sink->_chunkingNotSupportedPending) {
+        sink->_enqueueTimeoutEvent(SinkTimeoutEvent{SinkTimeoutEventType::ChunkingNotSupportedTimeout});
+    }
+    return 0;
+}
+
+void Sink::_startChunkingNotSupportedTimer() {
+    if (_chunkingNotSupportedAlarmId != -1) {
+        _alarmService.cancelAlarm(_chunkingNotSupportedAlarmId);
+    }
+
+    _chunkingNotSupportedPending = true;
+    _chunkingNotSupportedAlarmId = _alarmService.addAlarmInUs(
+        LOGIC_SINK_CHUNKING_NOT_SUPPORTED_TIMEOUT_US,
+        _onChunkingNotSupportedTimeout,
+        this,
+        true
+    );
 }
 
 void Sink::_onCCBusStateChanged(CCBusState newState) {
@@ -191,6 +262,10 @@ void Sink::_enqueueTimeoutEvent(SinkTimeoutEvent event) {
 }
 
 void Sink::_processPendingRequests() {
+    if (_runtimeState._state == SinkState::PE_SNK_Send_EPR_Mode_Exit) {
+        return;
+    }
+
     PendingPDORequest request{};
     while (queue_try_remove(&_pendingRequestQueue, &request)) {
         if (!_enabled.load()) {
@@ -199,4 +274,26 @@ void Sink::_processPendingRequests() {
 
         (void)_context.requestPDO(request.pdoIndex, request.voltageMV, request.currentMA);
     }
+}
+
+void Sink::_processPendingPolicyRequests() {
+    if (!_eprExitPending.exchange(false, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    if (!_enabled.load()) {
+        return;
+    }
+
+    if (!_runtimeState._eprModeActive) {
+        return;
+    }
+
+    if (!_context.eprExitContractReady()) {
+        _runtimeState._eprSourceExitRequested = true;
+        (void)_context.requestPDO(0, 0, 0);
+        return;
+    }
+
+    _context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
 }

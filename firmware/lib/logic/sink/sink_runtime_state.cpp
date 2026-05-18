@@ -28,16 +28,18 @@ void SinkRuntimeState::reset() {
 
     _sourceCapabilities.reset();
     _eprCapabilities.reset();
+    _ppsStatus.reset();
     _sourceSupportsEpr = false;
 
     _hasExplicitContract = false;
     _eprModeActive = false;
     _eprEntryAttempted = false;
+    _eprSourceExitRequested = false;
 
-    _hasLastReceivedMessageId = false;
-    _lastReceivedMessageId = 0;
+    resetStoredReceivedMessageId();
 
     _pendingRequestedPDO.reset();
+    _pendingPDOIndex = 0;
     _pendingVoltage = 0.0f;
     _pendingCurrent = 0.0f;
 
@@ -54,12 +56,32 @@ void SinkRuntimeState::reset() {
     }
 }
 
+void SinkRuntimeState::resetStoredReceivedMessageId() {
+    _hasStoredReceivedMessageId = false;
+    _storedReceivedMessageId = 0;
+}
+
+bool SinkRuntimeState::isDuplicateReceivedMessageId(uint8_t messageId) const {
+    return _hasStoredReceivedMessageId && _storedReceivedMessageId == messageId;
+}
+
+void SinkRuntimeState::storeReceivedMessageId(uint8_t messageId) {
+    _hasStoredReceivedMessageId = true;
+    _storedReceivedMessageId = messageId;
+}
+
 std::optional<size_t> SinkRuntimeState::trackedTypeIndex(Proto::ExtendedMessageType type) {
     switch (type) {
         case Proto::ExtendedMessageType::EPR_Source_Capabilities:
             return static_cast<size_t>(TrackedExtendedType::EPRSourceCapabilities);
         case Proto::ExtendedMessageType::Extended_Control:
             return static_cast<size_t>(TrackedExtendedType::ExtendedControl);
+        case Proto::ExtendedMessageType::Get_Manufacturer_Info:
+            return static_cast<size_t>(TrackedExtendedType::GetManufacturerInfo);
+        case Proto::ExtendedMessageType::Manufacturer_Info:
+            return static_cast<size_t>(TrackedExtendedType::ManufacturerInfo);
+        case Proto::ExtendedMessageType::PPS_Status:
+            return static_cast<size_t>(TrackedExtendedType::PPSStatus);
         default:
             return std::nullopt;
     }

@@ -5,6 +5,8 @@
 
 #include "epr_source_capabilities.hpp"
 
+#include <type_traits>
+
 
 using namespace T76::DRPD::Proto;
 
@@ -16,6 +18,7 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
     }
 
     const size_t pdoWords = payload.size() / 4;
+    _objectWordCount = pdoWords;
     if (pdoWords > MaxPDOCount) {
         _messageInvalid = true;
         return;
@@ -27,16 +30,24 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
             (static_cast<uint32_t>(payload[offset + 1]) << 8) |
             (static_cast<uint32_t>(payload[offset + 2]) << 16) |
             (static_cast<uint32_t>(payload[offset + 3]) << 24);
+        _rawObjects[i] = raw;
 
         if (raw == 0) {
             continue;
+        }
+
+        const PDOVariant pdo = _createPDO(raw);
+        if (i < 7 && _isEPRPDO(pdo)) {
+            _eprPDOInSPRPositions = true;
+            _messageInvalid = true;
+            return;
         }
 
         if (_pdoCount >= MaxPDOCount) {
             _messageInvalid = true;
             return;
         }
-        _pdos[_pdoCount] = _createPDO(raw);
+        _pdos[_pdoCount] = pdo;
         _objectPositions[_pdoCount] = static_cast<uint8_t>(i + 1);
         ++_pdoCount;
     }
@@ -57,6 +68,44 @@ EPRSourceCapabilities::EPRSourceCapabilities(std::span<const uint8_t> payload) {
 
 bool EPRSourceCapabilities::isMessageInvalid() const {
     return _messageInvalid;
+}
+
+bool EPRSourceCapabilities::hasEPRPDOInSPRPositions() const {
+    return _eprPDOInSPRPositions;
+}
+
+bool EPRSourceCapabilities::hasEPRPDOs() const {
+    for (size_t i = 0; i < _pdoCount; ++i) {
+        if (_isEPRPDO(_pdos[i])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool EPRSourceCapabilities::matchesSPRSourceCapabilities(
+    const SourceCapabilities& sourceCapabilities) const {
+    if (sourceCapabilities.isMessageInvalid() ||
+        sourceCapabilities.pdoCount() == 0 ||
+        sourceCapabilities.pdoCount() > 7 ||
+        _objectWordCount < 7) {
+        return false;
+    }
+
+    for (size_t i = 0; i < sourceCapabilities.pdoCount(); ++i) {
+        if (_rawObjects[i] != _rawPDO(sourceCapabilities.pdo(i))) {
+            return false;
+        }
+    }
+
+    for (size_t i = sourceCapabilities.pdoCount(); i < 7; ++i) {
+        if (_rawObjects[i] != 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 size_t EPRSourceCapabilities::pdoCount() const {
@@ -105,4 +154,24 @@ PDOVariant EPRSourceCapabilities::_createPDO(uint32_t raw) {
         default:
             return FixedSupplyPDO(raw);
     }
+}
+
+bool EPRSourceCapabilities::_isEPRPDO(const PDOVariant& pdo) {
+    return std::visit([](const auto& typedPDO) {
+        using T = std::decay_t<decltype(typedPDO)>;
+
+        if constexpr (std::is_same_v<T, FixedSupplyPDO>) {
+            return typedPDO.voltageMillivolts() > 20000;
+        } else if constexpr (std::is_same_v<T, EPRAVSAPDO>) {
+            return true;
+        } else {
+            return false;
+        }
+    }, pdo);
+}
+
+uint32_t EPRSourceCapabilities::_rawPDO(const PDOVariant& pdo) {
+    return std::visit([](const auto& typedPDO) {
+        return typedPDO.raw();
+    }, pdo);
 }

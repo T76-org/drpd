@@ -54,6 +54,8 @@
 #include "state_handler.hpp"
 #include "sink_types.hpp"
 
+#include "../../util/persistent_config.hpp"
+
 #include "../../phy/bmc_decoder.hpp"
 #include "../../phy/bmc_encoder.hpp"
 
@@ -64,8 +66,12 @@
 
 #include "state_handlers/disconnected.hpp"
 #include "state_handlers/epr_keepalive.hpp"
+#include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
+#include "state_handlers/get_pps_status.hpp"
 #include "state_handlers/ready.hpp"
+#include "state_handlers/send_response.hpp"
+#include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
 #include "state_handlers/transition_sink.hpp"
 #include "state_handlers/wait_for_capabilities.hpp"
@@ -90,6 +96,7 @@ namespace T76::DRPD::Logic {
          */
         enum class ExtendedControlType : uint8_t {
             EPR_Get_Source_Cap = 0x01,    ///< Request EPR source capabilities.
+            EPR_Get_Sink_Cap = 0x02,      ///< Request EPR sink capabilities.
             EPR_KeepAlive = 0x03,         ///< Send/receive keepalive.
             EPR_KeepAlive_Ack = 0x04      ///< Acknowledge keepalive.
         };
@@ -154,6 +161,36 @@ namespace T76::DRPD::Logic {
         [[nodiscard]] std::optional<Proto::PDOVariant> pdo(size_t index) const;
 
         /**
+         * @brief Get count of configured local SPR Sink capability PDOs.
+         */
+        [[nodiscard]] size_t localSinkCapabilityCount() const;
+
+        /**
+         * @brief Get configured local SPR Sink capability PDO.
+         */
+        [[nodiscard]] std::optional<uint32_t> localSinkCapabilityPDO(size_t index) const;
+
+        /**
+         * @brief Set or clear a configured local SPR Sink capability PDO.
+         */
+        bool setLocalSinkCapabilityPDO(size_t index, uint32_t rawPDO);
+
+        /**
+         * @brief Get count of configured local EPR-only Sink capability PDOs.
+         */
+        [[nodiscard]] size_t localEPRSinkCapabilityCount() const;
+
+        /**
+         * @brief Get configured local EPR-only Sink capability PDO.
+         */
+        [[nodiscard]] std::optional<uint32_t> localEPRSinkCapabilityPDO(size_t index) const;
+
+        /**
+         * @brief Set or clear a configured local EPR-only Sink capability PDO.
+         */
+        bool setLocalEPRSinkCapabilityPDO(size_t index, uint32_t rawPDO);
+
+        /**
          * @brief Get negotiated PDO.
          * @return Negotiated PDO if contract exists; otherwise std::nullopt.
          */
@@ -181,6 +218,36 @@ namespace T76::DRPD::Logic {
         SinkRequestResult requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA);
 
         /**
+         * @brief Get status for the most recent Sink PDO request.
+         * @return Last request status snapshot.
+         */
+        [[nodiscard]] SinkRequestStatus lastRequestStatus() const;
+
+        /**
+         * @brief Set whether local policy allows automatic EPR entry.
+         * @param enabled True to allow EPR entry after an eligible SPR contract.
+         */
+        void eprEntryEnabled(bool enabled);
+
+        /**
+         * @brief Get whether local policy allows automatic EPR entry.
+         * @return True when EPR entry is enabled.
+         */
+        [[nodiscard]] bool eprEntryEnabled() const;
+
+        /**
+         * @brief Apply persisted Sink policy settings.
+         * @param config Persisted Sink settings.
+         */
+        void applyPersistentConfig(const T76::DRPD::SinkPersistentConfig& config);
+
+        /**
+         * @brief Export current Sink policy settings for persistence.
+         * @return Current Sink persistent settings.
+         */
+        [[nodiscard]] T76::DRPD::SinkPersistentConfig exportPersistentConfig() const;
+
+        /**
          * @brief Get current Sink policy state.
          * @return Current SinkState enum.
          */
@@ -206,6 +273,7 @@ namespace T76::DRPD::Logic {
             InProgress,         ///< More chunks required.
             Complete,           ///< Full payload reassembled.
             UnsupportedType,    ///< Message type not supported.
+            UnsupportedChunk,   ///< Unsupported message chunk needs delayed Not_Supported.
             Malformed           ///< Fragment/header invalid.
         };
 
@@ -230,8 +298,12 @@ namespace T76::DRPD::Logic {
 
         DisconnectedStateHandler _disconnectedStateHandler;      ///< Disconnected state handler.
         EPRKeepaliveStateHandler _eprKeepaliveStateHandler;      ///< EPR keepalive state handler.
+        EPRModeExitStateHandler _eprModeExitStateHandler;        ///< EPR mode exit state handler.
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
+        GetPPSStatusStateHandler _getPPSStatusStateHandler;      ///< PPS status query state handler.
         ReadySinkStateHandler _readySinkStateHandler;            ///< Ready state handler.
+        SendResponseStateHandler _sendResponseStateHandler;      ///< Ready response state handler.
+        SendSoftResetStateHandler _sendSoftResetStateHandler;    ///< Send Soft Reset state handler.
         SelectCapabilityStateHandler _selectCapabilityStateHandler; ///< Select capability handler.
         TransitionSinkStateHandler _transitionSinkStateHandler;  ///< Transition sink handler.
         WaitForCapabilitiesStateHandler _waitForCapabilitiesStateHandler; ///< Wait-for-capabilities handler.
@@ -244,6 +316,9 @@ namespace T76::DRPD::Logic {
         SinkContext _context;                                    ///< Handler-facing context facade.
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
         std::atomic<bool> _ccBusResetPending = false;            ///< Core-0 state-change reset request latched for core 1.
+        std::atomic<bool> _eprExitPending = false;               ///< Core-0 request asking Core 1 to exit active EPR mode.
+        alarm_id_t _chunkingNotSupportedAlarmId = -1;            ///< Delay before Not_Supported for unsupported chunks.
+        bool _chunkingNotSupportedPending = false;               ///< True while delayed Not_Supported is still applicable.
 
         /**
          * @brief Handle CC bus state changes.
@@ -268,6 +343,11 @@ namespace T76::DRPD::Logic {
             Proto::ExtendedMessageType &completedType);
 
         /**
+         * @brief Apply protocol message-discarding rules before handling a received SOP.
+         */
+        void _discardPendingOutgoingForReceivedSOP();
+
+        /**
          * @brief Send extended chunk request for next fragment.
          * @param type Extended message type being requested.
          * @param payloadSizeBytes Total expected payload size in bytes.
@@ -279,6 +359,19 @@ namespace T76::DRPD::Logic {
             uint8_t chunkNumber);
 
         /**
+         * @brief Start ChunkingNotSupportedTimer before responding Not_Supported.
+         */
+        void _startChunkingNotSupportedTimer();
+
+        /**
+         * @brief Static callback for ChunkingNotSupportedTimer expiry.
+         * @param id Alarm id.
+         * @param userData Pointer to Sink instance.
+         * @return 0 to keep timer one-shot.
+         */
+        static int64_t _onChunkingNotSupportedTimeout(alarm_id_t id, void *userData);
+
+        /**
          * @brief Drain pending timeout events and dispatch in core-1 policy context.
          */
         void _processTimeoutEvents();
@@ -287,6 +380,11 @@ namespace T76::DRPD::Logic {
          * @brief Drain host PDO requests and dispatch in core-1 policy context.
          */
         void _processPendingRequests();
+
+        /**
+         * @brief Drain host policy requests and dispatch in core-1 policy context.
+         */
+        void _processPendingPolicyRequests();
 
         /**
          * @brief Handle message sender state transitions.

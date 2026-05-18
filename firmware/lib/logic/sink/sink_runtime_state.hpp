@@ -27,6 +27,7 @@
 #include "sink_types.hpp"
 
 #include "../../proto/pd_messages/epr_source_capabilities.hpp"
+#include "../../proto/pd_messages/pps_status.hpp"
 #include "../../proto/pd_messages/source_capabilities.hpp"
 #include "../../proto/pd_message_types.hpp"
 
@@ -53,7 +54,10 @@ namespace T76::DRPD::Logic {
          */
         enum class TrackedExtendedType : uint8_t {
             EPRSourceCapabilities = 0,
-            ExtendedControl = 1
+            ExtendedControl = 1,
+            GetManufacturerInfo = 2,
+            ManufacturerInfo = 3,
+            PPSStatus = 4
         };
 
         /**
@@ -79,6 +83,24 @@ namespace T76::DRPD::Logic {
         void reset();
 
         /**
+         * @brief Clear receiver-side stored MessageID used for duplicate detection.
+         */
+        void resetStoredReceivedMessageId();
+
+        /**
+         * @brief Return true when the received MessageID is a retry.
+         * @param messageId Incoming MessageID masked to 3 bits.
+         * @return True if a stored MessageID exists and matches messageId.
+         */
+        [[nodiscard]] bool isDuplicateReceivedMessageId(uint8_t messageId) const;
+
+        /**
+         * @brief Store the received MessageID after accepting a new message.
+         * @param messageId Incoming MessageID masked to 3 bits.
+         */
+        void storeReceivedMessageId(uint8_t messageId);
+
+        /**
          * @brief Resolve tracked slot index for supported extended message type.
          * @param type Extended message type to map.
          * @return Slot index if tracked; otherwise std::nullopt.
@@ -92,23 +114,28 @@ namespace T76::DRPD::Logic {
         std::optional<Proto::EPRSourceCapabilities> _eprCapabilities;      ///< Cached EPR capabilities.
 
         std::optional<Proto::PDOVariant> _pendingRequestedPDO;    ///< Pending request PDO.
+        size_t _pendingPDOIndex = 0;                              ///< Pending request active-view PDO index.
         float _pendingVoltage = 0.0f;                             ///< Pending request voltage (mV context).
         float _pendingCurrent = 0.0f;                             ///< Pending request current (mA context).
+        SinkRequestStatus _lastRequestStatus;                     ///< Last host-visible Sink request outcome.
 
         std::optional<Proto::PDOVariant> _negotiatedPDO;          ///< Current negotiated PDO.
         float _negotiatedVoltage = 0.0f;                          ///< Negotiated voltage.
         float _negotiatedCurrent = 0.0f;                          ///< Negotiated current.
 
         bool _hasExplicitContract = false;                        ///< True after first explicit contract.
+        bool _eprEntryEnabled = true;                             ///< True when local policy allows EPR entry.
         bool _eprModeActive = false;                              ///< True while in EPR mode.
         bool _eprEntryAttempted = false;                          ///< True once EPR entry attempted.
+        bool _eprSourceExitRequested = false;                     ///< True when Source advertised no EPR PDOs.
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.
+        std::optional<Proto::PPSStatus> _ppsStatus;               ///< Last Source PPS status response.
 
-        bool _hasLastReceivedMessageId = false;                   ///< Dedup state flag for message ID.
-        uint8_t _lastReceivedMessageId = 0;                       ///< Last processed message ID.
+        bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
+        uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.
 
-        std::array<ExtendedReassemblyState, 2> _extendedReassemblyStates; ///< Per-type reassembly.
-        std::array<std::optional<ExtendedPayloadBuffer>, 2> _completedExtendedPayloads; ///< Completed payloads.
+        std::array<ExtendedReassemblyState, 5> _extendedReassemblyStates; ///< Per-type reassembly.
+        std::array<std::optional<ExtendedPayloadBuffer>, 5> _completedExtendedPayloads; ///< Completed payloads.
     };
 
 } // namespace T76::DRPD::Logic

@@ -117,6 +117,14 @@ namespace T76::DRPD::PHY {
          */
         void encodeAndSendMessage(const BMCEncodedMessage& message);
 
+        /**
+         * @brief Send Hard Reset signaling immediately.
+         *
+         * This discards any queued normal PD messages and queues the Hard Reset
+         * ordered set as PHY signaling rather than as a framed PD message.
+         */
+        void sendHardResetSignaling();
+
         /** 
          * @brief Send a GoodCRC response for the given decoded message.
          * 

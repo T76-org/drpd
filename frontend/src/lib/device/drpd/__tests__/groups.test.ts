@@ -164,6 +164,21 @@ describe('DRPD command groups', () => {
     })
   })
 
+  it('sets and queries sink EPR entry policy', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SINK:EPR:EN?', ['OFF'])
+    const group = new DRPDSink(transport)
+
+    await group.setEprEnabled(true)
+    const enabled = await group.getEprEnabled()
+
+    expect(transport.commands[0]).toEqual({
+      command: 'SINK:EPR:EN',
+      params: [{ raw: 'ON' }],
+    })
+    expect(enabled).toBe(false)
+  })
+
   it('sets trigger configuration using raw enum tokens', async () => {
     const transport = new MockTransport()
     const group = new DRPDTrigger(transport)

@@ -168,6 +168,32 @@ class DeviceSink:
             f"SINK:PDO {index} {voltage_mv} {current_ma}"
         )
 
+    async def set_epr_enabled(self, enabled: bool) -> None:
+        """
+        Set whether Sink policy may enter EPR mode during future negotiation.
+
+        :param enabled: True to allow EPR entry, False to stay SPR-only.
+        :type enabled: bool
+        """
+        await self._validate_sink_mode()
+        state = "ON" if enabled else "OFF"
+        await self._internal.write_ascii_and_check(f"SINK:EPR:EN {state}")
+
+    async def get_epr_enabled(self) -> bool:
+        """
+        Get whether Sink policy may enter EPR mode during negotiation.
+
+        :return: True if EPR entry is enabled.
+        :rtype: bool
+        """
+        await self._validate_sink_mode()
+        response = (
+            await self._internal.query_ascii_values_and_check(
+                "SINK:EPR:EN?", "s"
+            )
+        )
+        return response[0].strip().upper() == "ON"
+
     async def get_status(self) -> SinkState:
         """
         Get the current state of the sink state machine.
