@@ -39,6 +39,7 @@ import {
   fetchGitHubReleases,
   isFirmwareUpdatePromptSuppressed,
   loadFirmwareUpdateChannel,
+  compareFirmwareVersions,
   normalizeGitHubFirmwareReleases,
   selectReleaseForChannel,
   parseFirmwareVersion,
@@ -273,6 +274,22 @@ const mergeRackDeviceIdentity = (
     ...record,
     deviceSerialNumber: identity.serialNumber || record.deviceSerialNumber,
     firmwareVersion: identity.firmwareVersion || record.firmwareVersion,
+  }
+}
+
+const MIN_SINK_BEHAVIOUR_FIRMWARE_VERSION = parseFirmwareVersion('0.9.13')
+
+const supportsSinkBehaviourSettings = (firmwareVersion: string | undefined): boolean => {
+  if (!firmwareVersion) {
+    return false
+  }
+  try {
+    return compareFirmwareVersions(
+      parseFirmwareVersion(firmwareVersion),
+      MIN_SINK_BEHAVIOUR_FIRMWARE_VERSION,
+    ) >= 0
+  } catch {
+    return false
   }
 }
 
@@ -2405,6 +2422,9 @@ export const RackView = () => {
     activeVbusInfo?.status === VBusStatus.OVP || activeVbusInfo?.status === VBusStatus.OCP
   const isTriggerActivated = activeTriggerInfo?.status === TriggerStatus.TRIGGERED
   const isSinkMode = activeDriverState?.role === CCBusRole.SINK
+  const canUseSinkBehaviourSettings = supportsSinkBehaviourSettings(
+    activeConnectedDeviceState?.record.firmwareVersion,
+  )
   const timeSinceMeterReset = formatHeaderElapsed(activeDriverState?.analogMonitor?.accumulationElapsedTimeUs)
   const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
     const deviceItems: MenuItem[] = [
@@ -2587,7 +2607,7 @@ export const RackView = () => {
                 type: 'checkbox',
                 label: 'Support EPR mode',
                 checked: activeDriverState?.sinkEprEnabled === true,
-                disabled: !activeDriver || !isSinkMode,
+                disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
                 onCheckedChange: (checked) => {
                   void handleSetActiveSinkEprEnabled(checked)
                 },
@@ -2597,7 +2617,7 @@ export const RackView = () => {
                 type: 'checkbox',
                 label: 'Send Get_PPS_Status messages',
                 checked: activeDriverState?.sinkPpsStatusQueryEnabled === true,
-                disabled: !activeDriver || !isSinkMode,
+                disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
                 onCheckedChange: (checked) => {
                   void handleSetActiveSinkPpsStatusQueryEnabled(checked)
                 },
@@ -2889,6 +2909,7 @@ export const RackView = () => {
     activeDriverState?.role,
     addMessageLogMarker,
     canInstall,
+    canUseSinkBehaviourSettings,
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,

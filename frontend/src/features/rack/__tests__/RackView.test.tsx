@@ -1811,6 +1811,7 @@ describe('RackView', () => {
 
   it('refreshes and toggles Get_PPS_Status sink behaviour from the Mode menu', async () => {
     const user = userEvent.setup()
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.13']
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -1834,6 +1835,24 @@ describe('RackView', () => {
     await waitFor(() => {
       expect(mockTransportState.sentCommands).toContain('SINK:PPS:STATUS:EN OFF')
     })
+  })
+
+  it('disables Sink behaviour settings before firmware 0.9.13', async () => {
+    const user = userEvent.setup()
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.12']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+
+    expect(await screen.findByRole('menuitemcheckbox', { name: 'Support EPR mode' })).toBeDisabled()
+    expect(await screen.findByRole('menuitemcheckbox', {
+      name: 'Send Get_PPS_Status messages',
+    })).toBeDisabled()
   })
 
   it('pulses Disabled then restores previous role for USB toggle shortcut', async () => {
