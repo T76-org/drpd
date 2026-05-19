@@ -103,13 +103,13 @@ PDOVariant SourceCapabilities::_createPDO(uint32_t raw) {
         case 3: {
             // Determine APDO subtype based on bits 29:28
             uint32_t apdo_type = (raw >> 28) & 0x3;
-            switch (apdo_type) {
-                case 0:
+            switch (static_cast<AugmentedPDO::APDOType>(apdo_type)) {
+                case AugmentedPDO::APDOType::SPR_PPS:
                     return SPRPPSAPDO(raw);
-                case 1:
-                    return SPRAVSAPDO(raw);
-                case 2:
+                case AugmentedPDO::APDOType::EPR_AVS:
                     return EPRAVSAPDO(raw);
+                case AugmentedPDO::APDOType::SPR_AVS:
+                    return SPRAVSAPDO(raw);
                 default:
                     // Invalid APDO type, return a default SPR PPS
                     return SPRPPSAPDO(raw);
