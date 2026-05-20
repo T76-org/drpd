@@ -114,6 +114,7 @@ namespace T76::DRPD {
         void _measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureVBusVoltage(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureVBusCurrent(const std::vector<T76::SCPI::ParameterValue> &);
+        void _measureRawVBusCurrent(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureDUTCC1Voltage(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureDUTCC2Voltage(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureUSDSCC1Voltage(const std::vector<T76::SCPI::ParameterValue> &);
@@ -143,6 +144,9 @@ namespace T76::DRPD {
         void _setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
         void _resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setVBusCurrentCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterValue> &);
+        void _resetVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterValue> &);
 
         void _setVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &params);
         void _queryVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &params);

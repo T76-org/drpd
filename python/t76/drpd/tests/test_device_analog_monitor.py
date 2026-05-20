@@ -80,6 +80,119 @@ class TestDeviceAnalogMonitor(unittest.IsolatedAsyncioTestCase):
             "BUS:VBUS:CAL:DEF"
         )
 
+    async def test_get_raw_vbus_current_returns_single_value(self) -> None:
+        internal = MagicMock()
+        internal.query_ascii_values_and_check = AsyncMock(return_value=[1.25])
+
+        analog_monitor = DeviceAnalogMonitor(internal)
+        current = await analog_monitor.get_raw_vbus_current()
+
+        self.assertEqual(current, 1.25)
+        internal.query_ascii_values_and_check.assert_awaited_once_with(
+            "MEAS:CURR:VBUS:RAW?",
+            "f",
+        )
+
+    async def test_get_raw_vbus_current_rejects_wrong_length(self) -> None:
+        internal = MagicMock()
+        internal.query_ascii_values_and_check = AsyncMock(return_value=[])
+
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(ValueError, "Expected 1 field, got 0"):
+            await analog_monitor.get_raw_vbus_current()
+
+    async def test_get_vbus_current_calibration_table_parses_all_entries(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        internal.query_ascii_values_and_check = AsyncMock(return_value=[
+            float(index) / 100.0 for index in range(13)
+        ])
+
+        analog_monitor = DeviceAnalogMonitor(internal)
+        table = await analog_monitor.get_vbus_current_calibration_table()
+
+        self.assertEqual(len(table), 13)
+        self.assertEqual(table[0], 0.0)
+        self.assertEqual(table[12], 0.12)
+        internal.query_ascii_values_and_check.assert_awaited_once_with(
+            "BUS:VBUS:CAL:CURR?",
+            "f",
+        )
+
+    async def test_get_vbus_current_calibration_table_rejects_wrong_length(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        internal.query_ascii_values_and_check = AsyncMock(
+            return_value=[0.0] * 12
+        )
+
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(ValueError, "Expected 13 fields, got 12"):
+            await analog_monitor.get_vbus_current_calibration_table()
+
+    async def test_calibrate_vbus_current_bucket_writes_expected_command(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        internal.write_ascii_and_check = AsyncMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        await analog_monitor.calibrate_vbus_current_bucket(500)
+
+        internal.write_ascii_and_check.assert_awaited_once_with(
+            "BUS:VBUS:CAL:CURR 500"
+        )
+
+    async def test_calibrate_vbus_current_bucket_rejects_non_integer_value(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(ValueError, "target_ma must be an integer"):
+            await analog_monitor.calibrate_vbus_current_bucket(500.5)  # type: ignore[arg-type]
+
+    async def test_calibrate_vbus_current_bucket_rejects_out_of_range_value(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"target_ma must be in range \[0, 6000\]",
+        ):
+            await analog_monitor.calibrate_vbus_current_bucket(6500)
+
+    async def test_calibrate_vbus_current_bucket_rejects_unaligned_value(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "target_ma must be aligned to a 500 mA interval",
+        ):
+            await analog_monitor.calibrate_vbus_current_bucket(750)
+
+    async def test_reset_vbus_current_calibration_to_defaults_writes_expected_command(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        internal.write_ascii_and_check = AsyncMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        await analog_monitor.reset_vbus_current_calibration_to_defaults()
+
+        internal.write_ascii_and_check.assert_awaited_once_with(
+            "BUS:VBUS:CAL:CURR:DEF"
+        )
+
     async def test_get_status_parses_accumulation_fields(self) -> None:
         internal = MagicMock()
         internal.query_ascii_values_and_check = AsyncMock(return_value=[

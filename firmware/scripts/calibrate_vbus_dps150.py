@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Calibrate DRPD VBUS buckets using an FNIRSI DPS150 power supply.
+Calibrate DRPD VBUS voltage or current buckets.
 """
 
 from __future__ import annotations
@@ -40,11 +40,15 @@ DRPD_FIRMWARE_DOWNLOAD_BASE_URL = "https://t76.org/drpd/releases"
 DRPD_FIRMWARE_ASSET_NAME = "drpd-firmware-combined.uf2"
 FIRMWARE_REENUMERATE_TIMEOUT_SECONDS = 15
 FIRMWARE_REENUMERATE_INTERVAL_SECONDS = 0.5
+SINK_PDO_DISCOVERY_TIMEOUT_SECONDS = 15
+SINK_PDO_DISCOVERY_INTERVAL_SECONDS = 0.5
+SINK_PDO_NEGOTIATION_TIMEOUT_SECONDS = 5
 PICO_SDK_PICOTOOL_ROOT = Path.home() / ".pico-sdk" / "picotool"
 DEFAULT_FIRMWARE_CACHE_DIR = (
     Path(tempfile.gettempdir()) / "drpd-firmware-cache"
 )
 FirmwareChannel = Literal["production", "beta"]
+CalibrationMode = Literal["voltage", "current"]
 
 
 class ScriptError(RuntimeError):
@@ -91,85 +95,108 @@ def build_parser() -> argparse.ArgumentParser:
     """Create the command-line parser for the calibration script."""
     parser = argparse.ArgumentParser(
         description=(
-            "Calibrate DRPD VBUS buckets using a connected FNIRSI DPS150."
+            "Calibrate DRPD VBUS voltage buckets using a DPS150 or VBUS "
+            "current buckets manually."
         )
     )
-    parser.add_argument(
+
+    subparsers = parser.add_subparsers(
+        dest="calibration_mode",
+        required=True,
+        metavar="{voltage,current}",
+        help="Calibration target. Must be specified explicitly.",
+    )
+
+    def add_common_arguments(mode_parser: argparse.ArgumentParser) -> None:
+        mode_parser.add_argument(
+            "--flash-uf2",
+            type=Path,
+            help="Flash the specified UF2 with picotool and exit.",
+        )
+        mode_parser.add_argument(
+            "--picotool",
+            type=Path,
+            help=(
+                "Path to picotool. Auto-discovered from ~/.pico-sdk/picotool "
+                "or PATH by default."
+            ),
+        )
+        mode_parser.add_argument(
+            "--skip-firmware-prepare",
+            action="store_true",
+            help="Skip erase/download/flash preparation before calibration.",
+        )
+        mode_parser.add_argument(
+            "--firmware-channel",
+            choices=("production", "beta"),
+            default=DEFAULT_FIRMWARE_CHANNEL,
+            help="Firmware update channel for calibration prep. Default: %(default)s",
+        )
+        mode_parser.add_argument(
+            "--firmware-cache-dir",
+            type=Path,
+            default=DEFAULT_FIRMWARE_CACHE_DIR,
+            help=(
+                "Directory for cached firmware downloads. "
+                f"Default: {DEFAULT_FIRMWARE_CACHE_DIR}"
+            ),
+        )
+        selection_group = mode_parser.add_mutually_exclusive_group()
+        selection_group.add_argument(
+            "--drpd-serial",
+            help="Serial number of the DRPD device to use.",
+        )
+        selection_group.add_argument(
+            "--drpd-index",
+            type=int,
+            help="Index of the DRPD device to use from the discovered list.",
+        )
+        mode_parser.add_argument(
+            "--reset-to-defaults",
+            action="store_true",
+            help="Restore the selected calibration table to defaults and exit without calibrating.",
+        )
+
+    voltage_parser = subparsers.add_parser(
+        "voltage",
+        help="Calibrate VBUS voltage buckets with a connected FNIRSI DPS150.",
+    )
+    add_common_arguments(voltage_parser)
+    voltage_parser.add_argument(
         "--dps150-port",
         help="Serial port for the DPS150. Auto-discovered by default.",
     )
-    parser.add_argument(
-        "--flash-uf2",
-        type=Path,
-        help="Flash the specified UF2 with picotool and exit.",
-    )
-    parser.add_argument(
-        "--picotool",
-        type=Path,
-        help=(
-            "Path to picotool. Auto-discovered from ~/.pico-sdk/picotool "
-            "or PATH by default."
-        ),
-    )
-    parser.add_argument(
-        "--skip-firmware-prepare",
-        action="store_true",
-        help="Skip erase/download/flash preparation before calibration.",
-    )
-    parser.add_argument(
-        "--firmware-channel",
-        choices=("production", "beta"),
-        default=DEFAULT_FIRMWARE_CHANNEL,
-        help="Firmware update channel for calibration prep. Default: %(default)s",
-    )
-    parser.add_argument(
-        "--firmware-cache-dir",
-        type=Path,
-        default=DEFAULT_FIRMWARE_CACHE_DIR,
-        help=(
-            "Directory for cached firmware downloads. "
-            f"Default: {DEFAULT_FIRMWARE_CACHE_DIR}"
-        ),
-    )
-    selection_group = parser.add_mutually_exclusive_group()
-    selection_group.add_argument(
-        "--drpd-serial",
-        help="Serial number of the DRPD device to use.",
-    )
-    selection_group.add_argument(
-        "--drpd-index",
-        type=int,
-        help="Index of the DRPD device to use from the discovered list.",
-    )
-    parser.add_argument(
+    voltage_parser.add_argument(
         "--current-limit",
         type=float,
         default=DEFAULT_CURRENT_LIMIT_A,
         help="DPS150 current limit in amps. Default: %(default).2f",
     )
-    parser.add_argument(
+    voltage_parser.add_argument(
         "--settle-seconds",
         type=float,
         default=DEFAULT_SETTLE_SECONDS,
         help="Delay after each DPS150 voltage change. Default: %(default).2f",
     )
-    parser.add_argument(
+    voltage_parser.add_argument(
         "--start-voltage",
         type=int,
         default=DEFAULT_START_VOLTAGE,
         help="First integer bucket to calibrate. Default: %(default)d",
     )
-    parser.add_argument(
+    voltage_parser.add_argument(
         "--end-voltage",
         type=int,
         default=DEFAULT_END_VOLTAGE,
         help="Last integer bucket to calibrate. Default: %(default)d",
     )
-    parser.add_argument(
-        "--reset-to-defaults",
-        action="store_true",
-        help="Restore the device calibration table to defaults and exit without calibrating.",
+
+    current_parser = subparsers.add_parser(
+        "current",
+        help="Manually calibrate VBUS current buckets from 0 mA through 6000 mA.",
     )
+    add_common_arguments(current_parser)
+
     return parser
 
 
@@ -194,19 +221,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             f"{args.firmware_cache_dir}"
         )
 
-    if args.current_limit <= 0.0:
+    if args.calibration_mode == "voltage" and args.current_limit <= 0.0:
         raise ScriptError("--current-limit must be greater than zero")
 
-    if args.settle_seconds < 0.0:
+    if args.calibration_mode == "voltage" and args.settle_seconds < 0.0:
         raise ScriptError("--settle-seconds must be non-negative")
 
-    if args.start_voltage < 1 or args.start_voltage > 60:
+    if args.calibration_mode == "voltage" and (args.start_voltage < 1 or args.start_voltage > 60):
         raise ScriptError("--start-voltage must be in range [1, 60]")
 
-    if args.end_voltage < 1 or args.end_voltage > 60:
+    if args.calibration_mode == "voltage" and (args.end_voltage < 1 or args.end_voltage > 60):
         raise ScriptError("--end-voltage must be in range [1, 60]")
 
-    if args.start_voltage > args.end_voltage:
+    if args.calibration_mode == "voltage" and args.start_voltage > args.end_voltage:
         raise ScriptError(
             "--start-voltage must be less than or equal to --end-voltage")
 
@@ -448,16 +475,20 @@ def download_firmware_release(
     return firmware_path
 
 
-def ensure_calibration_dependencies_available() -> None:
+def ensure_calibration_dependencies_available(mode: CalibrationMode) -> None:
     """Fail before firmware prep if calibration dependencies are unavailable."""
     missing: list[str] = []
 
-    dependency_imports = (
-        ("fnirsi_dps150", "fnirsi-dps150"),
-        ("serial.tools.list_ports", "pyserial"),
+    dependency_imports: list[tuple[str, str]] = [
         ("t76.drpd.device.discovery", "local t76 dependencies"),
         ("t76.drpd.device.types", "local t76 dependencies"),
-    )
+    ]
+
+    if mode == "voltage":
+        dependency_imports.extend([
+            ("fnirsi_dps150", "fnirsi-dps150"),
+            ("serial.tools.list_ports", "pyserial"),
+        ])
 
     for module_name, dependency_name in dependency_imports:
         try:
@@ -768,7 +799,87 @@ def print_calibration_table(table: Sequence[float]) -> None:
         print(f"  {bucket:02d}: {value:.2f}")
 
 
-async def calibrate(args: argparse.Namespace) -> None:
+def print_current_calibration_table(table: Sequence[float]) -> None:
+    """Print the current calibration table in CSV and labeled forms."""
+    csv_line = ",".join(f"{value:.2f}" for value in table)
+    print("\nCurrent raw calibration table CSV:")
+    print(csv_line)
+    print("\nCurrent raw calibration table by true-current point:")
+    for bucket, value in enumerate(table):
+        target_ma = bucket * 500
+        print(f"  {target_ma:04d} mA ({target_ma / 1000.0:.2f} A): raw {value:.2f} A")
+
+
+async def select_required_current_calibration_pdo(device: Any) -> None:
+    """Enter Sink mode, find, and request a 5V/5A fixed PDO."""
+    from t76.drpd.device.device_sink_pdos import FixedPDO
+    from t76.drpd.device.types import Mode
+
+    print(
+        "Connect a USB-PD source capable of at least 5 V / 5 A, then "
+        "press Enter to continue."
+    )
+    try:
+        input("Source ready: ")
+    except EOFError as exc:
+        raise ScriptError("Current calibration requires interactive input.") from exc
+
+    await device.mode.set(Mode.SINK)
+    # DeviceSink caches RoleChanged events when the app event loop is active.
+    # The calibration script changes mode synchronously, so keep the helper in sync.
+    if hasattr(device.sink, "_current_role"):
+        device.sink._current_role = Mode.SINK
+
+    deadline = time.monotonic() + SINK_PDO_DISCOVERY_TIMEOUT_SECONDS
+    last_error: Exception | None = None
+
+    while time.monotonic() < deadline:
+        try:
+            pdo_count = await device.sink.get_pdo_count()
+            for index in range(pdo_count):
+                pdo = await device.sink.get_pdo_at_index(index)
+                if (
+                    isinstance(pdo, FixedPDO)
+                    and abs(pdo.voltage - 5.0) < 0.001
+                    and pdo.max_current >= 5.0
+                ):
+                    print(
+                        f"Found 5 V / {pdo.max_current:.2f} A fixed PDO "
+                        f"at index {index}. Requesting 5 V / 5 A."
+                    )
+                    await device.sink.set_pdo(index, 5000, 5000)
+                    negotiation_deadline = (
+                        time.monotonic() + SINK_PDO_NEGOTIATION_TIMEOUT_SECONDS
+                    )
+                    while time.monotonic() < negotiation_deadline:
+                        negotiated_voltage = await device.sink.get_negotiated_voltage()
+                        negotiated_current = await device.sink.get_negotiated_current()
+                        if negotiated_voltage == 5000 and negotiated_current >= 5000:
+                            print(
+                                "Sink contract is ready: "
+                                f"{negotiated_voltage} mV / {negotiated_current} mA."
+                            )
+                            return
+                        await asyncio.sleep(SINK_PDO_DISCOVERY_INTERVAL_SECONDS)
+
+                    raise ScriptError(
+                        "Requested 5 V / 5 A, but the negotiated sink "
+                        "contract did not settle at 5 V / at least 5 A."
+                    )
+        except (RuntimeError, ValueError, TimeoutError) as exc:
+            last_error = exc
+
+        await asyncio.sleep(SINK_PDO_DISCOVERY_INTERVAL_SECONDS)
+
+    detail = f" Last error: {last_error}" if last_error is not None else ""
+    raise ScriptError(
+        "Could not find a fixed 5 V PDO capable of at least 5 A from the "
+        f"connected source within {SINK_PDO_DISCOVERY_TIMEOUT_SECONDS:.0f} s."
+        f"{detail}"
+    )
+
+
+async def calibrate_voltage(args: argparse.Namespace) -> None:
     """Run the end-to-end DPS150-driven calibration sequence."""
     try:
         from fnirsi_dps150 import DPS150
@@ -844,6 +955,125 @@ async def calibrate(args: argparse.Namespace) -> None:
         await device.disconnect()
 
 
+async def calibrate_current_manual(args: argparse.Namespace) -> None:
+    """Run the manual current calibration sequence."""
+    try:
+        from t76.drpd.device.types import Mode
+    except ModuleNotFoundError as exc:
+        raise ScriptError(
+            "Missing DRPD Python dependencies. Install the local `t76` "
+            "package dependencies before running this script."
+        ) from exc
+
+    device = discover_drpd_device(args.drpd_serial, args.drpd_index)
+    drpd_name = device.name or "Unknown"
+    drpd_serial = _device_serial_number(device) or "Unknown"
+
+    print(f"Using DRPD device: {drpd_name} (serial={drpd_serial})")
+
+    await device.connect()
+    original_ovp_threshold: float | None = None
+    original_ocp_threshold: float | None = None
+    original_mode: Mode | None = None
+
+    try:
+        original_ovp_threshold = await device.vbus.get_ovp_threshold()
+        original_ocp_threshold = await device.vbus.get_ocp_threshold()
+        original_mode = await device.mode.get()
+
+        if not args.reset_to_defaults:
+            print(
+                "Manual current calibration expects an external load or "
+                "fixture. Set the requested current for each prompt, then "
+                "press Enter to capture that point."
+            )
+
+            await device.vbus.set_ovp_threshold(60)
+            await device.vbus.set_ocp_threshold(6)
+            await select_required_current_calibration_pdo(device)
+
+            print("Resetting device current calibration table to defaults.")
+            await device.analog_monitor.reset_vbus_current_calibration_to_defaults()
+
+            for target_ma in range(0, 6000 + 500, 500):
+                if target_ma == 0:
+                    prompt = (
+                        "Remove the load so VBUS current is 0 mA, then press "
+                        "Enter to capture, or type quit to stop: "
+                    )
+                else:
+                    prompt = (
+                        f"Draw {target_ma} mA ({target_ma / 1000.0:.2f} A), "
+                        "then press Enter to capture, or type quit to stop: "
+                    )
+
+                try:
+                    command = input(prompt).strip().lower()
+                except EOFError as exc:
+                    raise ScriptError(
+                        "Current calibration requires interactive input."
+                    ) from exc
+
+                if command == "quit":
+                    print(
+                        "Stopping current calibration. Previously captured "
+                        "calibration points remain persisted."
+                    )
+                    break
+
+                raw_readback_current = await device.analog_monitor.get_raw_vbus_current()
+                await device.analog_monitor.calibrate_vbus_current_bucket(target_ma)
+                raw_readback_magnitude = abs(raw_readback_current)
+                current_table = (
+                    await device.analog_monitor.get_vbus_current_calibration_table()
+                )
+                if raw_readback_magnitude <= current_table[0]:
+                    expected_calibrated_magnitude = 0.0
+                else:
+                    expected_calibrated_magnitude = 6.0
+                    for lower_bucket in range(len(current_table) - 1):
+                        lower_raw_current = current_table[lower_bucket]
+                        upper_raw_current = current_table[lower_bucket + 1]
+                        if raw_readback_magnitude <= upper_raw_current:
+                            raw_span = upper_raw_current - lower_raw_current
+                            if raw_span <= 0.0:
+                                expected_calibrated_magnitude = lower_bucket * 0.5
+                            else:
+                                fraction = (
+                                    raw_readback_magnitude - lower_raw_current
+                                ) / raw_span
+                                expected_calibrated_magnitude = (
+                                    lower_bucket * 0.5
+                                    + fraction * 0.5
+                                )
+                            break
+                expected_calibrated_current = expected_calibrated_magnitude * (
+                    1.0 if raw_readback_current >= 0.0 else -1.0
+                )
+                print(
+                    f"Bucket {target_ma:04d} mA: DRPD raw readback "
+                    f"{raw_readback_current:.2f} A, expected calibrated "
+                    f"readback {expected_calibrated_current:.2f} A"
+                )
+        else:
+            print("Resetting device current calibration table to defaults.")
+            await device.analog_monitor.reset_vbus_current_calibration_to_defaults()
+
+        table = await device.analog_monitor.get_vbus_current_calibration_table()
+        print_current_calibration_table(table)
+    finally:
+        if original_ovp_threshold is not None:
+            with suppress(Exception):
+                await device.vbus.set_ovp_threshold(original_ovp_threshold)
+        if original_ocp_threshold is not None:
+            with suppress(Exception):
+                await device.vbus.set_ocp_threshold(original_ocp_threshold)
+        if original_mode is not None:
+            with suppress(Exception):
+                await device.mode.set(original_mode)
+        await device.disconnect()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse arguments and run the async calibration workflow."""
     try:
@@ -852,9 +1082,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             flash_uf2(args.flash_uf2, args.picotool)
         else:
             if not args.skip_firmware_prepare:
-                ensure_calibration_dependencies_available()
+                ensure_calibration_dependencies_available(args.calibration_mode)
                 prepare_firmware_for_calibration(args)
-            asyncio.run(calibrate(args))
+            if args.calibration_mode == "voltage":
+                asyncio.run(calibrate_voltage(args))
+            elif args.calibration_mode == "current":
+                asyncio.run(calibrate_current_manual(args))
+            else:
+                raise ScriptError(f"Unknown calibration mode: {args.calibration_mode}")
     except KeyboardInterrupt:
         print("Calibration interrupted.", file=sys.stderr)
         return 130
