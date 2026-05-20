@@ -80,7 +80,9 @@ void AnalogMonitor::readVBusValues() {
 
     SELECT_PIN_MASK_FOR_CHANNEL(PHY_ANALOG_MONITOR_VBUS_ISENSE_ADC_CHANNEL);
     float currentSense = _readVoltageFromADCChannel(PHY_ANALOG_MONITOR_VBUS_ISENSE_ADC_CHANNEL) - groundReference - currentZeroReference;
-    float vBusCurrent = currentSense * PHY_ANALOG_MONITOR_VBUS_ISENSE_SCALE_FACTOR;
+    float rawScaledVBusCurrent = currentSense * PHY_ANALOG_MONITOR_VBUS_ISENSE_SCALE_FACTOR;
+    _readings.rawVBusCurrent = rawScaledVBusCurrent;
+    float vBusCurrent = _applyVBusCurrentCalibration(rawScaledVBusCurrent);
     int32_t truncatedVBusCurrentCentiA = static_cast<int32_t>(std::trunc(vBusCurrent * 100.0f));
     float truncatedVBusCurrent = static_cast<float>(truncatedVBusCurrentCentiA) / 100.0f;
 
@@ -176,16 +178,26 @@ void AnalogMonitor::resetAccumulatedMeasurements() {
 
 void AnalogMonitor::applyPersistentConfig(const T76::DRPD::AnalogMonitorPersistentConfig &config) {
     _vBusVoltageCorrectionByRawVolt = config.vbusVoltageCorrectionByRawVolt;
+    _vBusCurrentRawByCalibratedHalfAmp = config.vbusCurrentRawByCalibratedHalfAmp;
 }
 
 T76::DRPD::AnalogMonitorPersistentConfig AnalogMonitor::exportPersistentConfig() const {
     return T76::DRPD::AnalogMonitorPersistentConfig{
         .vbusVoltageCorrectionByRawVolt = _vBusVoltageCorrectionByRawVolt,
+        .vbusCurrentRawByCalibratedHalfAmp = _vBusCurrentRawByCalibratedHalfAmp,
     };
 }
 
 std::array<float, AnalogMonitor::VBusCorrectionPointCount> AnalogMonitor::defaultVBusVoltageCorrection() {
     return {};
+}
+
+std::array<float, AnalogMonitor::VBusCurrentCorrectionPointCount> AnalogMonitor::defaultVBusCurrentRawCalibration() {
+    std::array<float, VBusCurrentCorrectionPointCount> calibration{};
+    for (size_t index = 0; index < calibration.size(); ++index) {
+        calibration[index] = static_cast<float>(index) * VBusCurrentCorrectionIntervalAmps;
+    }
+    return calibration;
 }
 
 const std::array<float, AnalogMonitor::VBusCorrectionPointCount> &AnalogMonitor::vBusVoltageCorrectionByRawVolt() const {
@@ -197,12 +209,25 @@ void AnalogMonitor::vBusVoltageCorrectionByRawVolt(size_t bucket, float correcti
     _vBusVoltageCorrectionByRawVolt[bucket] = correctionVolts;
 }
 
+const std::array<float, AnalogMonitor::VBusCurrentCorrectionPointCount> &AnalogMonitor::vBusCurrentRawByCalibratedHalfAmp() const {
+    return _vBusCurrentRawByCalibratedHalfAmp;
+}
+
+void AnalogMonitor::vBusCurrentRawByCalibratedHalfAmp(size_t bucket, float rawCurrentAmps) {
+    assert(bucket < _vBusCurrentRawByCalibratedHalfAmp.size());
+    _vBusCurrentRawByCalibratedHalfAmp[bucket] = rawCurrentAmps;
+}
+
 float AnalogMonitor::vBusVoltage() const {
     return std::trunc(_readings.vBusVoltageAverager.average() * 100.0f) / 100.0f;
 }
 
 float AnalogMonitor::vBusCurrent() const {
     return std::trunc(_readings.vBusCurrentAverager.average() * 100.0f) / 100.0f;
+}
+
+float AnalogMonitor::rawVBusCurrent() const {
+    return std::trunc(_readings.rawVBusCurrent * 100.0f) / 100.0f;
 }
 
 float AnalogMonitor::dutCC1Voltage() const {
@@ -301,6 +326,35 @@ float AnalogMonitor::_applyVBusVoltageCalibration(float rawScaledVoltage) const 
         lowerCorrection + fraction * (upperCorrection - lowerCorrection);
 
     return clampedRawVoltage + interpolatedCorrection;
+}
+
+float AnalogMonitor::_applyVBusCurrentCalibration(float rawScaledCurrent) const {
+    float rawCurrentMagnitude = std::abs(rawScaledCurrent);
+
+    if (rawCurrentMagnitude <= _vBusCurrentRawByCalibratedHalfAmp.front()) {
+        return std::copysign(0.0f, rawScaledCurrent);
+    }
+
+    for (size_t lowerIndex = 0; lowerIndex < VBusCurrentCorrectionSegmentCount; ++lowerIndex) {
+        float lowerRawCurrent = _vBusCurrentRawByCalibratedHalfAmp[lowerIndex];
+        float upperRawCurrent = _vBusCurrentRawByCalibratedHalfAmp[lowerIndex + 1];
+
+        if (rawCurrentMagnitude <= upperRawCurrent) {
+            float lowerCalibratedCurrent = static_cast<float>(lowerIndex) * VBusCurrentCorrectionIntervalAmps;
+            float upperCalibratedCurrent = static_cast<float>(lowerIndex + 1) * VBusCurrentCorrectionIntervalAmps;
+            float rawSpan = upperRawCurrent - lowerRawCurrent;
+            if (rawSpan <= 0.0f) {
+                return std::copysign(lowerCalibratedCurrent, rawScaledCurrent);
+            }
+
+            float fraction = (rawCurrentMagnitude - lowerRawCurrent) / rawSpan;
+            float calibratedMagnitude =
+                lowerCalibratedCurrent + fraction * (upperCalibratedCurrent - lowerCalibratedCurrent);
+            return std::copysign(calibratedMagnitude, rawScaledCurrent);
+        }
+    }
+
+    return std::copysign(MaximumCalibratedVBusCurrent, rawScaledCurrent);
 }
 
 } // namespace T76::DRPD::PHY

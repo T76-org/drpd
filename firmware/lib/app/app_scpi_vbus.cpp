@@ -133,6 +133,54 @@ void App::_queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) 
 void App::_resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
     _analogMonitor.applyPersistentConfig(T76::DRPD::AnalogMonitorPersistentConfig{
         .vbusVoltageCorrectionByRawVolt = PHY::AnalogMonitor::defaultVBusVoltageCorrection(),
+        .vbusCurrentRawByCalibratedHalfAmp = _analogMonitor.vBusCurrentRawByCalibratedHalfAmp(),
+    });
+    _savePersistentConfig();
+}
+
+void App::_setVBusCurrentCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &params) {
+    double targetMilliampsValue = params[0].numberValue;
+    if (std::trunc(targetMilliampsValue) != targetMilliampsValue) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    if (targetMilliampsValue < 0.0 || targetMilliampsValue > 6000.0) {
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
+        return;
+    }
+
+    uint32_t targetMilliamps = static_cast<uint32_t>(targetMilliampsValue);
+    if ((targetMilliamps % 500u) != 0u) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    size_t bucket = static_cast<size_t>(targetMilliamps / 500u);
+    float measuredCurrentAmps = std::abs(_analogMonitor.rawVBusCurrent());
+
+    _analogMonitor.vBusCurrentRawByCalibratedHalfAmp(bucket, measuredCurrentAmps);
+    _savePersistentConfig();
+}
+
+void App::_queryVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
+    const auto &corrections = _analogMonitor.vBusCurrentRawByCalibratedHalfAmp();
+    std::string response;
+
+    for (size_t index = 0; index < corrections.size(); ++index) {
+        response += _formatAnalogValue(corrections[index]);
+        if (index < corrections.size() - 1) {
+            response += ",";
+        }
+    }
+
+    _sendTransportTextResponse(response);
+}
+
+void App::_resetVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
+    _analogMonitor.applyPersistentConfig(T76::DRPD::AnalogMonitorPersistentConfig{
+        .vbusVoltageCorrectionByRawVolt = _analogMonitor.vBusVoltageCorrectionByRawVolt(),
+        .vbusCurrentRawByCalibratedHalfAmp = PHY::AnalogMonitor::defaultVBusCurrentRawCalibration(),
     });
     _savePersistentConfig();
 }

@@ -61,6 +61,10 @@ void App::_measureVBusCurrent(const std::vector<T76::SCPI::ParameterValue> &) {
     _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.vBusCurrent()));
 }
 
+void App::_measureRawVBusCurrent(const std::vector<T76::SCPI::ParameterValue> &) {
+    _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.rawVBusCurrent()));
+}
+
 void App::_measureDUTCC1Voltage(const std::vector<T76::SCPI::ParameterValue> &) {
     _sendTransportTextResponse(_formatAnalogValue(_analogMonitor.dutCC1Voltage()));
 }

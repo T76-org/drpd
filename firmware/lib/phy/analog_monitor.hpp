@@ -77,6 +77,7 @@ namespace T76::DRPD::PHY {
         float adcVRefVoltage = 0.0f;
         float groundRefVoltage = 0.0f;
         float currentRefVoltage = 0.0f;
+        float rawVBusCurrent = 0.0f;
         uint64_t captureTimestampUs = 0; ///< Timestamp in microseconds when VBUS values were captured
         uint64_t accumulationStartTimestampUs = 0; ///< Timestamp in microseconds when accumulation window started
         uint64_t lastAccumulationTimestampUs = 0; ///< Timestamp in microseconds of the latest integrated VBUS sample
@@ -105,6 +106,10 @@ namespace T76::DRPD::PHY {
         static constexpr size_t VBusCorrectionPointCount = T76::DRPD::AnalogMonitorPersistentConfig::VBusCorrectionPointCount;
         static constexpr size_t VBusCorrectionSegmentCount = VBusCorrectionPointCount - 1;
         static constexpr float MinimumCalibratedVBusVoltage = 1.0f; ///< Lowest raw VBUS value, in volts, where correction interpolation is applied.
+        static constexpr size_t VBusCurrentCorrectionPointCount = T76::DRPD::AnalogMonitorPersistentConfig::VBusCurrentCorrectionPointCount;
+        static constexpr size_t VBusCurrentCorrectionSegmentCount = VBusCurrentCorrectionPointCount - 1;
+        static constexpr float VBusCurrentCorrectionIntervalAmps = 0.5f; ///< Current spacing, in amps, between calibration table points.
+        static constexpr float MaximumCalibratedVBusCurrent = static_cast<float>(VBusCurrentCorrectionSegmentCount) * VBusCurrentCorrectionIntervalAmps; ///< Highest true VBUS current where correction interpolation is defined.
 
         SemaphoreHandle_t _adcAccessMutex; ///< Mutex to protect access to the ADC
 
@@ -154,6 +159,13 @@ namespace T76::DRPD::PHY {
         static std::array<float, VBusCorrectionPointCount> defaultVBusVoltageCorrection();
 
         /**
+         * @brief Build the ideal default VBUS current raw calibration table.
+         *
+         * @return std::array<float, VBusCurrentCorrectionPointCount> Ideal raw readings for true current points 0A..6A.
+         */
+        static std::array<float, VBusCurrentCorrectionPointCount> defaultVBusCurrentRawCalibration();
+
+        /**
          * @brief Return the full persisted VBUS correction table.
          *
          * @return const std::array<float, VBusCorrectionPointCount> & Correction values ordered by raw bucket 0..60V.
@@ -169,6 +181,21 @@ namespace T76::DRPD::PHY {
         void vBusVoltageCorrectionByRawVolt(size_t bucket, float correctionVolts);
 
         /**
+         * @brief Return the full persisted VBUS current raw calibration table.
+         *
+         * @return const std::array<float, VBusCurrentCorrectionPointCount> & Raw readings ordered by true-current 500mA point from 0A..6A.
+         */
+        const std::array<float, VBusCurrentCorrectionPointCount> &vBusCurrentRawByCalibratedHalfAmp() const;
+
+        /**
+         * @brief Update one VBUS current raw reading by true-current 500mA point.
+         *
+         * @param bucket True half-amp current point in the range 0..12.
+         * @param rawCurrentAmps Raw measured current in amps for the point.
+         */
+        void vBusCurrentRawByCalibratedHalfAmp(size_t bucket, float rawCurrentAmps);
+
+        /**
          * @brief Get the VBUS voltage reading
          * 
          * @return float 
@@ -181,6 +208,13 @@ namespace T76::DRPD::PHY {
          * @return float 
          */
         float vBusCurrent() const;
+
+        /**
+         * @brief Get the latest raw scaled VBUS current before calibration.
+         *
+         * @return float Raw scaled VBUS current in amps.
+         */
+        float rawVBusCurrent() const;
 
         /**
          * @brief Get the DUT CC1 voltage reading
@@ -297,6 +331,7 @@ namespace T76::DRPD::PHY {
         uint64_t _chargeAccumulationResidue = 0; ///< Sub-mAh charge numerator residue in centiamp-microseconds
         uint64_t _energyAccumulationResidue = 0; ///< Sub-mWh energy numerator residue in centivolt-centiamp-microseconds
         std::array<float, VBusCorrectionPointCount> _vBusVoltageCorrectionByRawVolt = defaultVBusVoltageCorrection(); ///< Additive correction in volts for each raw integer-voltage bucket from 0V through 60V; bucket 0 is retained for persistence symmetry but runtime interpolation begins at 1V.
+        std::array<float, VBusCurrentCorrectionPointCount> _vBusCurrentRawByCalibratedHalfAmp = defaultVBusCurrentRawCalibration(); ///< Raw measured current in amps for each true 500mA current point from 0A through 6A.
 
         /**
          * @brief Read the voltage from a specific ADC channel
@@ -321,6 +356,14 @@ namespace T76::DRPD::PHY {
          * @return float Calibrated true VBUS voltage.
          */
         float _applyVBusVoltageCalibration(float rawScaledVoltage) const;
+
+        /**
+         * @brief Convert a raw scaled VBUS current into a calibrated true current.
+         *
+         * @param rawScaledCurrent Raw scaled VBUS current before calibration.
+         * @return float Calibrated true VBUS current.
+         */
+        float _applyVBusCurrentCalibration(float rawScaledCurrent) const;
 
         /**
          * @brief Delay for a specified number of microseconds

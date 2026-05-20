@@ -24,6 +24,8 @@ class DeviceAnalogMonitor:
     """
 
     VBUS_CALIBRATION_POINT_COUNT = 61
+    VBUS_CURRENT_CALIBRATION_POINT_COUNT = 13
+    VBUS_CURRENT_CALIBRATION_INTERVAL_MA = 500
 
     def __init__(self, internal: DeviceInternal, device: Optional["Device"] = None):
         """Initialize the DeviceAnalogMonitor with the given internal
@@ -135,6 +137,79 @@ class DeviceAnalogMonitor:
         Restore the persisted VBUS calibration table to firmware defaults.
         """
         await self._internal.write_ascii_and_check("BUS:VBUS:CAL:DEF")
+
+    async def get_raw_vbus_current(self) -> float:
+        """
+        Return the latest raw scaled VBUS current before calibration.
+
+        :return: Raw scaled VBUS current in amps.
+        :rtype: float
+        """
+        response = await self._internal.query_ascii_values_and_check(
+            "MEAS:CURR:VBUS:RAW?",
+            "f",
+        )
+
+        if len(response) != 1:
+            raise ValueError(
+                "Invalid MEAS:CURR:VBUS:RAW? response. Expected "
+                f"1 field, got {len(response)}"
+            )
+
+        return float(response[0])
+
+    async def get_vbus_current_calibration_table(self) -> List[float]:
+        """
+        Return the persisted VBUS current raw calibration table.
+
+        :return: A list of 13 raw readings ordered by 500 mA true-current point.
+        :rtype: List[float]
+        """
+        response = await self._internal.query_ascii_values_and_check(
+            "BUS:VBUS:CAL:CURR?",
+            "f",
+        )
+
+        if len(response) != self.VBUS_CURRENT_CALIBRATION_POINT_COUNT:
+            raise ValueError(
+                "Invalid BUS:VBUS:CAL:CURR? response. Expected "
+                f"{self.VBUS_CURRENT_CALIBRATION_POINT_COUNT} fields, got "
+                f"{len(response)}"
+            )
+
+        return [float(value) for value in response]
+
+    async def calibrate_vbus_current_bucket(self, target_ma: int) -> None:
+        """
+        Capture a calibration point for the specified raw current.
+
+        :param target_ma: The raw VBUS current target in milliamps.
+        :type target_ma: int
+        """
+        if not isinstance(target_ma, int) or isinstance(target_ma, bool):
+            raise ValueError("target_ma must be an integer")
+
+        max_current_ma = (
+            self.VBUS_CURRENT_CALIBRATION_POINT_COUNT - 1
+        ) * self.VBUS_CURRENT_CALIBRATION_INTERVAL_MA
+        if target_ma < 0 or target_ma > max_current_ma:
+            raise ValueError(f"target_ma must be in range [0, {max_current_ma}]")
+
+        if target_ma % self.VBUS_CURRENT_CALIBRATION_INTERVAL_MA != 0:
+            raise ValueError(
+                "target_ma must be aligned to a "
+                f"{self.VBUS_CURRENT_CALIBRATION_INTERVAL_MA} mA interval"
+            )
+
+        await self._internal.write_ascii_and_check(
+            f"BUS:VBUS:CAL:CURR {target_ma}"
+        )
+
+    async def reset_vbus_current_calibration_to_defaults(self) -> None:
+        """
+        Restore the persisted VBUS current calibration table to firmware defaults.
+        """
+        await self._internal.write_ascii_and_check("BUS:VBUS:CAL:CURR:DEF")
 
     async def start_recurring_status_updates(
             self,

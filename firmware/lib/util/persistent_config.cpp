@@ -19,6 +19,7 @@ using namespace T76::DRPD;
 
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV1>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV2>);
+static_assert(std::is_trivially_copyable_v<PersistentConfigDataV3>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataCurrent>);
 
 PersistentConfig &PersistentConfig::instance() {
@@ -82,6 +83,7 @@ PersistentConfigDataCurrent PersistentConfig::_defaultConfig() const {
         },
         .analogMonitor = AnalogMonitorPersistentConfig{
             .vbusVoltageCorrectionByRawVolt = T76::DRPD::PHY::AnalogMonitor::defaultVBusVoltageCorrection(),
+            .vbusCurrentRawByCalibratedHalfAmp = T76::DRPD::PHY::AnalogMonitor::defaultVBusCurrentRawCalibration(),
         },
         .trigger = TriggerPersistentConfig{
             .mode = 0,
@@ -167,7 +169,10 @@ bool PersistentConfig::_decodeVersion1(const uint8_t *payload,
     std::memcpy(&version1, payload, sizeof(version1));
     decoded = PersistentConfigDataCurrent{
         .vbus = version1.vbus,
-        .analogMonitor = version1.analogMonitor,
+        .analogMonitor = AnalogMonitorPersistentConfig{
+            .vbusVoltageCorrectionByRawVolt = version1.analogMonitor.vbusVoltageCorrectionByRawVolt,
+            .vbusCurrentRawByCalibratedHalfAmp = T76::DRPD::PHY::AnalogMonitor::defaultVBusCurrentRawCalibration(),
+        },
         .trigger = version1.trigger,
         .sync = version1.sync,
         .sink = SinkPersistentConfig{
@@ -187,7 +192,29 @@ bool PersistentConfig::_decodeVersion2(const uint8_t *payload,
 
     PersistentConfigDataV2 version2{};
     std::memcpy(&version2, payload, sizeof(version2));
-    decoded = version2;
+    decoded = PersistentConfigDataCurrent{
+        .vbus = version2.vbus,
+        .analogMonitor = AnalogMonitorPersistentConfig{
+            .vbusVoltageCorrectionByRawVolt = version2.analogMonitor.vbusVoltageCorrectionByRawVolt,
+            .vbusCurrentRawByCalibratedHalfAmp = T76::DRPD::PHY::AnalogMonitor::defaultVBusCurrentRawCalibration(),
+        },
+        .trigger = version2.trigger,
+        .sync = version2.sync,
+        .sink = version2.sink,
+    };
+    return true;
+}
+
+bool PersistentConfig::_decodeVersion3(const uint8_t *payload,
+                                       uint32_t payloadSize,
+                                       PersistentConfigDataCurrent &decoded) const {
+    if (payloadSize != sizeof(PersistentConfigDataV3)) {
+        return false;
+    }
+
+    PersistentConfigDataV3 version3{};
+    std::memcpy(&version3, payload, sizeof(version3));
+    decoded = version3;
     return true;
 }
 
@@ -200,6 +227,8 @@ bool PersistentConfig::_decodeStoredConfig(uint32_t schemaVersion,
             return _decodeVersion1(payload, payloadSize, decoded);
         case 2:
             return _decodeVersion2(payload, payloadSize, decoded);
+        case 3:
+            return _decodeVersion3(payload, payloadSize, decoded);
         default:
             return false;
     }

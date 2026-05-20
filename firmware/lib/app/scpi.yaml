@@ -131,6 +131,10 @@ commands:
     description:  "Measure the VBUS current."
     handler:      _measureVBusCurrent
 
+  - syntax:       "MEASure:CURRent:VBUS:RAW?"
+    description:  "Measure the latest raw scaled VBUS current before calibration."
+    handler:      _measureRawVBusCurrent
+
   - syntax:       "MEASure:VOLTage:CC:DUT1?"
     description:  "Measure the DUT CC1 voltage."
     handler:      _measureDUTCC1Voltage
@@ -323,6 +327,43 @@ commands:
                     Restore the full VBUS correction table to its default
                     firmware-defined values and persist the updated table.
     handler:      _resetVBusCalibration
+
+  - syntax:       "BUS:VBUS:CALibrate:CURRent?"
+    description:  |-
+                    Query the full VBUS current raw calibration table.
+                    Returns 13 comma-separated raw measured current values in
+                    amps, ordered by true current point from 0A through 6A in
+                    500mA intervals.
+    handler:      _queryVBusCurrentCalibration
+
+  - syntax:       "BUS:VBUS:CALibrate:CURRent"
+    description:  |-
+                    Capture the current live VBUS current reading and store
+                    the raw measured current for the specified true current.
+                    Runtime current calibration inverts the resulting
+                    piecewise-linear raw-to-true-current curve.
+    parameters:
+      - name:        target_ma
+        type:        number
+        description: "True VBUS current calibration point in milliamps; must be 0 through 6000 in 500mA intervals."
+    errors:
+      -109:
+        message:     "Missing parameter"
+        description: "No calibration current parameter was provided."
+      -222:
+        message:     "Data out of range"
+        description: "The calibration current was outside the supported range of 0 through 6000 mA."
+      -224:
+        message:     "Illegal parameter value"
+        description: "The calibration current was not an integer value or was not aligned to a 500 mA interval."
+    handler:      _setVBusCurrentCalibrationPoint
+
+  - syntax:       "BUS:VBUS:CALibrate:CURRent:DEFault"
+    description:  |-
+                    Restore the full VBUS current raw calibration table to its
+                    default firmware-defined values and persist the updated
+                    table. The VBUS voltage correction table is preserved.
+    handler:      _resetVBusCurrentCalibration
 
   ############################
   # Sink commands

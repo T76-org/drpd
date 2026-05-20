@@ -96,15 +96,6 @@ namespace T76::DRPD {
     };
 
     /**
-     * @brief Persisted analog-monitor calibration settings.
-     */
-    struct AnalogMonitorPersistentConfig {
-        static constexpr size_t VBusCorrectionPointCount = 61; ///< Raw VBUS buckets from 0V through 60V.
-
-        std::array<float, VBusCorrectionPointCount> vbusVoltageCorrectionByRawVolt{}; ///< Additive VBUS correction in volts for each raw integer-voltage bucket; runtime interpolation begins at 1V and readings below 1V bypass the table.
-    };
-
-    /**
      * @brief Persisted trigger message-type filter slot.
      */
     struct TriggerMessageTypeFilterPersistentConfig {
@@ -146,6 +137,26 @@ namespace T76::DRPD {
     };
 
     /**
+     * @brief Historical analog-monitor calibration settings for schema versions 1 and 2.
+     */
+    struct AnalogMonitorPersistentConfigV1 {
+        static constexpr size_t VBusCorrectionPointCount = 61; ///< Raw VBUS buckets from 0V through 60V.
+
+        std::array<float, VBusCorrectionPointCount> vbusVoltageCorrectionByRawVolt{}; ///< Additive VBUS correction in volts for each raw integer-voltage bucket.
+    };
+
+    /**
+     * @brief Persisted analog-monitor calibration settings.
+     */
+    struct AnalogMonitorPersistentConfig {
+        static constexpr size_t VBusCorrectionPointCount = 61; ///< Raw VBUS buckets from 0V through 60V.
+        static constexpr size_t VBusCurrentCorrectionPointCount = 13; ///< True VBUS current calibration points from 0A through 6A at 500mA intervals.
+
+        std::array<float, VBusCorrectionPointCount> vbusVoltageCorrectionByRawVolt{}; ///< Additive VBUS correction in volts for each raw integer-voltage bucket; runtime interpolation begins at 1V and readings below 1V bypass the table.
+        std::array<float, VBusCurrentCorrectionPointCount> vbusCurrentRawByCalibratedHalfAmp{}; ///< Raw measured VBUS current in amps for each true-current point from 0A through 6A.
+    };
+
+    /**
      * @brief Version 1 persistent payload layout.
      *
      * New schema versions must preserve this struct unchanged and define a new
@@ -153,7 +164,7 @@ namespace T76::DRPD {
      */
     struct PersistentConfigDataV1 {
         VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
-        AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
+        AnalogMonitorPersistentConfigV1 analogMonitor{}; ///< Persisted analog monitor settings.
         TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
         SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
     };
@@ -162,6 +173,17 @@ namespace T76::DRPD {
      * @brief Version 2 persistent payload layout.
      */
     struct PersistentConfigDataV2 {
+        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
+        AnalogMonitorPersistentConfigV1 analogMonitor{}; ///< Persisted analog monitor settings.
+        TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
+        SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
+        SinkPersistentConfig sink{};       ///< Persisted Sink policy settings.
+    };
+
+    /**
+     * @brief Version 3 persistent payload layout.
+     */
+    struct PersistentConfigDataV3 {
         VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
         AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
         TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
@@ -196,8 +218,16 @@ namespace T76::DRPD {
         PersistentConfigDataV2 payload{};  ///< On-flash payload.
     };
 
-    using PersistentConfigDataCurrent = PersistentConfigDataV2;
-    using PersistentConfigImageCurrent = PersistentConfigImageV2;
+    /**
+     * @brief Complete on-flash image for schema version 3.
+     */
+    struct PersistentConfigImageV3 {
+        PersistentConfigHeader header{};   ///< On-flash header.
+        PersistentConfigDataV3 payload{};  ///< On-flash payload.
+    };
+
+    using PersistentConfigDataCurrent = PersistentConfigDataV3;
+    using PersistentConfigImageCurrent = PersistentConfigImageV3;
 
     /**
      * @brief Persistent configuration store backed by a dedicated flash sector.
@@ -208,7 +238,7 @@ namespace T76::DRPD {
      */
     class PersistentConfig {
     public:
-        static constexpr uint32_t CurrentSchemaVersion = 2;   ///< Latest supported schema version.
+        static constexpr uint32_t CurrentSchemaVersion = 3;   ///< Latest supported schema version.
         static constexpr uint32_t Magic = 0x44525044u;        ///< Flash image identification marker.
         static constexpr uint32_t FlashSize = FLASH_SECTOR_SIZE;  ///< Reserved flash region size in bytes.
         static constexpr uint32_t FlashOffset = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;   ///< Offset of the reserved sector from flash base.
@@ -320,6 +350,11 @@ namespace T76::DRPD {
          * @brief Decode a version 2 payload into the current config representation.
          */
         bool _decodeVersion2(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+
+        /**
+         * @brief Decode a version 3 payload into the current config representation.
+         */
+        bool _decodeVersion3(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
 
         /**
          * @brief Decode any supported stored schema into the current representation.
