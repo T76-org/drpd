@@ -44,6 +44,8 @@ FIRMWARE_REENUMERATE_INTERVAL_SECONDS = 0.5
 SINK_PDO_DISCOVERY_TIMEOUT_SECONDS = 15
 SINK_PDO_DISCOVERY_INTERVAL_SECONDS = 0.5
 SINK_PDO_NEGOTIATION_TIMEOUT_SECONDS = 5
+CURRENT_CALIBRATION_INTERVAL_MA = 500
+MAX_CURRENT_CALIBRATION_MA = 6000
 PICO_SDK_PICOTOOL_ROOT = Path.home() / ".pico-sdk" / "picotool"
 DEFAULT_FIRMWARE_CACHE_DIR = (
     Path(tempfile.gettempdir()) / "drpd-firmware-cache"
@@ -870,6 +872,90 @@ def print_current_calibration_table(table: Sequence[float]) -> None:
         print(f"  {target_ma:04d} mA ({target_ma / 1000.0:.2f} A): raw {value:.2f} A")
 
 
+def _average_current_calibration_scale_factor(
+    captured_raw_by_target_ma: dict[int, float],
+) -> float | None:
+    """Return the average raw/nominal current scale factor for nonzero buckets."""
+    scale_factors = [
+        raw_current_a / (target_ma / 1000.0)
+        for target_ma, raw_current_a in captured_raw_by_target_ma.items()
+        if target_ma > 0
+    ]
+    if not scale_factors:
+        return None
+    return sum(scale_factors) / len(scale_factors)
+
+
+def _autofill_current_calibration_values(
+    captured_raw_by_target_ma: dict[int, float],
+    remaining_targets_ma: Sequence[int],
+) -> tuple[float | None, dict[int, float]]:
+    """Build raw current values for uncaptured targets from average scale factor."""
+    scale_factor = _average_current_calibration_scale_factor(
+        captured_raw_by_target_ma
+    )
+    if scale_factor is None:
+        return None, {}
+
+    autofilled: dict[int, float] = {}
+    for target_ma in remaining_targets_ma:
+        if target_ma in captured_raw_by_target_ma:
+            continue
+        if target_ma == 0:
+            autofilled[target_ma] = 0.0
+        else:
+            autofilled[target_ma] = (target_ma / 1000.0) * scale_factor
+    return scale_factor, autofilled
+
+
+def _confirm_current_calibration_autofill() -> bool:
+    """Ask the operator whether to autofill remaining current buckets."""
+    try:
+        response = input(
+            "Autofill remaining current buckets using the average captured "
+            "scale factor? [y/N]: "
+        )
+    except EOFError:
+        return False
+    return response.strip().lower() in ("y", "yes")
+
+
+async def _autofill_remaining_current_calibration_buckets(
+    analog_monitor: Any,
+    captured_raw_by_target_ma: dict[int, float],
+    remaining_targets_ma: Sequence[int],
+) -> None:
+    """Autofill uncaptured current buckets using captured raw/nominal ratio."""
+    scale_factor, autofilled = _autofill_current_calibration_values(
+        captured_raw_by_target_ma,
+        remaining_targets_ma,
+    )
+
+    if scale_factor is None:
+        print(
+            "Ratio-based autofill is unavailable because no nonzero current "
+            "buckets were captured."
+        )
+        return
+
+    if not _confirm_current_calibration_autofill():
+        print("Remaining current calibration buckets were left unchanged.")
+        return
+
+    for target_ma, raw_current_a in autofilled.items():
+        await analog_monitor.set_vbus_current_calibration_table_point(
+            target_ma,
+            raw_current_a,
+        )
+
+    print(
+        "Autofilled current calibration buckets: "
+        f"{len(captured_raw_by_target_ma)} captured, "
+        f"average scale factor {scale_factor:.6f}, "
+        f"{len(autofilled)} autofilled."
+    )
+
+
 def _coerce_calibration_table(
     value: object,
     expected_length: int,
@@ -1198,7 +1284,12 @@ async def calibrate_current_manual(args: argparse.Namespace) -> None:
             print("Resetting device current calibration table to defaults.")
             await device.analog_monitor.reset_vbus_current_calibration_to_defaults()
 
-            for target_ma in range(0, 6000 + 500, 500):
+            captured_raw_by_target_ma: dict[int, float] = {}
+            for target_ma in range(
+                0,
+                MAX_CURRENT_CALIBRATION_MA + CURRENT_CALIBRATION_INTERVAL_MA,
+                CURRENT_CALIBRATION_INTERVAL_MA,
+            ):
                 if target_ma == 0:
                     prompt = (
                         "Remove the load so VBUS current is 0 mA, then press "
@@ -1218,6 +1309,17 @@ async def calibrate_current_manual(args: argparse.Namespace) -> None:
                     ) from exc
 
                 if command == "quit":
+                    remaining_targets_ma = list(range(
+                        target_ma,
+                        MAX_CURRENT_CALIBRATION_MA
+                        + CURRENT_CALIBRATION_INTERVAL_MA,
+                        CURRENT_CALIBRATION_INTERVAL_MA,
+                    ))
+                    await _autofill_remaining_current_calibration_buckets(
+                        device.analog_monitor,
+                        captured_raw_by_target_ma,
+                        remaining_targets_ma,
+                    )
                     print(
                         "Stopping current calibration. Previously captured "
                         "calibration points remain persisted."
@@ -1230,6 +1332,10 @@ async def calibrate_current_manual(args: argparse.Namespace) -> None:
                 current_table = (
                     await device.analog_monitor.get_vbus_current_calibration_table()
                 )
+                if target_ma > 0:
+                    captured_raw_by_target_ma[target_ma] = current_table[
+                        target_ma // CURRENT_CALIBRATION_INTERVAL_MA
+                    ]
                 if raw_readback_magnitude <= current_table[0]:
                     expected_calibrated_magnitude = 0.0
                 else:
