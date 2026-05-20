@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -48,7 +49,8 @@ DEFAULT_FIRMWARE_CACHE_DIR = (
     Path(tempfile.gettempdir()) / "drpd-firmware-cache"
 )
 FirmwareChannel = Literal["production", "beta"]
-CalibrationMode = Literal["voltage", "current"]
+ScriptCommand = Literal["voltage", "current", "export", "import"]
+CALIBRATION_EXPORT_FORMAT = "drpd-vbus-calibration-tables-v1"
 
 
 class ScriptError(RuntimeError):
@@ -103,9 +105,21 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(
         dest="calibration_mode",
         required=True,
-        metavar="{voltage,current}",
-        help="Calibration target. Must be specified explicitly.",
+        metavar="{voltage,current,export,import}",
+        help="Operation. Calibration target must be specified explicitly.",
     )
+
+    def add_device_selection_arguments(mode_parser: argparse.ArgumentParser) -> None:
+        selection_group = mode_parser.add_mutually_exclusive_group()
+        selection_group.add_argument(
+            "--drpd-serial",
+            help="Serial number of the DRPD device to use.",
+        )
+        selection_group.add_argument(
+            "--drpd-index",
+            type=int,
+            help="Index of the DRPD device to use from the discovered list.",
+        )
 
     def add_common_arguments(mode_parser: argparse.ArgumentParser) -> None:
         mode_parser.add_argument(
@@ -141,16 +155,7 @@ def build_parser() -> argparse.ArgumentParser:
                 f"Default: {DEFAULT_FIRMWARE_CACHE_DIR}"
             ),
         )
-        selection_group = mode_parser.add_mutually_exclusive_group()
-        selection_group.add_argument(
-            "--drpd-serial",
-            help="Serial number of the DRPD device to use.",
-        )
-        selection_group.add_argument(
-            "--drpd-index",
-            type=int,
-            help="Index of the DRPD device to use from the discovered list.",
-        )
+        add_device_selection_arguments(mode_parser)
         mode_parser.add_argument(
             "--reset-to-defaults",
             action="store_true",
@@ -197,12 +202,51 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_common_arguments(current_parser)
 
+    export_parser = subparsers.add_parser(
+        "export",
+        help="Export both persisted VBUS voltage and current calibration tables.",
+    )
+    add_device_selection_arguments(export_parser)
+    export_parser.add_argument(
+        "output",
+        type=Path,
+        help="Path for the calibration table JSON export, or '-' for stdout.",
+    )
+
+    import_parser = subparsers.add_parser(
+        "import",
+        help="Import both persisted VBUS voltage and current calibration tables.",
+    )
+    add_device_selection_arguments(import_parser)
+    import_parser.add_argument(
+        "input",
+        type=Path,
+        help="Path to a calibration table JSON export, or '-' for stdin.",
+    )
+
     return parser
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse and validate command-line arguments."""
     args = build_parser().parse_args(argv)
+
+    if args.calibration_mode == "import":
+        if str(args.input) != "-" and not args.input.expanduser().is_file():
+            raise ScriptError(
+                f"import input must reference an existing file: {args.input}"
+            )
+        return args
+
+    if args.calibration_mode == "export":
+        if str(args.output) != "-":
+            output_parent = args.output.expanduser().parent
+            if not output_parent.is_dir():
+                raise ScriptError(
+                    "export output parent directory does not exist: "
+                    f"{output_parent}"
+                )
+        return args
 
     if args.flash_uf2 is not None and not args.flash_uf2.expanduser().is_file():
         raise ScriptError(
@@ -475,7 +519,7 @@ def download_firmware_release(
     return firmware_path
 
 
-def ensure_calibration_dependencies_available(mode: CalibrationMode) -> None:
+def ensure_calibration_dependencies_available(mode: ScriptCommand) -> None:
     """Fail before firmware prep if calibration dependencies are unavailable."""
     missing: list[str] = []
 
@@ -670,6 +714,21 @@ def erase_device_flash(explicit_picotool: Path | None) -> None:
     )
 
 
+def confirm_device_erase() -> None:
+    """Require explicit operator confirmation before erasing device flash."""
+    print(
+        "Calibration firmware preparation will erase the connected DRPD "
+        "device flash."
+    )
+    try:
+        response = input("Type 'erase' to continue, or press Enter to abort: ")
+    except EOFError as exc:
+        raise ScriptError("Device erase requires interactive confirmation.") from exc
+
+    if response.strip().lower() != "erase":
+        raise ScriptError("Device erase aborted by user.")
+
+
 def load_firmware_for_calibration(
     uf2_path: Path,
     explicit_picotool: Path | None,
@@ -718,6 +777,7 @@ def prepare_firmware_for_calibration(args: argparse.Namespace) -> None:
     release = discover_latest_firmware_release(args.firmware_channel)
     firmware_path = download_firmware_release(release, args.firmware_cache_dir)
 
+    confirm_device_erase()
     print("Erasing DRPD flash before calibration firmware load.")
     erase_device_flash(args.picotool)
     print(f"Loading calibration firmware: {firmware_path}")
@@ -808,6 +868,149 @@ def print_current_calibration_table(table: Sequence[float]) -> None:
     for bucket, value in enumerate(table):
         target_ma = bucket * 500
         print(f"  {target_ma:04d} mA ({target_ma / 1000.0:.2f} A): raw {value:.2f} A")
+
+
+def _coerce_calibration_table(
+    value: object,
+    expected_length: int,
+    name: str,
+    *,
+    non_negative: bool = False,
+) -> list[float]:
+    """Validate and coerce a calibration table from an import file."""
+    if not isinstance(value, list):
+        raise ScriptError(f"{name} must be a JSON array")
+
+    if len(value) != expected_length:
+        raise ScriptError(
+            f"{name} must contain {expected_length} entries, got {len(value)}"
+        )
+
+    table: list[float] = []
+    for index, entry in enumerate(value):
+        if not isinstance(entry, (int, float)) or isinstance(entry, bool):
+            raise ScriptError(f"{name}[{index}] must be numeric")
+        number = float(entry)
+        if not math.isfinite(number):
+            raise ScriptError(f"{name}[{index}] must be finite")
+        if non_negative and number < 0.0:
+            raise ScriptError(f"{name}[{index}] must be non-negative")
+        table.append(number)
+
+    return table
+
+
+def _table_points_from_export_section(data: object, name: str) -> object:
+    """Return a table array from either compact or labeled export JSON."""
+    if isinstance(data, dict):
+        if "points" not in data:
+            raise ScriptError(f"{name} must contain a points array")
+        return data["points"]
+    return data
+
+
+def _read_calibration_export(path: Path) -> tuple[list[float], list[float]]:
+    """Read and validate a VBUS calibration table export."""
+    try:
+        if str(path) == "-":
+            raw = sys.stdin.read()
+        else:
+            raw = path.expanduser().read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ScriptError(f"Could not read calibration import: {exc}") from exc
+
+    try:
+        decoded = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ScriptError(f"Calibration import was not valid JSON: {exc}") from exc
+
+    if not isinstance(decoded, dict):
+        raise ScriptError("Calibration import must be a JSON object")
+
+    export_format = decoded.get("format")
+    if export_format is not None and export_format != CALIBRATION_EXPORT_FORMAT:
+        raise ScriptError(f"Unsupported calibration export format: {export_format}")
+
+    if "voltage" not in decoded:
+        raise ScriptError("Calibration import is missing voltage table")
+    if "current" not in decoded:
+        raise ScriptError("Calibration import is missing current table")
+
+    voltage = _coerce_calibration_table(
+        _table_points_from_export_section(decoded["voltage"], "voltage"),
+        61,
+        "voltage",
+    )
+    current = _coerce_calibration_table(
+        _table_points_from_export_section(decoded["current"], "current"),
+        13,
+        "current",
+        non_negative=True,
+    )
+    return voltage, current
+
+
+def _format_calibration_export(
+    voltage_table: Sequence[float],
+    current_table: Sequence[float],
+) -> str:
+    """Format VBUS voltage/current calibration tables as stable JSON."""
+    payload = {
+        "format": CALIBRATION_EXPORT_FORMAT,
+        "voltage": {
+            "unit": "additive_volts_by_raw_volt_bucket",
+            "bucket_interval_v": 1,
+            "points": [round(float(value), 9) for value in voltage_table],
+        },
+        "current": {
+            "unit": "raw_amps_by_true_current_bucket",
+            "bucket_interval_ma": 500,
+            "points": [round(float(value), 9) for value in current_table],
+        },
+    }
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+async def export_calibration_tables(args: argparse.Namespace) -> None:
+    """Export both persisted VBUS calibration tables."""
+    device = discover_drpd_device(args.drpd_serial, args.drpd_index)
+    drpd_name = device.name or "Unknown"
+    drpd_serial = _device_serial_number(device) or "Unknown"
+    log_stream = sys.stderr if str(args.output) == "-" else sys.stdout
+
+    print(f"Using DRPD device: {drpd_name} (serial={drpd_serial})", file=log_stream)
+    await device.connect()
+    try:
+        voltage_table = await device.analog_monitor.get_vbus_calibration_table()
+        current_table = await device.analog_monitor.get_vbus_current_calibration_table()
+    finally:
+        await device.disconnect()
+
+    output = _format_calibration_export(voltage_table, current_table)
+    if str(args.output) == "-":
+        print(output, end="")
+    else:
+        resolved_output = args.output.expanduser()
+        resolved_output.write_text(output, encoding="utf-8")
+        print(f"Exported calibration tables to {resolved_output}")
+
+
+async def import_calibration_tables(args: argparse.Namespace) -> None:
+    """Import both persisted VBUS calibration tables."""
+    voltage_table, current_table = _read_calibration_export(args.input)
+    device = discover_drpd_device(args.drpd_serial, args.drpd_index)
+    drpd_name = device.name or "Unknown"
+    drpd_serial = _device_serial_number(device) or "Unknown"
+
+    print(f"Using DRPD device: {drpd_name} (serial={drpd_serial})")
+    await device.connect()
+    try:
+        await device.analog_monitor.set_vbus_calibration_table(voltage_table)
+        await device.analog_monitor.set_vbus_current_calibration_table(current_table)
+    finally:
+        await device.disconnect()
+
+    print("Imported VBUS voltage and current calibration tables.")
 
 
 async def select_required_current_calibration_pdo(device: Any) -> None:
@@ -1078,7 +1281,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Parse arguments and run the async calibration workflow."""
     try:
         args = parse_args(argv)
-        if args.flash_uf2 is not None:
+        if args.calibration_mode == "export":
+            ensure_calibration_dependencies_available(args.calibration_mode)
+            asyncio.run(export_calibration_tables(args))
+        elif args.calibration_mode == "import":
+            ensure_calibration_dependencies_available(args.calibration_mode)
+            asyncio.run(import_calibration_tables(args))
+        elif args.flash_uf2 is not None:
             flash_uf2(args.flash_uf2, args.picotool)
         else:
             if not args.skip_firmware_prepare:

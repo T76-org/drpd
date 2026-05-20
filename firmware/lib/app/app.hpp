@@ -143,9 +143,11 @@ namespace T76::DRPD {
         void _queryVBusOCPThreshold(const std::vector<T76::SCPI::ParameterValue> &);
         void _setVBusCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setVBusCalibrationTablePoint(const std::vector<T76::SCPI::ParameterValue> &);
         void _resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &);
         void _setVBusCurrentCalibrationPoint(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setVBusCurrentCalibrationTablePoint(const std::vector<T76::SCPI::ParameterValue> &);
         void _resetVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterValue> &);
 
         void _setVBusManagerState(const std::vector<T76::SCPI::ParameterValue> &params);

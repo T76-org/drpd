@@ -322,6 +322,28 @@ commands:
         description: "The calibration bucket was not an integer value."
     handler:      _setVBusCalibrationPoint
 
+  - syntax:       "BUS:VBUS:CALibrate:TABle"
+    description:  |-
+                    Set one persisted VBUS correction table entry directly.
+                    This is intended for importing a previously exported
+                    calibration table; unlike BUS:VBUS:CALibrate it does not
+                    read the live VBUS measurement.
+    parameters:
+      - name:        bucket
+        type:        number
+        description: "Raw integer-voltage VBUS bucket to update, from 0 to 60."
+      - name:        correction_v
+        type:        number
+        description: "Additive VBUS correction in volts for the selected bucket."
+    errors:
+      -222:
+        message:     "Data out of range"
+        description: "The calibration bucket was outside the supported range of 0 through 60."
+      -224:
+        message:     "Illegal parameter value"
+        description: "The calibration bucket was not an integer value or the correction was not finite."
+    handler:      _setVBusCalibrationTablePoint
+
   - syntax:       "BUS:VBUS:CALibrate:DEFault"
     description:  |-
                     Restore the full VBUS correction table to its default
@@ -357,6 +379,28 @@ commands:
         message:     "Illegal parameter value"
         description: "The calibration current was not an integer value or was not aligned to a 500 mA interval."
     handler:      _setVBusCurrentCalibrationPoint
+
+  - syntax:       "BUS:VBUS:CALibrate:CURRent:TABle"
+    description:  |-
+                    Set one persisted VBUS current raw calibration table entry
+                    directly. This is intended for importing a previously
+                    exported calibration table; unlike BUS:VBUS:CALibrate:CURRent
+                    it does not read the live VBUS current measurement.
+    parameters:
+      - name:        target_ma
+        type:        number
+        description: "True VBUS current calibration point in milliamps; must be 0 through 6000 in 500mA intervals."
+      - name:        raw_current_a
+        type:        number
+        description: "Raw measured current in amps for the selected true-current point."
+    errors:
+      -222:
+        message:     "Data out of range"
+        description: "The calibration current was outside the supported range of 0 through 6000 mA."
+      -224:
+        message:     "Illegal parameter value"
+        description: "The calibration current was not an integer value, was not aligned to a 500 mA interval, or the raw current was negative or not finite."
+    handler:      _setVBusCurrentCalibrationTablePoint
 
   - syntax:       "BUS:VBUS:CALibrate:CURRent:DEFault"
     description:  |-

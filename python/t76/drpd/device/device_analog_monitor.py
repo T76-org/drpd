@@ -6,6 +6,7 @@ over USB using SCPI commands.
 """
 
 import asyncio
+import math
 from typing import TYPE_CHECKING, List, Optional
 
 from async_lru import alru_cache
@@ -132,6 +133,55 @@ class DeviceAnalogMonitor:
 
         await self._internal.write_ascii_and_check(f"BUS:VBUS:CAL {bucket}")
 
+    async def set_vbus_calibration_table_point(
+        self,
+        bucket: int,
+        correction: float,
+    ) -> None:
+        """
+        Set one persisted VBUS correction table entry directly.
+
+        :param bucket: The raw VBUS bucket to update.
+        :type bucket: int
+        :param correction: The additive VBUS correction in volts.
+        :type correction: float
+        """
+        if not isinstance(bucket, int) or isinstance(bucket, bool):
+            raise ValueError("bucket must be an integer")
+
+        if bucket < 0 or bucket >= self.VBUS_CALIBRATION_POINT_COUNT:
+            raise ValueError(
+                "bucket must be in range [0, "
+                f"{self.VBUS_CALIBRATION_POINT_COUNT - 1}]"
+            )
+
+        if not isinstance(correction, (int, float)) or isinstance(correction, bool):
+            raise ValueError("correction must be numeric")
+
+        correction_float = float(correction)
+        if not math.isfinite(correction_float):
+            raise ValueError("correction must be finite")
+
+        await self._internal.write_ascii_and_check(
+            f"BUS:VBUS:CAL:TAB {bucket} {correction_float:.9g}"
+        )
+
+    async def set_vbus_calibration_table(self, table: List[float]) -> None:
+        """
+        Replace the persisted VBUS correction table with explicit values.
+
+        :param table: 61 additive correction entries ordered by bucket index.
+        :type table: List[float]
+        """
+        if len(table) != self.VBUS_CALIBRATION_POINT_COUNT:
+            raise ValueError(
+                "table must contain "
+                f"{self.VBUS_CALIBRATION_POINT_COUNT} entries"
+            )
+
+        for bucket, correction in enumerate(table):
+            await self.set_vbus_calibration_table_point(bucket, correction)
+
     async def reset_vbus_calibration_to_defaults(self) -> None:
         """
         Restore the persisted VBUS calibration table to firmware defaults.
@@ -204,6 +254,67 @@ class DeviceAnalogMonitor:
         await self._internal.write_ascii_and_check(
             f"BUS:VBUS:CAL:CURR {target_ma}"
         )
+
+    async def set_vbus_current_calibration_table_point(
+        self,
+        target_ma: int,
+        raw_current_a: float,
+    ) -> None:
+        """
+        Set one persisted VBUS current raw calibration entry directly.
+
+        :param target_ma: The true VBUS current point in milliamps.
+        :type target_ma: int
+        :param raw_current_a: The raw current reading in amps.
+        :type raw_current_a: float
+        """
+        if not isinstance(target_ma, int) or isinstance(target_ma, bool):
+            raise ValueError("target_ma must be an integer")
+
+        max_current_ma = (
+            self.VBUS_CURRENT_CALIBRATION_POINT_COUNT - 1
+        ) * self.VBUS_CURRENT_CALIBRATION_INTERVAL_MA
+        if target_ma < 0 or target_ma > max_current_ma:
+            raise ValueError(f"target_ma must be in range [0, {max_current_ma}]")
+
+        if target_ma % self.VBUS_CURRENT_CALIBRATION_INTERVAL_MA != 0:
+            raise ValueError(
+                "target_ma must be aligned to a "
+                f"{self.VBUS_CURRENT_CALIBRATION_INTERVAL_MA} mA interval"
+            )
+
+        if not isinstance(raw_current_a, (int, float)) or isinstance(raw_current_a, bool):
+            raise ValueError("raw_current_a must be numeric")
+
+        raw_current_float = float(raw_current_a)
+        if not math.isfinite(raw_current_float):
+            raise ValueError("raw_current_a must be finite")
+
+        if raw_current_float < 0.0:
+            raise ValueError("raw_current_a must be non-negative")
+
+        await self._internal.write_ascii_and_check(
+            f"BUS:VBUS:CAL:CURR:TAB {target_ma} {raw_current_float:.9g}"
+        )
+
+    async def set_vbus_current_calibration_table(self, table: List[float]) -> None:
+        """
+        Replace the persisted VBUS current raw calibration table.
+
+        :param table: 13 raw readings ordered by 500 mA true-current point.
+        :type table: List[float]
+        """
+        if len(table) != self.VBUS_CURRENT_CALIBRATION_POINT_COUNT:
+            raise ValueError(
+                "table must contain "
+                f"{self.VBUS_CURRENT_CALIBRATION_POINT_COUNT} entries"
+            )
+
+        for bucket, raw_current_a in enumerate(table):
+            await self.set_vbus_current_calibration_table_point(
+                bucket * self.VBUS_CURRENT_CALIBRATION_INTERVAL_MA,
+                raw_current_a,
+            )
 
     async def reset_vbus_current_calibration_to_defaults(self) -> None:
         """

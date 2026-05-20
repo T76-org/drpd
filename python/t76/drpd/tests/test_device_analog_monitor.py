@@ -80,6 +80,37 @@ class TestDeviceAnalogMonitor(unittest.IsolatedAsyncioTestCase):
             "BUS:VBUS:CAL:DEF"
         )
 
+    async def test_set_vbus_calibration_table_point_writes_expected_command(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        internal.write_ascii_and_check = AsyncMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        await analog_monitor.set_vbus_calibration_table_point(20, -0.125)
+
+        internal.write_ascii_and_check.assert_awaited_once_with(
+            "BUS:VBUS:CAL:TAB 20 -0.125"
+        )
+
+    async def test_set_vbus_calibration_table_rejects_wrong_length(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(ValueError, "table must contain 61 entries"):
+            await analog_monitor.set_vbus_calibration_table([0.0] * 60)
+
+    async def test_set_vbus_calibration_table_rejects_non_finite_value(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(ValueError, "correction must be finite"):
+            await analog_monitor.set_vbus_calibration_table_point(0, float("nan"))
+
     async def test_get_raw_vbus_current_returns_single_value(self) -> None:
         internal = MagicMock()
         internal.query_ascii_values_and_check = AsyncMock(return_value=[1.25])
@@ -192,6 +223,37 @@ class TestDeviceAnalogMonitor(unittest.IsolatedAsyncioTestCase):
         internal.write_ascii_and_check.assert_awaited_once_with(
             "BUS:VBUS:CAL:CURR:DEF"
         )
+
+    async def test_set_vbus_current_calibration_table_point_writes_expected_command(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        internal.write_ascii_and_check = AsyncMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        await analog_monitor.set_vbus_current_calibration_table_point(500, 0.625)
+
+        internal.write_ascii_and_check.assert_awaited_once_with(
+            "BUS:VBUS:CAL:CURR:TAB 500 0.625"
+        )
+
+    async def test_set_vbus_current_calibration_table_rejects_wrong_length(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(ValueError, "table must contain 13 entries"):
+            await analog_monitor.set_vbus_current_calibration_table([0.0] * 12)
+
+    async def test_set_vbus_current_calibration_table_rejects_negative_value(
+        self,
+    ) -> None:
+        internal = MagicMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        with self.assertRaisesRegex(ValueError, "raw_current_a must be non-negative"):
+            await analog_monitor.set_vbus_current_calibration_table_point(0, -0.01)
 
     async def test_get_status_parses_accumulation_fields(self) -> None:
         internal = MagicMock()

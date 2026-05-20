@@ -130,6 +130,29 @@ void App::_queryVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) 
     _sendTransportTextResponse(response);
 }
 
+void App::_setVBusCalibrationTablePoint(const std::vector<T76::SCPI::ParameterValue> &params) {
+    double bucketValue = params[0].numberValue;
+    if (std::trunc(bucketValue) != bucketValue) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    if (bucketValue < 0.0 || bucketValue > 60.0) {
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
+        return;
+    }
+
+    double correctionValue = params[1].numberValue;
+    if (!std::isfinite(correctionValue)) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    size_t bucket = static_cast<size_t>(bucketValue);
+    _analogMonitor.vBusVoltageCorrectionByRawVolt(bucket, static_cast<float>(correctionValue));
+    _savePersistentConfig();
+}
+
 void App::_resetVBusCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
     _analogMonitor.applyPersistentConfig(T76::DRPD::AnalogMonitorPersistentConfig{
         .vbusVoltageCorrectionByRawVolt = PHY::AnalogMonitor::defaultVBusVoltageCorrection(),
@@ -175,6 +198,35 @@ void App::_queryVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterVal
     }
 
     _sendTransportTextResponse(response);
+}
+
+void App::_setVBusCurrentCalibrationTablePoint(const std::vector<T76::SCPI::ParameterValue> &params) {
+    double targetMilliampsValue = params[0].numberValue;
+    if (std::trunc(targetMilliampsValue) != targetMilliampsValue) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    if (targetMilliampsValue < 0.0 || targetMilliampsValue > 6000.0) {
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
+        return;
+    }
+
+    uint32_t targetMilliamps = static_cast<uint32_t>(targetMilliampsValue);
+    if ((targetMilliamps % 500u) != 0u) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    double rawCurrentValue = params[1].numberValue;
+    if (!std::isfinite(rawCurrentValue) || rawCurrentValue < 0.0) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
+    }
+
+    size_t bucket = static_cast<size_t>(targetMilliamps / 500u);
+    _analogMonitor.vBusCurrentRawByCalibratedHalfAmp(bucket, static_cast<float>(rawCurrentValue));
+    _savePersistentConfig();
 }
 
 void App::_resetVBusCurrentCalibration(const std::vector<T76::SCPI::ParameterValue> &) {
