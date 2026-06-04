@@ -3065,6 +3065,11 @@ export const RackView = () => {
                 }}
               />
             ))}
+            <div className={styles.menuBarDeviceStatus} aria-live="polite">
+              {activeConnectedDeviceState
+                ? `Connected to ${activeConnectedDeviceState.record.displayName}`
+                : 'Waiting for device...'}
+            </div>
           </div>
         </div>
       </div>

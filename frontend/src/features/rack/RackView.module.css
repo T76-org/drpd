@@ -40,6 +40,16 @@
   padding-inline: var(--rack-layout-padding-x);
 }
 
+.menuBarDeviceStatus {
+  margin-left: auto;
+  padding: 0 var(--menu-bar-padding-x);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-menu);
+  font-weight: var(--font-weight-normal);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .menuBarButton {
   border: none;
   border-radius: 2px;

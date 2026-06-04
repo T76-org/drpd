@@ -827,6 +827,24 @@ describe('RackView', () => {
     expect(window.localStorage.getItem('drpd:theme')).toBe('light')
   })
 
+  it('shows a waiting device status in the menu bar when no device is connected', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([])
+    render(<RackView />)
+
+    expect(await screen.findByText('Waiting for device...')).toBeInTheDocument()
+  })
+
+  it('shows the connected device name in the menu bar', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+  })
+
   it('restores Message Log table layout from the menu', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
