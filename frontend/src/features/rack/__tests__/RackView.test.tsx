@@ -638,18 +638,24 @@ const expectHydratedDrpdPanels = async (): Promise<void> => {
   expect(await screen.findAllByText('Connected')).not.toHaveLength(0)
 }
 
-const openApplicationMenu = async (): Promise<void> => {
-  await userEvent.click(await screen.findByRole('button', { name: 'Settings' }))
-}
-
 const openApplicationSubmenu = async (name: string | RegExp): Promise<void> => {
-  await openApplicationMenu()
-  await userEvent.click(await screen.findByRole('menuitem', { name }))
+  const topLevelName = typeof name === 'string'
+    ? ({
+        Devices: 'Device',
+        'Firmware updates': 'Firmware',
+      }[name] ?? name)
+    : name
+  await userEvent.click(await screen.findByRole('button', { name: topLevelName }))
 }
 
 const pairNewDeviceFromMenu = async (): Promise<void> => {
   await openApplicationSubmenu('Devices')
   await userEvent.click(await screen.findByRole('menuitem', { name: /pair new device/i }))
+}
+
+const openPairedDeviceSubmenu = async (name: string | RegExp): Promise<void> => {
+  await openApplicationSubmenu('Devices')
+  await userEvent.click(await screen.findByRole('menuitem', { name }))
 }
 
 const disconnectCurrentDeviceFromMenu = async (): Promise<void> => {
@@ -1513,6 +1519,61 @@ describe('RackView', () => {
       window.localStorage.getItem('drpd:rack:document') ?? '{}',
     ) as RackDocument
     expect(stored.pairedDevices?.[0]?.serialNumber).toBe('DRPD-TEST-001')
+    expect(stored.pairedDevices?.[0]?.displayName).toBe('Dr. PD #DRPD-TEST-001')
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: 'Dr. PD #DRPD-TEST-001' }))
+      .toBeInTheDocument()
+  })
+
+  it('renames a paired device from the device submenu', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openPairedDeviceSubmenu('Dr. PD #DRPD-TEST-001')
+    await userEvent.click(await screen.findByRole('menuitem', { name: /change name/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /change device name/i })
+    const nameInput = within(dialog).getByLabelText('Name')
+    expect(nameInput).toHaveValue('Dr. PD #DRPD-TEST-001')
+
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'Marco')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /change device name/i })).not.toBeInTheDocument(),
+    )
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: 'Marco' })).toBeInTheDocument()
+
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    expect(stored.pairedDevices?.[0]?.displayName).toBe('Marco')
+  })
+
+  it('rejects blank paired device names', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openPairedDeviceSubmenu('Dr. PD #DRPD-TEST-001')
+    await userEvent.click(await screen.findByRole('menuitem', { name: /change name/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /change device name/i })
+    const nameInput = within(dialog).getByLabelText('Name')
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, '   ')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(await within(dialog).findByText('Name is required.')).toBeInTheDocument()
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    expect(stored.pairedDevices?.[0]?.displayName).toBe('Dr. PD #DRPD-TEST-001')
   })
 
   it('checks for firmware updates after connected device firmware version is known', async () => {
@@ -1909,6 +1970,33 @@ describe('RackView', () => {
     dispatchConnect(usbDevice)
 
     await expectHydratedDrpdPanels()
+  })
+
+  it('preserves a paired device nickname when auto-connect refreshes metadata', async () => {
+    const document = buildBoundHydratedRackDocument()
+    document.pairedDevices = document.pairedDevices?.map((device) => ({
+      ...device,
+      displayName: 'Marco',
+    }))
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.1']
+    saveRackDocument(document)
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem('drpd:rack:document') ?? '{}',
+      ) as RackDocument
+      expect(stored.pairedDevices?.[0]?.firmwareVersion).toBe('1.0.1')
+    })
+    await openApplicationSubmenu('Devices')
+    expect(await screen.findByRole('menuitem', { name: 'Marco' })).toBeInTheDocument()
+
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    expect(stored.pairedDevices?.[0]?.displayName).toBe('Marco')
+    expect(stored.pairedDevices?.[0]?.firmwareVersion).toBe('1.0.1')
   })
 
   it('auto-connects the most recently connected paired device at startup', async () => {
