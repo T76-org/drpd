@@ -145,6 +145,14 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
 
     await proxy.analogMonitor.getAccumulatedMeasurements()
     await proxy.analogMonitor.resetAccumulatedMeasurements()
+    await proxy.analogMonitor.getVBusVoltage()
+    await proxy.analogMonitor.getRawVBusCurrent()
+    await proxy.analogMonitor.getVBusCalibrationTable()
+    await proxy.analogMonitor.setVBusCalibrationTablePoint(20, 0)
+    await proxy.analogMonitor.calibrateVBusBucket(20)
+    await proxy.analogMonitor.getVBusCurrentCalibrationTable()
+    await proxy.analogMonitor.setVBusCurrentCalibrationTablePoint(500, 0.5)
+    await proxy.analogMonitor.calibrateVBusCurrentBucket(500)
 
     expect(callWorker).toHaveBeenNthCalledWith(1, 'drpdSession.call', {
       sessionId: 'session-1',
@@ -157,6 +165,54 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
       target: 'analogMonitor',
       method: 'resetAccumulatedMeasurements',
       args: [],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(3, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'getVBusVoltage',
+      args: [],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(4, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'getRawVBusCurrent',
+      args: [],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(5, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'getVBusCalibrationTable',
+      args: [],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(6, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'setVBusCalibrationTablePoint',
+      args: [20, 0],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(7, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'calibrateVBusBucket',
+      args: [20],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(8, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'getVBusCurrentCalibrationTable',
+      args: [],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(9, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'setVBusCurrentCalibrationTablePoint',
+      args: [500, 0.5],
+    })
+    expect(callWorker).toHaveBeenNthCalledWith(10, 'drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'analogMonitor',
+      method: 'calibrateVBusCurrentBucket',
+      args: [500],
     })
   })
 })

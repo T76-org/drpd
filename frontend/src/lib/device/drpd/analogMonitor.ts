@@ -17,6 +17,10 @@ import type { AccumulatedMeasurements, AnalogMonitorChannels } from './types'
  * Analog monitor command group for DRPD devices.
  */
 export class DRPDAnalogMonitor {
+  public static readonly VBUS_CALIBRATION_POINT_COUNT = 61
+  public static readonly VBUS_CURRENT_CALIBRATION_POINT_COUNT = 13
+  public static readonly VBUS_CURRENT_CALIBRATION_INTERVAL_MA = 500
+
   protected readonly transport: DRPDTransport ///< Transport instance.
 
   /**
@@ -73,6 +77,120 @@ export class DRPDAnalogMonitor {
   public async getVBusCurrent(): Promise<number> {
     const response = await this.transport.queryText('MEAS:CURR:VBUS?')
     return parseSingleNumber(response, 'VBUS current')
+  }
+
+  /**
+   * Query raw scaled VBUS current before calibration.
+   *
+   * @returns Raw VBUS current.
+   */
+  public async getRawVBusCurrent(): Promise<number> {
+    const response = await this.transport.queryText('MEAS:CURR:VBUS:RAW?')
+    return parseSingleNumber(response, 'raw VBUS current')
+  }
+
+  /**
+   * Query persisted VBUS voltage calibration table.
+   *
+   * @returns Additive voltage corrections indexed by nominal volt bucket.
+   */
+  public async getVBusCalibrationTable(): Promise<number[]> {
+    const response = await this.transport.queryText('BUS:VBUS:CAL?')
+    return parseCalibrationTable(
+      response,
+      DRPDAnalogMonitor.VBUS_CALIBRATION_POINT_COUNT,
+      'VBUS calibration',
+    )
+  }
+
+  /**
+   * Capture a VBUS voltage calibration point for a nominal volt bucket.
+   *
+   * @param bucket - Nominal voltage bucket from 0 V through 60 V.
+   */
+  public async calibrateVBusBucket(bucket: number): Promise<void> {
+    assertIntegerInRange(
+      bucket,
+      0,
+      DRPDAnalogMonitor.VBUS_CALIBRATION_POINT_COUNT - 1,
+      'bucket',
+    )
+    await this.transport.sendCommand('BUS:VBUS:CAL', bucket)
+  }
+
+  /**
+   * Set one persisted VBUS voltage calibration table entry.
+   *
+   * @param bucket - Nominal voltage bucket from 0 V through 60 V.
+   * @param correctionV - Additive correction in volts.
+   */
+  public async setVBusCalibrationTablePoint(bucket: number, correctionV: number): Promise<void> {
+    assertIntegerInRange(
+      bucket,
+      0,
+      DRPDAnalogMonitor.VBUS_CALIBRATION_POINT_COUNT - 1,
+      'bucket',
+    )
+    assertFiniteNumber(correctionV, 'correctionV')
+    await this.transport.sendCommand('BUS:VBUS:CAL:TAB', bucket, correctionV)
+  }
+
+  /**
+   * Query persisted VBUS current raw calibration table.
+   *
+   * @returns Raw current readings indexed by true-current half-amp point.
+   */
+  public async getVBusCurrentCalibrationTable(): Promise<number[]> {
+    const response = await this.transport.queryText('BUS:VBUS:CAL:CURR?')
+    return parseCalibrationTable(
+      response,
+      DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_POINT_COUNT,
+      'VBUS current calibration',
+    )
+  }
+
+  /**
+   * Capture a VBUS current calibration point for a nominal current target.
+   *
+   * @param targetMa - Nominal current target from 0 mA through 6000 mA, aligned to 500 mA.
+   */
+  public async calibrateVBusCurrentBucket(targetMa: number): Promise<void> {
+    const maxCurrentMa =
+      (DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_POINT_COUNT - 1) *
+      DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_INTERVAL_MA
+    assertIntegerInRange(targetMa, 0, maxCurrentMa, 'targetMa')
+    if (targetMa % DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_INTERVAL_MA !== 0) {
+      throw new Error(
+        `targetMa must be aligned to ${DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_INTERVAL_MA} mA`,
+      )
+    }
+    await this.transport.sendCommand('BUS:VBUS:CAL:CURR', targetMa)
+  }
+
+  /**
+   * Set one persisted VBUS current calibration table entry.
+   *
+   * @param targetMa - Nominal current target from 0 mA through 6000 mA, aligned to 500 mA.
+   * @param rawCurrentA - Raw current reading in amps.
+   */
+  public async setVBusCurrentCalibrationTablePoint(
+    targetMa: number,
+    rawCurrentA: number,
+  ): Promise<void> {
+    const maxCurrentMa =
+      (DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_POINT_COUNT - 1) *
+      DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_INTERVAL_MA
+    assertIntegerInRange(targetMa, 0, maxCurrentMa, 'targetMa')
+    if (targetMa % DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_INTERVAL_MA !== 0) {
+      throw new Error(
+        `targetMa must be aligned to ${DRPDAnalogMonitor.VBUS_CURRENT_CALIBRATION_INTERVAL_MA} mA`,
+      )
+    }
+    assertFiniteNumber(rawCurrentA, 'rawCurrentA')
+    if (rawCurrentA < 0) {
+      throw new Error('rawCurrentA must be non-negative')
+    }
+    await this.transport.sendCommand('BUS:VBUS:CAL:CURR:TAB', targetMa, rawCurrentA)
   }
 
   /**
@@ -143,5 +261,36 @@ export class DRPDAnalogMonitor {
   public async getGroundRefVoltage(): Promise<number> {
     const response = await this.transport.queryText('MEAS:VOLT:REF:GND?')
     return parseSingleNumber(response, 'ground reference voltage')
+  }
+}
+
+const parseCalibrationTable = (
+  values: string[],
+  expectedLength: number,
+  label: string,
+): number[] => {
+  if (values.length !== expectedLength) {
+    throw new Error(`Invalid ${label} response. Expected ${expectedLength} fields, got ${values.length}`)
+  }
+  return values.map((value, index) => parseSingleNumber([value], `${label} point ${index}`))
+}
+
+const assertIntegerInRange = (
+  value: number,
+  minimum: number,
+  maximum: number,
+  label: string,
+): void => {
+  if (!Number.isInteger(value)) {
+    throw new Error(`${label} must be an integer`)
+  }
+  if (value < minimum || value > maximum) {
+    throw new Error(`${label} must be in range [${minimum}, ${maximum}]`)
+  }
+}
+
+const assertFiniteNumber = (value: number, label: string): void => {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} must be finite`)
   }
 }

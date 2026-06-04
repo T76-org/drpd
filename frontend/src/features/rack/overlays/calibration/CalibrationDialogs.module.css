@@ -1,0 +1,79 @@
+.safetyFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--space-12);
+}
+
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-hint);
+}
+
+.buttonGroup {
+  display: inline-flex;
+  gap: var(--space-6);
+}
+
+.intro {
+  margin: var(--space-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-hint);
+}
+
+.status {
+  margin: var(--space-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-hint);
+}
+
+.error {
+  margin: var(--space-0);
+  color: var(--color-status-error);
+  font-size: var(--font-size-header-popup-hint);
+}
+
+.tableWrap {
+  max-height: min(58vh, 520px);
+  overflow: auto;
+  border: var(--border-thin) solid var(--color-border-panel);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-header-popup-base);
+}
+
+.table th,
+.table td {
+  padding: var(--space-6) var(--space-8);
+  border-bottom: var(--border-thin) solid var(--color-border-panel);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  color: var(--color-text-muted);
+  background: var(--color-surface-panel);
+  font-size: var(--font-size-header-popup-label);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-md);
+  text-transform: uppercase;
+}
+
+.table td:nth-child(3),
+.table th:nth-child(3) {
+  text-align: right;
+}
+
+.rowButton {
+  min-width: 92px;
+}

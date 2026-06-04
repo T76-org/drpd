@@ -1,0 +1,43 @@
+# Calibrating Dr. PD
+
+Dr. PD comes calibrated from the factory for accurate voltage and current measurements. However, if you find that the readings are not accurate or want to fine-tune the calibration to match other instruments in your lab, you can follow the steps below to calibrate Dr. PD.
+
+::::warning
+The calibration affects the accuracy of _all_ measurements, including the ones that are used to trigger Dr. PD's safety features, such as overvoltage and overcurrent protection. Incorrect calibration may cause Dr. PD to fail to trigger these safety features when they are needed, which could lead to damage to your equipment or even personal injury. Always double-check your calibration settings and ensure that they are correct before using Dr. PD for any measurements.
+::::
+
+## How calibration works
+
+Dr. PD's calibration works by linear interpolation between a series of reference intervals (1V for voltage and 500mA for current) that are stored in the device's flash memory. Calibration works by measuring the difference between the actual and measured voltage at the reference intervals, and then calculating a correction factor that is applied to all subsequent measurements.
+
+Therefore, in order to change the calibration coefficients, all you need to is place the device in a known voltage or current condition, and then ask Dr. PD to make a measurement. Dr. PD will then calculate the correction factor based on the difference between the actual and measured voltage or current, and store it in flash memory for future use.
+
+## Preparing for voltage calibration
+
+1. In order to calibrate Dr. PD's voltage measurement, you will need to first disconnect any devices and cables from both USB-C ports. 
+2. Then, connect a known voltage source to the banana jacks, respecting the correct polarity. This voltage source will act as your reference standard for the calibration, and should therefore be accurate and stable. The voltage source should be able to provide a voltage within the range of Dr. PD's measurement capabilities (up to 60V).
+3. Next, you should max out Dr. PD's overvoltage and overcurrent protection threshold to prevent them from interfering with the calibration process. You can do this by foollowing the instructions in the [protection-mechanisms](/protection-mechanisms) section of the documentation.
+
+## Performing voltage calibration
+
+From the Device menu, choose the device that is currently connected to your host computer, and then choose Calibrate -> Voltage. This will open the voltage calibration dialog, which displays a list of all the reference intervals (1V, 2V, 3V, etc.) that are stored in Dr. PD's flash memory, alongside their corresponding correction factors.
+
+In order to update a particular correction factor, apply the appropriate voltage to the banana jacks, and then click on the "Calibrate" button next to the reference interval that corresponds to the voltage you applied. Dr. PD will then measure the voltage, calculate the correction factor, and update it in flash memory. You can repeat this process for as many reference intervals as you like (or, indeed, for all of them).
+
+## Preparing for current calibration
+
+Current calibration follows a slightly different procedure:
+
+1. Connect a known-good USB-C source capable of providing 5V / 5A to Port 1.
+2. Enter Sink mode, and negotiate a 5V / 5A power contract with the source.
+3. Connect a known current sink (such as a programmable electronic load) to the banana jacks
+
+## Performing current calibration
+
+From the Device menu, choose the device that is currently connected to your host computer, and then choose Calibrate -> Current. This will open the current calibration dialog, which displays a list of all the reference intervals (500mA, 1A, 1.5A, etc.) that are stored in Dr. PD's flash memory, alongside their corresponding correction factors.
+
+In order to update a particular correction factor, set the current sink to draw the appropriate current, and then click on the "Calibrate" button next to the reference interval that corresponds to the current you set. Dr. PD will then measure the current, calculate the correction factor, and update it in flash memory. You can repeat this process for as many reference intervals as you like (or, indeed, for all of them).
+
+::::info[Limitations of current calibration]
+With this mechanism, you can only calibrate your device up to 5A, which is the maximum current that can be negotiated over USB-C. Higher currents require a custom rig that provides up to 6A on Port 1, which is not available to the general public for safety reasons. Please contact us if you are interested in performing high-current calibration, and we will be happy to assist you.
+::::

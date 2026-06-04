@@ -28,6 +28,10 @@ const mockTransportState = vi.hoisted(() => ({
     '12',
     '34',
   ],
+  vbusVoltageResponse: ['5.00'],
+  rawVbusCurrentResponse: ['0.50'],
+  vbusCalibrationResponse: Array.from({ length: 61 }, () => '0'),
+  vbusCurrentCalibrationResponse: Array.from({ length: 13 }, (_, index) => (index / 2).toString()),
   roleResponse: ['SINK'],
   roleStatusResponse: ['ATTACHED'],
   vbusStatusResponse: ['ENABLED', 'NONE', 'NONE'],
@@ -123,6 +127,18 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
       }
       if (command === 'MEAS:ALL?') {
         return mockTransportState.analogResponse
+      }
+      if (command === 'MEAS:VOLT:VBUS?') {
+        return mockTransportState.vbusVoltageResponse
+      }
+      if (command === 'MEAS:CURR:VBUS:RAW?') {
+        return mockTransportState.rawVbusCurrentResponse
+      }
+      if (command === 'BUS:VBUS:CAL?') {
+        return mockTransportState.vbusCalibrationResponse
+      }
+      if (command === 'BUS:VBUS:CAL:CURR?') {
+        return mockTransportState.vbusCurrentCalibrationResponse
       }
       if (command === 'BUS:CC:ROLE?') {
         return mockTransportState.roleResponse
@@ -658,6 +674,15 @@ const openPairedDeviceSubmenu = async (name: string | RegExp): Promise<void> => 
   await userEvent.click(await screen.findByRole('menuitem', { name }))
 }
 
+const openCalibrationMenuItem = async (
+  deviceName: string | RegExp,
+  kind: 'Voltage...' | 'Current...',
+): Promise<void> => {
+  await openPairedDeviceSubmenu(deviceName)
+  await userEvent.click(await screen.findByRole('menuitem', { name: 'Calibrate' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: kind }))
+}
+
 const disconnectCurrentDeviceFromMenu = async (): Promise<void> => {
   await openApplicationSubmenu('Devices')
   await userEvent.click(await screen.findByRole('menuitem', { name: /current device/i }))
@@ -753,6 +778,13 @@ const resetMockTransportState = (): void => {
     '12',
     '34',
   ]
+  mockTransportState.vbusVoltageResponse = ['5.00']
+  mockTransportState.rawVbusCurrentResponse = ['0.50']
+  mockTransportState.vbusCalibrationResponse = Array.from({ length: 61 }, () => '0')
+  mockTransportState.vbusCurrentCalibrationResponse = Array.from(
+    { length: 13 },
+    (_, index) => (index / 2).toString(),
+  )
   mockTransportState.roleResponse = ['SINK']
   mockTransportState.roleStatusResponse = ['ATTACHED']
   mockTransportState.vbusStatusResponse = ['ENABLED']
@@ -1592,6 +1624,196 @@ describe('RackView', () => {
       window.localStorage.getItem('drpd:rack:document') ?? '{}',
     ) as RackDocument
     expect(stored.pairedDevices?.[0]?.displayName).toBe('Dr. PD #DRPD-TEST-001')
+  })
+
+  it('opens calibration menu items under connected paired devices', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openPairedDeviceSubmenu('Dr. PD #DRPD-TEST-001')
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Calibrate' }))
+
+    expect(await screen.findByRole('menuitem', { name: 'Voltage...' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Current...' })).toBeInTheDocument()
+  })
+
+  it('cancels the calibration safety warning without sending calibration commands', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Voltage...')
+    const warning = await screen.findByRole('dialog', { name: /calibration warning/i })
+    await userEvent.click(within(warning).getByRole('button', { name: 'No' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /calibration warning/i })).not.toBeInTheDocument(),
+    )
+    expect(mockTransportState.sentCommands).not.toContain('BUS:VBUS:CAL 5')
+  })
+
+  it('opens the voltage calibration dialog after safety confirmation', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Voltage...')
+    const warning = await screen.findByRole('dialog', { name: /calibration warning/i })
+    await userEvent.click(within(warning).getByRole('button', { name: 'Yes' }))
+
+    const dialog = await screen.findByRole('dialog', { name: /calibrate voltage/i })
+    expect(within(dialog).getByText('5 V')).toBeInTheDocument()
+    expect(within(dialog).getAllByText('+0.000 V')).not.toHaveLength(0)
+    expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE OBSERVER')
+  })
+
+  it('persists calibration warning suppression in browser storage', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Voltage...')
+    const warning = await screen.findByRole('dialog', { name: /calibration warning/i })
+    await userEvent.click(within(warning).getByLabelText(/do not ask again/i))
+    await userEvent.click(within(warning).getByRole('button', { name: 'Yes' }))
+    await waitFor(() =>
+      expect(window.localStorage.getItem('drpd:calibration-warning-suppressed')).toBe('true'),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Close' }))
+    await waitFor(() =>
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE SINK'),
+    )
+
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Current...')
+
+    expect(screen.queryByRole('dialog', { name: /calibration warning/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: /calibrate current/i })).toBeInTheDocument()
+  })
+
+  it('requires extra confirmation before out-of-tolerance current calibration', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    window.localStorage.setItem('drpd:calibration-warning-suppressed', 'true')
+    mockTransportState.rawVbusCurrentResponse = ['2.00']
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Current...')
+    const dialog = await screen.findByRole('dialog', { name: /calibrate current/i })
+    const calibrateButtons = within(dialog).getAllByRole('button', { name: 'Calibrate' })
+    await userEvent.click(calibrateButtons[1])
+
+    const confirmation = await screen.findByRole('dialog', { name: /confirm calibration point/i })
+    expect(within(confirmation).getByText(/Measured current is 2.000 A/i)).toBeInTheDocument()
+    await userEvent.click(within(confirmation).getByRole('button', { name: 'Continue' }))
+
+    await waitFor(() =>
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:CAL:CURR:TAB 500 0.5'),
+    )
+    await waitFor(() =>
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:CAL:CURR 500'),
+    )
+  })
+
+  it('resets the voltage coefficient before recording a calibration point', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    window.localStorage.setItem('drpd:calibration-warning-suppressed', 'true')
+    mockTransportState.vbusVoltageResponse = ['5.00']
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Voltage...')
+    const dialog = await screen.findByRole('dialog', { name: /calibrate voltage/i })
+    const calibrateButtons = within(dialog).getAllByRole('button', { name: 'Calibrate' })
+    await userEvent.click(calibrateButtons[5])
+
+    await waitFor(() =>
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:CAL:TAB 5 0'),
+    )
+    await waitFor(() =>
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:CAL 5'),
+    )
+    expect(mockTransportState.sentCommands.indexOf('BUS:VBUS:CAL:TAB 5 0')).toBeLessThan(
+      mockTransportState.sentCommands.indexOf('BUS:VBUS:CAL 5'),
+    )
+  })
+
+  it('resets the current coefficient before recording a calibration point', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    window.localStorage.setItem('drpd:calibration-warning-suppressed', 'true')
+    mockTransportState.rawVbusCurrentResponse = ['0.50']
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Current...')
+    const dialog = await screen.findByRole('dialog', { name: /calibrate current/i })
+    const calibrateButtons = within(dialog).getAllByRole('button', { name: 'Calibrate' })
+    await userEvent.click(calibrateButtons[1])
+
+    await waitFor(() =>
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:CAL:CURR:TAB 500 0.5'),
+    )
+    await waitFor(() =>
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:CAL:CURR 500'),
+    )
+    expect(
+      mockTransportState.sentCommands.indexOf('BUS:VBUS:CAL:CURR:TAB 500 0.5'),
+    ).toBeLessThan(
+      mockTransportState.sentCommands.indexOf('BUS:VBUS:CAL:CURR 500'),
+    )
+  })
+
+  it('does not switch to Observer when opening current calibration', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    window.localStorage.setItem('drpd:calibration-warning-suppressed', 'true')
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    mockTransportState.sentCommands = []
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Current...')
+
+    expect(await screen.findByRole('dialog', { name: /calibrate current/i })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('BUS:CC:ROLE OBSERVER')
+  })
+
+  it('requires Sink mode before opening current calibration', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    window.localStorage.setItem('drpd:calibration-warning-suppressed', 'true')
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    mockTransportState.roleResponse = ['OBSERVER']
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Current...')
+
+    const startError = await screen.findByRole('dialog', { name: /cannot start calibration/i })
+    expect(within(startError).getByText(/already operating as a USB-C Sink/i)).toBeInTheDocument()
+    expect(within(startError).getByText(/negotiate a VBUS contract of at least 5 V/i)).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /calibrate current/i })).not.toBeInTheDocument()
+  })
+
+  it('requires at least a 5 V negotiated sink voltage before opening current calibration', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    window.localStorage.setItem('drpd:calibration-warning-suppressed', 'true')
+    mockTransportState.sinkVoltageResponse = ['4.5']
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Current...')
+
+    const startError = await screen.findByRole('dialog', { name: /cannot start calibration/i })
+    expect(within(startError).getByText(/negotiated at least 5 V as a USB-C Sink/i)).toBeInTheDocument()
+    expect(within(startError).getByText(/confirm VBUS is present/i)).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /calibrate current/i })).not.toBeInTheDocument()
   })
 
   it('checks for firmware updates after connected device firmware version is known', async () => {
