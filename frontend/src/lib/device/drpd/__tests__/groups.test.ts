@@ -118,6 +118,82 @@ describe('DRPD command groups', () => {
     })
   })
 
+  it('queries and calibrates VBUS voltage calibration points', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set(
+      'BUS:VBUS:CAL?',
+      Array.from({ length: 61 }, (_, index) => (index / 100).toString()),
+    )
+    transport.textResponses.set('MEAS:VOLT:VBUS?', ['5.25'])
+
+    const group = new DRPDAnalogMonitor(transport)
+    const table = await group.getVBusCalibrationTable()
+    const voltage = await group.getVBusVoltage()
+    await group.setVBusCalibrationTablePoint(20, 0)
+    await group.calibrateVBusBucket(20)
+
+    expect(table).toHaveLength(61)
+    expect(table[20]).toBeCloseTo(0.2)
+    expect(voltage).toBeCloseTo(5.25)
+    expect(transport.commands[0]).toEqual({
+      command: 'BUS:VBUS:CAL:TAB',
+      params: [20, 0],
+    })
+    expect(transport.commands[1]).toEqual({
+      command: 'BUS:VBUS:CAL',
+      params: [20],
+    })
+  })
+
+  it('rejects malformed VBUS voltage calibration tables', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:VBUS:CAL?', ['0'])
+
+    const group = new DRPDAnalogMonitor(transport)
+
+    await expect(group.getVBusCalibrationTable()).rejects.toThrow(
+      'Invalid VBUS calibration response. Expected 61 fields, got 1',
+    )
+  })
+
+  it('queries and calibrates VBUS current calibration points', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set(
+      'BUS:VBUS:CAL:CURR?',
+      Array.from({ length: 13 }, (_, index) => (index / 2).toString()),
+    )
+    transport.textResponses.set('MEAS:CURR:VBUS:RAW?', ['1.75'])
+
+    const group = new DRPDAnalogMonitor(transport)
+    const table = await group.getVBusCurrentCalibrationTable()
+    const rawCurrent = await group.getRawVBusCurrent()
+    await group.setVBusCurrentCalibrationTablePoint(500, 0.5)
+    await group.calibrateVBusCurrentBucket(500)
+
+    expect(table).toHaveLength(13)
+    expect(table[3]).toBeCloseTo(1.5)
+    expect(rawCurrent).toBeCloseTo(1.75)
+    expect(transport.commands[0]).toEqual({
+      command: 'BUS:VBUS:CAL:CURR:TAB',
+      params: [500, 0.5],
+    })
+    expect(transport.commands[1]).toEqual({
+      command: 'BUS:VBUS:CAL:CURR',
+      params: [500],
+    })
+  })
+
+  it('rejects malformed VBUS current calibration tables', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:VBUS:CAL:CURR?', ['0'])
+
+    const group = new DRPDAnalogMonitor(transport)
+
+    await expect(group.getVBusCurrentCalibrationTable()).rejects.toThrow(
+      'Invalid VBUS current calibration response. Expected 13 fields, got 1',
+    )
+  })
+
   it('sends CC bus role updates with raw enum tokens', async () => {
     const transport = new MockTransport()
     const group = new DRPDCCBus(transport)

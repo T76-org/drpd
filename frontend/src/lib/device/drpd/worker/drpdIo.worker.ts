@@ -589,6 +589,40 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           await session.device.analogMonitor.resetAccumulatedMeasurements()
           return null
         }
+        if (method === 'getVBusVoltage') {
+          return await session.device.analogMonitor.getVBusVoltage()
+        }
+        if (method === 'getRawVBusCurrent') {
+          return await session.device.analogMonitor.getRawVBusCurrent()
+        }
+        if (method === 'getVBusCalibrationTable') {
+          return await session.device.analogMonitor.getVBusCalibrationTable()
+        }
+        if (method === 'calibrateVBusBucket') {
+          await session.device.analogMonitor.calibrateVBusBucket(args[0] as number)
+          return null
+        }
+        if (method === 'setVBusCalibrationTablePoint') {
+          await session.device.analogMonitor.setVBusCalibrationTablePoint(
+            args[0] as number,
+            args[1] as number,
+          )
+          return null
+        }
+        if (method === 'getVBusCurrentCalibrationTable') {
+          return await session.device.analogMonitor.getVBusCurrentCalibrationTable()
+        }
+        if (method === 'calibrateVBusCurrentBucket') {
+          await session.device.analogMonitor.calibrateVBusCurrentBucket(args[0] as number)
+          return null
+        }
+        if (method === 'setVBusCurrentCalibrationTablePoint') {
+          await session.device.analogMonitor.setVBusCurrentCalibrationTablePoint(
+            args[0] as number,
+            args[1] as number,
+          )
+          return null
+        }
         throw new Error(`Unsupported analogMonitor method: ${method}`)
       }
       if (target === 'ccBus') {

@@ -93,6 +93,13 @@ import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogS
 import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopover'
 import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
 import {
+  CalibrationManagementDialog,
+  CalibrationSafetyDialog,
+  CalibrationStartErrorDialog,
+  type CalibrationDialogTarget,
+  type CalibrationKind,
+} from './overlays/calibration/CalibrationDialogs'
+import {
   MessageLogClearPopover,
   MessageLogConfigurePopover,
   MessageLogImportConfirmPopover,
@@ -130,6 +137,7 @@ type LayoutMode = 'fixed' | 'full'
 const THEME_STORAGE_KEY = 'drpd:theme'
 const LAYOUT_STORAGE_KEY = 'drpd:layout'
 const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
+const CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY = 'drpd:calibration-warning-suppressed'
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
@@ -810,6 +818,12 @@ export const RackView = () => {
   )
   const firmwareUpdateChannelRef = useRef<FirmwareUpdateChannel>(firmwareUpdateChannel)
   const [deviceNameDialog, setDeviceNameDialog] = useState<DeviceNameDialogState | null>(null)
+  const [calibrationWarningTarget, setCalibrationWarningTarget] =
+    useState<CalibrationDialogTarget | null>(null)
+  const [calibrationWarningSuppressInput, setCalibrationWarningSuppressInput] = useState(false)
+  const [calibrationDialogTarget, setCalibrationDialogTarget] =
+    useState<CalibrationDialogTarget | null>(null)
+  const [calibrationStartError, setCalibrationStartError] = useState<string | null>(null)
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
     getResolvedTheme(getStoredTheme()),
   )
@@ -2082,6 +2096,105 @@ export const RackView = () => {
     setDeviceNameDialog(null)
   }, [deviceNameDialog, pairedDevices, rackDocument])
 
+  const openCalibrationManagementDialog = useCallback(async (target: CalibrationDialogTarget) => {
+    const state = deviceStatesRef.current.find((entry) => entry.record.id === target.recordId)
+    const driver = state?.drpdDriver
+    if (!state || state.status !== 'connected' || !driver) {
+      setCalibrationStartError(
+        'Connect the device before starting calibration, then open the calibration command again.',
+      )
+      return
+    }
+    try {
+      if (target.kind === 'current') {
+        await driver.refreshState()
+        const snapshot = driver.getState()
+        if (snapshot.role !== CCBusRole.SINK) {
+          setCalibrationStartError(
+            'Current calibration can only start when this Dr. PD is already operating as a USB-C Sink. Put the device in Sink mode, connect it to a USB-C source, negotiate a VBUS contract of at least 5 V, then open Current calibration again.',
+          )
+          return
+        }
+        const negotiatedVoltageMv = snapshot.sinkInfo?.negotiatedVoltageMv ?? null
+        if (negotiatedVoltageMv == null || negotiatedVoltageMv < 5000) {
+          setCalibrationStartError(
+            'Current calibration can only start after this Dr. PD has negotiated at least 5 V as a USB-C Sink. Request or negotiate a 5 V or higher sink contract from the connected source, confirm VBUS is present, then open Current calibration again.',
+          )
+          return
+        }
+        setCalibrationDialogTarget({ ...target, previousRole: snapshot.role })
+        return
+      }
+      const previousRole = driver.getState().role ?? null
+      if (previousRole !== CCBusRole.OBSERVER) {
+        await driver.ccBus.setRole(CCBusRole.OBSERVER)
+        await driver.refreshState()
+      }
+      setCalibrationDialogTarget({ ...target, previousRole })
+    } catch (error) {
+      setCalibrationStartError(
+        `Unable to start calibration: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }, [])
+
+  const handleOpenCalibrationDialog = useCallback((recordId: string, kind: CalibrationKind) => {
+    const state = deviceStatesRef.current.find((entry) => entry.record.id === recordId)
+    if (!state || state.status !== 'connected' || !state.drpdDriver) {
+      setCalibrationStartError(
+        'Connect the device before starting calibration, then open the calibration command again.',
+      )
+      return
+    }
+    const target: CalibrationDialogTarget = {
+      recordId,
+      deviceName: state.record.displayName,
+      kind,
+    }
+    if (isCalibrationWarningSuppressed()) {
+      void openCalibrationManagementDialog(target)
+      return
+    }
+    setCalibrationWarningSuppressInput(false)
+    setCalibrationWarningTarget(target)
+  }, [openCalibrationManagementDialog])
+
+  const handleConfirmCalibrationWarning = useCallback(() => {
+    const target = calibrationWarningTarget
+    if (!target) {
+      return
+    }
+    if (calibrationWarningSuppressInput) {
+      setCalibrationWarningSuppressed(true)
+    }
+    setCalibrationWarningTarget(null)
+    void openCalibrationManagementDialog(target)
+  }, [calibrationWarningSuppressInput, calibrationWarningTarget, openCalibrationManagementDialog])
+
+  const handleCloseCalibrationDialog = useCallback(async () => {
+    const target = calibrationDialogTarget
+    if (!target) {
+      return
+    }
+    const state = deviceStatesRef.current.find((entry) => entry.record.id === target.recordId)
+    const driver = state?.drpdDriver
+    try {
+      if (
+        target.kind === 'voltage' &&
+        driver &&
+        target.previousRole &&
+        target.previousRole !== CCBusRole.OBSERVER
+      ) {
+        await driver.ccBus.setRole(target.previousRole)
+        await driver.refreshState()
+      }
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setCalibrationDialogTarget(null)
+    }
+  }, [calibrationDialogTarget])
+
   const handleSetProtectionThresholds = useCallback(async () => {
     const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
     if (!driver) {
@@ -2461,6 +2574,9 @@ export const RackView = () => {
   const headerLogoSrc = resolvedTheme === 'light' ? drpdLogoLight : drpdLogoDark
   const activeVbusInfo = activeDriverState?.vbusInfo ?? null
   const activeTriggerInfo = activeDriverState?.triggerInfo ?? null
+  const calibrationDriver = calibrationDialogTarget
+    ? deviceStates.find((state) => state.record.id === calibrationDialogTarget.recordId)?.drpdDriver
+    : undefined
   const globalSelectedSinkPdo = globalSinkPdoList[globalSinkSelectedIndex] ?? null
   const globalSinkParsedVoltage = parseSinkRequestField(
     globalSelectedSinkPdo?.type === SinkPdoType.FIXED
@@ -2542,6 +2658,30 @@ export const RackView = () => {
                     }
                     void handleConnectPairedDevice(record.id)
                   },
+                },
+                {
+                  id: `paired-device-${record.id}-calibrate`,
+                  type: 'submenu' as const,
+                  label: 'Calibrate',
+                  disabled: !isConnected,
+                  items: [
+                    {
+                      id: `paired-device-${record.id}-calibrate-voltage`,
+                      label: 'Voltage...',
+                      disabled: !isConnected,
+                      onSelect: () => {
+                        handleOpenCalibrationDialog(record.id, 'voltage')
+                      },
+                    },
+                    {
+                      id: `paired-device-${record.id}-calibrate-current`,
+                      label: 'Current...',
+                      disabled: !isConnected,
+                      onSelect: () => {
+                        handleOpenCalibrationDialog(record.id, 'current')
+                      },
+                    },
+                  ],
                 },
                 {
                   id: `paired-device-${record.id}-unpair`,
@@ -2990,6 +3130,7 @@ export const RackView = () => {
     exportSelectedMessageLog,
     handleConnectPairedDevice,
     handleDisconnectDevice,
+    handleOpenCalibrationDialog,
     handleOpenDeviceNameDialog,
     handleOpenDocumentation,
     handlePulseUsbConnection,
@@ -3175,6 +3316,34 @@ export const RackView = () => {
           </DialogFormRow>
         </DialogForm>
       </Dialog>
+      <CalibrationSafetyDialog
+        target={calibrationWarningTarget}
+        suppressWarning={calibrationWarningSuppressInput}
+        onSuppressWarningChange={setCalibrationWarningSuppressInput}
+        onCancel={() => {
+          setCalibrationWarningTarget(null)
+          setCalibrationWarningSuppressInput(false)
+        }}
+        onConfirm={handleConfirmCalibrationWarning}
+      />
+      <CalibrationStartErrorDialog
+        message={calibrationStartError}
+        onClose={() => setCalibrationStartError(null)}
+      />
+      <CalibrationManagementDialog
+        target={calibrationDialogTarget}
+        driver={calibrationDriver}
+        onOpenChange={(open) => {
+          if (!open) {
+            void handleCloseCalibrationDialog()
+          }
+        }}
+        onCalibrated={async () => {
+          if (calibrationDriver) {
+            await calibrationDriver.refreshState()
+          }
+        }}
+      />
       <VbusConfigurePopover
         instrumentId="global-vbus"
         open={isGlobalVbusDialogOpen}
@@ -3811,6 +3980,20 @@ const getStoredShowTimestrip = (): boolean => {
   const storage = getBrowserStorage()
   const stored = storage?.getItem(SHOW_TIMESTRIP_STORAGE_KEY)
   return stored !== 'false'
+}
+
+/** Read whether the calibration warning is suppressed in this browser. */
+const isCalibrationWarningSuppressed = (): boolean => {
+  const storage = getBrowserStorage()
+  return storage?.getItem(CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY) === 'true'
+}
+
+/** Save calibration warning suppression in this browser. */
+const setCalibrationWarningSuppressed = (suppressed: boolean): void => {
+  const storage = getBrowserStorage()
+  if (storage) {
+    storage.setItem(CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY, suppressed ? 'true' : 'false')
+  }
 }
 
 /** Return a rack copy without standalone timestrip instruments and empty rows. */

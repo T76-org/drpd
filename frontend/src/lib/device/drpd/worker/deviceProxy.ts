@@ -76,6 +76,14 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getStatus: () => Promise<AnalogMonitorChannels>
     getAccumulatedMeasurements: () => Promise<AccumulatedMeasurements>
     resetAccumulatedMeasurements: () => Promise<void>
+    getVBusVoltage: () => Promise<number>
+    getRawVBusCurrent: () => Promise<number>
+    getVBusCalibrationTable: () => Promise<number[]>
+    calibrateVBusBucket: (bucket: number) => Promise<void>
+    setVBusCalibrationTablePoint: (bucket: number, correctionV: number) => Promise<void>
+    getVBusCurrentCalibrationTable: () => Promise<number[]>
+    calibrateVBusCurrentBucket: (targetMa: number) => Promise<void>
+    setVBusCurrentCalibrationTablePoint: (targetMa: number, rawCurrentA: number) => Promise<void>
   } ///< Analog monitor command-group proxy.
   public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
   public readonly capture: { setCaptureEnabled: (enabled: OnOffState) => Promise<void> } ///< Capture command-group proxy.
@@ -219,6 +227,24 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
         (await this.callGroup('analogMonitor', 'getAccumulatedMeasurements')) as AccumulatedMeasurements,
       resetAccumulatedMeasurements: async () => {
         await this.callGroup('analogMonitor', 'resetAccumulatedMeasurements')
+      },
+      getVBusVoltage: async () => (await this.callGroup('analogMonitor', 'getVBusVoltage')) as number,
+      getRawVBusCurrent: async () => (await this.callGroup('analogMonitor', 'getRawVBusCurrent')) as number,
+      getVBusCalibrationTable: async () =>
+        (await this.callGroup('analogMonitor', 'getVBusCalibrationTable')) as number[],
+      calibrateVBusBucket: async (bucket) => {
+        await this.callGroup('analogMonitor', 'calibrateVBusBucket', bucket)
+      },
+      setVBusCalibrationTablePoint: async (bucket, correctionV) => {
+        await this.callGroup('analogMonitor', 'setVBusCalibrationTablePoint', bucket, correctionV)
+      },
+      getVBusCurrentCalibrationTable: async () =>
+        (await this.callGroup('analogMonitor', 'getVBusCurrentCalibrationTable')) as number[],
+      calibrateVBusCurrentBucket: async (targetMa) => {
+        await this.callGroup('analogMonitor', 'calibrateVBusCurrentBucket', targetMa)
+      },
+      setVBusCurrentCalibrationTablePoint: async (targetMa, rawCurrentA) => {
+        await this.callGroup('analogMonitor', 'setVBusCurrentCalibrationTablePoint', targetMa, rawCurrentA)
       },
     }
     this.ccBus = {
