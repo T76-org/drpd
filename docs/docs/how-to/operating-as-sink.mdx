@@ -30,7 +30,7 @@ In this mode, Port 2 is disconnected from the USB-PD bus and VBUS line in order 
 
 :::warning[Safety mechanisms]
 
-In addition to the protection mechanisms implemented by your source device, Dr. PD implements its own set of overvoltage/overcurrent protections. You can use them in tandem with native protections in order to make sure that you don't damage your source device or Dr. PD itself while testing, but Dr. PD does not automatically set any protection mechanisms for you (beyond the default 60V / 6A limits that are hardcoded into the firmware to prevent damage to Dr. PD itself), so you should make sure to set appropriate limits for your tests in order to avoid damage to your source device or Dr. PD.
+In addition to the protection mechanisms implemented by your source device, Dr. PD implements its own set of [overvoltage/overcurrent protections](./protection-mechanisms). You can use them in tandem with native protections in order to make sure that you don't damage your source device or Dr. PD itself while testing, but Dr. PD does not automatically set any protection mechanisms for you (beyond the default 60V / 6A limits that are hardcoded into the firmware to prevent damage to Dr. PD itself), so you should make sure to set appropriate limits for your tests in order to avoid damage to your source device or Dr. PD.
 
 :::
 
@@ -43,7 +43,11 @@ The USB-PD protocol includes some special types of power contracts that allow fo
 
 Dr. PD is fully compatible with both PPS and AVS. If your source supports PPS or AVS contracts, you can use them to test the source's behavior under different voltage and current conditions, and to perform energy measurements at different power levels without triggering the source's protection mechanisms.
 
-## Support for EPR
+:::tip[Requsting PPS status information]
+In PPS mode, Dr. PD can send a `Get_PPS_Status` message to an attached source in order to request information about the current PPS contract, such as the voltage and current levels that are currently being delivered. This feature is off by default because it can add a significant amount of chatter to the message log, but you can enable it by selecting Mode -> Sink behaviour -> Send Get_PPS_Status messages from the menu.
+:::
+
+## Enabling support for EPR
 
 Recent versions of the USB-PD protocols have introduced _Extended Power Range_ (EPR) contracts, which allow for power delivery at voltages up to 48V and currents up to 5A. Dr. PD is compatible with EPR, and we designed its hardware specifically to support voltage and current ranges _in excess_ of the USB-PD 3.1 specification in order to allow you to test EPR sources and cables without risking damage to Dr. PD itself.
 
@@ -52,3 +56,5 @@ At 48V and 5A, high-end EPR sources pack quite the punch and can deliver some 24
 
 When you test EPR sources at high power levels, make sure to use appropriate safety precautions, such as using a high-quality USB-C cable that is rated for EPR, making sure that your source and Dr. PD are on a non-flammable surface, and keeping a fire extinguisher nearby just in case.
 :::
+
+EPR support is off by default. In order to enable it, choose Support EPR Mode from the Mode -> Sink behaviour menu. Once you have enabled EPR support, Dr. PD will be able to negotiate EPR contracts with compatible sources, and you will be able to test the source's behavior under EPR conditions.
