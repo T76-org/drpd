@@ -78,7 +78,15 @@ import {
   computeEprAvsMaxCurrentMa,
   parseSinkRequestField,
 } from './sinkRequest'
-import { Menu, type MenuItem } from '../../ui/overlays'
+import {
+  Dialog,
+  DialogButton,
+  DialogForm,
+  DialogFormRow,
+  DialogInput,
+  Menu,
+  type MenuItem,
+} from '../../ui/overlays'
 import { FirmwareUpdateDialog } from './overlays/firmware/FirmwareUpdateDialog'
 import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
 import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
@@ -220,6 +228,12 @@ type SelectedDeviceInfo = {
   productId: number
   serialNumber: string | null
   productName: string | null
+}
+
+interface DeviceNameDialogState {
+  recordId: string
+  name: string
+  error: string | null
 }
 
 interface HeaderVbusDisplayMeasurements {
@@ -795,6 +809,7 @@ export const RackView = () => {
     loadFirmwareUpdateChannel(),
   )
   const firmwareUpdateChannelRef = useRef<FirmwareUpdateChannel>(firmwareUpdateChannel)
+  const [deviceNameDialog, setDeviceNameDialog] = useState<DeviceNameDialogState | null>(null)
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
     getResolvedTheme(getStoredTheme()),
   )
@@ -1895,7 +1910,10 @@ export const RackView = () => {
         return
       }
 
-      const baseRecord = buildRackDeviceRecord(deviceDefinition, selected)
+      const baseRecord = mergeExistingRackDeviceRecord(
+        buildRackDeviceRecord(deviceDefinition, selected),
+        pairedDevicesRef.current,
+      )
       const shouldConnectNow = !deviceStatesRef.current.some((state) => state.status === 'connected')
 
       if (shouldConnectNow) {
@@ -2014,6 +2032,55 @@ export const RackView = () => {
       states.filter((state) => state.record.id !== recordId),
     )
   }
+
+  const handleOpenDeviceNameDialog = useCallback((recordId: string) => {
+    const record = pairedDevices.find((device) => device.id === recordId)
+    if (!record) {
+      return
+    }
+    setDeviceNameDialog({
+      recordId,
+      name: record.displayName,
+      error: null,
+    })
+  }, [pairedDevices])
+
+  const handleDeviceNameDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setDeviceNameDialog(null)
+    }
+  }, [])
+
+  const handleDeviceNameInputChange = useCallback((name: string) => {
+    setDeviceNameDialog((current) => current ? { ...current, name, error: null } : current)
+  }, [])
+
+  const handleSaveDeviceName = useCallback(() => {
+    if (!rackDocument || !deviceNameDialog) {
+      return
+    }
+    const displayName = deviceNameDialog.name.trim()
+    if (!displayName) {
+      setDeviceNameDialog((current) =>
+        current ? { ...current, error: 'Name is required.' } : current,
+      )
+      return
+    }
+    const nextDevices = pairedDevices.map((device) =>
+      device.id === deviceNameDialog.recordId ? { ...device, displayName } : device,
+    )
+    const nextDocument = replacePairedDevices(rackDocument, nextDevices)
+    setRackDocument(nextDocument)
+    saveRackDocument(nextDocument)
+    setDeviceStates((states) =>
+      states.map((state) =>
+        state.record.id === deviceNameDialog.recordId
+          ? { ...state, record: { ...state.record, displayName } }
+          : state,
+      ),
+    )
+    setDeviceNameDialog(null)
+  }, [deviceNameDialog, pairedDevices, rackDocument])
 
   const handleSetProtectionThresholds = useCallback(async () => {
     const driver = deviceStatesRef.current.find((state) => state.status === 'connected' && state.drpdDriver)?.drpdDriver
@@ -2457,6 +2524,13 @@ export const RackView = () => {
                 {
                   id: `paired-device-${record.id}-separator`,
                   type: 'separator' as const,
+                },
+                {
+                  id: `paired-device-${record.id}-rename`,
+                  label: 'Change name...',
+                  onSelect: () => {
+                    handleOpenDeviceNameDialog(record.id)
+                  },
                 },
                 {
                   id: `paired-device-${record.id}-connection`,
@@ -2916,6 +2990,7 @@ export const RackView = () => {
     exportSelectedMessageLog,
     handleConnectPairedDevice,
     handleDisconnectDevice,
+    handleOpenDeviceNameDialog,
     handleOpenDocumentation,
     handlePulseUsbConnection,
     handleRemoveDevice,
@@ -2990,6 +3065,11 @@ export const RackView = () => {
                 }}
               />
             ))}
+            <div className={styles.menuBarDeviceStatus} aria-live="polite">
+              {activeConnectedDeviceState
+                ? `Connected to ${activeConnectedDeviceState.record.displayName}`
+                : 'Waiting for device...'}
+            </div>
           </div>
         </div>
       </div>
@@ -3060,6 +3140,41 @@ export const RackView = () => {
         }}
         onDone={() => setFirmwareUpdatePrompt(null)}
       />
+      <Dialog
+        open={deviceNameDialog != null}
+        onOpenChange={handleDeviceNameDialogOpenChange}
+        title="Change device name"
+        description="Choose the name shown in the Device menu."
+        footer={
+          <>
+            <DialogButton onClick={() => setDeviceNameDialog(null)}>Cancel</DialogButton>
+            <DialogButton variant="primary" onClick={handleSaveDeviceName}>
+              Save
+            </DialogButton>
+          </>
+        }
+      >
+        <DialogForm>
+          <DialogFormRow
+            label="Name"
+            htmlFor="device-name"
+            errorText={deviceNameDialog?.error ?? undefined}
+          >
+            <DialogInput
+              id="device-name"
+              value={deviceNameDialog?.name ?? ''}
+              autoFocus
+              onChange={(event) => handleDeviceNameInputChange(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  handleSaveDeviceName()
+                }
+              }}
+            />
+          </DialogFormRow>
+        </DialogForm>
+      </Dialog>
       <VbusConfigurePopover
         instrumentId="global-vbus"
         open={isGlobalVbusDialogOpen}
@@ -3945,11 +4060,51 @@ const buildRackDeviceRecord = (
   return {
     id: buildRackDeviceId(definition.identifier, device, serial),
     identifier: definition.identifier,
-    displayName: definition.displayName,
+    displayName: buildRackDeviceDisplayName(definition, serial),
     vendorId: device.vendorId,
     productId: device.productId,
     serialNumber: serial,
     productName: device.productName ?? undefined
+  }
+}
+
+/**
+ * Build the initial paired-device display name.
+ *
+ * @param definition - Matching device definition.
+ * @param serial - Optional USB serial number.
+ * @returns Initial display name for the paired device.
+ */
+const buildRackDeviceDisplayName = (
+  definition: { identifier: string; displayName: string },
+  serial?: string,
+): string => {
+  if (definition.identifier === 'com.mta.drpd' && serial) {
+    return `Dr. PD #${serial}`
+  }
+  return definition.displayName
+}
+
+/**
+ * Preserve user-owned fields when replacing an existing device record.
+ *
+ * @param record - Newly detected device record.
+ * @param devices - Existing paired device records.
+ * @returns Merged device record.
+ */
+const mergeExistingRackDeviceRecord = (
+  record: RackDeviceRecord,
+  devices: RackDeviceRecord[],
+): RackDeviceRecord => {
+  const existing = devices.find((device) => device.id === record.id)
+  if (!existing) {
+    return record
+  }
+  return {
+    ...existing,
+    ...record,
+    displayName: existing.displayName,
+    config: existing.config ?? record.config,
   }
 }
 
