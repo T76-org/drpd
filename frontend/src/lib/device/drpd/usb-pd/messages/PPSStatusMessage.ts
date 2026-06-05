@@ -8,6 +8,12 @@ const formatVoltageMv = (valueMv: number): string => `${formatScaledValue(valueM
 
 const formatCurrentMa = (valueMa: number): string => `${formatScaledValue(valueMa / 1000)}A`
 
+const formatOutputVoltage = (block: ParsedPPSStatusDataBlock): string =>
+  block.outputVoltageSupported ? formatVoltageMv(block.outputVoltage20mV * 20) : 'not supported'
+
+const formatOutputCurrent = (block: ParsedPPSStatusDataBlock): string =>
+  block.outputCurrentSupported ? formatCurrentMa(block.outputCurrent50mA * 50) : 'not supported'
+
 const describeTemperatureFlag = (flags: number): string => {
   switch ((flags >> 1) & 0b11) {
     case 0b00:
@@ -94,8 +100,8 @@ export class PPSStatusMessage extends ExtendedMessage {
     return [
       '**Programmable Power Supply status:**',
       '',
-      `- Output voltage: ${formatVoltageMv(this.ppsStatusDataBlock.outputVoltage20mV * 20)}`,
-      `- Output current: ${formatCurrentMa(this.ppsStatusDataBlock.outputCurrent50mA * 50)}`,
+      `- Output voltage: ${formatOutputVoltage(this.ppsStatusDataBlock)}`,
+      `- Output current: ${formatOutputCurrent(this.ppsStatusDataBlock)}`,
       `- Temperature flag: ${describeTemperatureFlag(this.ppsStatusDataBlock.realTimeFlags)}`,
       `- Operating mode: ${describeOperatingMode(this.ppsStatusDataBlock.realTimeFlags)}`,
     ].join('\n')

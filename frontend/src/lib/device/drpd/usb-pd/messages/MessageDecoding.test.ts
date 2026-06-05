@@ -1041,6 +1041,32 @@ describe('USB-PD extended message decoding', () => {
     expect(block?.getEntry('realTimeFlags')?.value).toContain('PTF')
   })
 
+  it('decodes PPS_Status unsupported voltage and current sentinel values', () => {
+    const rawFrame = Uint8Array.from([
+      0x18, 0x18, 0x18, 0x11,
+      0xac, 0xaf,
+      0x04, 0x80,
+      0xff, 0xff, 0xff, 0x00,
+      0x00, 0x00, 0xad, 0x41, 0x0a, 0x97,
+    ])
+    const message = parseUSBPDMessage(rawFrame)
+    expect(message).toBeInstanceOf(PPSStatusMessage)
+    const decoded = message as PPSStatusMessage
+    expect(decoded.ppsStatusDataBlock?.outputVoltage20mV).toBe(0xffff)
+    expect(decoded.ppsStatusDataBlock?.outputVoltageSupported).toBe(false)
+    expect(decoded.ppsStatusDataBlock?.outputCurrent50mA).toBe(0xff)
+    expect(decoded.ppsStatusDataBlock?.outputCurrentSupported).toBe(false)
+    expect(decoded.ppsStatusDataBlock?.realTimeFlags).toBe(0x00)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('- Output voltage: not supported')
+    expect(summary?.value).toContain('- Output current: not supported')
+    expect(summary?.value).toContain('- Temperature flag: not supported')
+    expect(summary?.value).toContain('- Operating mode: constant voltage mode')
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('ppsStatusDataBlock')
+    expect(block?.getEntry('outputVoltage20mV')?.value).toBe('Not supported')
+    expect(block?.getEntry('outputCurrent50mA')?.value).toBe('Not supported')
+  })
+
   it('decodes Country_Info and Country_Codes', () => {
     const cidb = [0x55, 0x53, 0x00, 0x00, 0x41, 0x42, 0x43]
     const headerInfo = makeMessageHeader({
