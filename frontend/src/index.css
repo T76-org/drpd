@@ -19,6 +19,8 @@
 
   font-family: var(--font-family-base);
 
+  --app-min-width: 800px;
+
   --font-size-4xs: 0.3rem;
   --font-size-3xs: 0.4rem;
   --font-size-2xs: 0.5rem;
@@ -268,13 +270,15 @@ button:focus-visible {
 
 body {
   margin: var(--space-0);
-  min-width: 320px;
+  min-width: var(--app-min-width);
   height: 100dvh;
   font-family: var(--font-family-base);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 #root {
   height: 100%;
+  min-width: var(--app-min-width);
   max-height: 100dvh;
 }

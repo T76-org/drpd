@@ -1116,6 +1116,24 @@ describe('RackView', () => {
     expect(screen.queryByRole('button', { name: 'Rack' })).not.toBeInTheDocument()
   })
 
+  it('renders compact VBUS status groups in the top header', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    const header = await screen.findByRole('banner')
+
+    expect(within(header).getByLabelText('VBUS metrics')).toBeInTheDocument()
+    expect(within(header).getByText('OVP')).toBeInTheDocument()
+    expect(within(header).getByText('OCP')).toBeInTheDocument()
+    expect(within(header).getByText('MODE')).toBeInTheDocument()
+    expect(within(header).getByText('STATUS')).toBeInTheDocument()
+    expect(within(header).getByText('CAPTURE')).toBeInTheDocument()
+    expect(within(header).getByText('PROFILE')).toBeInTheDocument()
+    expect(within(header).getByText('SYNC STATE')).toBeInTheDocument()
+    expect(within(header).getByText('EVENT COUNT')).toBeInTheDocument()
+  })
+
   it('renders the base instrument header', () => {
     render(
       <InstrumentBase

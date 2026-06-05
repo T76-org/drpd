@@ -1,5 +1,6 @@
 .appViewport {
   width: 100%;
+  min-width: var(--app-min-width);
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
