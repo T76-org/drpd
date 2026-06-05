@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom'
 import {
   buildCapturedLogSelectionKey,
   DRPDDevice,
+  OnOffState,
   type DRPDLogSelectionState,
   type LoggedAnalogSample,
   type LoggedCapturedMessage,
@@ -30,6 +31,7 @@ import {
   basisTimestampUsToWorldNs,
   calculateTimestripQueryRange,
   getTimestripBasisOriginUs,
+  getTimestripBasisTimestampUs,
   type TimestripBasis,
   type TimestripQueryRange,
   type TimestripTimelineRange,
@@ -159,6 +161,46 @@ const analogToTimelinePoint = (row: LoggedAnalogSample): TimelineRangePoint => (
   timestampUs: row.timestampUs,
   wallClockUs: row.wallClockUs,
 })
+
+const getMessageDurationNs = (row: LoggedCapturedMessage): number =>
+  row.entryKind === 'message'
+    ? Math.max(1, Number((row.endTimestampUs - row.startTimestampUs) * 1000n))
+    : 1
+
+const getLoggedMessageEndWorldNs = (
+  row: LoggedCapturedMessage,
+  basis: TimestripBasis,
+): number | null => {
+  const startBasisTimestampUs = getTimestripBasisTimestampUs(row.startTimestampUs, row.wallClockUs, basis)
+  if (startBasisTimestampUs === null) {
+    return null
+  }
+  return basisTimestampUsToWorldNs(startBasisTimestampUs, basis) + getMessageDurationNs(row)
+}
+
+const getAnalogSampleWorldNs = (
+  row: LoggedAnalogSample,
+  basis: TimestripBasis,
+): number | null => {
+  const basisTimestampUs = getTimestripBasisTimestampUs(row.timestampUs, row.wallClockUs, basis)
+  return basisTimestampUs === null ? null : basisTimestampUsToWorldNs(basisTimestampUs, basis)
+}
+
+const getLatestLoggedDatumWorldNs = (
+  rows: Array<LoggedCapturedMessage | LoggedAnalogSample | null | undefined>,
+  basis: TimestripBasis,
+): number | null => {
+  const values = rows.flatMap((row) => {
+    if (!row) {
+      return []
+    }
+    const worldNs = 'timestampUs' in row
+      ? getAnalogSampleWorldNs(row, basis)
+      : getLoggedMessageEndWorldNs(row, basis)
+    return worldNs === null || !Number.isFinite(worldNs) ? [] : [worldNs]
+  })
+  return values.length === 0 ? null : Math.max(...values)
+}
 
 const buildTimelineBasis = (
   originTimestampUs: bigint,
@@ -295,6 +337,9 @@ export const DrpdTimeStripInstrumentView = ({
     hasLogRange: false,
   }))
   const [hasLogTimelineRange, setHasLogTimelineRange] = useState(false)
+  const [latestDatumWorldNs, setLatestDatumWorldNs] = useState<number | null>(null)
+  const [captureEnabled, setCaptureEnabled] = useState(false)
+  const [captureProgressWallClockUs, setCaptureProgressWallClockUs] = useState(() => Date.now() * 1000)
   const [themeName, setThemeName] = useState(readThemeName)
   const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
@@ -302,6 +347,24 @@ export const DrpdTimeStripInstrumentView = ({
   const [analogSamples, setAnalogSamples] = useState<TimestripAnalogSample[]>([])
   const [analogDataRevision, setAnalogDataRevision] = useState(0)
   const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
+  const liveCaptureMarkerWorldNs =
+    captureEnabled && timelineRange.basis.kind === 'wallClock'
+      ? Number((BigInt(Math.floor(captureProgressWallClockUs)) - BigInt(Math.floor(timelineRange.basis.originWallClockUs))) * 1000n)
+      : null
+  const captureMarkerWorldNs = latestDatumWorldNs === null
+    ? liveCaptureMarkerWorldNs
+    : liveCaptureMarkerWorldNs === null
+      ? latestDatumWorldNs
+      : Math.max(latestDatumWorldNs, liveCaptureMarkerWorldNs)
+  const shouldExtendViewportForCapture =
+    captureEnabled && liveCaptureMarkerWorldNs !== null && Number.isFinite(liveCaptureMarkerWorldNs)
+  const viewportDurationNs =
+    !shouldExtendViewportForCapture
+      ? timelineRange.durationNs
+      : BigInt(Math.max(
+          Number(timelineRange.durationNs),
+          Math.ceil(Math.max(1, liveCaptureMarkerWorldNs)),
+        ))
   const {
     viewportWidthPx,
     viewportHeightPx,
@@ -314,7 +377,7 @@ export const DrpdTimeStripInstrumentView = ({
     domScrollLeftToLogical,
     logicalScrollLeftToDom,
     handleViewportScroll: handleViewportScrollState,
-  } = useTimestripViewport(viewportRef, timelineRange.durationNs)
+  } = useTimestripViewport(viewportRef, viewportDurationNs)
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
   const {
     analogHover,
@@ -499,6 +562,52 @@ export const DrpdTimeStripInstrumentView = ({
 
   useEffect(() => {
     const driver = deviceState?.drpdDriver
+    if (!driver || typeof driver.addEventListener !== 'function') {
+      setCaptureEnabled(false)
+      return undefined
+    }
+
+    const readCaptureEnabled = () => {
+      const state = typeof driver.getState === 'function' ? driver.getState() : null
+      setCaptureEnabled(state?.captureEnabled === OnOffState.ON)
+    }
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed : []
+      if (changed.includes('captureEnabled')) {
+        setCaptureEnabled(detail?.state?.captureEnabled === OnOffState.ON)
+      }
+    }
+    const handleCaptureStatusChanged = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      setCaptureEnabled(detail?.current === OnOffState.ON || detail?.captureEnabled === OnOffState.ON)
+    }
+
+    readCaptureEnabled()
+    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    driver.addEventListener(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, handleCaptureStatusChanged)
+    return () => {
+      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+      driver.removeEventListener(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, handleCaptureStatusChanged)
+    }
+  }, [deviceState?.drpdDriver])
+
+  useEffect(() => {
+    if (!captureEnabled || timelineRange.basis.kind !== 'wallClock') {
+      return undefined
+    }
+    const tick = () => {
+      setCaptureProgressWallClockUs(Date.now() * 1000)
+    }
+    tick()
+    const interval = window.setInterval(tick, 250)
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [captureEnabled, timelineRange.basis.kind])
+
+  useEffect(() => {
+    const driver = deviceState?.drpdDriver
     if (!driver) {
       return undefined
     }
@@ -591,6 +700,15 @@ export const DrpdTimeStripInstrumentView = ({
             : endTimestampUs - startTimestampUs > 0n
               ? (endTimestampUs - startTimestampUs) * 1000n
               : 1n
+        const nextBasis = buildTimelineBasis(startTimestampUs, startWallClockUs, hasWallClockBasis)
+        const latestWorldNs = getLatestLoggedDatumWorldNs(
+          [
+            lastWallClockMessage,
+            lastDeviceMessage,
+            lastAnalogSample,
+          ],
+          nextBasis,
+        )
         setTimelineRange((current) => {
           if (
             current.basis.originTimestampUs === startTimestampUs &&
@@ -601,11 +719,12 @@ export const DrpdTimeStripInstrumentView = ({
             return current
           }
           return {
-            basis: buildTimelineBasis(startTimestampUs, startWallClockUs, hasWallClockBasis),
+            basis: nextBasis,
             durationNs: nextDurationNs,
             hasLogRange: true,
           }
         })
+        setLatestDatumWorldNs(latestWorldNs)
         setHasLogTimelineRange(true)
       } catch {
         // Keep the existing timeline when logging data is temporarily unavailable.
@@ -986,6 +1105,10 @@ export const DrpdTimeStripInstrumentView = ({
           durationNs: (rowEndBasisUs - currentStartBasisUs) * 1000n,
         }
       })
+      setLatestDatumWorldNs((current) => Math.max(
+        current ?? 0,
+        hasLogTimelineRange ? rowWorldEndNs : rowDurationNs,
+      ))
       setHasLogTimelineRange(true)
 
       if (isAnalogRow) {
@@ -1060,6 +1183,7 @@ export const DrpdTimeStripInstrumentView = ({
       }
       digitalQueryRangeRef.current = null
       analogQueryRangeRef.current = null
+      setLatestDatumWorldNs(null)
       commitDigitalEntries([], 'all')
       commitAnalogSamples([], 'all')
       if (detail.reason === 'clear') {
@@ -1106,6 +1230,7 @@ export const DrpdTimeStripInstrumentView = ({
       analogSamples,
       analogDataRevision,
       selectedMessageKey: selectedLogMessageKey,
+      captureMarkerWorldNs,
     })
     const invalidation = pendingTileInvalidationRef.current
     pendingTileInvalidationRef.current = null
@@ -1120,6 +1245,7 @@ export const DrpdTimeStripInstrumentView = ({
     analogDataRevision,
     analogSamples,
     selectedLogMessageKey,
+    captureMarkerWorldNs,
     scrollLeftPx,
     theme,
     timelineRange.basis.originWallClockUs,

@@ -484,4 +484,41 @@ describe('TimestripTiledRenderer', () => {
 
     renderer.dispose()
   })
+
+  it('requests replacement tiles when the capture marker changes', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
+    )
+    const tileLayer = document.createElement('div')
+    const frameCallbacks: FrameRequestCallback[] = []
+    const worker = new TestWorker()
+    const renderer = new TimestripTiledRenderer({
+      tileLayer,
+      createWorker: () => worker as unknown as Worker,
+      requestAnimationFrame: (callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      },
+      cancelAnimationFrame: vi.fn(),
+    })
+
+    renderer.setViewport(buildViewport(1000))
+    frameCallbacks.shift()?.(0)
+    const requestCount = worker.postMessage.mock.calls.length
+
+    renderer.setViewport({
+      ...buildViewport(1000),
+      captureMarkerWorldNs: 120_000,
+    })
+    frameCallbacks.shift()?.(16)
+
+    const replacementRequest = worker.postMessage.mock.calls
+      .slice(requestCount)
+      .map((call) => call[0])
+      .find((request) => request.tile.key === 'z1000:0:0')
+    expect(worker.postMessage.mock.calls.length).toBeGreaterThan(requestCount)
+    expect(replacementRequest?.captureMarkerWorldNs).toBe(120_000)
+
+    renderer.dispose()
+  })
 })

@@ -122,6 +122,7 @@ describe('timestripTileDrawing', () => {
       voltageTraceColor: '#05BAFA',
       currentTraceColor: '#01A804',
       analogGridColor: 'rgba(255, 255, 255, 0.09)',
+      captureMarkerColor: '#fedcba',
     })
 
     expect(context.fillStyle).toBe('#cccccc')
@@ -257,6 +258,26 @@ describe('timestripTileDrawing', () => {
     const emptyTileEdgeLines = vi.mocked(emptyContext.lineTo).mock.calls.filter(([x]) => x === 512)
     const sampledTileEdgeLines = vi.mocked(context.lineTo).mock.calls.filter(([x]) => x === 512)
     expect(sampledTileEdgeLines).toHaveLength(emptyTileEdgeLines.length)
+  })
+
+  it('draws the capture marker through digital and analog lanes', () => {
+    const context = buildContext()
+
+    drawTimestripTile(
+      context,
+      tile,
+      1,
+      DEFAULT_TIMESTRIP_THEME,
+      [],
+      [],
+      1_700_000_000_000_000,
+      null,
+      120_000,
+    )
+
+    expect(context.moveTo).toHaveBeenCalledWith(120.5, 33)
+    expect(context.lineTo).toHaveBeenCalledWith(120.5, 240)
+    expect(context.strokeStyle).toBe(DEFAULT_TIMESTRIP_THEME.captureMarkerColor)
   })
 
   it('draws faint analog grid lines across the tile', () => {

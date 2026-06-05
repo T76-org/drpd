@@ -36,6 +36,7 @@ export interface TimestripRendererViewport {
   analogSamples?: TimestripAnalogSample[]
   analogDataRevision?: number
   selectedMessageKey?: string | null
+  captureMarkerWorldNs?: number | null
 }
 
 export interface TimestripRendererOptions {
@@ -81,6 +82,7 @@ export class TimestripTiledRenderer {
   protected cacheDigitalDataRevision: number ///< Digital data revision used by current pool.
   protected cacheAnalogDataRevision: number ///< Analog data revision used by current pool.
   protected cacheSelectedMessageKey: string | null ///< Selected message key used by current pool.
+  protected cacheCaptureMarkerWorldNs: number | null ///< Capture marker position used by current pool.
 
   /**
    * Create a tiled renderer.
@@ -106,6 +108,7 @@ export class TimestripTiledRenderer {
       analogSamples: [],
       analogDataRevision: 0,
       selectedMessageKey: null,
+      captureMarkerWorldNs: null,
     }
     this.frameHandle = null
     this.requestId = 0
@@ -119,6 +122,7 @@ export class TimestripTiledRenderer {
     this.cacheDigitalDataRevision = 0
     this.cacheAnalogDataRevision = 0
     this.cacheSelectedMessageKey = null
+    this.cacheCaptureMarkerWorldNs = null
     this.worker = options.createWorker?.() ?? this.createDefaultWorker()
     if (this.worker) {
       this.worker.onmessage = (event: MessageEvent<TimestripTileWorkerResponse>) => {
@@ -149,6 +153,7 @@ export class TimestripTiledRenderer {
       (nextViewport.digitalDataRevision ?? 0) === this.cacheDigitalDataRevision &&
       (nextViewport.analogDataRevision ?? 0) === this.cacheAnalogDataRevision &&
       (nextViewport.selectedMessageKey ?? null) === this.cacheSelectedMessageKey &&
+      (nextViewport.captureMarkerWorldNs ?? null) === this.cacheCaptureMarkerWorldNs &&
       getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) === this.cacheThemeKey
     const shouldDetachCommittedTiles =
       nextViewport.zoomDenominator !== this.cacheZoomDenominator ||
@@ -161,6 +166,7 @@ export class TimestripTiledRenderer {
       (nextViewport.digitalDataRevision ?? 0) !== this.cacheDigitalDataRevision ||
       (nextViewport.analogDataRevision ?? 0) !== this.cacheAnalogDataRevision ||
       (nextViewport.selectedMessageKey ?? null) !== this.cacheSelectedMessageKey ||
+      (nextViewport.captureMarkerWorldNs ?? null) !== this.cacheCaptureMarkerWorldNs ||
       getTimestripThemeCacheKey(nextViewport.theme ?? DEFAULT_TIMESTRIP_THEME) !== this.cacheThemeKey
     this.viewport = nextViewport
     this.resizeTileLayer()
@@ -181,6 +187,7 @@ export class TimestripTiledRenderer {
       this.cacheDigitalDataRevision = nextViewport.digitalDataRevision ?? 0
       this.cacheAnalogDataRevision = nextViewport.analogDataRevision ?? 0
       this.cacheSelectedMessageKey = nextViewport.selectedMessageKey ?? null
+      this.cacheCaptureMarkerWorldNs = nextViewport.captureMarkerWorldNs ?? null
     }
     if (shouldResetPool || nextRenderKey !== currentRenderKey) {
       this.scheduleFrame()
@@ -494,6 +501,7 @@ export class TimestripTiledRenderer {
         digitalEntries,
         analogSamples,
         selectedMessageKey: this.viewport.selectedMessageKey ?? null,
+        captureMarkerWorldNs: this.viewport.captureMarkerWorldNs ?? null,
         generation: this.generation,
         worldStartWallClockUs: this.viewport.worldStartWallClockUs,
       }
@@ -514,6 +522,7 @@ export class TimestripTiledRenderer {
         analogSamples,
         this.viewport.worldStartWallClockUs,
         this.viewport.selectedMessageKey ?? null,
+        this.viewport.captureMarkerWorldNs ?? null,
       )
       entry.tile = tile
       entry.tileKey = tile.key
@@ -627,4 +636,7 @@ export const normalizeViewport = (viewport: TimestripRendererViewport): Timestri
   analogSamples: viewport.analogSamples ?? [],
   analogDataRevision: Math.max(0, Math.floor(viewport.analogDataRevision ?? 0)),
   selectedMessageKey: viewport.selectedMessageKey ?? null,
+  captureMarkerWorldNs: Number.isFinite(viewport.captureMarkerWorldNs)
+    ? viewport.captureMarkerWorldNs
+    : null,
 })

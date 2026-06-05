@@ -27,6 +27,7 @@ export interface TimestripThemePalette {
   voltageTraceColor: string
   currentTraceColor: string
   analogGridColor: string
+  captureMarkerColor: string
 }
 
 export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -58,6 +59,7 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   voltageTraceColor: '#05BAFA',
   currentTraceColor: '#01A804',
   analogGridColor: 'rgba(255, 255, 255, 0.09)',
+  captureMarkerColor: 'rgba(255, 255, 255, 0.72)',
 }
 
 const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -89,6 +91,7 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   voltageTraceColor: '#05BAFA',
   currentTraceColor: '#01A804',
   analogGridColor: 'rgba(28, 31, 42, 0.1)',
+  captureMarkerColor: 'rgba(28, 31, 42, 0.66)',
 }
 
 const DARK_TIMESTRIP_THEME = DEFAULT_TIMESTRIP_THEME
@@ -143,5 +146,6 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.voltageTraceColor,
     palette.currentTraceColor,
     palette.analogGridColor,
+    palette.captureMarkerColor,
   ].join('|')
 )
