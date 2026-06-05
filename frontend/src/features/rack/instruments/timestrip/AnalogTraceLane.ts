@@ -35,7 +35,7 @@ const drawTrace = (
   context.save()
   context.beginPath()
   context.lineCap = 'round'
-  if (firstSample.worldNs >= options.worldLeftNs) {
+  if (firstSample.worldNs >= options.worldLeftNs && !firstSample.breakBefore) {
     const y = top + (1 - clamp01(readValue(firstSample) / maxValue)) * height
     context.moveTo(0, y)
     const firstX = (firstSample.worldNs - options.worldLeftNs) / options.zoomDenominator
@@ -46,7 +46,10 @@ const drawTrace = (
   samples.forEach((sample, index) => {
     const x = (sample.worldNs - options.worldLeftNs) / options.zoomDenominator
     const y = top + (1 - clamp01(readValue(sample) / maxValue)) * height
-    if (index === 0 && firstSample.worldNs < options.worldLeftNs) {
+    if (
+      (index === 0 && (firstSample.worldNs < options.worldLeftNs || firstSample.breakBefore)) ||
+      (index > 0 && sample.breakBefore)
+    ) {
       context.moveTo(x, y)
     } else if (index > 0) {
       context.lineTo(x, y)

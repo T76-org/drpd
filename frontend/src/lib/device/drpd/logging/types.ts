@@ -149,6 +149,8 @@ export interface CapturedMessageQuery {
   senderDataRoles?: string[]
   ///< Optional SOP kind filter.
   sopKinds?: string[]
+  ///< Optional event type filter.
+  eventTypes?: LoggedCapturedEventType[]
   ///< Optional row offset from the ordered result set.
   offset?: number
   ///< Optional row limit.

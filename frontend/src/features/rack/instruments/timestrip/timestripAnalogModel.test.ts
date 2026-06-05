@@ -52,6 +52,13 @@ describe('timestripAnalogModel', () => {
     })
   })
 
+  it('does not interpolate across capture gaps', () => {
+    expect(interpolateTimestripAnalogSample([
+      { worldNs: 0, voltageV: 5, currentA: 0.5 },
+      { worldNs: 100, voltageV: 15, currentA: 1.5, breakBefore: true },
+    ], 25)).toBeNull()
+  })
+
   it('does not extrapolate hover values outside loaded samples', () => {
     expect(interpolateTimestripAnalogSample([
       { worldNs: 10, voltageV: 5, currentA: 0.5 },

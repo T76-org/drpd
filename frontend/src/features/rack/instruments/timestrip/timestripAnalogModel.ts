@@ -4,6 +4,7 @@ export interface TimestripAnalogSample {
   worldNs: number
   voltageV: number
   currentA: number
+  breakBefore?: boolean
 }
 
 export interface TimestripAnalogHoverValue {
@@ -59,6 +60,9 @@ export const interpolateTimestripAnalogSample = (
   }
   const highSample = samples[high]
   const lowSample = samples[Math.max(0, high - 1)]
+  if (high > 0 && highSample.breakBefore && worldNs > lowSample.worldNs && worldNs < highSample.worldNs) {
+    return null
+  }
   if (!lowSample || lowSample.worldNs === highSample.worldNs) {
     return {
       worldNs,

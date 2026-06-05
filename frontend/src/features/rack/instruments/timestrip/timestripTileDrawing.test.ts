@@ -260,6 +260,26 @@ describe('timestripTileDrawing', () => {
     expect(sampledTileEdgeLines).toHaveLength(emptyTileEdgeLines.length)
   })
 
+  it('leaves the analog lane blank across capture gaps', () => {
+    const context = buildContext()
+
+    drawTimestripTile(
+      context,
+      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
+      1,
+      DEFAULT_TIMESTRIP_THEME,
+      [],
+      [
+        { worldNs: 11_000, voltageV: 30, currentA: 3 },
+        { worldNs: 21_000, voltageV: 60, currentA: 6, breakBefore: true },
+      ],
+      1_700_000_000_000_000,
+    )
+
+    expect(context.lineTo).not.toHaveBeenCalledWith(20, expect.any(Number))
+    expect(context.moveTo).toHaveBeenCalledWith(20, expect.any(Number))
+  })
+
   it('draws the capture marker through digital and analog lanes', () => {
     const context = buildContext()
 

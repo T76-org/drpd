@@ -76,6 +76,7 @@ const buildAnalogSamplesSignature = (samples: TimestripAnalogSample[]): string =
     sample.worldNs,
     sample.voltageV,
     sample.currentA,
+    sample.breakBefore ? 'b' : '',
   ].join(':')).join('|')
 
 const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
@@ -186,6 +187,57 @@ const getAnalogSampleWorldNs = (
   return basisTimestampUs === null ? null : basisTimestampUsToWorldNs(basisTimestampUs, basis)
 }
 
+const getCaptureBreakWorldNs = (
+  row: LoggedCapturedMessage,
+  basis: TimestripBasis,
+): number | null => {
+  if (row.entryKind !== 'event' || row.eventType !== 'capture_changed') {
+    return null
+  }
+  const basisTimestampUs = getTimestripBasisTimestampUs(row.startTimestampUs, row.wallClockUs, basis)
+  return basisTimestampUs === null ? null : basisTimestampUsToWorldNs(basisTimestampUs, basis)
+}
+
+const getAnalogSampleBasisTimestampUs = (
+  row: LoggedAnalogSample,
+  hasWallClockBasis: boolean,
+): bigint | null => {
+  if (!hasWallClockBasis) {
+    return row.timestampUs
+  }
+  return row.wallClockUs
+}
+
+const applyAnalogBreaks = (
+  samples: TimestripAnalogSample[],
+  breakWorldNs: number[],
+): TimestripAnalogSample[] => {
+  if (samples.length === 0 || breakWorldNs.length === 0) {
+    return samples.map((sample) => ({ ...sample, breakBefore: false }))
+  }
+  const sortedBreaks = [...breakWorldNs]
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right)
+  if (sortedBreaks.length === 0) {
+    return samples.map((sample) => ({ ...sample, breakBefore: false }))
+  }
+  let breakIndex = 0
+  return samples.map((sample, sampleIndex) => {
+    if (sampleIndex === 0) {
+      return { ...sample, breakBefore: false }
+    }
+    const previous = samples[sampleIndex - 1]
+    while (breakIndex < sortedBreaks.length && sortedBreaks[breakIndex] <= previous.worldNs) {
+      breakIndex += 1
+    }
+    const breakBefore =
+      breakIndex < sortedBreaks.length &&
+      sortedBreaks[breakIndex] > previous.worldNs &&
+      sortedBreaks[breakIndex] <= sample.worldNs
+    return { ...sample, breakBefore }
+  })
+}
+
 const getLatestLoggedDatumWorldNs = (
   rows: Array<LoggedCapturedMessage | LoggedAnalogSample | null | undefined>,
   basis: TimestripBasis,
@@ -243,16 +295,6 @@ const getClosestCapturedRow = (
     }
   }
   return closestRow
-}
-
-const getAnalogSampleBasisTimestampUs = (
-  row: LoggedAnalogSample,
-  hasWallClockBasis: boolean,
-): bigint | null => {
-  if (!hasWallClockBasis) {
-    return row.timestampUs
-  }
-  return row.wallClockUs
 }
 
 const mergeAnalogSampleRows = (
@@ -328,6 +370,7 @@ export const DrpdTimeStripInstrumentView = ({
   const centeredSelectionKeyRef = useRef<string | null>(null)
   const digitalEntriesSignatureRef = useRef('')
   const analogSamplesSignatureRef = useRef('')
+  const analogBreakWorldNsRef = useRef<number[]>([])
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const analogQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const pendingTileInvalidationRef = useRef<TimestripInvalidation | null>(null)
@@ -986,10 +1029,33 @@ export const DrpdTimeStripInstrumentView = ({
           timelineRange.basis,
         )
         analogQueryRangeRef.current = range
-        const nextSamples = mergeAnalogSampleRows(
+        const mergedAnalogRows = mergeAnalogSampleRows(
           [...previousRows, ...visibleRows, ...nextRows],
           timelineRange.basis.kind === 'wallClock',
-        ).flatMap((row) => {
+        )
+        const analogSpanBasisTimestamps = mergedAnalogRows.flatMap((row) => {
+          const timestampUs = getAnalogSampleBasisTimestampUs(row, timelineRange.basis.kind === 'wallClock')
+          return timestampUs === null ? [] : [timestampUs]
+        })
+        const captureBreakRows =
+          typeof driver.queryCapturedMessages === 'function' && analogSpanBasisTimestamps.length > 1
+            ? await driver.queryCapturedMessages({
+              startTimestampUs: analogSpanBasisTimestamps[0],
+              endTimestampUs: analogSpanBasisTimestamps.at(-1)!,
+              timeBasis: range.timeBasis,
+              sortOrder: 'asc',
+              eventTypes: ['capture_changed'],
+            })
+            : []
+        if (!isActive) {
+          return
+        }
+        const breakWorldNs = captureBreakRows.flatMap((row) => {
+          const worldNs = getCaptureBreakWorldNs(row, timelineRange.basis)
+          return worldNs === null || !Number.isFinite(worldNs) ? [] : [worldNs]
+        })
+        analogBreakWorldNsRef.current = breakWorldNs
+        const nextSamples = applyAnalogBreaks(mergedAnalogRows.flatMap((row) => {
           const sample = normalizeAnalogSampleForTimestrip(
             row,
             timelineRange.basis.originTimestampUs,
@@ -998,7 +1064,7 @@ export const DrpdTimeStripInstrumentView = ({
               : undefined,
           )
           return sample ? [sample] : []
-        })
+        }), breakWorldNs)
         commitAnalogSamples(nextSamples, invalidation)
       } catch {
         // Keep the last rendered samples when the log store is temporarily unavailable.
@@ -1054,6 +1120,7 @@ export const DrpdTimeStripInstrumentView = ({
       if (!hasLogTimelineRange) {
         digitalQueryRangeRef.current = null
         analogQueryRangeRef.current = null
+        analogBreakWorldNsRef.current = []
         commitDigitalEntries([], 'all')
         commitAnalogSamples([], 'all')
       }
@@ -1084,6 +1151,7 @@ export const DrpdTimeStripInstrumentView = ({
         if (rowStartBasisUs < currentStartBasisUs) {
           digitalQueryRangeRef.current = null
           analogQueryRangeRef.current = null
+          analogBreakWorldNsRef.current = []
           commitDigitalEntries([], 'all')
           commitAnalogSamples([], 'all')
           return {
@@ -1135,7 +1203,10 @@ export const DrpdTimeStripInstrumentView = ({
         if (!sample) {
           return
         }
-        const nextSamples = [...analogSamples, sample].sort((left, right) => left.worldNs - right.worldNs)
+        const nextSamples = applyAnalogBreaks(
+          [...analogSamples, sample].sort((left, right) => left.worldNs - right.worldNs),
+          analogBreakWorldNsRef.current,
+        )
         commitAnalogSamples(nextSamples, {
           startWorldNs: rowWorldStartNs,
           endWorldNs: rowWorldEndNs,
@@ -1143,6 +1214,17 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       const messageRow = row as LoggedCapturedMessage
+      const captureBreakWorldNs = getCaptureBreakWorldNs(messageRow, timelineRange.basis)
+      if (captureBreakWorldNs !== null && Number.isFinite(captureBreakWorldNs)) {
+        analogBreakWorldNsRef.current = [
+          ...analogBreakWorldNsRef.current,
+          captureBreakWorldNs,
+        ].sort((left, right) => left - right)
+        commitAnalogSamples(applyAnalogBreaks(analogSamples, analogBreakWorldNsRef.current), {
+          startWorldNs: captureBreakWorldNs,
+          endWorldNs: captureBreakWorldNs + 1,
+        })
+      }
       const loadedRange = digitalQueryRangeRef.current
       if (
         !hasLogTimelineRange ||
@@ -1183,6 +1265,7 @@ export const DrpdTimeStripInstrumentView = ({
       }
       digitalQueryRangeRef.current = null
       analogQueryRangeRef.current = null
+      analogBreakWorldNsRef.current = []
       setLatestDatumWorldNs(null)
       commitDigitalEntries([], 'all')
       commitAnalogSamples([], 'all')
