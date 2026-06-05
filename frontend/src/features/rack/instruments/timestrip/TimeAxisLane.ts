@@ -1,3 +1,4 @@
+import { timeMillisecond } from 'd3-time'
 import type { TimestripVisibleTile } from './timestripLayout'
 import type { TimestripLaneLayout } from './timestripLaneLayout'
 import type { TimestripThemePalette } from './timestripTheme'
@@ -81,19 +82,19 @@ export const selectTimeAxisTicks = (
   worldStartWallClockUs: number,
 ): TimestripTick[] => {
   const originWallClockNs = BigInt(Math.floor(worldStartWallClockUs)) * 1000n
-  const worldNsPerPx = tile.worldWidthUs / tile.widthPx
+  const worldNsPerPx = tile.worldWidthNs / tile.widthPx
 
   context.save()
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
   const sampleLabel = formatTimestripTickLabelFromParts(worldStartWallClockUs, 0, 1_000_000)
   const minimumSpacingPx = context.measureText(sampleLabel).width + layout.timeAxis.labelPaddingPx
   const intervalNs = selectTickIntervalNs(minimumSpacingPx, worldNsPerPx)
-  const searchStartWorldNs = Math.floor(tile.worldLeftUs - TICK_EDGE_SEARCH_PX * worldNsPerPx)
-  const searchEndWorldNs = Math.ceil(tile.worldLeftUs + tile.worldWidthUs + TICK_EDGE_SEARCH_PX * worldNsPerPx)
+  const searchStartWorldNs = Math.floor(tile.worldLeftNs - TICK_EDGE_SEARCH_PX * worldNsPerPx)
+  const searchEndWorldNs = Math.ceil(tile.worldLeftNs + tile.worldWidthNs + TICK_EDGE_SEARCH_PX * worldNsPerPx)
   const searchStartWallClockNs = originWallClockNs + BigInt(searchStartWorldNs)
   const searchEndWallClockNs = originWallClockNs + BigInt(searchEndWorldNs)
   const intervalNsBig = BigInt(intervalNs)
-  const firstTickWallClockNs = (searchStartWallClockNs / intervalNsBig) * intervalNsBig
+  const firstTickWallClockNs = calculateFirstTickWallClockNs(searchStartWallClockNs, intervalNs)
   const ticks: TimestripTick[] = []
   for (
     let tickWallClockNs = firstTickWallClockNs;
@@ -105,7 +106,7 @@ export const selectTimeAxisTicks = (
     const subMicrosecondNs = ((tickWorldNs % 1000) + 1000) % 1000
     const date = new Date(wallClockUs / 1000)
     const label = formatTimestripTickLabelFromParts(wallClockUs, subMicrosecondNs, intervalNs)
-    const xPx = (tickWorldNs - tile.worldLeftUs) / worldNsPerPx
+    const xPx = (tickWorldNs - tile.worldLeftNs) / worldNsPerPx
     const labelWidth = context.measureText(label).width
     if (xPx + labelWidth / 2 < 0 || xPx - labelWidth / 2 > tile.widthPx) {
       continue
@@ -120,6 +121,23 @@ const selectTickIntervalNs = (minimumSpacingPx: number, zoomDenominator: number)
   const minimumIntervalNs = minimumSpacingPx * zoomDenominator
   return TICK_INTERVALS_NS.find((intervalNs) => intervalNs >= minimumIntervalNs) ??
     TICK_INTERVALS_NS[TICK_INTERVALS_NS.length - 1]
+}
+
+const calculateFirstTickWallClockNs = (
+  searchStartWallClockNs: bigint,
+  intervalNs: number,
+): bigint => {
+  if (intervalNs >= 1_000_000 && intervalNs % 1_000_000 === 0) {
+    const intervalMs = intervalNs / 1_000_000
+    const interval = timeMillisecond.every(intervalMs)
+    const startMs = Number(searchStartWallClockNs / 1_000_000n)
+    const floored = interval?.floor(new Date(startMs)).getTime()
+    if (typeof floored === 'number' && Number.isFinite(floored)) {
+      return BigInt(floored) * 1_000_000n
+    }
+  }
+  const intervalNsBig = BigInt(intervalNs)
+  return (searchStartWallClockNs / intervalNsBig) * intervalNsBig
 }
 
 const formatTimestripTickLabelFromParts = (

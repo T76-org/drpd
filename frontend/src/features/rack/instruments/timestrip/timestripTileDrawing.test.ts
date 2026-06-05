@@ -67,8 +67,8 @@ const tile: TimestripVisibleTile = {
   tileY: 0,
   zoomLevel: 'z1000',
   zoomLevelDenominator: 1000,
-  worldLeftUs: 0,
-  worldWidthUs: 512_000,
+  worldLeftNs: 0,
+  worldWidthNs: 512_000,
   widthPx: 512,
   heightPx: 240,
   bleedPx: 0,
@@ -138,8 +138,8 @@ describe('timestripTileDrawing', () => {
         {
           kind: 'message',
           selectionKey: 'message:20:220:1',
-          startWorldUs: 20_000,
-          endWorldUs: 220_000,
+          startWorldNs: 20_000,
+          endWorldNs: 220_000,
           label: 'Source Capabilities',
           pulseWidthsNs: [10_000, 10_000],
           frameBytes: [0x18, 0x18, 0x18, 0x11, 0xb0, 0x99, 0x04, 0x00, 0xb8, 0xe1, 0x4e, 0x58],
@@ -175,8 +175,8 @@ describe('timestripTileDrawing', () => {
         {
           kind: 'message',
           selectionKey: 'message:20:220:1',
-          startWorldUs: 20_000,
-          endWorldUs: 220_000,
+          startWorldNs: 20_000,
+          endWorldNs: 220_000,
           label: 'Source Capabilities',
           pulseWidthsNs: [],
           frameBytes: [],
@@ -197,13 +197,13 @@ describe('timestripTileDrawing', () => {
 
     drawTimestripTile(
       context,
-      { ...tile, zoomLevelDenominator: 1000, worldLeftUs: 1_000 },
+      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
       1,
       DEFAULT_TIMESTRIP_THEME,
       [],
       [
-        { worldUs: 11_000, voltageV: 30, currentA: 3 },
-        { worldUs: 21_000, voltageV: 60, currentA: 6 },
+        { worldNs: 11_000, voltageV: 30, currentA: 3 },
+        { worldNs: 21_000, voltageV: 60, currentA: 6 },
       ],
       1_700_000_000_000_000,
     )
@@ -219,13 +219,13 @@ describe('timestripTileDrawing', () => {
 
     drawTimestripTile(
       context,
-      { ...tile, zoomLevelDenominator: 1000, worldLeftUs: 1_000 },
+      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
       1,
       DEFAULT_TIMESTRIP_THEME,
       [],
       [
-        { worldUs: 11_000, voltageV: 30, currentA: 3 },
-        { worldUs: 21_000, voltageV: 60, currentA: 6 },
+        { worldNs: 11_000, voltageV: 30, currentA: 3 },
+        { worldNs: 21_000, voltageV: 60, currentA: 6 },
       ],
       1_700_000_000_000_000,
     )

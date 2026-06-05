@@ -11,7 +11,7 @@ const LANE_PADDING_PX = 4
 const MIN_TEXT_WIDTH_PX = 34
 
 export interface DigitalTraceLaneRenderOptions {
-  worldLeftUs: number
+  worldLeftNs: number
   zoomDenominator: number
   entries: TimestripDigitalEntry[]
   selectedMessageKey?: string | null
@@ -72,7 +72,7 @@ const drawDigitalEvent = (
   options: DigitalTraceLaneRenderOptions,
   theme: TimestripThemePalette,
 ): void => {
-  const x = (entry.worldUs - options.worldLeftUs) / options.zoomDenominator
+  const x = (entry.worldNs - options.worldLeftNs) / options.zoomDenominator
   context.strokeStyle = getTimestripEventColor(entry.eventType, theme)
   context.beginPath()
   context.moveTo(Math.round(x) + 0.5, layout.digital.y + 1)
@@ -89,8 +89,8 @@ const drawDigitalMessage = (
   detailLevel: 1 | 2 | 3,
   isSelected: boolean,
 ): void => {
-  const x = (entry.startWorldUs - options.worldLeftUs) / options.zoomDenominator
-  const width = Math.max(1, (entry.endWorldUs - entry.startWorldUs) / options.zoomDenominator)
+  const x = (entry.startWorldNs - options.worldLeftNs) / options.zoomDenominator
+  const width = Math.max(1, (entry.endWorldNs - entry.startWorldNs) / options.zoomDenominator)
   if (isSelected) {
     drawSelectedMessageBackground(context, layout, x, width, theme)
   }
@@ -158,7 +158,7 @@ const drawDetailedMessage = (
   const firstByteStartUs = firstByteComponent?.startUs ?? 0
   const byteDurationUs = firstByteComponent
     ? firstByteComponent.durationUs / firstByteComponent.byteLength
-    : (entry.endWorldUs - entry.startWorldUs) / Math.max(1, entry.frameBytes.length)
+    : (entry.endWorldNs - entry.startWorldNs) / Math.max(1, entry.frameBytes.length)
   for (let index = 0; index < entry.frameBytes.length; index += 1) {
     const byteX = x + (firstByteStartUs + index * byteDurationUs) / options.zoomDenominator
     const byteWidth = Math.max(1, byteDurationUs / options.zoomDenominator)
@@ -221,14 +221,14 @@ const drawWaveform = (
   }
   const highY = y + 3
   const lowY = y + height - 3
-  let currentWorldUs = entry.startWorldUs
+  let currentWorldUs = entry.startWorldNs
   let high = true
   context.strokeStyle = theme.waveformColor
   context.beginPath()
-  context.moveTo((currentWorldUs - options.worldLeftUs) / options.zoomDenominator, highY)
+  context.moveTo((currentWorldUs - options.worldLeftNs) / options.zoomDenominator, highY)
   for (const pulseWidthNs of entry.pulseWidthsNs) {
     const nextWorldUs = currentWorldUs + pulseWidthNs
-    const nextX = (nextWorldUs - options.worldLeftUs) / options.zoomDenominator
+    const nextX = (nextWorldUs - options.worldLeftNs) / options.zoomDenominator
     const yValue = high ? highY : lowY
     context.lineTo(nextX, yValue)
     high = !high

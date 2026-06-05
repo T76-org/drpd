@@ -27,28 +27,28 @@ const buildContext = (labelWidth: number) =>
     textBaseline: 'alphabetic',
   }) as unknown as CanvasRenderingContext2D
 
-const buildTile = (worldWidthUs: number): TimestripVisibleTile => ({
+const buildTile = (worldWidthNs: number): TimestripVisibleTile => ({
   key: 'z1000:0:0',
   tileX: 0,
   tileY: 0,
   zoomLevel: 'z1000',
   zoomLevelDenominator: 1000,
-  worldLeftUs: 0,
-  worldWidthUs,
+  worldLeftNs: 0,
+  worldWidthNs,
   widthPx: 512,
   heightPx: 240,
   bleedPx: 0,
 })
 
 const buildZoomedTile = (tileX: number, zoomDenominator: number): TimestripVisibleTile => {
-  const worldWidthUs = 512 * zoomDenominator
+  const worldWidthNs = 512 * zoomDenominator
   return {
-    ...buildTile(worldWidthUs),
+    ...buildTile(worldWidthNs),
     key: `z${zoomDenominator}:${tileX}:0`,
     tileX,
     zoomLevel: `z${zoomDenominator}`,
     zoomLevelDenominator: zoomDenominator,
-    worldLeftUs: tileX * worldWidthUs,
+    worldLeftNs: tileX * worldWidthNs,
   }
 }
 
@@ -90,7 +90,7 @@ describe('TimeAxisLane', () => {
     const context = buildContext(70)
     const tile = {
       ...buildTile(512_000),
-      worldLeftUs: 512_020,
+      worldLeftNs: 512_020,
     }
 
     const ticks = selectTimeAxisTicks(
@@ -107,7 +107,7 @@ describe('TimeAxisLane', () => {
     const context = buildContext(70)
     const tile = {
       ...buildTile(512_000),
-      worldLeftUs: 487_980,
+      worldLeftNs: 487_980,
     }
 
     const ticks = selectTimeAxisTicks(
@@ -133,7 +133,7 @@ describe('TimeAxisLane', () => {
           .map((tick) => tick.date.getTime() * 1000)
           .filter((wallClockUs) =>
             wallClockUs >= worldStartWallClockUs &&
-            wallClockUs <= worldStartWallClockUs + tile0.worldWidthUs + tile1.worldWidthUs,
+            wallClockUs <= worldStartWallClockUs + tile0.worldWidthNs + tile1.worldWidthNs,
           ),
       ),
     )

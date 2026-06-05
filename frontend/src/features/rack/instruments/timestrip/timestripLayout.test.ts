@@ -6,7 +6,7 @@ import {
   clampTimestripZoomDenominator,
   formatTimestripZoomDenominator,
   resolveTimestripZoomLevel,
-  scrollLeftToWorldUs,
+  scrollLeftToWorldNs,
 } from './timestripLayout'
 
 describe('timestripLayout', () => {
@@ -62,20 +62,20 @@ describe('timestripLayout', () => {
       heightPx: 240,
       widthPx: 512,
       bleedPx: 0,
-      worldLeftUs: 0,
-      worldWidthUs: 512_000,
+      worldLeftNs: 0,
+      worldWidthNs: 512_000,
     })
   })
 
   it('converts scrollLeft into world nanoseconds', () => {
-    expect(scrollLeftToWorldUs(25, 1000)).toBe(25_000)
+    expect(scrollLeftToWorldNs(25, 1000)).toBe(25_000)
   })
 
   it('uses exact zoom for tile world width so composited width is one tile', () => {
     const [tile] = calculateVisibleTimestripTiles(0, 909, 200, 240, 0)
 
     expect(tile.key).toBe('z909:0:0')
-    expect(tile.worldWidthUs).toBe(512 * 909)
-    expect(tile.worldWidthUs / 909).toBe(512)
+    expect(tile.worldWidthNs).toBe(512 * 909)
+    expect(tile.worldWidthNs / 909).toBe(512)
   })
 })

@@ -1,6 +1,6 @@
 import {
   calculateVisibleTimestripTiles,
-  scrollLeftToWorldUs,
+  scrollLeftToWorldNs,
   TIMESTRIP_TILE_WIDTH_PX,
   type TimestripVisibleTile,
 } from './timestripLayout'
@@ -234,22 +234,22 @@ export class TimestripTiledRenderer {
   /**
    * Re-render assigned tile canvases that intersect a world range.
    *
-   * @param startWorldUs - Inclusive world start in microseconds.
-   * @param endWorldUs - Inclusive world end in microseconds.
+   * @param startWorldNs - Inclusive world start in microseconds.
+   * @param endWorldNs - Inclusive world end in microseconds.
    */
-  public invalidateWorldRange(startWorldUs: number, endWorldUs: number): void {
+  public invalidateWorldRange(startWorldNs: number, endWorldNs: number): void {
     if (this.disposed) {
       return
     }
-    const start = Math.min(startWorldUs, endWorldUs)
-    const end = Math.max(startWorldUs, endWorldUs)
+    const start = Math.min(startWorldNs, endWorldNs)
+    const end = Math.max(startWorldNs, endWorldNs)
     this.generation += 1
     for (const entry of this.pool) {
       if (!entry.tile || !entry.tileKey) {
         continue
       }
-      const tileStart = entry.tile.worldLeftUs
-      const tileEnd = entry.tile.worldLeftUs + entry.tile.worldWidthUs
+      const tileStart = entry.tile.worldLeftNs
+      const tileEnd = entry.tile.worldLeftNs + entry.tile.worldWidthNs
       if (tileEnd < start || tileStart > end) {
         continue
       }
@@ -454,8 +454,8 @@ export class TimestripTiledRenderer {
   }
 
   protected positionTileCanvas(entry: TilePoolEntry, tile: TimestripVisibleTile): void {
-    const scrollWorldUs = scrollLeftToWorldUs(this.viewport.scrollLeftPx, this.viewport.zoomDenominator)
-    const screenX = (tile.worldLeftUs - scrollWorldUs) / this.viewport.zoomDenominator
+    const scrollWorldNs = scrollLeftToWorldNs(this.viewport.scrollLeftPx, this.viewport.zoomDenominator)
+    const screenX = (tile.worldLeftNs - scrollWorldNs) / this.viewport.zoomDenominator
     entry.canvas.style.transform = `translate3d(${screenX}px, 0, 0)`
   }
 
@@ -476,13 +476,13 @@ export class TimestripTiledRenderer {
     this.pendingTiles.set(tile.key, requestId)
     const digitalEntries = filterTimestripDigitalEntriesForTile(
       this.viewport.digitalEntries ?? [],
-      tile.worldLeftUs,
-      tile.worldLeftUs + tile.worldWidthUs,
+      tile.worldLeftNs,
+      tile.worldLeftNs + tile.worldWidthNs,
     )
     const analogSamples = filterTimestripAnalogSamplesForTile(
       this.viewport.analogSamples ?? [],
-      tile.worldLeftUs,
-      tile.worldLeftUs + tile.worldWidthUs,
+      tile.worldLeftNs,
+      tile.worldLeftNs + tile.worldWidthNs,
     )
     if (this.worker) {
       const request: TimestripTileWorkerRequest = {

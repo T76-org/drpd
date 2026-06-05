@@ -1,13 +1,13 @@
 import type { LoggedAnalogSample } from '../../../../lib/device'
 
 export interface TimestripAnalogSample {
-  worldUs: number
+  worldNs: number
   voltageV: number
   currentA: number
 }
 
 export interface TimestripAnalogHoverValue {
-  worldUs: number
+  worldNs: number
   voltageV: number
   currentA: number
 }
@@ -17,18 +17,18 @@ export const TIMESTRIP_ANALOG_CURRENT_MAX_A = 6
 
 export const filterTimestripAnalogSamplesForTile = (
   samples: TimestripAnalogSample[],
-  tileLeftUs: number,
-  tileRightUs: number,
+  tileLeftNs: number,
+  tileRightNs: number,
 ): TimestripAnalogSample[] => {
   const visibleSamples: TimestripAnalogSample[] = []
   let previousSample: TimestripAnalogSample | null = null
   let nextSample: TimestripAnalogSample | null = null
   for (const sample of samples) {
-    if (sample.worldUs < tileLeftUs) {
+    if (sample.worldNs < tileLeftNs) {
       previousSample = sample
       continue
     }
-    if (sample.worldUs > tileRightUs) {
+    if (sample.worldNs > tileRightNs) {
       nextSample = sample
       break
     }
@@ -43,32 +43,32 @@ export const filterTimestripAnalogSamplesForTile = (
 
 export const interpolateTimestripAnalogSample = (
   samples: TimestripAnalogSample[],
-  worldUs: number,
+  worldNs: number,
 ): TimestripAnalogHoverValue | null => {
-  if (samples.length === 0 || !Number.isFinite(worldUs)) {
+  if (samples.length === 0 || !Number.isFinite(worldNs)) {
     return null
   }
   const first = samples[0]
   const last = samples.at(-1)!
-  if (worldUs < first.worldUs || worldUs > last.worldUs) {
+  if (worldNs < first.worldNs || worldNs > last.worldNs) {
     return null
   }
-  let high = samples.findIndex((sample) => sample.worldUs >= worldUs)
+  let high = samples.findIndex((sample) => sample.worldNs >= worldNs)
   if (high < 0) {
     high = samples.length - 1
   }
   const highSample = samples[high]
   const lowSample = samples[Math.max(0, high - 1)]
-  if (!lowSample || lowSample.worldUs === highSample.worldUs) {
+  if (!lowSample || lowSample.worldNs === highSample.worldNs) {
     return {
-      worldUs,
+      worldNs,
       voltageV: highSample.voltageV,
       currentA: highSample.currentA,
     }
   }
-  const ratio = (worldUs - lowSample.worldUs) / (highSample.worldUs - lowSample.worldUs)
+  const ratio = (worldNs - lowSample.worldNs) / (highSample.worldNs - lowSample.worldNs)
   return {
-    worldUs,
+    worldNs,
     voltageV: lowSample.voltageV + (highSample.voltageV - lowSample.voltageV) * ratio,
     currentA: lowSample.currentA + (highSample.currentA - lowSample.currentA) * ratio,
   }
@@ -87,7 +87,7 @@ export const normalizeAnalogSampleForTimestrip = (
     return null
   }
   return {
-    worldUs: worldNs,
+    worldNs: worldNs,
     voltageV: row.vbusV,
     currentA: row.ibusA,
   }

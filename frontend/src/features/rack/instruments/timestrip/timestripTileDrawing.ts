@@ -34,13 +34,13 @@ export const drawTimestripTile = (
   const layout = buildTimestripLaneLayout(height)
   drawTimeAxisLane(context, tile, layout, worldStartWallClockUs, theme)
   drawDigitalTraceLane(context, layout, width, theme, {
-    worldLeftUs: tile.worldLeftUs,
+    worldLeftNs: tile.worldLeftNs,
     zoomDenominator: tile.zoomLevelDenominator,
     entries: digitalEntries,
     selectedMessageKey,
   })
   drawAnalogTraceLane(context, layout, width, theme, {
-    worldLeftUs: tile.worldLeftUs,
+    worldLeftNs: tile.worldLeftNs,
     zoomDenominator: tile.zoomLevelDenominator,
     samples: analogSamples,
   })

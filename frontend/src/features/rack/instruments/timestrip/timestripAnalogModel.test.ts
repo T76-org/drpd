@@ -20,7 +20,7 @@ describe('timestripAnalogModel', () => {
       1000n,
       9000n,
     )).toEqual({
-      worldUs: 1_000_000,
+      worldNs: 1_000_000,
       voltageV: 12,
       currentA: 1.5,
     })
@@ -28,10 +28,10 @@ describe('timestripAnalogModel', () => {
 
   it('keeps adjacent samples outside the tile so boundary-crossing lines stay connected', () => {
     const samples = [
-      { worldUs: 0, voltageV: 5, currentA: 0.1 },
-      { worldUs: 10, voltageV: 10, currentA: 0.2 },
-      { worldUs: 20, voltageV: 15, currentA: 0.3 },
-      { worldUs: 30, voltageV: 20, currentA: 0.4 },
+      { worldNs: 0, voltageV: 5, currentA: 0.1 },
+      { worldNs: 10, voltageV: 10, currentA: 0.2 },
+      { worldNs: 20, voltageV: 15, currentA: 0.3 },
+      { worldNs: 30, voltageV: 20, currentA: 0.4 },
     ]
 
     expect(filterTimestripAnalogSamplesForTile(samples, 12, 22)).toEqual([
@@ -43,10 +43,10 @@ describe('timestripAnalogModel', () => {
 
   it('interpolates voltage and current at a timeline point', () => {
     expect(interpolateTimestripAnalogSample([
-      { worldUs: 0, voltageV: 5, currentA: 0.5 },
-      { worldUs: 100, voltageV: 15, currentA: 1.5 },
+      { worldNs: 0, voltageV: 5, currentA: 0.5 },
+      { worldNs: 100, voltageV: 15, currentA: 1.5 },
     ], 25)).toEqual({
-      worldUs: 25,
+      worldNs: 25,
       voltageV: 7.5,
       currentA: 0.75,
     })
@@ -54,8 +54,8 @@ describe('timestripAnalogModel', () => {
 
   it('does not extrapolate hover values outside loaded samples', () => {
     expect(interpolateTimestripAnalogSample([
-      { worldUs: 10, voltageV: 5, currentA: 0.5 },
-      { worldUs: 100, voltageV: 15, currentA: 1.5 },
+      { worldNs: 10, voltageV: 5, currentA: 0.5 },
+      { worldNs: 100, voltageV: 15, currentA: 1.5 },
     ], 9)).toBeNull()
   })
 })

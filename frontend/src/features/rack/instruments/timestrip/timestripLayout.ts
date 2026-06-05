@@ -1,3 +1,5 @@
+import { scrollLeftPxToWorldNs } from './timestripCoordinates'
+
 const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 500
 const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 100_000_000
 export const TIMESTRIP_TILE_WIDTH_PX = 512
@@ -84,9 +86,9 @@ export interface TimestripVisibleTile {
   ///< LOD denominator in nanoseconds per CSS pixel.
   zoomLevelDenominator: number
   ///< Tile left edge in world nanoseconds.
-  worldLeftUs: number
+  worldLeftNs: number
   ///< Tile width in world nanoseconds.
-  worldWidthUs: number
+  worldWidthNs: number
   ///< Tile width in CSS pixels at its own LOD.
   widthPx: number
   ///< Tile height in CSS pixels.
@@ -127,8 +129,8 @@ export const buildTimestripTileKey = (zoomLevel: string, tileX: number, tileY: n
  * @param zoomDenominator - Current nanoseconds-per-CSS-pixel denominator.
  * @returns World X position in nanoseconds.
  */
-export const scrollLeftToWorldUs = (scrollLeftPx: number, zoomDenominator: number): number =>
-  Math.max(0, scrollLeftPx) * clampTimestripZoomDenominator(zoomDenominator)
+export const scrollLeftToWorldNs = (scrollLeftPx: number, zoomDenominator: number): number =>
+  scrollLeftPxToWorldNs(scrollLeftPx, zoomDenominator)
 
 /**
  * Calculate visible full-height timestrip tiles.
@@ -154,16 +156,16 @@ export const calculateVisibleTimestripTiles = (
   }
 
   const zoomLevel = resolveTimestripZoomLevel(zoomDenominator)
-  const tileWorldWidthUs = TIMESTRIP_TILE_WIDTH_PX * zoomLevel.denominator
-  const visibleWorldStartUs = scrollLeftToWorldUs(scrollLeftPx, zoomDenominator)
-  const visibleWorldEndUs = visibleWorldStartUs + viewportWidth * zoomDenominator
+  const tileWorldWidthNs = TIMESTRIP_TILE_WIDTH_PX * zoomLevel.denominator
+  const visibleWorldStartNs = scrollLeftToWorldNs(scrollLeftPx, zoomDenominator)
+  const visibleWorldEndNs = visibleWorldStartNs + viewportWidth * zoomDenominator
   const firstTileX = Math.max(
     0,
-    Math.floor(visibleWorldStartUs / tileWorldWidthUs) - Math.max(0, overscanTiles),
+    Math.floor(visibleWorldStartNs / tileWorldWidthNs) - Math.max(0, overscanTiles),
   )
   const lastTileX = Math.max(
     firstTileX,
-    Math.floor(Math.max(0, visibleWorldEndUs - 1) / tileWorldWidthUs) + Math.max(0, overscanTiles),
+    Math.floor(Math.max(0, visibleWorldEndNs - 1) / tileWorldWidthNs) + Math.max(0, overscanTiles),
   )
   const tiles: TimestripVisibleTile[] = []
   for (let tileX = firstTileX; tileX <= lastTileX; tileX += 1) {
@@ -173,8 +175,8 @@ export const calculateVisibleTimestripTiles = (
       tileY: 0,
       zoomLevel: zoomLevel.zoomLevel,
       zoomLevelDenominator: zoomLevel.denominator,
-      worldLeftUs: tileX * tileWorldWidthUs,
-      worldWidthUs: tileWorldWidthUs,
+      worldLeftNs: tileX * tileWorldWidthNs,
+      worldWidthNs: tileWorldWidthNs,
       widthPx: TIMESTRIP_TILE_WIDTH_PX,
       heightPx: viewportHeight,
       bleedPx: 0,

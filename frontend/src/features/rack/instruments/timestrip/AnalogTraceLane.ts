@@ -8,7 +8,7 @@ import {
 import { ANALOG_TRACE_PADDING_PX, buildTimestripAnalogLegendTicks } from './timestripAnalogLegend'
 
 interface AnalogTraceLaneOptions {
-  worldLeftUs: number
+  worldLeftNs: number
   zoomDenominator: number
   widthPx?: number
   samples: TimestripAnalogSample[]
@@ -32,33 +32,33 @@ const drawTrace = (
   const top = layout.analog.y + ANALOG_TRACE_PADDING_PX
   const height = Math.max(1, layout.analog.height - ANALOG_TRACE_PADDING_PX * 2)
   const widthPx = options.widthPx ?? 0
-  const tileRightUs = options.worldLeftUs + options.zoomDenominator * widthPx
+  const tileRightNs = options.worldLeftNs + options.zoomDenominator * widthPx
   const firstSample = samples[0]
   const lastSample = samples.at(-1)!
   context.save()
   context.beginPath()
   context.lineCap = 'round'
-  if (firstSample.worldUs >= options.worldLeftUs) {
+  if (firstSample.worldNs >= options.worldLeftNs) {
     const y = top + (1 - clamp01(readValue(firstSample) / maxValue)) * height
     context.moveTo(0, y)
-    const firstX = (firstSample.worldUs - options.worldLeftUs) / options.zoomDenominator
+    const firstX = (firstSample.worldNs - options.worldLeftNs) / options.zoomDenominator
     if (firstX > 0) {
       context.lineTo(firstX, y)
     }
   }
   samples.forEach((sample, index) => {
-    const x = (sample.worldUs - options.worldLeftUs) / options.zoomDenominator
+    const x = (sample.worldNs - options.worldLeftNs) / options.zoomDenominator
     const y = top + (1 - clamp01(readValue(sample) / maxValue)) * height
-    if (index === 0 && firstSample.worldUs < options.worldLeftUs) {
+    if (index === 0 && firstSample.worldNs < options.worldLeftNs) {
       context.moveTo(x, y)
     } else if (index > 0) {
       context.lineTo(x, y)
     }
   })
-  if (lastSample.worldUs <= tileRightUs) {
-    const x = (lastSample.worldUs - options.worldLeftUs) / options.zoomDenominator
+  if (lastSample.worldNs <= tileRightNs) {
+    const x = (lastSample.worldNs - options.worldLeftNs) / options.zoomDenominator
     const y = top + (1 - clamp01(readValue(lastSample) / maxValue)) * height
-    if (samples.length === 1 && firstSample.worldUs < options.worldLeftUs) {
+    if (samples.length === 1 && firstSample.worldNs < options.worldLeftNs) {
       context.moveTo(x, y)
     }
     context.lineTo(widthPx, y)
@@ -102,7 +102,7 @@ export const drawAnalogTraceLane = (
   widthPx: number,
   theme: TimestripThemePalette,
   options: AnalogTraceLaneOptions = {
-    worldLeftUs: 0,
+    worldLeftNs: 0,
     zoomDenominator: 1,
     widthPx,
     samples: [],

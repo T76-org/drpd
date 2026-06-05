@@ -423,8 +423,8 @@ describe('TimestripTiledRenderer', () => {
     const digitalEntry: TimestripDigitalEntry = {
       kind: 'message',
       selectionKey: 'message:0:1:1',
-      startWorldUs: 0,
-      endWorldUs: 1000,
+      startWorldNs: 0,
+      endWorldNs: 1000,
       label: 'GoodCRC',
       pulseWidthsNs: [],
       frameBytes: [],

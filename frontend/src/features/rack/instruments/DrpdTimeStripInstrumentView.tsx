@@ -12,39 +12,39 @@ import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdTimeStripInstrumentView.module.css'
 import {
-  calculateTimestripWidthPx,
-  clampTimestripZoomDenominator,
-  formatTimestripZoomDenominator,
   TIMESTRIP_TILE_OVERSCAN,
   TIMESTRIP_TILE_WIDTH_PX,
 } from './timestrip/timestripLayout'
 import { getTimestripThemePalette } from './timestrip/timestripTheme'
 import { TimestripTiledRenderer } from './timestrip/timestripTiledRenderer'
 import {
-  getTimestripDigitalQueryRange,
   normalizeCapturedMessageForTimestrip,
   type TimestripDigitalEntry,
 } from './timestrip/timestripDigitalModel'
 import {
-  interpolateTimestripAnalogSample,
   normalizeAnalogSampleForTimestrip,
-  type TimestripAnalogHoverValue,
   type TimestripAnalogSample,
 } from './timestrip/timestripAnalogModel'
 import { buildTimestripAnalogLegendTicks } from './timestrip/timestripAnalogLegend'
-import { buildTimestripLaneLayout } from './timestrip/timestripLaneLayout'
+import {
+  basisTimestampUsToWorldNs,
+  calculateTimestripQueryRange,
+  getTimestripBasisOriginUs,
+  type TimestripBasis,
+  type TimestripQueryRange,
+  type TimestripTimelineRange,
+  type TimestripWorldRange,
+} from './timestrip/timestripCoordinates'
+import { useTimestripViewport } from './timestrip/useTimestripViewport'
+import { useTimestripAnalogHover } from './timestrip/useTimestripAnalogHover'
 
 const PLACEHOLDER_TIMELINE_END_NS = 10_000_000_000n
 const LOG_START_TIMESTAMP_US = 0n
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
-const DEFAULT_ZOOM_DENOMINATOR = 100_000_000
-const ZOOM_DENOMINATOR_STORAGE_KEY = 'drpd:timestrip:zoom-denominator'
-const CTRL_WHEEL_ZOOM_STEP = 2
 const DIGITAL_QUERY_LIMIT = 5000
 const ANALOG_QUERY_LIMIT = 8000
 const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
 const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
-const MAX_DOM_TIMELINE_WIDTH_PX = 16_000_000
 const readThemeName = () => (
   typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
 )
@@ -52,36 +52,15 @@ const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
   themeName,
   typeof window === 'undefined' ? undefined : window.getComputedStyle(document.documentElement),
 )
-const readStoredZoomDenominator = (): number => {
-  if (typeof window === 'undefined') {
-    return DEFAULT_ZOOM_DENOMINATOR
-  }
-  try {
-    const rawValue = window.localStorage.getItem(ZOOM_DENOMINATOR_STORAGE_KEY)
-    return rawValue == null ? DEFAULT_ZOOM_DENOMINATOR : clampTimestripZoomDenominator(rawValue)
-  } catch {
-    return DEFAULT_ZOOM_DENOMINATOR
-  }
-}
-const writeStoredZoomDenominator = (zoomDenominator: number): void => {
-  if (typeof window === 'undefined') {
-    return
-  }
-  try {
-    window.localStorage.setItem(ZOOM_DENOMINATOR_STORAGE_KEY, zoomDenominator.toString())
-  } catch {
-    // Ignore persistence errors; zoom still updates for the current session.
-  }
-}
 const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string =>
   entries.map((entry) => {
     if (entry.kind === 'event') {
-      return `e:${entry.worldUs}:${entry.eventType ?? ''}`
+      return `e:${entry.worldNs}:${entry.eventType ?? ''}`
     }
     return [
       'm',
-      entry.startWorldUs,
-      entry.endWorldUs,
+      entry.startWorldNs,
+      entry.endWorldNs,
       entry.selectionKey,
       entry.label,
       entry.frameBytes.length,
@@ -92,7 +71,7 @@ const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string 
 
 const buildAnalogSamplesSignature = (samples: TimestripAnalogSample[]): string =>
   samples.map((sample) => [
-    sample.worldUs,
+    sample.worldNs,
     sample.voltageV,
     sample.currentA,
   ].join(':')).join('|')
@@ -100,30 +79,8 @@ const buildAnalogSamplesSignature = (samples: TimestripAnalogSample[]): string =
 const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
   `${value.toFixed(unit === 'V' ? 2 : 3)}${unit}`
 
-const calculateDomTimelineWidthPx = (timelineWidthPx: number, viewportWidthPx: number): number =>
-  Math.max(viewportWidthPx, Math.min(timelineWidthPx, MAX_DOM_TIMELINE_WIDTH_PX))
-
-const calculateScrollScale = (
-  timelineWidthPx: number,
-  domTimelineWidthPx: number,
-  viewportWidthPx: number,
-): number => {
-  const logicalScrollableWidth = Math.max(0, timelineWidthPx - viewportWidthPx)
-  const domScrollableWidth = Math.max(0, domTimelineWidthPx - viewportWidthPx)
-  if (logicalScrollableWidth <= 0 || domScrollableWidth <= 0) {
-    return 1
-  }
-  return logicalScrollableWidth / domScrollableWidth
-}
-
-type TimestripInvalidation = 'all' | { startWorldUs: number; endWorldUs: number }
-type DigitalQueryRange = { startTimestampUs: bigint; endTimestampUs: bigint }
-type TimelineRange = {
-  durationNs: bigint
-  worldStartTimestampUs: bigint
-  worldStartWallClockUs: number
-  hasWallClockBasis: boolean
-}
+type TimestripInvalidation = 'all' | TimestripWorldRange
+type DigitalQueryRange = TimestripQueryRange
 type TimelineRangePoint = {
   timestampUs: bigint
   wallClockUs: bigint | null
@@ -136,7 +93,7 @@ type MessageSelectionKeyParts = {
 const calculateQueryInvalidation = (
   loadedRange: DigitalQueryRange | null,
   nextRange: DigitalQueryRange,
-  worldStartTimestampUs: bigint,
+  basis: TimestripBasis,
 ): TimestripInvalidation => {
   if (!loadedRange) {
     return 'all'
@@ -163,13 +120,13 @@ const calculateQueryInvalidation = (
   }
   if (startTimestampUs === null || endTimestampUs === null) {
     return {
-      startWorldUs: 0,
-      endWorldUs: 0,
+      startWorldNs: 0,
+      endWorldNs: 0,
     }
   }
   return {
-    startWorldUs: Number((startTimestampUs - worldStartTimestampUs) * 1000n),
-    endWorldUs: Number((endTimestampUs - worldStartTimestampUs) * 1000n),
+    startWorldNs: basisTimestampUsToWorldNs(startTimestampUs, basis),
+    endWorldNs: basisTimestampUsToWorldNs(endTimestampUs, basis),
   }
 }
 
@@ -201,6 +158,16 @@ const messageToTimelinePoint = (row: LoggedCapturedMessage): TimelineRangePoint 
 const analogToTimelinePoint = (row: LoggedAnalogSample): TimelineRangePoint => ({
   timestampUs: row.timestampUs,
   wallClockUs: row.wallClockUs,
+})
+
+const buildTimelineBasis = (
+  originTimestampUs: bigint,
+  originWallClockUs: number,
+  hasWallClockBasis: boolean,
+): TimestripBasis => ({
+  kind: hasWallClockBasis ? 'wallClock' : 'device',
+  originTimestampUs,
+  originWallClockUs,
 })
 
 const getCapturedRowBasisTimestampUs = (
@@ -316,82 +283,67 @@ export const DrpdTimeStripInstrumentView = ({
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const tileLayerRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
-  const resizeFrameRef = useRef<number | null>(null)
-  const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
-  const analogHoverPointerRef = useRef<{ x: number; y: number } | null>(null)
   const centeredSelectionKeyRef = useRef<string | null>(null)
   const digitalEntriesSignatureRef = useRef('')
   const analogSamplesSignatureRef = useRef('')
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const analogQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const pendingTileInvalidationRef = useRef<TimestripInvalidation | null>(null)
-  const [timelineRange, setTimelineRange] = useState<TimelineRange>(() => ({
+  const [timelineRange, setTimelineRange] = useState<TimestripTimelineRange>(() => ({
+    basis: buildTimelineBasis(0n, Date.now() * 1000, false),
     durationNs: PLACEHOLDER_TIMELINE_END_NS,
-    worldStartTimestampUs: 0n,
-    worldStartWallClockUs: Date.now() * 1000,
-    hasWallClockBasis: false,
+    hasLogRange: false,
   }))
   const [hasLogTimelineRange, setHasLogTimelineRange] = useState(false)
-  const [viewportWidthPx, setViewportWidthPx] = useState(0)
-  const [viewportHeightPx, setViewportHeightPx] = useState(0)
-  const [scrollLeftPx, setScrollLeftPx] = useState(0)
-  const [zoomDenominator, setZoomDenominator] = useState(readStoredZoomDenominator)
   const [themeName, setThemeName] = useState(readThemeName)
   const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
   const [digitalDataRevision, setDigitalDataRevision] = useState(0)
   const [analogSamples, setAnalogSamples] = useState<TimestripAnalogSample[]>([])
   const [analogDataRevision, setAnalogDataRevision] = useState(0)
-  const [analogHover, setAnalogHover] = useState<{
-    x: number
-    y: number
-    value: TimestripAnalogHoverValue
-  } | null>(null)
   const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
-  const zoomReadout = formatTimestripZoomDenominator(zoomDenominator)
-  const timelineWidthPx = calculateTimestripWidthPx(
-    timelineRange.durationNs,
-    zoomDenominator,
+  const {
     viewportWidthPx,
-  )
-  const domTimelineWidthPx = calculateDomTimelineWidthPx(timelineWidthPx, viewportWidthPx)
-  const scrollScale = calculateScrollScale(timelineWidthPx, domTimelineWidthPx, viewportWidthPx)
-  const domScrollLeftToLogical = useCallback((domScrollLeftPx: number): number =>
-    Math.max(0, domScrollLeftPx) * scrollScale,
-  [scrollScale])
-  const logicalScrollLeftToDom = useCallback((logicalScrollLeftPx: number): number =>
-    Math.max(0, logicalScrollLeftPx) / scrollScale,
-  [scrollScale])
+    viewportHeightPx,
+    scrollLeftPx,
+    setScrollLeftPx,
+    zoomDenominator,
+    zoomReadout,
+    timelineWidthPx,
+    domTimelineWidthPx,
+    domScrollLeftToLogical,
+    logicalScrollLeftToDom,
+    handleViewportScroll: handleViewportScrollState,
+  } = useTimestripViewport(viewportRef, timelineRange.durationNs)
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
-  const updateAnalogHoverAtViewportPoint = useCallback((x: number, y: number, logicalScrollLeftPx = scrollLeftPx) => {
-    const viewport = viewportRef.current
-    if (!viewport || viewportWidthPx <= 0 || viewportHeightPx <= 0) {
-      analogHoverPointerRef.current = null
-      setAnalogHover(null)
-      return
+  const {
+    analogHover,
+    analogHoverPointerRef,
+    updateAnalogHoverAtViewportPoint,
+    updateAnalogHover,
+    clearAnalogHover,
+  } = useTimestripAnalogHover({
+    viewportRef,
+    viewportWidthPx,
+    viewportHeightPx,
+    scrollLeftPx,
+    zoomDenominator,
+    analogSamples,
+  })
+  const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const nextScrollLeftPx = domScrollLeftToLogical(event.currentTarget.scrollLeft)
+    handleViewportScrollState(event)
+    const pointer = analogHoverPointerRef.current
+    if (pointer) {
+      flushSync(() => {
+        updateAnalogHoverAtViewportPoint(
+          pointer.x,
+          pointer.y,
+          nextScrollLeftPx,
+        )
+      })
     }
-    const viewportX = Math.max(0, Math.min(viewportWidthPx, x))
-    const viewportY = Math.max(0, Math.min(viewportHeightPx, y))
-    const layout = buildTimestripLaneLayout(viewportHeightPx)
-    if (viewportY < layout.analog.y || viewportY > layout.analog.y + layout.analog.height) {
-      analogHoverPointerRef.current = null
-      setAnalogHover(null)
-      return
-    }
-    analogHoverPointerRef.current = { x: viewportX, y: viewportY }
-    const worldUs = (logicalScrollLeftPx + viewportX) * zoomDenominator
-    const value = interpolateTimestripAnalogSample(analogSamples, worldUs)
-    setAnalogHover(value ? { x: viewportX, y: viewportY, value } : null)
-  }, [analogSamples, scrollLeftPx, viewportHeightPx, viewportWidthPx, zoomDenominator])
-  const updateAnalogHover = useCallback((event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      setAnalogHover(null)
-      return
-    }
-    const rect = viewport.getBoundingClientRect()
-    updateAnalogHoverAtViewportPoint(event.clientX - rect.left, event.clientY - rect.top)
-  }, [updateAnalogHoverAtViewportPoint])
+  }, [domScrollLeftToLogical, handleViewportScrollState, updateAnalogHoverAtViewportPoint])
   const selectClosestLogEntry = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const driver = deviceState?.drpdDriver
     const viewport = viewportRef.current
@@ -408,11 +360,9 @@ export const DrpdTimeStripInstrumentView = ({
     const rect = viewport.getBoundingClientRect()
     const viewportX = Math.max(0, Math.min(viewportWidthPx, event.clientX - rect.left))
     const worldNs = Math.max(0, Math.floor((scrollLeftPx + viewportX) * zoomDenominator))
-    const timelineStartUs = timelineRange.hasWallClockBasis
-      ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-      : timelineRange.worldStartTimestampUs
+    const timelineStartUs = getTimestripBasisOriginUs(timelineRange.basis)
     const targetTimestampUs = timelineStartUs + BigInt(Math.floor(worldNs / 1000))
-    const timeBasis = timelineRange.hasWallClockBasis ? 'wallClock' : 'device'
+    const timeBasis = timelineRange.basis.kind === 'wallClock' ? 'wallClock' : 'device'
 
     void (async () => {
       try {
@@ -437,7 +387,7 @@ export const DrpdTimeStripInstrumentView = ({
         const closestRow = getClosestCapturedRow(
           [...previousRows, ...nextRows],
           targetTimestampUs,
-          timelineRange.hasWallClockBasis,
+          timelineRange.basis.kind === 'wallClock',
         )
         if (!closestRow) {
           return
@@ -454,21 +404,12 @@ export const DrpdTimeStripInstrumentView = ({
   }, [
     deviceState?.drpdDriver,
     scrollLeftPx,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     viewportWidthPx,
     zoomDenominator,
   ])
-  const clearAnalogHover = useCallback(() => {
-    analogHoverPointerRef.current = null
-    setAnalogHover(null)
-  }, [])
-  const commitZoomDenominator = useCallback((value: number | string) => {
-    const nextZoomDenominator = clampTimestripZoomDenominator(value)
-    writeStoredZoomDenominator(nextZoomDenominator)
-    setZoomDenominator(nextZoomDenominator)
-  }, [])
   const queueTileInvalidation = useCallback((invalidation: TimestripInvalidation) => {
     const current = pendingTileInvalidationRef.current
     if (current === 'all' || invalidation === 'all' || current === null) {
@@ -476,8 +417,8 @@ export const DrpdTimeStripInstrumentView = ({
       return
     }
     pendingTileInvalidationRef.current = {
-      startWorldUs: Math.min(current.startWorldUs, invalidation.startWorldUs),
-      endWorldUs: Math.max(current.endWorldUs, invalidation.endWorldUs),
+      startWorldNs: Math.min(current.startWorldNs, invalidation.startWorldNs),
+      endWorldNs: Math.max(current.endWorldNs, invalidation.endWorldNs),
     }
   }, [])
   const commitDigitalEntries = useCallback((
@@ -506,14 +447,6 @@ export const DrpdTimeStripInstrumentView = ({
     setAnalogSamples(nextSamples)
     setAnalogDataRevision((revision) => revision + 1)
   }, [queueTileInvalidation])
-  const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const nextScrollLeftPx = domScrollLeftToLogical(event.currentTarget.scrollLeft)
-    setScrollLeftPx(nextScrollLeftPx)
-    const pointer = analogHoverPointerRef.current
-    if (pointer) {
-      updateAnalogHoverAtViewportPoint(pointer.x, pointer.y, nextScrollLeftPx)
-    }
-  }, [domScrollLeftToLogical, updateAnalogHoverAtViewportPoint])
   const readSelectedLogMessageKey = useCallback(async (): Promise<string | null> => {
     const driver = deviceState?.drpdDriver
     if (!driver || typeof driver.getLogSelectionState !== 'function') {
@@ -525,137 +458,6 @@ export const DrpdTimeStripInstrumentView = ({
     }
     return selection.selectedKeys[0]
   }, [deviceState?.drpdDriver])
-
-  useEffect(() => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      return undefined
-    }
-
-    const handleViewportWheel = (event: WheelEvent) => {
-      if (event.ctrlKey) {
-        event.preventDefault()
-        const direction = event.deltaY < 0 ? -1 : 1
-        const scale = direction < 0 ? 1 / CTRL_WHEEL_ZOOM_STEP : CTRL_WHEEL_ZOOM_STEP
-        const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
-        const viewportRect = viewport.getBoundingClientRect()
-        const pointerX = Math.max(0, event.clientX - viewportRect.left)
-        const logicalScrollLeftPx = domScrollLeftToLogical(viewport.scrollLeft)
-        const timestampUnderPointerNs = (logicalScrollLeftPx + pointerX) * zoomDenominator
-        const nextScrollLeft = Math.max(0, timestampUnderPointerNs / nextZoomDenominator - pointerX)
-        const nextTimelineWidthPx = calculateTimestripWidthPx(
-          timelineRange.durationNs,
-          nextZoomDenominator,
-          viewportWidthPx,
-        )
-        const nextDomTimelineWidthPx = calculateDomTimelineWidthPx(nextTimelineWidthPx, viewportWidthPx)
-        const nextScrollScale = calculateScrollScale(nextTimelineWidthPx, nextDomTimelineWidthPx, viewportWidthPx)
-        flushSync(() => {
-          commitZoomDenominator(nextZoomDenominator)
-        })
-        viewport.scrollLeft = nextScrollLeft / nextScrollScale
-        setScrollLeftPx(nextScrollLeft)
-        return
-      }
-
-      const scrollDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-      if (scrollDelta === 0 || viewport.scrollWidth <= viewport.clientWidth) {
-        return
-      }
-      event.preventDefault()
-      const nextScrollLeft = Math.max(0, domScrollLeftToLogical(viewport.scrollLeft) + scrollDelta)
-      viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
-      setScrollLeftPx(domScrollLeftToLogical(viewport.scrollLeft))
-    }
-
-    viewport.addEventListener('wheel', handleViewportWheel, { passive: false })
-    return () => {
-      viewport.removeEventListener('wheel', handleViewportWheel)
-    }
-  }, [
-    commitZoomDenominator,
-    domScrollLeftToLogical,
-    logicalScrollLeftToDom,
-    timelineRange.durationNs,
-    viewportWidthPx,
-    zoomDenominator,
-  ])
-
-  useEffect(() => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      return undefined
-    }
-
-    const commitViewportSize = (width: number, height: number) => {
-      setViewportWidthPx(width)
-      setViewportHeightPx(height)
-    }
-    const queueViewportSize = (width: number, height: number) => {
-      pendingViewportSizeRef.current = { width, height }
-      if (resizeFrameRef.current !== null) {
-        return
-      }
-      resizeFrameRef.current = window.requestAnimationFrame(() => {
-        resizeFrameRef.current = null
-        const nextSize = pendingViewportSizeRef.current
-        pendingViewportSizeRef.current = null
-        if (!nextSize) {
-          return
-        }
-        commitViewportSize(nextSize.width, nextSize.height)
-      })
-    }
-    commitViewportSize(
-      Math.max(0, Math.floor(viewport.clientWidth)),
-      Math.max(0, Math.floor(viewport.clientHeight)),
-    )
-
-    if (typeof ResizeObserver === 'undefined') {
-      return () => {
-        if (resizeFrameRef.current !== null) {
-          window.cancelAnimationFrame(resizeFrameRef.current)
-          resizeFrameRef.current = null
-        }
-        pendingViewportSizeRef.current = null
-      }
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      const inlineSize = entry?.contentBoxSize?.[0]?.inlineSize ?? entry?.contentRect.width
-      const blockSize = entry?.contentBoxSize?.[0]?.blockSize ?? entry?.contentRect.height
-      queueViewportSize(
-        Math.max(0, Math.floor(inlineSize ?? viewport.clientWidth)),
-        Math.max(0, Math.floor(blockSize ?? viewport.clientHeight)),
-      )
-    })
-    observer.observe(viewport)
-    return () => {
-      observer.disconnect()
-      if (resizeFrameRef.current !== null) {
-        window.cancelAnimationFrame(resizeFrameRef.current)
-        resizeFrameRef.current = null
-      }
-      pendingViewportSizeRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    const viewport = viewportRef.current
-    if (!viewport || viewportWidthPx <= 0) {
-      return
-    }
-    const maxLogicalScrollLeft = Math.max(0, timelineWidthPx - viewportWidthPx)
-    const nextLogicalScrollLeft = Math.max(0, Math.min(maxLogicalScrollLeft, scrollLeftPx))
-    const nextDomScrollLeft = logicalScrollLeftToDom(nextLogicalScrollLeft)
-    if (Math.abs(viewport.scrollLeft - nextDomScrollLeft) > 1) {
-      viewport.scrollLeft = nextDomScrollLeft
-    }
-    if (nextLogicalScrollLeft !== scrollLeftPx) {
-      setScrollLeftPx(nextLogicalScrollLeft)
-    }
-  }, [logicalScrollLeftToDom, scrollLeftPx, timelineWidthPx, viewportWidthPx])
 
   useEffect(() => {
     if (typeof MutationObserver === 'undefined') {
@@ -791,18 +593,17 @@ export const DrpdTimeStripInstrumentView = ({
               : 1n
         setTimelineRange((current) => {
           if (
-            current.worldStartTimestampUs === startTimestampUs &&
-            current.worldStartWallClockUs === startWallClockUs &&
+            current.basis.originTimestampUs === startTimestampUs &&
+            current.basis.originWallClockUs === startWallClockUs &&
             current.durationNs === nextDurationNs &&
-            current.hasWallClockBasis === hasWallClockBasis
+            (current.basis.kind === 'wallClock') === hasWallClockBasis
           ) {
             return current
           }
           return {
-            worldStartTimestampUs: startTimestampUs,
-            worldStartWallClockUs: startWallClockUs,
+            basis: buildTimelineBasis(startTimestampUs, startWallClockUs, hasWallClockBasis),
             durationNs: nextDurationNs,
-            hasWallClockBasis,
+            hasLogRange: true,
           }
         })
         setHasLogTimelineRange(true)
@@ -887,10 +688,10 @@ export const DrpdTimeStripInstrumentView = ({
         if (!selectedRow) {
           return
         }
-        const basisStartUs = timelineRange.hasWallClockBasis && selectedRow.wallClockUs != null
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-          : timelineRange.worldStartTimestampUs
-        const rowStartUs = timelineRange.hasWallClockBasis && selectedRow.wallClockUs != null
+        const basisStartUs = timelineRange.basis.kind === 'wallClock' && selectedRow.wallClockUs != null
+          ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
+          : timelineRange.basis.originTimestampUs
+        const rowStartUs = timelineRange.basis.kind === 'wallClock' && selectedRow.wallClockUs != null
           ? selectedRow.wallClockUs
           : selectedRow.startTimestampUs
         const rowWorldStartNs = Number((rowStartUs - basisStartUs) * 1000n)
@@ -921,9 +722,9 @@ export const DrpdTimeStripInstrumentView = ({
     deviceState?.drpdDriver,
     hasLogTimelineRange,
     selectedLogMessageKey,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     timelineWidthPx,
     logicalScrollLeftToDom,
     viewportWidthPx,
@@ -940,13 +741,11 @@ export const DrpdTimeStripInstrumentView = ({
 
     let isActive = true
     const refreshDigitalEntries = async () => {
-      const range = getTimestripDigitalQueryRange(
+      const range = calculateTimestripQueryRange(
         scrollLeftPx,
         viewportWidthPx,
         zoomDenominator,
-        timelineRange.hasWallClockBasis
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-          : timelineRange.worldStartTimestampUs,
+        timelineRange.basis,
         DIGITAL_QUERY_OVERSCAN_PX,
       )
       const loadedRange = digitalQueryRangeRef.current
@@ -961,7 +760,7 @@ export const DrpdTimeStripInstrumentView = ({
         const rows = await driver.queryCapturedMessages({
           startTimestampUs: range.startTimestampUs,
           endTimestampUs: range.endTimestampUs,
-          timeBasis: timelineRange.hasWallClockBasis ? 'wallClock' : 'device',
+          timeBasis: range.timeBasis,
           sortOrder: 'asc',
           limit: DIGITAL_QUERY_LIMIT,
         })
@@ -971,17 +770,15 @@ export const DrpdTimeStripInstrumentView = ({
         const invalidation = calculateQueryInvalidation(
           loadedRange,
           range,
-          timelineRange.hasWallClockBasis
-            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-            : timelineRange.worldStartTimestampUs,
+          timelineRange.basis,
         )
         digitalQueryRangeRef.current = range
         const nextEntries = rows.flatMap((row) => {
           const entry = normalizeCapturedMessageForTimestrip(
             row,
-            timelineRange.worldStartTimestampUs,
-            timelineRange.hasWallClockBasis
-              ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+            timelineRange.basis.originTimestampUs,
+            timelineRange.basis.kind === 'wallClock'
+              ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
               : undefined,
           )
           return entry ? [entry] : []
@@ -1000,9 +797,9 @@ export const DrpdTimeStripInstrumentView = ({
     commitDigitalEntries,
     deviceState?.drpdDriver,
     scrollLeftPx,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     viewportHeightPx,
     viewportWidthPx,
     zoomDenominator,
@@ -1018,13 +815,11 @@ export const DrpdTimeStripInstrumentView = ({
 
     let isActive = true
     const refreshAnalogSamples = async () => {
-      const range = getTimestripDigitalQueryRange(
+      const range = calculateTimestripQueryRange(
         scrollLeftPx,
         viewportWidthPx,
         zoomDenominator,
-        timelineRange.hasWallClockBasis
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-          : timelineRange.worldStartTimestampUs,
+        timelineRange.basis,
         ANALOG_QUERY_OVERSCAN_PX,
       )
       const loadedRange = analogQueryRangeRef.current
@@ -1036,13 +831,12 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       try {
-        const timeBasis = timelineRange.hasWallClockBasis ? 'wallClock' : 'device'
         const [previousRows, visibleRows, nextRows] = await Promise.all([
           range.startTimestampUs > LOG_START_TIMESTAMP_US
             ? driver.queryAnalogSamples({
               startTimestampUs: LOG_START_TIMESTAMP_US,
               endTimestampUs: range.startTimestampUs - 1n,
-              timeBasis,
+              timeBasis: range.timeBasis,
               sortOrder: 'desc',
               limit: 1,
             })
@@ -1050,7 +844,7 @@ export const DrpdTimeStripInstrumentView = ({
           driver.queryAnalogSamples({
             startTimestampUs: range.startTimestampUs,
             endTimestampUs: range.endTimestampUs,
-            timeBasis,
+            timeBasis: range.timeBasis,
             sortOrder: 'asc',
             limit: ANALOG_QUERY_LIMIT,
           }),
@@ -1058,7 +852,7 @@ export const DrpdTimeStripInstrumentView = ({
             ? driver.queryAnalogSamples({
               startTimestampUs: range.endTimestampUs + 1n,
               endTimestampUs: LOG_END_TIMESTAMP_US,
-              timeBasis,
+              timeBasis: range.timeBasis,
               sortOrder: 'asc',
               limit: 1,
             })
@@ -1070,20 +864,18 @@ export const DrpdTimeStripInstrumentView = ({
         const invalidation = calculateQueryInvalidation(
           loadedRange,
           range,
-          timelineRange.hasWallClockBasis
-            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-            : timelineRange.worldStartTimestampUs,
+          timelineRange.basis,
         )
         analogQueryRangeRef.current = range
         const nextSamples = mergeAnalogSampleRows(
           [...previousRows, ...visibleRows, ...nextRows],
-          timelineRange.hasWallClockBasis,
+          timelineRange.basis.kind === 'wallClock',
         ).flatMap((row) => {
           const sample = normalizeAnalogSampleForTimestrip(
             row,
-            timelineRange.worldStartTimestampUs,
-            timelineRange.hasWallClockBasis
-              ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+            timelineRange.basis.originTimestampUs,
+            timelineRange.basis.kind === 'wallClock'
+              ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
               : undefined,
           )
           return sample ? [sample] : []
@@ -1102,9 +894,9 @@ export const DrpdTimeStripInstrumentView = ({
     commitAnalogSamples,
     deviceState?.drpdDriver,
     scrollLeftPx,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     viewportHeightPx,
     viewportWidthPx,
     zoomDenominator,
@@ -1131,15 +923,15 @@ export const DrpdTimeStripInstrumentView = ({
         ? (row as LoggedAnalogSample).timestampUs
         : (row as LoggedCapturedMessage).startTimestampUs
       const rowWallClockUs = row.wallClockUs
-      const rowWorldStartUs =
-        timelineRange.hasWallClockBasis && rowWallClockUs != null
-          ? Number((rowWallClockUs - BigInt(Math.floor(timelineRange.worldStartWallClockUs))) * 1000n)
-          : Number((rowTimestampUs - timelineRange.worldStartTimestampUs) * 1000n)
+      const rowWorldStartNs =
+        timelineRange.basis.kind === 'wallClock' && rowWallClockUs != null
+          ? Number((rowWallClockUs - BigInt(Math.floor(timelineRange.basis.originWallClockUs))) * 1000n)
+          : Number((rowTimestampUs - timelineRange.basis.originTimestampUs) * 1000n)
       const rowDurationNs =
         !isAnalogRow && (row as LoggedCapturedMessage).entryKind === 'message'
           ? Math.max(1, Number(((row as LoggedCapturedMessage).endTimestampUs - (row as LoggedCapturedMessage).startTimestampUs) * 1000n))
           : 1
-      const rowWorldEndUs = rowWorldStartUs + rowDurationNs
+      const rowWorldEndNs = rowWorldStartNs + rowDurationNs
       if (!hasLogTimelineRange) {
         digitalQueryRangeRef.current = null
         analogQueryRangeRef.current = null
@@ -1148,11 +940,11 @@ export const DrpdTimeStripInstrumentView = ({
       }
       setTimelineRange((current) => {
         const rowDurationUs = BigInt(Math.ceil(rowDurationNs / 1000))
-        const currentStartBasisUs = current.hasWallClockBasis
-          ? BigInt(Math.floor(current.worldStartWallClockUs))
-          : current.worldStartTimestampUs
+        const currentStartBasisUs = current.basis.kind === 'wallClock'
+          ? BigInt(Math.floor(current.basis.originWallClockUs))
+          : current.basis.originTimestampUs
         const currentEndBasisUs = currentStartBasisUs + (current.durationNs + 999n) / 1000n
-        const usesWallClockBasis = current.hasWallClockBasis && rowWallClockUs != null
+        const usesWallClockBasis = current.basis.kind === 'wallClock' && rowWallClockUs != null
         const rowStartBasisUs = usesWallClockBasis ? rowWallClockUs! : rowTimestampUs
         const rowEndBasisUs = usesWallClockBasis
           ? rowStartBasisUs + rowDurationUs
@@ -1161,10 +953,13 @@ export const DrpdTimeStripInstrumentView = ({
             : rowTimestampUs + rowDurationUs
         if (!hasLogTimelineRange) {
           return {
-            worldStartTimestampUs: rowTimestampUs,
-            worldStartWallClockUs: rowWallClockUs == null ? Date.now() * 1000 : Number(rowWallClockUs),
+            basis: buildTimelineBasis(
+              rowTimestampUs,
+              rowWallClockUs == null ? Date.now() * 1000 : Number(rowWallClockUs),
+              rowWallClockUs != null,
+            ),
             durationNs: BigInt(rowDurationNs),
-            hasWallClockBasis: rowWallClockUs != null,
+            hasLogRange: true,
           }
         }
         if (rowStartBasisUs < currentStartBasisUs) {
@@ -1174,10 +969,13 @@ export const DrpdTimeStripInstrumentView = ({
           commitAnalogSamples([], 'all')
           return {
             ...current,
-            worldStartTimestampUs: rowTimestampUs,
-            worldStartWallClockUs: rowWallClockUs == null ? current.worldStartWallClockUs : Number(rowWallClockUs),
+            basis: buildTimelineBasis(
+              rowTimestampUs,
+              rowWallClockUs == null ? current.basis.originWallClockUs : Number(rowWallClockUs),
+              current.basis.kind === 'wallClock' && rowWallClockUs != null,
+            ),
             durationNs: (currentEndBasisUs - rowStartBasisUs) * 1000n,
-            hasWallClockBasis: current.hasWallClockBasis && rowWallClockUs != null,
+            hasLogRange: true,
           }
         }
         if (rowEndBasisUs <= currentEndBasisUs) {
@@ -1196,8 +994,8 @@ export const DrpdTimeStripInstrumentView = ({
         if (
           !hasLogTimelineRange ||
           !loadedRange ||
-          (timelineRange.hasWallClockBasis && analogRow.wallClockUs == null) ||
-          (timelineRange.hasWallClockBasis
+          (timelineRange.basis.kind === 'wallClock' && analogRow.wallClockUs == null) ||
+          (timelineRange.basis.kind === 'wallClock'
             ? analogRow.wallClockUs! < loadedRange.startTimestampUs || analogRow.wallClockUs! > loadedRange.endTimestampUs
             : analogRow.timestampUs < loadedRange.startTimestampUs || analogRow.timestampUs > loadedRange.endTimestampUs)
         ) {
@@ -1206,18 +1004,18 @@ export const DrpdTimeStripInstrumentView = ({
 
         const sample = normalizeAnalogSampleForTimestrip(
           analogRow,
-          timelineRange.worldStartTimestampUs,
-          timelineRange.hasWallClockBasis
-            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+          timelineRange.basis.originTimestampUs,
+          timelineRange.basis.kind === 'wallClock'
+            ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
             : undefined,
         )
         if (!sample) {
           return
         }
-        const nextSamples = [...analogSamples, sample].sort((left, right) => left.worldUs - right.worldUs)
+        const nextSamples = [...analogSamples, sample].sort((left, right) => left.worldNs - right.worldNs)
         commitAnalogSamples(nextSamples, {
-          startWorldUs: rowWorldStartUs,
-          endWorldUs: rowWorldEndUs,
+          startWorldNs: rowWorldStartNs,
+          endWorldNs: rowWorldEndNs,
         })
         return
       }
@@ -1226,8 +1024,8 @@ export const DrpdTimeStripInstrumentView = ({
       if (
         !hasLogTimelineRange ||
         !loadedRange ||
-        (timelineRange.hasWallClockBasis && messageRow.wallClockUs == null) ||
-        (timelineRange.hasWallClockBasis
+        (timelineRange.basis.kind === 'wallClock' && messageRow.wallClockUs == null) ||
+        (timelineRange.basis.kind === 'wallClock'
           ? messageRow.wallClockUs! < loadedRange.startTimestampUs || messageRow.wallClockUs! > loadedRange.endTimestampUs
           : rowTimestampUs < loadedRange.startTimestampUs || rowTimestampUs > loadedRange.endTimestampUs)
       ) {
@@ -1236,22 +1034,22 @@ export const DrpdTimeStripInstrumentView = ({
 
       const entry = normalizeCapturedMessageForTimestrip(
         messageRow,
-        timelineRange.worldStartTimestampUs,
-        timelineRange.hasWallClockBasis
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+        timelineRange.basis.originTimestampUs,
+        timelineRange.basis.kind === 'wallClock'
+          ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
           : undefined,
       )
       if (!entry) {
         return
       }
       const nextEntries = [...digitalEntries, entry].sort((left, right) => {
-        const leftWorldUs = left.kind === 'event' ? left.worldUs : left.startWorldUs
-        const rightWorldUs = right.kind === 'event' ? right.worldUs : right.startWorldUs
+        const leftWorldUs = left.kind === 'event' ? left.worldNs : left.startWorldNs
+        const rightWorldUs = right.kind === 'event' ? right.worldNs : right.startWorldNs
         return leftWorldUs - rightWorldUs
       })
       commitDigitalEntries(nextEntries, {
-        startWorldUs: rowWorldStartUs,
-        endWorldUs: rowWorldEndUs,
+        startWorldNs: rowWorldStartNs,
+        endWorldNs: rowWorldEndNs,
       })
     }
 
@@ -1266,10 +1064,9 @@ export const DrpdTimeStripInstrumentView = ({
       commitAnalogSamples([], 'all')
       if (detail.reason === 'clear') {
         setTimelineRange({
+          basis: buildTimelineBasis(0n, Date.now() * 1000, false),
           durationNs: PLACEHOLDER_TIMELINE_END_NS,
-          worldStartTimestampUs: 0n,
-          worldStartWallClockUs: Date.now() * 1000,
-          hasWallClockBasis: false,
+          hasLogRange: false,
         })
         setHasLogTimelineRange(false)
       }
@@ -1289,9 +1086,9 @@ export const DrpdTimeStripInstrumentView = ({
     digitalEntries,
     hasLogTimelineRange,
     timelineRange.durationNs,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
   ])
 
   useEffect(() => {
@@ -1302,7 +1099,7 @@ export const DrpdTimeStripInstrumentView = ({
       viewportWidthPx,
       viewportHeightPx,
       dpr: window.devicePixelRatio || 1,
-      worldStartWallClockUs: timelineRange.worldStartWallClockUs,
+      worldStartWallClockUs: timelineRange.basis.originWallClockUs,
       theme,
       digitalEntries,
       digitalDataRevision,
@@ -1315,7 +1112,7 @@ export const DrpdTimeStripInstrumentView = ({
     if (invalidation === 'all') {
       renderer?.invalidateAllTiles()
     } else if (invalidation) {
-      renderer?.invalidateWorldRange(invalidation.startWorldUs, invalidation.endWorldUs)
+      renderer?.invalidateWorldRange(invalidation.startWorldNs, invalidation.endWorldNs)
     }
   }, [
     digitalDataRevision,
@@ -1325,7 +1122,7 @@ export const DrpdTimeStripInstrumentView = ({
     selectedLogMessageKey,
     scrollLeftPx,
     theme,
-    timelineRange.worldStartWallClockUs,
+    timelineRange.basis.originWallClockUs,
     viewportHeightPx,
     viewportWidthPx,
     zoomDenominator,
