@@ -236,6 +236,29 @@ describe('timestripTileDrawing', () => {
     expect(context.lineTo).toHaveBeenCalledWith(10, expect.any(Number))
   })
 
+  it('leaves the analog lane blank after the final sample', () => {
+    const emptyContext = buildContext()
+    const context = buildContext()
+
+    drawTimestripTile(emptyContext, tile, 1, DEFAULT_TIMESTRIP_THEME)
+    drawTimestripTile(
+      context,
+      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
+      1,
+      DEFAULT_TIMESTRIP_THEME,
+      [],
+      [
+        { worldNs: 11_000, voltageV: 30, currentA: 3 },
+        { worldNs: 21_000, voltageV: 60, currentA: 6 },
+      ],
+      1_700_000_000_000_000,
+    )
+
+    const emptyTileEdgeLines = vi.mocked(emptyContext.lineTo).mock.calls.filter(([x]) => x === 512)
+    const sampledTileEdgeLines = vi.mocked(context.lineTo).mock.calls.filter(([x]) => x === 512)
+    expect(sampledTileEdgeLines).toHaveLength(emptyTileEdgeLines.length)
+  })
+
   it('draws faint analog grid lines across the tile', () => {
     const context = buildContext()
 

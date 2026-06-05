@@ -31,10 +31,7 @@ const drawTrace = (
 
   const top = layout.analog.y + ANALOG_TRACE_PADDING_PX
   const height = Math.max(1, layout.analog.height - ANALOG_TRACE_PADDING_PX * 2)
-  const widthPx = options.widthPx ?? 0
-  const tileRightNs = options.worldLeftNs + options.zoomDenominator * widthPx
   const firstSample = samples[0]
-  const lastSample = samples.at(-1)!
   context.save()
   context.beginPath()
   context.lineCap = 'round'
@@ -55,14 +52,6 @@ const drawTrace = (
       context.lineTo(x, y)
     }
   })
-  if (lastSample.worldNs <= tileRightNs) {
-    const x = (lastSample.worldNs - options.worldLeftNs) / options.zoomDenominator
-    const y = top + (1 - clamp01(readValue(lastSample) / maxValue)) * height
-    if (samples.length === 1 && firstSample.worldNs < options.worldLeftNs) {
-      context.moveTo(x, y)
-    }
-    context.lineTo(widthPx, y)
-  }
   context.strokeStyle = color
   context.lineWidth = 1.5
   context.stroke()
