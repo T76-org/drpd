@@ -1488,8 +1488,12 @@ export interface ParsedManufacturerInfoDataBlock {
 export interface ParsedPPSStatusDataBlock {
   ///< Output voltage in 20mV units.
   outputVoltage20mV: number
+  ///< True when the source reported output voltage support.
+  outputVoltageSupported: boolean
   ///< Output current in 50mA units.
   outputCurrent50mA: number
+  ///< True when the source reported output current support.
+  outputCurrentSupported: boolean
   ///< Real time flags bitfield.
   realTimeFlags: number
 }
@@ -1737,9 +1741,13 @@ export const parseManufacturerInfoDataBlock = (
  * @returns Parsed PPSSDB.
  */
 export const parsePPSStatusDataBlock = (data: Uint8Array): ParsedPPSStatusDataBlock => {
+  const outputVoltage20mV = readUint16LE(data, 0)
+  const outputCurrent50mA = data[2] ?? 0
   return {
-    outputVoltage20mV: readUint16LE(data, 0),
-    outputCurrent50mA: data[2] ?? 0,
+    outputVoltage20mV,
+    outputVoltageSupported: outputVoltage20mV !== 0xffff,
+    outputCurrent50mA,
+    outputCurrentSupported: outputCurrent50mA !== 0xff,
     realTimeFlags: data[3] ?? 0,
   }
 }
@@ -3090,8 +3098,16 @@ export const buildManufacturerInfoDataBlockMetadata = (block: ParsedManufacturer
 
 export const buildPPSStatusDataBlockMetadata = (block: ParsedPPSStatusDataBlock): HumanReadableField<'OrderedDictionary'> => {
   const container = createMetadataContainer('PPS Status Data Block', 'Metadata describing the PPS Status data block carried by a PPS_Status message.')
-  addNumberMetadataField(container, 'outputVoltage20mV', 'Output Voltage', block.outputVoltage20mV * 20, 'Measured PPS output voltage reported by the source, expressed in millivolts.', 'mV')
-  addNumberMetadataField(container, 'outputCurrent50mA', 'Output Current', block.outputCurrent50mA * 50, 'Measured PPS output current reported by the source, expressed in milliamps.', 'mA')
+  if (block.outputVoltageSupported) {
+    addNumberMetadataField(container, 'outputVoltage20mV', 'Output Voltage', block.outputVoltage20mV * 20, 'Measured PPS output voltage reported by the source, expressed in millivolts.', 'mV')
+  } else {
+    addStringMetadataField(container, 'outputVoltage20mV', 'Output Voltage', 'Not supported', 'The source reported 0xFFFF, meaning PPS output voltage reporting is not supported.')
+  }
+  if (block.outputCurrentSupported) {
+    addNumberMetadataField(container, 'outputCurrent50mA', 'Output Current', block.outputCurrent50mA * 50, 'Measured PPS output current reported by the source, expressed in milliamps.', 'mA')
+  } else {
+    addStringMetadataField(container, 'outputCurrent50mA', 'Output Current', 'Not supported', 'The source reported 0xFF, meaning PPS output current reporting is not supported.')
+  }
   addStringMetadataField(container, 'realTimeFlags', 'Real Time Flags', formatPpsRealTimeFlags(block.realTimeFlags), 'Real-time status flag bitfield from the PPS Status data block.')
   return container
 }
