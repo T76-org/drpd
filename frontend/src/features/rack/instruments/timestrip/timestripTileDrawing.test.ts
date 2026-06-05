@@ -104,6 +104,7 @@ describe('timestripTileDrawing', () => {
       messageStrokeColor: '#999999',
       messageTextColor: '#888888',
       selectedMessageBackgroundColor: '#bbbbbb',
+      selectedMessageFillColor: '#777777',
       waveformColor: '#777777',
       componentFillColor: '#666666',
       byteFillColor: '#555555',
@@ -189,6 +190,7 @@ describe('timestripTileDrawing', () => {
     )
 
     expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.selectedMessageBackgroundColor)
+    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.selectedMessageFillColor)
     expect(context.fillRect).toHaveBeenCalledWith(20, 34, 200, 84)
   })
 

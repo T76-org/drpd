@@ -95,13 +95,21 @@ const drawDigitalMessage = (
     drawSelectedMessageBackground(context, layout, x, width, theme)
   }
   if (detailLevel === 3) {
-    drawDetailedMessage(context, layout, entry, options, theme, x, width)
+    drawDetailedMessage(context, layout, entry, options, theme, x, width, isSelected)
     return
   }
 
   const y = layout.digital.y + LANE_PADDING_PX
   const height = Math.max(1, layout.digital.height - LANE_PADDING_PX * 2)
-  drawRect(context, x, y, width, height, theme.messageFillColor, theme.messageStrokeColor)
+  drawRect(
+    context,
+    x,
+    y,
+    width,
+    height,
+    isSelected ? theme.selectedMessageFillColor : theme.messageFillColor,
+    theme.messageStrokeColor,
+  )
   if (detailLevel >= 2 && width >= MIN_TEXT_WIDTH_PX) {
     drawClippedText(context, entry.label, x, y, width, height, theme.messageTextColor)
   }
@@ -128,6 +136,7 @@ const drawDetailedMessage = (
   theme: TimestripThemePalette,
   x: number,
   width: number,
+  isSelected: boolean,
 ): void => {
   const availableHeight = Math.max(1, layout.digital.height - LANE_PADDING_PX * 2)
   const rowGap = 2
@@ -137,7 +146,15 @@ const drawDetailedMessage = (
   const byteHeight = Math.max(10, availableHeight - waveformHeight - nameHeight - componentHeight - rowGap * 3)
   const top = layout.digital.y + LANE_PADDING_PX
   drawWaveform(context, entry, options, theme, top, waveformHeight)
-  drawRect(context, x, top + waveformHeight + rowGap, width, nameHeight, theme.messageFillColor, theme.messageStrokeColor)
+  drawRect(
+    context,
+    x,
+    top + waveformHeight + rowGap,
+    width,
+    nameHeight,
+    isSelected ? theme.selectedMessageFillColor : theme.messageFillColor,
+    theme.messageStrokeColor,
+  )
   if (width >= MIN_TEXT_WIDTH_PX) {
     drawClippedText(context, entry.label, x, top + waveformHeight + rowGap, width, nameHeight, theme.messageTextColor)
   }
