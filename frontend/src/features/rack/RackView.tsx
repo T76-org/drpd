@@ -3821,119 +3821,119 @@ const HeaderVbusMetrics = ({
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
-      <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>
-        <span className={styles.headerVbusNumber}>
-          <HeaderGhostValue text={voltageText} />
-        </span>
-        <span className={styles.headerVbusUnit}>V</span>
-      </div>
-      <div className={styles.headerVbusDivider} aria-hidden="true" />
-      <div className={styles.headerVbusSecondaryGroup}>
-        <div className={`${styles.headerVbusMetric} ${styles.headerVbusCurrent}`}>
+      <div className={styles.headerVbusPrimaryMetrics}>
+        <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>
           <span className={styles.headerVbusNumber}>
-            <HeaderGhostValue text={currentText} />
+            <HeaderGhostValue text={voltageText} />
           </span>
-          <span className={styles.headerVbusUnit}>A</span>
+          <span className={styles.headerVbusUnit}>V</span>
         </div>
-        <div className={styles.headerVbusFlow}>
-          {currentFlow.kind === 'flow' ? (
-            <>
-              <span className={styles.headerVbusFlowEndpoint}>
-                <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
-                {currentFlow.from}
-              </span>
-              <span
-                className={styles.headerVbusFlowTrack}
-                data-direction={currentFlow.direction}
-                aria-hidden="true"
-              />
-              <span className={styles.headerVbusFlowEndpoint}>
-                {currentFlow.to}
-                {currentFlow.toPort ? (
+        <div className={styles.headerVbusDivider} aria-hidden="true" />
+        <div className={styles.headerVbusSecondaryGroup}>
+          <div className={`${styles.headerVbusMetric} ${styles.headerVbusCurrent}`}>
+            <span className={styles.headerVbusNumber}>
+              <HeaderGhostValue text={currentText} />
+            </span>
+            <span className={styles.headerVbusUnit}>A</span>
+          </div>
+          <div className={styles.headerVbusFlow}>
+            {currentFlow.kind === 'flow' ? (
+              <>
+                <span className={styles.headerVbusFlowEndpoint}>
                   <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
-                ) : null}
-                {currentFlow.toBananaPort ? (
-                  <span className={styles.headerVbusBananaPort} aria-hidden="true" />
-                ) : null}
-              </span>
-            </>
-          ) : (
-            currentFlow.text
-          )}
+                  {currentFlow.from}
+                </span>
+                <span
+                  className={styles.headerVbusFlowTrack}
+                  data-direction={currentFlow.direction}
+                  aria-hidden="true"
+                />
+                <span className={styles.headerVbusFlowEndpoint}>
+                  {currentFlow.to}
+                  {currentFlow.toPort ? (
+                    <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
+                  ) : null}
+                  {currentFlow.toBananaPort ? (
+                    <span className={styles.headerVbusBananaPort} aria-hidden="true" />
+                  ) : null}
+                </span>
+              </>
+            ) : (
+              currentFlow.text
+            )}
+          </div>
+        </div>
+        <div className={styles.headerVbusDivider} aria-hidden="true" />
+        <div className={styles.headerVbusSecondaryGroup}>
+          <div className={`${styles.headerVbusMetric} ${styles.headerVbusPower}`}>
+            <span className={styles.headerVbusNumber}>
+              <HeaderGhostValue text={powerText} />
+            </span>
+            <span className={styles.headerVbusUnit}>W</span>
+          </div>
+          <div className={styles.headerVbusAccumulation}>
+            <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
+            <span
+              className={styles.headerVbusChargeIndicator}
+              data-active={isChargingIndicatorActive ? 'true' : 'false'}
+              title={`Time since accumulator reset: ${accumulationElapsedText}`}
+              aria-hidden="true"
+            />
+            <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
+          </div>
         </div>
       </div>
-      <div className={styles.headerVbusDivider} aria-hidden="true" />
-      <div className={styles.headerVbusSecondaryGroup}>
-        <div className={`${styles.headerVbusMetric} ${styles.headerVbusPower}`}>
-          <span className={styles.headerVbusNumber}>
-            <HeaderGhostValue text={powerText} />
-          </span>
-          <span className={styles.headerVbusUnit}>W</span>
-        </div>
-        <div className={styles.headerVbusAccumulation}>
-          <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
-          <span
-            className={styles.headerVbusChargeIndicator}
-            data-active={isChargingIndicatorActive ? 'true' : 'false'}
-            title={`Time since accumulator reset: ${accumulationElapsedText}`}
-            aria-hidden="true"
-          />
-          <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
-        </div>
-      </div>
-      <div className={styles.headerVbusDivider} aria-hidden="true" />
-      <div className={styles.headerVbusProtection}>
-        <div
-          className={styles.headerVbusProtectionCell}
-          data-triggered={isOvpTriggered ? 'true' : 'false'}
-        >
-          <span className={styles.headerVbusProtectionLabel}>OVP</span>
-          <HeaderProtectionValue value={ovpValueText} />
-        </div>
-        <div
-          className={styles.headerVbusProtectionCell}
-          data-triggered={isOcpTriggered ? 'true' : 'false'}
-        >
-          <span className={styles.headerVbusProtectionLabel}>OCP</span>
-          <HeaderProtectionValue value={ocpValueText} />
-        </div>
-      </div>
-      <div className={styles.headerVbusDivider} aria-hidden="true" />
-      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus} ${styles.headerVbusSinkContract}`}>
-        <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>MODE</span>
-          <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
-        </div>
-        <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>STATUS</span>
-          <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
-        </div>
-      </div>
-      <div className={styles.headerVbusDivider} aria-hidden="true" />
-      <div className={`${styles.headerVbusProtection} ${styles.headerVbusCaptureProfile}`}>
-        <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>CAPTURE STATUS</span>
-          <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
-        </div>
-        <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>POWER PROFILE</span>
-          <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
-        </div>
-      </div>
-      <div className={styles.headerVbusDivider} aria-hidden="true" />
-      <div className={`${styles.headerVbusProtection} ${styles.headerVbusRoleStatus}`}>
-        <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
-          <span
-            className={styles.headerVbusRoleStatusValue}
-            data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+      <div className={styles.headerVbusStatusGrid}>
+        <div className={styles.headerVbusProtection}>
+          <div
+            className={styles.headerVbusProtectionCell}
+            data-triggered={isOvpTriggered ? 'true' : 'false'}
           >
-            {triggerStateText}
-          </span>
+            <span className={styles.headerVbusProtectionLabel}>OVP</span>
+            <HeaderProtectionValue value={ovpValueText} />
+          </div>
+          <div
+            className={styles.headerVbusProtectionCell}
+            data-triggered={isOcpTriggered ? 'true' : 'false'}
+          >
+            <span className={styles.headerVbusProtectionLabel}>OCP</span>
+            <HeaderProtectionValue value={ocpValueText} />
+          </div>
         </div>
-        <div className={styles.headerVbusProtectionCell}>
-          <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
-          <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
+        <div className={styles.headerVbusProtection}>
+          <div className={styles.headerVbusProtectionCell}>
+            <span className={styles.headerVbusProtectionLabel}>MODE</span>
+            <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
+          </div>
+          <div className={styles.headerVbusProtectionCell}>
+            <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+            <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+          </div>
+        </div>
+        <div className={styles.headerVbusProtection}>
+          <div className={styles.headerVbusProtectionCell}>
+            <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
+            <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
+          </div>
+          <div className={styles.headerVbusProtectionCell}>
+            <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
+            <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+          </div>
+        </div>
+        <div className={styles.headerVbusProtection}>
+          <div className={styles.headerVbusProtectionCell}>
+            <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
+            <span
+              className={styles.headerVbusRoleStatusValue}
+              data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+            >
+              {triggerStateText}
+            </span>
+          </div>
+          <div className={styles.headerVbusProtectionCell}>
+            <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
+            <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
+          </div>
         </div>
       </div>
     </div>

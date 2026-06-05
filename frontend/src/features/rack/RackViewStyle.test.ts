@@ -33,9 +33,15 @@ describe('RackView responsive header CSS', () => {
       'font-size: calc(var(--font-size-4xl) * 1.265 * var(--rack-header-scale));',
     )
     expect(rackViewCss).toContain('min-width: calc(102px * var(--rack-header-scale));')
-    expect(rackViewCss).toContain(
-      'grid-template-columns: auto calc(12ch * var(--rack-header-scale));',
-    )
     expect(rackViewCss).toContain('width: calc(27.6px * var(--rack-header-scale));')
+  })
+
+  it('wraps secondary status groups without scaled fixed ch tracks', () => {
+    expect(rackViewCss).toMatch(/\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*max-content\);/s)
+    expect(rackViewCss).toMatch(/@container\s*\(max-width:\s*980px\)\s*\{[^}]*\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*max-content\);/s)
+    expect(rackViewCss).toMatch(/@container\s*\(max-width:\s*660px\)\s*\{[^}]*\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*max-content;/s)
+    expect(rackViewCss).not.toContain('--header-vbus-capture-profile-label-width')
+    expect(rackViewCss).not.toContain('--header-vbus-capture-profile-value-width')
+    expect(rackViewCss).not.toMatch(/\d+ch\s*\*\s*var\(--rack-header-scale\)/)
   })
 })
