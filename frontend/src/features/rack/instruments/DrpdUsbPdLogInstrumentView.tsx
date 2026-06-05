@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { DRPDDevice } from '../../../lib/device'
 import {
   buildCapturedLogSelectionKey,
@@ -301,7 +302,6 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   const wrapperRef = useRef<HTMLDivElement | null>(null)
-  const headerRef = useRef<HTMLDivElement | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const totalRowsRef = useRef(0)
@@ -309,13 +309,9 @@ export const DrpdUsbPdLogInstrumentView = ({
   const selectionTaskRef = useRef<Promise<void>>(Promise.resolve())
   const columnResizeDragRef = useRef<ColumnResizeDrag | null>(null)
   const [totalRows, setTotalRows] = useState(0)
-  const [viewportHeight, setViewportHeight] = useState(0)
   const [viewportWidth, setViewportWidth] = useState(0)
-  const [scrollTop, setScrollTop] = useState(0)
-  const [scrollLeft, setScrollLeft] = useState(0)
   const [tableHorizontalPaddingPx, setTableHorizontalPaddingPx] = useState(16)
   const [rowHeightPx, setRowHeightPx] = useState<number>(ROW_HEIGHT_PX)
-  const [headerSlotHeightPx, setHeaderSlotHeightPx] = useState<number>(ROW_HEIGHT_PX)
   const [pages, setPages] = useState<Map<number, DisplayRow[]>>(new Map())
   const [selection, setSelection] = useState<DRPDLogSelectionState>(EMPTY_SELECTION)
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
@@ -362,20 +358,58 @@ export const DrpdUsbPdLogInstrumentView = ({
     [filteredRows, hasActiveFilters],
   )
   const displayedTotalRows = hasActiveFilters ? filteredDisplayRows.length : totalRows
-
-  const firstVisibleRow = Math.max(0, Math.floor(scrollTop / rowHeightPx) - OVERSCAN_ROWS)
-  const visibleRowCount = Math.ceil(viewportHeight / rowHeightPx) + OVERSCAN_ROWS * 2
-  const lastVisibleRow = Math.min(displayedTotalRows - 1, firstVisibleRow + visibleRowCount)
+  const virtualizerFallbackHeight = rowHeightPx * (OVERSCAN_ROWS * 2 + 1)
+  const rowVirtualizer = useVirtualizer({
+    count: displayedTotalRows,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: () => rowHeightPx,
+    initialRect: {
+      width: viewportWidth || tableOuterWidthPx,
+      height: virtualizerFallbackHeight,
+    },
+    observeElementRect: (_instance, callback) => {
+      const element = viewportRef.current
+      if (!element) {
+        return undefined
+      }
+      const notify = () => {
+        const rect = element.getBoundingClientRect()
+        callback({
+          width: rect.width || element.clientWidth || viewportWidth || tableOuterWidthPx,
+          height: rect.height || element.clientHeight || virtualizerFallbackHeight,
+        })
+      }
+      notify()
+      if (typeof ResizeObserver === 'undefined') {
+        window.addEventListener('resize', notify)
+        return () => {
+          window.removeEventListener('resize', notify)
+        }
+      }
+      const observer = new ResizeObserver(notify)
+      observer.observe(element)
+      return () => {
+        observer.disconnect()
+      }
+    },
+    overscan: OVERSCAN_ROWS,
+  })
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const firstVisibleRow = virtualRows[0]?.index ?? 0
+  const lastVisibleRow = virtualRows.at(-1)?.index ?? -1
 
   const visibleRows = useMemo(() => {
-    const rows: Array<{ index: number; row: DisplayRow | null }> = []
-    if (displayedTotalRows <= 0 || lastVisibleRow < firstVisibleRow) {
+    const rows: Array<{ index: number; start: number; size: number; row: DisplayRow | null }> = []
+    if (displayedTotalRows <= 0 || virtualRows.length === 0) {
       return rows
     }
-    for (let index = firstVisibleRow; index <= lastVisibleRow; index += 1) {
+    for (const virtualRow of virtualRows) {
+      const index = virtualRow.index
       if (hasActiveFilters) {
         rows.push({
           index,
+          start: virtualRow.start,
+          size: virtualRow.size,
           row: filteredDisplayRows[index] ?? null,
         })
         continue
@@ -384,11 +418,13 @@ export const DrpdUsbPdLogInstrumentView = ({
       const rowInPageIndex = index % PAGE_SIZE
       rows.push({
         index,
+        start: virtualRow.start,
+        size: virtualRow.size,
         row: pages.get(pageIndex)?.[rowInPageIndex] ?? null,
       })
     }
     return rows
-  }, [displayedTotalRows, filteredDisplayRows, firstVisibleRow, hasActiveFilters, lastVisibleRow, pages])
+  }, [displayedTotalRows, filteredDisplayRows, hasActiveFilters, pages, virtualRows])
 
   const queryAllCapturedMessages = useCallback(async (): Promise<LoggedCapturedMessage[]> => {
     if (!driver) {
@@ -490,20 +526,7 @@ export const DrpdUsbPdLogInstrumentView = ({
   }
 
   const scrollRowIntoView = (index: number): void => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      return
-    }
-    const rowTop = index * rowHeightPx
-    const rowBottom = rowTop + rowHeightPx
-    if (rowTop < viewport.scrollTop) {
-      viewport.scrollTop = rowTop
-      return
-    }
-    const viewportBottom = viewport.scrollTop + viewport.clientHeight
-    if (rowBottom > viewportBottom) {
-      viewport.scrollTop = rowBottom - viewport.clientHeight
-    }
+    rowVirtualizer.scrollToIndex(index, { align: 'auto' })
   }
 
   const applyColumnResize = (clientX: number, pointerId: number): void => {
@@ -653,10 +676,10 @@ export const DrpdUsbPdLogInstrumentView = ({
   }, [totalRows])
 
   useEffect(() => {
-    setScrollTop(0)
     if (viewportRef.current) {
       viewportRef.current.scrollTop = 0
     }
+    rowVirtualizer.scrollToIndex(0, { align: 'start' })
   }, [activeFilterCount])
 
   useEffect(() => {
@@ -796,41 +819,11 @@ export const DrpdUsbPdLogInstrumentView = ({
     }
   }, [])
 
-  useLayoutEffect(() => {
-    const header = headerRef.current
-    if (!header) {
-      return undefined
-    }
-
-    const updateHeaderHeight = () => {
-      const visualHeight = header.getBoundingClientRect().height
-      setHeaderSlotHeightPx(
-        visualHeight > 0 ? Math.ceil(visualHeight + 2) : ROW_HEIGHT_PX,
-      )
-    }
-
-    updateHeaderHeight()
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateHeaderHeight)
-      return () => {
-        window.removeEventListener('resize', updateHeaderHeight)
-      }
-    }
-
-    const observer = new ResizeObserver(updateHeaderHeight)
-    observer.observe(header)
-    return () => {
-      observer.disconnect()
-    }
-  }, [visibleColumns])
-
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) {
       return undefined
     }
-    setViewportHeight(viewport.clientHeight)
     setViewportWidth(viewport.clientWidth)
 
     if (typeof ResizeObserver === 'undefined') {
@@ -839,7 +832,6 @@ export const DrpdUsbPdLogInstrumentView = ({
 
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect
-      setViewportHeight(rect?.height ?? 0)
       setViewportWidth(rect?.width ?? 0)
     })
 
@@ -1202,51 +1194,14 @@ export const DrpdUsbPdLogInstrumentView = ({
         data-testid="drpd-usbpd-log"
       >
         <div
-          className={styles.headerSlot}
-          style={{ height: `${headerSlotHeightPx}px` }}
-        >
-          <div
-            ref={headerRef}
-            className={`${styles.scaleFrame} ${styles.headerRow}`}
-            style={{
-              gridTemplateColumns,
-              transform: `translateX(${-scrollLeft}px)`,
-              width: `${tableOuterWidthPx}px`,
-            }}
-          >
-            {visibleColumns.map((column) => (
-              <span
-                key={column.id}
-                className={`${styles.headerCell} ${resizingColumnId === column.id ? styles.resizingColumn : ''}`}
-              >
-                <span className={styles.headerLabel}>{column.label}</span>
-                <button
-                  type="button"
-                  className={styles.columnResizeHandle}
-                  aria-label={`Resize ${column.label} column`}
-                  onPointerDown={(event) => {
-                    handleColumnResizePointerDown(event, column.id)
-                  }}
-                  onMouseDown={(event) => {
-                    handleColumnResizeMouseDown(event, column.id)
-                  }}
-                  onPointerMove={handleColumnResizePointerMove}
-                  onPointerUp={handleColumnResizePointerUp}
-                  onPointerCancel={handleColumnResizePointerUp}
-                />
-              </span>
-            ))}
-          </div>
-        </div>
-        <div
           ref={viewportRef}
           className={styles.viewport}
           tabIndex={isEditMode ? -1 : 0}
+          role="region"
+          aria-label="USB-PD message log viewport"
           onKeyDown={handleViewportKeyDown}
           onScroll={(event) => {
             const element = event.currentTarget
-            setScrollTop(element.scrollTop)
-            setScrollLeft(element.scrollLeft)
             atBottomRef.current =
               element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
           }}
@@ -1255,23 +1210,51 @@ export const DrpdUsbPdLogInstrumentView = ({
             paddingBottom: tableBottomGutterPx > 0 ? `${tableBottomGutterPx}px` : undefined,
           }}
         >
-          <div
-            className={styles.canvas}
+          <table
+            className={styles.table}
+            aria-label="USB-PD message log"
+            aria-rowcount={displayedTotalRows}
             style={{
-              height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
               width: `${tableOuterWidthPx}px`,
+              gridTemplateColumns,
             }}
           >
-            <div
-              className={styles.rowScaleFrame}
+            <thead className={styles.header}>
+              <tr className={styles.headerRow} style={{ gridTemplateColumns }}>
+                {visibleColumns.map((column) => (
+                  <th
+                    key={column.id}
+                    scope="col"
+                    className={`${styles.headerCell} ${resizingColumnId === column.id ? styles.resizingColumn : ''}`}
+                  >
+                    <span className={styles.headerLabel}>{column.label}</span>
+                    <button
+                      type="button"
+                      className={styles.columnResizeHandle}
+                      aria-label={`Resize ${column.label} column`}
+                      onPointerDown={(event) => {
+                        handleColumnResizePointerDown(event, column.id)
+                      }}
+                      onMouseDown={(event) => {
+                        handleColumnResizeMouseDown(event, column.id)
+                      }}
+                      onPointerMove={handleColumnResizePointerMove}
+                      onPointerUp={handleColumnResizePointerUp}
+                      onPointerCancel={handleColumnResizePointerUp}
+                    />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody
+              className={styles.tableBody}
               style={{
-                height: `${Math.max(displayedTotalRows * rowHeightPx, 0)}px`,
-                width: `${tableOuterWidthPx}px`,
+                height: `${rowVirtualizer.getTotalSize()}px`,
               }}
               data-testid="drpd-usbpd-log-canvas"
             >
-              {visibleRows.map(({ index, row }) => (
-                <div
+              {visibleRows.map(({ index, start, size, row }) => (
+                <tr
                   key={row?.key ?? `placeholder-${index}`}
                   className={[
                     styles.dataRow,
@@ -1286,21 +1269,24 @@ export const DrpdUsbPdLogInstrumentView = ({
                   ]
                     .filter(Boolean)
                     .join(' ')}
+                  aria-rowindex={index + 2}
+                  aria-selected={row ? selectedKeySet.has(row.selectionKey) : undefined}
                   style={{
                     gridTemplateColumns,
-                    transform: `translateY(${index * rowHeightPx}px)`,
+                    transform: `translateY(${start}px)`,
+                    height: `${size}px`,
                   }}
                   onClick={(event) => {
                     handleRowClick(event, index, row)
                   }}
                 >
                   {row?.kind === 'event' ? (
-                    <span className={styles.eventLabel} style={{ gridColumn: `1 / ${visibleColumns.length + 1}` }}>
+                    <td className={styles.eventLabel} colSpan={visibleColumns.length}>
                       {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
-                    </span>
+                    </td>
                   ) : (
                     visibleColumns.map((column) => (
-                      <span
+                      <td
                         key={column.id}
                         className={[
                           column.align === 'right' ? styles.right : '',
@@ -1308,13 +1294,13 @@ export const DrpdUsbPdLogInstrumentView = ({
                         ].filter(Boolean).join(' ')}
                       >
                         {row?.[column.field as DisplayColumnField] ?? ''}
-                      </span>
+                      </td>
                     ))
                   )}
-                </div>
+                </tr>
               ))}
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
       </div>
     </InstrumentBase>

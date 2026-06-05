@@ -18,6 +18,8 @@ class TestLogDriver extends EventTarget {
   public clearScopes: string[]
   public logSelection: DRPDLogSelectionState
   public markCalls: number
+  public reportedMessageCount: number | null
+  public queryCalls: Array<{ sortOrder?: 'asc' | 'desc'; offset?: number; limit?: number }>
 
   public constructor(rows: LoggedCapturedMessage[], analogRows: LoggedAnalogSample[] = []) {
     super()
@@ -25,6 +27,8 @@ class TestLogDriver extends EventTarget {
     this.rows = rows
     this.clearScopes = []
     this.markCalls = 0
+    this.reportedMessageCount = null
+    this.queryCalls = []
     this.logSelection = {
       selectedKeys: [],
       anchorIndex: null,
@@ -82,7 +86,7 @@ class TestLogDriver extends EventTarget {
   }
 
   public async getLogCounts(): Promise<{ analog: number; messages: number }> {
-    return { analog: this.analogRows.length, messages: this.rows.length }
+    return { analog: this.analogRows.length, messages: this.reportedMessageCount ?? this.rows.length }
   }
 
   public async queryCapturedMessages(query: {
@@ -90,10 +94,18 @@ class TestLogDriver extends EventTarget {
     offset?: number
     limit?: number
   }): Promise<LoggedCapturedMessage[]> {
+    this.queryCalls.push(query)
     const sorted =
       query.sortOrder === 'desc' ? [...this.rows].reverse() : [...this.rows]
     const offset = query.offset ?? 0
-    const limit = query.limit ?? sorted.length
+    const limit = query.limit ?? (this.reportedMessageCount ?? sorted.length)
+    const count = this.reportedMessageCount ?? sorted.length
+    if (this.reportedMessageCount !== null && sorted.length < offset + limit) {
+      return Array.from(
+        { length: Math.max(0, Math.min(limit, count - offset)) },
+        (_, index) => sorted[offset + index] ?? buildMessage(offset + index, 1),
+      )
+    }
     return sorted.slice(offset, offset + limit)
   }
 
@@ -221,7 +233,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
@@ -242,7 +253,45 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       />,
     )
 
-    expect(await screen.findByText('Wall time')).toBeInTheDocument()
+    const table = await screen.findByRole('table', { name: 'USB-PD message log' })
+    expect(table).toHaveAttribute('aria-rowcount', '1')
+    expect(screen.getByRole('columnheader', { name: /Wall time/ })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /Message type/ })).toBeInTheDocument()
+    expect(await screen.findByRole('cell', { name: 'GoodCRC' })).toBeInTheDocument()
+  })
+
+  it('virtualizes a million-row message table and fetches visible pages', async () => {
+    const driver = new TestLogDriver([])
+    driver.reportedMessageCount = 1_000_000
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const table = await screen.findByRole('table', { name: 'USB-PD message log' })
+    expect(table).toHaveAttribute('aria-rowcount', '1000000')
+    await waitFor(() => {
+      expect(table.querySelectorAll('tbody tr').length).toBeGreaterThan(0)
+    })
+    expect(table.querySelectorAll('tbody tr').length).toBeLessThan(80)
+    expect(driver.queryCalls.some((query) => query.offset === 0 && query.limit === 200)).toBe(true)
+
+    const viewport = screen.getByTestId('drpd-usbpd-log-viewport')
+    fireEvent.scroll(viewport, { target: { scrollTop: 6000 } })
+
+    await waitFor(() => {
+      expect(driver.queryCalls.some((query) => query.offset === 399 && query.limit === 201)).toBe(true)
+    })
   })
 
   it('updates visible message table columns from global column settings', async () => {
