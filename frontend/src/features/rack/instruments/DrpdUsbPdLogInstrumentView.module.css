@@ -7,6 +7,7 @@
 
 .wrapper {
   --log-table-font-size: 10pt;
+  --log-header-height: 24px;
   --log-row-height: 20px;
   --message-log-column-divider: color-mix(in srgb, var(--color-border-panel) 56%, transparent);
   --message-log-column-divider-hover: color-mix(in srgb, var(--color-status-info) 76%, transparent);
@@ -31,19 +32,23 @@
   -webkit-user-select: none;
 }
 
-.scaleFrame {
+.table {
+  display: grid;
   width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  grid-template-rows: auto 1fr;
 }
 
-.headerSlot {
-  flex: 0 0 auto;
-  overflow: hidden;
-}
-
-.rowScaleFrame {
-  position: absolute;
-  inset: 0 auto auto 0;
-  width: 100%;
+.header {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  align-self: start;
+  height: var(--log-header-height);
 }
 
 .headerRow {
@@ -80,24 +85,21 @@
   letter-spacing: var(--letter-spacing-lg);
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-text-primary) 88%, var(--color-text-muted) 12%);
+  height: var(--log-header-height);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-.headerRow.scaleFrame {
-  width: 100%;
-}
-
-.headerRow > span {
+.headerRow > th {
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.headerRow > span {
+.headerRow > th {
   justify-self: stretch;
   position: relative;
 }
@@ -108,6 +110,9 @@
   justify-content: center;
   width: 100%;
   box-sizing: border-box;
+  border-top: 0;
+  border-bottom: 0;
+  font: inherit;
 }
 
 .headerCell + .headerCell {
@@ -210,10 +215,12 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-.canvas {
+.tableBody {
   position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 2;
   width: 100%;
-  min-height: 100%;
 }
 
 .dataRow {
@@ -250,20 +257,21 @@
   background: color-mix(in srgb, var(--color-surface-instrument) 90%, transparent);
 }
 
-.dataRow > span {
+.dataRow > td {
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
+  display: block;
 }
 
-.dataRow > span + span {
+.dataRow > td + td {
   border-left: var(--border-thin) solid var(--message-log-column-divider);
   padding-left: var(--space-4);
 }
 
-.dataRow:not(.eventRow) > span:last-child {
+.dataRow:not(.eventRow) > td:last-child {
   border-right: var(--border-thin) solid var(--message-log-column-divider);
 }
 
