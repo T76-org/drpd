@@ -3962,7 +3962,7 @@ const getStoredTheme = (): ThemeMode => {
   return 'system'
 }
 
-/** Read the saved layout preference, defaulting to fixed mode. */
+/** Read the saved layout preference, defaulting to responsive mode. */
 const getStoredLayoutMode = (): LayoutMode => {
   const storage = getBrowserStorage()
   const storedLayout = storage?.getItem(LAYOUT_STORAGE_KEY)
@@ -3972,7 +3972,7 @@ const getStoredLayoutMode = (): LayoutMode => {
   if (storedLayout === 'fixed') {
     return 'fixed'
   }
-  return 'fixed'
+  return 'full'
 }
 
 /** Read the saved timestrip visibility preference, defaulting to shown. */

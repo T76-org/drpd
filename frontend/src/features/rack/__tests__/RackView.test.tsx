@@ -2018,13 +2018,13 @@ describe('RackView', () => {
       return element as HTMLElement
     })
 
-    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+    expect(page).toHaveAttribute('data-layout-mode', 'full')
 
     await user.click(await screen.findByRole('button', { name: 'Help' }))
     expect(screen.queryByRole('menuitem', { name: /Switch Layout/ })).not.toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'K' })
-    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+    expect(page).toHaveAttribute('data-layout-mode', 'full')
   })
 
   it('prompts PWA installation from the Help menu when available', async () => {
@@ -2054,6 +2054,12 @@ describe('RackView', () => {
       return element as HTMLElement
     })
 
+    expect(page).toHaveAttribute('data-layout-mode', 'full')
+
+    await chooseLayoutFromMenu('Fixed')
+    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+    expect(window.localStorage.getItem('drpd:layout')).toBe('fixed')
+
     await chooseLayoutFromMenu('Responsive')
     expect(page).toHaveAttribute('data-layout-mode', 'full')
     expect(window.localStorage.getItem('drpd:layout')).toBe('responsive')
@@ -2076,6 +2082,21 @@ describe('RackView', () => {
       return element as HTMLElement
     })
     expect(restoredPage).toHaveAttribute('data-layout-mode', 'full')
+  })
+
+  it('restores an explicit fixed layout preference', async () => {
+    saveRackDocument(buildRackDocument())
+    window.localStorage.setItem('drpd:layout', 'fixed')
+    mockUSB([])
+    render(<RackView />)
+
+    const page = await waitFor(() => {
+      const element = document.querySelector('[data-layout-mode]')
+      expect(element).not.toBeNull()
+      return element as HTMLElement
+    })
+
+    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
   })
 
   it('runs global Sink, Observer, and Capture shortcuts', async () => {

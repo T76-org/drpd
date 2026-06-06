@@ -256,6 +256,273 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(viewport.scrollLeft).toBeCloseTo(10150, 2)
   })
 
+  it('follows the latest datum by default when no packet is selected', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    renderTimestrip(buildDeviceState(queryCapturedMessages))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+  })
+
+  it('pauses live follow on manual scroll and resumes from Jump to latest', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    viewport.scrollLeft = 0
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeInTheDocument()
+    })
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 300_000_000n,
+            endTimestampUs: 300_000_000n,
+            createdAtMs: 3,
+          }),
+        },
+      }))
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(viewport.scrollLeft).toBe(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBeCloseTo(2750, 6)
+    })
+
+    fireEvent.scroll(viewport)
+
+    expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Following live' }))
+  })
+
+  it('clears the selected message when Jump to latest resumes live follow', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const selectedRow = buildCapturedMessage({
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_001_000n,
+      createdAtMs: 77,
+    })
+    const selectedKey = buildCapturedLogSelectionKey(selectedRow)
+    let logSelection: DRPDLogSelectionState = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (
+        query.startTimestampUs === selectedRow.startTimestampUs &&
+        query.endTimestampUs === selectedRow.endTimestampUs
+      ) {
+        return [selectedRow]
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const clearLogSelection = vi.fn(() => {
+      logSelection = {
+        selectedKeys: [],
+        anchorIndex: null,
+        activeIndex: null,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        getLogSelectionState: vi.fn(() => logSelection),
+        clearLogSelection,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    act(() => {
+      logSelection = {
+        selectedKeys: [selectedKey],
+        anchorIndex: 10,
+        activeIndex: 10,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(350)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+
+    await waitFor(() => {
+      expect(clearLogSelection).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+  })
+
+  it('disables live follow when zoomed in past 16ms per pixel', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    renderTimestrip(buildDeviceState(queryCapturedMessages))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Follow unavailable' })).toBeDisabled()
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '200000px',
+      })
+    })
+    expect(viewport.scrollLeft).toBe(0)
+  })
+
+  it('keeps following when a short empty-start log emits late follow scroll events', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const queryCapturedMessages = vi.fn(async () => [])
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 0n,
+            endTimestampUs: 100_000_000n,
+            createdAtMs: 1,
+          }),
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(750)
+    })
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 120_000_000n,
+            endTimestampUs: 120_001_000n,
+            createdAtMs: 2,
+          }),
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBeCloseTo(950, 0)
+    })
+
+    viewport.scrollLeft = 750
+    fireEvent.scroll(viewport)
+
+    expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+  })
+
   it('sizes the timeline from message-log wall-clock range when available', async () => {
     const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc' }) => [
       {
@@ -576,7 +843,7 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-        width: '1000px',
+        width: '1250px',
       })
     })
 
@@ -911,6 +1178,60 @@ describe('DrpdTimeStripInstrumentView', () => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
         width: '40px',
       })
+    })
+  })
+
+  it('resets the timestrip on clear even when no messages were deleted', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const queryCapturedMessages = vi.fn(async () => [])
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 0n,
+            endTimestampUs: 100_000_000n,
+          }),
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '1250px',
+      })
+      expect(viewport.scrollLeft).toBe(750)
+    })
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_DELETED_EVENT, {
+        detail: {
+          reason: 'clear',
+          messagesDeleted: 0,
+          analogDeleted: 0,
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '500px',
+      })
+      expect(viewport.scrollLeft).toBe(0)
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
     })
   })
 })

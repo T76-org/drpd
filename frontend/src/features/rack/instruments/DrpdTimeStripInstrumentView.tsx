@@ -38,6 +38,7 @@ import {
   type TimestripWorldRange,
 } from './timestrip/timestripCoordinates'
 import { useTimestripViewport } from './timestrip/useTimestripViewport'
+import type { TimestripNavigationReason } from './timestrip/useTimestripViewport'
 import { useTimestripAnalogHover } from './timestrip/useTimestripAnalogHover'
 
 const PLACEHOLDER_TIMELINE_END_NS = 10_000_000_000n
@@ -47,6 +48,10 @@ const DIGITAL_QUERY_LIMIT = 5000
 const ANALOG_QUERY_LIMIT = 8000
 const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
 const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
+const MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS = 16_000_000
+const LIVE_FOLLOW_VIEWPORT_FRACTION = 0.5
+const LIVE_FOLLOW_INTERVAL_MS = 125
+const LIVE_FOLLOW_MAX_STEP_VIEWPORTS = 0.75
 const readThemeName = () => (
   typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
 )
@@ -368,6 +373,9 @@ export const DrpdTimeStripInstrumentView = ({
   const tileLayerRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<TimestripTiledRenderer | null>(null)
   const centeredSelectionKeyRef = useRef<string | null>(null)
+  const liveFollowFrameRef = useRef<number | null>(null)
+  const liveFollowImmediateRef = useRef(true)
+  const lastLiveFollowCommitMsRef = useRef(0)
   const digitalEntriesSignatureRef = useRef('')
   const analogSamplesSignatureRef = useRef('')
   const analogBreakWorldNsRef = useRef<number[]>([])
@@ -390,6 +398,8 @@ export const DrpdTimeStripInstrumentView = ({
   const [analogSamples, setAnalogSamples] = useState<TimestripAnalogSample[]>([])
   const [analogDataRevision, setAnalogDataRevision] = useState(0)
   const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
+  const [isLiveFollowEnabled, setIsLiveFollowEnabled] = useState(true)
+  const [isLiveFollowPausedByUser, setIsLiveFollowPausedByUser] = useState(false)
   const liveCaptureMarkerWorldNs =
     captureEnabled && timelineRange.basis.kind === 'wallClock'
       ? Number((BigInt(Math.floor(captureProgressWallClockUs)) - BigInt(Math.floor(timelineRange.basis.originWallClockUs))) * 1000n)
@@ -408,19 +418,52 @@ export const DrpdTimeStripInstrumentView = ({
           Number(timelineRange.durationNs),
           Math.ceil(Math.max(1, liveCaptureMarkerWorldNs)),
         ))
+  const handleTimestripUserNavigation = useCallback((reason: TimestripNavigationReason) => {
+    if (reason === 'user-scroll' || reason === 'user-wheel' || reason === 'user-zoom') {
+      setIsLiveFollowPausedByUser(true)
+    }
+  }, [])
   const {
     viewportWidthPx,
     viewportHeightPx,
     scrollLeftPx,
-    setScrollLeftPx,
     zoomDenominator,
     zoomReadout,
     timelineWidthPx,
     domTimelineWidthPx,
     domScrollLeftToLogical,
-    logicalScrollLeftToDom,
+    scrollToLogicalLeft,
     handleViewportScroll: handleViewportScrollState,
-  } = useTimestripViewport(viewportRef, viewportDurationNs)
+  } = useTimestripViewport(viewportRef, viewportDurationNs, {
+    onUserNavigation: handleTimestripUserNavigation,
+    tailPaddingViewportFraction:
+      (captureMarkerWorldNs ?? latestDatumWorldNs) === null
+        ? 0
+        : 1 - LIVE_FOLLOW_VIEWPORT_FRACTION,
+    minTailPaddingZoomDenominator: MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS,
+  })
+  const isLiveFollowAvailable = zoomDenominator >= MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS
+  const latestFollowWorldNs = captureMarkerWorldNs ?? latestDatumWorldNs
+  const maxScrollLeftPx = Math.max(0, timelineWidthPx - viewportWidthPx)
+  const latestFollowTargetScrollLeftPx =
+    latestFollowWorldNs === null || !Number.isFinite(latestFollowWorldNs) || viewportWidthPx <= 0
+      ? null
+      : Math.max(
+          0,
+          Math.min(
+            maxScrollLeftPx,
+            latestFollowWorldNs / zoomDenominator - viewportWidthPx * LIVE_FOLLOW_VIEWPORT_FRACTION,
+          ),
+        )
+  const isLiveFollowing =
+    isLiveFollowAvailable &&
+    isLiveFollowEnabled &&
+    !isLiveFollowPausedByUser &&
+    !selectedLogMessageKey &&
+    latestFollowTargetScrollLeftPx !== null
+  const hasNewerDataOffscreen =
+    latestFollowTargetScrollLeftPx !== null &&
+    Math.abs(scrollLeftPx - latestFollowTargetScrollLeftPx) > 1
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
   const {
     analogHover,
@@ -450,6 +493,46 @@ export const DrpdTimeStripInstrumentView = ({
       })
     }
   }, [domScrollLeftToLogical, handleViewportScrollState, updateAnalogHoverAtViewportPoint])
+  const resumeLiveFollow = useCallback(() => {
+    if (!isLiveFollowAvailable) {
+      return
+    }
+    liveFollowImmediateRef.current = true
+    setIsLiveFollowEnabled(true)
+    setIsLiveFollowPausedByUser(false)
+  }, [isLiveFollowAvailable])
+  const handleLiveFollowControlClick = useCallback(() => {
+    if (!isLiveFollowAvailable) {
+      return
+    }
+    if (isLiveFollowing) {
+      setIsLiveFollowEnabled(false)
+      setIsLiveFollowPausedByUser(false)
+      return
+    }
+    const driver = deviceState?.drpdDriver
+    if (selectedLogMessageKey && typeof driver?.clearLogSelection === 'function') {
+      void Promise.resolve(driver.clearLogSelection())
+        .catch(() => undefined)
+        .finally(() => {
+          centeredSelectionKeyRef.current = null
+          setSelectedLogMessageKey(null)
+          resumeLiveFollow()
+        })
+      return
+    }
+    if (selectedLogMessageKey) {
+      centeredSelectionKeyRef.current = null
+      setSelectedLogMessageKey(null)
+    }
+    resumeLiveFollow()
+  }, [
+    deviceState?.drpdDriver,
+    isLiveFollowAvailable,
+    isLiveFollowing,
+    resumeLiveFollow,
+    selectedLogMessageKey,
+  ])
   const selectClosestLogEntry = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const driver = deviceState?.drpdDriver
     const viewport = viewportRef.current
@@ -564,6 +647,17 @@ export const DrpdTimeStripInstrumentView = ({
     }
     return selection.selectedKeys[0]
   }, [deviceState?.drpdDriver])
+
+  useEffect(() => {
+    if (selectedLogMessageKey) {
+      setIsLiveFollowPausedByUser(true)
+      return
+    }
+    if (isLiveFollowEnabled) {
+      liveFollowImmediateRef.current = true
+      setIsLiveFollowPausedByUser(false)
+    }
+  }, [isLiveFollowEnabled, selectedLogMessageKey])
 
   useEffect(() => {
     if (typeof MutationObserver === 'undefined') {
@@ -868,8 +962,7 @@ export const DrpdTimeStripInstrumentView = ({
           0,
           Math.min(maxScrollLeft, rowWorldStartNs / zoomDenominator - viewportWidthPx / 2),
         )
-        viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
-        setScrollLeftPx(nextScrollLeft)
+        scrollToLogicalLeft(nextScrollLeft, 'selection')
         centeredSelectionKeyRef.current = selectedLogMessageKey
       } catch {
         // Keep the current viewport if the selected row is no longer available.
@@ -888,9 +981,60 @@ export const DrpdTimeStripInstrumentView = ({
     timelineRange.basis.originWallClockUs,
     timelineRange.basis.kind === 'wallClock',
     timelineWidthPx,
-    logicalScrollLeftToDom,
+    scrollToLogicalLeft,
     viewportWidthPx,
     zoomDenominator,
+  ])
+
+  useEffect(() => {
+    if (
+      !isLiveFollowing ||
+      latestFollowTargetScrollLeftPx === null ||
+      viewportWidthPx <= 0
+    ) {
+      if (liveFollowFrameRef.current !== null) {
+        window.cancelAnimationFrame(liveFollowFrameRef.current)
+        liveFollowFrameRef.current = null
+      }
+      return undefined
+    }
+
+    let isActive = true
+    const tick = (timestampMs: number) => {
+      if (!isActive) {
+        return
+      }
+      const elapsedMs = timestampMs - lastLiveFollowCommitMsRef.current
+      const immediate = liveFollowImmediateRef.current
+      if (immediate || elapsedMs >= LIVE_FOLLOW_INTERVAL_MS) {
+        const delta = latestFollowTargetScrollLeftPx - scrollLeftPx
+        if (Math.abs(delta) > 1) {
+          const maxStepPx = Math.max(1, viewportWidthPx * LIVE_FOLLOW_MAX_STEP_VIEWPORTS)
+          const nextScrollLeft = immediate || Math.abs(delta) <= maxStepPx
+            ? latestFollowTargetScrollLeftPx
+            : scrollLeftPx + Math.sign(delta) * maxStepPx
+          scrollToLogicalLeft(nextScrollLeft, 'follow')
+        }
+        liveFollowImmediateRef.current = false
+        lastLiveFollowCommitMsRef.current = timestampMs
+      }
+      liveFollowFrameRef.current = window.requestAnimationFrame(tick)
+    }
+
+    liveFollowFrameRef.current = window.requestAnimationFrame(tick)
+    return () => {
+      isActive = false
+      if (liveFollowFrameRef.current !== null) {
+        window.cancelAnimationFrame(liveFollowFrameRef.current)
+        liveFollowFrameRef.current = null
+      }
+    }
+  }, [
+    isLiveFollowing,
+    latestFollowTargetScrollLeftPx,
+    scrollLeftPx,
+    scrollToLogicalLeft,
+    viewportWidthPx,
   ])
 
   useEffect(() => {
@@ -1260,7 +1404,11 @@ export const DrpdTimeStripInstrumentView = ({
 
     const handleDeleted = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (!detail?.messagesDeleted) {
+      if (
+        detail?.reason !== 'clear' &&
+        !detail?.messagesDeleted &&
+        !detail?.analogDeleted
+      ) {
         return
       }
       digitalQueryRangeRef.current = null
@@ -1344,8 +1492,27 @@ export const DrpdTimeStripInstrumentView = ({
       isEditMode={isEditMode}
       contentClassName={styles.content}
       headerAccessory={
-        <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
-          ZOOM {zoomReadout}
+        <span className={styles.headerControls}>
+          <button
+            type="button"
+            className={styles.liveFollowButton}
+            onClick={handleLiveFollowControlClick}
+            aria-pressed={isLiveFollowing}
+            disabled={!isLiveFollowAvailable}
+          >
+            {!isLiveFollowAvailable
+              ? 'Follow unavailable'
+              : isLiveFollowing
+              ? 'Following live'
+              : !isLiveFollowEnabled
+                ? 'Follow live'
+                : hasNewerDataOffscreen
+                ? 'Jump to latest'
+                : 'Follow live'}
+          </button>
+          <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
+            ZOOM {zoomReadout}
+          </span>
         </span>
       }
       onClose={

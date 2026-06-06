@@ -11,6 +11,20 @@ const DEFAULT_ZOOM_DENOMINATOR = 100_000_000
 const ZOOM_DENOMINATOR_STORAGE_KEY = 'drpd:timestrip:zoom-denominator'
 const CTRL_WHEEL_ZOOM_STEP = 2
 const MAX_DOM_TIMELINE_WIDTH_PX = 16_000_000
+const PROGRAMMATIC_SCROLL_GUARD_MS = 250
+
+export type TimestripNavigationReason =
+  | 'follow'
+  | 'selection'
+  | 'user-scroll'
+  | 'user-wheel'
+  | 'user-zoom'
+
+export interface TimestripViewportOptions {
+  onUserNavigation?: (reason: TimestripNavigationReason) => void
+  tailPaddingViewportFraction?: number
+  minTailPaddingZoomDenominator?: number
+}
 
 const readStoredZoomDenominator = (): number => {
   if (typeof window === 'undefined') {
@@ -54,18 +68,31 @@ const calculateScrollScale = (
 export const useTimestripViewport = (
   viewportRef: RefObject<HTMLDivElement | null>,
   timelineDurationNs: bigint,
+  options: TimestripViewportOptions = {},
 ) => {
+  const onUserNavigation = options.onUserNavigation
+  const tailPaddingViewportFraction = options.tailPaddingViewportFraction ?? 0
+  const minTailPaddingZoomDenominator = options.minTailPaddingZoomDenominator ?? 0
   const resizeFrameRef = useRef<number | null>(null)
   const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
+  const programmaticScrollReasonRef = useRef<TimestripNavigationReason | null>(null)
+  const programmaticScrollTargetPxRef = useRef<number | null>(null)
+  const recentProgrammaticScrollTargetsRef = useRef<number[]>([])
+  const programmaticScrollClearTimeoutRef = useRef<number | null>(null)
   const [viewportWidthPx, setViewportWidthPx] = useState(0)
   const [viewportHeightPx, setViewportHeightPx] = useState(0)
   const [scrollLeftPx, setScrollLeftPx] = useState(0)
   const [zoomDenominator, setZoomDenominator] = useState(readStoredZoomDenominator)
   const zoomReadout = formatTimestripZoomDenominator(zoomDenominator)
-  const timelineWidthPx = calculateTimestripWidthPx(
+  const timelineContentWidthPx = calculateTimestripWidthPx(
     timelineDurationNs,
     zoomDenominator,
     viewportWidthPx,
+  )
+  const timelineWidthPx = timelineContentWidthPx + (
+    zoomDenominator >= minTailPaddingZoomDenominator
+      ? Math.max(0, viewportWidthPx * tailPaddingViewportFraction)
+      : 0
   )
   const domTimelineWidthPx = calculateDomTimelineWidthPx(timelineWidthPx, viewportWidthPx)
   const scrollScale = calculateScrollScale(timelineWidthPx, domTimelineWidthPx, viewportWidthPx)
@@ -80,10 +107,55 @@ export const useTimestripViewport = (
     writeStoredZoomDenominator(nextZoomDenominator)
     setZoomDenominator(nextZoomDenominator)
   }, [])
+  const scheduleProgrammaticScrollGuardClear = useCallback(() => {
+    if (programmaticScrollClearTimeoutRef.current !== null) {
+      window.clearTimeout(programmaticScrollClearTimeoutRef.current)
+    }
+    programmaticScrollClearTimeoutRef.current = window.setTimeout(() => {
+      programmaticScrollClearTimeoutRef.current = null
+      programmaticScrollReasonRef.current = null
+      programmaticScrollTargetPxRef.current = null
+      recentProgrammaticScrollTargetsRef.current = []
+    }, PROGRAMMATIC_SCROLL_GUARD_MS)
+  }, [])
+  const isExpectedProgrammaticScroll = useCallback((logicalScrollLeftPx: number): boolean => (
+    programmaticScrollReasonRef.current !== null &&
+    recentProgrammaticScrollTargetsRef.current.some((targetPx) => Math.abs(logicalScrollLeftPx - targetPx) <= 1)
+  ), [])
+  const scrollToLogicalLeft = useCallback((
+    logicalScrollLeftPx: number,
+    reason: TimestripNavigationReason,
+  ) => {
+    const viewport = viewportRef.current
+    const nextScrollLeftPx = Math.max(0, logicalScrollLeftPx)
+    if (!viewport) {
+      setScrollLeftPx(nextScrollLeftPx)
+      return
+    }
+    programmaticScrollReasonRef.current = reason
+    programmaticScrollTargetPxRef.current = nextScrollLeftPx
+    recentProgrammaticScrollTargetsRef.current = [
+      ...recentProgrammaticScrollTargetsRef.current,
+      nextScrollLeftPx,
+    ].slice(-8)
+    scheduleProgrammaticScrollGuardClear()
+    viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeftPx)
+    setScrollLeftPx(nextScrollLeftPx)
+  }, [logicalScrollLeftToDom, scheduleProgrammaticScrollGuardClear, viewportRef])
   const handleViewportScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const nextScrollLeftPx = domScrollLeftToLogical(event.currentTarget.scrollLeft)
+    if (!isExpectedProgrammaticScroll(nextScrollLeftPx)) {
+      onUserNavigation?.('user-scroll')
+    }
     setScrollLeftPx(nextScrollLeftPx)
-  }, [domScrollLeftToLogical])
+  }, [domScrollLeftToLogical, isExpectedProgrammaticScroll, onUserNavigation])
+
+  useEffect(() => () => {
+    if (programmaticScrollClearTimeoutRef.current !== null) {
+      window.clearTimeout(programmaticScrollClearTimeoutRef.current)
+      programmaticScrollClearTimeoutRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -92,8 +164,12 @@ export const useTimestripViewport = (
     }
 
     const handleViewportScroll = () => {
+      const nextScrollLeftPx = domScrollLeftToLogical(viewport.scrollLeft)
+      if (!isExpectedProgrammaticScroll(nextScrollLeftPx)) {
+        onUserNavigation?.('user-scroll')
+      }
       flushSync(() => {
-        setScrollLeftPx(domScrollLeftToLogical(viewport.scrollLeft))
+        setScrollLeftPx(nextScrollLeftPx)
       })
     }
     viewport.addEventListener('scroll', handleViewportScroll)
@@ -101,7 +177,7 @@ export const useTimestripViewport = (
     return () => {
       viewport.removeEventListener('scroll', handleViewportScroll)
     }
-  }, [domScrollLeftToLogical, viewportRef])
+  }, [domScrollLeftToLogical, isExpectedProgrammaticScroll, onUserNavigation, viewportRef])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -112,6 +188,7 @@ export const useTimestripViewport = (
     const handleViewportWheel = (event: WheelEvent) => {
       if (event.ctrlKey) {
         event.preventDefault()
+        onUserNavigation?.('user-zoom')
         const direction = event.deltaY < 0 ? -1 : 1
         const scale = direction < 0 ? 1 / CTRL_WHEEL_ZOOM_STEP : CTRL_WHEEL_ZOOM_STEP
         const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
@@ -128,6 +205,10 @@ export const useTimestripViewport = (
           timelineDurationNs,
           nextZoomDenominator,
           viewportWidthPx,
+        ) + (
+          nextZoomDenominator >= minTailPaddingZoomDenominator
+            ? Math.max(0, viewportWidthPx * tailPaddingViewportFraction)
+            : 0
         )
         const nextDomTimelineWidthPx = calculateDomTimelineWidthPx(nextTimelineWidthPx, viewportWidthPx)
         const nextScrollScale = calculateScrollScale(nextTimelineWidthPx, nextDomTimelineWidthPx, viewportWidthPx)
@@ -144,6 +225,7 @@ export const useTimestripViewport = (
         return
       }
       event.preventDefault()
+      onUserNavigation?.('user-wheel')
       const nextScrollLeft = Math.max(0, domScrollLeftToLogical(viewport.scrollLeft) + scrollDelta)
       viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
       setScrollLeftPx(domScrollLeftToLogical(viewport.scrollLeft))
@@ -157,6 +239,9 @@ export const useTimestripViewport = (
     commitZoomDenominator,
     domScrollLeftToLogical,
     logicalScrollLeftToDom,
+    minTailPaddingZoomDenominator,
+    onUserNavigation,
+    tailPaddingViewportFraction,
     timelineDurationNs,
     viewportRef,
     viewportWidthPx,
@@ -232,12 +317,15 @@ export const useTimestripViewport = (
     const nextLogicalScrollLeft = Math.max(0, Math.min(maxLogicalScrollLeft, scrollLeftPx))
     const nextDomScrollLeft = logicalScrollLeftToDom(nextLogicalScrollLeft)
     if (Math.abs(viewport.scrollLeft - nextDomScrollLeft) > 1) {
+      programmaticScrollReasonRef.current = 'follow'
+      programmaticScrollTargetPxRef.current = nextLogicalScrollLeft
+      scheduleProgrammaticScrollGuardClear()
       viewport.scrollLeft = nextDomScrollLeft
     }
     if (nextLogicalScrollLeft !== scrollLeftPx) {
       setScrollLeftPx(nextLogicalScrollLeft)
     }
-  }, [logicalScrollLeftToDom, scrollLeftPx, timelineWidthPx, viewportRef, viewportWidthPx])
+  }, [logicalScrollLeftToDom, scheduleProgrammaticScrollGuardClear, scrollLeftPx, timelineWidthPx, viewportRef, viewportWidthPx])
 
   return {
     viewportWidthPx,
@@ -250,6 +338,7 @@ export const useTimestripViewport = (
     domTimelineWidthPx,
     domScrollLeftToLogical,
     logicalScrollLeftToDom,
+    scrollToLogicalLeft,
     handleViewportScroll,
   }
 }

@@ -116,6 +116,38 @@
   text-align: left;
 }
 
+.headerControls {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.liveFollowButton {
+  min-width: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--color-border-instrument);
+  border-radius: 4px;
+  background: var(--color-surface-panel);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: inherit;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.liveFollowButton[aria-pressed='true'] {
+  color: var(--color-text-muted);
+}
+
+.liveFollowButton:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+  opacity: 0.68;
+}
+
 .zoomReadout {
   color: var(--color-text-muted);
   font-size: inherit;
