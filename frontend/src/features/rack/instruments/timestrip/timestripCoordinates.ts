@@ -1,3 +1,5 @@
+import { clampTimestripZoomDenominator } from './timestripZoom'
+
 export type TimestripBasis = {
   kind: 'wallClock' | 'device'
   originTimestampUs: bigint
@@ -19,19 +21,6 @@ export type TimestripQueryRange = {
   startTimestampUs: bigint
   endTimestampUs: bigint
   timeBasis: 'wallClock' | 'device'
-}
-
-const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 500
-const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 100_000_000
-
-const clampCoordinateZoomDenominator = (value: number): number => {
-  if (!Number.isFinite(value)) {
-    return MAX_TIMESTRIP_ZOOM_DENOMINATOR
-  }
-  return Math.min(
-    MAX_TIMESTRIP_ZOOM_DENOMINATOR,
-    Math.max(MIN_TIMESTRIP_ZOOM_DENOMINATOR, Math.trunc(value)),
-  )
 }
 
 export const getTimestripBasisOriginUs = (basis: TimestripBasis): bigint =>
@@ -67,17 +56,17 @@ export const rowTimestampUsToWorldNs = (
 export const scrollLeftPxToWorldNs = (
   scrollLeftPx: number,
   zoomDenominator: number,
-): number => Math.max(0, scrollLeftPx) * clampCoordinateZoomDenominator(zoomDenominator)
+): number => Math.max(0, scrollLeftPx) * clampTimestripZoomDenominator(zoomDenominator)
 
 export const worldNsToPx = (
   worldNs: number,
   zoomDenominator: number,
-): number => worldNs / clampCoordinateZoomDenominator(zoomDenominator)
+): number => worldNs / clampTimestripZoomDenominator(zoomDenominator)
 
 export const pxToWorldNs = (
   px: number,
   zoomDenominator: number,
-): number => Math.max(0, px) * clampCoordinateZoomDenominator(zoomDenominator)
+): number => Math.max(0, px) * clampTimestripZoomDenominator(zoomDenominator)
 
 export const calculateTimestripQueryRange = (
   scrollLeftPx: number,
@@ -86,7 +75,7 @@ export const calculateTimestripQueryRange = (
   basis: TimestripBasis,
   overscanPx: number,
 ): TimestripQueryRange => {
-  const normalizedZoom = clampCoordinateZoomDenominator(zoomDenominator)
+  const normalizedZoom = clampTimestripZoomDenominator(zoomDenominator)
   const startWorldNs = Math.max(0, Math.floor((scrollLeftPx - overscanPx) * normalizedZoom))
   const endWorldNs = Math.max(
     startWorldNs,

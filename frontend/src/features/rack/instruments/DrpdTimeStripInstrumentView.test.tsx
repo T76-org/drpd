@@ -97,6 +97,18 @@ const buildRangeDeviceState = (endTimestampUs: bigint): RackDeviceState => {
   return buildDeviceState(queryCapturedMessages)
 }
 
+const attachSelectionDriver = (deviceState: RackDeviceState) => {
+  const driver = deviceState.drpdDriver as unknown as {
+    queryCapturedMessages: ReturnType<typeof vi.fn>
+    setLogSelectionState?: ReturnType<typeof vi.fn>
+  }
+  driver.setLogSelectionState = vi.fn()
+  return {
+    queryCapturedMessages: driver.queryCapturedMessages,
+    setLogSelectionState: driver.setLogSelectionState,
+  }
+}
+
 const buildCapturedMessage = (overrides: Partial<LoggedCapturedMessage> = {}): LoggedCapturedMessage => ({
   entryKind: 'message',
   eventType: null,
@@ -148,6 +160,11 @@ const setViewportGeometry = (viewport: HTMLElement, width = 500, left = 100) => 
       y: 0,
       toJSON: () => ({}),
     }) as DOMRect
+}
+
+const scrollViewportTo = (viewport: HTMLElement, scrollLeft: number) => {
+  viewport.scrollLeft = scrollLeft
+  fireEvent.scroll(viewport)
 }
 
 const localStorageItems = new Map<string, string>()
@@ -265,19 +282,24 @@ describe('DrpdTimeStripInstrumentView', () => {
   })
 
   it('keeps the timestamp under the pointer stable during ctrl wheel zoom', async () => {
-    renderTimestrip(buildRangeDeviceState(2_000_000_000n))
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
     setViewportGeometry(viewport)
     const pointerX = 150
 
     await waitFor(() => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-        width: '20000px',
+        width: '20250px',
       })
     })
 
-    viewport.scrollLeft = 5000
-    const timestampUnderPointerBeforeNs = (viewport.scrollLeft + pointerX) * 100_000_000
+    const initialScrollLeft = 5000
+    scrollViewportTo(viewport, initialScrollLeft)
+    const timestampUnderPointerBeforeNs = (initialScrollLeft + pointerX) * 100_000_000
 
     await act(async () => {
       fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
@@ -285,24 +307,75 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
 
     expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
-    expect((viewport.scrollLeft + pointerX) * 50_000_000).toBeCloseTo(timestampUnderPointerBeforeNs, 2)
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 250, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('keeps the timestamp under the pointer stable during rapid ctrl wheel zoom', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    const pointerX = 150
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '20250px',
+      })
+    })
+
+    const initialScrollLeft = 5000
+    scrollViewportTo(viewport, initialScrollLeft)
+    const timestampUnderPointerBeforeNs = (initialScrollLeft + pointerX) * 100_000_000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(screen.getByLabelText('Zoom 5ms per pixel')).toBeInTheDocument()
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 250, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
   })
 
   it('keeps the timestamp under the pointer stable during ctrl wheel zoom out', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
     window.localStorage.setItem('drpd:timestrip:zoom-denominator', '50000000')
-    renderTimestrip(buildRangeDeviceState(2_000_000_000n))
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
     setViewportGeometry(viewport)
     const pointerX = 320
 
     await waitFor(() => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-        width: '40000px',
+        width: '40250px',
       })
     })
 
-    viewport.scrollLeft = 10_000
-    const timestampUnderPointerBeforeNs = (viewport.scrollLeft + pointerX) * 50_000_000
+    const initialScrollLeft = 10_000
+    scrollViewportTo(viewport, initialScrollLeft)
+    const timestampUnderPointerBeforeNs = (initialScrollLeft + pointerX) * 50_000_000
 
     await act(async () => {
       fireEvent.wheel(viewport, { ctrlKey: true, clientX: 420, deltaY: 240 })
@@ -310,14 +383,23 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
 
     expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
-    expect((viewport.scrollLeft + pointerX) * 100_000_000).toBeCloseTo(timestampUnderPointerBeforeNs, 2)
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 420, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
   })
 
   it('keeps ctrl wheel zoom pointer-stable when DOM scroll scaling is active', async () => {
     window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
-    renderTimestrip(buildRangeDeviceState(100_000_000n))
+    const deviceState = buildRangeDeviceState(100_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
     setViewportGeometry(viewport)
     const pointerX = 250
@@ -328,18 +410,25 @@ describe('DrpdTimeStripInstrumentView', () => {
       })
     })
 
-    viewport.scrollLeft = 4_000_000
+    const initialScrollLeft = 4_000_000
+    scrollViewportTo(viewport, initialScrollLeft)
     const beforeScale = (100_000_000 - 500) / (16_000_000 - 500)
-    const timestampUnderPointerBeforeNs = (viewport.scrollLeft * beforeScale + pointerX) * 1000
+    const timestampUnderPointerBeforeNs = (initialScrollLeft * beforeScale + pointerX) * 1000
 
     await act(async () => {
       fireEvent.wheel(viewport, { ctrlKey: true, clientX: 350, deltaY: -240 })
       await new Promise((resolve) => window.requestAnimationFrame(resolve))
     })
 
-    const afterScale = (200_000_000 - 500) / (16_000_000 - 500)
     expect(screen.getByLabelText('Zoom 500ns per pixel')).toBeInTheDocument()
-    expect((viewport.scrollLeft * afterScale + pointerX) * 500).toBeCloseTo(timestampUnderPointerBeforeNs, 0)
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 350, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
   })
 
   it('does not publish stale DOM-scaled scroll when zoom crosses below 100µs', async () => {
@@ -432,7 +521,9 @@ describe('DrpdTimeStripInstrumentView', () => {
         }),
       ]
     })
-    renderTimestrip(buildDeviceState(queryCapturedMessages))
+    const deviceState = buildDeviceState(queryCapturedMessages)
+    attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
 
     await waitFor(() => {
@@ -456,7 +547,9 @@ describe('DrpdTimeStripInstrumentView', () => {
         }),
       ]
     })
-    renderTimestrip(buildDeviceState(queryCapturedMessages))
+    const deviceState = buildDeviceState(queryCapturedMessages)
+    attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
     setViewportGeometry(viewport)
 
@@ -474,7 +567,14 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
     expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
-    expect((viewport.scrollLeft + pointerX) * 50_000_000).toBeCloseTo(timestampUnderPointerBeforeNs, 2)
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 350, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
   })
 
   it('pauses live follow on manual scroll and resumes from Follow live', async () => {

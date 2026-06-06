@@ -1,50 +1,12 @@
 import { scrollLeftPxToWorldNs } from './timestripCoordinates'
+export {
+  clampTimestripZoomDenominator,
+  formatTimestripZoomDenominator,
+} from './timestripZoom'
+import { clampTimestripZoomDenominator } from './timestripZoom'
 
-const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 500
-const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 100_000_000
 export const TIMESTRIP_TILE_WIDTH_PX = 512
 export const TIMESTRIP_TILE_OVERSCAN = 1
-
-/**
- * Clamp a user-provided timestrip zoom denominator into the supported range.
- *
- * @param value - Candidate denominator.
- * @returns Integer denominator from 500 to 100,000,000.
- */
-export const clampTimestripZoomDenominator = (value: number | string): number => {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed)) {
-    return MAX_TIMESTRIP_ZOOM_DENOMINATOR
-  }
-  return Math.min(
-    MAX_TIMESTRIP_ZOOM_DENOMINATOR,
-    Math.max(MIN_TIMESTRIP_ZOOM_DENOMINATOR, Math.trunc(parsed)),
-  )
-}
-
-const formatCompactDecimal = (value: number): string => {
-  if (Number.isInteger(value)) {
-    return value.toString()
-  }
-  return value.toFixed(3).replace(/\.?0+$/, '')
-}
-
-/**
- * Format the current zoom denominator as time per CSS pixel.
- *
- * @param value - Nanoseconds-per-CSS-pixel denominator.
- * @returns Compact zoom label, e.g. `500ns`, `1µs`, `1ms`, or `100ms`.
- */
-export const formatTimestripZoomDenominator = (value: number | string): string => {
-  const denominator = clampTimestripZoomDenominator(value)
-  if (denominator < 1000) {
-    return `${denominator}ns`
-  }
-  if (denominator < 1_000_000) {
-    return `${formatCompactDecimal(denominator / 1000)}µs`
-  }
-  return `${formatCompactDecimal(denominator / 1_000_000)}ms`
-}
 
 /**
  * Calculate the timeline container width for a capture duration and zoom level.

@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { select, zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3'
 import {
   calculateTimestripWidthPx,
-  clampTimestripZoomDenominator,
-  formatTimestripZoomDenominator,
 } from './timestripLayout'
 import { calculatePointerStableZoom } from './timestripCoordinates'
+import {
+  calculateTimestripDomTimelineWidthPx,
+  calculateTimestripScrollScale,
+  clampTimestripLogicalScrollLeft,
+  clampTimestripZoomDenominator,
+  domScrollLeftToLogicalTimestripScrollLeft,
+  formatTimestripZoomDenominator,
+  getNextTimestripZoomDenominator,
+  logicalScrollLeftToDomTimestripScrollLeft,
+  MAX_TIMESTRIP_ZOOM_DENOMINATOR,
+  MIN_TIMESTRIP_ZOOM_DENOMINATOR,
+  readStoredTimestripZoomDenominator,
+  timestripZoomDenominatorToD3Scale,
+  writeStoredTimestripZoomDenominator,
+} from './timestripZoom'
 
-const DEFAULT_ZOOM_DENOMINATOR = 100_000_000
-const ZOOM_DENOMINATOR_STORAGE_KEY = 'drpd:timestrip:zoom-denominator'
-const CTRL_WHEEL_ZOOM_STEP = 2
-const MAX_DOM_TIMELINE_WIDTH_PX = 16_000_000
 const PROGRAMMATIC_SCROLL_GUARD_MS = 250
 
 export type TimestripNavigationReason =
@@ -26,54 +36,6 @@ export interface TimestripViewportOptions {
   minTailPaddingZoomDenominator?: number
 }
 
-const readStoredZoomDenominator = (): number => {
-  if (typeof window === 'undefined') {
-    return DEFAULT_ZOOM_DENOMINATOR
-  }
-  try {
-    const rawValue = window.localStorage.getItem(ZOOM_DENOMINATOR_STORAGE_KEY)
-    return rawValue == null ? DEFAULT_ZOOM_DENOMINATOR : clampTimestripZoomDenominator(rawValue)
-  } catch {
-    return DEFAULT_ZOOM_DENOMINATOR
-  }
-}
-
-const writeStoredZoomDenominator = (zoomDenominator: number): void => {
-  if (typeof window === 'undefined') {
-    return
-  }
-  try {
-    window.localStorage.setItem(ZOOM_DENOMINATOR_STORAGE_KEY, zoomDenominator.toString())
-  } catch {
-    // Ignore persistence errors; zoom still updates for the current session.
-  }
-}
-
-const calculateDomTimelineWidthPx = (timelineWidthPx: number, viewportWidthPx: number): number =>
-  Math.max(viewportWidthPx, Math.min(timelineWidthPx, MAX_DOM_TIMELINE_WIDTH_PX))
-
-const calculateScrollScale = (
-  timelineWidthPx: number,
-  domTimelineWidthPx: number,
-  viewportWidthPx: number,
-): number => {
-  const logicalScrollableWidth = Math.max(0, timelineWidthPx - viewportWidthPx)
-  const domScrollableWidth = Math.max(0, domTimelineWidthPx - viewportWidthPx)
-  if (logicalScrollableWidth <= 0 || domScrollableWidth <= 0) {
-    return 1
-  }
-  return logicalScrollableWidth / domScrollableWidth
-}
-
-const clampLogicalScrollLeft = (
-  logicalScrollLeftPx: number,
-  timelineWidthPx: number,
-  viewportWidthPx: number,
-): number => {
-  const maxLogicalScrollLeft = Math.max(0, timelineWidthPx - viewportWidthPx)
-  return Math.max(0, Math.min(maxLogicalScrollLeft, logicalScrollLeftPx))
-}
-
 export const useTimestripViewport = (
   viewportRef: RefObject<HTMLDivElement | null>,
   timelineDurationNs: bigint,
@@ -87,6 +49,12 @@ export const useTimestripViewport = (
   const scrollPublishFrameRef = useRef<number | null>(null)
   const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
   const pendingScrollLeftPxRef = useRef<number | null>(null)
+  const logicalScrollLeftRef = useRef(0)
+  const d3ZoomBehaviorRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null)
+  const isSyncingD3ZoomRef = useRef(false)
+  const zoomDenominatorRef = useRef<number | null>(null)
+  const hasLogicalScrollLeftRef = useRef(false)
+  const scrollScaleRef = useRef(1)
   const programmaticScrollReasonRef = useRef<TimestripNavigationReason | null>(null)
   const programmaticScrollTargetPxRef = useRef<number | null>(null)
   const recentProgrammaticScrollTargetsRef = useRef<Array<{
@@ -97,7 +65,10 @@ export const useTimestripViewport = (
   const [viewportWidthPx, setViewportWidthPx] = useState(0)
   const [viewportHeightPx, setViewportHeightPx] = useState(0)
   const [scrollLeftPx, setScrollLeftPx] = useState(0)
-  const [zoomDenominator, setZoomDenominator] = useState(readStoredZoomDenominator)
+  if (zoomDenominatorRef.current === null) {
+    zoomDenominatorRef.current = readStoredTimestripZoomDenominator()
+  }
+  const [zoomDenominator, setZoomDenominator] = useState(() => zoomDenominatorRef.current ?? readStoredTimestripZoomDenominator())
   const zoomReadout = formatTimestripZoomDenominator(zoomDenominator)
   const timelineContentWidthPx = calculateTimestripWidthPx(
     timelineDurationNs,
@@ -109,21 +80,25 @@ export const useTimestripViewport = (
       ? Math.max(0, viewportWidthPx * tailPaddingViewportFraction)
       : 0
   )
-  const domTimelineWidthPx = calculateDomTimelineWidthPx(timelineWidthPx, viewportWidthPx)
-  const scrollScale = calculateScrollScale(timelineWidthPx, domTimelineWidthPx, viewportWidthPx)
+  const domTimelineWidthPx = calculateTimestripDomTimelineWidthPx(timelineWidthPx, viewportWidthPx)
+  const scrollScale = calculateTimestripScrollScale(timelineWidthPx, domTimelineWidthPx, viewportWidthPx)
+  scrollScaleRef.current = scrollScale
   const domScrollLeftToLogical = useCallback((domScrollLeftPx: number): number =>
-    Math.max(0, domScrollLeftPx) * scrollScale,
-  [scrollScale])
+    domScrollLeftToLogicalTimestripScrollLeft(domScrollLeftPx, scrollScaleRef.current),
+  [])
   const logicalScrollLeftToDom = useCallback((logicalScrollLeftPx: number): number =>
-    Math.max(0, logicalScrollLeftPx) / scrollScale,
-  [scrollScale])
+    logicalScrollLeftToDomTimestripScrollLeft(logicalScrollLeftPx, scrollScaleRef.current),
+  [])
   const commitZoomDenominator = useCallback((value: number | string) => {
     const nextZoomDenominator = clampTimestripZoomDenominator(value)
-    writeStoredZoomDenominator(nextZoomDenominator)
+    zoomDenominatorRef.current = nextZoomDenominator
+    writeStoredTimestripZoomDenominator(nextZoomDenominator)
     setZoomDenominator(nextZoomDenominator)
   }, [])
   const publishScrollLeft = useCallback((logicalScrollLeftPx: number, immediate = false) => {
     const nextScrollLeftPx = Math.max(0, logicalScrollLeftPx)
+    logicalScrollLeftRef.current = nextScrollLeftPx
+    hasLogicalScrollLeftRef.current = true
     if (immediate) {
       pendingScrollLeftPxRef.current = null
       if (scrollPublishFrameRef.current !== null) {
@@ -165,7 +140,12 @@ export const useTimestripViewport = (
       Math.abs(logicalScrollLeftPx - target.logicalScrollLeftPx) <= 1 ||
       Math.abs(domScrollLeftPx - target.domScrollLeftPx) <= 1
     ))
-    return expectedTarget?.logicalScrollLeftPx ?? null
+    if (expectedTarget) {
+      return expectedTarget.logicalScrollLeftPx
+    }
+    return programmaticScrollReasonRef.current === 'user-zoom'
+      ? programmaticScrollTargetPxRef.current
+      : null
   }, [])
   const markProgrammaticScroll = useCallback((
     logicalScrollLeftPx: number,
@@ -187,6 +167,8 @@ export const useTimestripViewport = (
     const viewport = viewportRef.current
     const nextScrollLeftPx = Math.max(0, logicalScrollLeftPx)
     if (!viewport) {
+      logicalScrollLeftRef.current = nextScrollLeftPx
+      hasLogicalScrollLeftRef.current = true
       setScrollLeftPx(nextScrollLeftPx)
       return
     }
@@ -196,6 +178,21 @@ export const useTimestripViewport = (
     onScrollLeftChanged?.(nextScrollLeftPx)
     publishScrollLeft(nextScrollLeftPx, true)
   }, [logicalScrollLeftToDom, markProgrammaticScroll, onScrollLeftChanged, publishScrollLeft, viewportRef])
+  const syncD3ZoomTransform = useCallback((viewport: HTMLDivElement, nextZoomDenominator: number) => {
+    const behavior = d3ZoomBehaviorRef.current
+    if (!behavior) {
+      return
+    }
+    isSyncingD3ZoomRef.current = true
+    try {
+      select(viewport).call(
+        behavior.transform,
+        zoomIdentity.scale(timestripZoomDenominatorToD3Scale(nextZoomDenominator)),
+      )
+    } finally {
+      isSyncingD3ZoomRef.current = false
+    }
+  }, [])
 
   useEffect(() => () => {
     if (programmaticScrollClearTimeoutRef.current !== null) {
@@ -238,59 +235,128 @@ export const useTimestripViewport = (
       return undefined
     }
 
-    const handleViewportWheel = (event: WheelEvent) => {
-      if (event.ctrlKey) {
-        event.preventDefault()
-        onUserNavigation?.('user-zoom')
-        const direction = event.deltaY < 0 ? -1 : 1
-        const scale = direction < 0 ? 1 / CTRL_WHEEL_ZOOM_STEP : CTRL_WHEEL_ZOOM_STEP
-        const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
-        const viewportRect = viewport.getBoundingClientRect()
-        const effectiveViewportWidthPx = viewportWidthPx || Math.max(0, Math.floor(viewport.clientWidth))
-        const pointerX = Math.max(0, Math.min(effectiveViewportWidthPx, event.clientX - viewportRect.left))
-        const logicalScrollLeftPx = domScrollLeftToLogical(viewport.scrollLeft)
-        const nextUnclampedScrollLeft = calculatePointerStableZoom({
-          currentScrollLeftPx: logicalScrollLeftPx,
-          pointerX,
-          currentZoomDenominator: zoomDenominator,
-          nextZoomDenominator,
-        })
-        const nextTimelineWidthPx = calculateTimestripWidthPx(
-          timelineDurationNs,
-          nextZoomDenominator,
-          effectiveViewportWidthPx,
-        ) + (
-          nextZoomDenominator >= minTailPaddingZoomDenominator
-            ? Math.max(0, effectiveViewportWidthPx * tailPaddingViewportFraction)
-            : 0
-        )
-        const nextDomTimelineWidthPx = calculateDomTimelineWidthPx(nextTimelineWidthPx, effectiveViewportWidthPx)
-        const nextScrollScale = calculateScrollScale(
-          nextTimelineWidthPx,
-          nextDomTimelineWidthPx,
-          effectiveViewportWidthPx,
-        )
-        const nextScrollLeft = clampLogicalScrollLeft(
-          nextUnclampedScrollLeft,
-          nextTimelineWidthPx,
-          effectiveViewportWidthPx,
-        )
-        const nextDomScrollLeft = nextScrollLeft / nextScrollScale
-        markProgrammaticScroll(nextScrollLeft, nextDomScrollLeft, 'user-zoom')
-        commitZoomDenominator(nextZoomDenominator)
-        viewport.scrollLeft = nextDomScrollLeft
-        onScrollLeftChanged?.(nextScrollLeft)
-        publishScrollLeft(nextScrollLeft, true)
+    const handleD3Zoom = (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
+      if (isSyncingD3ZoomRef.current) {
         return
       }
+      const sourceEvent = event.sourceEvent
+      if (!(sourceEvent instanceof WheelEvent) || !sourceEvent.ctrlKey) {
+        return
+      }
+      onUserNavigation?.('user-zoom')
+      const currentZoomDenominator = zoomDenominatorRef.current ?? zoomDenominator
+      const nextZoomDenominator = getNextTimestripZoomDenominator(
+        currentZoomDenominator,
+        sourceEvent.deltaY < 0 ? 'in' : 'out',
+      )
+      const viewportRect = viewport.getBoundingClientRect()
+      const effectiveViewportWidthPx = viewportWidthPx || Math.max(0, Math.floor(viewport.clientWidth))
+      const pointerX = Math.max(0, Math.min(effectiveViewportWidthPx, sourceEvent.clientX - viewportRect.left))
+      const domLogicalScrollLeftPx = domScrollLeftToLogical(viewport.scrollLeft)
+      const logicalScrollLeftPx = hasLogicalScrollLeftRef.current
+        ? logicalScrollLeftRef.current
+        : domLogicalScrollLeftPx
+      const nextUnclampedScrollLeft = calculatePointerStableZoom({
+        currentScrollLeftPx: logicalScrollLeftPx,
+        pointerX,
+        currentZoomDenominator,
+        nextZoomDenominator,
+      })
+      const nextTimelineWidthPx = calculateTimestripWidthPx(
+        timelineDurationNs,
+        nextZoomDenominator,
+        effectiveViewportWidthPx,
+      ) + (
+        nextZoomDenominator >= minTailPaddingZoomDenominator
+          ? Math.max(0, effectiveViewportWidthPx * tailPaddingViewportFraction)
+          : 0
+      )
+      const nextDomTimelineWidthPx = calculateTimestripDomTimelineWidthPx(
+        nextTimelineWidthPx,
+        effectiveViewportWidthPx,
+      )
+      const nextScrollScale = calculateTimestripScrollScale(
+        nextTimelineWidthPx,
+        nextDomTimelineWidthPx,
+        effectiveViewportWidthPx,
+      )
+      const nextScrollLeft = clampTimestripLogicalScrollLeft(
+        nextUnclampedScrollLeft,
+        nextTimelineWidthPx,
+        effectiveViewportWidthPx,
+      )
+      const nextDomScrollLeft = logicalScrollLeftToDomTimestripScrollLeft(nextScrollLeft, nextScrollScale)
+      zoomDenominatorRef.current = nextZoomDenominator
+      scrollScaleRef.current = nextScrollScale
+      markProgrammaticScroll(nextScrollLeft, nextDomScrollLeft, 'user-zoom')
+      commitZoomDenominator(nextZoomDenominator)
+      syncD3ZoomTransform(viewport, nextZoomDenominator)
+      onScrollLeftChanged?.(nextScrollLeft)
+      publishScrollLeft(nextScrollLeft, true)
+    }
 
+    const behavior = zoom<HTMLDivElement, unknown>()
+      .filter((event: Event) => event instanceof WheelEvent && event.ctrlKey)
+      .scaleExtent([
+        timestripZoomDenominatorToD3Scale(MAX_TIMESTRIP_ZOOM_DENOMINATOR),
+        timestripZoomDenominatorToD3Scale(MIN_TIMESTRIP_ZOOM_DENOMINATOR),
+      ])
+      .wheelDelta((event: WheelEvent) => event.deltaY < 0 ? 1 : -1)
+      .on('zoom', handleD3Zoom)
+
+    d3ZoomBehaviorRef.current = behavior
+    const selection = select(viewport)
+    selection.call(behavior)
+    selection.on('dblclick.zoom', null)
+    syncD3ZoomTransform(viewport, zoomDenominator)
+
+    return () => {
+      selection.on('.zoom', null)
+      if (d3ZoomBehaviorRef.current === behavior) {
+        d3ZoomBehaviorRef.current = null
+      }
+    }
+  }, [
+    commitZoomDenominator,
+    domScrollLeftToLogical,
+    markProgrammaticScroll,
+    minTailPaddingZoomDenominator,
+    onUserNavigation,
+    onScrollLeftChanged,
+    publishScrollLeft,
+    syncD3ZoomTransform,
+    tailPaddingViewportFraction,
+    timelineDurationNs,
+    viewportRef,
+    viewportWidthPx,
+    zoomDenominator,
+  ])
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      return
+    }
+    syncD3ZoomTransform(viewport, zoomDenominator)
+  }, [syncD3ZoomTransform, viewportRef, zoomDenominator])
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    if (!viewport) {
+      return undefined
+    }
+
+    const handleViewportWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        return
+      }
       const scrollDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
       if (scrollDelta === 0 || viewport.scrollWidth <= viewport.clientWidth) {
         return
       }
       event.preventDefault()
       onUserNavigation?.('user-wheel')
-      const nextScrollLeft = Math.max(0, domScrollLeftToLogical(viewport.scrollLeft) + scrollDelta)
+      const nextScrollLeft = Math.max(0, logicalScrollLeftRef.current + scrollDelta)
       viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
       const committedScrollLeft = domScrollLeftToLogical(viewport.scrollLeft)
       onScrollLeftChanged?.(committedScrollLeft)
@@ -302,19 +368,12 @@ export const useTimestripViewport = (
       viewport.removeEventListener('wheel', handleViewportWheel)
     }
   }, [
-    commitZoomDenominator,
     domScrollLeftToLogical,
     logicalScrollLeftToDom,
-    markProgrammaticScroll,
-    minTailPaddingZoomDenominator,
     onUserNavigation,
     onScrollLeftChanged,
     publishScrollLeft,
-    tailPaddingViewportFraction,
-    timelineDurationNs,
     viewportRef,
-    viewportWidthPx,
-    zoomDenominator,
   ])
 
   useEffect(() => {
@@ -382,14 +441,17 @@ export const useTimestripViewport = (
     if (!viewport || viewportWidthPx <= 0) {
       return
     }
-    const nextLogicalScrollLeft = clampLogicalScrollLeft(scrollLeftPx, timelineWidthPx, viewportWidthPx)
+    const nextLogicalScrollLeft = clampTimestripLogicalScrollLeft(scrollLeftPx, timelineWidthPx, viewportWidthPx)
     const nextDomScrollLeft = logicalScrollLeftToDom(nextLogicalScrollLeft)
+    if (nextLogicalScrollLeft !== scrollLeftPx) {
+      publishScrollLeft(nextLogicalScrollLeft, true)
+    }
+    if (programmaticScrollReasonRef.current === 'user-zoom') {
+      return
+    }
     if (Math.abs(viewport.scrollLeft - nextDomScrollLeft) > 1) {
       markProgrammaticScroll(nextLogicalScrollLeft, nextDomScrollLeft, 'follow')
       viewport.scrollLeft = nextDomScrollLeft
-    }
-    if (nextLogicalScrollLeft !== scrollLeftPx) {
-      publishScrollLeft(nextLogicalScrollLeft, true)
     }
   }, [logicalScrollLeftToDom, markProgrammaticScroll, publishScrollLeft, scrollLeftPx, timelineWidthPx, viewportRef, viewportWidthPx])
 

@@ -401,6 +401,7 @@ export const DrpdTimeStripInstrumentView = ({
   const liveFollowFrameRef = useRef<number | null>(null)
   const liveFollowImmediateRef = useRef(true)
   const lastLiveFollowCommitMsRef = useRef(0)
+  const isLiveFollowPausedByUserRef = useRef(false)
   const scrollHoverUpdateRef = useRef<((logicalScrollLeftPx: number) => void) | null>(null)
   const analogBreakWorldNsRef = useRef<number[]>([])
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
@@ -424,6 +425,10 @@ export const DrpdTimeStripInstrumentView = ({
   const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
   const [isLiveFollowEnabled, setIsLiveFollowEnabled] = useState(true)
   const [isLiveFollowPausedByUser, setIsLiveFollowPausedByUser] = useState(false)
+  const setLiveFollowPausedByUser = useCallback((isPaused: boolean) => {
+    isLiveFollowPausedByUserRef.current = isPaused
+    setIsLiveFollowPausedByUser(isPaused)
+  }, [])
   const liveCaptureMarkerWorldNs =
     captureEnabled && timelineRange.basis.kind === 'wallClock'
       ? Number((BigInt(Math.floor(captureProgressWallClockUs)) - BigInt(Math.floor(timelineRange.basis.originWallClockUs))) * 1000n)
@@ -444,9 +449,13 @@ export const DrpdTimeStripInstrumentView = ({
         ))
   const handleTimestripUserNavigation = useCallback((reason: TimestripNavigationReason) => {
     if (reason === 'user-scroll' || reason === 'user-wheel' || reason === 'user-zoom') {
-      setIsLiveFollowPausedByUser(true)
+      setLiveFollowPausedByUser(true)
+      if (liveFollowFrameRef.current !== null) {
+        window.cancelAnimationFrame(liveFollowFrameRef.current)
+        liveFollowFrameRef.current = null
+      }
     }
-  }, [])
+  }, [setLiveFollowPausedByUser])
   const {
     viewportWidthPx,
     viewportHeightPx,
@@ -521,15 +530,15 @@ export const DrpdTimeStripInstrumentView = ({
     }
     liveFollowImmediateRef.current = true
     setIsLiveFollowEnabled(true)
-    setIsLiveFollowPausedByUser(false)
-  }, [isLiveFollowAvailable])
+    setLiveFollowPausedByUser(false)
+  }, [isLiveFollowAvailable, setLiveFollowPausedByUser])
   const handleLiveFollowControlClick = useCallback(() => {
     if (!isLiveFollowAvailable) {
       return
     }
     if (isLiveFollowing) {
       setIsLiveFollowEnabled(false)
-      setIsLiveFollowPausedByUser(false)
+      setLiveFollowPausedByUser(false)
       return
     }
     const driver = deviceState?.drpdDriver
@@ -662,14 +671,14 @@ export const DrpdTimeStripInstrumentView = ({
 
   useEffect(() => {
     if (selectedLogMessageKey) {
-      setIsLiveFollowPausedByUser(true)
+      setLiveFollowPausedByUser(true)
       return
     }
     if (isLiveFollowEnabled) {
       liveFollowImmediateRef.current = true
-      setIsLiveFollowPausedByUser(false)
+      setLiveFollowPausedByUser(false)
     }
-  }, [isLiveFollowEnabled, selectedLogMessageKey])
+  }, [isLiveFollowEnabled, selectedLogMessageKey, setLiveFollowPausedByUser])
 
   useEffect(() => {
     if (typeof MutationObserver === 'undefined') {
@@ -1037,7 +1046,7 @@ export const DrpdTimeStripInstrumentView = ({
 
     let isActive = true
     const tick = (timestampMs: number) => {
-      if (!isActive) {
+      if (!isActive || isLiveFollowPausedByUserRef.current) {
         return
       }
       const elapsedMs = timestampMs - lastLiveFollowCommitMsRef.current
