@@ -22,6 +22,7 @@ import {
 
 const PROGRAMMATIC_SCROLL_GUARD_MS = 250
 const WHEEL_SCROLLBAR_IDLE_SYNC_MS = 120
+const WHEEL_SCROLL_ANOMALY_LOGICAL_THRESHOLD_PX = 100
 
 export type TimestripNavigationReason =
   | 'follow'
@@ -57,6 +58,7 @@ export const useTimestripViewport = (
   const zoomDenominatorRef = useRef<number | null>(null)
   const hasLogicalScrollLeftRef = useRef(false)
   const scrollScaleRef = useRef(1)
+  const isWheelScrollingRef = useRef(false)
   const programmaticScrollReasonRef = useRef<TimestripNavigationReason | null>(null)
   const programmaticScrollTargetPxRef = useRef<number | null>(null)
   const recentProgrammaticScrollTargetsRef = useRef<Array<{
@@ -132,18 +134,22 @@ export const useTimestripViewport = (
       programmaticScrollReasonRef.current = null
       programmaticScrollTargetPxRef.current = null
       recentProgrammaticScrollTargetsRef.current = []
+      isWheelScrollingRef.current = false
     }, PROGRAMMATIC_SCROLL_GUARD_MS)
   }, [])
   const getExpectedProgrammaticScroll = useCallback((domScrollLeftPx: number, logicalScrollLeftPx: number): number | null => {
     if (programmaticScrollReasonRef.current === null) {
       return null
     }
-    const expectedTarget = recentProgrammaticScrollTargetsRef.current.find((target) => (
-      Math.abs(logicalScrollLeftPx - target.logicalScrollLeftPx) <= 1 ||
-      Math.abs(domScrollLeftPx - target.domScrollLeftPx) <= 1
-    ))
-    if (expectedTarget) {
-      return expectedTarget.logicalScrollLeftPx
+    const recentTargets = recentProgrammaticScrollTargetsRef.current
+    for (let index = recentTargets.length - 1; index >= 0; index -= 1) {
+      const target = recentTargets[index]
+      if (
+        Math.abs(logicalScrollLeftPx - target.logicalScrollLeftPx) <= 1 ||
+        Math.abs(domScrollLeftPx - target.domScrollLeftPx) <= 1
+      ) {
+        return target.logicalScrollLeftPx
+      }
     }
     return programmaticScrollReasonRef.current === 'user-zoom' || programmaticScrollReasonRef.current === 'user-wheel'
       ? programmaticScrollTargetPxRef.current
@@ -222,6 +228,20 @@ export const useTimestripViewport = (
       const convertedScrollLeftPx = domScrollLeftToLogical(domScrollLeftPx)
       const expectedProgrammaticScrollLeftPx = getExpectedProgrammaticScroll(domScrollLeftPx, convertedScrollLeftPx)
       const nextScrollLeftPx = expectedProgrammaticScrollLeftPx ?? convertedScrollLeftPx
+      const logicalRefBefore = logicalScrollLeftRef.current
+      const isWheelScrolling = isWheelScrollingRef.current
+      const deltaFromLogicalRef = convertedScrollLeftPx - logicalRefBefore
+      const candidateDeltaFromLogicalRef = nextScrollLeftPx - logicalRefBefore
+      if (
+        isWheelScrolling &&
+        (
+          expectedProgrammaticScrollLeftPx === null ||
+          Math.abs(deltaFromLogicalRef) > WHEEL_SCROLL_ANOMALY_LOGICAL_THRESHOLD_PX ||
+          Math.abs(candidateDeltaFromLogicalRef) > WHEEL_SCROLL_ANOMALY_LOGICAL_THRESHOLD_PX
+        )
+      ) {
+        return
+      }
       if (expectedProgrammaticScrollLeftPx === null) {
         onUserNavigation?.('user-scroll')
       }
@@ -233,7 +253,7 @@ export const useTimestripViewport = (
     return () => {
       viewport.removeEventListener('scroll', handleViewportScroll)
     }
-  }, [domScrollLeftToLogical, getExpectedProgrammaticScroll, onScrollLeftChanged, onUserNavigation, publishScrollLeft, viewportRef])
+  }, [domScrollLeftToLogical, domTimelineWidthPx, getExpectedProgrammaticScroll, onScrollLeftChanged, onUserNavigation, publishScrollLeft, timelineWidthPx, viewportRef, zoomDenominator])
 
   useEffect(() => {
     const viewport = viewportRef.current
@@ -362,12 +382,14 @@ export const useTimestripViewport = (
       }
       event.preventDefault()
       onUserNavigation?.('user-wheel')
+      const logicalBefore = logicalScrollLeftRef.current
       const nextScrollLeft = clampTimestripLogicalScrollLeft(
-        logicalScrollLeftRef.current + scrollDelta,
+        logicalBefore + scrollDelta,
         timelineWidthPx,
         viewportWidthPx,
       )
       const nextDomScrollLeft = logicalScrollLeftToDom(nextScrollLeft)
+      isWheelScrollingRef.current = true
       markProgrammaticScroll(nextScrollLeft, nextDomScrollLeft, 'user-wheel')
       onScrollLeftChanged?.(nextScrollLeft)
       publishScrollLeft(nextScrollLeft)
