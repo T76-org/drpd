@@ -9,6 +9,8 @@ const workerScope = self as unknown as {
   postMessage: (message: TimestripTileWorkerResponse, transfer: Transferable[]) => void
 }
 
+let reusableCanvas: OffscreenCanvas | null = null
+
 workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
   const message = event.data
   if (message.type !== 'renderTile') {
@@ -17,8 +19,10 @@ workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
 
   const width = Math.max(1, Math.ceil(message.tile.widthPx * message.dpr))
   const height = Math.max(1, Math.ceil(message.tile.heightPx * message.dpr))
-  const canvas = new OffscreenCanvas(width, height)
-  const context = canvas.getContext('2d')
+  if (!reusableCanvas || reusableCanvas.width !== width || reusableCanvas.height !== height) {
+    reusableCanvas = new OffscreenCanvas(width, height)
+  }
+  const context = reusableCanvas.getContext('2d')
   if (!context) {
     return
   }
@@ -32,9 +36,9 @@ workerScope.onmessage = (event: MessageEvent<TimestripTileWorkerRequest>) => {
     message.analogSamples,
     message.worldStartWallClockUs,
     message.selectedMessageKey,
-    message.captureMarkerWorldNs,
+    null,
   )
-  const bitmap = canvas.transferToImageBitmap()
+  const bitmap = reusableCanvas.transferToImageBitmap()
   const response: TimestripTileWorkerResponse = {
     type: 'tileRendered',
     requestId: message.requestId,

@@ -50,6 +50,18 @@ export interface LoggedAnalogSample {
 }
 
 /**
+ * First/latest rows needed to size timeline without issuing separate range probes.
+ */
+export interface DRPDLoggingTimeBounds {
+  firstAnalogSample: LoggedAnalogSample | null
+  lastAnalogSample: LoggedAnalogSample | null
+  firstDeviceMessage: LoggedCapturedMessage | null
+  lastDeviceMessage: LoggedCapturedMessage | null
+  firstWallClockMessage: LoggedCapturedMessage | null
+  lastWallClockMessage: LoggedCapturedMessage | null
+}
+
+/**
  * Logged entry kind stored in the captured message stream.
  */
 export type LoggedCapturedEntryKind = 'message' | 'event'
@@ -332,6 +344,11 @@ export interface DRPDLogStore {
    * @returns Matching rows.
    */
   queryCapturedMessages(query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]>
+
+  /**
+   * Return first/latest log rows used by timeline range sizing.
+   */
+  getTimeBounds?(): Promise<DRPDLoggingTimeBounds>
 
   /**
    * Export selected log data.

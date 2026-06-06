@@ -318,7 +318,7 @@ describe('DrpdTimeStripInstrumentView', () => {
       expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeInTheDocument()
     })
 
-    act(() => {
+    await act(async () => {
       eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
         detail: {
           kind: 'message',
@@ -329,6 +329,7 @@ describe('DrpdTimeStripInstrumentView', () => {
           }),
         },
       }))
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
     })
 
     await new Promise((resolve) => setTimeout(resolve, 50))

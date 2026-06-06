@@ -15,6 +15,7 @@ import type {
   CapturedMessageQuery,
   DRPDLogCounts,
   DRPDLogStore,
+  DRPDLoggingTimeBounds,
   DRPDLoggingDiagnostics,
   DRPDLoggingConfig,
   LogClearResult,
@@ -939,6 +940,69 @@ export class SQLiteWasmStore implements DRPDLogStore {
     })
     const pagedRows = offset > 0 ? mergedRows.slice(offset) : mergedRows
     return limit === null ? pagedRows : pagedRows.slice(0, limit)
+  }
+
+  /**
+   * Return first/latest rows needed to size the timeline.
+   *
+   * @returns Timeline range rows.
+   */
+  public async getTimeBounds(): Promise<DRPDLoggingTimeBounds> {
+    const [
+      firstAnalogRows,
+      lastAnalogRows,
+      firstDeviceRows,
+      lastDeviceRows,
+      firstWallClockRows,
+      lastWallClockRows,
+    ] = await Promise.all([
+      this.queryAnalogSamples({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'asc',
+        limit: 1,
+      }),
+      this.queryAnalogSamples({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'desc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'asc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'desc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        timeBasis: 'wallClock',
+        sortOrder: 'asc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        timeBasis: 'wallClock',
+        sortOrder: 'desc',
+        limit: 1,
+      }),
+    ])
+    return {
+      firstAnalogSample: firstAnalogRows[0] ?? null,
+      lastAnalogSample: lastAnalogRows[0] ?? null,
+      firstDeviceMessage: firstDeviceRows[0] ?? null,
+      lastDeviceMessage: lastDeviceRows[0] ?? null,
+      firstWallClockMessage: firstWallClockRows[0] ?? null,
+      lastWallClockMessage: lastWallClockRows[0] ?? null,
+    }
   }
 
   /**

@@ -485,7 +485,7 @@ describe('TimestripTiledRenderer', () => {
     renderer.dispose()
   })
 
-  it('requests replacement tiles when the capture marker changes', () => {
+  it('does not request replacement tiles when external capture marker overlay moves', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
       () => buildCanvasContext() as unknown as CanvasRenderingContext2D,
     )
@@ -508,16 +508,11 @@ describe('TimestripTiledRenderer', () => {
 
     renderer.setViewport({
       ...buildViewport(1000),
-      captureMarkerWorldNs: 120_000,
+      scrollLeftPx: 0,
     })
     frameCallbacks.shift()?.(16)
 
-    const replacementRequest = worker.postMessage.mock.calls
-      .slice(requestCount)
-      .map((call) => call[0])
-      .find((request) => request.tile.key === 'z1000:0:0')
-    expect(worker.postMessage.mock.calls.length).toBeGreaterThan(requestCount)
-    expect(replacementRequest?.captureMarkerWorldNs).toBe(120_000)
+    expect(worker.postMessage.mock.calls.length).toBe(requestCount)
 
     renderer.dispose()
   })

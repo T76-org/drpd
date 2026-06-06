@@ -40,6 +40,17 @@
   contain: strict;
 }
 
+.captureMarkerOverlay {
+  grid-area: 1 / 1;
+  position: sticky;
+  left: 0;
+  width: 1px;
+  background: var(--color-accent-primary);
+  opacity: 0.92;
+  pointer-events: none;
+  z-index: 2;
+}
+
 .timeline {
   grid-area: 1 / 1;
   height: 100%;

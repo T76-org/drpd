@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
 import {
   buildCapturedLogSelectionKey,
   DRPDDevice,
@@ -27,6 +26,7 @@ import {
   type TimestripAnalogSample,
 } from './timestrip/timestripAnalogModel'
 import { buildTimestripAnalogLegendTicks } from './timestrip/timestripAnalogLegend'
+import { buildTimestripLaneLayout } from './timestrip/timestripLaneLayout'
 import {
   basisTimestampUsToWorldNs,
   calculateTimestripQueryRange,
@@ -59,31 +59,6 @@ const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
   themeName,
   typeof window === 'undefined' ? undefined : window.getComputedStyle(document.documentElement),
 )
-const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string =>
-  entries.map((entry) => {
-    if (entry.kind === 'event') {
-      return `e:${entry.worldNs}:${entry.eventType ?? ''}`
-    }
-    return [
-      'm',
-      entry.startWorldNs,
-      entry.endWorldNs,
-      entry.selectionKey,
-      entry.label,
-      entry.frameBytes.length,
-      entry.pulseWidthsNs.length,
-      entry.components.length,
-    ].join(':')
-  }).join('|')
-
-const buildAnalogSamplesSignature = (samples: TimestripAnalogSample[]): string =>
-  samples.map((sample) => [
-    sample.worldNs,
-    sample.voltageV,
-    sample.currentA,
-    sample.breakBefore ? 'b' : '',
-  ].join(':')).join('|')
-
 const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
   `${value.toFixed(unit === 'V' ? 2 : 3)}${unit}`
 
@@ -243,6 +218,56 @@ const applyAnalogBreaks = (
   })
 }
 
+const getDigitalEntrySortWorldNs = (entry: TimestripDigitalEntry): number =>
+  entry.kind === 'event' ? entry.worldNs : entry.startWorldNs
+
+const insertDigitalEntrySorted = (
+  entries: TimestripDigitalEntry[],
+  entry: TimestripDigitalEntry,
+): TimestripDigitalEntry[] => {
+  const entryWorldNs = getDigitalEntrySortWorldNs(entry)
+  const lastEntry = entries.at(-1)
+  if (!lastEntry || getDigitalEntrySortWorldNs(lastEntry) <= entryWorldNs) {
+    return [...entries, entry]
+  }
+  const nextEntries = [...entries]
+  let low = 0
+  let high = nextEntries.length
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (getDigitalEntrySortWorldNs(nextEntries[mid]) <= entryWorldNs) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  nextEntries.splice(low, 0, entry)
+  return nextEntries
+}
+
+const insertAnalogSampleSorted = (
+  samples: TimestripAnalogSample[],
+  sample: TimestripAnalogSample,
+): TimestripAnalogSample[] => {
+  const lastSample = samples.at(-1)
+  if (!lastSample || lastSample.worldNs <= sample.worldNs) {
+    return [...samples, sample]
+  }
+  const nextSamples = [...samples]
+  let low = 0
+  let high = nextSamples.length
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (nextSamples[mid].worldNs <= sample.worldNs) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  nextSamples.splice(low, 0, sample)
+  return nextSamples
+}
+
 const getLatestLoggedDatumWorldNs = (
   rows: Array<LoggedCapturedMessage | LoggedAnalogSample | null | undefined>,
   basis: TimestripBasis,
@@ -376,8 +401,7 @@ export const DrpdTimeStripInstrumentView = ({
   const liveFollowFrameRef = useRef<number | null>(null)
   const liveFollowImmediateRef = useRef(true)
   const lastLiveFollowCommitMsRef = useRef(0)
-  const digitalEntriesSignatureRef = useRef('')
-  const analogSamplesSignatureRef = useRef('')
+  const scrollHoverUpdateRef = useRef<((logicalScrollLeftPx: number) => void) | null>(null)
   const analogBreakWorldNsRef = useRef<number[]>([])
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const analogQueryRangeRef = useRef<DigitalQueryRange | null>(null)
@@ -431,11 +455,12 @@ export const DrpdTimeStripInstrumentView = ({
     zoomReadout,
     timelineWidthPx,
     domTimelineWidthPx,
-    domScrollLeftToLogical,
     scrollToLogicalLeft,
-    handleViewportScroll: handleViewportScrollState,
   } = useTimestripViewport(viewportRef, viewportDurationNs, {
     onUserNavigation: handleTimestripUserNavigation,
+    onScrollLeftChanged: (nextScrollLeftPx) => {
+      scrollHoverUpdateRef.current?.(nextScrollLeftPx)
+    },
     tailPaddingViewportFraction:
       (captureMarkerWorldNs ?? latestDatumWorldNs) === null
         ? 0
@@ -479,20 +504,20 @@ export const DrpdTimeStripInstrumentView = ({
     zoomDenominator,
     analogSamples,
   })
-  const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const nextScrollLeftPx = domScrollLeftToLogical(event.currentTarget.scrollLeft)
-    handleViewportScrollState(event)
+  scrollHoverUpdateRef.current = (nextScrollLeftPx) => {
     const pointer = analogHoverPointerRef.current
-    if (pointer) {
-      flushSync(() => {
-        updateAnalogHoverAtViewportPoint(
-          pointer.x,
-          pointer.y,
-          nextScrollLeftPx,
-        )
-      })
+    if (!pointer) {
+      return
     }
-  }, [domScrollLeftToLogical, handleViewportScrollState, updateAnalogHoverAtViewportPoint])
+    updateAnalogHoverAtViewportPoint(pointer.x, pointer.y, nextScrollLeftPx)
+  }
+  useEffect(() => {
+    const pointer = analogHoverPointerRef.current
+    if (!pointer) {
+      return
+    }
+    updateAnalogHoverAtViewportPoint(pointer.x, pointer.y, scrollLeftPx)
+  }, [analogHoverPointerRef, scrollLeftPx, updateAnalogHoverAtViewportPoint])
   const resumeLiveFollow = useCallback(() => {
     if (!isLiveFollowAvailable) {
       return
@@ -614,11 +639,6 @@ export const DrpdTimeStripInstrumentView = ({
     nextEntries: TimestripDigitalEntry[],
     invalidation: TimestripInvalidation,
   ) => {
-    const nextSignature = buildDigitalEntriesSignature(nextEntries)
-    if (nextSignature === digitalEntriesSignatureRef.current) {
-      return
-    }
-    digitalEntriesSignatureRef.current = nextSignature
     queueTileInvalidation(invalidation)
     setDigitalEntries(nextEntries)
     setDigitalDataRevision((revision) => revision + 1)
@@ -627,11 +647,6 @@ export const DrpdTimeStripInstrumentView = ({
     nextSamples: TimestripAnalogSample[],
     invalidation: TimestripInvalidation,
   ) => {
-    const nextSignature = buildAnalogSamplesSignature(nextSamples)
-    if (nextSignature === analogSamplesSignatureRef.current) {
-      return
-    }
-    analogSamplesSignatureRef.current = nextSignature
     queueTileInvalidation(invalidation)
     setAnalogSamples(nextSamples)
     setAnalogDataRevision((revision) => revision + 1)
@@ -752,49 +767,73 @@ export const DrpdTimeStripInstrumentView = ({
     let isActive = true
     const refreshTimelineRange = async () => {
       try {
-        const [firstWallClockMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          timeBasis: 'wallClock',
-          sortOrder: 'asc',
-          limit: 1,
-        })
-        const [lastWallClockMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          timeBasis: 'wallClock',
-          sortOrder: 'desc',
-          limit: 1,
-        })
+        const canQueryTimeBounds =
+          'getLoggingTimeBounds' in driver &&
+          typeof driver.getLoggingTimeBounds === 'function'
+        const timeBounds = canQueryTimeBounds
+          ? await driver.getLoggingTimeBounds()
+          : null
         const canQueryAnalogSamples = typeof driver.queryAnalogSamples === 'function'
-        const [firstAnalogSample] = canQueryAnalogSamples
-          ? await driver.queryAnalogSamples({
-            startTimestampUs: LOG_START_TIMESTAMP_US,
-            endTimestampUs: LOG_END_TIMESTAMP_US,
-            sortOrder: 'asc',
-            limit: 1,
-          })
-          : [null]
-        const [lastAnalogSample] = canQueryAnalogSamples
-          ? await driver.queryAnalogSamples({
-            startTimestampUs: LOG_START_TIMESTAMP_US,
-            endTimestampUs: LOG_END_TIMESTAMP_US,
-            sortOrder: 'desc',
-            limit: 1,
-          })
-          : [null]
-        const [firstDeviceMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          sortOrder: 'asc',
-          limit: 1,
-        })
-        const [lastDeviceMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          sortOrder: 'desc',
-          limit: 1,
-        })
+        const [
+          firstWallClockMessage,
+          lastWallClockMessage,
+          firstAnalogSample,
+          lastAnalogSample,
+          firstDeviceMessage,
+          lastDeviceMessage,
+        ] = timeBounds
+          ? [
+              timeBounds.firstWallClockMessage,
+              timeBounds.lastWallClockMessage,
+              timeBounds.firstAnalogSample,
+              timeBounds.lastAnalogSample,
+              timeBounds.firstDeviceMessage,
+              timeBounds.lastDeviceMessage,
+            ]
+          : await Promise.all([
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                timeBasis: 'wallClock',
+                sortOrder: 'asc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                timeBasis: 'wallClock',
+                sortOrder: 'desc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+              canQueryAnalogSamples
+                ? driver.queryAnalogSamples({
+                    startTimestampUs: LOG_START_TIMESTAMP_US,
+                    endTimestampUs: LOG_END_TIMESTAMP_US,
+                    sortOrder: 'asc',
+                    limit: 1,
+                  }).then((rows) => rows[0] ?? null)
+                : Promise.resolve(null),
+              canQueryAnalogSamples
+                ? driver.queryAnalogSamples({
+                    startTimestampUs: LOG_START_TIMESTAMP_US,
+                    endTimestampUs: LOG_END_TIMESTAMP_US,
+                    sortOrder: 'desc',
+                    limit: 1,
+                  }).then((rows) => rows[0] ?? null)
+                : Promise.resolve(null),
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                sortOrder: 'asc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                sortOrder: 'desc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+            ])
         const candidatePoints = [
           firstWallClockMessage ? messageToTimelinePoint(firstWallClockMessage) : null,
           lastWallClockMessage ? messageToTimelinePoint(lastWallClockMessage) : null,
@@ -1237,16 +1276,16 @@ export const DrpdTimeStripInstrumentView = ({
       return undefined
     }
 
-    const handleAdded = (event: Event) => {
-      const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (detail?.kind !== 'message' && detail?.kind !== 'event' && detail?.kind !== 'analog') {
-        return
-      }
-      const row = detail.row as LoggedCapturedMessage | LoggedAnalogSample | undefined
-      if (!row) {
-        return
-      }
-
+    const pendingAddedRows: Array<{
+      kind: 'message' | 'event' | 'analog'
+      row: LoggedCapturedMessage | LoggedAnalogSample
+    }> = []
+    let pendingAddedFrame: number | null = null
+    const processAdded = (detail: {
+      kind: 'message' | 'event' | 'analog'
+      row: LoggedCapturedMessage | LoggedAnalogSample
+    }) => {
+      const row = detail.row
       const isAnalogRow = detail.kind === 'analog'
       const rowTimestampUs = isAnalogRow
         ? (row as LoggedAnalogSample).timestampUs
@@ -1348,7 +1387,7 @@ export const DrpdTimeStripInstrumentView = ({
           return
         }
         const nextSamples = applyAnalogBreaks(
-          [...analogSamples, sample].sort((left, right) => left.worldNs - right.worldNs),
+          insertAnalogSampleSorted(analogSamples, sample),
           analogBreakWorldNsRef.current,
         )
         commitAnalogSamples(nextSamples, {
@@ -1391,15 +1430,33 @@ export const DrpdTimeStripInstrumentView = ({
       if (!entry) {
         return
       }
-      const nextEntries = [...digitalEntries, entry].sort((left, right) => {
-        const leftWorldUs = left.kind === 'event' ? left.worldNs : left.startWorldNs
-        const rightWorldUs = right.kind === 'event' ? right.worldNs : right.startWorldNs
-        return leftWorldUs - rightWorldUs
-      })
+      const nextEntries = insertDigitalEntrySorted(digitalEntries, entry)
       commitDigitalEntries(nextEntries, {
         startWorldNs: rowWorldStartNs,
         endWorldNs: rowWorldEndNs,
       })
+    }
+    const flushAddedRows = () => {
+      pendingAddedFrame = null
+      const rows = pendingAddedRows.splice(0)
+      for (const detail of rows) {
+        processAdded(detail)
+      }
+    }
+    const handleAdded = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      if (detail?.kind !== 'message' && detail?.kind !== 'event' && detail?.kind !== 'analog') {
+        return
+      }
+      const row = detail.row as LoggedCapturedMessage | LoggedAnalogSample | undefined
+      if (!row) {
+        return
+      }
+      pendingAddedRows.push({ kind: detail.kind, row })
+      if (pendingAddedFrame !== null) {
+        return
+      }
+      pendingAddedFrame = window.requestAnimationFrame(flushAddedRows)
     }
 
     const handleDeleted = (event: Event) => {
@@ -1430,6 +1487,10 @@ export const DrpdTimeStripInstrumentView = ({
     driver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
     driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     return () => {
+      if (pendingAddedFrame !== null) {
+        window.cancelAnimationFrame(pendingAddedFrame)
+        flushAddedRows()
+      }
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     }
@@ -1461,7 +1522,6 @@ export const DrpdTimeStripInstrumentView = ({
       analogSamples,
       analogDataRevision,
       selectedMessageKey: selectedLogMessageKey,
-      captureMarkerWorldNs,
     })
     const invalidation = pendingTileInvalidationRef.current
     pendingTileInvalidationRef.current = null
@@ -1476,7 +1536,6 @@ export const DrpdTimeStripInstrumentView = ({
     analogDataRevision,
     analogSamples,
     selectedLogMessageKey,
-    captureMarkerWorldNs,
     scrollLeftPx,
     theme,
     timelineRange.basis.originWallClockUs,
@@ -1484,6 +1543,16 @@ export const DrpdTimeStripInstrumentView = ({
     viewportWidthPx,
     zoomDenominator,
   ])
+  const liveOverlayLayout = buildTimestripLaneLayout(viewportHeightPx)
+  const captureMarkerX =
+    captureMarkerWorldNs === null || viewportWidthPx <= 0
+      ? null
+      : captureMarkerWorldNs / zoomDenominator - scrollLeftPx
+  const shouldShowCaptureMarker =
+    captureMarkerX !== null &&
+    Number.isFinite(captureMarkerX) &&
+    captureMarkerX >= 0 &&
+    captureMarkerX <= viewportWidthPx
 
   return (
     <InstrumentBase
@@ -1539,7 +1608,6 @@ export const DrpdTimeStripInstrumentView = ({
           ref={viewportRef}
           className={styles.viewport}
           data-testid="drpd-timestrip-viewport"
-          onScroll={handleViewportScroll}
           onClick={selectClosestLogEntry}
           onMouseMove={updateAnalogHover}
           onMouseLeave={clearAnalogHover}
@@ -1555,6 +1623,17 @@ export const DrpdTimeStripInstrumentView = ({
               height: `${viewportHeightPx}px`,
             }}
           />
+          {shouldShowCaptureMarker ? (
+            <div
+              className={styles.captureMarkerOverlay}
+              data-testid="drpd-timestrip-capture-marker"
+              style={{
+                top: `${liveOverlayLayout.digital.y}px`,
+                height: `${liveOverlayLayout.analog.y + liveOverlayLayout.analog.height - liveOverlayLayout.digital.y}px`,
+                transform: `translate3d(${captureMarkerX}px, 0, 0)`,
+              }}
+            />
+          ) : null}
           <div
             className={styles.timeline}
             data-testid="drpd-timestrip-timeline"

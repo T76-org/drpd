@@ -12,7 +12,6 @@ export interface TimestripTileRenderRequest {
   digitalEntries: TimestripDigitalEntry[]
   analogSamples: TimestripAnalogSample[]
   selectedMessageKey: string | null
-  captureMarkerWorldNs: number | null
   generation: number
   worldStartWallClockUs: number
 }
