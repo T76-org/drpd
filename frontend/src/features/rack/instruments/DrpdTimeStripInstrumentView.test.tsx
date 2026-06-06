@@ -81,6 +81,22 @@ const buildDeviceState = (
     },
   }) as unknown as RackDeviceState
 
+const buildRangeDeviceState = (endTimestampUs: bigint): RackDeviceState => {
+  const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+    if (query.timeBasis === 'wallClock') {
+      return []
+    }
+    return [
+      buildCapturedMessage({
+        startTimestampUs: query.sortOrder === 'desc' ? endTimestampUs : 0n,
+        endTimestampUs: query.sortOrder === 'desc' ? endTimestampUs : 1_000n,
+        createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+      }),
+    ]
+  })
+  return buildDeviceState(queryCapturedMessages)
+}
+
 const buildCapturedMessage = (overrides: Partial<LoggedCapturedMessage> = {}): LoggedCapturedMessage => ({
   entryKind: 'message',
   eventType: null,
@@ -116,6 +132,23 @@ const buildAnalogSample = (overrides: Partial<LoggedAnalogSample> = {}): LoggedA
   createdAtMs: 1,
   ...overrides,
 })
+
+const setViewportGeometry = (viewport: HTMLElement, width = 500, left = 100) => {
+  Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: width })
+  Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
+  viewport.getBoundingClientRect = () =>
+    ({
+      left,
+      right: left + width,
+      top: 0,
+      bottom: 100,
+      width,
+      height: 100,
+      x: left,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+}
 
 const localStorageItems = new Map<string, string>()
 const localStorageMock = {
@@ -231,29 +264,157 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(viewport.scrollLeft).toBe(0)
   })
 
-  it('keeps the timestamp under the pointer stable during ctrl wheel zoom', () => {
-    renderTimestrip()
+  it('keeps the timestamp under the pointer stable during ctrl wheel zoom', async () => {
+    renderTimestrip(buildRangeDeviceState(2_000_000_000n))
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
-    Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
-    Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
-    viewport.scrollLeft = 5000
-    viewport.getBoundingClientRect = () =>
-      ({
-        left: 100,
-        right: 600,
-        top: 0,
-        bottom: 100,
-        width: 500,
-        height: 100,
-        x: 100,
-        y: 0,
-        toJSON: () => ({}),
-      }) as DOMRect
+    setViewportGeometry(viewport)
+    const pointerX = 150
 
-    fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '20000px',
+      })
+    })
+
+    viewport.scrollLeft = 5000
+    const timestampUnderPointerBeforeNs = (viewport.scrollLeft + pointerX) * 100_000_000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
 
     expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
-    expect(viewport.scrollLeft).toBeCloseTo(10150, 2)
+    expect((viewport.scrollLeft + pointerX) * 50_000_000).toBeCloseTo(timestampUnderPointerBeforeNs, 2)
+  })
+
+  it('keeps the timestamp under the pointer stable during ctrl wheel zoom out', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '50000000')
+    renderTimestrip(buildRangeDeviceState(2_000_000_000n))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    const pointerX = 320
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '40000px',
+      })
+    })
+
+    viewport.scrollLeft = 10_000
+    const timestampUnderPointerBeforeNs = (viewport.scrollLeft + pointerX) * 50_000_000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 420, deltaY: 240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
+    expect((viewport.scrollLeft + pointerX) * 100_000_000).toBeCloseTo(timestampUnderPointerBeforeNs, 2)
+  })
+
+  it('keeps ctrl wheel zoom pointer-stable when DOM scroll scaling is active', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    renderTimestrip(buildRangeDeviceState(100_000_000n))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    const pointerX = 250
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '16000000px',
+      })
+    })
+
+    viewport.scrollLeft = 4_000_000
+    const beforeScale = (100_000_000 - 500) / (16_000_000 - 500)
+    const timestampUnderPointerBeforeNs = (viewport.scrollLeft * beforeScale + pointerX) * 1000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 350, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    const afterScale = (200_000_000 - 500) / (16_000_000 - 500)
+    expect(screen.getByLabelText('Zoom 500ns per pixel')).toBeInTheDocument()
+    expect((viewport.scrollLeft * afterScale + pointerX) * 500).toBeCloseTo(timestampUnderPointerBeforeNs, 0)
+  })
+
+  it('does not publish stale DOM-scaled scroll when zoom crosses below 100µs', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '100000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: {
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (query.sortOrder) {
+        return [
+          buildCapturedMessage({
+            startTimestampUs: query.sortOrder === 'desc' ? 1_000_000_000n : 0n,
+            endTimestampUs: query.sortOrder === 'desc' ? 1_000_000_000n : 1_000n,
+            createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+          }),
+        ]
+      }
+      return []
+    })
+    const setLogSelectionState = vi.fn()
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        setLogSelectionState,
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '10000000px',
+      })
+    })
+    queryCapturedMessages.mockClear()
+    viewport.scrollLeft = 5_000_000
+
+    act(() => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 350, deltaY: -240 })
+      fireEvent.scroll(viewport)
+    })
+    await act(async () => {
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+    fireEvent.click(viewport, { clientX: 350, clientY: 60 })
+
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 500_025_000n,
+        limit: 1,
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('clamps ctrl wheel zoom at the left edge only when the pinned timestamp would need negative scroll', () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '50000000')
+    renderTimestrip()
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    viewport.scrollLeft = 0
+
+    act(() => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 450, deltaY: 240 })
+    })
+
+    expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
+    expect(viewport.scrollLeft).toBe(0)
   })
 
   it('follows the latest datum by default when no packet is selected', async () => {
@@ -278,6 +439,42 @@ describe('DrpdTimeStripInstrumentView', () => {
       expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
       expect(viewport.scrollLeft).toBe(1750)
     })
+  })
+
+  it('pauses live follow on ctrl wheel and keeps the pointer timestamp stable', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    renderTimestrip(buildDeviceState(queryCapturedMessages))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    const pointerX = 250
+    const timestampUnderPointerBeforeNs = (viewport.scrollLeft + pointerX) * 100_000_000
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 350, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
+    expect((viewport.scrollLeft + pointerX) * 50_000_000).toBeCloseTo(timestampUnderPointerBeforeNs, 2)
   })
 
   it('pauses live follow on manual scroll and resumes from Follow live', async () => {
