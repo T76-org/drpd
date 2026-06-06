@@ -486,9 +486,6 @@ export const DrpdTimeStripInstrumentView = ({
     !isLiveFollowPausedByUser &&
     !selectedLogMessageKey &&
     latestFollowTargetScrollLeftPx !== null
-  const hasNewerDataOffscreen =
-    latestFollowTargetScrollLeftPx !== null &&
-    Math.abs(scrollLeftPx - latestFollowTargetScrollLeftPx) > 1
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
   const {
     analogHover,
@@ -1575,8 +1572,6 @@ export const DrpdTimeStripInstrumentView = ({
               ? 'Following live'
               : !isLiveFollowEnabled
                 ? 'Follow live'
-                : hasNewerDataOffscreen
-                ? 'Jump to latest'
                 : 'Follow live'}
           </button>
           <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>

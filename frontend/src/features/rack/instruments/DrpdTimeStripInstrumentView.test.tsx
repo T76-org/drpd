@@ -280,7 +280,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
-  it('pauses live follow on manual scroll and resumes from Jump to latest', async () => {
+  it('pauses live follow on manual scroll and resumes from Follow live', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
     const eventTarget = new EventTarget()
@@ -315,7 +315,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     fireEvent.scroll(viewport)
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
     })
 
     await act(async () => {
@@ -335,7 +335,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(viewport.scrollLeft).toBe(0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Follow live' }))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
@@ -348,7 +348,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Following live' }))
   })
 
-  it('clears the selected message when Jump to latest resumes live follow', async () => {
+  it('clears the selected message when Follow live resumes live follow', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
     const eventTarget = new EventTarget()
@@ -426,11 +426,11 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
       expect(viewport.scrollLeft).toBe(350)
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Follow live' }))
 
     await waitFor(() => {
       expect(clearLogSelection).toHaveBeenCalledTimes(1)
