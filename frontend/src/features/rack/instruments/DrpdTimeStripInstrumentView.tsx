@@ -58,6 +58,7 @@ const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
   `${value.toFixed(unit === 'V' ? 2 : 3)}${unit}`
 
 type DigitalQueryRange = TimestripQueryRange
+type AnalogLoadedRange = TimestripQueryRange
 type TimelineRangePoint = {
   timestampUs: bigint
   wallClockUs: bigint | null
@@ -130,6 +131,116 @@ const getCaptureBreakWorldNs = (
   }
   const basisTimestampUs = getTimestripBasisTimestampUs(row.startTimestampUs, row.wallClockUs, basis)
   return basisTimestampUs === null ? null : basisTimestampUsToWorldNs(basisTimestampUs, basis)
+}
+
+const isRangeCoveredByLoadedRanges = (
+  range: TimestripQueryRange,
+  loadedRanges: AnalogLoadedRange[],
+): boolean => {
+  let coveredUntil: bigint | null = null
+  const relevantRanges = loadedRanges
+    .filter((loadedRange) => loadedRange.timeBasis === range.timeBasis)
+    .sort((left, right) => left.startTimestampUs < right.startTimestampUs ? -1 : left.startTimestampUs > right.startTimestampUs ? 1 : 0)
+  for (const loadedRange of relevantRanges) {
+    if (loadedRange.endTimestampUs < range.startTimestampUs) {
+      continue
+    }
+    if (loadedRange.startTimestampUs > range.endTimestampUs) {
+      break
+    }
+    if (coveredUntil === null) {
+      if (loadedRange.startTimestampUs > range.startTimestampUs) {
+        return false
+      }
+      coveredUntil = loadedRange.endTimestampUs
+    } else if (loadedRange.startTimestampUs > coveredUntil + 1n) {
+      return false
+    } else if (loadedRange.endTimestampUs > coveredUntil) {
+      coveredUntil = loadedRange.endTimestampUs
+    }
+    if (coveredUntil >= range.endTimestampUs) {
+      return true
+    }
+  }
+  return false
+}
+
+const isTimestampCoveredByLoadedRanges = (
+  timestampUs: bigint,
+  timeBasis: 'device' | 'wallClock',
+  loadedRanges: AnalogLoadedRange[],
+): boolean => loadedRanges.some((loadedRange) => (
+  loadedRange.timeBasis === timeBasis &&
+  timestampUs >= loadedRange.startTimestampUs &&
+  timestampUs <= loadedRange.endTimestampUs
+))
+
+const mergeLoadedAnalogRange = (
+  loadedRanges: AnalogLoadedRange[],
+  nextRange: AnalogLoadedRange | null,
+): AnalogLoadedRange[] => {
+  if (!nextRange) {
+    return loadedRanges
+  }
+  const ranges = [...loadedRanges, nextRange]
+    .filter((range) => range.timeBasis === nextRange.timeBasis)
+    .sort((left, right) => left.startTimestampUs < right.startTimestampUs ? -1 : left.startTimestampUs > right.startTimestampUs ? 1 : 0)
+  const merged: AnalogLoadedRange[] = []
+  for (const range of ranges) {
+    const previous = merged.at(-1)
+    if (!previous || range.startTimestampUs > previous.endTimestampUs + 1n) {
+      merged.push({ ...range })
+      continue
+    }
+    if (range.endTimestampUs > previous.endTimestampUs) {
+      previous.endTimestampUs = range.endTimestampUs
+    }
+  }
+  return [
+    ...loadedRanges.filter((range) => range.timeBasis !== nextRange.timeBasis),
+    ...merged,
+  ]
+}
+
+const mergeTimestripAnalogSamples = (
+  currentSamples: TimestripAnalogSample[],
+  nextSamples: TimestripAnalogSample[],
+): TimestripAnalogSample[] => {
+  const byWorldNs = new Map<number, TimestripAnalogSample>()
+  for (const sample of currentSamples) {
+    byWorldNs.set(sample.worldNs, { ...sample, breakBefore: false })
+  }
+  for (const sample of nextSamples) {
+    byWorldNs.set(sample.worldNs, { ...sample, breakBefore: false })
+  }
+  return Array.from(byWorldNs.values()).sort((left, right) => left.worldNs - right.worldNs)
+}
+
+const mergeWorldNsValues = (current: number[], next: number[]): number[] =>
+  Array.from(new Set([...current, ...next])).sort((left, right) => left - right)
+
+const getAnalogCoveredRange = (
+  requestedRange: TimestripQueryRange,
+  visibleRows: LoggedAnalogSample[],
+  hitLimit: boolean,
+  usesWallClockBasis: boolean,
+): AnalogLoadedRange | null => {
+  if (visibleRows.length === 0) {
+    return requestedRange
+  }
+  const timestamps = visibleRows.flatMap((row) => {
+    const timestampUs = getAnalogSampleBasisTimestampUs(row, usesWallClockBasis)
+    return timestampUs === null ? [] : [timestampUs]
+  })
+  if (timestamps.length === 0) {
+    return null
+  }
+  const lastTimestampUs = timestamps.at(-1)!
+  return {
+    ...requestedRange,
+    startTimestampUs: requestedRange.startTimestampUs,
+    endTimestampUs: hitLimit ? lastTimestampUs : requestedRange.endTimestampUs,
+  }
 }
 
 const getAnalogSampleBasisTimestampUs = (
@@ -360,7 +471,7 @@ export const DrpdTimeStripInstrumentView = ({
   const scrollHoverUpdateRef = useRef<((logicalScrollLeftPx: number) => void) | null>(null)
   const analogBreakWorldNsRef = useRef<number[]>([])
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
-  const analogQueryRangeRef = useRef<DigitalQueryRange | null>(null)
+  const analogLoadedRangesRef = useRef<AnalogLoadedRange[]>([])
   const [timelineRange, setTimelineRange] = useState<TimestripTimelineRange>(() => ({
     basis: buildTimelineBasis(0n, Date.now() * 1000, false),
     durationNs: PLACEHOLDER_TIMELINE_END_NS,
@@ -375,6 +486,7 @@ export const DrpdTimeStripInstrumentView = ({
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
   const [digitalDataRevision, setDigitalDataRevision] = useState(0)
   const [analogSamples, setAnalogSamples] = useState<TimestripAnalogSample[]>([])
+  const analogSamplesRef = useRef<TimestripAnalogSample[]>([])
   const [analogDataRevision, setAnalogDataRevision] = useState(0)
   const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
   const [isLiveFollowEnabled, setIsLiveFollowEnabled] = useState(true)
@@ -590,6 +702,7 @@ export const DrpdTimeStripInstrumentView = ({
     setDigitalDataRevision((revision) => revision + 1)
   }, [])
   const commitAnalogSamples = useCallback((nextSamples: TimestripAnalogSample[]) => {
+    analogSamplesRef.current = nextSamples
     setAnalogSamples(nextSamples)
     setAnalogDataRevision((revision) => revision + 1)
   }, [])
@@ -1091,7 +1204,7 @@ export const DrpdTimeStripInstrumentView = ({
   useEffect(() => {
     const driver = deviceState?.drpdDriver
     if (!driver || typeof driver.queryAnalogSamples !== 'function' || viewportWidthPx <= 0) {
-      analogQueryRangeRef.current = null
+      analogLoadedRangesRef.current = []
       commitAnalogSamples([])
       return undefined
     }
@@ -1105,12 +1218,7 @@ export const DrpdTimeStripInstrumentView = ({
         timelineRange.basis,
         ANALOG_QUERY_OVERSCAN_PX,
       )
-      const loadedRange = analogQueryRangeRef.current
-      if (
-        loadedRange &&
-        range.startTimestampUs >= loadedRange.startTimestampUs &&
-        range.endTimestampUs <= loadedRange.endTimestampUs
-      ) {
+      if (isRangeCoveredByLoadedRanges(range, analogLoadedRangesRef.current)) {
         return
       }
       try {
@@ -1144,7 +1252,16 @@ export const DrpdTimeStripInstrumentView = ({
         if (!isActive) {
           return
         }
-        analogQueryRangeRef.current = range
+        const coveredRange = getAnalogCoveredRange(
+          range,
+          visibleRows,
+          visibleRows.length >= ANALOG_QUERY_LIMIT,
+          timelineRange.basis.kind === 'wallClock',
+        )
+        analogLoadedRangesRef.current = mergeLoadedAnalogRange(
+          analogLoadedRangesRef.current,
+          coveredRange,
+        )
         const mergedAnalogRows = mergeAnalogSampleRows(
           [...previousRows, ...visibleRows, ...nextRows],
           timelineRange.basis.kind === 'wallClock',
@@ -1170,8 +1287,8 @@ export const DrpdTimeStripInstrumentView = ({
           const worldNs = getCaptureBreakWorldNs(row, timelineRange.basis)
           return worldNs === null || !Number.isFinite(worldNs) ? [] : [worldNs]
         })
-        analogBreakWorldNsRef.current = breakWorldNs
-        const nextSamples = applyAnalogBreaks(mergedAnalogRows.flatMap((row) => {
+        analogBreakWorldNsRef.current = mergeWorldNsValues(analogBreakWorldNsRef.current, breakWorldNs)
+        const queriedSamples = mergedAnalogRows.flatMap((row) => {
           const sample = normalizeAnalogSampleForTimestrip(
             row,
             timelineRange.basis.originTimestampUs,
@@ -1180,7 +1297,11 @@ export const DrpdTimeStripInstrumentView = ({
               : undefined,
           )
           return sample ? [sample] : []
-        }), breakWorldNs)
+        })
+        const nextSamples = applyAnalogBreaks(
+          mergeTimestripAnalogSamples(analogSamplesRef.current, queriedSamples),
+          analogBreakWorldNsRef.current,
+        )
         commitAnalogSamples(nextSamples)
       } catch {
         // Keep the last rendered samples when the log store is temporarily unavailable.
@@ -1235,7 +1356,7 @@ export const DrpdTimeStripInstrumentView = ({
       const rowWorldEndNs = rowWorldStartNs + rowDurationNs
       if (!hasLogTimelineRange) {
         digitalQueryRangeRef.current = null
-        analogQueryRangeRef.current = null
+        analogLoadedRangesRef.current = []
         analogBreakWorldNsRef.current = []
         commitDigitalEntries([])
         commitAnalogSamples([])
@@ -1266,7 +1387,7 @@ export const DrpdTimeStripInstrumentView = ({
         }
         if (rowStartBasisUs < currentStartBasisUs) {
           digitalQueryRangeRef.current = null
-          analogQueryRangeRef.current = null
+          analogLoadedRangesRef.current = []
           analogBreakWorldNsRef.current = []
           commitDigitalEntries([])
           commitAnalogSamples([])
@@ -1297,14 +1418,13 @@ export const DrpdTimeStripInstrumentView = ({
 
       if (isAnalogRow) {
         const analogRow = row as LoggedAnalogSample
-        const loadedRange = analogQueryRangeRef.current
+        const sampleBasisTimestampUs = getAnalogSampleBasisTimestampUs(analogRow, timelineRange.basis.kind === 'wallClock')
+        const sampleTimeBasis = timelineRange.basis.kind === 'wallClock' ? 'wallClock' : 'device'
         if (
           !hasLogTimelineRange ||
-          !loadedRange ||
+          sampleBasisTimestampUs === null ||
           (timelineRange.basis.kind === 'wallClock' && analogRow.wallClockUs == null) ||
-          (timelineRange.basis.kind === 'wallClock'
-            ? analogRow.wallClockUs! < loadedRange.startTimestampUs || analogRow.wallClockUs! > loadedRange.endTimestampUs
-            : analogRow.timestampUs < loadedRange.startTimestampUs || analogRow.timestampUs > loadedRange.endTimestampUs)
+          !isTimestampCoveredByLoadedRanges(sampleBasisTimestampUs, sampleTimeBasis, analogLoadedRangesRef.current)
         ) {
           return
         }
@@ -1393,7 +1513,7 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       digitalQueryRangeRef.current = null
-      analogQueryRangeRef.current = null
+      analogLoadedRangesRef.current = []
       analogBreakWorldNsRef.current = []
       setLatestDatumWorldNs(null)
       commitDigitalEntries([])

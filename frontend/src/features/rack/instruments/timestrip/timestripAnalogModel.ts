@@ -16,6 +16,32 @@ export interface TimestripAnalogHoverValue {
 export const TIMESTRIP_ANALOG_VOLTAGE_MAX_V = 60
 export const TIMESTRIP_ANALOG_CURRENT_MAX_A = 6
 
+export const filterTimestripAnalogSamplesForViewport = (
+  samples: TimestripAnalogSample[],
+  viewportLeftNs: number,
+  viewportRightNs: number,
+): TimestripAnalogSample[] => {
+  const visibleSamples: TimestripAnalogSample[] = []
+  let previousSample: TimestripAnalogSample | null = null
+  let nextSample: TimestripAnalogSample | null = null
+  for (const sample of samples) {
+    if (sample.worldNs < viewportLeftNs) {
+      previousSample = sample
+      continue
+    }
+    if (sample.worldNs > viewportRightNs) {
+      nextSample = sample
+      break
+    }
+    visibleSamples.push(sample)
+  }
+  return [
+    ...(previousSample ? [previousSample] : []),
+    ...visibleSamples,
+    ...(nextSample ? [nextSample] : []),
+  ]
+}
+
 export const interpolateTimestripAnalogSample = (
   samples: TimestripAnalogSample[],
   worldNs: number,

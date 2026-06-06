@@ -34,6 +34,9 @@ const drawTrace = (
   const firstSample = samples[0]
   context.save()
   context.beginPath()
+  context.rect(0, layout.analog.y, options.widthPx ?? 0, layout.analog.height)
+  context.clip()
+  context.beginPath()
   context.lineCap = 'round'
   if (firstSample.worldNs >= options.worldLeftNs && !firstSample.breakBefore) {
     const y = top + (1 - clamp01(readValue(firstSample) / maxValue)) * height

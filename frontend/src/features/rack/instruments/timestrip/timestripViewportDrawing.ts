@@ -4,7 +4,10 @@ import { drawTimeAxisLane } from './TimeAxisLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
 import type { TimestripThemePalette } from './timestripTheme'
 import type { TimestripDigitalEntry } from './timestripDigitalModel'
-import type { TimestripAnalogSample } from './timestripAnalogModel'
+import {
+  filterTimestripAnalogSamplesForViewport,
+  type TimestripAnalogSample,
+} from './timestripAnalogModel'
 
 export interface TimestripViewportDrawRegion {
   worldLeftNs: number
@@ -51,10 +54,15 @@ export const drawTimestripViewport = (
     entries: digitalEntries,
     selectedMessageKey,
   })
+  const analogViewportSamples = filterTimestripAnalogSamplesForViewport(
+    analogSamples,
+    viewport.worldLeftNs,
+    viewport.worldLeftNs + width * viewport.zoomDenominator,
+  )
   drawAnalogTraceLane(context, layout, width, theme, {
     worldLeftNs: viewport.worldLeftNs,
     zoomDenominator: viewport.zoomDenominator,
-    samples: analogSamples,
+    samples: analogViewportSamples,
   })
   drawCaptureMarker(context, layout, width, theme, {
     worldLeftNs: viewport.worldLeftNs,
