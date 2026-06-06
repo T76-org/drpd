@@ -86,7 +86,7 @@ const drawAnalogGridLines = (
  *
  * @param context - Canvas 2D context.
  * @param layout - Lane layout.
- * @param widthPx - Tile width in CSS pixels.
+ * @param widthPx - Viewport width in CSS pixels.
  */
 export const drawAnalogTraceLane = (
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,

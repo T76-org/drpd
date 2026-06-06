@@ -28,7 +28,7 @@
   overflow-y: hidden;
 }
 
-.tileLayer {
+.canvasLayer {
   grid-area: 1 / 1;
   position: sticky;
   left: 0;

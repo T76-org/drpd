@@ -1,6 +1,6 @@
 export const DEFAULT_TIMESTRIP_ZOOM_DENOMINATOR = 100_000_000
 export const MIN_TIMESTRIP_ZOOM_DENOMINATOR = 500
-export const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 100_000_000
+export const MAX_TIMESTRIP_ZOOM_DENOMINATOR = 400_000_000
 export const TIMESTRIP_ZOOM_DENOMINATOR_STORAGE_KEY = 'drpd:timestrip:zoom-denominator'
 export const MAX_TIMESTRIP_DOM_TIMELINE_WIDTH_PX = 16_000_000
 export const TIMESTRIP_ZOOM_DENOMINATOR_LEVELS = [
@@ -21,6 +21,8 @@ export const TIMESTRIP_ZOOM_DENOMINATOR_LEVELS = [
   20_000_000,
   50_000_000,
   100_000_000,
+  200_000_000,
+  400_000_000,
 ] as const
 
 export type TimestripZoomDirection = 'in' | 'out'
@@ -29,7 +31,7 @@ export type TimestripZoomDirection = 'in' | 'out'
  * Clamp a user-provided timestrip zoom denominator into the supported range.
  *
  * @param value - Candidate denominator.
- * @returns Integer denominator from 500 to 100,000,000.
+ * @returns Integer denominator from 500 to 400,000,000.
  */
 export const clampTimestripZoomDenominator = (value: number | string): number => {
   const parsed = typeof value === 'number' ? value : Number(value)
@@ -53,7 +55,7 @@ const formatCompactDecimal = (value: number): string => {
  * Format the current zoom denominator as time per CSS pixel.
  *
  * @param value - Nanoseconds-per-CSS-pixel denominator.
- * @returns Compact zoom label, e.g. `500ns`, `1µs`, `1ms`, or `100ms`.
+ * @returns Compact zoom label, e.g. `500ns`, `1µs`, `1ms`, or `400ms`.
  */
 export const formatTimestripZoomDenominator = (value: number | string): string => {
   const denominator = clampTimestripZoomDenominator(value)

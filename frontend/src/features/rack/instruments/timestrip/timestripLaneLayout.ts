@@ -27,12 +27,12 @@ const DIGITAL_LANE_HEIGHT_PX = 86
 /**
  * Build fixed-lane timestrip layout in CSS pixels.
  *
- * @param tileHeightPx - Tile height in CSS pixels.
+ * @param viewportHeightPx - Viewport height in CSS pixels.
  * @returns Lane layout.
  */
-export const buildTimestripLaneLayout = (tileHeightPx: number): TimestripLaneLayout => {
+export const buildTimestripLaneLayout = (viewportHeightPx: number): TimestripLaneLayout => {
   const minimumHeight = TIME_AXIS_HEIGHT_PX + SEPARATOR_HEIGHT_PX * 2 + DIGITAL_LANE_HEIGHT_PX + 1
-  const height = Math.max(minimumHeight, tileHeightPx)
+  const height = Math.max(minimumHeight, viewportHeightPx)
   const digitalHeight = DIGITAL_LANE_HEIGHT_PX
   const analogHeight = Math.max(1, height - TIME_AXIS_HEIGHT_PX - SEPARATOR_HEIGHT_PX * 2 - digitalHeight)
   const digitalY = TIME_AXIS_HEIGHT_PX + SEPARATOR_HEIGHT_PX

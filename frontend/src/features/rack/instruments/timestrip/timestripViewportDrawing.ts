@@ -1,4 +1,3 @@
-import type { TimestripVisibleTile } from './timestripLayout'
 import { drawAnalogTraceLane } from './AnalogTraceLane'
 import { drawDigitalTraceLane } from './DigitalTraceLane'
 import { drawTimeAxisLane } from './TimeAxisLane'
@@ -7,17 +6,19 @@ import type { TimestripThemePalette } from './timestripTheme'
 import type { TimestripDigitalEntry } from './timestripDigitalModel'
 import type { TimestripAnalogSample } from './timestripAnalogModel'
 
+export interface TimestripViewportDrawRegion {
+  worldLeftNs: number
+  zoomDenominator: number
+  widthPx: number
+  heightPx: number
+}
+
 /**
- * Draw a deterministic timestrip tile.
- *
- * @param context - Canvas 2D rendering context.
- * @param tile - Tile descriptor.
- * @param dpr - Device pixel ratio.
- * @param theme - Current theme palette.
+ * Draw the current visible timestrip viewport into one canvas.
  */
-export const drawTimestripTile = (
+export const drawTimestripViewport = (
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  tile: TimestripVisibleTile,
+  viewport: TimestripViewportDrawRegion,
   dpr: number,
   theme: TimestripThemePalette,
   digitalEntries: TimestripDigitalEntry[] = [],
@@ -26,28 +27,38 @@ export const drawTimestripTile = (
   selectedMessageKey: string | null = null,
   captureMarkerWorldNs: number | null = null,
 ): void => {
-  const width = tile.widthPx
-  const height = tile.heightPx
+  const width = viewport.widthPx
+  const height = viewport.heightPx
   context.save()
   context.scale(dpr, dpr)
   context.clearRect(0, 0, width, height)
 
   const layout = buildTimestripLaneLayout(height)
-  drawTimeAxisLane(context, tile, layout, worldStartWallClockUs, theme)
+  drawTimeAxisLane(
+    context,
+    {
+      worldLeftNs: viewport.worldLeftNs,
+      worldWidthNs: width * viewport.zoomDenominator,
+      widthPx: width,
+    },
+    layout,
+    worldStartWallClockUs,
+    theme,
+  )
   drawDigitalTraceLane(context, layout, width, theme, {
-    worldLeftNs: tile.worldLeftNs,
-    zoomDenominator: tile.zoomLevelDenominator,
+    worldLeftNs: viewport.worldLeftNs,
+    zoomDenominator: viewport.zoomDenominator,
     entries: digitalEntries,
     selectedMessageKey,
   })
   drawAnalogTraceLane(context, layout, width, theme, {
-    worldLeftNs: tile.worldLeftNs,
-    zoomDenominator: tile.zoomLevelDenominator,
+    worldLeftNs: viewport.worldLeftNs,
+    zoomDenominator: viewport.zoomDenominator,
     samples: analogSamples,
   })
   drawCaptureMarker(context, layout, width, theme, {
-    worldLeftNs: tile.worldLeftNs,
-    zoomDenominator: tile.zoomLevelDenominator,
+    worldLeftNs: viewport.worldLeftNs,
+    zoomDenominator: viewport.zoomDenominator,
     captureMarkerWorldNs,
   })
 

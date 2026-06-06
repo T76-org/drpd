@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  filterTimestripAnalogSamplesForTile,
   interpolateTimestripAnalogSample,
   normalizeAnalogSampleForTimestrip,
 } from './timestripAnalogModel'
@@ -24,21 +23,6 @@ describe('timestripAnalogModel', () => {
       voltageV: 12,
       currentA: 1.5,
     })
-  })
-
-  it('keeps adjacent samples outside the tile so boundary-crossing lines stay connected', () => {
-    const samples = [
-      { worldNs: 0, voltageV: 5, currentA: 0.1 },
-      { worldNs: 10, voltageV: 10, currentA: 0.2 },
-      { worldNs: 20, voltageV: 15, currentA: 0.3 },
-      { worldNs: 30, voltageV: 20, currentA: 0.4 },
-    ]
-
-    expect(filterTimestripAnalogSamplesForTile(samples, 12, 22)).toEqual([
-      samples[1],
-      samples[2],
-      samples[3],
-    ])
   })
 
   it('interpolates voltage and current at a timeline point', () => {

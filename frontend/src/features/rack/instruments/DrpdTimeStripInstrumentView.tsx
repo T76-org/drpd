@@ -11,12 +11,8 @@ import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdTimeStripInstrumentView.module.css'
-import {
-  TIMESTRIP_TILE_OVERSCAN,
-  TIMESTRIP_TILE_WIDTH_PX,
-} from './timestrip/timestripLayout'
 import { getTimestripThemePalette } from './timestrip/timestripTheme'
-import { TimestripTiledRenderer } from './timestrip/timestripTiledRenderer'
+import { TimestripCanvasRenderer } from './timestrip/timestripCanvasRenderer'
 import {
   normalizeCapturedMessageForTimestrip,
   type TimestripDigitalEntry,
@@ -35,7 +31,6 @@ import {
   type TimestripBasis,
   type TimestripQueryRange,
   type TimestripTimelineRange,
-  type TimestripWorldRange,
 } from './timestrip/timestripCoordinates'
 import { useTimestripViewport } from './timestrip/useTimestripViewport'
 import type { TimestripNavigationReason } from './timestrip/useTimestripViewport'
@@ -46,7 +41,7 @@ const LOG_START_TIMESTAMP_US = 0n
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const DIGITAL_QUERY_LIMIT = 5000
 const ANALOG_QUERY_LIMIT = 8000
-const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
+const DIGITAL_QUERY_OVERSCAN_PX = 1024
 const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
 const MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS = 16_000_000
 const LIVE_FOLLOW_VIEWPORT_FRACTION = 0.5
@@ -62,7 +57,6 @@ const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
 const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
   `${value.toFixed(unit === 'V' ? 2 : 3)}${unit}`
 
-type TimestripInvalidation = 'all' | TimestripWorldRange
 type DigitalQueryRange = TimestripQueryRange
 type TimelineRangePoint = {
   timestampUs: bigint
@@ -71,46 +65,6 @@ type TimelineRangePoint = {
 type MessageSelectionKeyParts = {
   startTimestampUs: bigint
   endTimestampUs: bigint
-}
-
-const calculateQueryInvalidation = (
-  loadedRange: DigitalQueryRange | null,
-  nextRange: DigitalQueryRange,
-  basis: TimestripBasis,
-): TimestripInvalidation => {
-  if (!loadedRange) {
-    return 'all'
-  }
-  if (
-    nextRange.endTimestampUs < loadedRange.startTimestampUs ||
-    nextRange.startTimestampUs > loadedRange.endTimestampUs
-  ) {
-    return 'all'
-  }
-
-  let startTimestampUs: bigint | null = null
-  let endTimestampUs: bigint | null = null
-  if (nextRange.startTimestampUs < loadedRange.startTimestampUs) {
-    startTimestampUs = nextRange.startTimestampUs
-    endTimestampUs = loadedRange.startTimestampUs
-  }
-  if (nextRange.endTimestampUs > loadedRange.endTimestampUs) {
-    startTimestampUs =
-      startTimestampUs === null
-        ? loadedRange.endTimestampUs
-        : startTimestampUs
-    endTimestampUs = nextRange.endTimestampUs
-  }
-  if (startTimestampUs === null || endTimestampUs === null) {
-    return {
-      startWorldNs: 0,
-      endWorldNs: 0,
-    }
-  }
-  return {
-    startWorldNs: basisTimestampUsToWorldNs(startTimestampUs, basis),
-    endWorldNs: basisTimestampUsToWorldNs(endTimestampUs, basis),
-  }
 }
 
 const compareTimelinePointDeviceTime = (left: TimelineRangePoint, right: TimelineRangePoint): number =>
@@ -395,18 +349,18 @@ export const DrpdTimeStripInstrumentView = ({
   onRemove?: (instrumentId: string) => void
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const tileLayerRef = useRef<HTMLDivElement | null>(null)
-  const rendererRef = useRef<TimestripTiledRenderer | null>(null)
+  const canvasLayerRef = useRef<HTMLDivElement | null>(null)
+  const rendererRef = useRef<TimestripCanvasRenderer | null>(null)
   const centeredSelectionKeyRef = useRef<string | null>(null)
   const liveFollowFrameRef = useRef<number | null>(null)
   const liveFollowImmediateRef = useRef(true)
   const lastLiveFollowCommitMsRef = useRef(0)
   const isLiveFollowPausedByUserRef = useRef(false)
+  const userNavigationRevisionRef = useRef(0)
   const scrollHoverUpdateRef = useRef<((logicalScrollLeftPx: number) => void) | null>(null)
   const analogBreakWorldNsRef = useRef<number[]>([])
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const analogQueryRangeRef = useRef<DigitalQueryRange | null>(null)
-  const pendingTileInvalidationRef = useRef<TimestripInvalidation | null>(null)
   const [timelineRange, setTimelineRange] = useState<TimestripTimelineRange>(() => ({
     basis: buildTimelineBasis(0n, Date.now() * 1000, false),
     durationNs: PLACEHOLDER_TIMELINE_END_NS,
@@ -449,6 +403,7 @@ export const DrpdTimeStripInstrumentView = ({
         ))
   const handleTimestripUserNavigation = useCallback((reason: TimestripNavigationReason) => {
     if (reason === 'user-scroll' || reason === 'user-wheel' || reason === 'user-zoom') {
+      userNavigationRevisionRef.current += 1
       setLiveFollowPausedByUser(true)
       if (liveFollowFrameRef.current !== null) {
         window.cancelAnimationFrame(liveFollowFrameRef.current)
@@ -630,33 +585,14 @@ export const DrpdTimeStripInstrumentView = ({
     viewportWidthPx,
     zoomDenominator,
   ])
-  const queueTileInvalidation = useCallback((invalidation: TimestripInvalidation) => {
-    const current = pendingTileInvalidationRef.current
-    if (current === 'all' || invalidation === 'all' || current === null) {
-      pendingTileInvalidationRef.current = invalidation
-      return
-    }
-    pendingTileInvalidationRef.current = {
-      startWorldNs: Math.min(current.startWorldNs, invalidation.startWorldNs),
-      endWorldNs: Math.max(current.endWorldNs, invalidation.endWorldNs),
-    }
-  }, [])
-  const commitDigitalEntries = useCallback((
-    nextEntries: TimestripDigitalEntry[],
-    invalidation: TimestripInvalidation,
-  ) => {
-    queueTileInvalidation(invalidation)
+  const commitDigitalEntries = useCallback((nextEntries: TimestripDigitalEntry[]) => {
     setDigitalEntries(nextEntries)
     setDigitalDataRevision((revision) => revision + 1)
-  }, [queueTileInvalidation])
-  const commitAnalogSamples = useCallback((
-    nextSamples: TimestripAnalogSample[],
-    invalidation: TimestripInvalidation,
-  ) => {
-    queueTileInvalidation(invalidation)
+  }, [])
+  const commitAnalogSamples = useCallback((nextSamples: TimestripAnalogSample[]) => {
     setAnalogSamples(nextSamples)
     setAnalogDataRevision((revision) => revision + 1)
-  }, [queueTileInvalidation])
+  }, [])
   const readSelectedLogMessageKey = useCallback(async (): Promise<string | null> => {
     const driver = deviceState?.drpdDriver
     if (!driver || typeof driver.getLogSelectionState !== 'function') {
@@ -704,11 +640,11 @@ export const DrpdTimeStripInstrumentView = ({
   }, [themeName])
 
   useEffect(() => {
-    const tileLayer = tileLayerRef.current
-    if (!tileLayer) {
+    const canvasLayer = canvasLayerRef.current
+    if (!canvasLayer) {
       return undefined
     }
-    const renderer = new TimestripTiledRenderer({ tileLayer })
+    const renderer = new TimestripCanvasRenderer({ canvasLayer })
     rendererRef.current = renderer
     return () => {
       renderer.dispose()
@@ -973,6 +909,7 @@ export const DrpdTimeStripInstrumentView = ({
     }
 
     let isActive = true
+    const startedUserNavigationRevision = userNavigationRevisionRef.current
     const centerSelectedMessage = async () => {
       try {
         const rows = await driver.queryCapturedMessages({
@@ -982,7 +919,7 @@ export const DrpdTimeStripInstrumentView = ({
           sortOrder: 'asc',
           limit: 25,
         })
-        if (!isActive) {
+        if (!isActive || startedUserNavigationRevision !== userNavigationRevisionRef.current) {
           return
         }
         const selectedRow = rows.find((row) => buildCapturedLogSelectionKey(row) === selectedLogMessageKey)
@@ -1086,7 +1023,7 @@ export const DrpdTimeStripInstrumentView = ({
     const driver = deviceState?.drpdDriver
     if (!driver || viewportWidthPx <= 0) {
       digitalQueryRangeRef.current = null
-      commitDigitalEntries([], 'all')
+      commitDigitalEntries([])
       return undefined
     }
 
@@ -1118,11 +1055,6 @@ export const DrpdTimeStripInstrumentView = ({
         if (!isActive) {
           return
         }
-        const invalidation = calculateQueryInvalidation(
-          loadedRange,
-          range,
-          timelineRange.basis,
-        )
         digitalQueryRangeRef.current = range
         const nextEntries = rows.flatMap((row) => {
           const entry = normalizeCapturedMessageForTimestrip(
@@ -1134,7 +1066,7 @@ export const DrpdTimeStripInstrumentView = ({
           )
           return entry ? [entry] : []
         })
-        commitDigitalEntries(nextEntries, invalidation)
+        commitDigitalEntries(nextEntries)
       } catch {
         // Keep the last rendered entries when the log store is temporarily unavailable.
       }
@@ -1160,7 +1092,7 @@ export const DrpdTimeStripInstrumentView = ({
     const driver = deviceState?.drpdDriver
     if (!driver || typeof driver.queryAnalogSamples !== 'function' || viewportWidthPx <= 0) {
       analogQueryRangeRef.current = null
-      commitAnalogSamples([], 'all')
+      commitAnalogSamples([])
       return undefined
     }
 
@@ -1212,11 +1144,6 @@ export const DrpdTimeStripInstrumentView = ({
         if (!isActive) {
           return
         }
-        const invalidation = calculateQueryInvalidation(
-          loadedRange,
-          range,
-          timelineRange.basis,
-        )
         analogQueryRangeRef.current = range
         const mergedAnalogRows = mergeAnalogSampleRows(
           [...previousRows, ...visibleRows, ...nextRows],
@@ -1254,7 +1181,7 @@ export const DrpdTimeStripInstrumentView = ({
           )
           return sample ? [sample] : []
         }), breakWorldNs)
-        commitAnalogSamples(nextSamples, invalidation)
+        commitAnalogSamples(nextSamples)
       } catch {
         // Keep the last rendered samples when the log store is temporarily unavailable.
       }
@@ -1310,8 +1237,8 @@ export const DrpdTimeStripInstrumentView = ({
         digitalQueryRangeRef.current = null
         analogQueryRangeRef.current = null
         analogBreakWorldNsRef.current = []
-        commitDigitalEntries([], 'all')
-        commitAnalogSamples([], 'all')
+        commitDigitalEntries([])
+        commitAnalogSamples([])
       }
       setTimelineRange((current) => {
         const rowDurationUs = BigInt(Math.ceil(rowDurationNs / 1000))
@@ -1341,8 +1268,8 @@ export const DrpdTimeStripInstrumentView = ({
           digitalQueryRangeRef.current = null
           analogQueryRangeRef.current = null
           analogBreakWorldNsRef.current = []
-          commitDigitalEntries([], 'all')
-          commitAnalogSamples([], 'all')
+          commitDigitalEntries([])
+          commitAnalogSamples([])
           return {
             ...current,
             basis: buildTimelineBasis(
@@ -1396,10 +1323,7 @@ export const DrpdTimeStripInstrumentView = ({
           insertAnalogSampleSorted(analogSamples, sample),
           analogBreakWorldNsRef.current,
         )
-        commitAnalogSamples(nextSamples, {
-          startWorldNs: rowWorldStartNs,
-          endWorldNs: rowWorldEndNs,
-        })
+        commitAnalogSamples(nextSamples)
         return
       }
       const messageRow = row as LoggedCapturedMessage
@@ -1409,10 +1333,7 @@ export const DrpdTimeStripInstrumentView = ({
           ...analogBreakWorldNsRef.current,
           captureBreakWorldNs,
         ].sort((left, right) => left - right)
-        commitAnalogSamples(applyAnalogBreaks(analogSamples, analogBreakWorldNsRef.current), {
-          startWorldNs: captureBreakWorldNs,
-          endWorldNs: captureBreakWorldNs + 1,
-        })
+        commitAnalogSamples(applyAnalogBreaks(analogSamples, analogBreakWorldNsRef.current))
       }
       const loadedRange = digitalQueryRangeRef.current
       if (
@@ -1437,10 +1358,7 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       const nextEntries = insertDigitalEntrySorted(digitalEntries, entry)
-      commitDigitalEntries(nextEntries, {
-        startWorldNs: rowWorldStartNs,
-        endWorldNs: rowWorldEndNs,
-      })
+      commitDigitalEntries(nextEntries)
     }
     const flushAddedRows = () => {
       pendingAddedFrame = null
@@ -1478,8 +1396,8 @@ export const DrpdTimeStripInstrumentView = ({
       analogQueryRangeRef.current = null
       analogBreakWorldNsRef.current = []
       setLatestDatumWorldNs(null)
-      commitDigitalEntries([], 'all')
-      commitAnalogSamples([], 'all')
+      commitDigitalEntries([])
+      commitAnalogSamples([])
       if (detail.reason === 'clear') {
         setTimelineRange({
           basis: buildTimelineBasis(0n, Date.now() * 1000, false),
@@ -1529,13 +1447,6 @@ export const DrpdTimeStripInstrumentView = ({
       analogDataRevision,
       selectedMessageKey: selectedLogMessageKey,
     })
-    const invalidation = pendingTileInvalidationRef.current
-    pendingTileInvalidationRef.current = null
-    if (invalidation === 'all') {
-      renderer?.invalidateAllTiles()
-    } else if (invalidation) {
-      renderer?.invalidateWorldRange(invalidation.startWorldNs, invalidation.endWorldNs)
-    }
   }, [
     digitalDataRevision,
     digitalEntries,
@@ -1619,9 +1530,9 @@ export const DrpdTimeStripInstrumentView = ({
           onPointerLeave={clearAnalogHover}
         >
           <div
-            ref={tileLayerRef}
-            className={styles.tileLayer}
-            data-testid="drpd-timestrip-tile-layer"
+            ref={canvasLayerRef}
+            className={styles.canvasLayer}
+            data-testid="drpd-timestrip-canvas-layer"
             style={{
               width: `${viewportWidthPx}px`,
               height: `${viewportHeightPx}px`,

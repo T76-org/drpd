@@ -1,5 +1,4 @@
 import { timeMillisecond } from 'd3-time'
-import type { TimestripVisibleTile } from './timestripLayout'
 import type { TimestripLaneLayout } from './timestripLaneLayout'
 import type { TimestripThemePalette } from './timestripTheme'
 
@@ -7,6 +6,12 @@ export interface TimestripTick {
   date: Date
   label: string
   xPx: number
+}
+
+export interface TimestripTimeAxisViewport {
+  worldLeftNs: number
+  worldWidthNs: number
+  widthPx: number
 }
 
 const TICK_EDGE_SEARCH_PX = 160
@@ -70,27 +75,27 @@ export const formatTimestripTickLabel = (date: Date): string => {
  * Select wall-time ticks that leave enough label spacing.
  *
  * @param context - Canvas 2D context.
- * @param tile - Tile descriptor.
+ * @param viewport - Visible viewport region.
  * @param layout - Lane layout.
  * @param worldStartWallClockUs - Wall-clock microseconds at world X = 0.
  * @returns Non-overlapping ticks.
  */
 export const selectTimeAxisTicks = (
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  tile: TimestripVisibleTile,
+  viewport: TimestripTimeAxisViewport,
   layout: TimestripLaneLayout,
   worldStartWallClockUs: number,
 ): TimestripTick[] => {
   const originWallClockNs = BigInt(Math.floor(worldStartWallClockUs)) * 1000n
-  const worldNsPerPx = tile.worldWidthNs / tile.widthPx
+  const worldNsPerPx = viewport.worldWidthNs / viewport.widthPx
 
   context.save()
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
   const sampleLabel = formatTimestripTickLabelFromParts(worldStartWallClockUs, 0, 1_000_000)
   const minimumSpacingPx = context.measureText(sampleLabel).width + layout.timeAxis.labelPaddingPx
   const intervalNs = selectTickIntervalNs(minimumSpacingPx, worldNsPerPx)
-  const searchStartWorldNs = Math.floor(tile.worldLeftNs - TICK_EDGE_SEARCH_PX * worldNsPerPx)
-  const searchEndWorldNs = Math.ceil(tile.worldLeftNs + tile.worldWidthNs + TICK_EDGE_SEARCH_PX * worldNsPerPx)
+  const searchStartWorldNs = Math.floor(viewport.worldLeftNs - TICK_EDGE_SEARCH_PX * worldNsPerPx)
+  const searchEndWorldNs = Math.ceil(viewport.worldLeftNs + viewport.worldWidthNs + TICK_EDGE_SEARCH_PX * worldNsPerPx)
   const searchStartWallClockNs = originWallClockNs + BigInt(searchStartWorldNs)
   const searchEndWallClockNs = originWallClockNs + BigInt(searchEndWorldNs)
   const intervalNsBig = BigInt(intervalNs)
@@ -106,9 +111,9 @@ export const selectTimeAxisTicks = (
     const subMicrosecondNs = ((tickWorldNs % 1000) + 1000) % 1000
     const date = new Date(wallClockUs / 1000)
     const label = formatTimestripTickLabelFromParts(wallClockUs, subMicrosecondNs, intervalNs)
-    const xPx = (tickWorldNs - tile.worldLeftNs) / worldNsPerPx
+    const xPx = (tickWorldNs - viewport.worldLeftNs) / worldNsPerPx
     const labelWidth = context.measureText(label).width
-    if (xPx + labelWidth / 2 < 0 || xPx - labelWidth / 2 > tile.widthPx) {
+    if (xPx + labelWidth / 2 < 0 || xPx - labelWidth / 2 > viewport.widthPx) {
       continue
     }
     ticks.push({ date, label, xPx })
@@ -165,21 +170,21 @@ const formatTimestripTickLabelFromParts = (
  * Draw top time-axis lane.
  *
  * @param context - Canvas 2D context.
- * @param tile - Tile descriptor.
+ * @param viewport - Visible viewport region.
  * @param layout - Lane layout.
  * @param worldStartWallClockUs - Wall-clock microseconds at world X = 0.
  */
 export const drawTimeAxisLane = (
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  tile: TimestripVisibleTile,
+  viewport: TimestripTimeAxisViewport,
   layout: TimestripLaneLayout,
   worldStartWallClockUs: number,
   theme: TimestripThemePalette,
 ): void => {
   context.fillStyle = theme.timeAxisBackground
-  context.fillRect(0, layout.timeAxis.y, tile.widthPx, layout.timeAxis.height)
+  context.fillRect(0, layout.timeAxis.y, viewport.widthPx, layout.timeAxis.height)
 
-  const ticks = selectTimeAxisTicks(context, tile, layout, worldStartWallClockUs)
+  const ticks = selectTimeAxisTicks(context, viewport, layout, worldStartWallClockUs)
   context.save()
   context.font = `${layout.timeAxis.labelFontPx}px sans-serif`
   context.textAlign = 'center'

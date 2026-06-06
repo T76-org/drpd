@@ -21,6 +21,7 @@ import {
 } from './timestripZoom'
 
 const PROGRAMMATIC_SCROLL_GUARD_MS = 250
+const WHEEL_SCROLLBAR_IDLE_SYNC_MS = 120
 
 export type TimestripNavigationReason =
   | 'follow'
@@ -47,6 +48,7 @@ export const useTimestripViewport = (
   const minTailPaddingZoomDenominator = options.minTailPaddingZoomDenominator ?? 0
   const resizeFrameRef = useRef<number | null>(null)
   const scrollPublishFrameRef = useRef<number | null>(null)
+  const wheelScrollbarSyncTimeoutRef = useRef<number | null>(null)
   const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
   const pendingScrollLeftPxRef = useRef<number | null>(null)
   const logicalScrollLeftRef = useRef(0)
@@ -143,7 +145,7 @@ export const useTimestripViewport = (
     if (expectedTarget) {
       return expectedTarget.logicalScrollLeftPx
     }
-    return programmaticScrollReasonRef.current === 'user-zoom'
+    return programmaticScrollReasonRef.current === 'user-zoom' || programmaticScrollReasonRef.current === 'user-wheel'
       ? programmaticScrollTargetPxRef.current
       : null
   }, [])
@@ -202,6 +204,10 @@ export const useTimestripViewport = (
     if (scrollPublishFrameRef.current !== null) {
       window.cancelAnimationFrame(scrollPublishFrameRef.current)
       scrollPublishFrameRef.current = null
+    }
+    if (wheelScrollbarSyncTimeoutRef.current !== null) {
+      window.clearTimeout(wheelScrollbarSyncTimeoutRef.current)
+      wheelScrollbarSyncTimeoutRef.current = null
     }
   }, [])
 
@@ -356,11 +362,26 @@ export const useTimestripViewport = (
       }
       event.preventDefault()
       onUserNavigation?.('user-wheel')
-      const nextScrollLeft = Math.max(0, logicalScrollLeftRef.current + scrollDelta)
-      viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
-      const committedScrollLeft = domScrollLeftToLogical(viewport.scrollLeft)
-      onScrollLeftChanged?.(committedScrollLeft)
-      publishScrollLeft(committedScrollLeft, true)
+      const nextScrollLeft = clampTimestripLogicalScrollLeft(
+        logicalScrollLeftRef.current + scrollDelta,
+        timelineWidthPx,
+        viewportWidthPx,
+      )
+      const nextDomScrollLeft = logicalScrollLeftToDom(nextScrollLeft)
+      markProgrammaticScroll(nextScrollLeft, nextDomScrollLeft, 'user-wheel')
+      onScrollLeftChanged?.(nextScrollLeft)
+      publishScrollLeft(nextScrollLeft)
+      if (wheelScrollbarSyncTimeoutRef.current !== null) {
+        window.clearTimeout(wheelScrollbarSyncTimeoutRef.current)
+      }
+      wheelScrollbarSyncTimeoutRef.current = window.setTimeout(() => {
+        wheelScrollbarSyncTimeoutRef.current = null
+        if (Math.abs(viewport.scrollLeft - nextDomScrollLeft) < 1) {
+          return
+        }
+        markProgrammaticScroll(nextScrollLeft, nextDomScrollLeft, 'user-wheel')
+        viewport.scrollLeft = nextDomScrollLeft
+      }, WHEEL_SCROLLBAR_IDLE_SYNC_MS)
     }
 
     viewport.addEventListener('wheel', handleViewportWheel, { passive: false })
@@ -370,10 +391,14 @@ export const useTimestripViewport = (
   }, [
     domScrollLeftToLogical,
     logicalScrollLeftToDom,
+    markProgrammaticScroll,
     onUserNavigation,
     onScrollLeftChanged,
     publishScrollLeft,
+    timelineWidthPx,
     viewportRef,
+    viewportWidthPx,
+    zoomDenominator,
   ])
 
   useEffect(() => {
@@ -446,7 +471,7 @@ export const useTimestripViewport = (
     if (nextLogicalScrollLeft !== scrollLeftPx) {
       publishScrollLeft(nextLogicalScrollLeft, true)
     }
-    if (programmaticScrollReasonRef.current === 'user-zoom') {
+    if (programmaticScrollReasonRef.current === 'user-zoom' || programmaticScrollReasonRef.current === 'user-wheel') {
       return
     }
     if (Math.abs(viewport.scrollLeft - nextDomScrollLeft) > 1) {

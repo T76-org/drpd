@@ -194,7 +194,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders a viewport, timeline spacer, and tile canvas layer without svg', () => {
+  it('renders a viewport, timeline spacer, and single canvas layer without svg', () => {
     const { container } = renderTimestrip()
 
     expect(screen.getByTestId('drpd-timestrip-frame')).toBeInTheDocument()
@@ -202,10 +202,10 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
       width: '100px',
     })
-    expect(screen.getByTestId('drpd-timestrip-tile-layer')).toBeInTheDocument()
+    expect(screen.getByTestId('drpd-timestrip-canvas-layer')).toBeInTheDocument()
     expect(screen.queryByTestId('drpd-timestrip-tick-canvas')).toBeNull()
-    expect(screen.getByTestId('drpd-timestrip-tile-layer').querySelectorAll('canvas')).toHaveLength(3)
-    expect(container.querySelectorAll('canvas')).toHaveLength(3)
+    expect(screen.getByTestId('drpd-timestrip-canvas-layer').querySelectorAll('canvas[data-timestrip-canvas="true"]')).toHaveLength(1)
+    expect(container.querySelectorAll('canvas')).toHaveLength(1)
     expect(container.querySelector('svg')).toBeNull()
   })
 
@@ -252,15 +252,119 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
-  it('maps mouse wheel movement to horizontal viewport scroll', () => {
-    renderTimestrip()
+  it('maps mouse wheel movement to horizontal viewport scroll', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
     Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
     Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
 
-    fireEvent.wheel(viewport, { deltaY: 240 })
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '20250px',
+      })
+    })
 
-    expect(viewport.scrollLeft).toBe(240)
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaY: 240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBe(240)
+    })
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 200, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 44000000n,
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('applies fine wheel scrolling logically when DOM scroll quantizes at high zoom', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '500')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(100_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    let domScrollLeft = 0
+    Object.defineProperty(viewport, 'scrollLeft', {
+      configurable: true,
+      get: () => domScrollLeft,
+      set: (value: number) => {
+        domScrollLeft = Math.floor(value)
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '16000000px',
+      })
+    })
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaY: 4, clientX: 200 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(viewport.scrollLeft).toBe(0)
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 200, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 52n,
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('accumulates rapid high-zoom wheel scrolling without DOM quantization resets', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '500')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(100_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    let domScrollLeft = 0
+    Object.defineProperty(viewport, 'scrollLeft', {
+      configurable: true,
+      get: () => domScrollLeft,
+      set: (value: number) => {
+        domScrollLeft = Math.floor(value)
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '16000000px',
+      })
+    })
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaY: 4, clientX: 200 })
+      fireEvent.wheel(viewport, { deltaY: 40, clientX: 200 })
+      fireEvent.wheel(viewport, { deltaY: 80, clientX: 200 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 200, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 112n,
+        sortOrder: 'desc',
+      }))
+    })
   })
 
   it('uses ctrl wheel to change zoom instead of scrolling', () => {
@@ -279,6 +383,28 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
     expect(viewport.scrollLeft).toBe(0)
+  })
+
+  it('allows ctrl wheel zooming out to 400ms per pixel', () => {
+    renderTimestrip()
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
+    Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
+
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
+
+    expect(screen.getByLabelText('Zoom 200ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('200000000')
+
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
+
+    expect(screen.getByLabelText('Zoom 400ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('400000000')
+
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
+
+    expect(screen.getByLabelText('Zoom 400ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('400000000')
   })
 
   it('keeps the timestamp under the pointer stable during ctrl wheel zoom', async () => {

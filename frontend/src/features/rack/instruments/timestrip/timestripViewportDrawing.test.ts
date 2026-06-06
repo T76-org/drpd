@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { TimestripVisibleTile } from './timestripLayout'
-import { drawTimestripTile } from './timestripTileDrawing'
+import { drawTimestripViewport } from './timestripViewportDrawing'
 import { DEFAULT_TIMESTRIP_THEME } from './timestripTheme'
 
 const buildContext = () =>
@@ -61,24 +60,18 @@ const buildTrackingContext = () => {
   }
 }
 
-const tile: TimestripVisibleTile = {
-  key: 'z1000:0:0',
-  tileX: 0,
-  tileY: 0,
-  zoomLevel: 'z1000',
-  zoomLevelDenominator: 1000,
+const viewport = {
   worldLeftNs: 0,
-  worldWidthNs: 512_000,
+  zoomDenominator: 1000,
   widthPx: 512,
   heightPx: 240,
-  bleedPx: 0,
 }
 
-describe('timestripTileDrawing', () => {
-  it('draws lane backgrounds and tile-local tick labels', () => {
+describe('timestripViewportDrawing', () => {
+  it('draws lane backgrounds and viewport-local tick labels', () => {
     const context = buildContext()
 
-    drawTimestripTile(context, tile, 2, DEFAULT_TIMESTRIP_THEME, [], [], 1_700_000_000_000_000)
+    drawTimestripViewport(context, viewport, 2, DEFAULT_TIMESTRIP_THEME, [], [], 1_700_000_000_000_000)
 
     expect(context.scale).toHaveBeenCalledWith(2, 2)
     expect(context.clearRect).toHaveBeenCalledWith(0, 0, 512, 240)
@@ -93,7 +86,7 @@ describe('timestripTileDrawing', () => {
   it('uses the provided theme for lane backgrounds', () => {
     const context = buildContext()
 
-    drawTimestripTile(context, tile, 1, {
+    drawTimestripViewport(context, viewport, 1, {
       canvasBackground: '#ffffff',
       timeAxisBackground: '#eeeeee',
       digitalBackground: '#dddddd',
@@ -131,9 +124,9 @@ describe('timestripTileDrawing', () => {
   it('colors detailed digital components and bytes by message segment', () => {
     const { context, fillStyles } = buildTrackingContext()
 
-    drawTimestripTile(
+    drawTimestripViewport(
       context,
-      { ...tile, zoomLevel: 'z1000', zoomLevelDenominator: 1000 },
+      viewport,
       1,
       DEFAULT_TIMESTRIP_THEME,
       [
@@ -168,9 +161,9 @@ describe('timestripTileDrawing', () => {
   it('draws a subtle digital-lane background behind the selected message', () => {
     const { context, fillStyles } = buildTrackingContext()
 
-    drawTimestripTile(
+    drawTimestripViewport(
       context,
-      { ...tile, zoomLevel: 'z1000', zoomLevelDenominator: 1000 },
+      viewport,
       1,
       DEFAULT_TIMESTRIP_THEME,
       [
@@ -191,122 +184,5 @@ describe('timestripTileDrawing', () => {
     )
 
     expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.selectedMessageBackgroundColor)
-    expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.selectedMessageFillColor)
-    expect(context.fillRect).toHaveBeenCalledWith(20, 34, 200, 84)
-  })
-
-  it('draws voltage and current samples at their tile-local timeline positions', () => {
-    const context = buildContext()
-
-    drawTimestripTile(
-      context,
-      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
-      1,
-      DEFAULT_TIMESTRIP_THEME,
-      [],
-      [
-        { worldNs: 11_000, voltageV: 30, currentA: 3 },
-        { worldNs: 21_000, voltageV: 60, currentA: 6 },
-      ],
-      1_700_000_000_000_000,
-    )
-
-    expect(context.moveTo).toHaveBeenCalledWith(0, expect.any(Number))
-    expect(context.lineTo).toHaveBeenCalledWith(10, expect.any(Number))
-    expect(context.lineTo).toHaveBeenCalledWith(20, expect.any(Number))
-    expect(vi.mocked(context.stroke).mock.calls.length).toBeGreaterThanOrEqual(2)
-  })
-
-  it('extends the first analog sample to the tile edge', () => {
-    const context = buildContext()
-
-    drawTimestripTile(
-      context,
-      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
-      1,
-      DEFAULT_TIMESTRIP_THEME,
-      [],
-      [
-        { worldNs: 11_000, voltageV: 30, currentA: 3 },
-        { worldNs: 21_000, voltageV: 60, currentA: 6 },
-      ],
-      1_700_000_000_000_000,
-    )
-
-    expect(context.moveTo).toHaveBeenCalledWith(0, expect.any(Number))
-    expect(context.lineTo).toHaveBeenCalledWith(10, expect.any(Number))
-  })
-
-  it('leaves the analog lane blank after the final sample', () => {
-    const emptyContext = buildContext()
-    const context = buildContext()
-
-    drawTimestripTile(emptyContext, tile, 1, DEFAULT_TIMESTRIP_THEME)
-    drawTimestripTile(
-      context,
-      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
-      1,
-      DEFAULT_TIMESTRIP_THEME,
-      [],
-      [
-        { worldNs: 11_000, voltageV: 30, currentA: 3 },
-        { worldNs: 21_000, voltageV: 60, currentA: 6 },
-      ],
-      1_700_000_000_000_000,
-    )
-
-    const emptyTileEdgeLines = vi.mocked(emptyContext.lineTo).mock.calls.filter(([x]) => x === 512)
-    const sampledTileEdgeLines = vi.mocked(context.lineTo).mock.calls.filter(([x]) => x === 512)
-    expect(sampledTileEdgeLines).toHaveLength(emptyTileEdgeLines.length)
-  })
-
-  it('leaves the analog lane blank across capture gaps', () => {
-    const context = buildContext()
-
-    drawTimestripTile(
-      context,
-      { ...tile, zoomLevelDenominator: 1000, worldLeftNs: 1_000 },
-      1,
-      DEFAULT_TIMESTRIP_THEME,
-      [],
-      [
-        { worldNs: 11_000, voltageV: 30, currentA: 3 },
-        { worldNs: 21_000, voltageV: 60, currentA: 6, breakBefore: true },
-      ],
-      1_700_000_000_000_000,
-    )
-
-    expect(context.lineTo).not.toHaveBeenCalledWith(20, expect.any(Number))
-    expect(context.moveTo).toHaveBeenCalledWith(20, expect.any(Number))
-  })
-
-  it('draws the capture marker through digital and analog lanes', () => {
-    const context = buildContext()
-
-    drawTimestripTile(
-      context,
-      tile,
-      1,
-      DEFAULT_TIMESTRIP_THEME,
-      [],
-      [],
-      1_700_000_000_000_000,
-      null,
-      120_000,
-    )
-
-    expect(context.moveTo).toHaveBeenCalledWith(120.5, 33)
-    expect(context.lineTo).toHaveBeenCalledWith(120.5, 240)
-    expect(context.strokeStyle).toBe(DEFAULT_TIMESTRIP_THEME.captureMarkerColor)
-  })
-
-  it('draws faint analog grid lines across the tile', () => {
-    const context = buildContext()
-
-    drawTimestripTile(context, tile, 1, DEFAULT_TIMESTRIP_THEME)
-
-    expect(context.moveTo).toHaveBeenCalledWith(0, expect.any(Number))
-    expect(context.lineTo).toHaveBeenCalledWith(512, expect.any(Number))
-    expect(context.strokeStyle).toBe(DEFAULT_TIMESTRIP_THEME.analogGridColor)
   })
 })

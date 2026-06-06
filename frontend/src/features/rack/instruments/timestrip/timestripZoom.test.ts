@@ -21,8 +21,8 @@ describe('timestripZoom', () => {
     expect(clampTimestripZoomDenominator(0)).toBe(500)
     expect(clampTimestripZoomDenominator(400.8)).toBe(500)
     expect(clampTimestripZoomDenominator(1000)).toBe(1000)
-    expect(clampTimestripZoomDenominator(100_000_001)).toBe(100_000_000)
-    expect(clampTimestripZoomDenominator('not-a-number')).toBe(100_000_000)
+    expect(clampTimestripZoomDenominator(400_000_001)).toBe(400_000_000)
+    expect(clampTimestripZoomDenominator('not-a-number')).toBe(400_000_000)
   })
 
   it('formats zoom denominators as time per pixel', () => {
@@ -30,22 +30,25 @@ describe('timestripZoom', () => {
     expect(formatTimestripZoomDenominator(1500)).toBe('1.5µs')
     expect(formatTimestripZoomDenominator(1_000_000)).toBe('1ms')
     expect(formatTimestripZoomDenominator(100_000_000)).toBe('100ms')
+    expect(formatTimestripZoomDenominator(400_000_000)).toBe('400ms')
   })
 
   it('uses one fixed zoom ladder in both directions', () => {
     const fromMax: number[] = []
-    for (let value = 100_000_000; value > 500;) {
+    for (let value = 400_000_000; value > 500;) {
       value = getNextTimestripZoomDenominator(value, 'in')
       fromMax.push(value)
     }
 
     const fromMin: number[] = []
-    for (let value = 500; value < 100_000_000;) {
+    for (let value = 500; value < 400_000_000;) {
       value = getNextTimestripZoomDenominator(value, 'out')
       fromMin.push(value)
     }
 
     expect(fromMax).toEqual([
+      200_000_000,
+      100_000_000,
       50_000_000,
       20_000_000,
       10_000_000,
@@ -63,7 +66,7 @@ describe('timestripZoom', () => {
       1_000,
       500,
     ])
-    expect(fromMin).toEqual([...fromMax].reverse().slice(1).concat(100_000_000))
+    expect(fromMin).toEqual([...fromMax].reverse().slice(1).concat(400_000_000))
   })
 
   it('caps DOM timeline width and maps scroll through logical scale', () => {

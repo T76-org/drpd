@@ -101,17 +101,6 @@ export const getTimestripDigitalQueryRange = (
   }
 }
 
-export const filterTimestripDigitalEntriesForTile = (
-  entries: TimestripDigitalEntry[],
-  tileLeftNs: number,
-  tileRightNs: number,
-): TimestripDigitalEntry[] => entries.filter((entry) => {
-  if (entry.kind === 'event') {
-    return entry.worldNs >= tileLeftNs && entry.worldNs <= tileRightNs
-  }
-  return entry.endWorldNs >= tileLeftNs && entry.startWorldNs <= tileRightNs
-})
-
 export const normalizeCapturedMessageForTimestrip = (
   row: LoggedCapturedMessage,
   worldStartTimestampUs: bigint,

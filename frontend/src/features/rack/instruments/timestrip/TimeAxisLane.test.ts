@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { TimestripVisibleTile } from './timestripLayout'
 import {
   drawTimeAxisLane,
   formatTimestripTickLabel,
   selectTimeAxisTicks,
+  type TimestripTimeAxisViewport,
 } from './TimeAxisLane'
 import { buildTimestripLaneLayout } from './timestripLaneLayout'
 import { DEFAULT_TIMESTRIP_THEME } from './timestripTheme'
@@ -27,28 +27,17 @@ const buildContext = (labelWidth: number) =>
     textBaseline: 'alphabetic',
   }) as unknown as CanvasRenderingContext2D
 
-const buildTile = (worldWidthNs: number): TimestripVisibleTile => ({
-  key: 'z1000:0:0',
-  tileX: 0,
-  tileY: 0,
-  zoomLevel: 'z1000',
-  zoomLevelDenominator: 1000,
+const buildViewport = (worldWidthNs: number): TimestripTimeAxisViewport => ({
   worldLeftNs: 0,
   worldWidthNs,
   widthPx: 512,
-  heightPx: 240,
-  bleedPx: 0,
 })
 
-const buildZoomedTile = (tileX: number, zoomDenominator: number): TimestripVisibleTile => {
+const buildZoomedViewport = (viewportX: number, zoomDenominator: number): TimestripTimeAxisViewport => {
   const worldWidthNs = 512 * zoomDenominator
   return {
-    ...buildTile(worldWidthNs),
-    key: `z${zoomDenominator}:${tileX}:0`,
-    tileX,
-    zoomLevel: `z${zoomDenominator}`,
-    zoomLevelDenominator: zoomDenominator,
-    worldLeftNs: tileX * worldWidthNs,
+    ...buildViewport(worldWidthNs),
+    worldLeftNs: viewportX * worldWidthNs,
   }
 }
 
@@ -61,7 +50,7 @@ describe('TimeAxisLane', () => {
     const context = buildContext(70)
     const ticks = selectTimeAxisTicks(
       context,
-      buildTile(60_000_000),
+      buildViewport(60_000_000),
       buildTimestripLaneLayout(240),
       1_700_000_000_000_000,
     )
@@ -72,12 +61,12 @@ describe('TimeAxisLane', () => {
     }
   })
 
-  it('draws tick labels inside the tile rectangle', () => {
+  it('draws tick labels inside the viewport rectangle', () => {
     const context = buildContext(70)
 
     drawTimeAxisLane(
       context,
-      buildTile(512_000),
+      buildViewport(512_000),
       buildTimestripLaneLayout(240),
       1_700_000_000_000_000,
       DEFAULT_TIMESTRIP_THEME,
@@ -86,16 +75,16 @@ describe('TimeAxisLane', () => {
     expect(context.fillText).toHaveBeenCalled()
   })
 
-  it('selects ticks whose labels intersect the left tile edge', () => {
+  it('selects ticks whose labels intersect the left viewport edge', () => {
     const context = buildContext(70)
-    const tile = {
-      ...buildTile(512_000),
+    const viewport = {
+      ...buildViewport(512_000),
       worldLeftNs: 512_020,
     }
 
     const ticks = selectTimeAxisTicks(
       context,
-      tile,
+      viewport,
       buildTimestripLaneLayout(240),
       1_700_000_000_000_000,
     )
@@ -103,37 +92,37 @@ describe('TimeAxisLane', () => {
     expect(ticks.some((tick) => tick.xPx < 0 && tick.xPx + 35 >= 0)).toBe(true)
   })
 
-  it('selects ticks whose labels intersect the right tile edge', () => {
+  it('selects ticks whose labels intersect the right viewport edge', () => {
     const context = buildContext(70)
-    const tile = {
-      ...buildTile(512_000),
+    const viewport = {
+      ...buildViewport(512_000),
       worldLeftNs: 487_980,
     }
 
     const ticks = selectTimeAxisTicks(
       context,
-      tile,
+      viewport,
       buildTimestripLaneLayout(240),
       1_700_000_000_000_000,
     )
 
-    expect(ticks.some((tick) => tick.xPx > tile.widthPx && tick.xPx - 35 <= tile.widthPx)).toBe(true)
+    expect(ticks.some((tick) => tick.xPx > viewport.widthPx && tick.xPx - 35 <= viewport.widthPx)).toBe(true)
   })
 
-  it('keeps tick cadence uniform across adjacent tiles', () => {
+  it('keeps tick cadence uniform across adjacent viewports', () => {
     const context = buildContext(70)
     const layout = buildTimestripLaneLayout(240)
     const zoomDenominator = 23_000
     const worldStartWallClockUs = 1_700_000_000_000_000
-    const tile0 = buildZoomedTile(0, zoomDenominator)
-    const tile1 = buildZoomedTile(1, zoomDenominator)
+    const viewport0 = buildZoomedViewport(0, zoomDenominator)
+    const viewport1 = buildZoomedViewport(1, zoomDenominator)
     const tickWallClockUs = new Set(
-      [tile0, tile1].flatMap((tile) =>
-        selectTimeAxisTicks(context, tile, layout, worldStartWallClockUs)
+      [viewport0, viewport1].flatMap((viewport) =>
+        selectTimeAxisTicks(context, viewport, layout, worldStartWallClockUs)
           .map((tick) => tick.date.getTime() * 1000)
           .filter((wallClockUs) =>
             wallClockUs >= worldStartWallClockUs &&
-            wallClockUs <= worldStartWallClockUs + tile0.worldWidthNs + tile1.worldWidthNs,
+            wallClockUs <= worldStartWallClockUs + viewport0.worldWidthNs + viewport1.worldWidthNs,
           ),
       ),
     )
@@ -147,15 +136,15 @@ describe('TimeAxisLane', () => {
 
   it('positions submillisecond ticks at exact pixel intervals at high zoom', () => {
     const context = buildContext(70)
-    const tile = buildZoomedTile(1, 5_000)
+    const viewport = buildZoomedViewport(1, 5_000)
 
     const ticks = selectTimeAxisTicks(
       context,
-      tile,
+      viewport,
       buildTimestripLaneLayout(240),
       1_700_000_000_000_000,
     )
-    const visibleTicks = ticks.filter((tick) => tick.xPx >= 0 && tick.xPx <= tile.widthPx)
+    const visibleTicks = ticks.filter((tick) => tick.xPx >= 0 && tick.xPx <= viewport.widthPx)
 
     expect(visibleTicks.length).toBeGreaterThan(2)
     for (let index = 1; index < visibleTicks.length; index += 1) {
