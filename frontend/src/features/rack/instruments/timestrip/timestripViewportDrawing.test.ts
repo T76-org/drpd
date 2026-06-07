@@ -29,11 +29,16 @@ const buildContext = () =>
 
 const buildTrackingContext = () => {
   const fillStyles: string[] = []
+  const fillRects: Array<[number, number, number, number, string]> = []
   const context = {
     beginPath: vi.fn(),
     clearRect: vi.fn(),
     fillRect: vi.fn(() => {
       fillStyles.push(context.fillStyle)
+      const args = context.fillRect.mock.calls.at(-1) as [number, number, number, number] | undefined
+      if (args) {
+        fillRects.push([...args, context.fillStyle])
+      }
     }),
     fillText: vi.fn(),
     lineTo: vi.fn(),
@@ -57,6 +62,7 @@ const buildTrackingContext = () => {
   return {
     context: context as unknown as CanvasRenderingContext2D,
     fillStyles,
+    fillRects,
   }
 }
 
@@ -179,8 +185,8 @@ describe('timestripViewportDrawing', () => {
     expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.crc32FillColor)
   })
 
-  it('draws a subtle digital-lane background behind the selected message', () => {
-    const { context, fillStyles } = buildTrackingContext()
+  it('draws a subtle selection background through the digital and analog lanes', () => {
+    const { context, fillRects, fillStyles } = buildTrackingContext()
 
     drawTimestripViewport(
       context,
@@ -205,5 +211,12 @@ describe('timestripViewportDrawing', () => {
     )
 
     expect(fillStyles).toContain(DEFAULT_TIMESTRIP_THEME.selectedMessageBackgroundColor)
+    expect(fillRects).toContainEqual([
+      20,
+      34,
+      200,
+      206,
+      DEFAULT_TIMESTRIP_THEME.selectedMessageBackgroundColor,
+    ])
   })
 })

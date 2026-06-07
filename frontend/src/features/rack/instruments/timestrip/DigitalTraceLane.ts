@@ -91,9 +91,6 @@ const drawDigitalMessage = (
 ): void => {
   const x = (entry.startWorldNs - options.worldLeftNs) / options.zoomDenominator
   const width = Math.max(1, (entry.endWorldNs - entry.startWorldNs) / options.zoomDenominator)
-  if (isSelected) {
-    drawSelectedMessageBackground(context, layout, x, width, theme)
-  }
   if (detailLevel === 3) {
     drawDetailedMessage(context, layout, entry, options, theme, x, width, isSelected)
     return
@@ -113,19 +110,6 @@ const drawDigitalMessage = (
   if (detailLevel >= 2 && width >= MIN_TEXT_WIDTH_PX) {
     drawClippedText(context, entry.label, x, y, width, height, theme.messageTextColor)
   }
-}
-
-const drawSelectedMessageBackground = (
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  layout: TimestripLaneLayout,
-  x: number,
-  width: number,
-  theme: TimestripThemePalette,
-): void => {
-  const y = layout.digital.y + 1
-  const height = Math.max(1, layout.digital.height - 2)
-  context.fillStyle = theme.selectedMessageBackgroundColor
-  context.fillRect(x, y, width, height)
 }
 
 const drawDetailedMessage = (

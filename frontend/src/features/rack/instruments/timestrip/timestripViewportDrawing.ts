@@ -67,6 +67,7 @@ export const drawTimestripViewport = (
     zoomDenominator: viewport.zoomDenominator,
     samples: analogViewportSamples,
   })
+  drawSelectedMessageViewportBackground(context, layout, viewport, width, theme, digitalEntries, selectedMessageKey)
   drawUnavailableRegions(context, viewport, width, height, theme, unavailableRegions)
   drawCaptureMarker(context, layout, width, theme, {
     worldLeftNs: viewport.worldLeftNs,
@@ -75,6 +76,38 @@ export const drawTimestripViewport = (
   })
 
   context.restore()
+}
+
+const drawSelectedMessageViewportBackground = (
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  layout: ReturnType<typeof buildTimestripLaneLayout>,
+  viewport: TimestripViewportDrawRegion,
+  widthPx: number,
+  theme: TimestripThemePalette,
+  entries: TimestripDigitalEntry[],
+  selectedMessageKey: string | null,
+): void => {
+  if (!selectedMessageKey) {
+    return
+  }
+  const selectedEntry = entries.find((entry) => (
+    entry.kind === 'message' && entry.selectionKey === selectedMessageKey
+  ))
+  if (!selectedEntry || selectedEntry.kind !== 'message') {
+    return
+  }
+  const viewportRightNs = viewport.worldLeftNs + widthPx * viewport.zoomDenominator
+  const startWorldNs = Math.max(viewport.worldLeftNs, selectedEntry.startWorldNs)
+  const endWorldNs = Math.min(viewportRightNs, selectedEntry.endWorldNs)
+  if (endWorldNs <= startWorldNs) {
+    return
+  }
+  const x = (startWorldNs - viewport.worldLeftNs) / viewport.zoomDenominator
+  const selectedWidthPx = Math.max(1, (endWorldNs - startWorldNs) / viewport.zoomDenominator)
+  const y = layout.digital.y + 1
+  const height = Math.max(1, layout.analog.y + layout.analog.height - y)
+  context.fillStyle = theme.selectedMessageBackgroundColor
+  context.fillRect(x, y, selectedWidthPx, height)
 }
 
 const drawUnavailableRegions = (
