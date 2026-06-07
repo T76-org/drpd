@@ -593,15 +593,6 @@ export const DrpdTimeStripInstrumentView = ({
         : 1 - LIVE_FOLLOW_VIEWPORT_FRACTION,
     minTailPaddingZoomDenominator: MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS,
   })
-  const unavailableRegions = useMemo(
-    () => buildTimestripUnavailableRegions(
-      digitalEntries,
-      latestDatumWorldNs,
-      Number(viewportDurationNs),
-      zoomDenominator,
-    ),
-    [digitalEntries, latestDatumWorldNs, viewportDurationNs, zoomDenominator],
-  )
   const isLiveFollowAvailable = zoomDenominator >= MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS
   const latestFollowWorldNs = captureMarkerWorldNs ?? latestDatumWorldNs
   const maxScrollLeftPx = Math.max(0, timelineWidthPx - viewportWidthPx)
@@ -621,6 +612,19 @@ export const DrpdTimeStripInstrumentView = ({
     !isLiveFollowPausedByUser &&
     !selectedLogMessageKey &&
     latestFollowTargetScrollLeftPx !== null
+  const unavailableBoundaryWorldNs =
+    isLiveFollowing && captureMarkerWorldNs !== null && Number.isFinite(captureMarkerWorldNs)
+      ? captureMarkerWorldNs
+      : latestDatumWorldNs
+  const unavailableRegions = useMemo(
+    () => buildTimestripUnavailableRegions(
+      digitalEntries,
+      unavailableBoundaryWorldNs,
+      timelineWidthPx * zoomDenominator,
+      zoomDenominator,
+    ),
+    [digitalEntries, unavailableBoundaryWorldNs, timelineWidthPx, zoomDenominator],
+  )
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
   const {
     analogHover,
