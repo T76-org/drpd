@@ -15,6 +15,7 @@ import type {
   CapturedMessageQuery,
   DRPDLogCounts,
   DRPDLogStore,
+  DRPDLoggingTimeBounds,
   DRPDLoggingDiagnostics,
   DRPDLoggingConfig,
   LogClearResult,
@@ -811,6 +812,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       const hasSenderPowerRoles = Boolean(query.senderPowerRoles?.length)
       const hasSenderDataRoles = Boolean(query.senderDataRoles?.length)
       const hasSopKinds = Boolean(query.sopKinds?.length)
+      const hasEventTypes = Boolean(query.eventTypes?.length)
       const rows = this.memoryFallback.capturedMessages
         .filter((row) => {
           const queryTimestamp = getRowQueryTimestamp(row)
@@ -837,6 +839,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
             return false
           }
           if (hasSopKinds && (!row.sopKind || !query.sopKinds?.includes(row.sopKind))) {
+            return false
+          }
+          if (hasEventTypes && (!row.eventType || !query.eventTypes?.includes(row.eventType))) {
             return false
           }
           return true
@@ -875,7 +880,8 @@ export class SQLiteWasmStore implements DRPDLogStore {
       !query.messageKinds?.length &&
       !query.senderPowerRoles?.length &&
       !query.senderDataRoles?.length &&
-      !query.sopKinds?.length
+      !query.sopKinds?.length &&
+      !query.eventTypes?.length
 
     const pendingRows = this.filterPendingCapturedMessages(query)
     if (isUnfilteredFullRange && (offset > 0 || limit !== null)) {
@@ -934,6 +940,69 @@ export class SQLiteWasmStore implements DRPDLogStore {
     })
     const pagedRows = offset > 0 ? mergedRows.slice(offset) : mergedRows
     return limit === null ? pagedRows : pagedRows.slice(0, limit)
+  }
+
+  /**
+   * Return first/latest rows needed to size the timeline.
+   *
+   * @returns Timeline range rows.
+   */
+  public async getTimeBounds(): Promise<DRPDLoggingTimeBounds> {
+    const [
+      firstAnalogRows,
+      lastAnalogRows,
+      firstDeviceRows,
+      lastDeviceRows,
+      firstWallClockRows,
+      lastWallClockRows,
+    ] = await Promise.all([
+      this.queryAnalogSamples({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'asc',
+        limit: 1,
+      }),
+      this.queryAnalogSamples({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'desc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'asc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        sortOrder: 'desc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        timeBasis: 'wallClock',
+        sortOrder: 'asc',
+        limit: 1,
+      }),
+      this.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+        timeBasis: 'wallClock',
+        sortOrder: 'desc',
+        limit: 1,
+      }),
+    ])
+    return {
+      firstAnalogSample: firstAnalogRows[0] ?? null,
+      lastAnalogSample: lastAnalogRows[0] ?? null,
+      firstDeviceMessage: firstDeviceRows[0] ?? null,
+      lastDeviceMessage: lastDeviceRows[0] ?? null,
+      firstWallClockMessage: firstWallClockRows[0] ?? null,
+      lastWallClockMessage: lastWallClockRows[0] ?? null,
+    }
   }
 
   /**
@@ -1018,6 +1087,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
     if (query.sopKinds?.length) {
       clauses.push(`sop_kind IN (${query.sopKinds.map(() => '?').join(', ')})`)
       bind.push(...query.sopKinds)
+    }
+    if (query.eventTypes?.length) {
+      clauses.push(`event_type IN (${query.eventTypes.map(() => '?').join(', ')})`)
+      bind.push(...query.eventTypes)
     }
 
     const sqlParts = [
@@ -1117,6 +1190,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
           return false
         }
         if (query.sopKinds?.length && (!row.sopKind || !query.sopKinds.includes(row.sopKind))) {
+          return false
+        }
+        if (query.eventTypes?.length && (!row.eventType || !query.eventTypes.includes(row.eventType))) {
           return false
         }
         return true

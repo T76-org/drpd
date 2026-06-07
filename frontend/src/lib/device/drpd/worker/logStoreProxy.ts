@@ -8,6 +8,7 @@
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
+  DRPDLoggingTimeBounds,
   DRPDLogStore,
   DRPDLoggingConfig,
   LogClearResult,
@@ -129,6 +130,20 @@ export class DRPDWorkerLogStoreProxy implements DRPDLogStore {
       logStoreId: this.id,
       op: 'queryCapturedMessages',
       query,
+    })
+  }
+
+  /**
+   * Return first/latest rows used for timeline range sizing.
+   *
+   * @returns Timeline time bounds.
+   */
+  public async getTimeBounds(): Promise<DRPDLoggingTimeBounds> {
+    this.ensureOpen()
+    await this.ensureCreated()
+    return await this.client.callWorker<DRPDLoggingTimeBounds>('logStore.call', {
+      logStoreId: this.id,
+      op: 'getTimeBounds',
     })
   }
 

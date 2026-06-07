@@ -11,7 +11,7 @@ const LANE_PADDING_PX = 4
 const MIN_TEXT_WIDTH_PX = 34
 
 export interface DigitalTraceLaneRenderOptions {
-  worldLeftUs: number
+  worldLeftNs: number
   zoomDenominator: number
   entries: TimestripDigitalEntry[]
   selectedMessageKey?: string | null
@@ -22,7 +22,7 @@ export interface DigitalTraceLaneRenderOptions {
  *
  * @param context - Canvas 2D context.
  * @param layout - Lane layout.
- * @param widthPx - Tile width in CSS pixels.
+ * @param widthPx - Viewport width in CSS pixels.
  */
 export const drawDigitalTraceLane = (
   context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -72,7 +72,7 @@ const drawDigitalEvent = (
   options: DigitalTraceLaneRenderOptions,
   theme: TimestripThemePalette,
 ): void => {
-  const x = (entry.worldUs - options.worldLeftUs) / options.zoomDenominator
+  const x = (entry.worldNs - options.worldLeftNs) / options.zoomDenominator
   context.strokeStyle = getTimestripEventColor(entry.eventType, theme)
   context.beginPath()
   context.moveTo(Math.round(x) + 0.5, layout.digital.y + 1)
@@ -89,35 +89,27 @@ const drawDigitalMessage = (
   detailLevel: 1 | 2 | 3,
   isSelected: boolean,
 ): void => {
-  const x = (entry.startWorldUs - options.worldLeftUs) / options.zoomDenominator
-  const width = Math.max(1, (entry.endWorldUs - entry.startWorldUs) / options.zoomDenominator)
-  if (isSelected) {
-    drawSelectedMessageBackground(context, layout, x, width, theme)
-  }
+  const x = (entry.startWorldNs - options.worldLeftNs) / options.zoomDenominator
+  const width = Math.max(1, (entry.endWorldNs - entry.startWorldNs) / options.zoomDenominator)
   if (detailLevel === 3) {
-    drawDetailedMessage(context, layout, entry, options, theme, x, width)
+    drawDetailedMessage(context, layout, entry, options, theme, x, width, isSelected)
     return
   }
 
   const y = layout.digital.y + LANE_PADDING_PX
   const height = Math.max(1, layout.digital.height - LANE_PADDING_PX * 2)
-  drawRect(context, x, y, width, height, theme.messageFillColor, theme.messageStrokeColor)
+  drawRect(
+    context,
+    x,
+    y,
+    width,
+    height,
+    isSelected ? theme.selectedMessageFillColor : theme.messageFillColor,
+    theme.messageStrokeColor,
+  )
   if (detailLevel >= 2 && width >= MIN_TEXT_WIDTH_PX) {
     drawClippedText(context, entry.label, x, y, width, height, theme.messageTextColor)
   }
-}
-
-const drawSelectedMessageBackground = (
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  layout: TimestripLaneLayout,
-  x: number,
-  width: number,
-  theme: TimestripThemePalette,
-): void => {
-  const y = layout.digital.y + 1
-  const height = Math.max(1, layout.digital.height - 2)
-  context.fillStyle = theme.selectedMessageBackgroundColor
-  context.fillRect(x, y, width, height)
 }
 
 const drawDetailedMessage = (
@@ -128,6 +120,7 @@ const drawDetailedMessage = (
   theme: TimestripThemePalette,
   x: number,
   width: number,
+  isSelected: boolean,
 ): void => {
   const availableHeight = Math.max(1, layout.digital.height - LANE_PADDING_PX * 2)
   const rowGap = 2
@@ -137,7 +130,15 @@ const drawDetailedMessage = (
   const byteHeight = Math.max(10, availableHeight - waveformHeight - nameHeight - componentHeight - rowGap * 3)
   const top = layout.digital.y + LANE_PADDING_PX
   drawWaveform(context, entry, options, theme, top, waveformHeight)
-  drawRect(context, x, top + waveformHeight + rowGap, width, nameHeight, theme.messageFillColor, theme.messageStrokeColor)
+  drawRect(
+    context,
+    x,
+    top + waveformHeight + rowGap,
+    width,
+    nameHeight,
+    isSelected ? theme.selectedMessageFillColor : theme.messageFillColor,
+    theme.messageStrokeColor,
+  )
   if (width >= MIN_TEXT_WIDTH_PX) {
     drawClippedText(context, entry.label, x, top + waveformHeight + rowGap, width, nameHeight, theme.messageTextColor)
   }
@@ -158,7 +159,7 @@ const drawDetailedMessage = (
   const firstByteStartUs = firstByteComponent?.startUs ?? 0
   const byteDurationUs = firstByteComponent
     ? firstByteComponent.durationUs / firstByteComponent.byteLength
-    : (entry.endWorldUs - entry.startWorldUs) / Math.max(1, entry.frameBytes.length)
+    : (entry.endWorldNs - entry.startWorldNs) / Math.max(1, entry.frameBytes.length)
   for (let index = 0; index < entry.frameBytes.length; index += 1) {
     const byteX = x + (firstByteStartUs + index * byteDurationUs) / options.zoomDenominator
     const byteWidth = Math.max(1, byteDurationUs / options.zoomDenominator)
@@ -221,14 +222,14 @@ const drawWaveform = (
   }
   const highY = y + 3
   const lowY = y + height - 3
-  let currentWorldUs = entry.startWorldUs
+  let currentWorldUs = entry.startWorldNs
   let high = true
   context.strokeStyle = theme.waveformColor
   context.beginPath()
-  context.moveTo((currentWorldUs - options.worldLeftUs) / options.zoomDenominator, highY)
+  context.moveTo((currentWorldUs - options.worldLeftNs) / options.zoomDenominator, highY)
   for (const pulseWidthNs of entry.pulseWidthsNs) {
     const nextWorldUs = currentWorldUs + pulseWidthNs
-    const nextX = (nextWorldUs - options.worldLeftUs) / options.zoomDenominator
+    const nextX = (nextWorldUs - options.worldLeftNs) / options.zoomDenominator
     const yValue = high ? highY : lowY
     context.lineTo(nextX, yValue)
     high = !high

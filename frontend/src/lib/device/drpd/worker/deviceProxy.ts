@@ -22,6 +22,7 @@ import type {
   LogClearScope,
   DRPDLogCounts,
   DRPDLoggingDiagnostics,
+  DRPDLoggingTimeBounds,
   LogExportRequest,
   LogExportResult,
   LoggedAnalogSample,
@@ -424,6 +425,15 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   public async queryCapturedMessages(query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
     return (await this.callDevice('queryCapturedMessages', query)) as LoggedCapturedMessage[]
+  }
+
+  /**
+   * Return first/latest rows needed to size timeline views.
+   *
+   * @returns Timeline time bounds.
+   */
+  public async getLoggingTimeBounds(): Promise<DRPDLoggingTimeBounds> {
+    return (await this.callDevice('getLoggingTimeBounds')) as DRPDLoggingTimeBounds
   }
 
   /**

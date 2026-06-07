@@ -431,6 +431,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           return await store.queryAnalogSamples(request.params.query)
         case 'queryCapturedMessages':
           return await store.queryCapturedMessages(request.params.query)
+        case 'getTimeBounds':
+          return typeof store.getTimeBounds === 'function'
+            ? await store.getTimeBounds()
+            : null
         case 'exportData':
           return await store.exportData(request.params.request)
         case 'clear':
@@ -520,6 +524,8 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             return null
           case 'getLoggingDiagnostics':
             return session.device.getLoggingDiagnostics()
+          case 'getLoggingTimeBounds':
+            return await session.device.getLoggingTimeBounds()
           case 'getLogCounts':
             return await session.device.getLogCounts()
           case 'setCaptureEnabled':

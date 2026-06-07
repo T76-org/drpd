@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildCapturedLogSelectionKey,
   DRPDDevice,
+  OnOffState,
   type DRPDLogSelectionState,
   type LoggedAnalogSample,
   type LoggedCapturedMessage,
@@ -11,40 +11,44 @@ import type { RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import styles from './DrpdTimeStripInstrumentView.module.css'
-import {
-  calculateTimestripWidthPx,
-  clampTimestripZoomDenominator,
-  formatTimestripZoomDenominator,
-  TIMESTRIP_TILE_OVERSCAN,
-  TIMESTRIP_TILE_WIDTH_PX,
-} from './timestrip/timestripLayout'
 import { getTimestripThemePalette } from './timestrip/timestripTheme'
-import { TimestripTiledRenderer } from './timestrip/timestripTiledRenderer'
+import { TimestripCanvasRenderer } from './timestrip/timestripCanvasRenderer'
 import {
-  getTimestripDigitalQueryRange,
   normalizeCapturedMessageForTimestrip,
   type TimestripDigitalEntry,
 } from './timestrip/timestripDigitalModel'
 import {
-  interpolateTimestripAnalogSample,
   normalizeAnalogSampleForTimestrip,
-  type TimestripAnalogHoverValue,
   type TimestripAnalogSample,
 } from './timestrip/timestripAnalogModel'
 import { buildTimestripAnalogLegendTicks } from './timestrip/timestripAnalogLegend'
 import { buildTimestripLaneLayout } from './timestrip/timestripLaneLayout'
+import {
+  basisTimestampUsToWorldNs,
+  calculateTimestripQueryRange,
+  getTimestripBasisOriginUs,
+  getTimestripBasisTimestampUs,
+  type TimestripBasis,
+  type TimestripQueryRange,
+  type TimestripTimelineRange,
+} from './timestrip/timestripCoordinates'
+import { useTimestripViewport } from './timestrip/useTimestripViewport'
+import type { TimestripNavigationReason } from './timestrip/useTimestripViewport'
+import { useTimestripAnalogHover } from './timestrip/useTimestripAnalogHover'
+import { mergeTimestripUnavailableRegions } from './timestrip/timestripUnavailableRegions'
+import type { TimestripUnavailableRegion } from './timestrip/timestripUnavailableRegions'
 
 const PLACEHOLDER_TIMELINE_END_NS = 10_000_000_000n
 const LOG_START_TIMESTAMP_US = 0n
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
-const DEFAULT_ZOOM_DENOMINATOR = 100_000_000
-const ZOOM_DENOMINATOR_STORAGE_KEY = 'drpd:timestrip:zoom-denominator'
-const CTRL_WHEEL_ZOOM_STEP = 2
 const DIGITAL_QUERY_LIMIT = 5000
 const ANALOG_QUERY_LIMIT = 8000
-const DIGITAL_QUERY_OVERSCAN_PX = TIMESTRIP_TILE_WIDTH_PX * (TIMESTRIP_TILE_OVERSCAN + 1)
+const DIGITAL_QUERY_OVERSCAN_PX = 1024
 const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
-const MAX_DOM_TIMELINE_WIDTH_PX = 16_000_000
+const MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS = 16_000_000
+const LIVE_FOLLOW_VIEWPORT_FRACTION = 0.5
+const LIVE_FOLLOW_INTERVAL_MS = 125
+const LIVE_FOLLOW_MAX_STEP_VIEWPORTS = 0.75
 const readThemeName = () => (
   typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
 )
@@ -52,125 +56,18 @@ const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
   themeName,
   typeof window === 'undefined' ? undefined : window.getComputedStyle(document.documentElement),
 )
-const readStoredZoomDenominator = (): number => {
-  if (typeof window === 'undefined') {
-    return DEFAULT_ZOOM_DENOMINATOR
-  }
-  try {
-    const rawValue = window.localStorage.getItem(ZOOM_DENOMINATOR_STORAGE_KEY)
-    return rawValue == null ? DEFAULT_ZOOM_DENOMINATOR : clampTimestripZoomDenominator(rawValue)
-  } catch {
-    return DEFAULT_ZOOM_DENOMINATOR
-  }
-}
-const writeStoredZoomDenominator = (zoomDenominator: number): void => {
-  if (typeof window === 'undefined') {
-    return
-  }
-  try {
-    window.localStorage.setItem(ZOOM_DENOMINATOR_STORAGE_KEY, zoomDenominator.toString())
-  } catch {
-    // Ignore persistence errors; zoom still updates for the current session.
-  }
-}
-const buildDigitalEntriesSignature = (entries: TimestripDigitalEntry[]): string =>
-  entries.map((entry) => {
-    if (entry.kind === 'event') {
-      return `e:${entry.worldUs}:${entry.eventType ?? ''}`
-    }
-    return [
-      'm',
-      entry.startWorldUs,
-      entry.endWorldUs,
-      entry.selectionKey,
-      entry.label,
-      entry.frameBytes.length,
-      entry.pulseWidthsNs.length,
-      entry.components.length,
-    ].join(':')
-  }).join('|')
-
-const buildAnalogSamplesSignature = (samples: TimestripAnalogSample[]): string =>
-  samples.map((sample) => [
-    sample.worldUs,
-    sample.voltageV,
-    sample.currentA,
-  ].join(':')).join('|')
-
 const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
   `${value.toFixed(unit === 'V' ? 2 : 3)}${unit}`
 
-const calculateDomTimelineWidthPx = (timelineWidthPx: number, viewportWidthPx: number): number =>
-  Math.max(viewportWidthPx, Math.min(timelineWidthPx, MAX_DOM_TIMELINE_WIDTH_PX))
-
-const calculateScrollScale = (
-  timelineWidthPx: number,
-  domTimelineWidthPx: number,
-  viewportWidthPx: number,
-): number => {
-  const logicalScrollableWidth = Math.max(0, timelineWidthPx - viewportWidthPx)
-  const domScrollableWidth = Math.max(0, domTimelineWidthPx - viewportWidthPx)
-  if (logicalScrollableWidth <= 0 || domScrollableWidth <= 0) {
-    return 1
-  }
-  return logicalScrollableWidth / domScrollableWidth
-}
-
-type TimestripInvalidation = 'all' | { startWorldUs: number; endWorldUs: number }
-type DigitalQueryRange = { startTimestampUs: bigint; endTimestampUs: bigint }
-type TimelineRange = {
-  durationNs: bigint
-  worldStartTimestampUs: bigint
-  worldStartWallClockUs: number
-  hasWallClockBasis: boolean
-}
+type DigitalQueryRange = TimestripQueryRange
+type AnalogLoadedRange = TimestripQueryRange
 type TimelineRangePoint = {
   timestampUs: bigint
   wallClockUs: bigint | null
 }
-type MessageSelectionKeyParts = {
+type LogSelectionKeyParts = {
   startTimestampUs: bigint
   endTimestampUs: bigint
-}
-
-const calculateQueryInvalidation = (
-  loadedRange: DigitalQueryRange | null,
-  nextRange: DigitalQueryRange,
-  worldStartTimestampUs: bigint,
-): TimestripInvalidation => {
-  if (!loadedRange) {
-    return 'all'
-  }
-  if (
-    nextRange.endTimestampUs < loadedRange.startTimestampUs ||
-    nextRange.startTimestampUs > loadedRange.endTimestampUs
-  ) {
-    return 'all'
-  }
-
-  let startTimestampUs: bigint | null = null
-  let endTimestampUs: bigint | null = null
-  if (nextRange.startTimestampUs < loadedRange.startTimestampUs) {
-    startTimestampUs = nextRange.startTimestampUs
-    endTimestampUs = loadedRange.startTimestampUs
-  }
-  if (nextRange.endTimestampUs > loadedRange.endTimestampUs) {
-    startTimestampUs =
-      startTimestampUs === null
-        ? loadedRange.endTimestampUs
-        : startTimestampUs
-    endTimestampUs = nextRange.endTimestampUs
-  }
-  if (startTimestampUs === null || endTimestampUs === null) {
-    return {
-      startWorldUs: 0,
-      endWorldUs: 0,
-    }
-  }
-  return {
-    startWorldUs: Number((startTimestampUs - worldStartTimestampUs) * 1000n),
-    endWorldUs: Number((endTimestampUs - worldStartTimestampUs) * 1000n),
-  }
 }
 
 const compareTimelinePointDeviceTime = (left: TimelineRangePoint, right: TimelineRangePoint): number =>
@@ -201,6 +98,315 @@ const messageToTimelinePoint = (row: LoggedCapturedMessage): TimelineRangePoint 
 const analogToTimelinePoint = (row: LoggedAnalogSample): TimelineRangePoint => ({
   timestampUs: row.timestampUs,
   wallClockUs: row.wallClockUs,
+})
+
+const getMessageDurationNs = (row: LoggedCapturedMessage): number =>
+  row.entryKind === 'message'
+    ? Math.max(1, Number((row.endTimestampUs - row.startTimestampUs) * 1000n))
+    : 1
+
+const getLoggedMessageEndWorldNs = (
+  row: LoggedCapturedMessage,
+  basis: TimestripBasis,
+): number | null => {
+  const startBasisTimestampUs = getTimestripBasisTimestampUs(row.startTimestampUs, row.wallClockUs, basis)
+  if (startBasisTimestampUs === null) {
+    return null
+  }
+  return basisTimestampUsToWorldNs(startBasisTimestampUs, basis) + getMessageDurationNs(row)
+}
+
+const getAnalogSampleWorldNs = (
+  row: LoggedAnalogSample,
+  basis: TimestripBasis,
+): number | null => {
+  const basisTimestampUs = getTimestripBasisTimestampUs(row.timestampUs, row.wallClockUs, basis)
+  return basisTimestampUs === null ? null : basisTimestampUsToWorldNs(basisTimestampUs, basis)
+}
+
+const getCaptureBreakWorldNs = (
+  row: LoggedCapturedMessage,
+  basis: TimestripBasis,
+): number | null => {
+  if (row.entryKind !== 'event' || row.eventType !== 'capture_changed') {
+    return null
+  }
+  const basisTimestampUs = getTimestripBasisTimestampUs(row.startTimestampUs, row.wallClockUs, basis)
+  return basisTimestampUs === null ? null : basisTimestampUsToWorldNs(basisTimestampUs, basis)
+}
+
+const buildTimestripUnavailableRegions = (
+  digitalEntries: TimestripDigitalEntry[],
+  latestDatumWorldNs: number | null,
+  timelineEndWorldNs: number,
+  zoomDenominator: number,
+): TimestripUnavailableRegion[] => {
+  const regions: TimestripUnavailableRegion[] = []
+  let captureUnavailableStartWorldNs: number | null = null
+  const captureEvents = digitalEntries
+    .filter((entry): entry is Extract<TimestripDigitalEntry, { kind: 'event' }> => (
+      entry.kind === 'event' && entry.eventType === 'capture_changed'
+    ))
+    .sort((left, right) => left.worldNs - right.worldNs)
+  for (const event of captureEvents) {
+    const eventText = event.eventText?.toLowerCase() ?? ''
+    if (eventText.includes('turned off')) {
+      captureUnavailableStartWorldNs = event.worldNs
+      continue
+    }
+    if (eventText.includes('turned on') && captureUnavailableStartWorldNs !== null) {
+      regions.push({
+        startWorldNs: captureUnavailableStartWorldNs,
+        endWorldNs: event.worldNs,
+      })
+      captureUnavailableStartWorldNs = null
+    }
+  }
+  if (captureUnavailableStartWorldNs !== null) {
+    regions.push({
+      startWorldNs: captureUnavailableStartWorldNs,
+      endWorldNs: timelineEndWorldNs,
+    })
+  }
+  if (latestDatumWorldNs === null) {
+    regions.push({
+      startWorldNs: 0,
+      endWorldNs: timelineEndWorldNs,
+    })
+  } else if (latestDatumWorldNs < timelineEndWorldNs) {
+    const startWorldNs = Math.min(timelineEndWorldNs, latestDatumWorldNs + zoomDenominator)
+    regions.push({
+      startWorldNs,
+      endWorldNs: timelineEndWorldNs,
+    })
+  }
+  return mergeTimestripUnavailableRegions(regions)
+}
+
+const isRangeCoveredByLoadedRanges = (
+  range: TimestripQueryRange,
+  loadedRanges: AnalogLoadedRange[],
+): boolean => {
+  let coveredUntil: bigint | null = null
+  const relevantRanges = loadedRanges
+    .filter((loadedRange) => loadedRange.timeBasis === range.timeBasis)
+    .sort((left, right) => left.startTimestampUs < right.startTimestampUs ? -1 : left.startTimestampUs > right.startTimestampUs ? 1 : 0)
+  for (const loadedRange of relevantRanges) {
+    if (loadedRange.endTimestampUs < range.startTimestampUs) {
+      continue
+    }
+    if (loadedRange.startTimestampUs > range.endTimestampUs) {
+      break
+    }
+    if (coveredUntil === null) {
+      if (loadedRange.startTimestampUs > range.startTimestampUs) {
+        return false
+      }
+      coveredUntil = loadedRange.endTimestampUs
+    } else if (loadedRange.startTimestampUs > coveredUntil + 1n) {
+      return false
+    } else if (loadedRange.endTimestampUs > coveredUntil) {
+      coveredUntil = loadedRange.endTimestampUs
+    }
+    if (coveredUntil >= range.endTimestampUs) {
+      return true
+    }
+  }
+  return false
+}
+
+const isTimestampCoveredByLoadedRanges = (
+  timestampUs: bigint,
+  timeBasis: 'device' | 'wallClock',
+  loadedRanges: AnalogLoadedRange[],
+): boolean => loadedRanges.some((loadedRange) => (
+  loadedRange.timeBasis === timeBasis &&
+  timestampUs >= loadedRange.startTimestampUs &&
+  timestampUs <= loadedRange.endTimestampUs
+))
+
+const mergeLoadedAnalogRange = (
+  loadedRanges: AnalogLoadedRange[],
+  nextRange: AnalogLoadedRange | null,
+): AnalogLoadedRange[] => {
+  if (!nextRange) {
+    return loadedRanges
+  }
+  const ranges = [...loadedRanges, nextRange]
+    .filter((range) => range.timeBasis === nextRange.timeBasis)
+    .sort((left, right) => left.startTimestampUs < right.startTimestampUs ? -1 : left.startTimestampUs > right.startTimestampUs ? 1 : 0)
+  const merged: AnalogLoadedRange[] = []
+  for (const range of ranges) {
+    const previous = merged.at(-1)
+    if (!previous || range.startTimestampUs > previous.endTimestampUs + 1n) {
+      merged.push({ ...range })
+      continue
+    }
+    if (range.endTimestampUs > previous.endTimestampUs) {
+      previous.endTimestampUs = range.endTimestampUs
+    }
+  }
+  return [
+    ...loadedRanges.filter((range) => range.timeBasis !== nextRange.timeBasis),
+    ...merged,
+  ]
+}
+
+const mergeTimestripAnalogSamples = (
+  currentSamples: TimestripAnalogSample[],
+  nextSamples: TimestripAnalogSample[],
+): TimestripAnalogSample[] => {
+  const byWorldNs = new Map<number, TimestripAnalogSample>()
+  for (const sample of currentSamples) {
+    byWorldNs.set(sample.worldNs, { ...sample, breakBefore: false })
+  }
+  for (const sample of nextSamples) {
+    byWorldNs.set(sample.worldNs, { ...sample, breakBefore: false })
+  }
+  return Array.from(byWorldNs.values()).sort((left, right) => left.worldNs - right.worldNs)
+}
+
+const mergeWorldNsValues = (current: number[], next: number[]): number[] =>
+  Array.from(new Set([...current, ...next])).sort((left, right) => left - right)
+
+const getAnalogCoveredRange = (
+  requestedRange: TimestripQueryRange,
+  visibleRows: LoggedAnalogSample[],
+  hitLimit: boolean,
+  usesWallClockBasis: boolean,
+): AnalogLoadedRange | null => {
+  if (visibleRows.length === 0) {
+    return requestedRange
+  }
+  const timestamps = visibleRows.flatMap((row) => {
+    const timestampUs = getAnalogSampleBasisTimestampUs(row, usesWallClockBasis)
+    return timestampUs === null ? [] : [timestampUs]
+  })
+  if (timestamps.length === 0) {
+    return null
+  }
+  const lastTimestampUs = timestamps.at(-1)!
+  return {
+    ...requestedRange,
+    startTimestampUs: requestedRange.startTimestampUs,
+    endTimestampUs: hitLimit ? lastTimestampUs : requestedRange.endTimestampUs,
+  }
+}
+
+const getAnalogSampleBasisTimestampUs = (
+  row: LoggedAnalogSample,
+  hasWallClockBasis: boolean,
+): bigint | null => {
+  if (!hasWallClockBasis) {
+    return row.timestampUs
+  }
+  return row.wallClockUs
+}
+
+const applyAnalogBreaks = (
+  samples: TimestripAnalogSample[],
+  breakWorldNs: number[],
+): TimestripAnalogSample[] => {
+  if (samples.length === 0 || breakWorldNs.length === 0) {
+    return samples.map((sample) => ({ ...sample, breakBefore: false }))
+  }
+  const sortedBreaks = [...breakWorldNs]
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right)
+  if (sortedBreaks.length === 0) {
+    return samples.map((sample) => ({ ...sample, breakBefore: false }))
+  }
+  let breakIndex = 0
+  return samples.map((sample, sampleIndex) => {
+    if (sampleIndex === 0) {
+      return { ...sample, breakBefore: false }
+    }
+    const previous = samples[sampleIndex - 1]
+    while (breakIndex < sortedBreaks.length && sortedBreaks[breakIndex] <= previous.worldNs) {
+      breakIndex += 1
+    }
+    const breakBefore =
+      breakIndex < sortedBreaks.length &&
+      sortedBreaks[breakIndex] > previous.worldNs &&
+      sortedBreaks[breakIndex] <= sample.worldNs
+    return { ...sample, breakBefore }
+  })
+}
+
+const getDigitalEntrySortWorldNs = (entry: TimestripDigitalEntry): number =>
+  entry.kind === 'event' ? entry.worldNs : entry.startWorldNs
+
+const insertDigitalEntrySorted = (
+  entries: TimestripDigitalEntry[],
+  entry: TimestripDigitalEntry,
+): TimestripDigitalEntry[] => {
+  const entryWorldNs = getDigitalEntrySortWorldNs(entry)
+  const lastEntry = entries.at(-1)
+  if (!lastEntry || getDigitalEntrySortWorldNs(lastEntry) <= entryWorldNs) {
+    return [...entries, entry]
+  }
+  const nextEntries = [...entries]
+  let low = 0
+  let high = nextEntries.length
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (getDigitalEntrySortWorldNs(nextEntries[mid]) <= entryWorldNs) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  nextEntries.splice(low, 0, entry)
+  return nextEntries
+}
+
+const insertAnalogSampleSorted = (
+  samples: TimestripAnalogSample[],
+  sample: TimestripAnalogSample,
+): TimestripAnalogSample[] => {
+  const lastSample = samples.at(-1)
+  if (!lastSample || lastSample.worldNs <= sample.worldNs) {
+    return [...samples, sample]
+  }
+  const nextSamples = [...samples]
+  let low = 0
+  let high = nextSamples.length
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (nextSamples[mid].worldNs <= sample.worldNs) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  nextSamples.splice(low, 0, sample)
+  return nextSamples
+}
+
+const getLatestLoggedDatumWorldNs = (
+  rows: Array<LoggedCapturedMessage | LoggedAnalogSample | null | undefined>,
+  basis: TimestripBasis,
+): number | null => {
+  const values = rows.flatMap((row) => {
+    if (!row) {
+      return []
+    }
+    const worldNs = 'timestampUs' in row
+      ? getAnalogSampleWorldNs(row, basis)
+      : getLoggedMessageEndWorldNs(row, basis)
+    return worldNs === null || !Number.isFinite(worldNs) ? [] : [worldNs]
+  })
+  return values.length === 0 ? null : Math.max(...values)
+}
+
+const buildTimelineBasis = (
+  originTimestampUs: bigint,
+  originWallClockUs: number,
+  hasWallClockBasis: boolean,
+): TimestripBasis => ({
+  kind: hasWallClockBasis ? 'wallClock' : 'device',
+  originTimestampUs,
+  originWallClockUs,
 })
 
 const getCapturedRowBasisTimestampUs = (
@@ -236,16 +442,6 @@ const getClosestCapturedRow = (
   return closestRow
 }
 
-const getAnalogSampleBasisTimestampUs = (
-  row: LoggedAnalogSample,
-  hasWallClockBasis: boolean,
-): bigint | null => {
-  if (!hasWallClockBasis) {
-    return row.timestampUs
-  }
-  return row.wallClockUs
-}
-
 const mergeAnalogSampleRows = (
   rows: LoggedAnalogSample[],
   hasWallClockBasis: boolean,
@@ -271,16 +467,29 @@ const mergeAnalogSampleRows = (
     })
 }
 
-const parseMessageSelectionKey = (selectionKey: string): MessageSelectionKeyParts | null => {
+const isTimestripLogSelectionKey = (selectionKey: string): boolean =>
+  selectionKey.startsWith('message:') || selectionKey.startsWith('event:')
+
+const parseLogSelectionKey = (selectionKey: string): LogSelectionKeyParts | null => {
   const parts = selectionKey.split(':')
-  if (parts.length !== 4 || parts[0] !== 'message') {
+  if (parts.length !== 4) {
     return null
   }
   try {
-    return {
-      startTimestampUs: BigInt(parts[1]),
-      endTimestampUs: BigInt(parts[2]),
+    if (parts[0] === 'message') {
+      return {
+        startTimestampUs: BigInt(parts[1]),
+        endTimestampUs: BigInt(parts[2]),
+      }
     }
+    if (parts[0] === 'event') {
+      const timestampUs = BigInt(parts[1])
+      return {
+        startTimestampUs: timestampUs,
+        endTimestampUs: timestampUs,
+      }
+    }
+    return null
   } catch {
     return null
   }
@@ -314,84 +523,190 @@ export const DrpdTimeStripInstrumentView = ({
   onRemove?: (instrumentId: string) => void
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const tileLayerRef = useRef<HTMLDivElement | null>(null)
-  const rendererRef = useRef<TimestripTiledRenderer | null>(null)
-  const resizeFrameRef = useRef<number | null>(null)
-  const pendingViewportSizeRef = useRef<{ width: number; height: number } | null>(null)
-  const analogHoverPointerRef = useRef<{ x: number; y: number } | null>(null)
+  const canvasLayerRef = useRef<HTMLDivElement | null>(null)
+  const rendererRef = useRef<TimestripCanvasRenderer | null>(null)
   const centeredSelectionKeyRef = useRef<string | null>(null)
-  const digitalEntriesSignatureRef = useRef('')
-  const analogSamplesSignatureRef = useRef('')
+  const liveFollowFrameRef = useRef<number | null>(null)
+  const liveFollowImmediateRef = useRef(true)
+  const lastLiveFollowCommitMsRef = useRef(0)
+  const isLiveFollowPausedByUserRef = useRef(false)
+  const userNavigationRevisionRef = useRef(0)
+  const scrollHoverUpdateRef = useRef<((logicalScrollLeftPx: number) => void) | null>(null)
+  const analogBreakWorldNsRef = useRef<number[]>([])
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
-  const analogQueryRangeRef = useRef<DigitalQueryRange | null>(null)
-  const pendingTileInvalidationRef = useRef<TimestripInvalidation | null>(null)
-  const [timelineRange, setTimelineRange] = useState<TimelineRange>(() => ({
+  const analogLoadedRangesRef = useRef<AnalogLoadedRange[]>([])
+  const [timelineRange, setTimelineRange] = useState<TimestripTimelineRange>(() => ({
+    basis: buildTimelineBasis(0n, Date.now() * 1000, false),
     durationNs: PLACEHOLDER_TIMELINE_END_NS,
-    worldStartTimestampUs: 0n,
-    worldStartWallClockUs: Date.now() * 1000,
-    hasWallClockBasis: false,
+    hasLogRange: false,
   }))
   const [hasLogTimelineRange, setHasLogTimelineRange] = useState(false)
-  const [viewportWidthPx, setViewportWidthPx] = useState(0)
-  const [viewportHeightPx, setViewportHeightPx] = useState(0)
-  const [scrollLeftPx, setScrollLeftPx] = useState(0)
-  const [zoomDenominator, setZoomDenominator] = useState(readStoredZoomDenominator)
+  const [latestDatumWorldNs, setLatestDatumWorldNs] = useState<number | null>(null)
+  const [captureEnabled, setCaptureEnabled] = useState(false)
+  const [captureProgressWallClockUs, setCaptureProgressWallClockUs] = useState(() => Date.now() * 1000)
   const [themeName, setThemeName] = useState(readThemeName)
   const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
   const [digitalDataRevision, setDigitalDataRevision] = useState(0)
   const [analogSamples, setAnalogSamples] = useState<TimestripAnalogSample[]>([])
+  const analogSamplesRef = useRef<TimestripAnalogSample[]>([])
   const [analogDataRevision, setAnalogDataRevision] = useState(0)
-  const [analogHover, setAnalogHover] = useState<{
-    x: number
-    y: number
-    value: TimestripAnalogHoverValue
-  } | null>(null)
   const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
-  const zoomReadout = formatTimestripZoomDenominator(zoomDenominator)
-  const timelineWidthPx = calculateTimestripWidthPx(
-    timelineRange.durationNs,
-    zoomDenominator,
+  const [isLiveFollowEnabled, setIsLiveFollowEnabled] = useState(true)
+  const [isLiveFollowPausedByUser, setIsLiveFollowPausedByUser] = useState(false)
+  const setLiveFollowPausedByUser = useCallback((isPaused: boolean) => {
+    isLiveFollowPausedByUserRef.current = isPaused
+    setIsLiveFollowPausedByUser(isPaused)
+  }, [])
+  const liveCaptureMarkerWorldNs =
+    captureEnabled && timelineRange.basis.kind === 'wallClock'
+      ? Number((BigInt(Math.floor(captureProgressWallClockUs)) - BigInt(Math.floor(timelineRange.basis.originWallClockUs))) * 1000n)
+      : null
+  const captureMarkerWorldNs = latestDatumWorldNs === null
+    ? liveCaptureMarkerWorldNs
+    : liveCaptureMarkerWorldNs === null
+      ? latestDatumWorldNs
+      : Math.max(latestDatumWorldNs, liveCaptureMarkerWorldNs)
+  const shouldExtendViewportForCapture =
+    captureEnabled && liveCaptureMarkerWorldNs !== null && Number.isFinite(liveCaptureMarkerWorldNs)
+  const viewportDurationNs =
+    !shouldExtendViewportForCapture
+      ? timelineRange.durationNs
+      : BigInt(Math.max(
+          Number(timelineRange.durationNs),
+          Math.ceil(Math.max(1, liveCaptureMarkerWorldNs)),
+        ))
+  const handleTimestripUserNavigation = useCallback((reason: TimestripNavigationReason) => {
+    if (reason === 'user-scroll' || reason === 'user-wheel' || reason === 'user-zoom') {
+      userNavigationRevisionRef.current += 1
+      setLiveFollowPausedByUser(true)
+      if (liveFollowFrameRef.current !== null) {
+        window.cancelAnimationFrame(liveFollowFrameRef.current)
+        liveFollowFrameRef.current = null
+      }
+    }
+  }, [setLiveFollowPausedByUser])
+  const {
     viewportWidthPx,
+    viewportHeightPx,
+    scrollLeftPx,
+    zoomDenominator,
+    zoomReadout,
+    timelineWidthPx,
+    domTimelineWidthPx,
+    scrollToLogicalLeft,
+  } = useTimestripViewport(viewportRef, viewportDurationNs, {
+    onUserNavigation: handleTimestripUserNavigation,
+    onScrollLeftChanged: (nextScrollLeftPx) => {
+      scrollHoverUpdateRef.current?.(nextScrollLeftPx)
+    },
+    tailPaddingViewportFraction:
+      (captureMarkerWorldNs ?? latestDatumWorldNs) === null
+        ? 0
+        : 1 - LIVE_FOLLOW_VIEWPORT_FRACTION,
+    minTailPaddingZoomDenominator: MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS,
+  })
+  const isLiveFollowAvailable = zoomDenominator >= MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS
+  const latestFollowWorldNs = captureMarkerWorldNs ?? latestDatumWorldNs
+  const maxScrollLeftPx = Math.max(0, timelineWidthPx - viewportWidthPx)
+  const latestFollowTargetScrollLeftPx =
+    latestFollowWorldNs === null || !Number.isFinite(latestFollowWorldNs) || viewportWidthPx <= 0
+      ? null
+      : Math.max(
+          0,
+          Math.min(
+            maxScrollLeftPx,
+            latestFollowWorldNs / zoomDenominator - viewportWidthPx * LIVE_FOLLOW_VIEWPORT_FRACTION,
+          ),
+        )
+  const isLiveFollowing =
+    isLiveFollowAvailable &&
+    isLiveFollowEnabled &&
+    !isLiveFollowPausedByUser &&
+    !selectedLogMessageKey &&
+    latestFollowTargetScrollLeftPx !== null
+  const unavailableBoundaryWorldNs =
+    isLiveFollowing && captureMarkerWorldNs !== null && Number.isFinite(captureMarkerWorldNs)
+      ? captureMarkerWorldNs
+      : latestDatumWorldNs
+  const unavailableRegions = useMemo(
+    () => buildTimestripUnavailableRegions(
+      digitalEntries,
+      unavailableBoundaryWorldNs,
+      timelineWidthPx * zoomDenominator,
+      zoomDenominator,
+    ),
+    [digitalEntries, unavailableBoundaryWorldNs, timelineWidthPx, zoomDenominator],
   )
-  const domTimelineWidthPx = calculateDomTimelineWidthPx(timelineWidthPx, viewportWidthPx)
-  const scrollScale = calculateScrollScale(timelineWidthPx, domTimelineWidthPx, viewportWidthPx)
-  const domScrollLeftToLogical = useCallback((domScrollLeftPx: number): number =>
-    Math.max(0, domScrollLeftPx) * scrollScale,
-  [scrollScale])
-  const logicalScrollLeftToDom = useCallback((logicalScrollLeftPx: number): number =>
-    Math.max(0, logicalScrollLeftPx) / scrollScale,
-  [scrollScale])
   const analogLegendTicks = buildTimestripAnalogLegendTicks(viewportHeightPx)
-  const updateAnalogHoverAtViewportPoint = useCallback((x: number, y: number, logicalScrollLeftPx = scrollLeftPx) => {
-    const viewport = viewportRef.current
-    if (!viewport || viewportWidthPx <= 0 || viewportHeightPx <= 0) {
-      analogHoverPointerRef.current = null
-      setAnalogHover(null)
+  const {
+    analogHover,
+    analogHoverPointerRef,
+    updateAnalogHoverAtViewportPoint,
+    updateAnalogHover,
+    clearAnalogHover,
+  } = useTimestripAnalogHover({
+    viewportRef,
+    viewportWidthPx,
+    viewportHeightPx,
+    scrollLeftPx,
+    zoomDenominator,
+    analogSamples,
+  })
+  scrollHoverUpdateRef.current = (nextScrollLeftPx) => {
+    const pointer = analogHoverPointerRef.current
+    if (!pointer) {
       return
     }
-    const viewportX = Math.max(0, Math.min(viewportWidthPx, x))
-    const viewportY = Math.max(0, Math.min(viewportHeightPx, y))
-    const layout = buildTimestripLaneLayout(viewportHeightPx)
-    if (viewportY < layout.analog.y || viewportY > layout.analog.y + layout.analog.height) {
-      analogHoverPointerRef.current = null
-      setAnalogHover(null)
+    updateAnalogHoverAtViewportPoint(pointer.x, pointer.y, nextScrollLeftPx)
+  }
+  useEffect(() => {
+    const pointer = analogHoverPointerRef.current
+    if (!pointer) {
       return
     }
-    analogHoverPointerRef.current = { x: viewportX, y: viewportY }
-    const worldUs = (logicalScrollLeftPx + viewportX) * zoomDenominator
-    const value = interpolateTimestripAnalogSample(analogSamples, worldUs)
-    setAnalogHover(value ? { x: viewportX, y: viewportY, value } : null)
-  }, [analogSamples, scrollLeftPx, viewportHeightPx, viewportWidthPx, zoomDenominator])
-  const updateAnalogHover = useCallback((event: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      setAnalogHover(null)
+    updateAnalogHoverAtViewportPoint(pointer.x, pointer.y, scrollLeftPx)
+  }, [analogHoverPointerRef, scrollLeftPx, updateAnalogHoverAtViewportPoint])
+  const resumeLiveFollow = useCallback(() => {
+    if (!isLiveFollowAvailable) {
       return
     }
-    const rect = viewport.getBoundingClientRect()
-    updateAnalogHoverAtViewportPoint(event.clientX - rect.left, event.clientY - rect.top)
-  }, [updateAnalogHoverAtViewportPoint])
+    liveFollowImmediateRef.current = true
+    setIsLiveFollowEnabled(true)
+    setLiveFollowPausedByUser(false)
+  }, [isLiveFollowAvailable, setLiveFollowPausedByUser])
+  const handleLiveFollowControlClick = useCallback(() => {
+    if (!isLiveFollowAvailable) {
+      return
+    }
+    if (isLiveFollowing) {
+      setIsLiveFollowEnabled(false)
+      setLiveFollowPausedByUser(false)
+      return
+    }
+    const driver = deviceState?.drpdDriver
+    if (selectedLogMessageKey && typeof driver?.clearLogSelection === 'function') {
+      void Promise.resolve(driver.clearLogSelection())
+        .catch(() => undefined)
+        .finally(() => {
+          centeredSelectionKeyRef.current = null
+          setSelectedLogMessageKey(null)
+          resumeLiveFollow()
+        })
+      return
+    }
+    if (selectedLogMessageKey) {
+      centeredSelectionKeyRef.current = null
+      setSelectedLogMessageKey(null)
+    }
+    resumeLiveFollow()
+  }, [
+    deviceState?.drpdDriver,
+    isLiveFollowAvailable,
+    isLiveFollowing,
+    resumeLiveFollow,
+    selectedLogMessageKey,
+  ])
   const selectClosestLogEntry = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const driver = deviceState?.drpdDriver
     const viewport = viewportRef.current
@@ -408,11 +723,9 @@ export const DrpdTimeStripInstrumentView = ({
     const rect = viewport.getBoundingClientRect()
     const viewportX = Math.max(0, Math.min(viewportWidthPx, event.clientX - rect.left))
     const worldNs = Math.max(0, Math.floor((scrollLeftPx + viewportX) * zoomDenominator))
-    const timelineStartUs = timelineRange.hasWallClockBasis
-      ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-      : timelineRange.worldStartTimestampUs
+    const timelineStartUs = getTimestripBasisOriginUs(timelineRange.basis)
     const targetTimestampUs = timelineStartUs + BigInt(Math.floor(worldNs / 1000))
-    const timeBasis = timelineRange.hasWallClockBasis ? 'wallClock' : 'device'
+    const timeBasis = timelineRange.basis.kind === 'wallClock' ? 'wallClock' : 'device'
 
     void (async () => {
       try {
@@ -437,7 +750,7 @@ export const DrpdTimeStripInstrumentView = ({
         const closestRow = getClosestCapturedRow(
           [...previousRows, ...nextRows],
           targetTimestampUs,
-          timelineRange.hasWallClockBasis,
+          timelineRange.basis.kind === 'wallClock',
         )
         if (!closestRow) {
           return
@@ -454,208 +767,43 @@ export const DrpdTimeStripInstrumentView = ({
   }, [
     deviceState?.drpdDriver,
     scrollLeftPx,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     viewportWidthPx,
     zoomDenominator,
   ])
-  const clearAnalogHover = useCallback(() => {
-    analogHoverPointerRef.current = null
-    setAnalogHover(null)
-  }, [])
-  const commitZoomDenominator = useCallback((value: number | string) => {
-    const nextZoomDenominator = clampTimestripZoomDenominator(value)
-    writeStoredZoomDenominator(nextZoomDenominator)
-    setZoomDenominator(nextZoomDenominator)
-  }, [])
-  const queueTileInvalidation = useCallback((invalidation: TimestripInvalidation) => {
-    const current = pendingTileInvalidationRef.current
-    if (current === 'all' || invalidation === 'all' || current === null) {
-      pendingTileInvalidationRef.current = invalidation
-      return
-    }
-    pendingTileInvalidationRef.current = {
-      startWorldUs: Math.min(current.startWorldUs, invalidation.startWorldUs),
-      endWorldUs: Math.max(current.endWorldUs, invalidation.endWorldUs),
-    }
-  }, [])
-  const commitDigitalEntries = useCallback((
-    nextEntries: TimestripDigitalEntry[],
-    invalidation: TimestripInvalidation,
-  ) => {
-    const nextSignature = buildDigitalEntriesSignature(nextEntries)
-    if (nextSignature === digitalEntriesSignatureRef.current) {
-      return
-    }
-    digitalEntriesSignatureRef.current = nextSignature
-    queueTileInvalidation(invalidation)
+  const commitDigitalEntries = useCallback((nextEntries: TimestripDigitalEntry[]) => {
     setDigitalEntries(nextEntries)
     setDigitalDataRevision((revision) => revision + 1)
-  }, [queueTileInvalidation])
-  const commitAnalogSamples = useCallback((
-    nextSamples: TimestripAnalogSample[],
-    invalidation: TimestripInvalidation,
-  ) => {
-    const nextSignature = buildAnalogSamplesSignature(nextSamples)
-    if (nextSignature === analogSamplesSignatureRef.current) {
-      return
-    }
-    analogSamplesSignatureRef.current = nextSignature
-    queueTileInvalidation(invalidation)
+  }, [])
+  const commitAnalogSamples = useCallback((nextSamples: TimestripAnalogSample[]) => {
+    analogSamplesRef.current = nextSamples
     setAnalogSamples(nextSamples)
     setAnalogDataRevision((revision) => revision + 1)
-  }, [queueTileInvalidation])
-  const handleViewportScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const nextScrollLeftPx = domScrollLeftToLogical(event.currentTarget.scrollLeft)
-    setScrollLeftPx(nextScrollLeftPx)
-    const pointer = analogHoverPointerRef.current
-    if (pointer) {
-      updateAnalogHoverAtViewportPoint(pointer.x, pointer.y, nextScrollLeftPx)
-    }
-  }, [domScrollLeftToLogical, updateAnalogHoverAtViewportPoint])
+  }, [])
   const readSelectedLogMessageKey = useCallback(async (): Promise<string | null> => {
     const driver = deviceState?.drpdDriver
     if (!driver || typeof driver.getLogSelectionState !== 'function') {
       return null
     }
     const selection = normalizeSelectionState(await Promise.resolve(driver.getLogSelectionState()))
-    if (selection.selectedKeys.length !== 1 || !selection.selectedKeys[0].startsWith('message:')) {
+    if (selection.selectedKeys.length !== 1 || !isTimestripLogSelectionKey(selection.selectedKeys[0])) {
       return null
     }
     return selection.selectedKeys[0]
   }, [deviceState?.drpdDriver])
 
   useEffect(() => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      return undefined
-    }
-
-    const handleViewportWheel = (event: WheelEvent) => {
-      if (event.ctrlKey) {
-        event.preventDefault()
-        const direction = event.deltaY < 0 ? -1 : 1
-        const scale = direction < 0 ? 1 / CTRL_WHEEL_ZOOM_STEP : CTRL_WHEEL_ZOOM_STEP
-        const nextZoomDenominator = clampTimestripZoomDenominator(Math.round(zoomDenominator * scale))
-        const viewportRect = viewport.getBoundingClientRect()
-        const pointerX = Math.max(0, event.clientX - viewportRect.left)
-        const logicalScrollLeftPx = domScrollLeftToLogical(viewport.scrollLeft)
-        const timestampUnderPointerNs = (logicalScrollLeftPx + pointerX) * zoomDenominator
-        const nextScrollLeft = Math.max(0, timestampUnderPointerNs / nextZoomDenominator - pointerX)
-        const nextTimelineWidthPx = calculateTimestripWidthPx(
-          timelineRange.durationNs,
-          nextZoomDenominator,
-          viewportWidthPx,
-        )
-        const nextDomTimelineWidthPx = calculateDomTimelineWidthPx(nextTimelineWidthPx, viewportWidthPx)
-        const nextScrollScale = calculateScrollScale(nextTimelineWidthPx, nextDomTimelineWidthPx, viewportWidthPx)
-        flushSync(() => {
-          commitZoomDenominator(nextZoomDenominator)
-        })
-        viewport.scrollLeft = nextScrollLeft / nextScrollScale
-        setScrollLeftPx(nextScrollLeft)
-        return
-      }
-
-      const scrollDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-      if (scrollDelta === 0 || viewport.scrollWidth <= viewport.clientWidth) {
-        return
-      }
-      event.preventDefault()
-      const nextScrollLeft = Math.max(0, domScrollLeftToLogical(viewport.scrollLeft) + scrollDelta)
-      viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
-      setScrollLeftPx(domScrollLeftToLogical(viewport.scrollLeft))
-    }
-
-    viewport.addEventListener('wheel', handleViewportWheel, { passive: false })
-    return () => {
-      viewport.removeEventListener('wheel', handleViewportWheel)
-    }
-  }, [
-    commitZoomDenominator,
-    domScrollLeftToLogical,
-    logicalScrollLeftToDom,
-    timelineRange.durationNs,
-    viewportWidthPx,
-    zoomDenominator,
-  ])
-
-  useEffect(() => {
-    const viewport = viewportRef.current
-    if (!viewport) {
-      return undefined
-    }
-
-    const commitViewportSize = (width: number, height: number) => {
-      setViewportWidthPx(width)
-      setViewportHeightPx(height)
-    }
-    const queueViewportSize = (width: number, height: number) => {
-      pendingViewportSizeRef.current = { width, height }
-      if (resizeFrameRef.current !== null) {
-        return
-      }
-      resizeFrameRef.current = window.requestAnimationFrame(() => {
-        resizeFrameRef.current = null
-        const nextSize = pendingViewportSizeRef.current
-        pendingViewportSizeRef.current = null
-        if (!nextSize) {
-          return
-        }
-        commitViewportSize(nextSize.width, nextSize.height)
-      })
-    }
-    commitViewportSize(
-      Math.max(0, Math.floor(viewport.clientWidth)),
-      Math.max(0, Math.floor(viewport.clientHeight)),
-    )
-
-    if (typeof ResizeObserver === 'undefined') {
-      return () => {
-        if (resizeFrameRef.current !== null) {
-          window.cancelAnimationFrame(resizeFrameRef.current)
-          resizeFrameRef.current = null
-        }
-        pendingViewportSizeRef.current = null
-      }
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      const inlineSize = entry?.contentBoxSize?.[0]?.inlineSize ?? entry?.contentRect.width
-      const blockSize = entry?.contentBoxSize?.[0]?.blockSize ?? entry?.contentRect.height
-      queueViewportSize(
-        Math.max(0, Math.floor(inlineSize ?? viewport.clientWidth)),
-        Math.max(0, Math.floor(blockSize ?? viewport.clientHeight)),
-      )
-    })
-    observer.observe(viewport)
-    return () => {
-      observer.disconnect()
-      if (resizeFrameRef.current !== null) {
-        window.cancelAnimationFrame(resizeFrameRef.current)
-        resizeFrameRef.current = null
-      }
-      pendingViewportSizeRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    const viewport = viewportRef.current
-    if (!viewport || viewportWidthPx <= 0) {
+    if (selectedLogMessageKey) {
+      setLiveFollowPausedByUser(true)
       return
     }
-    const maxLogicalScrollLeft = Math.max(0, timelineWidthPx - viewportWidthPx)
-    const nextLogicalScrollLeft = Math.max(0, Math.min(maxLogicalScrollLeft, scrollLeftPx))
-    const nextDomScrollLeft = logicalScrollLeftToDom(nextLogicalScrollLeft)
-    if (Math.abs(viewport.scrollLeft - nextDomScrollLeft) > 1) {
-      viewport.scrollLeft = nextDomScrollLeft
+    if (isLiveFollowEnabled) {
+      liveFollowImmediateRef.current = true
+      setLiveFollowPausedByUser(false)
     }
-    if (nextLogicalScrollLeft !== scrollLeftPx) {
-      setScrollLeftPx(nextLogicalScrollLeft)
-    }
-  }, [logicalScrollLeftToDom, scrollLeftPx, timelineWidthPx, viewportWidthPx])
+  }, [isLiveFollowEnabled, selectedLogMessageKey, setLiveFollowPausedByUser])
 
   useEffect(() => {
     if (typeof MutationObserver === 'undefined') {
@@ -681,11 +829,11 @@ export const DrpdTimeStripInstrumentView = ({
   }, [themeName])
 
   useEffect(() => {
-    const tileLayer = tileLayerRef.current
-    if (!tileLayer) {
+    const canvasLayer = canvasLayerRef.current
+    if (!canvasLayer) {
       return undefined
     }
-    const renderer = new TimestripTiledRenderer({ tileLayer })
+    const renderer = new TimestripCanvasRenderer({ canvasLayer })
     rendererRef.current = renderer
     return () => {
       renderer.dispose()
@@ -697,6 +845,52 @@ export const DrpdTimeStripInstrumentView = ({
 
   useEffect(() => {
     const driver = deviceState?.drpdDriver
+    if (!driver || typeof driver.addEventListener !== 'function') {
+      setCaptureEnabled(false)
+      return undefined
+    }
+
+    const readCaptureEnabled = () => {
+      const state = typeof driver.getState === 'function' ? driver.getState() : null
+      setCaptureEnabled(state?.captureEnabled === OnOffState.ON)
+    }
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed : []
+      if (changed.includes('captureEnabled')) {
+        setCaptureEnabled(detail?.state?.captureEnabled === OnOffState.ON)
+      }
+    }
+    const handleCaptureStatusChanged = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      setCaptureEnabled(detail?.current === OnOffState.ON || detail?.captureEnabled === OnOffState.ON)
+    }
+
+    readCaptureEnabled()
+    driver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    driver.addEventListener(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, handleCaptureStatusChanged)
+    return () => {
+      driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+      driver.removeEventListener(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, handleCaptureStatusChanged)
+    }
+  }, [deviceState?.drpdDriver])
+
+  useEffect(() => {
+    if (!captureEnabled || timelineRange.basis.kind !== 'wallClock') {
+      return undefined
+    }
+    const tick = () => {
+      setCaptureProgressWallClockUs(Date.now() * 1000)
+    }
+    tick()
+    const interval = window.setInterval(tick, 250)
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [captureEnabled, timelineRange.basis.kind])
+
+  useEffect(() => {
+    const driver = deviceState?.drpdDriver
     if (!driver) {
       return undefined
     }
@@ -704,49 +898,73 @@ export const DrpdTimeStripInstrumentView = ({
     let isActive = true
     const refreshTimelineRange = async () => {
       try {
-        const [firstWallClockMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          timeBasis: 'wallClock',
-          sortOrder: 'asc',
-          limit: 1,
-        })
-        const [lastWallClockMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          timeBasis: 'wallClock',
-          sortOrder: 'desc',
-          limit: 1,
-        })
+        const canQueryTimeBounds =
+          'getLoggingTimeBounds' in driver &&
+          typeof driver.getLoggingTimeBounds === 'function'
+        const timeBounds = canQueryTimeBounds
+          ? await driver.getLoggingTimeBounds()
+          : null
         const canQueryAnalogSamples = typeof driver.queryAnalogSamples === 'function'
-        const [firstAnalogSample] = canQueryAnalogSamples
-          ? await driver.queryAnalogSamples({
-            startTimestampUs: LOG_START_TIMESTAMP_US,
-            endTimestampUs: LOG_END_TIMESTAMP_US,
-            sortOrder: 'asc',
-            limit: 1,
-          })
-          : [null]
-        const [lastAnalogSample] = canQueryAnalogSamples
-          ? await driver.queryAnalogSamples({
-            startTimestampUs: LOG_START_TIMESTAMP_US,
-            endTimestampUs: LOG_END_TIMESTAMP_US,
-            sortOrder: 'desc',
-            limit: 1,
-          })
-          : [null]
-        const [firstDeviceMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          sortOrder: 'asc',
-          limit: 1,
-        })
-        const [lastDeviceMessage] = await driver.queryCapturedMessages({
-          startTimestampUs: LOG_START_TIMESTAMP_US,
-          endTimestampUs: LOG_END_TIMESTAMP_US,
-          sortOrder: 'desc',
-          limit: 1,
-        })
+        const [
+          firstWallClockMessage,
+          lastWallClockMessage,
+          firstAnalogSample,
+          lastAnalogSample,
+          firstDeviceMessage,
+          lastDeviceMessage,
+        ] = timeBounds
+          ? [
+              timeBounds.firstWallClockMessage,
+              timeBounds.lastWallClockMessage,
+              timeBounds.firstAnalogSample,
+              timeBounds.lastAnalogSample,
+              timeBounds.firstDeviceMessage,
+              timeBounds.lastDeviceMessage,
+            ]
+          : await Promise.all([
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                timeBasis: 'wallClock',
+                sortOrder: 'asc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                timeBasis: 'wallClock',
+                sortOrder: 'desc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+              canQueryAnalogSamples
+                ? driver.queryAnalogSamples({
+                    startTimestampUs: LOG_START_TIMESTAMP_US,
+                    endTimestampUs: LOG_END_TIMESTAMP_US,
+                    sortOrder: 'asc',
+                    limit: 1,
+                  }).then((rows) => rows[0] ?? null)
+                : Promise.resolve(null),
+              canQueryAnalogSamples
+                ? driver.queryAnalogSamples({
+                    startTimestampUs: LOG_START_TIMESTAMP_US,
+                    endTimestampUs: LOG_END_TIMESTAMP_US,
+                    sortOrder: 'desc',
+                    limit: 1,
+                  }).then((rows) => rows[0] ?? null)
+                : Promise.resolve(null),
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                sortOrder: 'asc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+              driver.queryCapturedMessages({
+                startTimestampUs: LOG_START_TIMESTAMP_US,
+                endTimestampUs: LOG_END_TIMESTAMP_US,
+                sortOrder: 'desc',
+                limit: 1,
+              }).then((rows) => rows[0] ?? null),
+            ])
         const candidatePoints = [
           firstWallClockMessage ? messageToTimelinePoint(firstWallClockMessage) : null,
           lastWallClockMessage ? messageToTimelinePoint(lastWallClockMessage) : null,
@@ -789,22 +1007,31 @@ export const DrpdTimeStripInstrumentView = ({
             : endTimestampUs - startTimestampUs > 0n
               ? (endTimestampUs - startTimestampUs) * 1000n
               : 1n
+        const nextBasis = buildTimelineBasis(startTimestampUs, startWallClockUs, hasWallClockBasis)
+        const latestWorldNs = getLatestLoggedDatumWorldNs(
+          [
+            lastWallClockMessage,
+            lastDeviceMessage,
+            lastAnalogSample,
+          ],
+          nextBasis,
+        )
         setTimelineRange((current) => {
           if (
-            current.worldStartTimestampUs === startTimestampUs &&
-            current.worldStartWallClockUs === startWallClockUs &&
+            current.basis.originTimestampUs === startTimestampUs &&
+            current.basis.originWallClockUs === startWallClockUs &&
             current.durationNs === nextDurationNs &&
-            current.hasWallClockBasis === hasWallClockBasis
+            (current.basis.kind === 'wallClock') === hasWallClockBasis
           ) {
             return current
           }
           return {
-            worldStartTimestampUs: startTimestampUs,
-            worldStartWallClockUs: startWallClockUs,
+            basis: nextBasis,
             durationNs: nextDurationNs,
-            hasWallClockBasis,
+            hasLogRange: true,
           }
         })
+        setLatestDatumWorldNs(latestWorldNs)
         setHasLogTimelineRange(true)
       } catch {
         // Keep the existing timeline when logging data is temporarily unavailable.
@@ -865,12 +1092,13 @@ export const DrpdTimeStripInstrumentView = ({
     ) {
       return undefined
     }
-    const selectionKeyParts = parseMessageSelectionKey(selectedLogMessageKey)
+    const selectionKeyParts = parseLogSelectionKey(selectedLogMessageKey)
     if (!selectionKeyParts) {
       return undefined
     }
 
     let isActive = true
+    const startedUserNavigationRevision = userNavigationRevisionRef.current
     const centerSelectedMessage = async () => {
       try {
         const rows = await driver.queryCapturedMessages({
@@ -880,17 +1108,17 @@ export const DrpdTimeStripInstrumentView = ({
           sortOrder: 'asc',
           limit: 25,
         })
-        if (!isActive) {
+        if (!isActive || startedUserNavigationRevision !== userNavigationRevisionRef.current) {
           return
         }
         const selectedRow = rows.find((row) => buildCapturedLogSelectionKey(row) === selectedLogMessageKey)
         if (!selectedRow) {
           return
         }
-        const basisStartUs = timelineRange.hasWallClockBasis && selectedRow.wallClockUs != null
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-          : timelineRange.worldStartTimestampUs
-        const rowStartUs = timelineRange.hasWallClockBasis && selectedRow.wallClockUs != null
+        const basisStartUs = timelineRange.basis.kind === 'wallClock' && selectedRow.wallClockUs != null
+          ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
+          : timelineRange.basis.originTimestampUs
+        const rowStartUs = timelineRange.basis.kind === 'wallClock' && selectedRow.wallClockUs != null
           ? selectedRow.wallClockUs
           : selectedRow.startTimestampUs
         const rowWorldStartNs = Number((rowStartUs - basisStartUs) * 1000n)
@@ -905,8 +1133,7 @@ export const DrpdTimeStripInstrumentView = ({
           0,
           Math.min(maxScrollLeft, rowWorldStartNs / zoomDenominator - viewportWidthPx / 2),
         )
-        viewport.scrollLeft = logicalScrollLeftToDom(nextScrollLeft)
-        setScrollLeftPx(nextScrollLeft)
+        scrollToLogicalLeft(nextScrollLeft, 'selection')
         centeredSelectionKeyRef.current = selectedLogMessageKey
       } catch {
         // Keep the current viewport if the selected row is no longer available.
@@ -921,32 +1148,81 @@ export const DrpdTimeStripInstrumentView = ({
     deviceState?.drpdDriver,
     hasLogTimelineRange,
     selectedLogMessageKey,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     timelineWidthPx,
-    logicalScrollLeftToDom,
+    scrollToLogicalLeft,
     viewportWidthPx,
     zoomDenominator,
+  ])
+
+  useEffect(() => {
+    if (
+      !isLiveFollowing ||
+      latestFollowTargetScrollLeftPx === null ||
+      viewportWidthPx <= 0
+    ) {
+      if (liveFollowFrameRef.current !== null) {
+        window.cancelAnimationFrame(liveFollowFrameRef.current)
+        liveFollowFrameRef.current = null
+      }
+      return undefined
+    }
+
+    let isActive = true
+    const tick = (timestampMs: number) => {
+      if (!isActive || isLiveFollowPausedByUserRef.current) {
+        return
+      }
+      const elapsedMs = timestampMs - lastLiveFollowCommitMsRef.current
+      const immediate = liveFollowImmediateRef.current
+      if (immediate || elapsedMs >= LIVE_FOLLOW_INTERVAL_MS) {
+        const delta = latestFollowTargetScrollLeftPx - scrollLeftPx
+        if (Math.abs(delta) > 1) {
+          const maxStepPx = Math.max(1, viewportWidthPx * LIVE_FOLLOW_MAX_STEP_VIEWPORTS)
+          const nextScrollLeft = immediate || Math.abs(delta) <= maxStepPx
+            ? latestFollowTargetScrollLeftPx
+            : scrollLeftPx + Math.sign(delta) * maxStepPx
+          scrollToLogicalLeft(nextScrollLeft, 'follow')
+        }
+        liveFollowImmediateRef.current = false
+        lastLiveFollowCommitMsRef.current = timestampMs
+      }
+      liveFollowFrameRef.current = window.requestAnimationFrame(tick)
+    }
+
+    liveFollowFrameRef.current = window.requestAnimationFrame(tick)
+    return () => {
+      isActive = false
+      if (liveFollowFrameRef.current !== null) {
+        window.cancelAnimationFrame(liveFollowFrameRef.current)
+        liveFollowFrameRef.current = null
+      }
+    }
+  }, [
+    isLiveFollowing,
+    latestFollowTargetScrollLeftPx,
+    scrollLeftPx,
+    scrollToLogicalLeft,
+    viewportWidthPx,
   ])
 
   useEffect(() => {
     const driver = deviceState?.drpdDriver
     if (!driver || viewportWidthPx <= 0) {
       digitalQueryRangeRef.current = null
-      commitDigitalEntries([], 'all')
+      commitDigitalEntries([])
       return undefined
     }
 
     let isActive = true
     const refreshDigitalEntries = async () => {
-      const range = getTimestripDigitalQueryRange(
+      const range = calculateTimestripQueryRange(
         scrollLeftPx,
         viewportWidthPx,
         zoomDenominator,
-        timelineRange.hasWallClockBasis
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-          : timelineRange.worldStartTimestampUs,
+        timelineRange.basis,
         DIGITAL_QUERY_OVERSCAN_PX,
       )
       const loadedRange = digitalQueryRangeRef.current
@@ -961,32 +1237,25 @@ export const DrpdTimeStripInstrumentView = ({
         const rows = await driver.queryCapturedMessages({
           startTimestampUs: range.startTimestampUs,
           endTimestampUs: range.endTimestampUs,
-          timeBasis: timelineRange.hasWallClockBasis ? 'wallClock' : 'device',
+          timeBasis: range.timeBasis,
           sortOrder: 'asc',
           limit: DIGITAL_QUERY_LIMIT,
         })
         if (!isActive) {
           return
         }
-        const invalidation = calculateQueryInvalidation(
-          loadedRange,
-          range,
-          timelineRange.hasWallClockBasis
-            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-            : timelineRange.worldStartTimestampUs,
-        )
         digitalQueryRangeRef.current = range
         const nextEntries = rows.flatMap((row) => {
           const entry = normalizeCapturedMessageForTimestrip(
             row,
-            timelineRange.worldStartTimestampUs,
-            timelineRange.hasWallClockBasis
-              ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+            timelineRange.basis.originTimestampUs,
+            timelineRange.basis.kind === 'wallClock'
+              ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
               : undefined,
           )
           return entry ? [entry] : []
         })
-        commitDigitalEntries(nextEntries, invalidation)
+        commitDigitalEntries(nextEntries)
       } catch {
         // Keep the last rendered entries when the log store is temporarily unavailable.
       }
@@ -1000,9 +1269,9 @@ export const DrpdTimeStripInstrumentView = ({
     commitDigitalEntries,
     deviceState?.drpdDriver,
     scrollLeftPx,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     viewportHeightPx,
     viewportWidthPx,
     zoomDenominator,
@@ -1011,38 +1280,30 @@ export const DrpdTimeStripInstrumentView = ({
   useEffect(() => {
     const driver = deviceState?.drpdDriver
     if (!driver || typeof driver.queryAnalogSamples !== 'function' || viewportWidthPx <= 0) {
-      analogQueryRangeRef.current = null
-      commitAnalogSamples([], 'all')
+      analogLoadedRangesRef.current = []
+      commitAnalogSamples([])
       return undefined
     }
 
     let isActive = true
     const refreshAnalogSamples = async () => {
-      const range = getTimestripDigitalQueryRange(
+      const range = calculateTimestripQueryRange(
         scrollLeftPx,
         viewportWidthPx,
         zoomDenominator,
-        timelineRange.hasWallClockBasis
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-          : timelineRange.worldStartTimestampUs,
+        timelineRange.basis,
         ANALOG_QUERY_OVERSCAN_PX,
       )
-      const loadedRange = analogQueryRangeRef.current
-      if (
-        loadedRange &&
-        range.startTimestampUs >= loadedRange.startTimestampUs &&
-        range.endTimestampUs <= loadedRange.endTimestampUs
-      ) {
+      if (isRangeCoveredByLoadedRanges(range, analogLoadedRangesRef.current)) {
         return
       }
       try {
-        const timeBasis = timelineRange.hasWallClockBasis ? 'wallClock' : 'device'
         const [previousRows, visibleRows, nextRows] = await Promise.all([
           range.startTimestampUs > LOG_START_TIMESTAMP_US
             ? driver.queryAnalogSamples({
               startTimestampUs: LOG_START_TIMESTAMP_US,
               endTimestampUs: range.startTimestampUs - 1n,
-              timeBasis,
+              timeBasis: range.timeBasis,
               sortOrder: 'desc',
               limit: 1,
             })
@@ -1050,7 +1311,7 @@ export const DrpdTimeStripInstrumentView = ({
           driver.queryAnalogSamples({
             startTimestampUs: range.startTimestampUs,
             endTimestampUs: range.endTimestampUs,
-            timeBasis,
+            timeBasis: range.timeBasis,
             sortOrder: 'asc',
             limit: ANALOG_QUERY_LIMIT,
           }),
@@ -1058,7 +1319,7 @@ export const DrpdTimeStripInstrumentView = ({
             ? driver.queryAnalogSamples({
               startTimestampUs: range.endTimestampUs + 1n,
               endTimestampUs: LOG_END_TIMESTAMP_US,
-              timeBasis,
+              timeBasis: range.timeBasis,
               sortOrder: 'asc',
               limit: 1,
             })
@@ -1067,28 +1328,57 @@ export const DrpdTimeStripInstrumentView = ({
         if (!isActive) {
           return
         }
-        const invalidation = calculateQueryInvalidation(
-          loadedRange,
+        const coveredRange = getAnalogCoveredRange(
           range,
-          timelineRange.hasWallClockBasis
-            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
-            : timelineRange.worldStartTimestampUs,
+          visibleRows,
+          visibleRows.length >= ANALOG_QUERY_LIMIT,
+          timelineRange.basis.kind === 'wallClock',
         )
-        analogQueryRangeRef.current = range
-        const nextSamples = mergeAnalogSampleRows(
+        analogLoadedRangesRef.current = mergeLoadedAnalogRange(
+          analogLoadedRangesRef.current,
+          coveredRange,
+        )
+        const mergedAnalogRows = mergeAnalogSampleRows(
           [...previousRows, ...visibleRows, ...nextRows],
-          timelineRange.hasWallClockBasis,
-        ).flatMap((row) => {
+          timelineRange.basis.kind === 'wallClock',
+        )
+        const analogSpanBasisTimestamps = mergedAnalogRows.flatMap((row) => {
+          const timestampUs = getAnalogSampleBasisTimestampUs(row, timelineRange.basis.kind === 'wallClock')
+          return timestampUs === null ? [] : [timestampUs]
+        })
+        const captureBreakRows =
+          typeof driver.queryCapturedMessages === 'function' && analogSpanBasisTimestamps.length > 1
+            ? await driver.queryCapturedMessages({
+              startTimestampUs: analogSpanBasisTimestamps[0],
+              endTimestampUs: analogSpanBasisTimestamps.at(-1)!,
+              timeBasis: range.timeBasis,
+              sortOrder: 'asc',
+              eventTypes: ['capture_changed'],
+            })
+            : []
+        if (!isActive) {
+          return
+        }
+        const breakWorldNs = captureBreakRows.flatMap((row) => {
+          const worldNs = getCaptureBreakWorldNs(row, timelineRange.basis)
+          return worldNs === null || !Number.isFinite(worldNs) ? [] : [worldNs]
+        })
+        analogBreakWorldNsRef.current = mergeWorldNsValues(analogBreakWorldNsRef.current, breakWorldNs)
+        const queriedSamples = mergedAnalogRows.flatMap((row) => {
           const sample = normalizeAnalogSampleForTimestrip(
             row,
-            timelineRange.worldStartTimestampUs,
-            timelineRange.hasWallClockBasis
-              ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+            timelineRange.basis.originTimestampUs,
+            timelineRange.basis.kind === 'wallClock'
+              ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
               : undefined,
           )
           return sample ? [sample] : []
         })
-        commitAnalogSamples(nextSamples, invalidation)
+        const nextSamples = applyAnalogBreaks(
+          mergeTimestripAnalogSamples(analogSamplesRef.current, queriedSamples),
+          analogBreakWorldNsRef.current,
+        )
+        commitAnalogSamples(nextSamples)
       } catch {
         // Keep the last rendered samples when the log store is temporarily unavailable.
       }
@@ -1102,9 +1392,9 @@ export const DrpdTimeStripInstrumentView = ({
     commitAnalogSamples,
     deviceState?.drpdDriver,
     scrollLeftPx,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
     viewportHeightPx,
     viewportWidthPx,
     zoomDenominator,
@@ -1116,43 +1406,44 @@ export const DrpdTimeStripInstrumentView = ({
       return undefined
     }
 
-    const handleAdded = (event: Event) => {
-      const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (detail?.kind !== 'message' && detail?.kind !== 'event' && detail?.kind !== 'analog') {
-        return
-      }
-      const row = detail.row as LoggedCapturedMessage | LoggedAnalogSample | undefined
-      if (!row) {
-        return
-      }
-
+    const pendingAddedRows: Array<{
+      kind: 'message' | 'event' | 'analog'
+      row: LoggedCapturedMessage | LoggedAnalogSample
+    }> = []
+    let pendingAddedFrame: number | null = null
+    const processAdded = (detail: {
+      kind: 'message' | 'event' | 'analog'
+      row: LoggedCapturedMessage | LoggedAnalogSample
+    }) => {
+      const row = detail.row
       const isAnalogRow = detail.kind === 'analog'
       const rowTimestampUs = isAnalogRow
         ? (row as LoggedAnalogSample).timestampUs
         : (row as LoggedCapturedMessage).startTimestampUs
       const rowWallClockUs = row.wallClockUs
-      const rowWorldStartUs =
-        timelineRange.hasWallClockBasis && rowWallClockUs != null
-          ? Number((rowWallClockUs - BigInt(Math.floor(timelineRange.worldStartWallClockUs))) * 1000n)
-          : Number((rowTimestampUs - timelineRange.worldStartTimestampUs) * 1000n)
+      const rowWorldStartNs =
+        timelineRange.basis.kind === 'wallClock' && rowWallClockUs != null
+          ? Number((rowWallClockUs - BigInt(Math.floor(timelineRange.basis.originWallClockUs))) * 1000n)
+          : Number((rowTimestampUs - timelineRange.basis.originTimestampUs) * 1000n)
       const rowDurationNs =
         !isAnalogRow && (row as LoggedCapturedMessage).entryKind === 'message'
           ? Math.max(1, Number(((row as LoggedCapturedMessage).endTimestampUs - (row as LoggedCapturedMessage).startTimestampUs) * 1000n))
           : 1
-      const rowWorldEndUs = rowWorldStartUs + rowDurationNs
+      const rowWorldEndNs = rowWorldStartNs + rowDurationNs
       if (!hasLogTimelineRange) {
         digitalQueryRangeRef.current = null
-        analogQueryRangeRef.current = null
-        commitDigitalEntries([], 'all')
-        commitAnalogSamples([], 'all')
+        analogLoadedRangesRef.current = []
+        analogBreakWorldNsRef.current = []
+        commitDigitalEntries([])
+        commitAnalogSamples([])
       }
       setTimelineRange((current) => {
         const rowDurationUs = BigInt(Math.ceil(rowDurationNs / 1000))
-        const currentStartBasisUs = current.hasWallClockBasis
-          ? BigInt(Math.floor(current.worldStartWallClockUs))
-          : current.worldStartTimestampUs
+        const currentStartBasisUs = current.basis.kind === 'wallClock'
+          ? BigInt(Math.floor(current.basis.originWallClockUs))
+          : current.basis.originTimestampUs
         const currentEndBasisUs = currentStartBasisUs + (current.durationNs + 999n) / 1000n
-        const usesWallClockBasis = current.hasWallClockBasis && rowWallClockUs != null
+        const usesWallClockBasis = current.basis.kind === 'wallClock' && rowWallClockUs != null
         const rowStartBasisUs = usesWallClockBasis ? rowWallClockUs! : rowTimestampUs
         const rowEndBasisUs = usesWallClockBasis
           ? rowStartBasisUs + rowDurationUs
@@ -1161,23 +1452,30 @@ export const DrpdTimeStripInstrumentView = ({
             : rowTimestampUs + rowDurationUs
         if (!hasLogTimelineRange) {
           return {
-            worldStartTimestampUs: rowTimestampUs,
-            worldStartWallClockUs: rowWallClockUs == null ? Date.now() * 1000 : Number(rowWallClockUs),
+            basis: buildTimelineBasis(
+              rowTimestampUs,
+              rowWallClockUs == null ? Date.now() * 1000 : Number(rowWallClockUs),
+              rowWallClockUs != null,
+            ),
             durationNs: BigInt(rowDurationNs),
-            hasWallClockBasis: rowWallClockUs != null,
+            hasLogRange: true,
           }
         }
         if (rowStartBasisUs < currentStartBasisUs) {
           digitalQueryRangeRef.current = null
-          analogQueryRangeRef.current = null
-          commitDigitalEntries([], 'all')
-          commitAnalogSamples([], 'all')
+          analogLoadedRangesRef.current = []
+          analogBreakWorldNsRef.current = []
+          commitDigitalEntries([])
+          commitAnalogSamples([])
           return {
             ...current,
-            worldStartTimestampUs: rowTimestampUs,
-            worldStartWallClockUs: rowWallClockUs == null ? current.worldStartWallClockUs : Number(rowWallClockUs),
+            basis: buildTimelineBasis(
+              rowTimestampUs,
+              rowWallClockUs == null ? current.basis.originWallClockUs : Number(rowWallClockUs),
+              current.basis.kind === 'wallClock' && rowWallClockUs != null,
+            ),
             durationNs: (currentEndBasisUs - rowStartBasisUs) * 1000n,
-            hasWallClockBasis: current.hasWallClockBasis && rowWallClockUs != null,
+            hasLogRange: true,
           }
         }
         if (rowEndBasisUs <= currentEndBasisUs) {
@@ -1188,46 +1486,57 @@ export const DrpdTimeStripInstrumentView = ({
           durationNs: (rowEndBasisUs - currentStartBasisUs) * 1000n,
         }
       })
+      setLatestDatumWorldNs((current) => Math.max(
+        current ?? 0,
+        hasLogTimelineRange ? rowWorldEndNs : rowDurationNs,
+      ))
       setHasLogTimelineRange(true)
 
       if (isAnalogRow) {
         const analogRow = row as LoggedAnalogSample
-        const loadedRange = analogQueryRangeRef.current
+        const sampleBasisTimestampUs = getAnalogSampleBasisTimestampUs(analogRow, timelineRange.basis.kind === 'wallClock')
+        const sampleTimeBasis = timelineRange.basis.kind === 'wallClock' ? 'wallClock' : 'device'
         if (
           !hasLogTimelineRange ||
-          !loadedRange ||
-          (timelineRange.hasWallClockBasis && analogRow.wallClockUs == null) ||
-          (timelineRange.hasWallClockBasis
-            ? analogRow.wallClockUs! < loadedRange.startTimestampUs || analogRow.wallClockUs! > loadedRange.endTimestampUs
-            : analogRow.timestampUs < loadedRange.startTimestampUs || analogRow.timestampUs > loadedRange.endTimestampUs)
+          sampleBasisTimestampUs === null ||
+          (timelineRange.basis.kind === 'wallClock' && analogRow.wallClockUs == null) ||
+          !isTimestampCoveredByLoadedRanges(sampleBasisTimestampUs, sampleTimeBasis, analogLoadedRangesRef.current)
         ) {
           return
         }
 
         const sample = normalizeAnalogSampleForTimestrip(
           analogRow,
-          timelineRange.worldStartTimestampUs,
-          timelineRange.hasWallClockBasis
-            ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+          timelineRange.basis.originTimestampUs,
+          timelineRange.basis.kind === 'wallClock'
+            ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
             : undefined,
         )
         if (!sample) {
           return
         }
-        const nextSamples = [...analogSamples, sample].sort((left, right) => left.worldUs - right.worldUs)
-        commitAnalogSamples(nextSamples, {
-          startWorldUs: rowWorldStartUs,
-          endWorldUs: rowWorldEndUs,
-        })
+        const nextSamples = applyAnalogBreaks(
+          insertAnalogSampleSorted(analogSamples, sample),
+          analogBreakWorldNsRef.current,
+        )
+        commitAnalogSamples(nextSamples)
         return
       }
       const messageRow = row as LoggedCapturedMessage
+      const captureBreakWorldNs = getCaptureBreakWorldNs(messageRow, timelineRange.basis)
+      if (captureBreakWorldNs !== null && Number.isFinite(captureBreakWorldNs)) {
+        analogBreakWorldNsRef.current = [
+          ...analogBreakWorldNsRef.current,
+          captureBreakWorldNs,
+        ].sort((left, right) => left - right)
+        commitAnalogSamples(applyAnalogBreaks(analogSamples, analogBreakWorldNsRef.current))
+      }
       const loadedRange = digitalQueryRangeRef.current
       if (
         !hasLogTimelineRange ||
         !loadedRange ||
-        (timelineRange.hasWallClockBasis && messageRow.wallClockUs == null) ||
-        (timelineRange.hasWallClockBasis
+        (timelineRange.basis.kind === 'wallClock' && messageRow.wallClockUs == null) ||
+        (timelineRange.basis.kind === 'wallClock'
           ? messageRow.wallClockUs! < loadedRange.startTimestampUs || messageRow.wallClockUs! > loadedRange.endTimestampUs
           : rowTimestampUs < loadedRange.startTimestampUs || rowTimestampUs > loadedRange.endTimestampUs)
       ) {
@@ -1236,40 +1545,60 @@ export const DrpdTimeStripInstrumentView = ({
 
       const entry = normalizeCapturedMessageForTimestrip(
         messageRow,
-        timelineRange.worldStartTimestampUs,
-        timelineRange.hasWallClockBasis
-          ? BigInt(Math.floor(timelineRange.worldStartWallClockUs))
+        timelineRange.basis.originTimestampUs,
+        timelineRange.basis.kind === 'wallClock'
+          ? BigInt(Math.floor(timelineRange.basis.originWallClockUs))
           : undefined,
       )
       if (!entry) {
         return
       }
-      const nextEntries = [...digitalEntries, entry].sort((left, right) => {
-        const leftWorldUs = left.kind === 'event' ? left.worldUs : left.startWorldUs
-        const rightWorldUs = right.kind === 'event' ? right.worldUs : right.startWorldUs
-        return leftWorldUs - rightWorldUs
-      })
-      commitDigitalEntries(nextEntries, {
-        startWorldUs: rowWorldStartUs,
-        endWorldUs: rowWorldEndUs,
-      })
+      const nextEntries = insertDigitalEntrySorted(digitalEntries, entry)
+      commitDigitalEntries(nextEntries)
+    }
+    const flushAddedRows = () => {
+      pendingAddedFrame = null
+      const rows = pendingAddedRows.splice(0)
+      for (const detail of rows) {
+        processAdded(detail)
+      }
+    }
+    const handleAdded = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      if (detail?.kind !== 'message' && detail?.kind !== 'event' && detail?.kind !== 'analog') {
+        return
+      }
+      const row = detail.row as LoggedCapturedMessage | LoggedAnalogSample | undefined
+      if (!row) {
+        return
+      }
+      pendingAddedRows.push({ kind: detail.kind, row })
+      if (pendingAddedFrame !== null) {
+        return
+      }
+      pendingAddedFrame = window.requestAnimationFrame(flushAddedRows)
     }
 
     const handleDeleted = (event: Event) => {
       const detail = event instanceof CustomEvent ? event.detail : undefined
-      if (!detail?.messagesDeleted) {
+      if (
+        detail?.reason !== 'clear' &&
+        !detail?.messagesDeleted &&
+        !detail?.analogDeleted
+      ) {
         return
       }
       digitalQueryRangeRef.current = null
-      analogQueryRangeRef.current = null
-      commitDigitalEntries([], 'all')
-      commitAnalogSamples([], 'all')
+      analogLoadedRangesRef.current = []
+      analogBreakWorldNsRef.current = []
+      setLatestDatumWorldNs(null)
+      commitDigitalEntries([])
+      commitAnalogSamples([])
       if (detail.reason === 'clear') {
         setTimelineRange({
+          basis: buildTimelineBasis(0n, Date.now() * 1000, false),
           durationNs: PLACEHOLDER_TIMELINE_END_NS,
-          worldStartTimestampUs: 0n,
-          worldStartWallClockUs: Date.now() * 1000,
-          hasWallClockBasis: false,
+          hasLogRange: false,
         })
         setHasLogTimelineRange(false)
       }
@@ -1278,6 +1607,10 @@ export const DrpdTimeStripInstrumentView = ({
     driver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
     driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     return () => {
+      if (pendingAddedFrame !== null) {
+        window.cancelAnimationFrame(pendingAddedFrame)
+        flushAddedRows()
+      }
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     }
@@ -1289,9 +1622,9 @@ export const DrpdTimeStripInstrumentView = ({
     digitalEntries,
     hasLogTimelineRange,
     timelineRange.durationNs,
-    timelineRange.worldStartTimestampUs,
-    timelineRange.worldStartWallClockUs,
-    timelineRange.hasWallClockBasis,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
   ])
 
   useEffect(() => {
@@ -1302,34 +1635,39 @@ export const DrpdTimeStripInstrumentView = ({
       viewportWidthPx,
       viewportHeightPx,
       dpr: window.devicePixelRatio || 1,
-      worldStartWallClockUs: timelineRange.worldStartWallClockUs,
+      worldStartWallClockUs: timelineRange.basis.originWallClockUs,
       theme,
       digitalEntries,
       digitalDataRevision,
       analogSamples,
       analogDataRevision,
       selectedMessageKey: selectedLogMessageKey,
+      unavailableRegions,
     })
-    const invalidation = pendingTileInvalidationRef.current
-    pendingTileInvalidationRef.current = null
-    if (invalidation === 'all') {
-      renderer?.invalidateAllTiles()
-    } else if (invalidation) {
-      renderer?.invalidateWorldRange(invalidation.startWorldUs, invalidation.endWorldUs)
-    }
   }, [
     digitalDataRevision,
     digitalEntries,
     analogDataRevision,
     analogSamples,
     selectedLogMessageKey,
+    unavailableRegions,
     scrollLeftPx,
     theme,
-    timelineRange.worldStartWallClockUs,
+    timelineRange.basis.originWallClockUs,
     viewportHeightPx,
     viewportWidthPx,
     zoomDenominator,
   ])
+  const liveOverlayLayout = buildTimestripLaneLayout(viewportHeightPx)
+  const captureMarkerX =
+    captureMarkerWorldNs === null || viewportWidthPx <= 0
+      ? null
+      : captureMarkerWorldNs / zoomDenominator - scrollLeftPx
+  const shouldShowCaptureMarker =
+    captureMarkerX !== null &&
+    Number.isFinite(captureMarkerX) &&
+    captureMarkerX >= 0 &&
+    captureMarkerX <= viewportWidthPx
 
   return (
     <InstrumentBase
@@ -1338,8 +1676,25 @@ export const DrpdTimeStripInstrumentView = ({
       isEditMode={isEditMode}
       contentClassName={styles.content}
       headerAccessory={
-        <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
-          ZOOM {zoomReadout}
+        <span className={styles.headerControls}>
+          <button
+            type="button"
+            className={styles.liveFollowButton}
+            onClick={handleLiveFollowControlClick}
+            aria-pressed={isLiveFollowing}
+            disabled={!isLiveFollowAvailable}
+          >
+            {!isLiveFollowAvailable
+              ? 'Follow unavailable'
+              : isLiveFollowing
+              ? 'Following live'
+              : !isLiveFollowEnabled
+                ? 'Follow live'
+                : 'Follow live'}
+          </button>
+          <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
+            ZOOM {zoomReadout}
+          </span>
         </span>
       }
       onClose={
@@ -1366,7 +1721,6 @@ export const DrpdTimeStripInstrumentView = ({
           ref={viewportRef}
           className={styles.viewport}
           data-testid="drpd-timestrip-viewport"
-          onScroll={handleViewportScroll}
           onClick={selectClosestLogEntry}
           onMouseMove={updateAnalogHover}
           onMouseLeave={clearAnalogHover}
@@ -1374,14 +1728,25 @@ export const DrpdTimeStripInstrumentView = ({
           onPointerLeave={clearAnalogHover}
         >
           <div
-            ref={tileLayerRef}
-            className={styles.tileLayer}
-            data-testid="drpd-timestrip-tile-layer"
+            ref={canvasLayerRef}
+            className={styles.canvasLayer}
+            data-testid="drpd-timestrip-canvas-layer"
             style={{
               width: `${viewportWidthPx}px`,
               height: `${viewportHeightPx}px`,
             }}
           />
+          {shouldShowCaptureMarker ? (
+            <div
+              className={styles.captureMarkerOverlay}
+              data-testid="drpd-timestrip-capture-marker"
+              style={{
+                top: `${liveOverlayLayout.digital.y}px`,
+                height: `${liveOverlayLayout.analog.y + liveOverlayLayout.analog.height - liveOverlayLayout.digital.y}px`,
+                transform: `translate3d(${captureMarkerX}px, 0, 0)`,
+              }}
+            />
+          ) : null}
           <div
             className={styles.timeline}
             data-testid="drpd-timestrip-timeline"

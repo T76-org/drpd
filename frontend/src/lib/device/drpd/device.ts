@@ -39,6 +39,7 @@ import type {
   DRPDLogStore,
   DRPDLoggingDiagnostics,
   DRPDLogCounts,
+  DRPDLoggingTimeBounds,
 } from './logging'
 import { DRPDAnalogMonitor } from './analogMonitor'
 import { DRPDCCBus } from './ccBus'
@@ -460,6 +461,51 @@ export class DRPDDevice extends EventTarget {
       return []
     }
     return this.logStore.queryCapturedMessages(query)
+  }
+
+  /**
+   * Return first/latest rows needed to size timeline views.
+   *
+   * @returns Timeline time bounds.
+   */
+  public async getLoggingTimeBounds(): Promise<DRPDLoggingTimeBounds> {
+    await this.ensureLogStoreAvailableForRead()
+    if (!this.logStore) {
+      return {
+        firstAnalogSample: null,
+        lastAnalogSample: null,
+        firstDeviceMessage: null,
+        lastDeviceMessage: null,
+        firstWallClockMessage: null,
+        lastWallClockMessage: null,
+      }
+    }
+    if (typeof this.logStore.getTimeBounds === 'function') {
+      return await this.logStore.getTimeBounds()
+    }
+    const [
+      firstAnalogSample,
+      lastAnalogSample,
+      firstDeviceMessage,
+      lastDeviceMessage,
+      firstWallClockMessage,
+      lastWallClockMessage,
+    ] = await Promise.all([
+      this.queryAnalogSamples({ startTimestampUs: 0n, endTimestampUs: (2n ** 63n) - 1n, sortOrder: 'asc', limit: 1 }),
+      this.queryAnalogSamples({ startTimestampUs: 0n, endTimestampUs: (2n ** 63n) - 1n, sortOrder: 'desc', limit: 1 }),
+      this.queryCapturedMessages({ startTimestampUs: 0n, endTimestampUs: (2n ** 63n) - 1n, sortOrder: 'asc', limit: 1 }),
+      this.queryCapturedMessages({ startTimestampUs: 0n, endTimestampUs: (2n ** 63n) - 1n, sortOrder: 'desc', limit: 1 }),
+      this.queryCapturedMessages({ startTimestampUs: 0n, endTimestampUs: (2n ** 63n) - 1n, timeBasis: 'wallClock', sortOrder: 'asc', limit: 1 }),
+      this.queryCapturedMessages({ startTimestampUs: 0n, endTimestampUs: (2n ** 63n) - 1n, timeBasis: 'wallClock', sortOrder: 'desc', limit: 1 }),
+    ])
+    return {
+      firstAnalogSample: firstAnalogSample[0] ?? null,
+      lastAnalogSample: lastAnalogSample[0] ?? null,
+      firstDeviceMessage: firstDeviceMessage[0] ?? null,
+      lastDeviceMessage: lastDeviceMessage[0] ?? null,
+      firstWallClockMessage: firstWallClockMessage[0] ?? null,
+      lastWallClockMessage: lastWallClockMessage[0] ?? null,
+    }
   }
 
   /**

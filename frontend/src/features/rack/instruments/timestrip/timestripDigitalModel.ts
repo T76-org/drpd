@@ -1,5 +1,6 @@
 import { buildCapturedLogSelectionKey, type LoggedCapturedEventType, type LoggedCapturedMessage } from '../../../../lib/device'
 import { getLogMessageTypeLabel } from '../../messageLogExport'
+import { calculateTimestripQueryRange } from './timestripCoordinates'
 import type { TimestripThemePalette } from './timestripTheme'
 
 export type TimestripDigitalDetailLevel = 1 | 2 | 3
@@ -20,8 +21,8 @@ export interface TimestripDigitalComponent {
 export interface TimestripDigitalMessageEntry {
   kind: 'message'
   selectionKey: string
-  startWorldUs: number
-  endWorldUs: number
+  startWorldNs: number
+  endWorldNs: number
   label: string
   pulseWidthsNs: number[]
   frameBytes: number[]
@@ -30,8 +31,9 @@ export interface TimestripDigitalMessageEntry {
 
 export interface TimestripDigitalEventEntry {
   kind: 'event'
-  worldUs: number
+  worldNs: number
   eventType: LoggedCapturedEventType | null
+  eventText: string | null
 }
 
 export type TimestripDigitalEntry = TimestripDigitalMessageEntry | TimestripDigitalEventEntry
@@ -80,30 +82,25 @@ export const getTimestripDigitalQueryRange = (
   scrollLeftPx: number,
   viewportWidthPx: number,
   zoomDenominator: number,
-  worldStartUs: bigint,
+  worldStartTimestampUs: bigint,
   overscanPx: number,
 ): { startTimestampUs: bigint; endTimestampUs: bigint } => {
-  const startWorldNs = Math.max(0, Math.floor((scrollLeftPx - overscanPx) * zoomDenominator))
-  const endWorldNs = Math.max(
-    startWorldNs,
-    Math.ceil((scrollLeftPx + viewportWidthPx + overscanPx) * zoomDenominator),
+  const range = calculateTimestripQueryRange(
+    scrollLeftPx,
+    viewportWidthPx,
+    zoomDenominator,
+    {
+      kind: 'device',
+      originTimestampUs: worldStartTimestampUs,
+      originWallClockUs: 0,
+    },
+    overscanPx,
   )
   return {
-    startTimestampUs: worldStartUs + BigInt(Math.floor(startWorldNs / 1000)),
-    endTimestampUs: worldStartUs + BigInt(Math.ceil(endWorldNs / 1000)),
+    startTimestampUs: range.startTimestampUs,
+    endTimestampUs: range.endTimestampUs,
   }
 }
-
-export const filterTimestripDigitalEntriesForTile = (
-  entries: TimestripDigitalEntry[],
-  tileLeftUs: number,
-  tileRightUs: number,
-): TimestripDigitalEntry[] => entries.filter((entry) => {
-  if (entry.kind === 'event') {
-    return entry.worldUs >= tileLeftUs && entry.worldUs <= tileRightUs
-  }
-  return entry.endWorldUs >= tileLeftUs && entry.startWorldUs <= tileRightUs
-})
 
 export const normalizeCapturedMessageForTimestrip = (
   row: LoggedCapturedMessage,
@@ -120,8 +117,9 @@ export const normalizeCapturedMessageForTimestrip = (
   if (row.entryKind === 'event') {
     return {
       kind: 'event',
-      worldUs: startWorldNs,
+      worldNs: startWorldNs,
       eventType: row.eventType,
+      eventText: row.eventText,
     }
   }
 
@@ -131,8 +129,8 @@ export const normalizeCapturedMessageForTimestrip = (
   return {
     kind: 'message',
     selectionKey: buildCapturedLogSelectionKey(row),
-    startWorldUs: startWorldNs,
-    endWorldUs: startWorldNs + durationNs,
+    startWorldNs: startWorldNs,
+    endWorldNs: startWorldNs + durationNs,
     label: getLogMessageTypeLabel(row),
     pulseWidthsNs: Array.from(row.rawPulseWidths),
     frameBytes,

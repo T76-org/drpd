@@ -54,8 +54,8 @@ describe('timestripDigitalModel', () => {
     expect(entry).toMatchObject({
       kind: 'message',
       selectionKey: 'message:1000:1010:1',
-      startWorldUs: 1_000_000,
-      endWorldUs: 1_010_000,
+      startWorldNs: 1_000_000,
+      endWorldNs: 1_010_000,
       label: 'Source Capabilities',
       frameBytes: [0x12, 0x12, 0x12, 0x13, 0x61, 0x01, 0xaa, 0xbb, 0xcc, 0xdd],
     })
@@ -77,7 +77,7 @@ describe('timestripDigitalModel', () => {
       0n,
     )
 
-    expect(eventEntry).toEqual({ kind: 'event', worldUs: 1_000_000, eventType: 'mark' })
+    expect(eventEntry).toEqual({ kind: 'event', worldNs: 1_000_000, eventType: 'mark', eventText: 'Mark' })
     expect(getTimestripEventColor('mark', DEFAULT_TIMESTRIP_THEME)).toBe(DEFAULT_TIMESTRIP_THEME.eventMarkColor)
   })
 })

@@ -81,6 +81,34 @@ const buildDeviceState = (
     },
   }) as unknown as RackDeviceState
 
+const buildRangeDeviceState = (endTimestampUs: bigint): RackDeviceState => {
+  const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+    if (query.timeBasis === 'wallClock') {
+      return []
+    }
+    return [
+      buildCapturedMessage({
+        startTimestampUs: query.sortOrder === 'desc' ? endTimestampUs : 0n,
+        endTimestampUs: query.sortOrder === 'desc' ? endTimestampUs : 1_000n,
+        createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+      }),
+    ]
+  })
+  return buildDeviceState(queryCapturedMessages)
+}
+
+const attachSelectionDriver = (deviceState: RackDeviceState) => {
+  const driver = deviceState.drpdDriver as unknown as {
+    queryCapturedMessages: ReturnType<typeof vi.fn>
+    setLogSelectionState?: ReturnType<typeof vi.fn>
+  }
+  driver.setLogSelectionState = vi.fn()
+  return {
+    queryCapturedMessages: driver.queryCapturedMessages,
+    setLogSelectionState: driver.setLogSelectionState,
+  }
+}
+
 const buildCapturedMessage = (overrides: Partial<LoggedCapturedMessage> = {}): LoggedCapturedMessage => ({
   entryKind: 'message',
   eventType: null,
@@ -117,6 +145,28 @@ const buildAnalogSample = (overrides: Partial<LoggedAnalogSample> = {}): LoggedA
   ...overrides,
 })
 
+const setViewportGeometry = (viewport: HTMLElement, width = 500, left = 100) => {
+  Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: width })
+  Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
+  viewport.getBoundingClientRect = () =>
+    ({
+      left,
+      right: left + width,
+      top: 0,
+      bottom: 100,
+      width,
+      height: 100,
+      x: left,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect
+}
+
+const scrollViewportTo = (viewport: HTMLElement, scrollLeft: number) => {
+  viewport.scrollLeft = scrollLeft
+  fireEvent.scroll(viewport)
+}
+
 const localStorageItems = new Map<string, string>()
 const localStorageMock = {
   getItem: vi.fn((key: string) => localStorageItems.get(key) ?? null),
@@ -144,7 +194,7 @@ describe('DrpdTimeStripInstrumentView', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders a viewport, timeline spacer, and tile canvas layer without svg', () => {
+  it('renders a viewport, timeline spacer, and single canvas layer without svg', () => {
     const { container } = renderTimestrip()
 
     expect(screen.getByTestId('drpd-timestrip-frame')).toBeInTheDocument()
@@ -152,10 +202,10 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
       width: '100px',
     })
-    expect(screen.getByTestId('drpd-timestrip-tile-layer')).toBeInTheDocument()
+    expect(screen.getByTestId('drpd-timestrip-canvas-layer')).toBeInTheDocument()
     expect(screen.queryByTestId('drpd-timestrip-tick-canvas')).toBeNull()
-    expect(screen.getByTestId('drpd-timestrip-tile-layer').querySelectorAll('canvas')).toHaveLength(3)
-    expect(container.querySelectorAll('canvas')).toHaveLength(3)
+    expect(screen.getByTestId('drpd-timestrip-canvas-layer').querySelectorAll('canvas[data-timestrip-canvas="true"]')).toHaveLength(1)
+    expect(container.querySelectorAll('canvas')).toHaveLength(1)
     expect(container.querySelector('svg')).toBeNull()
   })
 
@@ -202,15 +252,119 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
-  it('maps mouse wheel movement to horizontal viewport scroll', () => {
-    renderTimestrip()
+  it('maps mouse wheel movement to horizontal viewport scroll', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
     Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
     Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
 
-    fireEvent.wheel(viewport, { deltaY: 240 })
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '20250px',
+      })
+    })
 
-    expect(viewport.scrollLeft).toBe(240)
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaY: 240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBe(240)
+    })
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 200, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 44000000n,
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('applies fine wheel scrolling logically when DOM scroll quantizes at high zoom', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '500')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(100_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    let domScrollLeft = 0
+    Object.defineProperty(viewport, 'scrollLeft', {
+      configurable: true,
+      get: () => domScrollLeft,
+      set: (value: number) => {
+        domScrollLeft = Math.floor(value)
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '16000000px',
+      })
+    })
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaY: 4, clientX: 200 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(viewport.scrollLeft).toBe(0)
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 200, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 52n,
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('accumulates rapid high-zoom wheel scrolling without DOM quantization resets', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '500')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(100_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    let domScrollLeft = 0
+    Object.defineProperty(viewport, 'scrollLeft', {
+      configurable: true,
+      get: () => domScrollLeft,
+      set: (value: number) => {
+        domScrollLeft = Math.floor(value)
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '16000000px',
+      })
+    })
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaY: 4, clientX: 200 })
+      fireEvent.wheel(viewport, { deltaY: 40, clientX: 200 })
+      fireEvent.wheel(viewport, { deltaY: 80, clientX: 200 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 200, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 112n,
+        sortOrder: 'desc',
+      }))
+    })
   })
 
   it('uses ctrl wheel to change zoom instead of scrolling', () => {
@@ -231,29 +385,566 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(viewport.scrollLeft).toBe(0)
   })
 
-  it('keeps the timestamp under the pointer stable during ctrl wheel zoom', () => {
+  it('allows ctrl wheel zooming out to 400ms per pixel', () => {
     renderTimestrip()
     const viewport = screen.getByTestId('drpd-timestrip-viewport')
     Object.defineProperty(viewport, 'clientWidth', { configurable: true, value: 500 })
     Object.defineProperty(viewport, 'scrollWidth', { configurable: true, value: 10_000 })
-    viewport.scrollLeft = 5000
-    viewport.getBoundingClientRect = () =>
-      ({
-        left: 100,
-        right: 600,
-        top: 0,
-        bottom: 100,
-        width: 500,
-        height: 100,
-        x: 100,
-        y: 0,
-        toJSON: () => ({}),
-      }) as DOMRect
 
-    fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
+
+    expect(screen.getByLabelText('Zoom 200ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('200000000')
+
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
+
+    expect(screen.getByLabelText('Zoom 400ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('400000000')
+
+    fireEvent.wheel(viewport, { ctrlKey: true, deltaY: 240 })
+
+    expect(screen.getByLabelText('Zoom 400ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('400000000')
+  })
+
+  it('keeps the timestamp under the pointer stable during ctrl wheel zoom', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    const pointerX = 150
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '20250px',
+      })
+    })
+
+    const initialScrollLeft = 5000
+    scrollViewportTo(viewport, initialScrollLeft)
+    const timestampUnderPointerBeforeNs = (initialScrollLeft + pointerX) * 100_000_000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
 
     expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
-    expect(viewport.scrollLeft).toBeCloseTo(10150, 2)
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 250, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('keeps the timestamp under the pointer stable during rapid ctrl wheel zoom', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    const pointerX = 150
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '20250px',
+      })
+    })
+
+    const initialScrollLeft = 5000
+    scrollViewportTo(viewport, initialScrollLeft)
+    const timestampUnderPointerBeforeNs = (initialScrollLeft + pointerX) * 100_000_000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 250, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(screen.getByLabelText('Zoom 5ms per pixel')).toBeInTheDocument()
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 250, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('keeps the timestamp under the pointer stable during ctrl wheel zoom out', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '50000000')
+    const deviceState = buildRangeDeviceState(2_000_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    const pointerX = 320
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '40250px',
+      })
+    })
+
+    const initialScrollLeft = 10_000
+    scrollViewportTo(viewport, initialScrollLeft)
+    const timestampUnderPointerBeforeNs = (initialScrollLeft + pointerX) * 50_000_000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 420, deltaY: 240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 420, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('keeps ctrl wheel zoom pointer-stable when DOM scroll scaling is active', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const deviceState = buildRangeDeviceState(100_000_000n)
+    const { queryCapturedMessages } = attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    const pointerX = 250
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '16000000px',
+      })
+    })
+
+    const initialScrollLeft = 4_000_000
+    scrollViewportTo(viewport, initialScrollLeft)
+    const beforeScale = (100_000_000 - 500) / (16_000_000 - 500)
+    const timestampUnderPointerBeforeNs = (initialScrollLeft * beforeScale + pointerX) * 1000
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 350, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(screen.getByLabelText('Zoom 500ns per pixel')).toBeInTheDocument()
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 350, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('does not publish stale DOM-scaled scroll when zoom crosses below 100µs', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '100000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: {
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (query.sortOrder) {
+        return [
+          buildCapturedMessage({
+            startTimestampUs: query.sortOrder === 'desc' ? 1_000_000_000n : 0n,
+            endTimestampUs: query.sortOrder === 'desc' ? 1_000_000_000n : 1_000n,
+            createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+          }),
+        ]
+      }
+      return []
+    })
+    const setLogSelectionState = vi.fn()
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        setLogSelectionState,
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '10000000px',
+      })
+    })
+    queryCapturedMessages.mockClear()
+    viewport.scrollLeft = 5_000_000
+
+    act(() => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 350, deltaY: -240 })
+      fireEvent.scroll(viewport)
+    })
+    await act(async () => {
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+    fireEvent.click(viewport, { clientX: 350, clientY: 60 })
+
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: 500_025_000n,
+        limit: 1,
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('clamps ctrl wheel zoom at the left edge only when the pinned timestamp would need negative scroll', () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '50000000')
+    renderTimestrip()
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+    viewport.scrollLeft = 0
+
+    act(() => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 450, deltaY: 240 })
+    })
+
+    expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
+    expect(viewport.scrollLeft).toBe(0)
+  })
+
+  it('follows the latest datum by default when no packet is selected', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = buildDeviceState(queryCapturedMessages)
+    attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+  })
+
+  it('pauses live follow on ctrl wheel and keeps the pointer timestamp stable', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = buildDeviceState(queryCapturedMessages)
+    attachSelectionDriver(deviceState)
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    const pointerX = 250
+    const timestampUnderPointerBeforeNs = (viewport.scrollLeft + pointerX) * 100_000_000
+    await act(async () => {
+      fireEvent.wheel(viewport, { ctrlKey: true, clientX: 350, deltaY: -240 })
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
+    queryCapturedMessages.mockClear()
+    fireEvent.click(viewport, { clientX: 350, clientY: 60 })
+    await waitFor(() => {
+      expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+        endTimestampUs: BigInt(Math.floor(timestampUnderPointerBeforeNs / 1000)),
+        sortOrder: 'desc',
+      }))
+    })
+  })
+
+  it('pauses live follow on manual scroll and resumes from Follow live', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    viewport.scrollLeft = 0
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 300_000_000n,
+            endTimestampUs: 300_000_000n,
+            createdAtMs: 3,
+          }),
+        },
+      }))
+      await new Promise((resolve) => window.requestAnimationFrame(resolve))
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(viewport.scrollLeft).toBe(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Follow live' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBeCloseTo(2750, 6)
+    })
+
+    fireEvent.scroll(viewport)
+
+    expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Following live' }))
+  })
+
+  it('clears the selected message when Follow live resumes live follow', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const selectedRow = buildCapturedMessage({
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_001_000n,
+      createdAtMs: 77,
+    })
+    const selectedKey = buildCapturedLogSelectionKey(selectedRow)
+    let logSelection: DRPDLogSelectionState = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (
+        query.startTimestampUs === selectedRow.startTimestampUs &&
+        query.endTimestampUs === selectedRow.endTimestampUs
+      ) {
+        return [selectedRow]
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const clearLogSelection = vi.fn(() => {
+      logSelection = {
+        selectedKeys: [],
+        anchorIndex: null,
+        activeIndex: null,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        getLogSelectionState: vi.fn(() => logSelection),
+        clearLogSelection,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    act(() => {
+      logSelection = {
+        selectedKeys: [selectedKey],
+        anchorIndex: 10,
+        activeIndex: 10,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(350)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Follow live' }))
+
+    await waitFor(() => {
+      expect(clearLogSelection).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+  })
+
+  it('disables live follow when zoomed in past 16ms per pixel', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const queryCapturedMessages = vi.fn(async (query: { sortOrder?: 'asc' | 'desc'; timeBasis?: 'device' | 'wallClock' }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    renderTimestrip(buildDeviceState(queryCapturedMessages))
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Follow unavailable' })).toBeDisabled()
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '200000px',
+      })
+    })
+    expect(viewport.scrollLeft).toBe(0)
+  })
+
+  it('keeps following when a short empty-start log emits late follow scroll events', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const queryCapturedMessages = vi.fn(async () => [])
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 0n,
+            endTimestampUs: 100_000_000n,
+            createdAtMs: 1,
+          }),
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(750)
+    })
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 120_000_000n,
+            endTimestampUs: 120_001_000n,
+            createdAtMs: 2,
+          }),
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(viewport.scrollLeft).toBeCloseTo(950, 0)
+    })
+
+    viewport.scrollLeft = 750
+    fireEvent.scroll(viewport)
+
+    expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
   })
 
   it('sizes the timeline from message-log wall-clock range when available', async () => {
@@ -576,7 +1267,7 @@ describe('DrpdTimeStripInstrumentView', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
-        width: '1000px',
+        width: '1250px',
       })
     })
 
@@ -597,6 +1288,89 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
       startTimestampUs: 60_000_000n,
       endTimestampUs: 60_001_000n,
+      timeBasis: 'device',
+      sortOrder: 'asc',
+    }))
+  })
+
+  it('centers a selected event and pauses live follow', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const selectedRow = buildCapturedMessage({
+      entryKind: 'event',
+      eventType: 'capture_changed',
+      eventText: 'Capture turned off',
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_000_000n,
+      rawSop: new Uint8Array(),
+      rawDecodedData: new Uint8Array(),
+      createdAtMs: 77,
+    })
+    const selectedKey = buildCapturedLogSelectionKey(selectedRow)
+    let logSelection: DRPDLogSelectionState = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (
+        query.startTimestampUs === selectedRow.startTimestampUs &&
+        query.endTimestampUs === selectedRow.endTimestampUs
+      ) {
+        return [selectedRow]
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        getLogSelectionState: vi.fn(() => logSelection),
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    act(() => {
+      logSelection = {
+        selectedKeys: [selectedKey],
+        anchorIndex: 10,
+        activeIndex: 10,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(350)
+    })
+    expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_000_000n,
       timeBasis: 'device',
       sortOrder: 'asc',
     }))
@@ -911,6 +1685,60 @@ describe('DrpdTimeStripInstrumentView', () => {
       expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
         width: '40px',
       })
+    })
+  })
+
+  it('resets the timestrip on clear even when no messages were deleted', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const queryCapturedMessages = vi.fn(async () => [])
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+        detail: {
+          kind: 'message',
+          row: buildCapturedMessage({
+            startTimestampUs: 0n,
+            endTimestampUs: 100_000_000n,
+          }),
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '1250px',
+      })
+      expect(viewport.scrollLeft).toBe(750)
+    })
+
+    act(() => {
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_DELETED_EVENT, {
+        detail: {
+          reason: 'clear',
+          messagesDeleted: 0,
+          analogDeleted: 0,
+        },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({
+        width: '500px',
+      })
+      expect(viewport.scrollLeft).toBe(0)
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
     })
   })
 })

@@ -9,6 +9,7 @@ export interface TimestripThemePalette {
   messageStrokeColor: string
   messageTextColor: string
   selectedMessageBackgroundColor: string
+  selectedMessageFillColor: string
   waveformColor: string
   componentFillColor: string
   byteFillColor: string
@@ -26,6 +27,9 @@ export interface TimestripThemePalette {
   voltageTraceColor: string
   currentTraceColor: string
   analogGridColor: string
+  captureMarkerColor: string
+  unavailableOverlayFillColor: string
+  unavailableOverlayStrokeColor: string
 }
 
 export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -39,6 +43,7 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   messageStrokeColor: 'rgba(5, 186, 250, 0.72)',
   messageTextColor: 'rgba(255, 255, 255, 0.84)',
   selectedMessageBackgroundColor: 'rgba(5, 186, 250, 0.16)',
+  selectedMessageFillColor: 'rgba(5, 186, 250, 0.34)',
   waveformColor: 'rgba(1, 168, 4, 0.88)',
   componentFillColor: 'rgba(255, 255, 255, 0.08)',
   byteFillColor: 'rgba(255, 255, 255, 0.12)',
@@ -56,6 +61,9 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   voltageTraceColor: '#05BAFA',
   currentTraceColor: '#01A804',
   analogGridColor: 'rgba(255, 255, 255, 0.09)',
+  captureMarkerColor: 'rgba(255, 255, 255, 0.72)',
+  unavailableOverlayFillColor: 'rgba(255, 255, 255, 0.055)',
+  unavailableOverlayStrokeColor: 'rgba(255, 255, 255, 0.16)',
 }
 
 const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
@@ -69,6 +77,7 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   messageStrokeColor: 'rgba(26, 115, 232, 0.62)',
   messageTextColor: 'rgba(28, 31, 42, 0.84)',
   selectedMessageBackgroundColor: 'rgba(26, 115, 232, 0.14)',
+  selectedMessageFillColor: 'rgba(26, 115, 232, 0.3)',
   waveformColor: 'rgba(1, 128, 4, 0.82)',
   componentFillColor: 'rgba(28, 31, 42, 0.06)',
   byteFillColor: 'rgba(28, 31, 42, 0.1)',
@@ -86,6 +95,9 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   voltageTraceColor: '#05BAFA',
   currentTraceColor: '#01A804',
   analogGridColor: 'rgba(28, 31, 42, 0.1)',
+  captureMarkerColor: 'rgba(28, 31, 42, 0.66)',
+  unavailableOverlayFillColor: 'rgba(28, 31, 42, 0.055)',
+  unavailableOverlayStrokeColor: 'rgba(28, 31, 42, 0.18)',
 }
 
 const DARK_TIMESTRIP_THEME = DEFAULT_TIMESTRIP_THEME
@@ -122,6 +134,7 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.messageStrokeColor,
     palette.messageTextColor,
     palette.selectedMessageBackgroundColor,
+    palette.selectedMessageFillColor,
     palette.waveformColor,
     palette.componentFillColor,
     palette.byteFillColor,
@@ -139,5 +152,8 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.voltageTraceColor,
     palette.currentTraceColor,
     palette.analogGridColor,
+    palette.captureMarkerColor,
+    palette.unavailableOverlayFillColor,
+    palette.unavailableOverlayStrokeColor,
   ].join('|')
 )
