@@ -1293,6 +1293,89 @@ describe('DrpdTimeStripInstrumentView', () => {
     }))
   })
 
+  it('centers a selected event and pauses live follow', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const eventTarget = new EventTarget()
+    const selectedRow = buildCapturedMessage({
+      entryKind: 'event',
+      eventType: 'capture_changed',
+      eventText: 'Capture turned off',
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_000_000n,
+      rawSop: new Uint8Array(),
+      rawDecodedData: new Uint8Array(),
+      createdAtMs: 77,
+    })
+    const selectedKey = buildCapturedLogSelectionKey(selectedRow)
+    let logSelection: DRPDLogSelectionState = {
+      selectedKeys: [],
+      anchorIndex: null,
+      activeIndex: null,
+    }
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      timeBasis?: 'device' | 'wallClock'
+    }) => {
+      if (query.timeBasis === 'wallClock') {
+        return []
+      }
+      if (
+        query.startTimestampUs === selectedRow.startTimestampUs &&
+        query.endTimestampUs === selectedRow.endTimestampUs
+      ) {
+        return [selectedRow]
+      }
+      return [
+        buildCapturedMessage({
+          startTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 0n,
+          endTimestampUs: query.sortOrder === 'desc' ? 200_000_000n : 1_000n,
+          createdAtMs: query.sortOrder === 'desc' ? 2 : 1,
+        }),
+      ]
+    })
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        getLogSelectionState: vi.fn(() => logSelection),
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(1750)
+    })
+
+    act(() => {
+      logSelection = {
+        selectedKeys: [selectedKey],
+        anchorIndex: 10,
+        activeIndex: 10,
+      }
+      eventTarget.dispatchEvent(new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
+        detail: { changed: ['logSelection'] },
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Follow live' })).toBeInTheDocument()
+      expect(viewport.scrollLeft).toBe(350)
+    })
+    expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({
+      startTimestampUs: 60_000_000n,
+      endTimestampUs: 60_000_000n,
+      timeBasis: 'device',
+      sortOrder: 'asc',
+    }))
+  })
+
   it('selects the nearest message-log row when clicking the timestrip', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)

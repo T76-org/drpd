@@ -65,7 +65,7 @@ type TimelineRangePoint = {
   timestampUs: bigint
   wallClockUs: bigint | null
 }
-type MessageSelectionKeyParts = {
+type LogSelectionKeyParts = {
   startTimestampUs: bigint
   endTimestampUs: bigint
 }
@@ -467,16 +467,29 @@ const mergeAnalogSampleRows = (
     })
 }
 
-const parseMessageSelectionKey = (selectionKey: string): MessageSelectionKeyParts | null => {
+const isTimestripLogSelectionKey = (selectionKey: string): boolean =>
+  selectionKey.startsWith('message:') || selectionKey.startsWith('event:')
+
+const parseLogSelectionKey = (selectionKey: string): LogSelectionKeyParts | null => {
   const parts = selectionKey.split(':')
-  if (parts.length !== 4 || parts[0] !== 'message') {
+  if (parts.length !== 4) {
     return null
   }
   try {
-    return {
-      startTimestampUs: BigInt(parts[1]),
-      endTimestampUs: BigInt(parts[2]),
+    if (parts[0] === 'message') {
+      return {
+        startTimestampUs: BigInt(parts[1]),
+        endTimestampUs: BigInt(parts[2]),
+      }
     }
+    if (parts[0] === 'event') {
+      const timestampUs = BigInt(parts[1])
+      return {
+        startTimestampUs: timestampUs,
+        endTimestampUs: timestampUs,
+      }
+    }
+    return null
   } catch {
     return null
   }
@@ -775,7 +788,7 @@ export const DrpdTimeStripInstrumentView = ({
       return null
     }
     const selection = normalizeSelectionState(await Promise.resolve(driver.getLogSelectionState()))
-    if (selection.selectedKeys.length !== 1 || !selection.selectedKeys[0].startsWith('message:')) {
+    if (selection.selectedKeys.length !== 1 || !isTimestripLogSelectionKey(selection.selectedKeys[0])) {
       return null
     }
     return selection.selectedKeys[0]
@@ -1079,7 +1092,7 @@ export const DrpdTimeStripInstrumentView = ({
     ) {
       return undefined
     }
-    const selectionKeyParts = parseMessageSelectionKey(selectedLogMessageKey)
+    const selectionKeyParts = parseLogSelectionKey(selectedLogMessageKey)
     if (!selectionKeyParts) {
       return undefined
     }
