@@ -77,7 +77,7 @@ describe('timestripDigitalModel', () => {
       0n,
     )
 
-    expect(eventEntry).toEqual({ kind: 'event', worldNs: 1_000_000, eventType: 'mark' })
+    expect(eventEntry).toEqual({ kind: 'event', worldNs: 1_000_000, eventType: 'mark', eventText: 'Mark' })
     expect(getTimestripEventColor('mark', DEFAULT_TIMESTRIP_THEME)).toBe(DEFAULT_TIMESTRIP_THEME.eventMarkColor)
   })
 })

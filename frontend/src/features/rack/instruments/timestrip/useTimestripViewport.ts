@@ -393,6 +393,9 @@ export const useTimestripViewport = (
       markProgrammaticScroll(nextScrollLeft, nextDomScrollLeft, 'user-wheel')
       onScrollLeftChanged?.(nextScrollLeft)
       publishScrollLeft(nextScrollLeft)
+      if (scrollScaleRef.current <= 1) {
+        viewport.scrollLeft = nextDomScrollLeft
+      }
       if (wheelScrollbarSyncTimeoutRef.current !== null) {
         window.clearTimeout(wheelScrollbarSyncTimeoutRef.current)
       }

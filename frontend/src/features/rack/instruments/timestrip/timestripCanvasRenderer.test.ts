@@ -174,6 +174,8 @@ describe('TimestripCanvasRenderer', () => {
         currentTraceColor: '#01A804',
         analogGridColor: 'rgba(255, 255, 255, 0.09)',
         captureMarkerColor: '#fedcba',
+        unavailableOverlayFillColor: 'rgba(255, 255, 255, 0.05)',
+        unavailableOverlayStrokeColor: 'rgba(255, 255, 255, 0.15)',
       },
     }))
     renderNextFrame()

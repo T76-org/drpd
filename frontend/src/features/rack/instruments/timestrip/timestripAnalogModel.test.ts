@@ -51,6 +51,18 @@ describe('timestripAnalogModel', () => {
     expect(filterTimestripAnalogSamplesForViewport(samples, 25, 75)).toEqual(samples)
   })
 
+  it('breaks analog segments that cross unavailable regions', () => {
+    const samples = [
+      { worldNs: 0, voltageV: 5, currentA: 0.1 },
+      { worldNs: 100, voltageV: 10, currentA: 0.2 },
+    ]
+
+    expect(filterTimestripAnalogSamplesForViewport(samples, 0, 100, [50])).toEqual([
+      samples[0],
+      { ...samples[1], breakBefore: true },
+    ])
+  })
+
   it('interpolates voltage and current at a timeline point', () => {
     expect(interpolateTimestripAnalogSample([
       { worldNs: 0, voltageV: 5, currentA: 0.5 },

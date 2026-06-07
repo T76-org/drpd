@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildCapturedLogSelectionKey,
   DRPDDevice,
@@ -35,6 +35,8 @@ import {
 import { useTimestripViewport } from './timestrip/useTimestripViewport'
 import type { TimestripNavigationReason } from './timestrip/useTimestripViewport'
 import { useTimestripAnalogHover } from './timestrip/useTimestripAnalogHover'
+import { mergeTimestripUnavailableRegions } from './timestrip/timestripUnavailableRegions'
+import type { TimestripUnavailableRegion } from './timestrip/timestripUnavailableRegions'
 
 const PLACEHOLDER_TIMELINE_END_NS = 10_000_000_000n
 const LOG_START_TIMESTAMP_US = 0n
@@ -131,6 +133,54 @@ const getCaptureBreakWorldNs = (
   }
   const basisTimestampUs = getTimestripBasisTimestampUs(row.startTimestampUs, row.wallClockUs, basis)
   return basisTimestampUs === null ? null : basisTimestampUsToWorldNs(basisTimestampUs, basis)
+}
+
+const buildTimestripUnavailableRegions = (
+  digitalEntries: TimestripDigitalEntry[],
+  latestDatumWorldNs: number | null,
+  timelineEndWorldNs: number,
+  zoomDenominator: number,
+): TimestripUnavailableRegion[] => {
+  const regions: TimestripUnavailableRegion[] = []
+  let captureUnavailableStartWorldNs: number | null = null
+  const captureEvents = digitalEntries
+    .filter((entry): entry is Extract<TimestripDigitalEntry, { kind: 'event' }> => (
+      entry.kind === 'event' && entry.eventType === 'capture_changed'
+    ))
+    .sort((left, right) => left.worldNs - right.worldNs)
+  for (const event of captureEvents) {
+    const eventText = event.eventText?.toLowerCase() ?? ''
+    if (eventText.includes('turned off')) {
+      captureUnavailableStartWorldNs = event.worldNs
+      continue
+    }
+    if (eventText.includes('turned on') && captureUnavailableStartWorldNs !== null) {
+      regions.push({
+        startWorldNs: captureUnavailableStartWorldNs,
+        endWorldNs: event.worldNs,
+      })
+      captureUnavailableStartWorldNs = null
+    }
+  }
+  if (captureUnavailableStartWorldNs !== null) {
+    regions.push({
+      startWorldNs: captureUnavailableStartWorldNs,
+      endWorldNs: timelineEndWorldNs,
+    })
+  }
+  if (latestDatumWorldNs === null) {
+    regions.push({
+      startWorldNs: 0,
+      endWorldNs: timelineEndWorldNs,
+    })
+  } else if (latestDatumWorldNs < timelineEndWorldNs) {
+    const startWorldNs = Math.min(timelineEndWorldNs, latestDatumWorldNs + zoomDenominator)
+    regions.push({
+      startWorldNs,
+      endWorldNs: timelineEndWorldNs,
+    })
+  }
+  return mergeTimestripUnavailableRegions(regions)
 }
 
 const isRangeCoveredByLoadedRanges = (
@@ -543,6 +593,15 @@ export const DrpdTimeStripInstrumentView = ({
         : 1 - LIVE_FOLLOW_VIEWPORT_FRACTION,
     minTailPaddingZoomDenominator: MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS,
   })
+  const unavailableRegions = useMemo(
+    () => buildTimestripUnavailableRegions(
+      digitalEntries,
+      latestDatumWorldNs,
+      Number(viewportDurationNs),
+      zoomDenominator,
+    ),
+    [digitalEntries, latestDatumWorldNs, viewportDurationNs, zoomDenominator],
+  )
   const isLiveFollowAvailable = zoomDenominator >= MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS
   const latestFollowWorldNs = captureMarkerWorldNs ?? latestDatumWorldNs
   const maxScrollLeftPx = Math.max(0, timelineWidthPx - viewportWidthPx)
@@ -1566,6 +1625,7 @@ export const DrpdTimeStripInstrumentView = ({
       analogSamples,
       analogDataRevision,
       selectedMessageKey: selectedLogMessageKey,
+      unavailableRegions,
     })
   }, [
     digitalDataRevision,
@@ -1573,6 +1633,7 @@ export const DrpdTimeStripInstrumentView = ({
     analogDataRevision,
     analogSamples,
     selectedLogMessageKey,
+    unavailableRegions,
     scrollLeftPx,
     theme,
     timelineRange.basis.originWallClockUs,

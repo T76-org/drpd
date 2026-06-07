@@ -7,6 +7,7 @@ import {
 } from './timestripTheme'
 import type { TimestripDigitalEntry } from './timestripDigitalModel'
 import type { TimestripAnalogSample } from './timestripAnalogModel'
+import type { TimestripUnavailableRegion } from './timestripUnavailableRegions'
 
 export interface TimestripRendererViewport {
   scrollLeftPx: number
@@ -21,6 +22,7 @@ export interface TimestripRendererViewport {
   analogSamples?: TimestripAnalogSample[]
   analogDataRevision?: number
   selectedMessageKey?: string | null
+  unavailableRegions?: TimestripUnavailableRegion[]
 }
 
 export interface TimestripCanvasRendererOptions {
@@ -68,6 +70,7 @@ export class TimestripCanvasRenderer {
       analogSamples: [],
       analogDataRevision: 0,
       selectedMessageKey: null,
+      unavailableRegions: [],
     }
     this.frameHandle = null
     this.disposed = false
@@ -135,6 +138,8 @@ export class TimestripCanvasRenderer {
       this.viewport.analogSamples ?? [],
       this.viewport.worldStartWallClockUs,
       this.viewport.selectedMessageKey ?? null,
+      null,
+      this.viewport.unavailableRegions ?? [],
     )
   }
 
@@ -169,9 +174,13 @@ export class TimestripCanvasRenderer {
       viewport.digitalDataRevision ?? 0,
       viewport.analogDataRevision ?? 0,
       viewport.selectedMessageKey ?? '',
+      buildUnavailableRegionsCacheKey(viewport.unavailableRegions ?? []),
     ].join('|')
   }
 }
+
+const buildUnavailableRegionsCacheKey = (regions: TimestripUnavailableRegion[]): string =>
+  regions.map((region) => `${region.startWorldNs}:${region.endWorldNs}`).join(',')
 
 const normalizeViewport = (viewport: TimestripRendererViewport): TimestripRendererViewport => ({
   ...viewport,
@@ -189,4 +198,5 @@ const normalizeViewport = (viewport: TimestripRendererViewport): TimestripRender
   analogSamples: viewport.analogSamples ?? [],
   analogDataRevision: viewport.analogDataRevision ?? 0,
   selectedMessageKey: viewport.selectedMessageKey ?? null,
+  unavailableRegions: viewport.unavailableRegions ?? [],
 })

@@ -33,6 +33,7 @@ export interface TimestripDigitalEventEntry {
   kind: 'event'
   worldNs: number
   eventType: LoggedCapturedEventType | null
+  eventText: string | null
 }
 
 export type TimestripDigitalEntry = TimestripDigitalMessageEntry | TimestripDigitalEventEntry
@@ -118,6 +119,7 @@ export const normalizeCapturedMessageForTimestrip = (
       kind: 'event',
       worldNs: startWorldNs,
       eventType: row.eventType,
+      eventText: row.eventText,
     }
   }
 

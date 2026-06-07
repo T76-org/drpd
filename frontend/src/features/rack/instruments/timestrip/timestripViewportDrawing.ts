@@ -8,6 +8,7 @@ import {
   filterTimestripAnalogSamplesForViewport,
   type TimestripAnalogSample,
 } from './timestripAnalogModel'
+import type { TimestripUnavailableRegion } from './timestripUnavailableRegions'
 
 export interface TimestripViewportDrawRegion {
   worldLeftNs: number
@@ -29,6 +30,7 @@ export const drawTimestripViewport = (
   worldStartWallClockUs = 0,
   selectedMessageKey: string | null = null,
   captureMarkerWorldNs: number | null = null,
+  unavailableRegions: TimestripUnavailableRegion[] = [],
 ): void => {
   const width = viewport.widthPx
   const height = viewport.heightPx
@@ -58,18 +60,50 @@ export const drawTimestripViewport = (
     analogSamples,
     viewport.worldLeftNs,
     viewport.worldLeftNs + width * viewport.zoomDenominator,
+    unavailableRegions.map((region) => region.startWorldNs),
   )
   drawAnalogTraceLane(context, layout, width, theme, {
     worldLeftNs: viewport.worldLeftNs,
     zoomDenominator: viewport.zoomDenominator,
     samples: analogViewportSamples,
   })
+  drawUnavailableRegions(context, viewport, width, height, theme, unavailableRegions)
   drawCaptureMarker(context, layout, width, theme, {
     worldLeftNs: viewport.worldLeftNs,
     zoomDenominator: viewport.zoomDenominator,
     captureMarkerWorldNs,
   })
 
+  context.restore()
+}
+
+const drawUnavailableRegions = (
+  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  viewport: TimestripViewportDrawRegion,
+  widthPx: number,
+  heightPx: number,
+  theme: TimestripThemePalette,
+  regions: TimestripUnavailableRegion[],
+): void => {
+  if (regions.length === 0) {
+    return
+  }
+  const viewportRightNs = viewport.worldLeftNs + widthPx * viewport.zoomDenominator
+  context.save()
+  context.beginPath()
+  context.rect(0, 0, widthPx, heightPx)
+  context.clip()
+  for (const region of regions) {
+    const startWorldNs = Math.max(viewport.worldLeftNs, region.startWorldNs)
+    const endWorldNs = Math.min(viewportRightNs, region.endWorldNs)
+    if (endWorldNs <= startWorldNs) {
+      continue
+    }
+    const x = (startWorldNs - viewport.worldLeftNs) / viewport.zoomDenominator
+    const width = Math.max(1, (endWorldNs - startWorldNs) / viewport.zoomDenominator)
+    context.fillStyle = theme.unavailableOverlayFillColor
+    context.fillRect(x, 0, width, heightPx)
+  }
   context.restore()
 }
 

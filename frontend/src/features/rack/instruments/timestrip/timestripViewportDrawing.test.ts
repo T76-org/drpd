@@ -116,9 +116,30 @@ describe('timestripViewportDrawing', () => {
       currentTraceColor: '#01A804',
       analogGridColor: 'rgba(255, 255, 255, 0.09)',
       captureMarkerColor: '#fedcba',
+      unavailableOverlayFillColor: 'rgba(255, 255, 255, 0.05)',
+      unavailableOverlayStrokeColor: 'rgba(255, 255, 255, 0.15)',
     })
 
     expect(context.fillStyle).toBe('#cccccc')
+  })
+
+  it('draws a subtle unavailable-region shade in viewport coordinates', () => {
+    const context = buildContext()
+
+    drawTimestripViewport(
+      context,
+      viewport,
+      1,
+      DEFAULT_TIMESTRIP_THEME,
+      [],
+      [],
+      1_700_000_000_000_000,
+      null,
+      null,
+      [{ startWorldNs: 100_000, endWorldNs: 200_000 }],
+    )
+
+    expect(context.fillRect).toHaveBeenCalledWith(100, 0, 100, 240)
   })
 
   it('colors detailed digital components and bytes by message segment', () => {

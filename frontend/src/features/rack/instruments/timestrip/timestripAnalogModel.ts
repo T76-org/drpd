@@ -20,6 +20,7 @@ export const filterTimestripAnalogSamplesForViewport = (
   samples: TimestripAnalogSample[],
   viewportLeftNs: number,
   viewportRightNs: number,
+  unavailableRegionStartsNs: number[] = [],
 ): TimestripAnalogSample[] => {
   const visibleSamples: TimestripAnalogSample[] = []
   let previousSample: TimestripAnalogSample | null = null
@@ -35,11 +36,26 @@ export const filterTimestripAnalogSamplesForViewport = (
     }
     visibleSamples.push(sample)
   }
-  return [
+  const allSamples = [
     ...(previousSample ? [previousSample] : []),
     ...visibleSamples,
     ...(nextSample ? [nextSample] : []),
   ]
+  if (unavailableRegionStartsNs.length === 0) {
+    return allSamples
+  }
+  return [
+    ...allSamples,
+  ].map((sample, index, allSamples) => {
+    if (index === 0) {
+      return sample
+    }
+    const previous = allSamples[index - 1]
+    const breakBefore = unavailableRegionStartsNs.some((startWorldNs) => (
+      startWorldNs > previous.worldNs && startWorldNs <= sample.worldNs
+    ))
+    return breakBefore ? { ...sample, breakBefore: true } : sample
+  })
 }
 
 export const interpolateTimestripAnalogSample = (
