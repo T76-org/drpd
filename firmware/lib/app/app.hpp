@@ -26,6 +26,7 @@
 #include "lib/phy/vbus_manager.hpp"
 
 #include "lib/logic/cc_bus_controller.hpp"
+#include "lib/logic/hardware_revision.hpp"
 #include "lib/logic/trigger_controller.hpp"
 
 #include "lib/util/circular_array.hpp"
@@ -109,6 +110,13 @@ namespace T76::DRPD {
         void _querySystemSpeed(const std::vector<T76::SCPI::ParameterValue> &params);
         void _querySystemUptime(const std::vector<T76::SCPI::ParameterValue> &params);
         void _querySystemTimestamp(const std::vector<T76::SCPI::ParameterValue> &params);
+
+        /**
+         * @brief Query the cached board hardware revision for SCPI.
+         *
+         * @param params SCPI parameters supplied by the interpreter, unused.
+         */
+        void _querySystemHardwareRevision(const std::vector<T76::SCPI::ParameterValue> &params);
         void _enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &params);
 
         void _measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &);
@@ -409,6 +417,7 @@ namespace T76::DRPD {
         PHY::VBusManager _vbusManager;
         
         Logic::CCBusController _ccBusController;
+        Logic::HardwareRevisionConfig _hardwareRevisionConfig; ///< Cached hardware revision detection.
         Logic::TriggerController _triggerController;
 
         void _loop();

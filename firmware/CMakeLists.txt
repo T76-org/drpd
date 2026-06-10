@@ -91,6 +91,7 @@ add_executable(drpd-firmware
         lib/app/app_scpi_vbus.cpp
         lib/app/scpi_commands.cpp
         lib/logic/cc_bus_controller.cpp
+        lib/logic/hardware_revision.cpp
         lib/logic/sink/message_sender.cpp
         lib/logic/sink/sink_alarm_service.cpp
         lib/logic/sink/sink.cpp
@@ -175,6 +176,7 @@ pico_enable_stdio_uart(drpd-firmware 0)
 include(config/app.cmake)
 include(config/pins.cmake)
 include(config/logic/cc_bus_controller.cmake)
+include(config/logic/hardware_revision.cmake)
 include(config/logic/sink.cmake)
 include(config/logic/trigger_controller.cmake)
 include(config/phy/analog_monitor.cmake)

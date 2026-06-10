@@ -32,7 +32,23 @@ export class DRPDSystem {
   public async identify(): Promise<DeviceIdentity> {
     const response = await this.transport.queryText('*IDN?')
     console.info(`[drpd.system] *IDN? response=${response.join(' ')}`)
-    return parseDeviceIdentity(response)
+    const identity = parseDeviceIdentity(response)
+    try {
+      console.info('[drpd.system] Querying hardware revision with SYST:HW:REV?')
+      const hardwareRevisionResponse = await this.transport.queryText('SYST:HW:REV?')
+      const hardwareRevision = hardwareRevisionResponse[0]?.trim()
+      console.info(
+        `[drpd.system] SYST:HW:REV? response=${hardwareRevisionResponse.join(' ')}`,
+      )
+      if (hardwareRevision) {
+        return { ...identity, hardwareRevision }
+      }
+    } catch (error) {
+      console.info(
+        `[drpd.system] SYST:HW:REV? unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    return identity
   }
 
   /**

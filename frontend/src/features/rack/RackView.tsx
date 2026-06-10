@@ -296,6 +296,7 @@ const mergeRackDeviceIdentity = (
     ...record,
     deviceSerialNumber: identity.serialNumber || record.deviceSerialNumber,
     firmwareVersion: identity.firmwareVersion || record.firmwareVersion,
+    hardwareRevision: identity.hardwareRevision || record.hardwareRevision,
   }
 }
 
@@ -2631,6 +2632,12 @@ export const RackView = () => {
               type: 'submenu' as const,
               label: record.displayName,
               items: [
+                {
+                  id: `paired-device-${record.id}-hardware`,
+                  label: `Hardware version: ${record.hardwareRevision ?? 'Unknown'}`,
+                  disabled: true,
+                  onSelect: () => undefined,
+                },
                 {
                   id: `paired-device-${record.id}-firmware`,
                   label: `Firmware version: ${record.firmwareVersion ?? 'Unknown'}`,

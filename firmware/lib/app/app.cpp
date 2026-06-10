@@ -353,6 +353,7 @@ void App::_loop() {
 }
 
 void App::_initCore0() {
+    _hardwareRevisionConfig.init();
     _analogMonitor.init();
     _analogMonitor.applyPersistentConfig(PersistentConfig::instance().current().analogMonitor);
     _ccBusController.init();
