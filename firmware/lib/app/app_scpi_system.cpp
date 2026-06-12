@@ -55,6 +55,10 @@ void App::_querySystemTimestamp(const std::vector<T76::SCPI::ParameterValue> &pa
     _sendTransportTextResponse(std::to_string(timestampMicros));
 }
 
+void App::_querySystemHardwareRevision(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _sendTransportTextResponse(_hardwareRevisionConfig.revisionString());
+}
+
 void App::_enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &params) {
     watchdog_hw->scratch[T76_UPDATER_BOOT_SCRATCH_MAGIC] = T76_UPDATER_BOOT_MAGIC;
     watchdog_hw->scratch[T76_UPDATER_BOOT_SCRATCH_ARM] = T76_UPDATER_BOOT_ARM_VALUE;

@@ -353,6 +353,12 @@ void App::_loop() {
 }
 
 void App::_initCore0() {
+    _hardwareRevisionConfig.init();
+    _bmcEncoder.outputMode(
+        _hardwareRevisionConfig.revision() == Logic::HardwareRevision::R2605A
+            ? PHY::BMCEncoderOutputMode::SinglePinWithEnable
+            : PHY::BMCEncoderOutputMode::DualPinLegacy
+    );
     _analogMonitor.init();
     _analogMonitor.applyPersistentConfig(PersistentConfig::instance().current().analogMonitor);
     _ccBusController.init();

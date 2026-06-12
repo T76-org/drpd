@@ -59,6 +59,7 @@ const mockTransportState = vi.hoisted(() => ({
   sinkPpsStatusQueryEnabledResponse: ['OFF'],
   timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
+  hardwareRevisionResponse: ['R2605-A'],
   captureCountResponse: ['0'],
   sentCommands: [] as string[],
 }))
@@ -118,6 +119,9 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
         return mockTransportState.idnResponse.length === 1
           ? mockTransportState.idnResponse[0].split(',').map((part) => part.trim())
           : mockTransportState.idnResponse
+      }
+      if (command === 'SYST:HW:REV?') {
+        return mockTransportState.hardwareRevisionResponse
       }
       if (command === 'SYST:TIME?') {
         return mockTransportState.timestampResponse
@@ -810,6 +814,7 @@ const resetMockTransportState = (): void => {
   mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
   mockTransportState.timestampResponse = ['1000']
   mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
+  mockTransportState.hardwareRevisionResponse = ['R2605-A']
   mockTransportState.captureCountResponse = ['0']
   mockTransportState.sentCommands = []
 }
@@ -2276,6 +2281,36 @@ describe('RackView', () => {
     ) as RackDocument
     expect(stored.pairedDevices?.[0]?.displayName).toBe('Marco')
     expect(stored.pairedDevices?.[0]?.firmwareVersion).toBe('1.0.1')
+  })
+
+  it('shows hardware version above firmware version in the paired device submenu', async () => {
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0.1']
+    mockTransportState.hardwareRevisionResponse = ['R2605-A']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem('drpd:rack:document') ?? '{}',
+      ) as RackDocument
+      expect(stored.pairedDevices?.[0]?.hardwareRevision).toBe('R2605-A')
+    })
+
+    await openApplicationSubmenu('Devices')
+    const deviceMenu = await screen.findByRole('menuitem', { name: /Dr\. PD/ })
+    await userEvent.hover(deviceMenu)
+
+    const hardwareItem = await screen.findByRole('menuitem', {
+      name: 'Hardware version: R2605-A',
+    })
+    const firmwareItem = await screen.findByRole('menuitem', {
+      name: 'Firmware version: 1.0.1',
+    })
+    expect(hardwareItem).toBeDisabled()
+    expect(firmwareItem).toBeDisabled()
+    expect(hardwareItem.compareDocumentPosition(firmwareItem) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0)
   })
 
   it('auto-connects the most recently connected paired device at startup', async () => {

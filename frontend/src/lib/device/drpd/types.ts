@@ -297,6 +297,8 @@ export interface DeviceIdentity {
   serialNumber: string
   ///< Firmware version.
   firmwareVersion: string
+  ///< Optional hardware revision reported by the device.
+  hardwareRevision?: string
 }
 
 /**

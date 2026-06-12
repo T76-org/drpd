@@ -57,6 +57,8 @@ export interface RackDeviceRecord {
   deviceSerialNumber?: string
   ///< Optional firmware version reported by the device.
   firmwareVersion?: string
+  ///< Optional hardware revision reported by the device.
+  hardwareRevision?: string
   ///< Optional USB product name.
   productName?: string
   ///< Unix timestamp in milliseconds for the most recent successful connection.

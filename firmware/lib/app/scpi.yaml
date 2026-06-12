@@ -59,6 +59,10 @@ commands:
     description:  "Query the current timestamp in microseconds."
     handler:      _querySystemTimestamp
 
+  - syntax:       "SYSTem:HW:REVision?"
+    description:  "Query the detected hardware revision."
+    handler:      _querySystemHardwareRevision
+
   - syntax:       "SYSTem:FIRMware:UPDater"
     description:  "Reboot into the resident firmware updater bootloader."
     handler:      _enterFirmwareUpdater

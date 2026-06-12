@@ -7,7 +7,7 @@ target_compile_definitions(drpd-firmware PUBLIC
     PHY_BMC_DECODER_PIO=pio1                                    # PIO instance for BMC decoder
 
     PHY_BMC_DECODER_CC_VREF_PWM_PIN=${PIN_CC_VREF_PWM}          # CC_VREF_PWM pin for voltage reference
-    PHY_BMC_DECODER_CC_VREF_DEFAULT=0.6f                        # Default CC voltage reference in volts    
+    PHY_BMC_DECODER_CC_VREF_DEFAULT=0.4f                        # Default CC voltage reference in volts    
     PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_HZ=100000             # PWM frequency for CC_VREF_PWM pin           
 
     PHY_BMC_DECODER_PIO_CLOCK_HZ=200000000.0f                   # PIO clock frequency
