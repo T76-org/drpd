@@ -150,6 +150,7 @@ pico_set_linker_script(drpd-firmware ${DRPD_APP_MEMMAP_FILE})
 
 pico_generate_pio_header(drpd-firmware ${CMAKE_CURRENT_LIST_DIR}/lib/phy/bmc_decoder.pio)
 pico_generate_pio_header(drpd-firmware ${CMAKE_CURRENT_LIST_DIR}/lib/phy/bmc_encoder\.pio)
+pico_generate_pio_header(drpd-firmware ${CMAKE_CURRENT_LIST_DIR}/lib/phy/bmc_encoder_single_pin.pio)
 
 add_compile_definitions(
     PLL_SYS_VCO_FREQ_HZ=1200000000

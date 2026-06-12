@@ -5,9 +5,11 @@
 
 #include "bmc_encoder.hpp"
 
+#include <hardware/gpio.h>
 #include <pico/platform.h>
 
 #include "bmc_encoder.pio.h"
+#include "bmc_encoder_single_pin.pio.h"
 
 
 using namespace T76::DRPD::PHY;
@@ -33,42 +35,105 @@ BMCEncoder::BMCEncoder() {
     queue_init(&_messageQueue, sizeof(BitPacker), PHY_BMC_ENCODER_QUEUE_LENGTH);
 }
 
-void BMCEncoder::initCore1() {
-    // Claim the state machine before issuing any SM-specific pin operations.
-    _stateMachine = pio_claim_unused_sm(PHY_BMC_ENCODER_PIO, true);
+void BMCEncoder::outputMode(BMCEncoderOutputMode mode) {
+    _outputMode = mode;
+}
 
-    // Init the output pin and set it to input (high-Z) initially
+BMCEncoderOutputMode BMCEncoder::outputMode() const {
+    return _outputMode;
+}
 
+void BMCEncoder::_selectPioProgramForOutputMode() {
+    switch (_outputMode) {
+        case BMCEncoderOutputMode::SinglePinWithEnable:
+            _activeProgram = &bmc_encoder_single_pin_program;
+            _activeOutputPinBase = PHY_BMC_ENCODER_CC_OUT_LOW_PIN;
+            _activeOutputPinCount = 1;
+            break;
+
+        case BMCEncoderOutputMode::DualPinLegacy:
+        default:
+            _activeProgram = &bmc_encoder_program;
+            _activeOutputPinBase = PHY_BMC_ENCODER_CC_OUT_LOW_PIN;
+            _activeOutputPinCount = 2;
+            break;
+    }
+}
+
+void BMCEncoder::_initLegacyDualPinOutput() {
     pio_gpio_init(PHY_BMC_ENCODER_PIO, PHY_BMC_ENCODER_CC_OUT_HIGH_PIN);
     pio_gpio_init(PHY_BMC_ENCODER_PIO, PHY_BMC_ENCODER_CC_OUT_LOW_PIN);
 
-    gpio_set_slew_rate(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN, GPIO_SLEW_RATE_SLOW);
-    gpio_set_slew_rate(PHY_BMC_ENCODER_CC_OUT_LOW_PIN, GPIO_SLEW_RATE_SLOW);
-
     pio_sm_set_pins_with_mask(
-        PHY_BMC_ENCODER_PIO, 
-        _stateMachine, 
-        0u << PHY_BMC_ENCODER_CC_OUT_HIGH_PIN | 0u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN, 
+        PHY_BMC_ENCODER_PIO,
+        _stateMachine,
+        0u << PHY_BMC_ENCODER_CC_OUT_HIGH_PIN | 0u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN,
         1u << PHY_BMC_ENCODER_CC_OUT_HIGH_PIN | 1u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN
     ); // Set initial pin state to 0
 
     pio_sm_set_pindirs_with_mask(
-        PHY_BMC_ENCODER_PIO, 
-        _stateMachine, 
-        0u << PHY_BMC_ENCODER_CC_OUT_HIGH_PIN | 0u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN, 
+        PHY_BMC_ENCODER_PIO,
+        _stateMachine,
+        0u << PHY_BMC_ENCODER_CC_OUT_HIGH_PIN | 0u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN,
         1u << PHY_BMC_ENCODER_CC_OUT_HIGH_PIN | 1u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN
-    ); // Set pin as input initially
+    ); // Set pins as input initially
+}
+
+void BMCEncoder::_initSinglePinWithEnableOutput() {
+    pio_gpio_init(PHY_BMC_ENCODER_PIO, PHY_BMC_ENCODER_CC_OUT_LOW_PIN);
+
+    gpio_init(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN);
+    gpio_set_dir(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN, GPIO_OUT);
+    _setTransmitEnable(false);
+
+    pio_sm_set_pins_with_mask(
+        PHY_BMC_ENCODER_PIO,
+        _stateMachine,
+        0u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN,
+        1u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN
+    ); // Set initial signal pin state to 0
+
+    pio_sm_set_pindirs_with_mask(
+        PHY_BMC_ENCODER_PIO,
+        _stateMachine,
+        0u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN,
+        1u << PHY_BMC_ENCODER_CC_OUT_LOW_PIN
+    ); // Set signal pin as input initially
+}
+
+void BMCEncoder::_setTransmitEnable(bool enabled) {
+    if (_outputMode != BMCEncoderOutputMode::SinglePinWithEnable) {
+        return;
+    }
+
+    gpio_put(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN, enabled);
+    _transmitEnableAsserted = enabled;
+}
+
+void BMCEncoder::initCore1() {
+    // Claim the state machine before issuing any SM-specific pin operations.
+    _stateMachine = pio_claim_unused_sm(PHY_BMC_ENCODER_PIO, true);
+    _selectPioProgramForOutputMode();
+
+    // Init the output pin and set it to input (high-Z) initially
+    if (_outputMode == BMCEncoderOutputMode::SinglePinWithEnable) {
+        _initSinglePinWithEnableOutput();
+    } else {
+        _initLegacyDualPinOutput();
+    }
 
     // Load the PIO program and configure the state machine.
 
-    _programOffset = pio_add_program(PHY_BMC_ENCODER_PIO, &bmc_encoder_program);
-    _pioConfig = bmc_encoder_program_get_default_config(_programOffset);
+    _programOffset = pio_add_program(PHY_BMC_ENCODER_PIO, _activeProgram);
+    _pioConfig = _outputMode == BMCEncoderOutputMode::SinglePinWithEnable
+        ? bmc_encoder_single_pin_program_get_default_config(_programOffset)
+        : bmc_encoder_program_get_default_config(_programOffset);
 
     sm_config_set_clkdiv(&_pioConfig, float(SYS_CLK_HZ) / PHY_BMC_ENCODER_PIO_CLOCK_FREQUENCY_HZ);
-    sm_config_set_in_pins(&_pioConfig, PHY_BMC_ENCODER_CC_OUT_LOW_PIN);
-    sm_config_set_in_pin_count(&_pioConfig, 2); // This is necessary to read no more than 2 pins
-    sm_config_set_out_pins(&_pioConfig, PHY_BMC_ENCODER_CC_OUT_LOW_PIN, 2);
-    sm_config_set_set_pins(&_pioConfig, PHY_BMC_ENCODER_CC_OUT_LOW_PIN, 2);
+    sm_config_set_in_pins(&_pioConfig, _activeOutputPinBase);
+    sm_config_set_in_pin_count(&_pioConfig, _activeOutputPinCount);
+    sm_config_set_out_pins(&_pioConfig, _activeOutputPinBase, _activeOutputPinCount);
+    sm_config_set_set_pins(&_pioConfig, _activeOutputPinBase, _activeOutputPinCount);
     sm_config_set_fifo_join(&_pioConfig, PIO_FIFO_JOIN_TX);
     sm_config_set_out_shift(&_pioConfig, true, true, 32);
 
@@ -83,6 +148,7 @@ void BMCEncoder::initCore1() {
         pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, self->_stateMachine, false);
         pio_interrupt_clear(PHY_BMC_ENCODER_PIO, 0);
         self->_hasMessageInProgress = false;
+        self->_setTransmitEnable(false);
     });
 
     irq_set_enabled(irqNum, true);
@@ -119,7 +185,12 @@ bool BMCEncoder::activate() {
 }
 
 void BMCEncoder::makeSafe() {
-    gpio_set_dir(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN, GPIO_IN); // Set as input to make safe
+    _setTransmitEnable(false);
+    if (_outputMode == BMCEncoderOutputMode::SinglePinWithEnable) {
+        gpio_set_dir(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN, GPIO_OUT);
+    } else {
+        gpio_set_dir(PHY_BMC_ENCODER_CC_OUT_HIGH_PIN, GPIO_IN);
+    }
     gpio_set_dir(PHY_BMC_ENCODER_CC_OUT_LOW_PIN, GPIO_IN); // Set as input to make safe
 }
 
@@ -139,6 +210,7 @@ void BMCEncoder::sendHardResetSignaling() {
     pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, _stateMachine, false);
     pio_sm_clear_fifos(PHY_BMC_ENCODER_PIO, _stateMachine);
     _hasMessageInProgress = false;
+    _setTransmitEnable(false);
 
     BitPacker discarded;
     while (queue_try_remove(&_messageQueue, &discarded)) {
@@ -190,5 +262,6 @@ void BMCEncoder::loopCore1() {
     // Clear interrupt and enable the state machine
 
     pio_interrupt_clear(PHY_BMC_ENCODER_PIO, 0);
+    _setTransmitEnable(true);
     pio_sm_set_enabled(PHY_BMC_ENCODER_PIO, _stateMachine, true);
 }

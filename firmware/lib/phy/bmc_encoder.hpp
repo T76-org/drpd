@@ -53,6 +53,14 @@
 
 namespace T76::DRPD::PHY {
 
+    /**
+     * @brief Hardware output modes supported by the BMC encoder.
+     */
+    enum class BMCEncoderOutputMode : uint32_t {
+        DualPinLegacy = 0,     ///< Legacy two-pin high/low drive used by R2603-A.
+        SinglePinWithEnable,   ///< Single BMC output plus TX enable used by R2605-A.
+    };
+
     /** 
      * @brief Encoder for BMC-encoded USB-PD messages.
      * 
@@ -95,6 +103,20 @@ namespace T76::DRPD::PHY {
          * @brief Construct encoder and initialize thread-safe message queue.
          */
         BMCEncoder();
+
+        /**
+         * @brief Set the hardware output mode used when initializing the encoder.
+         *
+         * @param mode Output mode selected for the detected hardware revision.
+         */
+        void outputMode(BMCEncoderOutputMode mode);
+
+        /**
+         * @brief Return the configured hardware output mode.
+         *
+         * @return BMCEncoderOutputMode Current output mode.
+         */
+        BMCEncoderOutputMode outputMode() const;
 
         /** 
          * @brief Initialize the BMC encoder on core 1.
@@ -161,6 +183,33 @@ namespace T76::DRPD::PHY {
         const char* getComponentName() const override { return "BMCEncoder"; }
 
     protected:
+        /**
+         * @brief Select active PIO program and pin profile for the configured output mode.
+         */
+        void _selectPioProgramForOutputMode();
+
+        /**
+         * @brief Initialize legacy dual-pin output pins for PIO control.
+         */
+        void _initLegacyDualPinOutput();
+
+        /**
+         * @brief Initialize single-pin output plus SIO transmit-enable control.
+         */
+        void _initSinglePinWithEnableOutput();
+
+        /**
+         * @brief Set the active-high transmit-enable pin in single-pin mode.
+         *
+         * @param enabled True to assert transmit enable, false to deassert it.
+         */
+        void _setTransmitEnable(bool enabled);
+
+        BMCEncoderOutputMode _outputMode{BMCEncoderOutputMode::DualPinLegacy}; ///< Output mode selected before Core-1 init.
+        bool _transmitEnableAsserted = false; ///< True when single-pin transmit enable is high.
+        const pio_program_t *_activeProgram = nullptr; ///< PIO program selected for the active output mode.
+        uint _activeOutputPinBase = PHY_BMC_ENCODER_CC_OUT_LOW_PIN; ///< First PIO-controlled output pin.
+        uint _activeOutputPinCount = 2; ///< Number of PIO-controlled output pins.
         pio_sm_config _pioConfig;   ///< PIO state machine configuration
         uint _stateMachine = 0;     ///< PIO state machine index
         uint _programOffset = 0;    ///< Offset of the BMC encoder program in PIO memory
