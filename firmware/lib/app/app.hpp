@@ -409,6 +409,14 @@ namespace T76::DRPD {
          */
         StatusLedMode _statusLedMode();
 
+        /**
+         * @brief Return whether the board revision has the GPIO29 status LED.
+         *
+         * The HardwareRevision enum is ordered by board generation, so this
+         * gates the feature to R2605-A and later revisions.
+         */
+        static bool _supportsStatusLed(Logic::HardwareRevision revision);
+
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
@@ -426,6 +434,7 @@ namespace T76::DRPD {
         Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
 
         StatusLed _statusLed;
+        bool _statusLedSupported{false}; ///< True on R2605-A and later boards with GPIO29 LED hardware.
 
         PHY::AnalogMonitor _analogMonitor;
         PHY::BMCDecoder _bmcDecoder;

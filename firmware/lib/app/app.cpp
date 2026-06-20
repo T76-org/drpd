@@ -323,7 +323,9 @@ bool App::activate() {
 }
 
 void App::makeSafe() {
-    _statusLed.makeSafe();
+    if (_statusLedSupported) {
+        _statusLed.makeSafe();
+    }
 }
 
 const char* App::getComponentName() const {
@@ -334,7 +336,6 @@ const char* App::getComponentName() const {
 
 void App::_init() {
     stdio_init_all();
-    _statusLed.init();
     PersistentConfig::instance().init();
 }
 
@@ -354,8 +355,14 @@ void App::_loop() {
 
 void App::_initCore0() {
     _hardwareRevisionConfig.init();
+    const Logic::HardwareRevision hardwareRevision = _hardwareRevisionConfig.revision();
+    _statusLedSupported = _supportsStatusLed(hardwareRevision);
+    if (_statusLedSupported) {
+        _statusLed.init();
+    }
+
     _bmcEncoder.outputMode(
-        _hardwareRevisionConfig.revision() == Logic::HardwareRevision::R2605A
+        hardwareRevision == Logic::HardwareRevision::R2605A
             ? PHY::BMCEncoderOutputMode::SinglePinWithEnable
             : PHY::BMCEncoderOutputMode::DualPinLegacy
     );
@@ -373,7 +380,9 @@ void App::_initCore0() {
     _ccBusController.sinkInfoChanged(std::bind(&App::_sinkInfoChangedCallback, this, std::placeholders::_1));
     _vbusManager.managerChangedCallback(std::bind(&App::_vbusManagerChangedCallback, this));
     _triggerController.statusChangedCallback(std::bind(&App::_triggerStatusChangedCallback, this, std::placeholders::_1));
-    _statusLed.start(&App::_statusLedModeProvider, this);
+    if (_statusLedSupported) {
+        _statusLed.start(&App::_statusLedModeProvider, this);
+    }
 
     xTaskCreate(
         [](void *param) {
@@ -460,6 +469,10 @@ StatusLedMode App::_statusLedMode() {
     }
 
     return StatusLedMode::Disabled;
+}
+
+bool App::_supportsStatusLed(Logic::HardwareRevision revision) {
+    return static_cast<uint32_t>(revision) >= static_cast<uint32_t>(Logic::HardwareRevision::R2605A);
 }
 
 void App::_messageReceivedCallback(const PHY::BMCDecodedMessage &message) {
