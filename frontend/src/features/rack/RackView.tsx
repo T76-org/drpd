@@ -2545,6 +2545,9 @@ export const RackView = () => {
         case 'filter-log':
           setIsMessageLogFilterDialogOpen(true)
           break
+        case 'reset-protection':
+          void handleResetProtection()
+          break
         case 'reset-trigger':
           void handleResetTrigger()
           break
@@ -2565,6 +2568,7 @@ export const RackView = () => {
     handleOpenDocumentation,
     handlePulseUsbConnection,
     handleResetPowerChargeMeter,
+    handleResetProtection,
     handleResetTrigger,
     handleSetActiveDeviceRole,
     handleToggleActiveDeviceCapture,
@@ -2733,6 +2737,7 @@ export const RackView = () => {
           {
             id: 'reset-protection',
             label: 'Reset',
+            meta: 'Y',
             disabled: !activeDriver || !isProtectionTriggered,
             onSelect: () => {
               void handleResetProtection()

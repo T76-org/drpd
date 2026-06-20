@@ -10,6 +10,7 @@ export type RackShortcutId =
   | 'add-marker'
   | 'toggle-goodcrc'
   | 'filter-log'
+  | 'reset-protection'
   | 'reset-trigger'
   | 'open-user-manual'
 
@@ -86,6 +87,12 @@ export const RACK_SHORTCUTS: RackShortcutDefinition[] = [
     key: 'F',
     label: 'Filter log',
     description: 'Open the message log filter dialog.',
+  },
+  {
+    id: 'reset-protection',
+    key: 'Y',
+    label: 'Reset protection',
+    description: 'Reset the protection fault state.',
   },
   {
     id: 'reset-trigger',
@@ -173,6 +180,9 @@ export const matchRackShortcut = (event: KeyboardEvent): RackShortcutId | null =
     case 'f':
     case 'F':
       return 'filter-log'
+    case 'y':
+    case 'Y':
+      return 'reset-protection'
     case 'r':
     case 'R':
       return 'reset-trigger'
