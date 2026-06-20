@@ -288,8 +288,7 @@ void App::_processWinUSBRequest(const std::vector<uint8_t> &payload, bool expect
     if (!expectsQuery) {
         _sendWinUSBFrame(WinUSBFrameType::CommandAck, _activeWinUSBTag, {});
         _winusbResponseSent = true;
-        if (_firmwareUpdaterRebootRequested) {
-            _firmwareUpdaterRebootRequested = false;
+        if (_firmwareUpdaterRebootRequested.load(std::memory_order_acquire)) {
             sleep_ms(150);
             watchdog_reboot(0, 0, 10);
         }
@@ -324,7 +323,7 @@ bool App::activate() {
 }
 
 void App::makeSafe() {
-    // Currently does nothing
+    _statusLed.makeSafe();
 }
 
 const char* App::getComponentName() const {
@@ -335,6 +334,7 @@ const char* App::getComponentName() const {
 
 void App::_init() {
     stdio_init_all();
+    _statusLed.init();
     PersistentConfig::instance().init();
 }
 
@@ -373,6 +373,7 @@ void App::_initCore0() {
     _ccBusController.sinkInfoChanged(std::bind(&App::_sinkInfoChangedCallback, this, std::placeholders::_1));
     _vbusManager.managerChangedCallback(std::bind(&App::_vbusManagerChangedCallback, this));
     _triggerController.statusChangedCallback(std::bind(&App::_triggerStatusChangedCallback, this, std::placeholders::_1));
+    _statusLed.start(&App::_statusLedModeProvider, this);
 
     xTaskCreate(
         [](void *param) {
@@ -402,6 +403,63 @@ void App::_startCore1() {
         _bmcEncoder.loopCore1();
         _ccBusController.loopCore1();
     }
+}
+
+StatusLedMode App::_statusLedModeProvider(void *context) {
+    return static_cast<App *>(context)->_statusLedMode();
+}
+
+StatusLedMode App::_statusLedMode() {
+    const PHY::VBusState vbusState = _vbusManager.state();
+    if (vbusState == PHY::VBusState::OverVoltage || vbusState == PHY::VBusState::OverCurrent) {
+        return StatusLedMode::Fault;
+    }
+
+    if (_firmwareUpdaterRebootRequested.load(std::memory_order_acquire)) {
+        return StatusLedMode::FirmwareUpdaterPending;
+    }
+
+    if (!_usbInterface.mounted()) {
+        return StatusLedMode::NoHost;
+    }
+
+    const Logic::CCBusRole role = _ccBusController.role();
+    const Logic::CCBusState state = _ccBusController.state();
+
+    switch (role) {
+        case Logic::CCBusRole::Disabled:
+            return StatusLedMode::Disabled;
+
+        case Logic::CCBusRole::Observer:
+            return state == Logic::CCBusState::Attached
+                ? StatusLedMode::ObserverAttached
+                : StatusLedMode::ObserverNotAttached;
+
+        case Logic::CCBusRole::Sink: {
+            Logic::Sink *sink = _ccBusController.sink();
+            if (sink == nullptr) {
+                return StatusLedMode::SinkNotConnected;
+            }
+
+            const Logic::SinkState sinkState = sink->state();
+            if (sinkState == Logic::SinkState::Error) {
+                return StatusLedMode::SinkError;
+            }
+
+            if (state != Logic::CCBusState::Attached || sinkState == Logic::SinkState::Disconnected) {
+                return StatusLedMode::SinkNotConnected;
+            }
+
+            if (sinkState == Logic::SinkState::PE_SNK_Ready ||
+                sinkState == Logic::SinkState::PE_SNK_EPR_Keepalive) {
+                return StatusLedMode::SinkConnected;
+            }
+
+            return StatusLedMode::SinkNegotiating;
+        }
+    }
+
+    return StatusLedMode::Disabled;
 }
 
 void App::_messageReceivedCallback(const PHY::BMCDecodedMessage &message) {

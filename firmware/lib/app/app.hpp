@@ -29,6 +29,7 @@
 #include "lib/logic/hardware_revision.hpp"
 #include "lib/logic/trigger_controller.hpp"
 
+#include "lib/app/status_led.hpp"
 #include "lib/util/circular_array.hpp"
 #include "lib/util/persistent_config.hpp"
 
@@ -392,6 +393,22 @@ namespace T76::DRPD {
          */
         static uint32_t _readLE32(const std::vector<uint8_t> &data, size_t offset);
 
+        /**
+         * @brief Static adapter used by StatusLed's FreeRTOS task.
+         *
+         * @param context App instance pointer.
+         * @return StatusLedMode Current app-selected LED mode.
+         */
+        static StatusLedMode _statusLedModeProvider(void *context);
+
+        /**
+         * @brief Select the current status LED mode from app/device state.
+         *
+         * Priority: OVP/OCP fault, firmware updater pending, no USB host,
+         * disabled mode, observer state, then sink state.
+         */
+        StatusLedMode _statusLedMode();
+
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
@@ -399,7 +416,7 @@ namespace T76::DRPD {
         CommandTransport _activeCommandTransport{CommandTransport::USBTMC}; ///< Transport used for the active request/response flow.
         uint8_t _activeWinUSBTag{0}; ///< Correlation tag for the active WinUSB request.
         bool _activeWinUSBQueryRequest{false}; ///< True when the active WinUSB request expects text/binary query data.
-        bool _firmwareUpdaterRebootRequested{false}; ///< True when a WinUSB command ACK should be followed by updater reboot.
+        std::atomic<bool> _firmwareUpdaterRebootRequested{false}; ///< True when a WinUSB command ACK should be followed by updater reboot.
         std::string _pendingTextResponse; ///< Accumulates partial text responses until they are terminated.
         std::vector<uint8_t> _winusbRxBuffer; ///< Accumulates raw WinUSB bulk OUT bytes until complete frames are available.
         bool _winusbResponseSent{false}; ///< True when the current WinUSB request has emitted a response frame.
@@ -407,6 +424,8 @@ namespace T76::DRPD {
         bool _winusbProtocolMismatch{false}; ///< True when request intent and response shape do not match.
 
         Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
+
+        StatusLed _statusLed;
 
         PHY::AnalogMonitor _analogMonitor;
         PHY::BMCDecoder _bmcDecoder;

@@ -90,6 +90,7 @@ add_executable(drpd-firmware
         lib/app/app_scpi_trigger.cpp
         lib/app/app_scpi_vbus.cpp
         lib/app/scpi_commands.cpp
+        lib/app/status_led.cpp
         lib/logic/cc_bus_controller.cpp
         lib/logic/hardware_revision.cpp
         lib/logic/sink/message_sender.cpp
@@ -193,6 +194,7 @@ add_subdirectory(t76)
 # Suppress deprecated volatile warnings from FreeRTOS (C++ only)
 target_compile_options(drpd-firmware PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
 target_compile_options(t76_ic PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
+target_compile_options(t76_ic_usb PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>)
 
 target_compile_definitions(drpd-firmware PUBLIC
     DRPD_ENABLE_TEST_SCPI_COMMANDS              # Enable TEST:*** SCPI commands.
