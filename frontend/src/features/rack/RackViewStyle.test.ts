@@ -15,6 +15,15 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.headerScroll\s*\{[^}]*justify-content: flex-start;/s)
   })
 
+  it('centers the fixed layout header within the rack canvas width', () => {
+    expect(rackViewCss).toMatch(
+      /\.page\[data-layout-mode='fixed'\]\s+\.headerScroll\s*\{[^}]*justify-content:\s*safe center;/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.page\[data-layout-mode='fixed'\]\s+\.header\s*\{[^}]*width:\s*min\(100%,\s*var\(--rack-canvas-width\)\);/s,
+    )
+  })
+
   it('sizes the rack status header from the header element', () => {
     expect(rackViewCss).toMatch(/\.header\s*\{[^}]*container-type: inline-size;/s)
     expect(rackViewCss).toMatch(/\.header\s*\{[^}]*width:\s*min\(100%,\s*1350px\);/s)
