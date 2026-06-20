@@ -935,6 +935,31 @@ describe('RackView', () => {
     expect(within(dialog).getAllByRole('button', { name: 'Include' }).length).toBeGreaterThan(0)
   })
 
+  it('updates the time since reset while the Power/Charge Meter menu is open', async () => {
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
+    expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
+    await openApplicationSubmenu('Power/Charge Meter')
+    expect(
+      await screen.findByRole('menuitem', { name: /Time since reset\s+00:00:00/ }),
+    ).toBeDisabled()
+
+    mockTransportState.analogResponse = [
+      ...mockTransportState.analogResponse.slice(0, 10),
+      '3661000000',
+      ...mockTransportState.analogResponse.slice(11),
+    ]
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('menuitem', { name: /Time since reset\s+01:01:01/ }),
+      ).toBeDisabled()
+    })
+  })
+
   it('imports Message Log JSON after destructive confirmation', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])

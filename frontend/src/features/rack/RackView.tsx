@@ -1718,6 +1718,7 @@ export const RackView = () => {
         readSelection()
       }
       if (
+        changed.includes('analogMonitor') ||
         changed.includes('role') ||
         changed.includes('sinkEprEnabled') ||
         changed.includes('sinkPpsStatusQueryEnabled')
