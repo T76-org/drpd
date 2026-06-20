@@ -8,6 +8,14 @@ import {
 
 const formatHex = (value: number, width: number): string => `0x${value.toString(16).toUpperCase().padStart(width, '0')}`
 
+const formatScaledValue = (value: number): string => Number(value.toFixed(2)).toString()
+
+const formatBatteryCapacity = (capacityTenthsWh: number): string => {
+  if (capacityTenthsWh === 0x0000) return 'Battery not present'
+  if (capacityTenthsWh === 0xffff) return 'Unknown'
+  return `${formatScaledValue(capacityTenthsWh / 10)}Wh`
+}
+
 /**
  * Battery_Capabilities extended message.
  */
@@ -79,8 +87,8 @@ export class BatteryCapabilitiesMessage extends ExtendedMessage {
       '',
       `- USB Vendor ID: ${formatHex(this.batteryCapabilities.vid, 4)}`,
       `- Product ID: ${formatHex(this.batteryCapabilities.pid, 4)}`,
-      `- Design capacity: ${this.batteryCapabilities.batteryDesignCapacity}`,
-      `- Last full-charge capacity: ${this.batteryCapabilities.batteryLastFullChargeCapacity}`,
+      `- Design capacity: ${formatBatteryCapacity(this.batteryCapabilities.batteryDesignCapacity)}`,
+      `- Last full-charge capacity: ${formatBatteryCapacity(this.batteryCapabilities.batteryLastFullChargeCapacity)}`,
       `- Battery reference: ${(this.batteryCapabilities.batteryType & 0x01) !== 0 ? 'invalid' : 'valid'}`,
     ].join('\n')
   }

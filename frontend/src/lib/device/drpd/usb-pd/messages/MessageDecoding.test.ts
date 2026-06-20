@@ -905,11 +905,42 @@ describe('USB-PD extended message decoding', () => {
     expect(summary?.value).toContain('**Battery capabilities:**')
     expect(summary?.value).toContain('- USB Vendor ID: 0x1234')
     expect(summary?.value).toContain('- Product ID: 0x5678')
-    expect(summary?.value).toContain('- Design capacity: 16')
-    expect(summary?.value).toContain('- Last full-charge capacity: 8')
+    expect(summary?.value).toContain('- Design capacity: 1.6Wh')
+    expect(summary?.value).toContain('- Last full-charge capacity: 0.8Wh')
     expect(summary?.value).toContain('- Battery reference: valid')
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('batteryCapabilitiesDataBlock')
+    expect(block?.getEntry('batteryDesignCapacity')?.value).toBe('1.6 Wh')
+    expect(block?.getEntry('batteryLastFullChargeCapacity')?.value).toBe('0.8 Wh')
     expect(block?.getEntry('batteryType')?.value).toBe('0b00000000 (Invalid Battery Reference clear)')
+  })
+
+  it('reports Battery_Capabilities capacity sentinels by meaning', () => {
+    const bcdb = new Uint8Array(9)
+    bcdb[0] = 0x34
+    bcdb[1] = 0x12
+    bcdb[2] = 0x78
+    bcdb[3] = 0x56
+    bcdb[4] = 0x00
+    bcdb[5] = 0x00
+    bcdb[6] = 0xff
+    bcdb[7] = 0xff
+    const header = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 0,
+      messageTypeNumber: 0x05,
+    })
+    const extHeader = makeExtendedHeader({ dataSize: bcdb.length })
+    const message = parseUSBPDMessage(buildMessage(SOP, header, Array.from(bcdb), extHeader))
+    expect(message).toBeInstanceOf(BatteryCapabilitiesMessage)
+    const decoded = message as BatteryCapabilitiesMessage
+    expect(decoded.batteryCapabilities?.batteryDesignCapacity).toBe(0x0000)
+    expect(decoded.batteryCapabilities?.batteryLastFullChargeCapacity).toBe(0xffff)
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('- Design capacity: Battery not present')
+    expect(summary?.value).toContain('- Last full-charge capacity: Unknown')
+    const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('batteryCapabilitiesDataBlock')
+    expect(block?.getEntry('batteryDesignCapacity')?.value).toBe('Battery not present')
+    expect(block?.getEntry('batteryLastFullChargeCapacity')?.value).toBe('Unknown')
   })
 
   it('decodes Get_Manufacturer_Info', () => {
