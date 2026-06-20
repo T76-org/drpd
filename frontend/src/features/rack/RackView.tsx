@@ -1718,6 +1718,7 @@ export const RackView = () => {
         readSelection()
       }
       if (
+        changed.includes('analogMonitor') ||
         changed.includes('role') ||
         changed.includes('sinkEprEnabled') ||
         changed.includes('sinkPpsStatusQueryEnabled')
@@ -2426,7 +2427,10 @@ export const RackView = () => {
     )
     const driver = state?.drpdDriver
     const previousRole = driver?.getState().role ?? null
-    if (!driver || !previousRole || previousRole === CCBusRole.DISABLED) {
+    if (
+      !driver ||
+      (previousRole !== CCBusRole.OBSERVER && previousRole !== CCBusRole.SINK)
+    ) {
       return
     }
 
@@ -2544,6 +2548,9 @@ export const RackView = () => {
         case 'filter-log':
           setIsMessageLogFilterDialogOpen(true)
           break
+        case 'reset-protection':
+          void handleResetProtection()
+          break
         case 'reset-trigger':
           void handleResetTrigger()
           break
@@ -2564,6 +2571,7 @@ export const RackView = () => {
     handleOpenDocumentation,
     handlePulseUsbConnection,
     handleResetPowerChargeMeter,
+    handleResetProtection,
     handleResetTrigger,
     handleSetActiveDeviceRole,
     handleToggleActiveDeviceCapture,
@@ -2606,6 +2614,9 @@ export const RackView = () => {
     activeVbusInfo?.status === VBusStatus.OVP || activeVbusInfo?.status === VBusStatus.OCP
   const isTriggerActivated = activeTriggerInfo?.status === TriggerStatus.TRIGGERED
   const isSinkMode = activeDriverState?.role === CCBusRole.SINK
+  const canCycleUsbConnection =
+    !!activeDriver &&
+    (activeDriverState?.role === CCBusRole.OBSERVER || activeDriverState?.role === CCBusRole.SINK)
   const canUseSinkBehaviourSettings = supportsSinkBehaviourSettings(
     activeConnectedDeviceState?.record.firmwareVersion,
   )
@@ -2732,6 +2743,7 @@ export const RackView = () => {
           {
             id: 'reset-protection',
             label: 'Reset',
+            meta: 'Y',
             disabled: !activeDriver || !isProtectionTriggered,
             onSelect: () => {
               void handleResetProtection()
@@ -2853,7 +2865,7 @@ export const RackView = () => {
             id: 'cycle-usb-connection',
             label: 'Cycle USB Connection',
             meta: 'T',
-            disabled: !activeDriver || activeDriverState?.role === CCBusRole.DISABLED,
+            disabled: !canCycleUsbConnection,
             onSelect: () => {
               void handlePulseUsbConnection()
             },
@@ -3129,6 +3141,7 @@ export const RackView = () => {
     activeDriver,
     activeDriverState?.role,
     addMessageLogMarker,
+    canCycleUsbConnection,
     canInstall,
     canUseSinkBehaviourSettings,
     deviceStates,

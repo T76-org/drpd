@@ -109,6 +109,6 @@ export const normalizeAnalogSampleForTimestrip = (
   return {
     worldNs: worldNs,
     voltageV: row.vbusV,
-    currentA: row.ibusA,
+    currentA: Math.abs(row.ibusA),
   }
 }

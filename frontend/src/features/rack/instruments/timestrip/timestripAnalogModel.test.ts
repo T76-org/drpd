@@ -26,6 +26,25 @@ describe('timestripAnalogModel', () => {
     })
   })
 
+  it('normalizes negative current samples to magnitude for display', () => {
+    expect(normalizeAnalogSampleForTimestrip(
+      {
+        timestampUs: 2000n,
+        displayTimestampUs: null,
+        wallClockUs: null,
+        vbusV: 12,
+        ibusA: -1.5,
+        role: null,
+        createdAtMs: 1,
+      },
+      1000n,
+    )).toEqual({
+      worldNs: 1_000_000,
+      voltageV: 12,
+      currentA: 1.5,
+    })
+  })
+
   it('keeps only viewport analog samples plus one adjacent sample on each side', () => {
     const samples = [
       { worldNs: 0, voltageV: 5, currentA: 0.1 },

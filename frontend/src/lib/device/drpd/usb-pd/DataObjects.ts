@@ -2465,6 +2465,14 @@ const formatPowerStateChange = (value: number): string => {
 const formatBatteryType = (value: number): string =>
   `0b${value.toString(2).padStart(8, '0')} (${(value & 0x1) !== 0 ? 'Invalid Battery Reference set' : 'Invalid Battery Reference clear'})`
 
+const formatScaledValue = (value: number): string => Number(value.toFixed(2)).toString()
+
+const formatBatteryCapacityWh = (capacityTenthsWh: number): string => {
+  if (capacityTenthsWh === 0x0000) return 'Battery not present'
+  if (capacityTenthsWh === 0xffff) return 'Unknown'
+  return `${formatScaledValue(capacityTenthsWh / 10)} Wh`
+}
+
 const formatPpsRealTimeFlags = (value: number): string => {
   const ptf = (value >> 1) & 0b11
   const ptfText = ['Not Supported', 'Normal', 'Warning', 'Over temperature'][ptf] ?? 'Reserved'
@@ -3081,8 +3089,8 @@ export const buildBatteryCapabilitiesDataBlockMetadata = (block: ParsedBatteryCa
   const container = createMetadataContainer('Battery Capabilities Data Block', 'Metadata describing the Battery Capabilities data block carried by a Battery_Capabilities message.')
   addStringMetadataField(container, 'vid', 'Vendor ID', formatVdmSvid(block.vid), 'Vendor identifier reported in the Battery Capabilities data block.')
   addStringMetadataField(container, 'pid', 'Product ID', `0x${block.pid.toString(16).toUpperCase().padStart(4, '0')}`, 'Product identifier reported in the Battery Capabilities data block.')
-  addNumberMetadataField(container, 'batteryDesignCapacity', 'Battery Design Capacity', block.batteryDesignCapacity, 'Battery design capacity reported in the Battery Capabilities data block.')
-  addNumberMetadataField(container, 'batteryLastFullChargeCapacity', 'Battery Last Full Charge Capacity', block.batteryLastFullChargeCapacity, 'Battery last full charge capacity reported in the Battery Capabilities data block.')
+  addStringMetadataField(container, 'batteryDesignCapacity', 'Battery Design Capacity', formatBatteryCapacityWh(block.batteryDesignCapacity), 'Battery design capacity reported in the Battery Capabilities data block, expressed in watt-hours.')
+  addStringMetadataField(container, 'batteryLastFullChargeCapacity', 'Battery Last Full Charge Capacity', formatBatteryCapacityWh(block.batteryLastFullChargeCapacity), 'Battery last full charge capacity reported in the Battery Capabilities data block, expressed in watt-hours.')
   addStringMetadataField(container, 'batteryType', 'Battery Type', formatBatteryType(block.batteryType), 'Battery type field reported in the Battery Capabilities data block.')
   return container
 }

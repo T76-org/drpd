@@ -63,7 +63,7 @@ void App::_enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &pa
     watchdog_hw->scratch[T76_UPDATER_BOOT_SCRATCH_MAGIC] = T76_UPDATER_BOOT_MAGIC;
     watchdog_hw->scratch[T76_UPDATER_BOOT_SCRATCH_ARM] = T76_UPDATER_BOOT_ARM_VALUE;
     if (_activeCommandTransport == CommandTransport::WinUSB) {
-        _firmwareUpdaterRebootRequested = true;
+        _firmwareUpdaterRebootRequested.store(true, std::memory_order_release);
         return;
     }
     sleep_ms(150);

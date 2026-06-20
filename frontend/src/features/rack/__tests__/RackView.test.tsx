@@ -935,6 +935,31 @@ describe('RackView', () => {
     expect(within(dialog).getAllByRole('button', { name: 'Include' }).length).toBeGreaterThan(0)
   })
 
+  it('updates the time since reset while the Power/Charge Meter menu is open', async () => {
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
+    expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
+    await openApplicationSubmenu('Power/Charge Meter')
+    expect(
+      await screen.findByRole('menuitem', { name: /Time since reset\s+00:00:00/ }),
+    ).toBeDisabled()
+
+    mockTransportState.analogResponse = [
+      ...mockTransportState.analogResponse.slice(0, 10),
+      '3661000000',
+      ...mockTransportState.analogResponse.slice(11),
+    ]
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('menuitem', { name: /Time since reset\s+01:01:01/ }),
+      ).toBeDisabled()
+    })
+  })
+
   it('imports Message Log JSON after destructive confirmation', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
@@ -2204,7 +2229,10 @@ describe('RackView', () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
-    await expectHydratedDrpdPanels()
+    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
+    expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).not.toBeDisabled()
 
     vi.useFakeTimers()
     try {
@@ -2221,6 +2249,52 @@ describe('RackView', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('pulses Disabled then restores Observer for USB toggle shortcut', async () => {
+    mockTransportState.roleResponse = ['OBSERVER']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findAllByText('Observer')).not.toHaveLength(0)
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
+    expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).not.toBeDisabled()
+
+    vi.useFakeTimers()
+    try {
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'T' })
+        await Promise.resolve()
+      })
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE DISABLED')
+      await act(async () => {
+        vi.advanceTimersByTime(1000)
+        await Promise.resolve()
+      })
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE OBSERVER')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('disables Cycle USB Connection in Disabled mode while keeping Disabled selectable', async () => {
+    mockTransportState.roleResponse = ['DISABLED']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findAllByText('Disabled')).not.toHaveLength(0)
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
+    expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).toBeDisabled()
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Set mode/ }))
+    const disabledModeItem = await screen.findByRole('menuitemcheckbox', { name: /Disabled/ })
+    expect(disabledModeItem).not.toBeDisabled()
+    expect(disabledModeItem).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.keyDown(document, { key: 'T' })
+    await Promise.resolve()
+    expect(mockTransportState.sentCommands).not.toContain('BUS:CC:ROLE DISABLED')
   })
 
 
