@@ -29,13 +29,18 @@
 .header {
   display: grid;
   gap: var(--space-4);
+  margin: calc(-1 * var(--space-16)) calc(-1 * var(--space-16)) var(--space-0);
+  padding: var(--space-10) var(--space-16);
   min-width: 0;
+  background: var(--color-surface-panel-accent);
+  border-bottom: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm) var(--radius-sm) var(--radius-none) var(--radius-none);
 }
 
 .title {
   margin: var(--space-0);
   color: var(--color-text-primary);
-  font-size: var(--font-size-header-popup-text);
+  font-size: var(--font-size-header-popup-label);
   font-weight: var(--font-weight-semibold);
 }
 
