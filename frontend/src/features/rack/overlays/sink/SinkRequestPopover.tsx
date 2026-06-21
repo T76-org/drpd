@@ -104,8 +104,7 @@ export const SinkRequestPopover = ({
   <Dialog
     open={open}
     onOpenChange={onOpenChange}
-    title="Sink request tuning"
-    description="Choose a PDO and request voltage/current."
+    title="Sink power contract selection"
     dialogStyle={{ width: 'min(520px, calc(100vw - var(--space-32)))' }}
     footer={
       <>

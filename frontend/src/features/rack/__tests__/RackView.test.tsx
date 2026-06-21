@@ -1464,7 +1464,9 @@ describe('RackView', () => {
 
     await userEvent.click(choosePowerContract)
 
-    expect(await screen.findByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('dialog', { name: /sink power contract selection/i }),
+    ).toBeInTheDocument()
   })
 
   it('disables sink-only menu-bar mode actions while mode is disabled', async () => {
@@ -2499,7 +2501,10 @@ describe('RackView', () => {
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
     await user.click(await screen.findByRole('menuitem', { name: /choose power contract/i }))
 
-    const dialog = await screen.findByRole('dialog', { name: /sink request tuning/i })
+    const dialog = await screen.findByRole('dialog', {
+      name: /sink power contract selection/i,
+    })
+    expect(screen.queryByText('Choose a PDO and request voltage/current.')).not.toBeInTheDocument()
     await user.click(await within(dialog).findByRole('option', { name: /epr avs/i }))
     const voltageInput = within(dialog).getByLabelText(/^voltage$/i)
     const currentInput = within(dialog).getByLabelText(/^current$/i)
