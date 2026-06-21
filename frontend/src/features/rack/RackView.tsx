@@ -79,6 +79,7 @@ import {
   parseSinkRequestField,
 } from './sinkRequest'
 import {
+  ContextMenu,
   Dialog,
   DialogButton,
   DialogForm,
@@ -2621,6 +2622,28 @@ export const RackView = () => {
     activeConnectedDeviceState?.record.firmwareVersion,
   )
   const timeSinceMeterReset = formatHeaderElapsed(activeDriverState?.analogMonitor?.accumulationElapsedTimeUs)
+  const protectionMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'set-protection-thresholds',
+        label: 'Set thresholds...',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void handleSetProtectionThresholds()
+        },
+      },
+      {
+        id: 'reset-protection',
+        label: 'Reset',
+        meta: 'Y',
+        disabled: !activeDriver || !isProtectionTriggered,
+        onSelect: () => {
+          void handleResetProtection()
+        },
+      },
+    ],
+    [activeDriver, handleResetProtection, handleSetProtectionThresholds, isProtectionTriggered],
+  )
   const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
     const deviceItems: MenuItem[] = [
       {
@@ -2731,25 +2754,7 @@ export const RackView = () => {
       {
         id: 'protection',
         label: 'Protection',
-        items: [
-          {
-            id: 'set-protection-thresholds',
-            label: 'Set thresholds...',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void handleSetProtectionThresholds()
-            },
-          },
-          {
-            id: 'reset-protection',
-            label: 'Reset',
-            meta: 'Y',
-            disabled: !activeDriver || !isProtectionTriggered,
-            onSelect: () => {
-              void handleResetProtection()
-            },
-          },
-        ],
+        items: protectionMenuItems,
       },
       {
         id: 'power-charge-meter',
@@ -3156,16 +3161,13 @@ export const RackView = () => {
     handlePulseUsbConnection,
     handleRemoveDevice,
     handleResetPowerChargeMeter,
-    handleResetProtection,
     handleResetTrigger,
     handleRestoreMessageLogTableLayout,
     handleSetActiveDeviceRole,
-    handleSetProtectionThresholds,
     handleRefreshActiveDeviceState,
     handleToggleActiveDeviceCapture,
     isFirmwareUploadBusy,
     isCaptureEnabled,
-    isProtectionTriggered,
     isSinkMode,
     isTriggerActivated,
     hasSelectedMessages,
@@ -3182,6 +3184,7 @@ export const RackView = () => {
     openGlobalSinkRequestDialog,
     openGlobalTriggerConfigureDialog,
     pairedDevices,
+    protectionMenuItems,
     promptInstall,
     showTimestrip,
     theme,
@@ -3244,7 +3247,10 @@ export const RackView = () => {
                     <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
                     <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
                   </h1>
-                  <HeaderVbusMetrics driver={activeConnectedDeviceState?.drpdDriver} />
+                  <HeaderVbusMetrics
+                    driver={activeConnectedDeviceState?.drpdDriver}
+                    protectionMenuItems={protectionMenuItems}
+                  />
                 </div>
               </div>
             </header>
@@ -3657,8 +3663,10 @@ export const RackView = () => {
 
 const HeaderVbusMetrics = ({
   driver,
+  protectionMenuItems,
 }: {
   driver?: DRPDDriverRuntime
+  protectionMenuItems: MenuItem[]
 }) => {
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null,
@@ -3904,22 +3912,30 @@ const HeaderVbusMetrics = ({
         </div>
       </div>
       <div className={styles.headerVbusStatusGrid}>
-        <div className={styles.headerVbusProtection}>
-          <div
-            className={styles.headerVbusProtectionCell}
-            data-triggered={isOvpTriggered ? 'true' : 'false'}
-          >
-            <span className={styles.headerVbusProtectionLabel}>OVP</span>
-            <HeaderProtectionValue value={ovpValueText} />
-          </div>
-          <div
-            className={styles.headerVbusProtectionCell}
-            data-triggered={isOcpTriggered ? 'true' : 'false'}
-          >
-            <span className={styles.headerVbusProtectionLabel}>OCP</span>
-            <HeaderProtectionValue value={ocpValueText} />
-          </div>
-        </div>
+        <ContextMenu label="Protection menu" items={protectionMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="VBUS protection"
+            >
+              <div
+                className={styles.headerVbusProtectionCell}
+                data-triggered={isOvpTriggered ? 'true' : 'false'}
+              >
+                <span className={styles.headerVbusProtectionLabel}>OVP</span>
+                <HeaderProtectionValue value={ovpValueText} />
+              </div>
+              <div
+                className={styles.headerVbusProtectionCell}
+                data-triggered={isOcpTriggered ? 'true' : 'false'}
+              >
+                <span className={styles.headerVbusProtectionLabel}>OCP</span>
+                <HeaderProtectionValue value={ocpValueText} />
+              </div>
+            </div>
+          )}
+        </ContextMenu>
         <div className={styles.headerVbusProtection}>
           <div className={styles.headerVbusProtectionCell}>
             <span className={styles.headerVbusProtectionLabel}>MODE</span>

@@ -1,7 +1,7 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { Menu, type MenuItem } from './Menu'
+import { ContextMenu, Menu, type MenuItem } from './Menu'
 
 const renderMenu = (items: MenuItem[]) => {
   render(
@@ -173,5 +173,75 @@ describe('Menu', () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('menu', { name: 'Test menu' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ContextMenu', () => {
+  const renderContextMenu = (items: MenuItem[]) => {
+    render(
+      <ContextMenu label="Context actions" items={items}>
+        {(props) => (
+          <div {...props} aria-label="Context target">
+            Target
+          </div>
+        )}
+      </ContextMenu>,
+    )
+  }
+
+  it('opens at the context target with menu roles', () => {
+    renderContextMenu([
+      {
+        id: 'open',
+        label: 'Open',
+        onSelect: vi.fn(),
+      },
+    ])
+
+    fireEvent.contextMenu(screen.getByLabelText('Context target'), {
+      clientX: 48,
+      clientY: 56,
+    })
+
+    const menu = screen.getByRole('menu', { name: 'Context actions' })
+    expect(menu).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
+  })
+
+  it('selects actions and closes', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    renderContextMenu([
+      {
+        id: 'open',
+        label: 'Open',
+        onSelect,
+      },
+    ])
+
+    fireEvent.contextMenu(screen.getByLabelText('Context target'))
+    await user.click(screen.getByRole('menuitem', { name: 'Open' }))
+
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('menu', { name: 'Context actions' })).not.toBeInTheDocument()
+  })
+
+  it('dismisses with Escape and outside press', async () => {
+    const user = userEvent.setup()
+    renderContextMenu([
+      {
+        id: 'open',
+        label: 'Open',
+        onSelect: vi.fn(),
+      },
+    ])
+
+    fireEvent.contextMenu(screen.getByLabelText('Context target'))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu', { name: 'Context actions' })).not.toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByLabelText('Context target'))
+    await user.click(document.body)
+    expect(screen.queryByRole('menu', { name: 'Context actions' })).not.toBeInTheDocument()
   })
 })

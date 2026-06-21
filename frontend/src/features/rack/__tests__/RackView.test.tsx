@@ -1164,6 +1164,50 @@ describe('RackView', () => {
     expect(within(header).getByText('EVENT COUNT')).toBeInTheDocument()
   })
 
+  it('opens the protection context menu from the top header and follows menu rules', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+
+    const header = await screen.findByRole('banner')
+    fireEvent.contextMenu(within(header).getByLabelText('VBUS protection'))
+
+    const menu = screen.getByRole('menu', { name: 'Protection menu' })
+    const setThresholds = within(menu).getByRole('menuitem', { name: 'Set thresholds...' })
+    const reset = within(menu).getByRole('menuitem', { name: /Reset/ })
+
+    await waitFor(() => expect(setThresholds).toBeEnabled())
+    expect(reset).toBeDisabled()
+
+    await userEvent.click(setThresholds)
+
+    expect(await screen.findByRole('dialog', { name: 'VBUS settings' })).toBeInTheDocument()
+  })
+
+  it('enables header protection context reset during a protection fault', async () => {
+    mockTransportState.vbusStatusResponse = ['OVP', '12000', 'NONE']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+
+    const header = await screen.findByRole('banner')
+    fireEvent.contextMenu(within(header).getByLabelText('VBUS protection'))
+
+    const menu = screen.getByRole('menu', { name: 'Protection menu' })
+    const reset = within(menu).getByRole('menuitem', { name: /Reset/ })
+
+    await waitFor(() => expect(reset).toBeEnabled())
+    await userEvent.click(reset)
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:RESET')
+    })
+  })
+
   it('renders the base instrument header', () => {
     render(
       <InstrumentBase
