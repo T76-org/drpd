@@ -124,14 +124,6 @@
   color: var(--color-metric-current);
 }
 
-.fieldLabel {
-  font-size: var(--font-size-header-popup-label);
-  letter-spacing: var(--letter-spacing-xl);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  padding-right: var(--space-4);
-}
-
 .control {
   box-sizing: border-box;
   width: 72px;
@@ -298,24 +290,7 @@
 
 .requestBody {
   display: grid;
-  grid-template-columns: max-content minmax(72px, 1fr);
-  align-items: center;
-  column-gap: var(--space-8);
-  row-gap: var(--space-4);
-  min-width: 0;
-}
-
-.fieldMeta {
-  min-height: var(--space-16);
-}
-
-.fieldHint {
-  font-size: var(--font-size-header-popup-hint);
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
-  margin-top: calc(var(--space-2) * -1);
-  white-space: normal;
-  line-height: var(--line-height-tight);
+  gap: var(--space-10);
   min-width: 0;
 }
 

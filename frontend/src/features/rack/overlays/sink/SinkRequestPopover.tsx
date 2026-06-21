@@ -1,5 +1,5 @@
 import { SinkPdoType, type SinkPdo } from '../../../../lib/device'
-import { Dialog, DialogButton } from '../../../../ui/overlays'
+import { Dialog, DialogButton, DialogForm, DialogFormRow } from '../../../../ui/overlays'
 import styles from '../../instruments/DrpdSinkControlInstrumentView.module.css'
 
 type NonNullSinkPdo = Exclude<SinkPdo, null>
@@ -156,47 +156,45 @@ export const SinkRequestPopover = ({
       </div>
 
       <div className={styles.requestPane}>
-        <div className={styles.requestBody}>
-          <label className={styles.fieldLabel} htmlFor={`${instrumentId}-voltage`}>
-            Voltage
-          </label>
-          <input
-            id={`${instrumentId}-voltage`}
-            className={styles.control}
-            value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
-            onChange={(event) => {
-              setVoltageV(event.target.value)
-              setRequestErrorMessage(null)
-              setRequestStatus('idle')
-            }}
-            readOnly={!isVoltageEditable(selectedPdo)}
-            aria-readonly={!isVoltageEditable(selectedPdo)}
-            disabled={!selectedPdo}
-          />
+        <DialogForm className={styles.requestBody}>
+          <DialogFormRow
+            label="Voltage"
+            htmlFor={`${instrumentId}-voltage`}
+            helpText={voltageHint}
+          >
+            <input
+              id={`${instrumentId}-voltage`}
+              className={styles.control}
+              value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
+              onChange={(event) => {
+                setVoltageV(event.target.value)
+                setRequestErrorMessage(null)
+                setRequestStatus('idle')
+              }}
+              readOnly={!isVoltageEditable(selectedPdo)}
+              aria-readonly={!isVoltageEditable(selectedPdo)}
+              disabled={!selectedPdo}
+            />
+          </DialogFormRow>
 
-          <div className={styles.fieldMeta} />
-          <div className={styles.fieldHint}>{voltageHint}</div>
-
-          <label className={styles.fieldLabel} htmlFor={`${instrumentId}-current`}>
-            Current
-          </label>
-          <input
-            id={`${instrumentId}-current`}
-            className={styles.control}
-            value={currentA}
-            onChange={(event) => {
-              setCurrentA(event.target.value)
-              setRequestErrorMessage(null)
-              setRequestStatus('idle')
-            }}
-            disabled={!selectedPdo}
-          />
-
-          <div className={styles.fieldMeta} />
-          <div className={styles.fieldHint}>
-            {currentRangeLabel}
-          </div>
-        </div>
+          <DialogFormRow
+            label="Current"
+            htmlFor={`${instrumentId}-current`}
+            helpText={currentRangeLabel}
+          >
+            <input
+              id={`${instrumentId}-current`}
+              className={styles.control}
+              value={currentA}
+              onChange={(event) => {
+                setCurrentA(event.target.value)
+                setRequestErrorMessage(null)
+                setRequestStatus('idle')
+              }}
+              disabled={!selectedPdo}
+            />
+          </DialogFormRow>
+        </DialogForm>
 
         <div
           className={`${styles.message} ${
