@@ -1208,6 +1208,50 @@ describe('RackView', () => {
     })
   })
 
+  it('opens the trigger context menu from the top header and follows menu rules', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+
+    const header = await screen.findByRole('banner')
+    fireEvent.contextMenu(within(header).getByLabelText('Trigger status'))
+
+    const menu = screen.getByRole('menu', { name: 'Trigger menu' })
+    const configure = within(menu).getByRole('menuitem', { name: 'Configure...' })
+    const reset = within(menu).getByRole('menuitem', { name: /Reset/ })
+
+    await waitFor(() => expect(configure).toBeEnabled())
+    expect(reset).toBeDisabled()
+
+    await userEvent.click(configure)
+
+    expect(await screen.findByRole('dialog', { name: 'Configure trigger' })).toBeInTheDocument()
+  })
+
+  it('enables header trigger context reset while trigger is active', async () => {
+    mockTransportState.triggerStatusResponse = ['TRIGGERED']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+
+    const header = await screen.findByRole('banner')
+    fireEvent.contextMenu(within(header).getByLabelText('Trigger status'))
+
+    const menu = screen.getByRole('menu', { name: 'Trigger menu' })
+    const reset = within(menu).getByRole('menuitem', { name: /Reset/ })
+
+    await waitFor(() => expect(reset).toBeEnabled())
+    await userEvent.click(reset)
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('TRIG:RESET')
+    })
+  })
+
   it('renders the base instrument header', () => {
     render(
       <InstrumentBase

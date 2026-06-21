@@ -2644,6 +2644,28 @@ export const RackView = () => {
     ],
     [activeDriver, handleResetProtection, handleSetProtectionThresholds, isProtectionTriggered],
   )
+  const triggerMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'configure-trigger',
+        label: 'Configure...',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void openGlobalTriggerConfigureDialog()
+        },
+      },
+      {
+        id: 'reset-trigger',
+        label: 'Reset',
+        meta: 'R',
+        disabled: !activeDriver || !isTriggerActivated,
+        onSelect: () => {
+          void handleResetTrigger()
+        },
+      },
+    ],
+    [activeDriver, handleResetTrigger, isTriggerActivated, openGlobalTriggerConfigureDialog],
+  )
   const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
     const deviceItems: MenuItem[] = [
       {
@@ -2999,25 +3021,7 @@ export const RackView = () => {
       {
         id: 'trigger',
         label: 'Trigger',
-        items: [
-          {
-            id: 'configure-trigger',
-            label: 'Configure...',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void openGlobalTriggerConfigureDialog()
-            },
-          },
-          {
-            id: 'reset-trigger',
-            label: 'Reset',
-            meta: 'R',
-            disabled: !activeDriver || !isTriggerActivated,
-            onSelect: () => {
-              void handleResetTrigger()
-            },
-          },
-        ],
+        items: triggerMenuItems,
       },
       {
         id: 'firmware',
@@ -3161,7 +3165,6 @@ export const RackView = () => {
     handlePulseUsbConnection,
     handleRemoveDevice,
     handleResetPowerChargeMeter,
-    handleResetTrigger,
     handleRestoreMessageLogTableLayout,
     handleSetActiveDeviceRole,
     handleRefreshActiveDeviceState,
@@ -3169,7 +3172,6 @@ export const RackView = () => {
     isFirmwareUploadBusy,
     isCaptureEnabled,
     isSinkMode,
-    isTriggerActivated,
     hasSelectedMessages,
     isGoodCrcShown,
     isGoodCrcHidden,
@@ -3182,7 +3184,6 @@ export const RackView = () => {
     messageLogColumnVisibility,
     messageLogFilters,
     openGlobalSinkRequestDialog,
-    openGlobalTriggerConfigureDialog,
     pairedDevices,
     protectionMenuItems,
     promptInstall,
@@ -3190,6 +3191,7 @@ export const RackView = () => {
     theme,
     timeSinceMeterReset,
     toggleGoodCrcMessages,
+    triggerMenuItems,
     handleSetActiveSinkEprEnabled,
     handleSetActiveSinkPpsStatusQueryEnabled,
   ])
@@ -3250,6 +3252,7 @@ export const RackView = () => {
                   <HeaderVbusMetrics
                     driver={activeConnectedDeviceState?.drpdDriver}
                     protectionMenuItems={protectionMenuItems}
+                    triggerMenuItems={triggerMenuItems}
                   />
                 </div>
               </div>
@@ -3664,9 +3667,11 @@ export const RackView = () => {
 const HeaderVbusMetrics = ({
   driver,
   protectionMenuItems,
+  triggerMenuItems,
 }: {
   driver?: DRPDDriverRuntime
   protectionMenuItems: MenuItem[]
+  triggerMenuItems: MenuItem[]
 }) => {
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null,
@@ -3956,21 +3961,29 @@ const HeaderVbusMetrics = ({
             <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
           </div>
         </div>
-        <div className={styles.headerVbusProtection}>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
-            <span
-              className={styles.headerVbusRoleStatusValue}
-              data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+        <ContextMenu label="Trigger menu" items={triggerMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Trigger status"
             >
-              {triggerStateText}
-            </span>
-          </div>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
-            <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
-          </div>
-        </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
+                <span
+                  className={styles.headerVbusRoleStatusValue}
+                  data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+                >
+                  {triggerStateText}
+                </span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
+                <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
       </div>
     </div>
   )
