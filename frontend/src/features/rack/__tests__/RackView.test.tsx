@@ -1152,6 +1152,9 @@ describe('RackView', () => {
     render(<RackView />)
 
     const header = await screen.findByRole('banner')
+    const headerLabels = Array.from(
+      header.querySelectorAll('[class*="headerVbusProtectionLabel"]'),
+    ).map((element) => element.textContent)
 
     expect(within(header).getByLabelText('VBUS metrics')).toBeInTheDocument()
     expect(within(header).getByText('OVP')).toBeInTheDocument()
@@ -1162,6 +1165,16 @@ describe('RackView', () => {
     expect(within(header).getByText('PROFILE')).toBeInTheDocument()
     expect(within(header).getByText('SYNC STATE')).toBeInTheDocument()
     expect(within(header).getByText('EVENT COUNT')).toBeInTheDocument()
+    expect(headerLabels).toEqual([
+      'OVP',
+      'OCP',
+      'MODE',
+      'PROFILE',
+      'CAPTURE',
+      'STATUS',
+      'SYNC STATE',
+      'EVENT COUNT',
+    ])
   })
 
   it('opens the protection context menu from the top header and follows menu rules', async () => {

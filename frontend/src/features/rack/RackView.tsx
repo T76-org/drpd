@@ -3965,8 +3965,8 @@ const HeaderVbusMetrics = ({
                 <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
               </div>
               <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
-                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+                <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
               </div>
             </div>
           )}
@@ -3977,8 +3977,8 @@ const HeaderVbusMetrics = ({
             <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
           </div>
           <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
-            <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+            <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+            <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
           </div>
         </div>
         <ContextMenu label="Trigger menu" items={triggerMenuItems}>
