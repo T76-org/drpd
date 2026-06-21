@@ -2666,6 +2666,118 @@ export const RackView = () => {
     ],
     [activeDriver, handleResetTrigger, isTriggerActivated, openGlobalTriggerConfigureDialog],
   )
+  const modeMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'set-mode',
+        type: 'submenu',
+        label: 'Set mode',
+        items: [
+          {
+            id: 'mode-disabled',
+            type: 'checkbox',
+            label: 'Disabled',
+            meta: 'D',
+            checked: activeDriverState?.role === CCBusRole.DISABLED,
+            disabled: !activeDriver,
+            onCheckedChange: () => {
+              void handleSetActiveDeviceRole(CCBusRole.DISABLED)
+            },
+          },
+          {
+            id: 'mode-observer',
+            type: 'checkbox',
+            label: 'Observer',
+            meta: 'O',
+            checked: activeDriverState?.role === CCBusRole.OBSERVER,
+            disabled: !activeDriver,
+            onCheckedChange: () => {
+              void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
+            },
+          },
+          {
+            id: 'mode-sink',
+            type: 'checkbox',
+            label: 'Sink',
+            meta: 'S',
+            checked: activeDriverState?.role === CCBusRole.SINK,
+            disabled: !activeDriver,
+            onCheckedChange: () => {
+              void handleSetActiveDeviceRole(CCBusRole.SINK)
+            },
+          },
+        ],
+      },
+      {
+        id: 'mode-separator-power-contract',
+        type: 'separator',
+      },
+      {
+        id: 'choose-power-contract',
+        label: 'Choose power contract...',
+        meta: 'P',
+        disabled: !activeDriver || !isSinkMode,
+        onSelect: () => {
+          void openGlobalSinkRequestDialog()
+        },
+      },
+      {
+        id: 'sink-behaviour',
+        type: 'submenu',
+        label: 'Sink behaviour',
+        disabled: !activeDriver || !isSinkMode,
+        items: [
+          {
+            id: 'support-epr-mode',
+            type: 'checkbox',
+            label: 'Support EPR mode',
+            checked: activeDriverState?.sinkEprEnabled === true,
+            disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
+            onCheckedChange: (checked) => {
+              void handleSetActiveSinkEprEnabled(checked)
+            },
+          },
+          {
+            id: 'send-get-pps-status-messages',
+            type: 'checkbox',
+            label: 'Send Get_PPS_Status messages',
+            checked: activeDriverState?.sinkPpsStatusQueryEnabled === true,
+            disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
+            onCheckedChange: (checked) => {
+              void handleSetActiveSinkPpsStatusQueryEnabled(checked)
+            },
+          },
+        ],
+      },
+      {
+        id: 'mode-separator-usb-cycle',
+        type: 'separator',
+      },
+      {
+        id: 'cycle-usb-connection',
+        label: 'Cycle USB Connection',
+        meta: 'T',
+        disabled: !canCycleUsbConnection,
+        onSelect: () => {
+          void handlePulseUsbConnection()
+        },
+      },
+    ],
+    [
+      activeDriver,
+      activeDriverState?.role,
+      activeDriverState?.sinkEprEnabled,
+      activeDriverState?.sinkPpsStatusQueryEnabled,
+      canCycleUsbConnection,
+      canUseSinkBehaviourSettings,
+      handlePulseUsbConnection,
+      handleSetActiveDeviceRole,
+      handleSetActiveSinkEprEnabled,
+      handleSetActiveSinkPpsStatusQueryEnabled,
+      isSinkMode,
+      openGlobalSinkRequestDialog,
+    ],
+  )
   const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
     const deviceItems: MenuItem[] = [
       {
@@ -2802,102 +2914,7 @@ export const RackView = () => {
       {
         id: 'mode',
         label: 'Mode',
-        items: [
-          {
-            id: 'set-mode',
-            type: 'submenu',
-            label: 'Set mode',
-            items: [
-              {
-                id: 'mode-disabled',
-                type: 'checkbox',
-                label: 'Disabled',
-                meta: 'D',
-                checked: activeDriverState?.role === CCBusRole.DISABLED,
-                disabled: !activeDriver,
-                onCheckedChange: () => {
-                  void handleSetActiveDeviceRole(CCBusRole.DISABLED)
-                },
-              },
-              {
-                id: 'mode-observer',
-                type: 'checkbox',
-                label: 'Observer',
-                meta: 'O',
-                checked: activeDriverState?.role === CCBusRole.OBSERVER,
-                disabled: !activeDriver,
-                onCheckedChange: () => {
-                  void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
-                },
-              },
-              {
-                id: 'mode-sink',
-                type: 'checkbox',
-                label: 'Sink',
-                meta: 'S',
-                checked: activeDriverState?.role === CCBusRole.SINK,
-                disabled: !activeDriver,
-                onCheckedChange: () => {
-                  void handleSetActiveDeviceRole(CCBusRole.SINK)
-                },
-              },
-            ],
-          },
-          {
-            id: 'mode-separator-power-contract',
-            type: 'separator',
-          },
-          {
-            id: 'choose-power-contract',
-            label: 'Choose power contract...',
-            meta: 'P',
-            disabled: !activeDriver || !isSinkMode,
-            onSelect: () => {
-              void openGlobalSinkRequestDialog()
-            },
-          },
-          {
-            id: 'sink-behaviour',
-            type: 'submenu',
-            label: 'Sink behaviour',
-            disabled: !activeDriver || !isSinkMode,
-            items: [
-              {
-                id: 'support-epr-mode',
-                type: 'checkbox',
-                label: 'Support EPR mode',
-                checked: activeDriverState?.sinkEprEnabled === true,
-                disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
-                onCheckedChange: (checked) => {
-                  void handleSetActiveSinkEprEnabled(checked)
-                },
-              },
-              {
-                id: 'send-get-pps-status-messages',
-                type: 'checkbox',
-                label: 'Send Get_PPS_Status messages',
-                checked: activeDriverState?.sinkPpsStatusQueryEnabled === true,
-                disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
-                onCheckedChange: (checked) => {
-                  void handleSetActiveSinkPpsStatusQueryEnabled(checked)
-                },
-              },
-            ],
-          },
-          {
-            id: 'mode-separator-usb-cycle',
-            type: 'separator',
-          },
-          {
-            id: 'cycle-usb-connection',
-            label: 'Cycle USB Connection',
-            meta: 'T',
-            disabled: !canCycleUsbConnection,
-            onSelect: () => {
-              void handlePulseUsbConnection()
-            },
-          },
-        ],
+        items: modeMenuItems,
       },
       {
         id: 'logging',
@@ -3148,11 +3165,8 @@ export const RackView = () => {
     ]
   }, [
     activeDriver,
-    activeDriverState?.role,
     addMessageLogMarker,
-    canCycleUsbConnection,
     canInstall,
-    canUseSinkBehaviourSettings,
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,
@@ -3162,16 +3176,13 @@ export const RackView = () => {
     handleOpenCalibrationDialog,
     handleOpenDeviceNameDialog,
     handleOpenDocumentation,
-    handlePulseUsbConnection,
     handleRemoveDevice,
     handleResetPowerChargeMeter,
     handleRestoreMessageLogTableLayout,
-    handleSetActiveDeviceRole,
     handleRefreshActiveDeviceState,
     handleToggleActiveDeviceCapture,
     isFirmwareUploadBusy,
     isCaptureEnabled,
-    isSinkMode,
     hasSelectedMessages,
     isGoodCrcShown,
     isGoodCrcHidden,
@@ -3183,7 +3194,7 @@ export const RackView = () => {
     layoutMode,
     messageLogColumnVisibility,
     messageLogFilters,
-    openGlobalSinkRequestDialog,
+    modeMenuItems,
     pairedDevices,
     protectionMenuItems,
     promptInstall,
@@ -3192,8 +3203,6 @@ export const RackView = () => {
     timeSinceMeterReset,
     toggleGoodCrcMessages,
     triggerMenuItems,
-    handleSetActiveSinkEprEnabled,
-    handleSetActiveSinkPpsStatusQueryEnabled,
   ])
 
   return (
@@ -3251,6 +3260,7 @@ export const RackView = () => {
                   </h1>
                   <HeaderVbusMetrics
                     driver={activeConnectedDeviceState?.drpdDriver}
+                    modeMenuItems={modeMenuItems}
                     protectionMenuItems={protectionMenuItems}
                     triggerMenuItems={triggerMenuItems}
                   />
@@ -3666,10 +3676,12 @@ export const RackView = () => {
 
 const HeaderVbusMetrics = ({
   driver,
+  modeMenuItems,
   protectionMenuItems,
   triggerMenuItems,
 }: {
   driver?: DRPDDriverRuntime
+  modeMenuItems: MenuItem[]
   protectionMenuItems: MenuItem[]
   triggerMenuItems: MenuItem[]
 }) => {
@@ -3941,16 +3953,24 @@ const HeaderVbusMetrics = ({
             </div>
           )}
         </ContextMenu>
-        <div className={styles.headerVbusProtection}>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>MODE</span>
-            <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
-          </div>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>STATUS</span>
-            <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
-          </div>
-        </div>
+        <ContextMenu label="Mode menu" items={modeMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Mode status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>MODE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
         <div className={styles.headerVbusProtection}>
           <div className={styles.headerVbusProtectionCell}>
             <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
