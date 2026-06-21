@@ -244,10 +244,6 @@
   border-bottom: 0;
 }
 
-.pdoListItem:hover {
-  background: color-mix(in srgb, var(--color-surface-instrument) 72%, var(--color-status-info) 28%);
-}
-
 .pdoListItem:focus-visible {
   outline: var(--border-thin) solid var(--color-status-info);
   outline-offset: calc(var(--border-thin) * -1);
@@ -255,8 +251,7 @@
 
 .pdoListItemSelected,
 .pdoListItem[aria-selected='true'] {
-  background: color-mix(in srgb, var(--color-surface-instrument) 55%, var(--color-status-info) 45%);
-  box-shadow: inset 2px 0 0 var(--color-status-info);
+  background: color-mix(in srgb, var(--color-surface-panel) 55%, var(--color-status-info) 45%);
 }
 
 .pdoListItemTitle {

@@ -2521,6 +2521,89 @@ describe('RackView', () => {
     })
   })
 
+  it('navigates the global Mode menu sink request PDO list with arrow keys', async () => {
+    const user = userEvent.setup()
+    mockTransportState.sinkPdoCountResponse = ['2']
+    mockTransportState.sinkPdoResponse = ['FIXED,5.00,3.00']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: /choose power contract/i }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: /sink power contract selection/i,
+    })
+    const options = await within(dialog).findAllByRole('option')
+    expect(options).toHaveLength(2)
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+    expect(options[1]).toHaveAttribute('aria-selected', 'false')
+
+    await user.click(options[0])
+    await user.keyboard('{ArrowDown}')
+
+    expect(options[0]).toHaveAttribute('aria-selected', 'false')
+    expect(options[1]).toHaveAttribute('aria-selected', 'true')
+    expect(options[1]).toHaveFocus()
+
+    await user.keyboard('{ArrowUp}')
+
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+    expect(options[1]).toHaveAttribute('aria-selected', 'false')
+    expect(options[0]).toHaveFocus()
+  })
+
+  it('submits the global Mode menu sink request with Enter from an input', async () => {
+    const user = userEvent.setup()
+    mockTransportState.sinkPdoCountResponse = ['1']
+    mockTransportState.sinkPdoResponse = ['EPR_AVS,15.00,48.00,240.00']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: /choose power contract/i }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: /sink power contract selection/i,
+    })
+    await user.click(await within(dialog).findByRole('option', { name: /epr avs/i }))
+    const voltageInput = within(dialog).getByLabelText(/^voltage$/i)
+    await user.clear(voltageInput)
+    await user.type(voltageInput, '16{Enter}')
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:PDO 0 16000 5000')
+    })
+  })
+
+  it('submits the global Mode menu sink request with Enter from a focused PDO option', async () => {
+    const user = userEvent.setup()
+    mockTransportState.sinkPdoCountResponse = ['2']
+    mockTransportState.sinkPdoResponse = ['FIXED,5.00,3.00']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: /choose power contract/i }))
+
+    const dialog = await screen.findByRole('dialog', {
+      name: /sink power contract selection/i,
+    })
+    const options = await within(dialog).findAllByRole('option')
+    await user.click(options[0])
+    await user.keyboard('{ArrowDown}')
+    expect(options[1]).toHaveFocus()
+
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:PDO 1 5000 3000')
+    })
+  })
+
   it('refreshes and toggles Get_PPS_Status sink behaviour from the Mode menu', async () => {
     const user = userEvent.setup()
     mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.13']

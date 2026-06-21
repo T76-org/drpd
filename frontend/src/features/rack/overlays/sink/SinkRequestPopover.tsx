@@ -136,7 +136,34 @@ export const SinkRequestPopover = ({
                 type="button"
                 role="option"
                 aria-selected={selectedIndex === index}
+                data-pdo-index={index}
                 className={`${styles.pdoListItem} ${selectedIndex === index ? styles.pdoListItemSelected : ''}`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && canSubmit) {
+                    event.preventDefault()
+                    onSubmit()
+                    return
+                  }
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+                    return
+                  }
+                  event.preventDefault()
+                  const direction = event.key === 'ArrowDown' ? 1 : -1
+                  const nextIndex = Math.min(
+                    Math.max(index + direction, 0),
+                    sinkPdoList.length - 1,
+                  )
+                  if (nextIndex === index) {
+                    return
+                  }
+                  setSelectedIndex(nextIndex)
+                  setRequestErrorMessage(null)
+                  setRequestStatus('idle')
+                  const nextOption = event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+                    `[data-pdo-index="${nextIndex}"]`,
+                  )
+                  nextOption?.focus()
+                }}
                 onClick={() => {
                   setSelectedIndex(index)
                   setRequestErrorMessage(null)
@@ -156,7 +183,16 @@ export const SinkRequestPopover = ({
       </div>
 
       <div className={styles.requestPane}>
-        <DialogForm className={styles.requestBody}>
+        <DialogForm
+          className={styles.requestBody}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || !canSubmit) {
+              return
+            }
+            event.preventDefault()
+            onSubmit()
+          }}
+        >
           <DialogFormRow
             label="Voltage"
             htmlFor={`${instrumentId}-voltage`}
