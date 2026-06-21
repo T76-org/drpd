@@ -1261,7 +1261,11 @@ describe('RackView', () => {
 
     await userEvent.click(setThresholds)
 
-    expect(await screen.findByRole('dialog', { name: 'VBUS settings' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'OVP/OCP settings' })).toBeInTheDocument()
+    expect(screen.queryByText('OVP range: 0-50 V. OCP range: 0-6 A.')).not.toBeInTheDocument()
+    expect(screen.getByText('Range: 0-50 V')).toBeInTheDocument()
+    expect(screen.getByText('Range: 0-6 A')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Display Rate')).not.toBeInTheDocument()
   })
 
   it('enables header protection context reset during a protection fault', async () => {

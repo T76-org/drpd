@@ -837,7 +837,6 @@ export const RackView = () => {
   const [isGlobalVbusDialogOpen, setIsGlobalVbusDialogOpen] = useState(false)
   const [globalOvpThresholdInput, setGlobalOvpThresholdInput] = useState('')
   const [globalOcpThresholdInput, setGlobalOcpThresholdInput] = useState('')
-  const [globalDisplayUpdateRateInput, setGlobalDisplayUpdateRateInput] = useState(HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ.toString())
   const [globalVbusConfigureError, setGlobalVbusConfigureError] = useState<string | null>(null)
   const [isGlobalVbusApplying, setIsGlobalVbusApplying] = useState(false)
   const [isGlobalSinkDialogOpen, setIsGlobalSinkDialogOpen] = useState(false)
@@ -2205,11 +2204,9 @@ export const RackView = () => {
     }
     prepareVbusConfigureDialog({
       vbusInfo: driver.getState().vbusInfo ?? null,
-      displayUpdateRateHz: HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ,
       setConfigureError: setGlobalVbusConfigureError,
       setOvpThresholdInput: setGlobalOvpThresholdInput,
       setOcpThresholdInput: setGlobalOcpThresholdInput,
-      setDisplayUpdateRateInput: setGlobalDisplayUpdateRateInput,
     })
     setIsGlobalVbusDialogOpen(true)
   }, [])
@@ -3405,15 +3402,12 @@ export const RackView = () => {
         vbusInfo={activeVbusInfo}
         ovpThresholdInput={globalOvpThresholdInput}
         ocpThresholdInput={globalOcpThresholdInput}
-        displayUpdateRateInput={globalDisplayUpdateRateInput}
         configureError={globalVbusConfigureError}
         isApplyingConfig={isGlobalVbusApplying}
         setOvpThresholdInput={setGlobalOvpThresholdInput}
         setOcpThresholdInput={setGlobalOcpThresholdInput}
-        setDisplayUpdateRateInput={setGlobalDisplayUpdateRateInput}
         setConfigureError={setGlobalVbusConfigureError}
         setIsApplyingConfig={setIsGlobalVbusApplying}
-        setDisplayUpdateRateHz={() => undefined}
       />
       <SinkRequestPopover
         open={isGlobalSinkDialogOpen}

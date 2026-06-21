@@ -60,7 +60,7 @@
 .formRow {
   display: grid;
   grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: var(--space-8);
   min-width: 0;
 }
@@ -72,9 +72,11 @@
 }
 
 .label {
+  padding-top: var(--space-8);
   color: var(--color-text-muted);
   font-size: var(--font-size-header-popup-label);
   letter-spacing: var(--letter-spacing-md);
+  line-height: var(--line-height-normal);
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -86,7 +88,8 @@
 .helpText {
   margin: var(--space-0);
   color: var(--color-text-muted);
-  font-size: var(--font-size-header-popup-hint);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
 }
 
 .errorText {
