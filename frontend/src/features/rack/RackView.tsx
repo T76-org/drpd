@@ -3273,6 +3273,7 @@ export const RackView = () => {
                   <HeaderVbusMetrics
                     driver={activeConnectedDeviceState?.drpdDriver}
                     captureMenuItems={captureMenuItems}
+                    modeMenuItems={modeMenuItems}
                     protectionMenuItems={protectionMenuItems}
                     triggerMenuItems={triggerMenuItems}
                   />
@@ -3690,11 +3691,13 @@ export const RackView = () => {
 const HeaderVbusMetrics = ({
   driver,
   captureMenuItems,
+  modeMenuItems,
   protectionMenuItems,
   triggerMenuItems,
 }: {
   driver?: DRPDDriverRuntime
   captureMenuItems: MenuItem[]
+  modeMenuItems: MenuItem[]
   protectionMenuItems: MenuItem[]
   triggerMenuItems: MenuItem[]
 }) => {
@@ -3966,7 +3969,7 @@ const HeaderVbusMetrics = ({
             </div>
           )}
         </ContextMenu>
-        <ContextMenu label="Capture menu" items={captureMenuItems}>
+        <ContextMenu label="Mode menu" items={modeMenuItems}>
           {(props) => (
             <div
               {...props}
@@ -3984,16 +3987,24 @@ const HeaderVbusMetrics = ({
             </div>
           )}
         </ContextMenu>
-        <div className={styles.headerVbusProtection}>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
-            <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
-          </div>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>STATUS</span>
-            <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
-          </div>
-        </div>
+        <ContextMenu label="Capture menu" items={captureMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Capture status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
         <ContextMenu label="Trigger menu" items={triggerMenuItems}>
           {(props) => (
             <div

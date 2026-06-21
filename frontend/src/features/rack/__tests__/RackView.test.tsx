@@ -1338,7 +1338,7 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
 
     const menu = screen.getByRole('menu', { name: 'Capture menu' })
     const disableCapture = within(menu).getByRole('menuitem', { name: /Disable Capture/ })
@@ -1365,7 +1365,7 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
 
     const menu = screen.getByRole('menu', { name: 'Capture menu' })
     const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
@@ -1386,13 +1386,46 @@ describe('RackView', () => {
     render(<RackView />)
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
 
     const menu = screen.getByRole('menu', { name: 'Capture menu' })
     const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
 
     expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
     expect(enableCapture).toBeDisabled()
+  })
+
+  it('opens the mode context menu from the top header', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+
+    const header = await screen.findByRole('banner')
+    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+
+    const menu = screen.getByRole('menu', { name: 'Mode menu' })
+
+    expect(within(menu).getByRole('menuitem', { name: 'Set mode' })).toBeInTheDocument()
+    expect(
+      within(menu).getByRole('menuitem', {
+        name: /Choose power contract/,
+      }),
+    ).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Sink behaviour' })).toBeInTheDocument()
+    expect(
+      within(menu).getByRole('menuitem', {
+        name: /Cycle USB Connection/,
+      }),
+    ).toBeInTheDocument()
+
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Set mode' }))
+
+    expect(await screen.findByRole('menuitemcheckbox', { name: /Disabled/ })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitemcheckbox', { name: /Observer/ })).toBeInTheDocument()
+    const sinkMode = await screen.findByRole('menuitemcheckbox', { name: /Sink/ })
+    expect(sinkMode).toHaveAttribute('aria-checked', 'true')
   })
 
   it('opens the mode menu from the menu bar and follows sink-mode rules', async () => {
