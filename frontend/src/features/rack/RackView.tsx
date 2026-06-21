@@ -2792,6 +2792,133 @@ export const RackView = () => {
       openGlobalSinkRequestDialog,
     ],
   )
+  const messageLogMenuItems = useMemo<MenuItem[]>(
+    () => [
+      ...captureMenuItems,
+      {
+        id: 'logging-separator-capture',
+        type: 'separator',
+      },
+      {
+        id: 'logging-clear-log',
+        label: 'Clear Log',
+        meta: 'X',
+        disabled: !activeDriver || isMessageLogClearing,
+        onSelect: () => setIsMessageLogClearDialogOpen(true),
+      },
+      {
+        id: 'logging-add-marker',
+        label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
+        meta: 'M',
+        disabled: !activeDriver || isMessageLogMarking,
+        onSelect: addMessageLogMarker,
+      },
+      {
+        id: 'logging-separator-import',
+        type: 'separator',
+      },
+      {
+        id: 'logging-import-json',
+        label: 'Import JSON...',
+        disabled: !activeDriver || isMessageLogImporting,
+        onSelect: () => {
+          setMessageLogImportFile(null)
+          setMessageLogImportError(null)
+          setIsMessageLogImportDialogOpen(true)
+        },
+      },
+      {
+        id: 'logging-export-selected',
+        type: 'submenu',
+        label: 'Export Selected',
+        disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+        items: [
+          {
+            id: 'logging-export-selected-json',
+            label: 'JSON...',
+            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+            onSelect: () => exportSelectedMessageLog('json'),
+          },
+          {
+            id: 'logging-export-selected-csv',
+            label: 'CSV...',
+            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+            onSelect: () => exportSelectedMessageLog('csv'),
+          },
+        ],
+      },
+      {
+        id: 'logging-separator-filters',
+        type: 'separator',
+      },
+      {
+        id: 'logging-show-goodcrc',
+        type: 'checkbox',
+        label: 'Hide GoodCRC Messages',
+        meta: 'G',
+        checked: isGoodCrcHidden,
+        disabled: !activeDriver,
+        onCheckedChange: toggleGoodCrcMessages,
+      },
+      {
+        id: 'logging-filter',
+        label: countMessageLogFilters(messageLogFilters) > 0
+          ? `Filter... (${countMessageLogFilters(messageLogFilters)})`
+          : 'Filter...',
+        meta: 'F',
+        disabled: !activeDriver,
+        onSelect: () => setIsMessageLogFilterDialogOpen(true),
+      },
+      {
+        id: 'logging-separator-configure',
+        type: 'separator',
+      },
+      {
+        id: 'logging-configure',
+        label: 'Configure...',
+        disabled: !activeDriver || !activeDeviceRecord || isMessageLogConfiguring,
+        onSelect: () => {
+          const configured = activeDeviceRecord?.config &&
+            typeof activeDeviceRecord.config === 'object'
+            ? normalizeLoggingConfig(
+                (activeDeviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
+              )
+            : buildDefaultLoggingConfig()
+          setMessageLogBufferInput(configured.maxCapturedMessages.toString())
+          setMessageLogBufferError(null)
+          setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
+          setIsMessageLogConfigureDialogOpen(true)
+        },
+      },
+      {
+        id: 'logging-separator-restore-layout',
+        type: 'separator',
+      },
+      {
+        id: 'logging-restore-table-layout',
+        label: 'Restore Table Layout',
+        onSelect: handleRestoreMessageLogTableLayout,
+      },
+    ],
+    [
+      activeDeviceRecord,
+      activeDriver,
+      addMessageLogMarker,
+      captureMenuItems,
+      exportSelectedMessageLog,
+      handleRestoreMessageLogTableLayout,
+      hasSelectedMessages,
+      isGoodCrcHidden,
+      isMessageLogClearing,
+      isMessageLogConfiguring,
+      isMessageLogExporting,
+      isMessageLogImporting,
+      isMessageLogMarking,
+      messageLogColumnVisibility,
+      messageLogFilters,
+      toggleGoodCrcMessages,
+    ],
+  )
   const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
     const deviceItems: MenuItem[] = [
       {
@@ -2933,113 +3060,7 @@ export const RackView = () => {
       {
         id: 'logging',
         label: 'Message Log',
-        items: [
-          ...captureMenuItems,
-          {
-            id: 'logging-separator-capture',
-            type: 'separator',
-          },
-          {
-            id: 'logging-clear-log',
-            label: 'Clear Log',
-            meta: 'X',
-            disabled: !activeDriver || isMessageLogClearing,
-            onSelect: () => setIsMessageLogClearDialogOpen(true),
-          },
-          {
-            id: 'logging-add-marker',
-            label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
-            meta: 'M',
-            disabled: !activeDriver || isMessageLogMarking,
-            onSelect: addMessageLogMarker,
-          },
-          {
-            id: 'logging-separator-import',
-            type: 'separator',
-          },
-          {
-            id: 'logging-import-json',
-            label: 'Import JSON...',
-            disabled: !activeDriver || isMessageLogImporting,
-            onSelect: () => {
-              setMessageLogImportFile(null)
-              setMessageLogImportError(null)
-              setIsMessageLogImportDialogOpen(true)
-            },
-          },
-          {
-            id: 'logging-export-selected',
-            type: 'submenu',
-            label: 'Export Selected',
-            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
-            items: [
-              {
-                id: 'logging-export-selected-json',
-                label: 'JSON...',
-                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
-                onSelect: () => exportSelectedMessageLog('json'),
-              },
-              {
-                id: 'logging-export-selected-csv',
-                label: 'CSV...',
-                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
-                onSelect: () => exportSelectedMessageLog('csv'),
-              },
-            ],
-          },
-          {
-            id: 'logging-separator-filters',
-            type: 'separator',
-          },
-          {
-            id: 'logging-show-goodcrc',
-            type: 'checkbox',
-            label: 'Hide GoodCRC Messages',
-            meta: 'G',
-            checked: isGoodCrcHidden,
-            disabled: !activeDriver,
-            onCheckedChange: toggleGoodCrcMessages,
-          },
-          {
-            id: 'logging-filter',
-            label: countMessageLogFilters(messageLogFilters) > 0
-              ? `Filter... (${countMessageLogFilters(messageLogFilters)})`
-              : 'Filter...',
-            meta: 'F',
-            disabled: !activeDriver,
-            onSelect: () => setIsMessageLogFilterDialogOpen(true),
-          },
-          {
-            id: 'logging-separator-configure',
-            type: 'separator',
-          },
-          {
-            id: 'logging-configure',
-            label: 'Configure...',
-            disabled: !activeDriver || !activeDeviceRecord || isMessageLogConfiguring,
-            onSelect: () => {
-              const configured = activeDeviceRecord?.config &&
-                typeof activeDeviceRecord.config === 'object'
-                ? normalizeLoggingConfig(
-                    (activeDeviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
-                  )
-                : buildDefaultLoggingConfig()
-              setMessageLogBufferInput(configured.maxCapturedMessages.toString())
-              setMessageLogBufferError(null)
-              setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
-              setIsMessageLogConfigureDialogOpen(true)
-            },
-          },
-          {
-            id: 'logging-separator-restore-layout',
-            type: 'separator',
-          },
-          {
-            id: 'logging-restore-table-layout',
-            label: 'Restore Table Layout',
-            onSelect: handleRestoreMessageLogTableLayout,
-          },
-        ],
+        items: messageLogMenuItems,
       },
       {
         id: 'trigger',
@@ -3171,13 +3192,10 @@ export const RackView = () => {
     ]
   }, [
     activeDriver,
-    addMessageLogMarker,
     canInstall,
-    captureMenuItems,
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,
-    exportSelectedMessageLog,
     handleConnectPairedDevice,
     handleDisconnectDevice,
     handleOpenCalibrationDialog,
@@ -3185,20 +3203,10 @@ export const RackView = () => {
     handleOpenDocumentation,
     handleRemoveDevice,
     handleResetPowerChargeMeter,
-    handleRestoreMessageLogTableLayout,
     handleRefreshActiveDeviceState,
     isFirmwareUploadBusy,
-    hasSelectedMessages,
-    isGoodCrcShown,
-    isGoodCrcHidden,
-    isMessageLogClearing,
-    isMessageLogConfiguring,
-    isMessageLogExporting,
-    isMessageLogImporting,
-    isMessageLogMarking,
     layoutMode,
-    messageLogColumnVisibility,
-    messageLogFilters,
+    messageLogMenuItems,
     modeMenuItems,
     pairedDevices,
     protectionMenuItems,
@@ -3206,7 +3214,6 @@ export const RackView = () => {
     showTimestrip,
     theme,
     timeSinceMeterReset,
-    toggleGoodCrcMessages,
     triggerMenuItems,
   ])
 
@@ -3301,6 +3308,7 @@ export const RackView = () => {
             onInstrumentResize={handleRackInstrumentResize}
             onRowResize={handleRackRowResize}
             onUpdateDeviceConfig={handleUpdateDeviceConfig}
+            messageLogMenuItems={messageLogMenuItems}
           />
         ) : null}
         {!isLoading && !error && rackDocument && !activeRack ? (

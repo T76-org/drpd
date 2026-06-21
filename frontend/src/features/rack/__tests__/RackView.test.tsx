@@ -588,6 +588,28 @@ const buildBoundHydratedRackDocument = (): RackDocument => ({
   ],
 })
 
+const buildBoundMessageLogRackDocument = (): RackDocument => ({
+  ...buildBoundHydratedRackDocument(),
+  racks: [
+    {
+      id: 'bench-rack-a',
+      name: 'Bench Rack A',
+      totalUnits: 9,
+      rows: [
+        {
+          id: 'row-1',
+          instruments: [
+            {
+              id: 'inst-log',
+              instrumentIdentifier: 'com.mta.drpd.usbpd-log',
+            },
+          ],
+        },
+      ],
+    },
+  ],
+})
+
 /**
  * Stub the navigator.usb API.
  */
@@ -933,6 +955,49 @@ describe('RackView', () => {
     expect(within(dialog).getByText('Source')).toBeInTheDocument()
     expect(within(dialog).getByText('Valid')).toBeInTheDocument()
     expect(within(dialog).getAllByRole('button', { name: 'Include' }).length).toBeGreaterThan(0)
+  })
+
+  it('opens the message log context menu from the message log instrument', async () => {
+    saveRackDocument(buildBoundMessageLogRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
+    fireEvent.contextMenu(await screen.findByTestId('drpd-usbpd-log'))
+
+    const menu = screen.getByRole('menu', { name: 'Message Log menu' })
+
+    expect(within(menu).getByRole('menuitem', { name: /Disable Capture/ })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: /Clear Log/ })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: /Add marker/ })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: 'Import JSON...' })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: 'Export Selected' })).toBeDisabled()
+    expect(within(menu).getByRole('menuitemcheckbox', {
+      name: /Hide GoodCRC Messages/,
+    })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: /Filter\.\.\./ })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: 'Configure...' })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: 'Restore Table Layout' })).toBeEnabled()
+
+    await userEvent.click(within(menu).getByRole('menuitem', { name: /Filter\.\.\./ }))
+
+    expect(await screen.findByRole('dialog', { name: 'Filter message log' })).toBeInTheDocument()
+  })
+
+  it('toggles capture from the message log context menu', async () => {
+    saveRackDocument(buildBoundMessageLogRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
+    fireEvent.contextMenu(await screen.findByTestId('drpd-usbpd-log'))
+
+    const menu = screen.getByRole('menu', { name: 'Message Log menu' })
+    await userEvent.click(within(menu).getByRole('menuitem', { name: /Disable Capture/ }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:CAP:EN OFF')
+    })
   })
 
   it('updates the time since reset while the Power/Charge Meter menu is open', async () => {

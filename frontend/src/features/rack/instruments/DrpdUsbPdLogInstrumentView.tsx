@@ -19,6 +19,7 @@ import {
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import { InstrumentBase } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
+import { ContextMenu, type ContextMenuTriggerProps, type MenuItem } from '../../../ui/overlays'
 import {
   type MessageLogFilterRule,
   type MessageLogFilters,
@@ -269,6 +270,7 @@ export const DrpdUsbPdLogInstrumentView = ({
   deviceState,
   isEditMode,
   onRemove,
+  messageLogMenuItems,
 }: {
   instrument: RackInstrument
   displayName: string
@@ -276,6 +278,7 @@ export const DrpdUsbPdLogInstrumentView = ({
   deviceState?: RackDeviceState
   isEditMode: boolean
   onRemove?: (instrumentId: string) => void
+  messageLogMenuItems?: MenuItem[]
   onUpdateDeviceConfig?: (
     deviceRecordId: string,
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
@@ -1174,6 +1177,129 @@ export const DrpdUsbPdLogInstrumentView = ({
     })
   }
 
+  const renderTable = () => (
+    <table
+      className={styles.table}
+      aria-label="USB-PD message log"
+      aria-rowcount={displayedTotalRows}
+      style={{
+        width: `${tableOuterWidthPx}px`,
+        gridTemplateColumns,
+      }}
+    >
+      <thead className={styles.header}>
+        <tr className={styles.headerRow} style={{ gridTemplateColumns }}>
+          {visibleColumns.map((column) => (
+            <th
+              key={column.id}
+              scope="col"
+              className={`${styles.headerCell} ${resizingColumnId === column.id ? styles.resizingColumn : ''}`}
+            >
+              <span className={styles.headerLabel}>{column.label}</span>
+              <button
+                type="button"
+                className={styles.columnResizeHandle}
+                aria-label={`Resize ${column.label} column`}
+                onPointerDown={(event) => {
+                  handleColumnResizePointerDown(event, column.id)
+                }}
+                onMouseDown={(event) => {
+                  handleColumnResizeMouseDown(event, column.id)
+                }}
+                onPointerMove={handleColumnResizePointerMove}
+                onPointerUp={handleColumnResizePointerUp}
+                onPointerCancel={handleColumnResizePointerUp}
+              />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody
+        className={styles.tableBody}
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+        }}
+        data-testid="drpd-usbpd-log-canvas"
+      >
+        {visibleRows.map(({ index, start, size, row }) => (
+          <tr
+            key={row?.key ?? `placeholder-${index}`}
+            className={[
+              styles.dataRow,
+              row && selectedKeySet.has(row.selectionKey) ? styles.selectedRow : '',
+              row?.kind === 'event' ? styles.eventRow : '',
+              row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
+              row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
+              row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
+              row?.eventType === 'mark' ? styles.eventRowMark : '',
+              row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
+              row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            aria-rowindex={index + 2}
+            aria-selected={row ? selectedKeySet.has(row.selectionKey) : undefined}
+            style={{
+              gridTemplateColumns,
+              transform: `translateY(${start}px)`,
+              height: `${size}px`,
+            }}
+            onClick={(event) => {
+              handleRowClick(event, index, row)
+            }}
+          >
+            {row?.kind === 'event' ? (
+              <td className={styles.eventLabel} colSpan={visibleColumns.length}>
+                {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
+              </td>
+            ) : (
+              visibleColumns.map((column) => (
+                <td
+                  key={column.id}
+                  className={[
+                    column.align === 'right' ? styles.right : '',
+                    column.align === 'center' ? styles.center : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  {row?.[column.field as DisplayColumnField] ?? ''}
+                </td>
+              ))
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+
+  const renderContent = (contextMenuProps?: ContextMenuTriggerProps) => (
+    <div
+      {...contextMenuProps}
+      ref={wrapperRef}
+      className={styles.wrapper}
+      data-testid="drpd-usbpd-log"
+    >
+      <div
+        ref={viewportRef}
+        className={styles.viewport}
+        tabIndex={isEditMode ? -1 : 0}
+        role="region"
+        aria-label="USB-PD message log viewport"
+        onKeyDown={handleViewportKeyDown}
+        onScroll={(event) => {
+          const element = event.currentTarget
+          atBottomRef.current =
+            element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
+        }}
+        data-testid="drpd-usbpd-log-viewport"
+        style={{
+          paddingBottom: tableBottomGutterPx > 0 ? `${tableBottomGutterPx}px` : undefined,
+        }}
+      >
+        {renderTable()}
+      </div>
+    </div>
+  )
+
   return (
     <InstrumentBase
       instrument={instrument}
@@ -1185,124 +1311,14 @@ export const DrpdUsbPdLogInstrumentView = ({
           ? () => {
               onRemove(instrument.id)
             }
-          : undefined
+        : undefined
       }
     >
-      <div
-        ref={wrapperRef}
-        className={styles.wrapper}
-        data-testid="drpd-usbpd-log"
-      >
-        <div
-          ref={viewportRef}
-          className={styles.viewport}
-          tabIndex={isEditMode ? -1 : 0}
-          role="region"
-          aria-label="USB-PD message log viewport"
-          onKeyDown={handleViewportKeyDown}
-          onScroll={(event) => {
-            const element = event.currentTarget
-            atBottomRef.current =
-              element.scrollHeight - element.clientHeight - element.scrollTop <= rowHeightPx * 2
-          }}
-          data-testid="drpd-usbpd-log-viewport"
-          style={{
-            paddingBottom: tableBottomGutterPx > 0 ? `${tableBottomGutterPx}px` : undefined,
-          }}
-        >
-          <table
-            className={styles.table}
-            aria-label="USB-PD message log"
-            aria-rowcount={displayedTotalRows}
-            style={{
-              width: `${tableOuterWidthPx}px`,
-              gridTemplateColumns,
-            }}
-          >
-            <thead className={styles.header}>
-              <tr className={styles.headerRow} style={{ gridTemplateColumns }}>
-                {visibleColumns.map((column) => (
-                  <th
-                    key={column.id}
-                    scope="col"
-                    className={`${styles.headerCell} ${resizingColumnId === column.id ? styles.resizingColumn : ''}`}
-                  >
-                    <span className={styles.headerLabel}>{column.label}</span>
-                    <button
-                      type="button"
-                      className={styles.columnResizeHandle}
-                      aria-label={`Resize ${column.label} column`}
-                      onPointerDown={(event) => {
-                        handleColumnResizePointerDown(event, column.id)
-                      }}
-                      onMouseDown={(event) => {
-                        handleColumnResizeMouseDown(event, column.id)
-                      }}
-                      onPointerMove={handleColumnResizePointerMove}
-                      onPointerUp={handleColumnResizePointerUp}
-                      onPointerCancel={handleColumnResizePointerUp}
-                    />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody
-              className={styles.tableBody}
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-              }}
-              data-testid="drpd-usbpd-log-canvas"
-            >
-              {visibleRows.map(({ index, start, size, row }) => (
-                <tr
-                  key={row?.key ?? `placeholder-${index}`}
-                  className={[
-                    styles.dataRow,
-                    row && selectedKeySet.has(row.selectionKey) ? styles.selectedRow : '',
-                    row?.kind === 'event' ? styles.eventRow : '',
-                    row?.eventType === 'capture_changed' ? styles.eventRowCapture : '',
-                    row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
-                    row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
-                    row?.eventType === 'mark' ? styles.eventRowMark : '',
-                    row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
-                    row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  aria-rowindex={index + 2}
-                  aria-selected={row ? selectedKeySet.has(row.selectionKey) : undefined}
-                  style={{
-                    gridTemplateColumns,
-                    transform: `translateY(${start}px)`,
-                    height: `${size}px`,
-                  }}
-                  onClick={(event) => {
-                    handleRowClick(event, index, row)
-                  }}
-                >
-                  {row?.kind === 'event' ? (
-                    <td className={styles.eventLabel} colSpan={visibleColumns.length}>
-                      {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
-                    </td>
-                  ) : (
-                    visibleColumns.map((column) => (
-                      <td
-                        key={column.id}
-                        className={[
-                          column.align === 'right' ? styles.right : '',
-                          column.align === 'center' ? styles.center : '',
-                        ].filter(Boolean).join(' ')}
-                      >
-                        {row?.[column.field as DisplayColumnField] ?? ''}
-                      </td>
-                    ))
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {messageLogMenuItems ? (
+        <ContextMenu label="Message Log menu" items={messageLogMenuItems}>
+          {(props) => renderContent(props)}
+        </ContextMenu>
+      ) : renderContent()}
     </InstrumentBase>
   )
 }
