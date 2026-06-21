@@ -2666,6 +2666,20 @@ export const RackView = () => {
     ],
     [activeDriver, handleResetTrigger, isTriggerActivated, openGlobalTriggerConfigureDialog],
   )
+  const captureMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'logging-toggle-capture',
+        label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
+        meta: 'C',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void handleToggleActiveDeviceCapture()
+        },
+      },
+    ],
+    [activeDriver, handleToggleActiveDeviceCapture, isCaptureEnabled],
+  )
   const modeMenuItems = useMemo<MenuItem[]>(
     () => [
       {
@@ -2920,15 +2934,7 @@ export const RackView = () => {
         id: 'logging',
         label: 'Message Log',
         items: [
-          {
-            id: 'logging-toggle-capture',
-            label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
-            meta: 'C',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void handleToggleActiveDeviceCapture()
-            },
-          },
+          ...captureMenuItems,
           {
             id: 'logging-separator-capture',
             type: 'separator',
@@ -3167,6 +3173,7 @@ export const RackView = () => {
     activeDriver,
     addMessageLogMarker,
     canInstall,
+    captureMenuItems,
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,
@@ -3180,9 +3187,7 @@ export const RackView = () => {
     handleResetPowerChargeMeter,
     handleRestoreMessageLogTableLayout,
     handleRefreshActiveDeviceState,
-    handleToggleActiveDeviceCapture,
     isFirmwareUploadBusy,
-    isCaptureEnabled,
     hasSelectedMessages,
     isGoodCrcShown,
     isGoodCrcHidden,
@@ -3260,7 +3265,7 @@ export const RackView = () => {
                   </h1>
                   <HeaderVbusMetrics
                     driver={activeConnectedDeviceState?.drpdDriver}
-                    modeMenuItems={modeMenuItems}
+                    captureMenuItems={captureMenuItems}
                     protectionMenuItems={protectionMenuItems}
                     triggerMenuItems={triggerMenuItems}
                   />
@@ -3676,12 +3681,12 @@ export const RackView = () => {
 
 const HeaderVbusMetrics = ({
   driver,
-  modeMenuItems,
+  captureMenuItems,
   protectionMenuItems,
   triggerMenuItems,
 }: {
   driver?: DRPDDriverRuntime
-  modeMenuItems: MenuItem[]
+  captureMenuItems: MenuItem[]
   protectionMenuItems: MenuItem[]
   triggerMenuItems: MenuItem[]
 }) => {
@@ -3953,7 +3958,7 @@ const HeaderVbusMetrics = ({
             </div>
           )}
         </ContextMenu>
-        <ContextMenu label="Mode menu" items={modeMenuItems}>
+        <ContextMenu label="Capture menu" items={captureMenuItems}>
           {(props) => (
             <div
               {...props}

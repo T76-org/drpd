@@ -1265,7 +1265,7 @@ describe('RackView', () => {
     })
   })
 
-  it('opens the mode context menu from the top header and follows sink-mode rules', async () => {
+  it('opens the capture context menu from the top header and disables capture', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -1274,6 +1274,70 @@ describe('RackView', () => {
 
     const header = await screen.findByRole('banner')
     fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+
+    const menu = screen.getByRole('menu', { name: 'Capture menu' })
+    const disableCapture = within(menu).getByRole('menuitem', { name: /Disable Capture/ })
+
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
+    expect(disableCapture).toBeEnabled()
+
+    await userEvent.click(disableCapture)
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:CAP:EN OFF')
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('menu', { name: 'Capture menu' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('enables capture from the top header capture context menu', async () => {
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+
+    const header = await screen.findByRole('banner')
+    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+
+    const menu = screen.getByRole('menu', { name: 'Capture menu' })
+    const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
+
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
+    expect(enableCapture).toBeEnabled()
+
+    await userEvent.click(enableCapture)
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('BUS:CC:CAP:EN ON')
+    })
+  })
+
+  it('opens the disabled capture context menu without an active driver', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([])
+    render(<RackView />)
+
+    const header = await screen.findByRole('banner')
+    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+
+    const menu = screen.getByRole('menu', { name: 'Capture menu' })
+    const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
+
+    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
+    expect(enableCapture).toBeDisabled()
+  })
+
+  it('opens the mode menu from the menu bar and follows sink-mode rules', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+    expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
     const setMode = within(menu).getByRole('menuitem', { name: 'Set mode' })
@@ -1301,7 +1365,7 @@ describe('RackView', () => {
     expect(await screen.findByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
   })
 
-  it('disables sink-only mode context actions while mode is disabled', async () => {
+  it('disables sink-only menu-bar mode actions while mode is disabled', async () => {
     mockTransportState.roleResponse = ['DISABLED']
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
@@ -1309,8 +1373,7 @@ describe('RackView', () => {
     await pairNewDeviceFromMenu()
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
-    const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
 
@@ -1318,15 +1381,14 @@ describe('RackView', () => {
     expect(within(menu).getByRole('menuitem', { name: /Cycle USB Connection/ })).toBeDisabled()
   })
 
-  it('sets observer mode from the header mode context menu', async () => {
+  it('sets observer mode from the menu-bar mode menu', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
     await pairNewDeviceFromMenu()
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
-    const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
     await userEvent.click(within(menu).getByRole('menuitem', { name: 'Set mode' }))
