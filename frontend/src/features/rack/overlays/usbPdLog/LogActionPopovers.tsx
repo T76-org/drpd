@@ -2,7 +2,6 @@ import {
   Dialog,
   DialogButton,
   DialogForm,
-  DialogFormRow,
   DialogInput,
 } from '../../../../ui/overlays'
 import {
@@ -11,6 +10,7 @@ import {
   type MessageLogColumnVisibility,
 } from './messageLogColumns'
 import styles from './LogActionPopovers.module.css'
+import filterStyles from '../../instruments/DrpdUsbPdLogInstrumentView.module.css'
 
 export const MessageLogClearPopover = ({
   open,
@@ -208,7 +208,8 @@ export const MessageLogConfigurePopover = ({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Message log settings"
+      title="Message Log configuration"
+      dialogStyle={{ width: 'min(364px, calc(100vw - var(--space-32)))' }}
       dismissible={!isApplyingBuffer}
       footer={
         <>
@@ -228,55 +229,75 @@ export const MessageLogConfigurePopover = ({
         </>
       }
     >
-      <DialogForm>
-        <DialogFormRow
-          label="Buffer size"
-          htmlFor={`${instrumentId}-max-buffer`}
-          helpText={`Range: ${minBuffer}-${maxBuffer}`}
-          errorText={bufferError ?? undefined}
+      <div className={filterStyles.filterForm}>
+        <div
+          className={filterStyles.filterGroups}
+          style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}
         >
-          <DialogInput
-            id={`${instrumentId}-max-buffer`}
-            aria-label="Max message buffer"
-            type="number"
-            min={minBuffer}
-            max={maxBuffer}
-            step={1}
-            value={bufferInput}
-            onChange={(event) => {
-              setBufferInput(event.currentTarget.value)
-              setBufferError(null)
-            }}
-            disabled={isApplyingBuffer}
-          />
-        </DialogFormRow>
-        <DialogFormRow
-          label="Columns"
-          helpText="Choose which Message Log table columns are visible."
-        >
-          <div className={styles.columnPicker}>
-            {MESSAGE_LOG_COLUMNS.map((column) => {
-              const checked = columnVisibility[column.id]
-              return (
-                <label key={column.id} className={styles.columnOption}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={isApplyingBuffer || (checked && visibleColumnCount <= 1)}
-                    onChange={(event) => {
-                      setColumnVisibility({
-                        ...columnVisibility,
-                        [column.id as MessageLogColumnId]: event.currentTarget.checked,
-                      })
-                    }}
-                  />
-                  {column.label}
-                </label>
-              )
-            })}
-          </div>
-        </DialogFormRow>
-      </DialogForm>
+          <fieldset className={filterStyles.filterGroup}>
+            <legend className={filterStyles.filterLegend}>Columns</legend>
+            <p className={styles.groupDescription}>
+              Choose which Message Log table columns are visible.
+            </p>
+            <div className={styles.columnPicker}>
+              {MESSAGE_LOG_COLUMNS.map((column) => {
+                const checked = columnVisibility[column.id]
+                return (
+                  <label key={column.id} className={styles.columnOption}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={isApplyingBuffer || (checked && visibleColumnCount <= 1)}
+                      onChange={(event) => {
+                        setColumnVisibility({
+                          ...columnVisibility,
+                          [column.id as MessageLogColumnId]: event.currentTarget.checked,
+                        })
+                      }}
+                    />
+                    {column.label}
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+          <fieldset className={filterStyles.filterGroup}>
+            <legend className={filterStyles.filterLegend}>Buffer size</legend>
+            <p className={styles.groupDescription}>
+              Limits how many captured messages are retained. Oldest entries are discarded when
+              the buffer is full.
+            </p>
+            <label className={styles.bufferField} htmlFor={`${instrumentId}-max-buffer`}>
+              <span className={styles.inputLabel}>Max messages</span>
+              <span className={styles.bufferControl}>
+                <DialogInput
+                  className={styles.bufferInput}
+                  id={`${instrumentId}-max-buffer`}
+                  aria-label="Max captured messages"
+                  type="number"
+                  min={minBuffer}
+                  max={maxBuffer}
+                  step={1}
+                  value={bufferInput}
+                  onChange={(event) => {
+                    setBufferInput(event.currentTarget.value)
+                    setBufferError(null)
+                  }}
+                  disabled={isApplyingBuffer}
+                />
+                <span
+                  className={[
+                    styles.groupDescription,
+                    bufferError ? styles.groupError : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  {bufferError ?? `Range: ${minBuffer}-${maxBuffer}`}
+                </span>
+              </span>
+            </label>
+          </fieldset>
+        </div>
+      </div>
     </Dialog>
   )
 }

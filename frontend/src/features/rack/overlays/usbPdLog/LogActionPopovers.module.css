@@ -1,7 +1,50 @@
+.bufferField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.bufferControl {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+  min-width: 0;
+}
+
+.bufferInput {
+  width: min(16ch, 100%);
+  text-align: left;
+}
+
+.inputLabel {
+  padding-top: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-label);
+  letter-spacing: var(--letter-spacing-md);
+  line-height: var(--line-height-normal);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.groupDescription {
+  margin: var(--space-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.groupError {
+  color: var(--color-status-error);
+}
+
 .columnPicker {
   display: grid;
   grid-template-columns: repeat(2, minmax(12ch, 1fr));
   gap: var(--space-6) var(--space-12);
+  justify-self: start;
+  justify-items: start;
 }
 
 .columnOption {
