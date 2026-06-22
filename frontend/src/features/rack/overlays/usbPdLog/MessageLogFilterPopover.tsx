@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useId, useState, type ChangeEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Dialog, DialogButton } from '../../../../ui/overlays'
 import {
   GOODCRC_MESSAGE_TYPE_LABEL,
@@ -50,6 +50,9 @@ const normalizeCheckboxFilters = (
   const hideGoodCrc = isGoodCrcHidden(filters)
   const next = { ...filters }
   for (const group of groups) {
+    if (group.key === 'messageTypes') {
+      continue
+    }
     const excludedValues = group.options
       .filter((option) => !isFilterOptionChecked(filters, group.key, option.value))
       .map((option) => option.value)
@@ -58,11 +61,16 @@ const normalizeCheckboxFilters = (
       exclude: excludedValues,
     }
   }
+  const messageTypeOptions = groups.find((group) => group.key === 'messageTypes')?.options ?? []
+  const excludedMessageTypes = splitMessageTypeOptions(filters, messageTypeOptions)
+    .excluded
+    .map((option) => option.value)
   next.messageTypes = {
     include: [],
-    exclude: hideGoodCrc
-      ? Array.from(new Set([...next.messageTypes.exclude, GOODCRC_MESSAGE_TYPE_LABEL]))
-      : next.messageTypes.exclude.filter((entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL),
+    exclude: [
+      ...excludedMessageTypes,
+      ...(hideGoodCrc ? [GOODCRC_MESSAGE_TYPE_LABEL] : []),
+    ],
   }
   return next
 }
@@ -110,6 +118,40 @@ const setGoodCrcHidden = (
   },
 })
 
+const getSelectedValues = (event: ChangeEvent<HTMLSelectElement>): string[] =>
+  Array.from(event.currentTarget.selectedOptions).map((option) => option.value)
+
+const splitMessageTypeOptions = (
+  filters: MessageLogFilters,
+  options: FilterOption[],
+): { included: FilterOption[]; excluded: FilterOption[] } => {
+  const messageTypeOptions = options.filter((option) => option.value !== GOODCRC_MESSAGE_TYPE_LABEL)
+  const includeValues = new Set(filters.messageTypes.include)
+  const excludeValues = new Set(filters.messageTypes.exclude)
+  return {
+    included: messageTypeOptions.filter((option) => (
+      includeValues.size > 0 ? includeValues.has(option.value) : !excludeValues.has(option.value)
+    )),
+    excluded: messageTypeOptions.filter((option) => (
+      includeValues.size > 0 ? !includeValues.has(option.value) : excludeValues.has(option.value)
+    )),
+  }
+}
+
+const setMessageTypeExcludedValues = (
+  filters: MessageLogFilters,
+  excludedValues: string[],
+): MessageLogFilters => ({
+  ...filters,
+  messageTypes: {
+    include: [],
+    exclude: Array.from(new Set([
+      ...excludedValues.filter((entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL),
+      ...(isGoodCrcHidden(filters) ? [GOODCRC_MESSAGE_TYPE_LABEL] : []),
+    ])),
+  },
+})
+
 const MessageLogFilterDialogContent = ({
   onOpenChange,
   filters,
@@ -119,6 +161,8 @@ const MessageLogFilterDialogContent = ({
 }: MessageLogFilterDialogContentProps) => {
   const formId = useId()
   const [draft, setDraft] = useState(filters)
+  const [selectedIncludedMessageTypes, setSelectedIncludedMessageTypes] = useState<string[]>([])
+  const [selectedExcludedMessageTypes, setSelectedExcludedMessageTypes] = useState<string[]>([])
   const groups: MessageLogFilterGroup[] = [
     {
       key: 'messageTypes',
@@ -131,6 +175,43 @@ const MessageLogFilterDialogContent = ({
     { key: 'crcValid', title: 'CRC', options: options.crcValid },
   ]
   const hideGoodCrc = isGoodCrcHidden(draft)
+  const messageTypeOptions = groups[0]?.options ?? []
+  const messageTypeLists = splitMessageTypeOptions(draft, messageTypeOptions)
+  const moveMessageTypesToExcluded = (values: string[]) => {
+    if (values.length === 0) {
+      return
+    }
+    setDraft((previous) =>
+      setMessageTypeExcludedValues(previous, [
+        ...splitMessageTypeOptions(previous, messageTypeOptions)
+          .excluded
+          .map((option) => option.value),
+        ...values,
+      ]),
+    )
+    setSelectedIncludedMessageTypes([])
+  }
+  const moveMessageTypesToIncluded = (values: string[]) => {
+    if (values.length === 0) {
+      return
+    }
+    setDraft((previous) => {
+      const moved = new Set(values)
+      return setMessageTypeExcludedValues(
+        previous,
+        splitMessageTypeOptions(previous, messageTypeOptions)
+          .excluded
+          .map((option) => option.value)
+          .filter((value) => !moved.has(value)),
+      )
+    })
+    setSelectedExcludedMessageTypes([])
+  }
+  const resetMessageTypes = () => {
+    setDraft((previous) => setMessageTypeExcludedValues(previous, []))
+    setSelectedIncludedMessageTypes([])
+    setSelectedExcludedMessageTypes([])
+  }
   const submitDraft = () => {
     onApply(normalizeCheckboxFilters(draft, groups))
     onOpenChange(false)
@@ -182,7 +263,81 @@ const MessageLogFilterDialogContent = ({
           {groups.map((group) => (
             <fieldset key={group.key} className={styles.filterGroup}>
               <legend className={styles.filterLegend}>{group.title}</legend>
-              {group.options.length > 0 ? (
+              {group.key === 'messageTypes' ? (
+                <div className={styles.messageTypeDualList}>
+                  <label className={styles.messageTypeListColumn}>
+                    <span className={styles.messageTypeListLabel}>Included message types</span>
+                    <select
+                      multiple
+                      className={styles.messageTypeSelect}
+                      onChange={(event) => {
+                        setSelectedIncludedMessageTypes(getSelectedValues(event))
+                      }}
+                      onDoubleClick={(event) => {
+                        const value = event.currentTarget.value
+                        if (value) {
+                          moveMessageTypesToExcluded([value])
+                        }
+                      }}
+                    >
+                      {messageTypeLists.included.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className={styles.messageTypeActions}>
+                    <button
+                      type="button"
+                      className={styles.messageTypeMoveButton}
+                      onClick={() => {
+                        moveMessageTypesToExcluded(selectedIncludedMessageTypes)
+                      }}
+                    >
+                      &gt;&gt;
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.messageTypeMoveButton}
+                      onClick={() => {
+                        moveMessageTypesToIncluded(selectedExcludedMessageTypes)
+                      }}
+                    >
+                      &lt;&lt;
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.messageTypeResetButton}
+                      onClick={resetMessageTypes}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                  <label className={styles.messageTypeListColumn}>
+                    <span className={styles.messageTypeListLabel}>Excluded message types</span>
+                    <select
+                      multiple
+                      className={styles.messageTypeSelect}
+                      onChange={(event) => {
+                        setSelectedExcludedMessageTypes(getSelectedValues(event))
+                      }}
+                      onDoubleClick={(event) => {
+                        const value = event.currentTarget.value
+                        if (value) {
+                          moveMessageTypesToIncluded([value])
+                        }
+                      }}
+                    >
+                      {messageTypeLists.excluded.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : group.options.length > 0 ? (
                 group.options.map((option) => {
                   const checked = isFilterOptionChecked(draft, group.key, option.value)
                   return (

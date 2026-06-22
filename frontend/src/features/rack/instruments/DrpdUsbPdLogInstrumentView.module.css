@@ -382,6 +382,12 @@
   min-width: 0;
 }
 
+.filterForm :is(input, select, button):focus,
+.filterForm :is(input, select, button):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .filterGroups {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -430,6 +436,70 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.messageTypeDualList {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.messageTypeListColumn {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.messageTypeListLabel {
+  margin: var(--space-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.messageTypeSelect {
+  min-width: 0;
+  width: 100%;
+  min-height: 96px;
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: color-mix(in srgb, var(--color-surface-panel) 86%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-text);
+}
+
+.messageTypeActions {
+  display: grid;
+  align-content: center;
+  gap: var(--space-4);
+}
+
+.messageTypeMoveButton,
+.messageTypeResetButton {
+  min-width: 44px;
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: color-mix(in srgb, var(--color-surface-panel) 80%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-button);
+  line-height: var(--line-height-tight);
+  padding: var(--space-4) var(--space-6);
+  cursor: pointer;
+}
+
+.messageTypeResetButton {
+  min-width: 56px;
+}
+
+@media (max-width: 520px) {
+  .messageTypeDualList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .messageTypeActions {
+    grid-template-columns: repeat(3, auto);
+    justify-content: center;
+  }
 }
 
 .filterGoodCrcOption {
