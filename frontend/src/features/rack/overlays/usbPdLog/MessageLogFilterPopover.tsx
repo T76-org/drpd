@@ -261,12 +261,18 @@ const MessageLogFilterDialogContent = ({
       >
         <div className={styles.filterGroups}>
           {groups.map((group) => (
-            <fieldset key={group.key} className={styles.filterGroup}>
+            <fieldset
+              key={group.key}
+              className={[
+                styles.filterGroup,
+                group.key === 'messageTypes' ? styles.filterGroupWide : '',
+              ].filter(Boolean).join(' ')}
+            >
               <legend className={styles.filterLegend}>{group.title}</legend>
               {group.key === 'messageTypes' ? (
                 <div className={styles.messageTypeDualList}>
                   <label className={styles.messageTypeListColumn}>
-                    <span className={styles.messageTypeListLabel}>Included message types</span>
+                    <span className={styles.messageTypeListLabel}><strong>Included message types</strong></span>
                     <select
                       multiple
                       className={styles.messageTypeSelect}
@@ -315,7 +321,7 @@ const MessageLogFilterDialogContent = ({
                     </button>
                   </div>
                   <label className={styles.messageTypeListColumn}>
-                    <span className={styles.messageTypeListLabel}>Excluded message types</span>
+                    <span className={styles.messageTypeListLabel}><strong>Excluded message types</strong></span>
                     <select
                       multiple
                       className={styles.messageTypeSelect}

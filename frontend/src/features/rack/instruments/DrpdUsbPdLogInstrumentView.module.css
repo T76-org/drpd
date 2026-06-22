@@ -390,7 +390,7 @@
 
 .filterGroups {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-8);
   width: 100%;
   max-width: 100%;
@@ -405,6 +405,10 @@
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-instrument) 72%, transparent);
   margin-bottom: var(--space-10);
+}
+
+.filterGroupWide {
+  grid-column: 1 / -1;
 }
 
 .filterLegend {
@@ -463,17 +467,19 @@
 .messageTypeSelect {
   min-width: 0;
   width: 100%;
-  min-height: 96px;
+  min-height: 140px;
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-panel) 86%, transparent);
   color: var(--color-text-primary);
-  font-size: var(--font-size-header-popup-text);
+  font-size: var(--font-size-header-popup-hint);
+  padding: var(--space-2);
 }
 
 .messageTypeActions {
   display: grid;
   align-content: center;
-  gap: var(--space-4);
+  gap: var(--space-8);
+  padding-top: 10px;
 }
 
 .messageTypeMoveButton,
@@ -493,6 +499,10 @@
 }
 
 @media (max-width: 520px) {
+  .filterGroups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .messageTypeDualList {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -509,7 +519,7 @@
   align-items: center;
   gap: var(--space-8);
   min-width: 0;
-  padding: var(--space-2) calc(var(--space-6) + var(--border-thin)) var(--space-0);
+  padding: var(--space-2) calc(var(--space-10) + var(--border-thin)) var(--space-0);
   font-size: var(--font-size-header-popup-text);
   color: var(--color-text-primary);
   line-height: var(--line-height-tight);
