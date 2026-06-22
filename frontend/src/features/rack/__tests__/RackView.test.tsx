@@ -954,7 +954,9 @@ describe('RackView', () => {
     expect(within(dialog).getByText('Accept')).toBeInTheDocument()
     expect(within(dialog).getByText('Source')).toBeInTheDocument()
     expect(within(dialog).getByText('Valid')).toBeInTheDocument()
-    expect(within(dialog).getAllByRole('button', { name: 'Include' }).length).toBeGreaterThan(0)
+    expect(within(dialog).getByRole('checkbox', { name: 'Accept' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: 'Source' })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: 'Valid' })).toBeChecked()
   })
 
   it('opens the message log context menu from the message log instrument', async () => {

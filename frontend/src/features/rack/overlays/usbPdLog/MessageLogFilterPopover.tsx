@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Dialog, DialogButton } from '../../../../ui/overlays'
 import type { FilterOption, MessageLogFilterKey, MessageLogFilters } from './usbPdLogFilters'
-import { toggleFilterValue } from './usbPdLogFilters'
 import styles from '../../instruments/DrpdUsbPdLogInstrumentView.module.css'
 
 type MessageLogFilterPopoverProps = {
@@ -21,6 +20,68 @@ type MessageLogFilterPopoverProps = {
 
 type MessageLogFilterDialogContentProps = Omit<MessageLogFilterPopoverProps, 'open'>
 
+type MessageLogFilterGroup = {
+  key: MessageLogFilterKey
+  title: string
+  options: FilterOption[]
+}
+
+const isFilterOptionChecked = (
+  filters: MessageLogFilters,
+  key: MessageLogFilterKey,
+  value: string,
+): boolean => {
+  const rule = filters[key]
+  if (rule.include.length > 0) {
+    return rule.include.includes(value)
+  }
+  return !rule.exclude.includes(value)
+}
+
+const normalizeCheckboxFilters = (
+  filters: MessageLogFilters,
+  groups: MessageLogFilterGroup[],
+): MessageLogFilters => {
+  const next = { ...filters }
+  for (const group of groups) {
+    const excludedValues = group.options
+      .filter((option) => !isFilterOptionChecked(filters, group.key, option.value))
+      .map((option) => option.value)
+    next[group.key] = {
+      include: [],
+      exclude: excludedValues,
+    }
+  }
+  return next
+}
+
+const setCheckboxFilterValue = (
+  filters: MessageLogFilters,
+  group: MessageLogFilterGroup,
+  value: string,
+  checked: boolean,
+): MessageLogFilters => {
+  const checkedValues = new Set(
+    group.options
+      .filter((option) => isFilterOptionChecked(filters, group.key, option.value))
+      .map((option) => option.value),
+  )
+  if (checked) {
+    checkedValues.add(value)
+  } else {
+    checkedValues.delete(value)
+  }
+  return {
+    ...filters,
+    [group.key]: {
+      include: [],
+      exclude: group.options
+        .filter((option) => !checkedValues.has(option.value))
+        .map((option) => option.value),
+    },
+  }
+}
+
 const MessageLogFilterDialogContent = ({
   onOpenChange,
   filters,
@@ -29,11 +90,7 @@ const MessageLogFilterDialogContent = ({
   onClear,
 }: MessageLogFilterDialogContentProps) => {
   const [draft, setDraft] = useState(filters)
-  const groups: Array<{
-    key: MessageLogFilterKey
-    title: string
-    options: FilterOption[]
-  }> = [
+  const groups: MessageLogFilterGroup[] = [
     { key: 'messageTypes', title: 'Message type', options: options.messageTypes },
     { key: 'senders', title: 'Sender', options: options.senders },
     { key: 'receivers', title: 'Receiver', options: options.receivers },
@@ -59,7 +116,7 @@ const MessageLogFilterDialogContent = ({
           <DialogButton
             variant="primary"
             onClick={() => {
-              onApply(draft)
+              onApply(normalizeCheckboxFilters(draft, groups))
               onOpenChange(false)
             }}
           >
@@ -74,45 +131,26 @@ const MessageLogFilterDialogContent = ({
             <legend className={styles.filterLegend}>{group.title}</legend>
             {group.options.length > 0 ? (
               group.options.map((option) => {
-                const rule = draft[group.key]
-                const included = rule.include.includes(option.value)
-                const excluded = rule.exclude.includes(option.value)
+                const checked = isFilterOptionChecked(draft, group.key, option.value)
                 return (
-                  <div key={option.value} className={styles.filterOption}>
+                  <label key={option.value} className={styles.filterOption}>
+                    <input
+                      type="checkbox"
+                      className={styles.filterOptionCheckbox}
+                      checked={checked}
+                      onChange={(event) => {
+                        setDraft((previous) =>
+                          setCheckboxFilterValue(
+                            previous,
+                            group,
+                            option.value,
+                            event.target.checked,
+                          ),
+                        )
+                      }}
+                    />
                     <span className={styles.filterOptionLabel}>{option.label}</span>
-                    <div className={styles.filterOptionActions}>
-                      <button
-                        type="button"
-                        className={[
-                          styles.filterModeButton,
-                          included ? styles.filterModeButtonActive : '',
-                        ].filter(Boolean).join(' ')}
-                        aria-pressed={included}
-                        onClick={() => {
-                          setDraft((previous) =>
-                            toggleFilterValue(previous, group.key, 'include', option.value),
-                          )
-                        }}
-                      >
-                        Include
-                      </button>
-                      <button
-                        type="button"
-                        className={[
-                          styles.filterModeButton,
-                          excluded ? styles.filterModeButtonActive : '',
-                        ].filter(Boolean).join(' ')}
-                        aria-pressed={excluded}
-                        onClick={() => {
-                          setDraft((previous) =>
-                            toggleFilterValue(previous, group.key, 'exclude', option.value),
-                          )
-                        }}
-                      >
-                        Exclude
-                      </button>
-                    </div>
-                  </div>
+                  </label>
                 )
               })
             ) : (
