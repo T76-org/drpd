@@ -414,8 +414,6 @@
 .filterLegend {
   padding: 0 var(--space-4);
   font-size: var(--font-size-header-popup-label);
-  letter-spacing: var(--letter-spacing-md);
-  text-transform: uppercase;
   color: var(--color-text-muted);
 }
 

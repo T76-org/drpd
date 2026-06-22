@@ -65,8 +65,6 @@
   background: var(--color-surface-panel);
   font-size: var(--font-size-header-popup-label);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--letter-spacing-md);
-  text-transform: uppercase;
 }
 
 .table td:nth-child(3),

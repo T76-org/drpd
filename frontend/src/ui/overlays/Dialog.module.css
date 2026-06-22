@@ -80,9 +80,7 @@
   padding-top: var(--space-4);
   color: var(--color-text-muted);
   font-size: var(--font-size-header-popup-label);
-  letter-spacing: var(--letter-spacing-md);
   line-height: var(--line-height-normal);
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
