@@ -401,9 +401,10 @@
   gap: var(--space-4);
   min-width: 0;
   margin: var(--space-0);
-  padding: var(--space-6);
+  padding: var(--space-6) var(--space-10) var(--space-10);
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-instrument) 72%, transparent);
+  margin-bottom: var(--space-10);
 }
 
 .filterLegend {
