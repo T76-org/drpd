@@ -3652,7 +3652,7 @@ export const RackView = () => {
             return
           }
           if (!Number.isInteger(parsedPulseWidthUs) || parsedPulseWidthUs < 1) {
-            setGlobalTriggerConfigureError('Pulse width must be an integer greater than or equal to 1 us.')
+            setGlobalTriggerConfigureError('Pulse width must be an integer greater than or equal to 1 µs.')
             return
           }
           setIsGlobalTriggerApplying(true)

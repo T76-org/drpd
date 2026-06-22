@@ -100,7 +100,7 @@
 .errorText {
   margin: var(--space-0);
   color: var(--color-status-error);
-  font-size: var(--font-size-header-popup-hint);
+  font-size: var(--font-size-md);
 }
 
 .footer {

@@ -200,6 +200,11 @@ const formatTriggerSenderFilter = (value: TriggerInfo['senderFilter'] | null | u
   }
 }
 
+const parsePositiveIntegerInput = (value: string): number | null => {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : null
+}
+
 export const TriggerConfigurePopover = ({
   instrumentId,
   open,
@@ -265,6 +270,15 @@ export const TriggerConfigurePopover = ({
     ? messageTypeFilterTypeInput
     : String(activeMessageTypeOptions[0]?.messageTypeNumber ?? '')
   const selectedEventSupportsFilters = isFilterCapableTriggerEventType(eventTypeInput)
+  const thresholdError =
+    parsePositiveIntegerInput(eventThresholdInput) == null
+      ? 'Threshold must be an integer greater than or equal to 1.'
+      : null
+  const pulseWidthError =
+    parsePositiveIntegerInput(syncPulseWidthUsInput) == null
+      ? 'Pulse width must be an integer greater than or equal to 1 µs.'
+      : null
+  const hasFieldError = thresholdError != null || pulseWidthError != null
 
   return (
     <Dialog
@@ -277,7 +291,7 @@ export const TriggerConfigurePopover = ({
           <DialogButton onClick={onCancel} disabled={isApplyingConfig}>
             Cancel
           </DialogButton>
-          <DialogButton variant="primary" onClick={onApply} disabled={isApplyingConfig}>
+          <DialogButton variant="primary" onClick={onApply} disabled={isApplyingConfig || hasFieldError}>
             {isApplyingConfig ? 'Applying...' : 'Apply'}
           </DialogButton>
         </>
@@ -475,6 +489,7 @@ export const TriggerConfigurePopover = ({
         className={styles.headerPopupRow}
         label="Threshold"
         htmlFor={`${instrumentId}-trigger-threshold`}
+        errorText={thresholdError}
       >
           <input
             id={`${instrumentId}-trigger-threshold`}
@@ -488,6 +503,7 @@ export const TriggerConfigurePopover = ({
               setConfigureError(null)
             }}
             disabled={isApplyingConfig}
+            aria-invalid={thresholdError != null}
           />
       </DialogFormRow>
       <DialogFormRow
@@ -533,8 +549,9 @@ export const TriggerConfigurePopover = ({
       </DialogFormRow>
       <DialogFormRow
         className={styles.headerPopupRow}
-        label="Pulse width (us)"
+        label="Pulse width (µs)"
         htmlFor={`${instrumentId}-trigger-pulse-width`}
+        errorText={pulseWidthError}
       >
           <input
             id={`${instrumentId}-trigger-pulse-width`}
@@ -548,6 +565,7 @@ export const TriggerConfigurePopover = ({
               setConfigureError(null)
             }}
             disabled={isApplyingConfig}
+            aria-invalid={pulseWidthError != null}
           />
       </DialogFormRow>
       {configureError ? (

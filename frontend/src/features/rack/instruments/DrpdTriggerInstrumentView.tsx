@@ -402,7 +402,7 @@ export const DrpdTriggerInstrumentView = ({
               return
             }
             if (!Number.isInteger(parsedPulseWidthUs) || parsedPulseWidthUs < 1) {
-              setConfigureError('Pulse width must be an integer greater than or equal to 1 us.')
+              setConfigureError('Pulse width must be an integer greater than or equal to 1 µs.')
               return
             }
             setIsApplyingConfig(true)
@@ -518,7 +518,7 @@ export const DrpdTriggerInstrumentView = ({
           <div className={styles.rightMetricRow}>
             <span className={styles.metricLabel}>Pulse</span>
             <span className={styles.metricValue}>
-              {formatNumber(visibleTriggerInfo?.syncPulseWidthUs, ' us')}
+              {formatNumber(visibleTriggerInfo?.syncPulseWidthUs, ' µs')}
             </span>
           </div>
           <div className={styles.rightMetricRow}>

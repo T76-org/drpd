@@ -147,7 +147,7 @@ describe('DrpdTriggerInstrumentView', () => {
     expect(screen.getByText('Message Complete')).toBeInTheDocument()
     expect(screen.getByText('Any sender')).toBeInTheDocument()
     expect(screen.getByText('Toggle')).toBeInTheDocument()
-    expect(screen.getByText('25 us')).toBeInTheDocument()
+    expect(screen.getByText('25 µs')).toBeInTheDocument()
     expect(screen.getByText('Any message')).toBeInTheDocument()
   })
 
@@ -225,6 +225,45 @@ describe('DrpdTriggerInstrumentView', () => {
     expect(within(dialog).getByLabelText(/event type/i)).toBeInTheDocument()
   })
 
+  it('validates numeric trigger fields while editing', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setTriggerInfo(buildTriggerInfo())
+
+    render(
+      <DrpdTriggerInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sync Trigger"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Configure' }))
+
+    const dialog = screen.getByRole('dialog')
+    const applyButton = within(dialog).getByRole('button', { name: 'Apply' })
+    const thresholdInput = screen.getByLabelText(/threshold/i)
+    const pulseWidthInput = screen.getByLabelText(/pulse width \(µs\)/i)
+
+    await user.clear(thresholdInput)
+    expect(screen.getByText('Threshold must be an integer greater than or equal to 1.')).toBeInTheDocument()
+    expect(thresholdInput).toHaveAttribute('aria-invalid', 'true')
+    expect(applyButton).toBeDisabled()
+
+    await user.type(thresholdInput, '2')
+    expect(screen.queryByText('Threshold must be an integer greater than or equal to 1.')).not.toBeInTheDocument()
+    expect(thresholdInput).toHaveAttribute('aria-invalid', 'false')
+    expect(applyButton).toBeEnabled()
+
+    await user.clear(pulseWidthInput)
+    await user.type(pulseWidthInput, '0')
+    expect(screen.getByText('Pulse width must be an integer greater than or equal to 1 µs.')).toBeInTheDocument()
+    expect(pulseWidthInput).toHaveAttribute('aria-invalid', 'true')
+    expect(applyButton).toBeDisabled()
+  })
+
   it('applies updated trigger settings and refreshes state', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()
@@ -262,8 +301,8 @@ describe('DrpdTriggerInstrumentView', () => {
     await user.type(screen.getByLabelText(/threshold/i), '7')
     await user.selectOptions(screen.getByLabelText(/auto-repeat/i), OnOffState.OFF)
     await user.selectOptions(screen.getByLabelText(/sync mode/i), TriggerSyncMode.PULSE_HIGH)
-    await user.clear(screen.getByLabelText(/pulse width \(us\)/i))
-    await user.type(screen.getByLabelText(/pulse width \(us\)/i), '40')
+    await user.clear(screen.getByLabelText(/pulse width \(µs\)/i))
+    await user.type(screen.getByLabelText(/pulse width \(µs\)/i), '40')
     await user.selectOptions(screen.getByLabelText(/message filter class/i), TriggerMessageTypeFilterClass.DATA)
     await user.selectOptions(screen.getByLabelText(/message filter type/i), '2')
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add filter' }))

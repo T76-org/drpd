@@ -132,7 +132,7 @@
 
 .headerPopupError {
   margin: 0;
-  font-size: var(--font-size-header-popup-hint);
+  font-size: var(--font-size-md);
   color: var(--color-status-error);
 }
 
