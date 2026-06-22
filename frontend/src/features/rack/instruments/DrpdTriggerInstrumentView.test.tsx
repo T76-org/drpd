@@ -9,6 +9,7 @@ import {
   TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
+  TRIGGER_MESSAGE_TYPE_FILTER_LIMIT,
   type TriggerInfo,
 } from '../../../lib/device'
 import type { DRPDTransport } from '../../../lib/device/drpd/transport'
@@ -222,7 +223,7 @@ describe('DrpdTriggerInstrumentView', () => {
 
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveStyle({ zIndex: '10000' })
-    expect(within(dialog).getByLabelText(/event type/i)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/trigger stage/i)).toBeInTheDocument()
   })
 
   it('validates numeric trigger fields while editing', async () => {
@@ -295,7 +296,7 @@ describe('DrpdTriggerInstrumentView', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Configure' }))
-    await user.selectOptions(screen.getByLabelText(/event type/i), TriggerEventType.CRC_ERROR)
+    await user.selectOptions(screen.getByLabelText(/trigger stage/i), TriggerEventType.CRC_ERROR)
     await user.selectOptions(screen.getByLabelText(/sender/i), TriggerSenderFilter.CABLE)
     await user.clear(screen.getByLabelText(/threshold/i))
     await user.type(screen.getByLabelText(/threshold/i), '7')
@@ -303,9 +304,12 @@ describe('DrpdTriggerInstrumentView', () => {
     await user.selectOptions(screen.getByLabelText(/sync mode/i), TriggerSyncMode.PULSE_HIGH)
     await user.clear(screen.getByLabelText(/pulse width \(µs\)/i))
     await user.type(screen.getByLabelText(/pulse width \(µs\)/i), '40')
-    await user.selectOptions(screen.getByLabelText(/message filter class/i), TriggerMessageTypeFilterClass.DATA)
-    await user.selectOptions(screen.getByLabelText(/message filter type/i), '2')
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add filter' }))
+    await user.click(screen.getByLabelText('Enable message filter slot 1'))
+    await user.selectOptions(
+      screen.getByLabelText('Message filter slot 1 category'),
+      TriggerMessageTypeFilterClass.DATA,
+    )
+    await user.selectOptions(screen.getByLabelText('Message filter slot 1 type'), '2')
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => {
@@ -343,6 +347,54 @@ describe('DrpdTriggerInstrumentView', () => {
     })
   })
 
+  it('dedupes duplicate message filter slots when applying settings', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setTriggerInfo(buildTriggerInfo())
+
+    vi.spyOn(driver.trigger, 'setEventType').mockResolvedValue(undefined)
+    vi.spyOn(driver.trigger, 'setEventThreshold').mockResolvedValue(undefined)
+    vi.spyOn(driver.trigger, 'setSenderFilter').mockResolvedValue(undefined)
+    vi.spyOn(driver.trigger, 'setAutoRepeat').mockResolvedValue(undefined)
+    vi.spyOn(driver.trigger, 'setSyncMode').mockResolvedValue(undefined)
+    vi.spyOn(driver.trigger, 'setSyncPulseWidthUs').mockResolvedValue(undefined)
+    const setMessageTypeFiltersSpy = vi
+      .spyOn(driver.trigger, 'setMessageTypeFilters')
+      .mockResolvedValue(undefined)
+    vi.spyOn(driver, 'refreshState').mockResolvedValue(undefined)
+
+    render(
+      <DrpdTriggerInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sync Trigger"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Configure' }))
+    await user.click(screen.getByLabelText('Enable message filter slot 1'))
+    await user.selectOptions(
+      screen.getByLabelText('Message filter slot 1 category'),
+      TriggerMessageTypeFilterClass.DATA,
+    )
+    await user.selectOptions(screen.getByLabelText('Message filter slot 1 type'), '2')
+    await user.click(screen.getByLabelText('Enable message filter slot 2'))
+    await user.selectOptions(
+      screen.getByLabelText('Message filter slot 2 category'),
+      TriggerMessageTypeFilterClass.DATA,
+    )
+    await user.selectOptions(screen.getByLabelText('Message filter slot 2 type'), '2')
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => {
+      expect(setMessageTypeFiltersSpy).toHaveBeenCalledWith([
+        { class: TriggerMessageTypeFilterClass.DATA, messageTypeNumber: 2 },
+      ])
+    })
+  })
+
   it('disables message filter editing for events before the header is available', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()
@@ -368,12 +420,16 @@ describe('DrpdTriggerInstrumentView', () => {
 
     expect(screen.getAllByText(/stored but ignored for this event type/i)).toHaveLength(2)
     expect(screen.getByLabelText(/sender/i)).toBeDisabled()
-    expect(screen.getByLabelText(/message filter class/i)).toBeDisabled()
-    expect(screen.getByLabelText(/message filter type/i)).toBeDisabled()
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add filter' })).toBeDisabled()
+    expect(screen.getByLabelText('Enable message filter slot 1')).toBeChecked()
+    for (let slotNumber = 1; slotNumber <= TRIGGER_MESSAGE_TYPE_FILTER_LIMIT; slotNumber += 1) {
+      expect(screen.getByLabelText(`Enable message filter slot ${slotNumber}`)).toBeDisabled()
+      expect(screen.getByLabelText(`Message filter slot ${slotNumber} category`)).toBeDisabled()
+      expect(screen.getByLabelText(`Message filter slot ${slotNumber} type`)).toBeDisabled()
+    }
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Add filter' })).not.toBeInTheDocument()
     expect(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove Control: GoodCRC' }),
-    ).toBeDisabled()
+      within(screen.getByRole('dialog')).queryByRole('button', { name: 'Remove Control: GoodCRC' }),
+    ).not.toBeInTheDocument()
   })
 
   it('keeps reset disabled unless the trigger is triggered', async () => {

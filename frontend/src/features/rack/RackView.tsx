@@ -9,7 +9,6 @@ import {
   OnOffState,
   SinkPdoType,
   TriggerEventType,
-  TriggerMessageTypeFilterClass,
   TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
@@ -860,9 +859,6 @@ export const RackView = () => {
   const [globalTriggerSyncPulseWidthUsInput, setGlobalTriggerSyncPulseWidthUsInput] = useState('1')
   const [globalTriggerMessageTypeFiltersInput, setGlobalTriggerMessageTypeFiltersInput] =
     useState<TriggerMessageTypeFilter[]>([])
-  const [globalTriggerMessageTypeFilterClassInput, setGlobalTriggerMessageTypeFilterClassInput] =
-    useState<TriggerMessageTypeFilter['class']>(TriggerMessageTypeFilterClass.CONTROL)
-  const [globalTriggerMessageTypeFilterTypeInput, setGlobalTriggerMessageTypeFilterTypeInput] = useState('0')
   const [globalTriggerConfigureError, setGlobalTriggerConfigureError] = useState<string | null>(null)
   const [isGlobalTriggerApplying, setIsGlobalTriggerApplying] = useState(false)
   const [messageLogSelectionKeys, setMessageLogSelectionKeys] = useState<string[]>([])
@@ -2289,8 +2285,6 @@ export const RackView = () => {
       setGlobalTriggerSyncModeInput(info?.syncMode ?? TriggerSyncMode.PULSE_HIGH)
       setGlobalTriggerSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
       setGlobalTriggerMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
-      setGlobalTriggerMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
-      setGlobalTriggerMessageTypeFilterTypeInput('0')
     }
     setGlobalTriggerConfigureError(null)
     populate(driver.getState().triggerInfo)
@@ -3619,8 +3613,6 @@ export const RackView = () => {
         eventTypeInput={globalTriggerEventTypeInput}
         senderFilterInput={globalTriggerSenderInput}
         messageTypeFiltersInput={globalTriggerMessageTypeFiltersInput}
-        messageTypeFilterClassInput={globalTriggerMessageTypeFilterClassInput}
-        messageTypeFilterTypeInput={globalTriggerMessageTypeFilterTypeInput}
         eventThresholdInput={globalTriggerThresholdInput}
         autoRepeatInput={globalTriggerAutoRepeatInput}
         syncModeInput={globalTriggerSyncModeInput}
@@ -3630,8 +3622,6 @@ export const RackView = () => {
         setEventTypeInput={setGlobalTriggerEventTypeInput}
         setSenderFilterInput={setGlobalTriggerSenderInput}
         setMessageTypeFiltersInput={setGlobalTriggerMessageTypeFiltersInput}
-        setMessageTypeFilterClassInput={setGlobalTriggerMessageTypeFilterClassInput}
-        setMessageTypeFilterTypeInput={setGlobalTriggerMessageTypeFilterTypeInput}
         setEventThresholdInput={setGlobalTriggerThresholdInput}
         setAutoRepeatInput={setGlobalTriggerAutoRepeatInput}
         setSyncModeInput={setGlobalTriggerSyncModeInput}

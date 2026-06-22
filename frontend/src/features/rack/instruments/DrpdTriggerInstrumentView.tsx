@@ -266,9 +266,6 @@ export const DrpdTriggerInstrumentView = ({
   const [syncModeInput, setSyncModeInput] = useState<TriggerSyncMode>(TriggerSyncMode.PULSE_HIGH)
   const [syncPulseWidthUsInput, setSyncPulseWidthUsInput] = useState<string>('1')
   const [messageTypeFiltersInput, setMessageTypeFiltersInput] = useState<TriggerMessageTypeFilter[]>([])
-  const [messageTypeFilterClassInput, setMessageTypeFilterClassInput] =
-    useState<TriggerMessageTypeFilter['class']>(TriggerMessageTypeFilterClass.CONTROL)
-  const [messageTypeFilterTypeInput, setMessageTypeFilterTypeInput] = useState<string>('0')
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingTrigger, setIsResettingTrigger] = useState(false)
@@ -313,8 +310,6 @@ export const DrpdTriggerInstrumentView = ({
     setSyncModeInput(info?.syncMode ?? TriggerSyncMode.PULSE_HIGH)
     setSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
     setMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
-    setMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
-    setMessageTypeFilterTypeInput(String(CONTROL_FILTER_OPTIONS[0]?.messageTypeNumber ?? 0))
   }, [])
 
   const visibleTriggerInfo =
@@ -556,8 +551,6 @@ export const DrpdTriggerInstrumentView = ({
         eventTypeInput={eventTypeInput}
         senderFilterInput={senderFilterInput}
         messageTypeFiltersInput={messageTypeFiltersInput}
-        messageTypeFilterClassInput={messageTypeFilterClassInput}
-        messageTypeFilterTypeInput={messageTypeFilterTypeInput}
         eventThresholdInput={eventThresholdInput}
         autoRepeatInput={autoRepeatInput}
         syncModeInput={syncModeInput}
@@ -567,8 +560,6 @@ export const DrpdTriggerInstrumentView = ({
         setEventTypeInput={setEventTypeInput}
         setSenderFilterInput={setSenderFilterInput}
         setMessageTypeFiltersInput={setMessageTypeFiltersInput}
-        setMessageTypeFilterClassInput={setMessageTypeFilterClassInput}
-        setMessageTypeFilterTypeInput={setMessageTypeFilterTypeInput}
         setEventThresholdInput={setEventThresholdInput}
         setAutoRepeatInput={setAutoRepeatInput}
         setSyncModeInput={setSyncModeInput}
