@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { MessageLogFilterPopover } from './MessageLogFilterPopover'
@@ -40,12 +40,12 @@ describe('MessageLogFilterPopover', () => {
       />,
     )
 
-    await user.click(screen.getByRole('checkbox', { name: 'GoodCRC' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Accept' }))
     await user.click(screen.getByRole('checkbox', { name: 'Source' }))
     await user.click(screen.getByRole('button', { name: 'Apply' }))
 
     expect(onApply).toHaveBeenCalledWith({
-      messageTypes: { include: [], exclude: ['GoodCRC'] },
+      messageTypes: { include: [], exclude: ['Accept'] },
       senders: { include: [], exclude: ['Source'] },
       receivers: { include: [], exclude: [] },
       sopTypes: { include: [], exclude: [] },
@@ -72,8 +72,9 @@ describe('MessageLogFilterPopover', () => {
       />,
     )
 
-    expect(screen.getByRole('checkbox', { name: 'GoodCRC' })).not.toBeChecked()
+    expect(screen.queryByRole('checkbox', { name: 'GoodCRC' })).not.toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Accept' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Hide GoodCRC messages' })).toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'Apply' }))
 
@@ -84,6 +85,67 @@ describe('MessageLogFilterPopover', () => {
       sopTypes: { include: [], exclude: [] },
       crcValid: { include: [], exclude: [] },
     })
+  })
+
+  it('keeps GoodCRC out of Message type and applies the bottom checkbox', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+
+    render(
+      <MessageLogFilterPopover
+        open
+        onOpenChange={vi.fn()}
+        filters={emptyFilters()}
+        options={options}
+        onApply={onApply}
+        onClear={vi.fn()}
+      />,
+    )
+
+    const messageTypeGroup = screen.getByRole('group', { name: 'Message type' })
+    expect(within(messageTypeGroup).queryByRole('checkbox', { name: 'GoodCRC' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Hide GoodCRC messages' })).not.toBeChecked()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Hide GoodCRC messages' }))
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+
+    expect(onApply).toHaveBeenCalledWith({
+      messageTypes: { include: [], exclude: ['GoodCRC'] },
+      senders: { include: [], exclude: [] },
+      receivers: { include: [], exclude: [] },
+      sopTypes: { include: [], exclude: [] },
+      crcValid: { include: [], exclude: [] },
+    })
+  })
+
+  it('submits the current filters when Enter is pressed', async () => {
+    const user = userEvent.setup()
+    const onApply = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <MessageLogFilterPopover
+        open
+        onOpenChange={onOpenChange}
+        filters={emptyFilters()}
+        options={options}
+        onApply={onApply}
+        onClear={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('checkbox', { name: 'Accept' }))
+    await user.keyboard('{Enter}')
+
+    expect(onApply).toHaveBeenCalledWith({
+      messageTypes: { include: [], exclude: ['Accept'] },
+      senders: { include: [], exclude: [] },
+      receivers: { include: [], exclude: [] },
+      sopTypes: { include: [], exclude: [] },
+      crcValid: { include: [], exclude: [] },
+    })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('clears filters and closes the dialog', async () => {

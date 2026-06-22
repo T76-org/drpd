@@ -1,6 +1,11 @@
-import { useState } from 'react'
+import { useId, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Dialog, DialogButton } from '../../../../ui/overlays'
-import type { FilterOption, MessageLogFilterKey, MessageLogFilters } from './usbPdLogFilters'
+import {
+  GOODCRC_MESSAGE_TYPE_LABEL,
+  type FilterOption,
+  type MessageLogFilterKey,
+  type MessageLogFilters,
+} from './usbPdLogFilters'
 import styles from '../../instruments/DrpdUsbPdLogInstrumentView.module.css'
 
 type MessageLogFilterPopoverProps = {
@@ -42,6 +47,7 @@ const normalizeCheckboxFilters = (
   filters: MessageLogFilters,
   groups: MessageLogFilterGroup[],
 ): MessageLogFilters => {
+  const hideGoodCrc = isGoodCrcHidden(filters)
   const next = { ...filters }
   for (const group of groups) {
     const excludedValues = group.options
@@ -51,6 +57,12 @@ const normalizeCheckboxFilters = (
       include: [],
       exclude: excludedValues,
     }
+  }
+  next.messageTypes = {
+    include: [],
+    exclude: hideGoodCrc
+      ? Array.from(new Set([...next.messageTypes.exclude, GOODCRC_MESSAGE_TYPE_LABEL]))
+      : next.messageTypes.exclude.filter((entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL),
   }
   return next
 }
@@ -82,6 +94,22 @@ const setCheckboxFilterValue = (
   }
 }
 
+const isGoodCrcHidden = (filters: MessageLogFilters): boolean =>
+  !isFilterOptionChecked(filters, 'messageTypes', GOODCRC_MESSAGE_TYPE_LABEL)
+
+const setGoodCrcHidden = (
+  filters: MessageLogFilters,
+  checked: boolean,
+): MessageLogFilters => ({
+  ...filters,
+  messageTypes: {
+    include: filters.messageTypes.include.filter((entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL),
+    exclude: checked
+      ? Array.from(new Set([...filters.messageTypes.exclude, GOODCRC_MESSAGE_TYPE_LABEL]))
+      : filters.messageTypes.exclude.filter((entry) => entry !== GOODCRC_MESSAGE_TYPE_LABEL),
+  },
+})
+
 const MessageLogFilterDialogContent = ({
   onOpenChange,
   filters,
@@ -89,14 +117,35 @@ const MessageLogFilterDialogContent = ({
   onApply,
   onClear,
 }: MessageLogFilterDialogContentProps) => {
+  const formId = useId()
   const [draft, setDraft] = useState(filters)
   const groups: MessageLogFilterGroup[] = [
-    { key: 'messageTypes', title: 'Message type', options: options.messageTypes },
+    {
+      key: 'messageTypes',
+      title: 'Message type',
+      options: options.messageTypes.filter((option) => option.value !== GOODCRC_MESSAGE_TYPE_LABEL),
+    },
     { key: 'senders', title: 'Sender', options: options.senders },
     { key: 'receivers', title: 'Receiver', options: options.receivers },
     { key: 'sopTypes', title: 'SOP type', options: options.sopTypes },
     { key: 'crcValid', title: 'CRC', options: options.crcValid },
   ]
+  const hideGoodCrc = isGoodCrcHidden(draft)
+  const submitDraft = () => {
+    onApply(normalizeCheckboxFilters(draft, groups))
+    onOpenChange(false)
+  }
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    submitDraft()
+  }
+  const handleFormKeyDown = (event: ReactKeyboardEvent<HTMLFormElement>) => {
+    if (event.key !== 'Enter') {
+      return
+    }
+    event.preventDefault()
+    submitDraft()
+  }
 
   return (
     <Dialog
@@ -114,51 +163,67 @@ const MessageLogFilterDialogContent = ({
             Clear
           </DialogButton>
           <DialogButton
+            type="submit"
+            form={formId}
             variant="primary"
-            onClick={() => {
-              onApply(normalizeCheckboxFilters(draft, groups))
-              onOpenChange(false)
-            }}
           >
             Apply
           </DialogButton>
         </>
       }
     >
-      <div className={styles.filterGroups}>
-        {groups.map((group) => (
-          <fieldset key={group.key} className={styles.filterGroup}>
-            <legend className={styles.filterLegend}>{group.title}</legend>
-            {group.options.length > 0 ? (
-              group.options.map((option) => {
-                const checked = isFilterOptionChecked(draft, group.key, option.value)
-                return (
-                  <label key={option.value} className={styles.filterOption}>
-                    <input
-                      type="checkbox"
-                      className={styles.filterOptionCheckbox}
-                      checked={checked}
-                      onChange={(event) => {
-                        setDraft((previous) =>
-                          setCheckboxFilterValue(
-                            previous,
-                            group,
-                            option.value,
-                            event.target.checked,
-                          ),
-                        )
-                      }}
-                    />
-                    <span className={styles.filterOptionLabel}>{option.label}</span>
-                  </label>
-                )
-              })
-            ) : (
-              <span className={styles.filterEmpty}>No values</span>
-            )}
-          </fieldset>
-        ))}
-      </div>
+      <form
+        id={formId}
+        className={styles.filterForm}
+        onSubmit={handleSubmit}
+        onKeyDown={handleFormKeyDown}
+      >
+        <div className={styles.filterGroups}>
+          {groups.map((group) => (
+            <fieldset key={group.key} className={styles.filterGroup}>
+              <legend className={styles.filterLegend}>{group.title}</legend>
+              {group.options.length > 0 ? (
+                group.options.map((option) => {
+                  const checked = isFilterOptionChecked(draft, group.key, option.value)
+                  return (
+                    <label key={option.value} className={styles.filterOption}>
+                      <input
+                        type="checkbox"
+                        className={styles.filterOptionCheckbox}
+                        checked={checked}
+                        onChange={(event) => {
+                          setDraft((previous) =>
+                            setCheckboxFilterValue(
+                              previous,
+                              group,
+                              option.value,
+                              event.target.checked,
+                            ),
+                          )
+                        }}
+                      />
+                      <span className={styles.filterOptionLabel}>{option.label}</span>
+                    </label>
+                  )
+                })
+              ) : (
+                <span className={styles.filterEmpty}>No values</span>
+              )}
+            </fieldset>
+          ))}
+        </div>
+        <label className={styles.filterGoodCrcOption}>
+          <input
+            type="checkbox"
+            className={styles.filterOptionCheckbox}
+            checked={hideGoodCrc}
+            onChange={(event) => {
+              setDraft((previous) => setGoodCrcHidden(previous, event.target.checked))
+            }}
+          />
+          <span className={styles.filterOptionLabel}>Hide GoodCRC messages</span>
+        </label>
+      </form>
     </Dialog>
   )
 }

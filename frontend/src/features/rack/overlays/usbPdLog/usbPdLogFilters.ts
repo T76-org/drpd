@@ -17,6 +17,8 @@ export type FilterOption = {
   label: string
 }
 
+export const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
+
 export const toggleFilterValue = (
   filters: MessageLogFilters,
   key: MessageLogFilterKey,

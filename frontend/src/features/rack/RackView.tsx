@@ -108,6 +108,7 @@ import {
 } from './overlays/usbPdLog/LogActionPopovers'
 import { MessageLogFilterPopover } from './overlays/usbPdLog/MessageLogFilterPopover'
 import {
+  GOODCRC_MESSAGE_TYPE_LABEL,
   toggleFilterValue,
   type FilterOption,
   type MessageLogFilters,
@@ -155,7 +156,6 @@ const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const MIN_CAPTURED_MESSAGE_BUFFER = 100
 const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
-const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
 const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
   senders: { include: [], exclude: [] },
@@ -655,7 +655,7 @@ const buildMessageLogFilterOptions = (
       ...messageRows.map(getLogMessageTypeLabel),
       ...filters.messageTypes.include,
       ...filters.messageTypes.exclude,
-    ]),
+    ].filter((value) => value !== GOODCRC_MESSAGE_TYPE_LABEL)),
     senders: uniqueLogOptions([
       ...messageRows.map(getLogSenderLabel),
       ...filters.senders.include,

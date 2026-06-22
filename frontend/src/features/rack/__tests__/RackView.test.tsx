@@ -944,6 +944,11 @@ describe('RackView', () => {
           detail: { kind: 'message', row: buildLoggedMessage(0, 3) },
         }),
       )
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'message', row: buildLoggedMessage(1, 1) },
+        }),
+      )
     })
 
     await userEvent.click(await screen.findByRole('button', { name: 'Message Log' }))
@@ -957,6 +962,11 @@ describe('RackView', () => {
     expect(within(dialog).getByRole('checkbox', { name: 'Accept' })).toBeChecked()
     expect(within(dialog).getByRole('checkbox', { name: 'Source' })).toBeChecked()
     expect(within(dialog).getByRole('checkbox', { name: 'Valid' })).toBeChecked()
+    const messageTypeGroup = within(dialog).getByRole('group', { name: 'Message type' })
+    expect(within(messageTypeGroup).queryByRole('checkbox', { name: 'GoodCRC' }))
+      .not.toBeInTheDocument()
+    expect(within(dialog).getByRole('checkbox', { name: 'Hide GoodCRC messages' }))
+      .not.toBeChecked()
   })
 
   it('opens the message log context menu from the message log instrument', async () => {

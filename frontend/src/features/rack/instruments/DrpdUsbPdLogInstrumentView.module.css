@@ -376,6 +376,12 @@
   color: var(--color-status-error);
 }
 
+.filterForm {
+  display: grid;
+  gap: var(--space-10);
+  min-width: 0;
+}
+
 .filterGroups {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -424,6 +430,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.filterGoodCrcOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  padding: var(--space-2) calc(var(--space-6) + var(--border-thin)) var(--space-0);
+  font-size: var(--font-size-header-popup-text);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  cursor: pointer;
 }
 
 .filterEmpty {
