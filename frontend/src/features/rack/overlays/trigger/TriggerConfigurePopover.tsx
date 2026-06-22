@@ -69,9 +69,6 @@ const humanizeMessageTypeName = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim()
 
-const formatMessageTypeNumberHex = (value: number): string =>
-  `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
-
 const CONTROL_FILTER_OPTIONS: TriggerMessageTypeOption[] = Object.entries(CONTROL_MESSAGE_TYPES)
   .map(([messageTypeNumber, definition]) => {
     const numericType = Number(messageTypeNumber)
