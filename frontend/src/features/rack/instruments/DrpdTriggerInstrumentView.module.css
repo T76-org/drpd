@@ -88,20 +88,18 @@
   min-width: 290px;
 }
 
-.headerPopupFieldRow {
+.headerPopup .headerPopupRow,
+.headerPopup .headerPopupStatusRow {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+.headerPopupStatusRow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-8);
 }
 
-.headerPopupField {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.headerPopupLabel {
-  font-size: var(--font-size-header-popup-label);
-  color: var(--color-text-muted);
+.headerPopupStatusRow::before {
+  content: '';
 }
 
 .headerPopupInput,
@@ -115,12 +113,6 @@
   font-size: var(--font-size-header-popup-input);
 }
 
-.headerPopupHint {
-  margin: 0;
-  font-size: var(--font-size-header-popup-hint);
-  color: var(--color-text-muted);
-}
-
 .headerPopupSection {
   display: grid;
   gap: var(--space-4);
@@ -129,7 +121,7 @@
 .headerPopupSectionHeader {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-4);
 }
 

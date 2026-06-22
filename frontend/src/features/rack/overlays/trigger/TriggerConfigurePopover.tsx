@@ -8,7 +8,7 @@ import {
   type TriggerInfo,
   type TriggerMessageTypeFilter,
 } from '../../../../lib/device'
-import { Dialog, DialogButton } from '../../../../ui/overlays'
+import { Dialog, DialogButton, DialogForm, DialogFormRow } from '../../../../ui/overlays'
 import {
   CONTROL_MESSAGE_TYPES,
   DATA_MESSAGE_TYPES,
@@ -142,7 +142,7 @@ const formatTriggerEventType = (value: TriggerInfo['type'] | null | undefined): 
   }
   switch (value) {
     case TriggerEventType.OFF:
-      return 'Off'
+      return 'Off (trigger disabled)'
     case TriggerEventType.PREAMBLE_START:
       return 'Preamble Start'
     case TriggerEventType.SOP_START:
@@ -283,11 +283,12 @@ export const TriggerConfigurePopover = ({
         </>
       }
     >
-    <div className={styles.headerPopup}>
-      <div className={styles.headerPopupField}>
-        <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-trigger-event`}>
-          Event type
-        </label>
+      <DialogForm className={styles.headerPopup}>
+      <DialogFormRow
+        className={styles.headerPopupRow}
+        label="Event type"
+        htmlFor={`${instrumentId}-trigger-event`}
+      >
         <select
           id={`${instrumentId}-trigger-event`}
           className={styles.headerPopupSelect}
@@ -304,11 +305,17 @@ export const TriggerConfigurePopover = ({
             </option>
           ))}
         </select>
-      </div>
-      <div className={styles.headerPopupField}>
-        <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-trigger-sender`}>
-          Sender
-        </label>
+      </DialogFormRow>
+      <DialogFormRow
+        className={styles.headerPopupRow}
+        label="Sender"
+        htmlFor={`${instrumentId}-trigger-sender`}
+        helpText={
+          selectedEventSupportsFilters
+            ? 'Filter by source, sink, or cable origin once the header is available.'
+            : 'Sender filtering is stored but ignored for this event type until the header is known, starting at Data Start.'
+        }
+      >
         <select
           id={`${instrumentId}-trigger-sender`}
           className={styles.headerPopupSelect}
@@ -325,15 +332,18 @@ export const TriggerConfigurePopover = ({
             </option>
           ))}
         </select>
-        <p className={styles.headerPopupHint}>
-          {selectedEventSupportsFilters
-            ? 'Filter by source, sink, or cable origin once the header is available.'
-            : 'Sender filtering is stored but ignored for this event type until the header is known, starting at Data Start.'}
-        </p>
-      </div>
-      <div className={styles.headerPopupSection}>
+      </DialogFormRow>
+      <DialogFormRow
+        className={styles.headerPopupRow}
+        label="Message filters"
+        helpText={
+          selectedEventSupportsFilters
+            ? 'Choose control or data-bearing message types from the known USB-PD message list.'
+            : 'Message filters are stored but ignored for this event type until the header is known, starting at Data Start.'
+        }
+      >
+        <div className={styles.headerPopupSection}>
         <div className={styles.headerPopupSectionHeader}>
-          <span className={styles.headerPopupLabel}>Message filters</span>
           <span className={styles.headerPopupSectionMeta}>
             {messageTypeFiltersInput.length}/{TRIGGER_MESSAGE_TYPE_FILTER_LIMIT}
           </span>
@@ -459,17 +469,13 @@ export const TriggerConfigurePopover = ({
             Add filter
           </button>
         </div>
-        <p className={styles.headerPopupHint}>
-          {selectedEventSupportsFilters
-            ? 'Choose control or data-bearing message types from the known USB-PD message list.'
-            : 'Message filters are stored but ignored for this event type until the header is known, starting at Data Start.'}
-        </p>
-      </div>
-      <div className={styles.headerPopupFieldRow}>
-        <div className={styles.headerPopupField}>
-          <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-trigger-threshold`}>
-            Threshold
-          </label>
+        </div>
+      </DialogFormRow>
+      <DialogFormRow
+        className={styles.headerPopupRow}
+        label="Threshold"
+        htmlFor={`${instrumentId}-trigger-threshold`}
+      >
           <input
             id={`${instrumentId}-trigger-threshold`}
             className={styles.headerPopupInput}
@@ -483,11 +489,12 @@ export const TriggerConfigurePopover = ({
             }}
             disabled={isApplyingConfig}
           />
-        </div>
-        <div className={styles.headerPopupField}>
-          <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-trigger-autorepeat`}>
-            Auto-repeat
-          </label>
+      </DialogFormRow>
+      <DialogFormRow
+        className={styles.headerPopupRow}
+        label="Auto-repeat"
+        htmlFor={`${instrumentId}-trigger-autorepeat`}
+      >
           <select
             id={`${instrumentId}-trigger-autorepeat`}
             className={styles.headerPopupSelect}
@@ -501,13 +508,12 @@ export const TriggerConfigurePopover = ({
             <option value={OnOffState.OFF}>Off</option>
             <option value={OnOffState.ON}>On</option>
           </select>
-        </div>
-      </div>
-      <div className={styles.headerPopupFieldRow}>
-        <div className={styles.headerPopupField}>
-          <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-trigger-sync-mode`}>
-            Sync mode
-          </label>
+      </DialogFormRow>
+      <DialogFormRow
+        className={styles.headerPopupRow}
+        label="Sync mode"
+        htmlFor={`${instrumentId}-trigger-sync-mode`}
+      >
           <select
             id={`${instrumentId}-trigger-sync-mode`}
             className={styles.headerPopupSelect}
@@ -521,14 +527,15 @@ export const TriggerConfigurePopover = ({
             {TRIGGER_SYNC_MODE_OPTIONS.map((option) => (
               <option key={option} value={option}>
                 {formatTriggerSyncMode(option)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.headerPopupField}>
-          <label className={styles.headerPopupLabel} htmlFor={`${instrumentId}-trigger-pulse-width`}>
-            Pulse width (us)
-          </label>
+            </option>
+          ))}
+        </select>
+      </DialogFormRow>
+      <DialogFormRow
+        className={styles.headerPopupRow}
+        label="Pulse width (us)"
+        htmlFor={`${instrumentId}-trigger-pulse-width`}
+      >
           <input
             id={`${instrumentId}-trigger-pulse-width`}
             className={styles.headerPopupInput}
@@ -542,13 +549,13 @@ export const TriggerConfigurePopover = ({
             }}
             disabled={isApplyingConfig}
           />
+      </DialogFormRow>
+      {configureError ? (
+        <div className={styles.headerPopupStatusRow}>
+          <p className={styles.headerPopupError}>{configureError}</p>
         </div>
-      </div>
-      <p className={styles.headerPopupHint}>
-        Trigger threshold and pulse width are positive integer values.
-      </p>
-      {configureError ? <p className={styles.headerPopupError}>{configureError}</p> : null}
-    </div>
+      ) : null}
+      </DialogForm>
     </Dialog>
   )
 }
