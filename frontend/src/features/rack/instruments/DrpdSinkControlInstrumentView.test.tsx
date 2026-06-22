@@ -432,7 +432,9 @@ describe('DrpdSinkControlInstrumentView', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
+    const dialog = await screen.findByRole('dialog', { name: /sink power contract selection/i })
     const voltageInput = screen.getByLabelText(/^voltage$/i)
+    expect(within(dialog).getByText('Fixed')).toBeInTheDocument()
     expect(voltageInput).toHaveAttribute('readonly')
     expect(voltageInput).toHaveValue('9.00')
   })

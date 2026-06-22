@@ -2535,6 +2535,7 @@ describe('RackView', () => {
     const dialog = await screen.findByRole('dialog', {
       name: /sink power contract selection/i,
     })
+    expect(within(dialog).getByText('Fixed')).toBeInTheDocument()
     const options = await within(dialog).findAllByRole('option')
     expect(options).toHaveLength(2)
     expect(options[0]).toHaveAttribute('aria-selected', 'true')

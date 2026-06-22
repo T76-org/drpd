@@ -1,5 +1,11 @@
 import { SinkPdoType, type SinkPdo } from '../../../../lib/device'
-import { Dialog, DialogButton, DialogForm, DialogFormRow } from '../../../../ui/overlays'
+import {
+  Dialog,
+  DialogButton,
+  DialogForm,
+  DialogFormRow,
+  DialogInput,
+} from '../../../../ui/overlays'
 import styles from '../../instruments/DrpdSinkControlInstrumentView.module.css'
 
 type NonNullSinkPdo = Exclude<SinkPdo, null>
@@ -105,7 +111,7 @@ export const SinkRequestPopover = ({
     open={open}
     onOpenChange={onOpenChange}
     title="Sink power contract selection"
-    dialogStyle={{ width: 'min(520px, calc(100vw - var(--space-32)))' }}
+    dialogStyle={{ width: 'min(364px, calc(100vw - var(--space-32)))' }}
     footer={
       <>
         <DialogButton onClick={onCancel}>Cancel</DialogButton>
@@ -198,9 +204,9 @@ export const SinkRequestPopover = ({
             htmlFor={`${instrumentId}-voltage`}
             helpText={voltageHint}
           >
-            <input
+            <DialogInput
               id={`${instrumentId}-voltage`}
-              className={styles.control}
+              className={styles.numericInput}
               value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
               onChange={(event) => {
                 setVoltageV(event.target.value)
@@ -218,9 +224,9 @@ export const SinkRequestPopover = ({
             htmlFor={`${instrumentId}-current`}
             helpText={currentRangeLabel}
           >
-            <input
+            <DialogInput
               id={`${instrumentId}-current`}
-              className={styles.control}
+              className={styles.numericInput}
               value={currentA}
               onChange={(event) => {
                 setCurrentA(event.target.value)

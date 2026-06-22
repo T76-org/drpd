@@ -800,7 +800,7 @@ const getSinkVoltageHint = (pdo: SinkPdo | null | undefined): string => {
     return '--'
   }
   if (pdo.type === SinkPdoType.FIXED) {
-    return ''
+    return 'Fixed'
   }
   return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`
 }

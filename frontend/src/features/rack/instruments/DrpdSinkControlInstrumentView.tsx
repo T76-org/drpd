@@ -584,7 +584,7 @@ export const DrpdSinkControlInstrumentView = ({
     ? '--'
     : voltageConstraints.editable
       ? `${voltageConstraints.minV?.toFixed(2)}-${voltageConstraints.maxV?.toFixed(2)} V`
-      : ''
+      : 'Fixed'
   const sinkStateLabel = formatSinkStateLabel(sinkInfo?.status)
   const vsetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedVoltageMv / 1000 : null)} V`
   const isetLabel = `${formatNumber(sinkInfo ? sinkInfo.negotiatedCurrentMa / 1000 : null)} A`

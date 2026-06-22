@@ -124,23 +124,9 @@
   color: var(--color-metric-current);
 }
 
-.control {
-  box-sizing: border-box;
-  width: 72px;
-  border: var(--border-thin) solid var(--color-border-panel);
-  background: var(--color-surface-instrument);
-  color: var(--color-text-primary);
-  padding: var(--space-4) var(--space-2);
-  font-size: var(--font-size-header-popup-input);
-  line-height: var(--line-height-tight);
+.numericInput {
   font-variant-numeric: tabular-nums;
-  min-width: 0;
   text-align: right;
-}
-
-.control[readonly] {
-  opacity: 0.85;
-  cursor: default;
 }
 
 .selectControl {
@@ -193,7 +179,7 @@
 
 .advancedLayout {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.95fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-12);
   align-items: stretch;
   min-width: 0;
@@ -285,6 +271,7 @@
 
 .requestBody {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-10);
   min-width: 0;
 }
@@ -313,7 +300,7 @@
 }
 
 @media (max-width: 560px) {
-  .advancedLayout {
+  .requestBody {
     grid-template-columns: 1fr;
   }
 }

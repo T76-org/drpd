@@ -77,7 +77,7 @@
 }
 
 .label {
-  padding-top: var(--space-8);
+  padding-top: var(--space-4);
   color: var(--color-text-muted);
   font-size: var(--font-size-header-popup-label);
   letter-spacing: var(--letter-spacing-md);
@@ -147,9 +147,16 @@
   width: 100%;
   min-width: 0;
   border: var(--border-thin) solid var(--color-border-panel);
-  padding: var(--space-8) var(--space-10);
+  padding: var(--space-2) var(--space-6);
   color: var(--color-text-primary);
   background: var(--color-surface-instrument);
   font: inherit;
   font-size: var(--font-size-header-popup-input);
+}
+
+.input[readonly] {
+  border-color: color-mix(in srgb, var(--color-border-panel) 70%, var(--color-text-muted));
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, var(--color-surface-panel-accent));
+  cursor: default;
 }
