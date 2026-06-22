@@ -9,7 +9,6 @@ import {
   OnOffState,
   SinkPdoType,
   TriggerEventType,
-  TriggerMessageTypeFilterClass,
   TriggerSenderFilter,
   TriggerStatus,
   TriggerSyncMode,
@@ -79,6 +78,7 @@ import {
   parseSinkRequestField,
 } from './sinkRequest'
 import {
+  ContextMenu,
   Dialog,
   DialogButton,
   DialogForm,
@@ -107,6 +107,7 @@ import {
 } from './overlays/usbPdLog/LogActionPopovers'
 import { MessageLogFilterPopover } from './overlays/usbPdLog/MessageLogFilterPopover'
 import {
+  GOODCRC_MESSAGE_TYPE_LABEL,
   toggleFilterValue,
   type FilterOption,
   type MessageLogFilters,
@@ -154,7 +155,6 @@ const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const MIN_CAPTURED_MESSAGE_BUFFER = 100
 const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
-const GOODCRC_MESSAGE_TYPE_LABEL = 'GoodCRC'
 const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
   senders: { include: [], exclude: [] },
@@ -654,7 +654,7 @@ const buildMessageLogFilterOptions = (
       ...messageRows.map(getLogMessageTypeLabel),
       ...filters.messageTypes.include,
       ...filters.messageTypes.exclude,
-    ]),
+    ].filter((value) => value !== GOODCRC_MESSAGE_TYPE_LABEL)),
     senders: uniqueLogOptions([
       ...messageRows.map(getLogSenderLabel),
       ...filters.senders.include,
@@ -799,7 +799,7 @@ const getSinkVoltageHint = (pdo: SinkPdo | null | undefined): string => {
     return '--'
   }
   if (pdo.type === SinkPdoType.FIXED) {
-    return ''
+    return 'Fixed'
   }
   return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`
 }
@@ -836,7 +836,6 @@ export const RackView = () => {
   const [isGlobalVbusDialogOpen, setIsGlobalVbusDialogOpen] = useState(false)
   const [globalOvpThresholdInput, setGlobalOvpThresholdInput] = useState('')
   const [globalOcpThresholdInput, setGlobalOcpThresholdInput] = useState('')
-  const [globalDisplayUpdateRateInput, setGlobalDisplayUpdateRateInput] = useState(HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ.toString())
   const [globalVbusConfigureError, setGlobalVbusConfigureError] = useState<string | null>(null)
   const [isGlobalVbusApplying, setIsGlobalVbusApplying] = useState(false)
   const [isGlobalSinkDialogOpen, setIsGlobalSinkDialogOpen] = useState(false)
@@ -860,9 +859,6 @@ export const RackView = () => {
   const [globalTriggerSyncPulseWidthUsInput, setGlobalTriggerSyncPulseWidthUsInput] = useState('1')
   const [globalTriggerMessageTypeFiltersInput, setGlobalTriggerMessageTypeFiltersInput] =
     useState<TriggerMessageTypeFilter[]>([])
-  const [globalTriggerMessageTypeFilterClassInput, setGlobalTriggerMessageTypeFilterClassInput] =
-    useState<TriggerMessageTypeFilter['class']>(TriggerMessageTypeFilterClass.CONTROL)
-  const [globalTriggerMessageTypeFilterTypeInput, setGlobalTriggerMessageTypeFilterTypeInput] = useState('0')
   const [globalTriggerConfigureError, setGlobalTriggerConfigureError] = useState<string | null>(null)
   const [isGlobalTriggerApplying, setIsGlobalTriggerApplying] = useState(false)
   const [messageLogSelectionKeys, setMessageLogSelectionKeys] = useState<string[]>([])
@@ -2204,11 +2200,9 @@ export const RackView = () => {
     }
     prepareVbusConfigureDialog({
       vbusInfo: driver.getState().vbusInfo ?? null,
-      displayUpdateRateHz: HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ,
       setConfigureError: setGlobalVbusConfigureError,
       setOvpThresholdInput: setGlobalOvpThresholdInput,
       setOcpThresholdInput: setGlobalOcpThresholdInput,
-      setDisplayUpdateRateInput: setGlobalDisplayUpdateRateInput,
     })
     setIsGlobalVbusDialogOpen(true)
   }, [])
@@ -2291,8 +2285,6 @@ export const RackView = () => {
       setGlobalTriggerSyncModeInput(info?.syncMode ?? TriggerSyncMode.PULSE_HIGH)
       setGlobalTriggerSyncPulseWidthUsInput(String(info?.syncPulseWidthUs ?? 1))
       setGlobalTriggerMessageTypeFiltersInput(info?.messageTypeFilters ?? [])
-      setGlobalTriggerMessageTypeFilterClassInput(TriggerMessageTypeFilterClass.CONTROL)
-      setGlobalTriggerMessageTypeFilterTypeInput('0')
     }
     setGlobalTriggerConfigureError(null)
     populate(driver.getState().triggerInfo)
@@ -2621,6 +2613,303 @@ export const RackView = () => {
     activeConnectedDeviceState?.record.firmwareVersion,
   )
   const timeSinceMeterReset = formatHeaderElapsed(activeDriverState?.analogMonitor?.accumulationElapsedTimeUs)
+  const protectionMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'set-protection-thresholds',
+        label: 'Set thresholds...',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void handleSetProtectionThresholds()
+        },
+      },
+      {
+        id: 'reset-protection',
+        label: 'Reset',
+        meta: 'Y',
+        disabled: !activeDriver || !isProtectionTriggered,
+        onSelect: () => {
+          void handleResetProtection()
+        },
+      },
+    ],
+    [activeDriver, handleResetProtection, handleSetProtectionThresholds, isProtectionTriggered],
+  )
+  const triggerMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'configure-trigger',
+        label: 'Configure...',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void openGlobalTriggerConfigureDialog()
+        },
+      },
+      {
+        id: 'reset-trigger',
+        label: 'Reset',
+        meta: 'R',
+        disabled: !activeDriver || !isTriggerActivated,
+        onSelect: () => {
+          void handleResetTrigger()
+        },
+      },
+    ],
+    [activeDriver, handleResetTrigger, isTriggerActivated, openGlobalTriggerConfigureDialog],
+  )
+  const captureMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'logging-toggle-capture',
+        label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
+        meta: 'C',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void handleToggleActiveDeviceCapture()
+        },
+      },
+    ],
+    [activeDriver, handleToggleActiveDeviceCapture, isCaptureEnabled],
+  )
+  const modeMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'set-mode',
+        type: 'submenu',
+        label: 'Set mode',
+        items: [
+          {
+            id: 'mode-disabled',
+            type: 'checkbox',
+            label: 'Disabled',
+            meta: 'D',
+            checked: activeDriverState?.role === CCBusRole.DISABLED,
+            disabled: !activeDriver,
+            onCheckedChange: () => {
+              void handleSetActiveDeviceRole(CCBusRole.DISABLED)
+            },
+          },
+          {
+            id: 'mode-observer',
+            type: 'checkbox',
+            label: 'Observer',
+            meta: 'O',
+            checked: activeDriverState?.role === CCBusRole.OBSERVER,
+            disabled: !activeDriver,
+            onCheckedChange: () => {
+              void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
+            },
+          },
+          {
+            id: 'mode-sink',
+            type: 'checkbox',
+            label: 'Sink',
+            meta: 'S',
+            checked: activeDriverState?.role === CCBusRole.SINK,
+            disabled: !activeDriver,
+            onCheckedChange: () => {
+              void handleSetActiveDeviceRole(CCBusRole.SINK)
+            },
+          },
+        ],
+      },
+      {
+        id: 'mode-separator-power-contract',
+        type: 'separator',
+      },
+      {
+        id: 'choose-power-contract',
+        label: 'Choose power contract...',
+        meta: 'P',
+        disabled: !activeDriver || !isSinkMode,
+        onSelect: () => {
+          void openGlobalSinkRequestDialog()
+        },
+      },
+      {
+        id: 'sink-behaviour',
+        type: 'submenu',
+        label: 'Sink behaviour',
+        disabled: !activeDriver || !isSinkMode,
+        items: [
+          {
+            id: 'support-epr-mode',
+            type: 'checkbox',
+            label: 'Support EPR mode',
+            checked: activeDriverState?.sinkEprEnabled === true,
+            disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
+            onCheckedChange: (checked) => {
+              void handleSetActiveSinkEprEnabled(checked)
+            },
+          },
+          {
+            id: 'send-get-pps-status-messages',
+            type: 'checkbox',
+            label: 'Send Get_PPS_Status messages',
+            checked: activeDriverState?.sinkPpsStatusQueryEnabled === true,
+            disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
+            onCheckedChange: (checked) => {
+              void handleSetActiveSinkPpsStatusQueryEnabled(checked)
+            },
+          },
+        ],
+      },
+      {
+        id: 'mode-separator-usb-cycle',
+        type: 'separator',
+      },
+      {
+        id: 'cycle-usb-connection',
+        label: 'Cycle USB Connection',
+        meta: 'T',
+        disabled: !canCycleUsbConnection,
+        onSelect: () => {
+          void handlePulseUsbConnection()
+        },
+      },
+    ],
+    [
+      activeDriver,
+      activeDriverState?.role,
+      activeDriverState?.sinkEprEnabled,
+      activeDriverState?.sinkPpsStatusQueryEnabled,
+      canCycleUsbConnection,
+      canUseSinkBehaviourSettings,
+      handlePulseUsbConnection,
+      handleSetActiveDeviceRole,
+      handleSetActiveSinkEprEnabled,
+      handleSetActiveSinkPpsStatusQueryEnabled,
+      isSinkMode,
+      openGlobalSinkRequestDialog,
+    ],
+  )
+  const messageLogMenuItems = useMemo<MenuItem[]>(
+    () => [
+      ...captureMenuItems,
+      {
+        id: 'logging-separator-capture',
+        type: 'separator',
+      },
+      {
+        id: 'logging-clear-log',
+        label: 'Clear Log',
+        meta: 'X',
+        disabled: !activeDriver || isMessageLogClearing,
+        onSelect: () => setIsMessageLogClearDialogOpen(true),
+      },
+      {
+        id: 'logging-add-marker',
+        label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
+        meta: 'M',
+        disabled: !activeDriver || isMessageLogMarking,
+        onSelect: addMessageLogMarker,
+      },
+      {
+        id: 'logging-separator-import',
+        type: 'separator',
+      },
+      {
+        id: 'logging-import-json',
+        label: 'Import JSON...',
+        disabled: !activeDriver || isMessageLogImporting,
+        onSelect: () => {
+          setMessageLogImportFile(null)
+          setMessageLogImportError(null)
+          setIsMessageLogImportDialogOpen(true)
+        },
+      },
+      {
+        id: 'logging-export-selected',
+        type: 'submenu',
+        label: 'Export Selected',
+        disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+        items: [
+          {
+            id: 'logging-export-selected-json',
+            label: 'JSON...',
+            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+            onSelect: () => exportSelectedMessageLog('json'),
+          },
+          {
+            id: 'logging-export-selected-csv',
+            label: 'CSV...',
+            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
+            onSelect: () => exportSelectedMessageLog('csv'),
+          },
+        ],
+      },
+      {
+        id: 'logging-separator-filters',
+        type: 'separator',
+      },
+      {
+        id: 'logging-show-goodcrc',
+        type: 'checkbox',
+        label: 'Hide GoodCRC Messages',
+        meta: 'G',
+        checked: isGoodCrcHidden,
+        disabled: !activeDriver,
+        onCheckedChange: toggleGoodCrcMessages,
+      },
+      {
+        id: 'logging-filter',
+        label: countMessageLogFilters(messageLogFilters) > 0
+          ? `Filter... (${countMessageLogFilters(messageLogFilters)})`
+          : 'Filter...',
+        meta: 'F',
+        disabled: !activeDriver,
+        onSelect: () => setIsMessageLogFilterDialogOpen(true),
+      },
+      {
+        id: 'logging-separator-configure',
+        type: 'separator',
+      },
+      {
+        id: 'logging-configure',
+        label: 'Configure...',
+        disabled: !activeDriver || !activeDeviceRecord || isMessageLogConfiguring,
+        onSelect: () => {
+          const configured = activeDeviceRecord?.config &&
+            typeof activeDeviceRecord.config === 'object'
+            ? normalizeLoggingConfig(
+                (activeDeviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
+              )
+            : buildDefaultLoggingConfig()
+          setMessageLogBufferInput(configured.maxCapturedMessages.toString())
+          setMessageLogBufferError(null)
+          setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
+          setIsMessageLogConfigureDialogOpen(true)
+        },
+      },
+      {
+        id: 'logging-separator-restore-layout',
+        type: 'separator',
+      },
+      {
+        id: 'logging-restore-table-layout',
+        label: 'Restore Table Layout',
+        onSelect: handleRestoreMessageLogTableLayout,
+      },
+    ],
+    [
+      activeDeviceRecord,
+      activeDriver,
+      addMessageLogMarker,
+      captureMenuItems,
+      exportSelectedMessageLog,
+      handleRestoreMessageLogTableLayout,
+      hasSelectedMessages,
+      isGoodCrcHidden,
+      isMessageLogClearing,
+      isMessageLogConfiguring,
+      isMessageLogExporting,
+      isMessageLogImporting,
+      isMessageLogMarking,
+      messageLogColumnVisibility,
+      messageLogFilters,
+      toggleGoodCrcMessages,
+    ],
+  )
   const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
     const deviceItems: MenuItem[] = [
       {
@@ -2731,25 +3020,7 @@ export const RackView = () => {
       {
         id: 'protection',
         label: 'Protection',
-        items: [
-          {
-            id: 'set-protection-thresholds',
-            label: 'Set thresholds...',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void handleSetProtectionThresholds()
-            },
-          },
-          {
-            id: 'reset-protection',
-            label: 'Reset',
-            meta: 'Y',
-            disabled: !activeDriver || !isProtectionTriggered,
-            onSelect: () => {
-              void handleResetProtection()
-            },
-          },
-        ],
+        items: protectionMenuItems,
       },
       {
         id: 'power-charge-meter',
@@ -2775,244 +3046,17 @@ export const RackView = () => {
       {
         id: 'mode',
         label: 'Mode',
-        items: [
-          {
-            id: 'set-mode',
-            type: 'submenu',
-            label: 'Set mode',
-            items: [
-              {
-                id: 'mode-disabled',
-                type: 'checkbox',
-                label: 'Disabled',
-                meta: 'D',
-                checked: activeDriverState?.role === CCBusRole.DISABLED,
-                disabled: !activeDriver,
-                onCheckedChange: () => {
-                  void handleSetActiveDeviceRole(CCBusRole.DISABLED)
-                },
-              },
-              {
-                id: 'mode-observer',
-                type: 'checkbox',
-                label: 'Observer',
-                meta: 'O',
-                checked: activeDriverState?.role === CCBusRole.OBSERVER,
-                disabled: !activeDriver,
-                onCheckedChange: () => {
-                  void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
-                },
-              },
-              {
-                id: 'mode-sink',
-                type: 'checkbox',
-                label: 'Sink',
-                meta: 'S',
-                checked: activeDriverState?.role === CCBusRole.SINK,
-                disabled: !activeDriver,
-                onCheckedChange: () => {
-                  void handleSetActiveDeviceRole(CCBusRole.SINK)
-                },
-              },
-            ],
-          },
-          {
-            id: 'mode-separator-power-contract',
-            type: 'separator',
-          },
-          {
-            id: 'choose-power-contract',
-            label: 'Choose power contract...',
-            meta: 'P',
-            disabled: !activeDriver || !isSinkMode,
-            onSelect: () => {
-              void openGlobalSinkRequestDialog()
-            },
-          },
-          {
-            id: 'sink-behaviour',
-            type: 'submenu',
-            label: 'Sink behaviour',
-            disabled: !activeDriver || !isSinkMode,
-            items: [
-              {
-                id: 'support-epr-mode',
-                type: 'checkbox',
-                label: 'Support EPR mode',
-                checked: activeDriverState?.sinkEprEnabled === true,
-                disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
-                onCheckedChange: (checked) => {
-                  void handleSetActiveSinkEprEnabled(checked)
-                },
-              },
-              {
-                id: 'send-get-pps-status-messages',
-                type: 'checkbox',
-                label: 'Send Get_PPS_Status messages',
-                checked: activeDriverState?.sinkPpsStatusQueryEnabled === true,
-                disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
-                onCheckedChange: (checked) => {
-                  void handleSetActiveSinkPpsStatusQueryEnabled(checked)
-                },
-              },
-            ],
-          },
-          {
-            id: 'mode-separator-usb-cycle',
-            type: 'separator',
-          },
-          {
-            id: 'cycle-usb-connection',
-            label: 'Cycle USB Connection',
-            meta: 'T',
-            disabled: !canCycleUsbConnection,
-            onSelect: () => {
-              void handlePulseUsbConnection()
-            },
-          },
-        ],
+        items: modeMenuItems,
       },
       {
         id: 'logging',
         label: 'Message Log',
-        items: [
-          {
-            id: 'logging-toggle-capture',
-            label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
-            meta: 'C',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void handleToggleActiveDeviceCapture()
-            },
-          },
-          {
-            id: 'logging-separator-capture',
-            type: 'separator',
-          },
-          {
-            id: 'logging-clear-log',
-            label: 'Clear Log',
-            meta: 'X',
-            disabled: !activeDriver || isMessageLogClearing,
-            onSelect: () => setIsMessageLogClearDialogOpen(true),
-          },
-          {
-            id: 'logging-add-marker',
-            label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
-            meta: 'M',
-            disabled: !activeDriver || isMessageLogMarking,
-            onSelect: addMessageLogMarker,
-          },
-          {
-            id: 'logging-separator-import',
-            type: 'separator',
-          },
-          {
-            id: 'logging-import-json',
-            label: 'Import JSON...',
-            disabled: !activeDriver || isMessageLogImporting,
-            onSelect: () => {
-              setMessageLogImportFile(null)
-              setMessageLogImportError(null)
-              setIsMessageLogImportDialogOpen(true)
-            },
-          },
-          {
-            id: 'logging-export-selected',
-            type: 'submenu',
-            label: 'Export Selected',
-            disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
-            items: [
-              {
-                id: 'logging-export-selected-json',
-                label: 'JSON...',
-                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
-                onSelect: () => exportSelectedMessageLog('json'),
-              },
-              {
-                id: 'logging-export-selected-csv',
-                label: 'CSV...',
-                disabled: !activeDriver || !hasSelectedMessages || isMessageLogExporting,
-                onSelect: () => exportSelectedMessageLog('csv'),
-              },
-            ],
-          },
-          {
-            id: 'logging-separator-filters',
-            type: 'separator',
-          },
-          {
-            id: 'logging-show-goodcrc',
-            type: 'checkbox',
-            label: 'Hide GoodCRC Messages',
-            meta: 'G',
-            checked: isGoodCrcHidden,
-            disabled: !activeDriver,
-            onCheckedChange: toggleGoodCrcMessages,
-          },
-          {
-            id: 'logging-filter',
-            label: countMessageLogFilters(messageLogFilters) > 0
-              ? `Filter... (${countMessageLogFilters(messageLogFilters)})`
-              : 'Filter...',
-            meta: 'F',
-            disabled: !activeDriver,
-            onSelect: () => setIsMessageLogFilterDialogOpen(true),
-          },
-          {
-            id: 'logging-separator-configure',
-            type: 'separator',
-          },
-          {
-            id: 'logging-configure',
-            label: 'Configure...',
-            disabled: !activeDriver || !activeDeviceRecord || isMessageLogConfiguring,
-            onSelect: () => {
-              const configured = activeDeviceRecord?.config &&
-                typeof activeDeviceRecord.config === 'object'
-                ? normalizeLoggingConfig(
-                    (activeDeviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
-                  )
-                : buildDefaultLoggingConfig()
-              setMessageLogBufferInput(configured.maxCapturedMessages.toString())
-              setMessageLogBufferError(null)
-              setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
-              setIsMessageLogConfigureDialogOpen(true)
-            },
-          },
-          {
-            id: 'logging-separator-restore-layout',
-            type: 'separator',
-          },
-          {
-            id: 'logging-restore-table-layout',
-            label: 'Restore Table Layout',
-            onSelect: handleRestoreMessageLogTableLayout,
-          },
-        ],
+        items: messageLogMenuItems,
       },
       {
         id: 'trigger',
         label: 'Trigger',
-        items: [
-          {
-            id: 'configure-trigger',
-            label: 'Configure...',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void openGlobalTriggerConfigureDialog()
-            },
-          },
-          {
-            id: 'reset-trigger',
-            label: 'Reset',
-            meta: 'R',
-            disabled: !activeDriver || !isTriggerActivated,
-            onSelect: () => {
-              void handleResetTrigger()
-            },
-          },
-        ],
+        items: triggerMenuItems,
       },
       {
         id: 'firmware',
@@ -3139,56 +3183,29 @@ export const RackView = () => {
     ]
   }, [
     activeDriver,
-    activeDriverState?.role,
-    addMessageLogMarker,
-    canCycleUsbConnection,
     canInstall,
-    canUseSinkBehaviourSettings,
     deviceStates,
     firmwareUpdateChannel,
     firmwareUpdatePrompt,
-    exportSelectedMessageLog,
     handleConnectPairedDevice,
     handleDisconnectDevice,
     handleOpenCalibrationDialog,
     handleOpenDeviceNameDialog,
     handleOpenDocumentation,
-    handlePulseUsbConnection,
     handleRemoveDevice,
     handleResetPowerChargeMeter,
-    handleResetProtection,
-    handleResetTrigger,
-    handleRestoreMessageLogTableLayout,
-    handleSetActiveDeviceRole,
-    handleSetProtectionThresholds,
     handleRefreshActiveDeviceState,
-    handleToggleActiveDeviceCapture,
     isFirmwareUploadBusy,
-    isCaptureEnabled,
-    isProtectionTriggered,
-    isSinkMode,
-    isTriggerActivated,
-    hasSelectedMessages,
-    isGoodCrcShown,
-    isGoodCrcHidden,
-    isMessageLogClearing,
-    isMessageLogConfiguring,
-    isMessageLogExporting,
-    isMessageLogImporting,
-    isMessageLogMarking,
     layoutMode,
-    messageLogColumnVisibility,
-    messageLogFilters,
-    openGlobalSinkRequestDialog,
-    openGlobalTriggerConfigureDialog,
+    messageLogMenuItems,
+    modeMenuItems,
     pairedDevices,
+    protectionMenuItems,
     promptInstall,
     showTimestrip,
     theme,
     timeSinceMeterReset,
-    toggleGoodCrcMessages,
-    handleSetActiveSinkEprEnabled,
-    handleSetActiveSinkPpsStatusQueryEnabled,
+    triggerMenuItems,
   ])
 
   return (
@@ -3244,7 +3261,13 @@ export const RackView = () => {
                     <span className={styles.srOnly}>{currentRack?.name ?? 'Rack'}</span>
                     <img className={styles.logo} src={headerLogoSrc} alt="Dr.PD" />
                   </h1>
-                  <HeaderVbusMetrics driver={activeConnectedDeviceState?.drpdDriver} />
+                  <HeaderVbusMetrics
+                    driver={activeConnectedDeviceState?.drpdDriver}
+                    captureMenuItems={captureMenuItems}
+                    modeMenuItems={modeMenuItems}
+                    protectionMenuItems={protectionMenuItems}
+                    triggerMenuItems={triggerMenuItems}
+                  />
                 </div>
               </div>
             </header>
@@ -3277,6 +3300,7 @@ export const RackView = () => {
             onInstrumentResize={handleRackInstrumentResize}
             onRowResize={handleRackRowResize}
             onUpdateDeviceConfig={handleUpdateDeviceConfig}
+            messageLogMenuItems={messageLogMenuItems}
           />
         ) : null}
         {!isLoading && !error && rackDocument && !activeRack ? (
@@ -3372,15 +3396,12 @@ export const RackView = () => {
         vbusInfo={activeVbusInfo}
         ovpThresholdInput={globalOvpThresholdInput}
         ocpThresholdInput={globalOcpThresholdInput}
-        displayUpdateRateInput={globalDisplayUpdateRateInput}
         configureError={globalVbusConfigureError}
         isApplyingConfig={isGlobalVbusApplying}
         setOvpThresholdInput={setGlobalOvpThresholdInput}
         setOcpThresholdInput={setGlobalOcpThresholdInput}
-        setDisplayUpdateRateInput={setGlobalDisplayUpdateRateInput}
         setConfigureError={setGlobalVbusConfigureError}
         setIsApplyingConfig={setIsGlobalVbusApplying}
-        setDisplayUpdateRateHz={() => undefined}
       />
       <SinkRequestPopover
         open={isGlobalSinkDialogOpen}
@@ -3592,8 +3613,6 @@ export const RackView = () => {
         eventTypeInput={globalTriggerEventTypeInput}
         senderFilterInput={globalTriggerSenderInput}
         messageTypeFiltersInput={globalTriggerMessageTypeFiltersInput}
-        messageTypeFilterClassInput={globalTriggerMessageTypeFilterClassInput}
-        messageTypeFilterTypeInput={globalTriggerMessageTypeFilterTypeInput}
         eventThresholdInput={globalTriggerThresholdInput}
         autoRepeatInput={globalTriggerAutoRepeatInput}
         syncModeInput={globalTriggerSyncModeInput}
@@ -3603,8 +3622,6 @@ export const RackView = () => {
         setEventTypeInput={setGlobalTriggerEventTypeInput}
         setSenderFilterInput={setGlobalTriggerSenderInput}
         setMessageTypeFiltersInput={setGlobalTriggerMessageTypeFiltersInput}
-        setMessageTypeFilterClassInput={setGlobalTriggerMessageTypeFilterClassInput}
-        setMessageTypeFilterTypeInput={setGlobalTriggerMessageTypeFilterTypeInput}
         setEventThresholdInput={setGlobalTriggerThresholdInput}
         setAutoRepeatInput={setGlobalTriggerAutoRepeatInput}
         setSyncModeInput={setGlobalTriggerSyncModeInput}
@@ -3625,7 +3642,7 @@ export const RackView = () => {
             return
           }
           if (!Number.isInteger(parsedPulseWidthUs) || parsedPulseWidthUs < 1) {
-            setGlobalTriggerConfigureError('Pulse width must be an integer greater than or equal to 1 us.')
+            setGlobalTriggerConfigureError('Pulse width must be an integer greater than or equal to 1 µs.')
             return
           }
           setIsGlobalTriggerApplying(true)
@@ -3657,8 +3674,16 @@ export const RackView = () => {
 
 const HeaderVbusMetrics = ({
   driver,
+  captureMenuItems,
+  modeMenuItems,
+  protectionMenuItems,
+  triggerMenuItems,
 }: {
   driver?: DRPDDriverRuntime
+  captureMenuItems: MenuItem[]
+  modeMenuItems: MenuItem[]
+  protectionMenuItems: MenuItem[]
+  triggerMenuItems: MenuItem[]
 }) => {
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null,
@@ -3904,57 +3929,89 @@ const HeaderVbusMetrics = ({
         </div>
       </div>
       <div className={styles.headerVbusStatusGrid}>
-        <div className={styles.headerVbusProtection}>
-          <div
-            className={styles.headerVbusProtectionCell}
-            data-triggered={isOvpTriggered ? 'true' : 'false'}
-          >
-            <span className={styles.headerVbusProtectionLabel}>OVP</span>
-            <HeaderProtectionValue value={ovpValueText} />
-          </div>
-          <div
-            className={styles.headerVbusProtectionCell}
-            data-triggered={isOcpTriggered ? 'true' : 'false'}
-          >
-            <span className={styles.headerVbusProtectionLabel}>OCP</span>
-            <HeaderProtectionValue value={ocpValueText} />
-          </div>
-        </div>
-        <div className={styles.headerVbusProtection}>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>MODE</span>
-            <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
-          </div>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>STATUS</span>
-            <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
-          </div>
-        </div>
-        <div className={styles.headerVbusProtection}>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
-            <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
-          </div>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
-            <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
-          </div>
-        </div>
-        <div className={styles.headerVbusProtection}>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
-            <span
-              className={styles.headerVbusRoleStatusValue}
-              data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+        <ContextMenu label="Protection menu" items={protectionMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="VBUS protection"
             >
-              {triggerStateText}
-            </span>
-          </div>
-          <div className={styles.headerVbusProtectionCell}>
-            <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
-            <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
-          </div>
-        </div>
+              <div
+                className={styles.headerVbusProtectionCell}
+                data-triggered={isOvpTriggered ? 'true' : 'false'}
+              >
+                <span className={styles.headerVbusProtectionLabel}>OVP</span>
+                <HeaderProtectionValue value={ovpValueText} />
+              </div>
+              <div
+                className={styles.headerVbusProtectionCell}
+                data-triggered={isOcpTriggered ? 'true' : 'false'}
+              >
+                <span className={styles.headerVbusProtectionLabel}>OCP</span>
+                <HeaderProtectionValue value={ocpValueText} />
+              </div>
+            </div>
+          )}
+        </ContextMenu>
+        <ContextMenu label="Mode menu" items={modeMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Mode status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>MODE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
+        <ContextMenu label="Capture menu" items={captureMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Capture status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
+        <ContextMenu label="Trigger menu" items={triggerMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Trigger status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>SYNC STATE</span>
+                <span
+                  className={styles.headerVbusRoleStatusValue}
+                  data-alert={isTriggerStateTriggered ? 'true' : 'false'}
+                >
+                  {triggerStateText}
+                </span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>EVENT COUNT</span>
+                <span className={styles.headerVbusRoleStatusValue}>{triggerCountText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
       </div>
     </div>
   )

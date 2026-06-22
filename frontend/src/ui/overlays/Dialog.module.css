@@ -29,13 +29,18 @@
 .header {
   display: grid;
   gap: var(--space-4);
+  margin: calc(-1 * var(--space-16)) calc(-1 * var(--space-16)) var(--space-0);
+  padding: var(--space-10) var(--space-16);
   min-width: 0;
+  background: var(--color-surface-panel-accent);
+  border-bottom: var(--border-thin) solid var(--color-border-panel);
+  border-radius: var(--radius-sm) var(--radius-sm) var(--radius-none) var(--radius-none);
 }
 
 .title {
   margin: var(--space-0);
   color: var(--color-text-primary);
-  font-size: var(--font-size-header-popup-text);
+  font-size: var(--font-size-header-popup-label);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -60,7 +65,7 @@
 .formRow {
   display: grid;
   grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: var(--space-8);
   min-width: 0;
 }
@@ -72,10 +77,10 @@
 }
 
 .label {
+  padding-top: var(--space-4);
   color: var(--color-text-muted);
   font-size: var(--font-size-header-popup-label);
-  letter-spacing: var(--letter-spacing-md);
-  text-transform: uppercase;
+  line-height: var(--line-height-normal);
   white-space: nowrap;
 }
 
@@ -86,13 +91,14 @@
 .helpText {
   margin: var(--space-0);
   color: var(--color-text-muted);
-  font-size: var(--font-size-header-popup-hint);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
 }
 
 .errorText {
   margin: var(--space-0);
   color: var(--color-status-error);
-  font-size: var(--font-size-header-popup-hint);
+  font-size: var(--font-size-md);
 }
 
 .footer {
@@ -139,9 +145,16 @@
   width: 100%;
   min-width: 0;
   border: var(--border-thin) solid var(--color-border-panel);
-  padding: var(--space-8) var(--space-10);
+  padding: var(--space-2) var(--space-6);
   color: var(--color-text-primary);
   background: var(--color-surface-instrument);
   font: inherit;
   font-size: var(--font-size-header-popup-input);
+}
+
+.input[readonly] {
+  border-color: color-mix(in srgb, var(--color-border-panel) 70%, var(--color-text-muted));
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-panel) 82%, var(--color-surface-panel-accent));
+  cursor: default;
 }

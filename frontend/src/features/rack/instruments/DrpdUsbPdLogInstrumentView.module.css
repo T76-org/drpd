@@ -376,11 +376,23 @@
   color: var(--color-status-error);
 }
 
+.filterForm {
+  display: grid;
+  gap: var(--space-10);
+  min-width: 0;
+}
+
+.filterForm :is(input, select, button):focus,
+.filterForm :is(input, select, button):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .filterGroups {
   display: grid;
-  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-8);
-  width: min(420px, calc(100vw - var(--space-32)));
+  width: 100%;
   max-width: 100%;
 }
 
@@ -389,28 +401,37 @@
   gap: var(--space-4);
   min-width: 0;
   margin: var(--space-0);
-  padding: var(--space-6);
+  padding: var(--space-6) var(--space-10) var(--space-10);
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-instrument) 72%, transparent);
+  margin-bottom: var(--space-10);
+}
+
+.filterGroupWide {
+  grid-column: 1 / -1;
 }
 
 .filterLegend {
   padding: 0 var(--space-4);
   font-size: var(--font-size-header-popup-label);
-  letter-spacing: var(--letter-spacing-md);
-  text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
 .filterOption {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-6);
+  gap: var(--space-8);
   min-width: 0;
   font-size: var(--font-size-header-popup-text);
   color: var(--color-text-primary);
   line-height: var(--line-height-tight);
+  cursor: pointer;
+}
+
+.filterOptionCheckbox {
+  margin: var(--space-0);
+  accent-color: var(--color-status-info);
 }
 
 .filterOptionLabel {
@@ -420,26 +441,87 @@
   white-space: nowrap;
 }
 
-.filterOptionActions {
+.messageTypeDualList {
   display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-8);
+  min-width: 0;
 }
 
-.filterModeButton {
+.messageTypeListColumn {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.messageTypeListLabel {
+  margin: var(--space-0);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.messageTypeSelect {
+  min-width: 0;
+  width: 100%;
+  min-height: 140px;
+  border: var(--border-thin) solid var(--color-border-panel);
+  background: color-mix(in srgb, var(--color-surface-panel) 86%, transparent);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-hint);
+  padding: var(--space-2);
+}
+
+.messageTypeActions {
+  display: grid;
+  align-content: center;
+  gap: var(--space-8);
+  padding-top: 10px;
+}
+
+.messageTypeMoveButton,
+.messageTypeResetButton {
+  min-width: 44px;
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-panel) 80%, transparent);
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   font-size: var(--font-size-header-popup-button);
   line-height: var(--line-height-tight);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-4) var(--space-6);
   cursor: pointer;
 }
 
-.filterModeButtonActive {
+.messageTypeResetButton {
+  min-width: 56px;
+}
+
+@media (max-width: 520px) {
+  .filterGroups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .messageTypeDualList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .messageTypeActions {
+    grid-template-columns: repeat(3, auto);
+    justify-content: center;
+  }
+}
+
+.filterGoodCrcOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  padding: var(--space-2) calc(var(--space-10) + var(--border-thin)) var(--space-0);
+  font-size: var(--font-size-header-popup-text);
   color: var(--color-text-primary);
-  border-color: color-mix(in srgb, var(--color-status-info) 70%, var(--color-border-panel));
-  background: color-mix(in srgb, var(--color-status-info) 24%, var(--color-surface-panel));
+  line-height: var(--line-height-tight);
+  cursor: pointer;
 }
 
 .filterEmpty {

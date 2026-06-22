@@ -18,6 +18,7 @@ import { DrpdTimeStripInstrumentView } from './instruments/DrpdTimeStripInstrume
 import { DrpdTriggerInstrumentView } from './instruments/DrpdTriggerInstrumentView'
 import { DrpdUsbPdLogInstrumentView } from './instruments/DrpdUsbPdLogInstrumentView'
 import { DrpdVbusInstrumentView } from './instruments/DrpdVbusInstrumentView'
+import type { MenuItem } from '../../ui/overlays'
 import styles from './RowRenderer.module.css'
 
 /**
@@ -36,7 +37,8 @@ export const RowRenderer = ({
   onInstrumentDrop,
   onInstrumentDragEnd,
   onInstrumentResize,
-  onUpdateDeviceConfig
+  onUpdateDeviceConfig,
+  messageLogMenuItems
 }: {
   row: RackRow
   rowIndex: number
@@ -54,6 +56,7 @@ export const RowRenderer = ({
     deviceRecordId: string,
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
   ) => Promise<void> | void
+  messageLogMenuItems?: MenuItem[]
 }) => {
   const instrumentMap = new Map(instruments.map((instrument) => [instrument.identifier, instrument]))
   const drpdVbusInstrument = instrumentMap.get('com.mta.drpd.vbus')
@@ -173,7 +176,8 @@ export const RowRenderer = ({
                 deviceState,
                 isEditMode,
                 onRemove: onRemoveInstrument,
-                onUpdateDeviceConfig
+                onUpdateDeviceConfig,
+                messageLogMenuItems
               })}
             </div>
           </Fragment>
@@ -294,7 +298,8 @@ const renderInstrument = ({
   deviceState,
   isEditMode,
   onRemove,
-  onUpdateDeviceConfig
+  onUpdateDeviceConfig,
+  messageLogMenuItems
 }: {
   instrument: RackInstrument
   definition?: Instrument
@@ -306,6 +311,7 @@ const renderInstrument = ({
     deviceRecordId: string,
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
   ) => Promise<void> | void
+  messageLogMenuItems?: MenuItem[]
 }): ReactNode => {
   switch (instrument.instrumentIdentifier) {
     case 'com.mta.drpd.sink-control':
@@ -342,6 +348,7 @@ const renderInstrument = ({
           isEditMode={isEditMode}
           onRemove={onRemove}
           onUpdateDeviceConfig={onUpdateDeviceConfig}
+          messageLogMenuItems={messageLogMenuItems}
         />
       )
     case 'com.mta.drpd.timestrip':

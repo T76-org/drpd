@@ -1,5 +1,11 @@
 import { SinkPdoType, type SinkPdo } from '../../../../lib/device'
-import { Dialog, DialogButton } from '../../../../ui/overlays'
+import {
+  Dialog,
+  DialogButton,
+  DialogForm,
+  DialogFormRow,
+  DialogInput,
+} from '../../../../ui/overlays'
 import styles from '../../instruments/DrpdSinkControlInstrumentView.module.css'
 
 type NonNullSinkPdo = Exclude<SinkPdo, null>
@@ -104,9 +110,8 @@ export const SinkRequestPopover = ({
   <Dialog
     open={open}
     onOpenChange={onOpenChange}
-    title="Sink request tuning"
-    description="Choose a PDO and request voltage/current."
-    dialogStyle={{ width: 'min(520px, calc(100vw - var(--space-32)))' }}
+    title="Sink power contract selection"
+    dialogStyle={{ width: 'min(364px, calc(100vw - var(--space-32)))' }}
     footer={
       <>
         <DialogButton onClick={onCancel}>Cancel</DialogButton>
@@ -137,7 +142,34 @@ export const SinkRequestPopover = ({
                 type="button"
                 role="option"
                 aria-selected={selectedIndex === index}
+                data-pdo-index={index}
                 className={`${styles.pdoListItem} ${selectedIndex === index ? styles.pdoListItemSelected : ''}`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && canSubmit) {
+                    event.preventDefault()
+                    onSubmit()
+                    return
+                  }
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+                    return
+                  }
+                  event.preventDefault()
+                  const direction = event.key === 'ArrowDown' ? 1 : -1
+                  const nextIndex = Math.min(
+                    Math.max(index + direction, 0),
+                    sinkPdoList.length - 1,
+                  )
+                  if (nextIndex === index) {
+                    return
+                  }
+                  setSelectedIndex(nextIndex)
+                  setRequestErrorMessage(null)
+                  setRequestStatus('idle')
+                  const nextOption = event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(
+                    `[data-pdo-index="${nextIndex}"]`,
+                  )
+                  nextOption?.focus()
+                }}
                 onClick={() => {
                   setSelectedIndex(index)
                   setRequestErrorMessage(null)
@@ -157,47 +189,54 @@ export const SinkRequestPopover = ({
       </div>
 
       <div className={styles.requestPane}>
-        <div className={styles.requestBody}>
-          <label className={styles.fieldLabel} htmlFor={`${instrumentId}-voltage`}>
-            Voltage
-          </label>
-          <input
-            id={`${instrumentId}-voltage`}
-            className={styles.control}
-            value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
-            onChange={(event) => {
-              setVoltageV(event.target.value)
-              setRequestErrorMessage(null)
-              setRequestStatus('idle')
-            }}
-            readOnly={!isVoltageEditable(selectedPdo)}
-            aria-readonly={!isVoltageEditable(selectedPdo)}
-            disabled={!selectedPdo}
-          />
+        <DialogForm
+          className={styles.requestBody}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || !canSubmit) {
+              return
+            }
+            event.preventDefault()
+            onSubmit()
+          }}
+        >
+          <DialogFormRow
+            label="Voltage"
+            htmlFor={`${instrumentId}-voltage`}
+            helpText={voltageHint}
+          >
+            <DialogInput
+              id={`${instrumentId}-voltage`}
+              className={styles.numericInput}
+              value={selectedPdo?.type === SinkPdoType.FIXED ? selectedPdo.voltageV.toFixed(2) : voltageV}
+              onChange={(event) => {
+                setVoltageV(event.target.value)
+                setRequestErrorMessage(null)
+                setRequestStatus('idle')
+              }}
+              readOnly={!isVoltageEditable(selectedPdo)}
+              aria-readonly={!isVoltageEditable(selectedPdo)}
+              disabled={!selectedPdo}
+            />
+          </DialogFormRow>
 
-          <div className={styles.fieldMeta} />
-          <div className={styles.fieldHint}>{voltageHint}</div>
-
-          <label className={styles.fieldLabel} htmlFor={`${instrumentId}-current`}>
-            Current
-          </label>
-          <input
-            id={`${instrumentId}-current`}
-            className={styles.control}
-            value={currentA}
-            onChange={(event) => {
-              setCurrentA(event.target.value)
-              setRequestErrorMessage(null)
-              setRequestStatus('idle')
-            }}
-            disabled={!selectedPdo}
-          />
-
-          <div className={styles.fieldMeta} />
-          <div className={styles.fieldHint}>
-            {currentRangeLabel}
-          </div>
-        </div>
+          <DialogFormRow
+            label="Current"
+            htmlFor={`${instrumentId}-current`}
+            helpText={currentRangeLabel}
+          >
+            <DialogInput
+              id={`${instrumentId}-current`}
+              className={styles.numericInput}
+              value={currentA}
+              onChange={(event) => {
+                setCurrentA(event.target.value)
+                setRequestErrorMessage(null)
+                setRequestStatus('idle')
+              }}
+              disabled={!selectedPdo}
+            />
+          </DialogFormRow>
+        </DialogForm>
 
         <div
           className={`${styles.message} ${

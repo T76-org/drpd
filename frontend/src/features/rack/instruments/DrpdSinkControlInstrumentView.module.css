@@ -124,31 +124,9 @@
   color: var(--color-metric-current);
 }
 
-.fieldLabel {
-  font-size: var(--font-size-header-popup-label);
-  letter-spacing: var(--letter-spacing-xl);
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  padding-right: var(--space-4);
-}
-
-.control {
-  box-sizing: border-box;
-  width: 72px;
-  border: var(--border-thin) solid var(--color-border-panel);
-  background: var(--color-surface-instrument);
-  color: var(--color-text-primary);
-  padding: var(--space-4) var(--space-2);
-  font-size: var(--font-size-header-popup-input);
-  line-height: var(--line-height-tight);
+.numericInput {
   font-variant-numeric: tabular-nums;
-  min-width: 0;
   text-align: right;
-}
-
-.control[readonly] {
-  opacity: 0.85;
-  cursor: default;
 }
 
 .selectControl {
@@ -201,7 +179,7 @@
 
 .advancedLayout {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.95fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-12);
   align-items: stretch;
   min-width: 0;
@@ -252,10 +230,6 @@
   border-bottom: 0;
 }
 
-.pdoListItem:hover {
-  background: color-mix(in srgb, var(--color-surface-instrument) 72%, var(--color-status-info) 28%);
-}
-
 .pdoListItem:focus-visible {
   outline: var(--border-thin) solid var(--color-status-info);
   outline-offset: calc(var(--border-thin) * -1);
@@ -263,8 +237,7 @@
 
 .pdoListItemSelected,
 .pdoListItem[aria-selected='true'] {
-  background: color-mix(in srgb, var(--color-surface-instrument) 55%, var(--color-status-info) 45%);
-  box-shadow: inset 2px 0 0 var(--color-status-info);
+  background: color-mix(in srgb, var(--color-surface-panel) 55%, var(--color-status-info) 45%);
 }
 
 .pdoListItemTitle {
@@ -298,24 +271,8 @@
 
 .requestBody {
   display: grid;
-  grid-template-columns: max-content minmax(72px, 1fr);
-  align-items: center;
-  column-gap: var(--space-8);
-  row-gap: var(--space-4);
-  min-width: 0;
-}
-
-.fieldMeta {
-  min-height: var(--space-16);
-}
-
-.fieldHint {
-  font-size: var(--font-size-header-popup-hint);
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
-  margin-top: calc(var(--space-2) * -1);
-  white-space: normal;
-  line-height: var(--line-height-tight);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-10);
   min-width: 0;
 }
 
@@ -343,7 +300,7 @@
 }
 
 @media (max-width: 560px) {
-  .advancedLayout {
+  .requestBody {
     grid-template-columns: 1fr;
   }
 }

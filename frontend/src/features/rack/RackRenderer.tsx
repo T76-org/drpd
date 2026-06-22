@@ -5,6 +5,7 @@ import type { RackDefinition, RackDeviceRecord, RackInstrument } from '../../lib
 import { resolveRowFlex } from './layout'
 import { RowRenderer, type RackInstrumentResizePayload } from './RowRenderer'
 import { InstrumentBase } from './InstrumentBase'
+import type { MenuItem } from '../../ui/overlays'
 import styles from './RackRenderer.module.css'
 
 /**
@@ -23,6 +24,7 @@ export const RackRenderer = ({
   onInstrumentResize,
   onRowResize,
   onUpdateDeviceConfig,
+  messageLogMenuItems,
   activeDeviceRecord
 }: {
   rack: RackDefinition
@@ -40,6 +42,7 @@ export const RackRenderer = ({
     deviceRecordId: string,
     updater: (current: Record<string, unknown> | undefined) => Record<string, unknown>,
   ) => Promise<void> | void
+  messageLogMenuItems?: MenuItem[]
   activeDeviceRecord?: RackDeviceRecord
 }) => {
   const instrumentMap = new Map(
@@ -107,6 +110,7 @@ export const RackRenderer = ({
                         onInstrumentDragEnd={onInstrumentDragEnd}
                         onInstrumentResize={onInstrumentResize}
                         onUpdateDeviceConfig={onUpdateDeviceConfig}
+                        messageLogMenuItems={messageLogMenuItems}
                       />
                       {rowIndex < rack.rows.length - 1 ? (
                         <RowResizeHandle

@@ -20,15 +20,12 @@ export const VbusConfigurePopover = ({
   vbusInfo,
   ovpThresholdInput,
   ocpThresholdInput,
-  displayUpdateRateInput,
   configureError,
   isApplyingConfig,
   setOvpThresholdInput,
   setOcpThresholdInput,
-  setDisplayUpdateRateInput,
   setConfigureError,
   setIsApplyingConfig,
-  setDisplayUpdateRateHz,
 }: {
   instrumentId: string
   open: boolean
@@ -37,15 +34,12 @@ export const VbusConfigurePopover = ({
   vbusInfo: VBusInfo | null
   ovpThresholdInput: string
   ocpThresholdInput: string
-  displayUpdateRateInput: string
   configureError: string | null
   isApplyingConfig: boolean
   setOvpThresholdInput: (value: string) => void
   setOcpThresholdInput: (value: string) => void
-  setDisplayUpdateRateInput: (value: string) => void
   setConfigureError: (value: string | null) => void
   setIsApplyingConfig: (value: boolean) => void
-  setDisplayUpdateRateHz: (value: number) => void
 }) => {
   const closeDialog = () => {
     onOpenChange(false)
@@ -55,8 +49,7 @@ export const VbusConfigurePopover = ({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="VBUS settings"
-      description={`OVP range: 0-${VBUS_OVP_MAX_V} V. OCP range: 0-${VBUS_OCP_MAX_A} A.`}
+      title="OVP/OCP settings"
       dismissible={!isApplyingConfig}
       footer={
         <>
@@ -77,7 +70,6 @@ export const VbusConfigurePopover = ({
               }
               const parsedOvpV = Number(ovpThresholdInput)
               const parsedOcpA = Number(ocpThresholdInput)
-              const parsedDisplayUpdateRateHz = Number(displayUpdateRateInput)
               if (!Number.isFinite(parsedOvpV) || parsedOvpV < 0 || parsedOvpV > VBUS_OVP_MAX_V) {
                 setConfigureError(`OVP must be between 0 and ${VBUS_OVP_MAX_V} V.`)
                 return
@@ -86,22 +78,11 @@ export const VbusConfigurePopover = ({
                 setConfigureError(`OCP must be between 0 and ${VBUS_OCP_MAX_A} A.`)
                 return
               }
-              if (
-                !Number.isFinite(parsedDisplayUpdateRateHz) ||
-                parsedDisplayUpdateRateHz < VBUS_MIN_DISPLAY_UPDATE_RATE_HZ ||
-                parsedDisplayUpdateRateHz > VBUS_MAX_DISPLAY_UPDATE_RATE_HZ
-              ) {
-                setConfigureError(
-                  `Display rate must be between ${VBUS_MIN_DISPLAY_UPDATE_RATE_HZ} and ${VBUS_MAX_DISPLAY_UPDATE_RATE_HZ} Hz.`,
-                )
-                return
-              }
 
               setIsApplyingConfig(true)
               setConfigureError(null)
               void Promise.resolve()
                 .then(async () => {
-                  setDisplayUpdateRateHz(parsedDisplayUpdateRateHz)
                   if (vbusInfo?.status === VBusStatus.OVP || vbusInfo?.status === VBusStatus.OCP) {
                     await driver.vbus.resetFault()
                   }
@@ -126,7 +107,11 @@ export const VbusConfigurePopover = ({
       }
     >
       <DialogForm>
-        <DialogFormRow label="OVP (V)" htmlFor={`${instrumentId}-ovp`}>
+        <DialogFormRow
+          label="OVP (V)"
+          htmlFor={`${instrumentId}-ovp`}
+          helpText={`Range: 0-${VBUS_OVP_MAX_V} V`}
+        >
           <DialogInput
             id={`${instrumentId}-ovp`}
             type="number"
@@ -141,7 +126,12 @@ export const VbusConfigurePopover = ({
             disabled={isApplyingConfig}
           />
         </DialogFormRow>
-        <DialogFormRow label="OCP (A)" htmlFor={`${instrumentId}-ocp`}>
+        <DialogFormRow
+          label="OCP (A)"
+          htmlFor={`${instrumentId}-ocp`}
+          helpText={`Range: 0-${VBUS_OCP_MAX_A} A`}
+          errorText={configureError ?? undefined}
+        >
           <DialogInput
             id={`${instrumentId}-ocp`}
             type="number"
@@ -151,26 +141,6 @@ export const VbusConfigurePopover = ({
             value={ocpThresholdInput}
             onChange={(event) => {
               setOcpThresholdInput(event.currentTarget.value)
-              setConfigureError(null)
-            }}
-            disabled={isApplyingConfig}
-          />
-        </DialogFormRow>
-        <DialogFormRow
-          label="Display Rate"
-          htmlFor={`${instrumentId}-display-rate`}
-          helpText={`Range: ${VBUS_MIN_DISPLAY_UPDATE_RATE_HZ}-${VBUS_MAX_DISPLAY_UPDATE_RATE_HZ} Hz`}
-          errorText={configureError ?? undefined}
-        >
-          <DialogInput
-            id={`${instrumentId}-display-rate`}
-            type="number"
-            min={VBUS_MIN_DISPLAY_UPDATE_RATE_HZ}
-            max={VBUS_MAX_DISPLAY_UPDATE_RATE_HZ}
-            step={1}
-            value={displayUpdateRateInput}
-            onChange={(event) => {
-              setDisplayUpdateRateInput(event.currentTarget.value)
               setConfigureError(null)
             }}
             disabled={isApplyingConfig}

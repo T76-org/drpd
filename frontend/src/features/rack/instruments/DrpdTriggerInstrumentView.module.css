@@ -88,20 +88,26 @@
   min-width: 290px;
 }
 
-.headerPopupFieldRow {
+.headerPopup .headerPopupRow,
+.headerPopup .headerPopupStatusRow {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+.headerPopup .headerPopupRow {
+  align-items: baseline;
+}
+
+.headerPopup .headerPopupRow > label {
+  padding-top: 0;
+}
+
+.headerPopupStatusRow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-8);
 }
 
-.headerPopupField {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.headerPopupLabel {
-  font-size: var(--font-size-header-popup-label);
-  color: var(--color-text-muted);
+.headerPopupStatusRow::before {
+  content: '';
 }
 
 .headerPopupInput,
@@ -115,12 +121,6 @@
   font-size: var(--font-size-header-popup-input);
 }
 
-.headerPopupHint {
-  margin: 0;
-  font-size: var(--font-size-header-popup-hint);
-  color: var(--color-text-muted);
-}
-
 .headerPopupSection {
   display: grid;
   gap: var(--space-4);
@@ -129,7 +129,7 @@
 .headerPopupSectionHeader {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-4);
 }
 
@@ -140,7 +140,7 @@
 
 .headerPopupError {
   margin: 0;
-  font-size: var(--font-size-header-popup-hint);
+  font-size: var(--font-size-md);
   color: var(--color-status-error);
 }
 
@@ -150,71 +150,32 @@
   gap: var(--space-6);
 }
 
-.headerPopupButton {
-  border: var(--border-thin) solid var(--color-border-panel);
-  background: var(--color-surface-panel);
-  color: var(--color-text-primary);
-  padding: var(--space-4) var(--space-6);
-  font-size: var(--font-size-header-popup-button);
-  cursor: pointer;
+.messageFilterSlotList {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
-.headerPopupButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.messageFilterSlotRow {
+  display: grid;
+  grid-template-columns: auto minmax(8.5rem, 0.85fr) minmax(0, 1.6fr);
+  gap: var(--space-4);
+  align-items: center;
+  min-width: 0;
 }
 
-.filterChipList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.filterChip {
+.messageFilterSlotToggle {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   min-width: 0;
-  max-width: 100%;
-  padding: var(--space-2) var(--space-4);
-  border: var(--border-thin) solid var(--color-border-panel);
-  background: var(--color-surface-panel);
-  color: var(--color-text-primary);
+  color: var(--color-text-muted);
   font-size: var(--font-size-header-popup-hint);
-}
-
-.filterChipText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.filterChipRemove {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-header-popup-input);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.filterChipRemove:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.filterChipPlaceholder {
-  font-size: var(--font-size-header-popup-hint);
-  color: var(--color-text-muted);
-}
-
-.filterPickerRow {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr) auto;
-  gap: var(--space-4);
-  align-items: center;
+.messageFilterSlotToggle input {
+  margin: 0;
 }
 
 .metricFilterValue {

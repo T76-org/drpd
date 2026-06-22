@@ -17,6 +17,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type HTMLAttributes,
   type ButtonHTMLAttributes,
   type KeyboardEvent,
   type ReactElement,
@@ -85,6 +86,21 @@ export type MenuProps = {
   items: MenuItem[]
   ///< Preferred horizontal alignment below the trigger.
   align?: 'start' | 'end'
+  ///< Called whenever menu open state changes.
+  onOpenChange?: (open: boolean) => void
+}
+
+export type ContextMenuTriggerProps = HTMLAttributes<HTMLElement> & {
+  ref: (node: HTMLElement | null) => void
+}
+
+export type ContextMenuProps = {
+  ///< Accessible name for the context menu.
+  label: string
+  ///< Root items. Submenus support two nested levels.
+  items: MenuItem[]
+  ///< Render the context-menu target. Spread the provided props onto the target.
+  children: (props: ContextMenuTriggerProps) => ReactElement
   ///< Called whenever menu open state changes.
   onOpenChange?: (open: boolean) => void
 }
@@ -367,6 +383,215 @@ export const Menu = ({
   return (
     <>
       {triggerElement}
+      {open ? (
+        <FloatingPortal>
+          <div
+            {...getFloatingProps({
+              ref: refs.setFloating,
+              className: styles.menu,
+              style: floatingStyles,
+              role: 'menu',
+              'aria-label': label,
+              onKeyDown: handleRootKeyDown,
+            })}
+          >
+            {items.map((item, index) => (
+              <MenuItemButton
+                key={item.id}
+                item={item}
+                itemIndex={index}
+                active={activeRootIndex === index}
+                setItemRef={(node) => {
+                  rootItemRefs.current[index] = node
+                }}
+                onFocus={() => {
+                  setActiveRootIndex(index)
+                  if (!isSubmenuItem(item)) {
+                    setOpenSubmenuId(null)
+                  }
+                }}
+                onRequestClose={closeMenu}
+                submenuOpen={openSubmenuId === item.id}
+                onOpenSubmenu={() => {
+                  setFocusFirstSubmenuId(null)
+                  setOpenSubmenuId(item.id)
+                }}
+                onCloseSubmenu={() => {
+                  setFocusFirstSubmenuId(null)
+                  setOpenSubmenuId(null)
+                }}
+                focusFirstOnOpen={focusFirstSubmenuId === item.id}
+                forceOpenFirstNestedSubmenu={forceOpenFirstNestedSubmenuId === item.id}
+              />
+            ))}
+          </div>
+        </FloatingPortal>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * Reusable pointer-anchored context menu with the same item model and behavior as Menu.
+ */
+export const ContextMenu = ({
+  label,
+  items,
+  children,
+  onOpenChange,
+}: ContextMenuProps) => {
+  const [open, setOpen] = useState(false)
+  const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
+  const [focusFirstSubmenuId, setFocusFirstSubmenuId] = useState<string | null>(null)
+  const [forceOpenFirstNestedSubmenuId, setForceOpenFirstNestedSubmenuId] = useState<string | null>(
+    null,
+  )
+  const [activeRootIndex, setActiveRootIndex] = useState(-1)
+  const rootItemRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  const { refs, floatingStyles, context } = useFloating<HTMLElement>({
+    open,
+    onOpenChange(nextOpen) {
+      setOpen(nextOpen)
+      onOpenChange?.(nextOpen)
+      if (!nextOpen) {
+        setOpenSubmenuId(null)
+        setFocusFirstSubmenuId(null)
+        setForceOpenFirstNestedSubmenuId(null)
+        setActiveRootIndex(-1)
+      }
+    },
+    placement: 'right-start',
+    whileElementsMounted: autoUpdate,
+    middleware: [
+      offset(MENU_OFFSET_PX),
+      flip({ padding: MENU_VIEWPORT_PADDING_PX }),
+      shift({ padding: MENU_VIEWPORT_PADDING_PX }),
+      makeSizeMiddleware(),
+    ],
+  })
+
+  const dismiss = useDismiss(context, { escapeKey: true, outsidePress: true })
+  const { getReferenceProps, getFloatingProps } = useInteractions([dismiss])
+
+  const closeMenu = useCallback(() => {
+    setOpen(false)
+    setOpenSubmenuId(null)
+    setFocusFirstSubmenuId(null)
+    setForceOpenFirstNestedSubmenuId(null)
+    setActiveRootIndex(-1)
+    onOpenChange?.(false)
+  }, [onOpenChange])
+
+  const focusRootItem = useCallback((index: number) => {
+    if (index < 0) {
+      return
+    }
+    setActiveRootIndex(index)
+    rootItemRefs.current[index]?.focus()
+  }, [])
+
+  const activateRootItem = useCallback(
+    (index: number) => {
+      const item = items[index]
+      if (!item || !isSelectableItem(item) || item.disabled) {
+        return
+      }
+      if (item.type === 'checkbox') {
+        item.onCheckedChange(!item.checked)
+        closeMenu()
+        return
+      }
+      if (item.type === 'submenu') {
+        if (openSubmenuId === item.id) {
+          activateNestedMenuItem(item.items[getFirstEnabledIndex(item.items)], closeMenu)
+          return
+        }
+        setFocusFirstSubmenuId(item.id)
+        setOpenSubmenuId(item.id)
+        return
+      }
+      item.onSelect()
+      closeMenu()
+    },
+    [closeMenu, items, openSubmenuId],
+  )
+
+  const handleRootKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMenu()
+      return
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const direction = event.key === 'ArrowDown' ? 1 : -1
+      focusRootItem(getNextEnabledIndex(items, activeRootIndex, direction))
+      return
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault()
+      focusRootItem(getFirstEnabledIndex(items))
+      return
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault()
+      focusRootItem(getLastEnabledIndex(items))
+      return
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      const focusedIndex = rootItemRefs.current.findIndex((node) => node === document.activeElement)
+      activateRootItem(focusedIndex === -1 ? activeRootIndex : focusedIndex)
+      return
+    }
+
+    if (event.key === 'ArrowRight') {
+      const focusedIndex = rootItemRefs.current.findIndex((node) => node === document.activeElement)
+      const item = items[focusedIndex === -1 ? activeRootIndex : focusedIndex]
+      if (!item || !isSubmenuItem(item) || item.disabled) {
+        return
+      }
+      event.preventDefault()
+      setFocusFirstSubmenuId(item.id)
+      setOpenSubmenuId(item.id)
+    }
+  }
+
+  const targetProps = getReferenceProps({
+    ref(node: HTMLElement | null) {
+      refs.setReference(node)
+    },
+    'aria-haspopup': 'menu',
+    'aria-expanded': open,
+    onContextMenu(event) {
+      event.preventDefault()
+      refs.setPositionReference({
+        getBoundingClientRect() {
+          return {
+            x: event.clientX,
+            y: event.clientY,
+            top: event.clientY,
+            right: event.clientX,
+            bottom: event.clientY,
+            left: event.clientX,
+            width: 0,
+            height: 0,
+          }
+        },
+      })
+      setOpen(true)
+      onOpenChange?.(true)
+    },
+  }) as unknown as ContextMenuTriggerProps
+
+  return (
+    <>
+      {children(targetProps)}
       {open ? (
         <FloatingPortal>
           <div

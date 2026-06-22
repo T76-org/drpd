@@ -173,9 +173,6 @@ export const DrpdVbusInstrumentView = ({
     }
     return (thresholdMa / 1000).toFixed(2)
   })
-  const [displayUpdateRateInput, setDisplayUpdateRateInput] = useState<string>(() =>
-    loadDisplayUpdateRateHz(displayRateStorageKey).toString(),
-  )
   const [configureError, setConfigureError] = useState<string | null>(null)
   const [isApplyingConfig, setIsApplyingConfig] = useState(false)
   const [isResettingProtection, setIsResettingProtection] = useState(false)
@@ -196,7 +193,6 @@ export const DrpdVbusInstrumentView = ({
 
   useEffect(() => {
     setDisplayUpdateRateHz(loadDisplayUpdateRateHz(displayRateStorageKey))
-    setDisplayUpdateRateInput(loadDisplayUpdateRateHz(displayRateStorageKey).toString())
   }, [displayRateStorageKey])
 
   useEffect(() => {
@@ -333,11 +329,9 @@ export const DrpdVbusInstrumentView = ({
       onClick: () => {
         prepareVbusConfigureDialog({
           vbusInfo,
-          displayUpdateRateHz,
           setConfigureError,
           setOvpThresholdInput,
           setOcpThresholdInput,
-          setDisplayUpdateRateInput,
         })
         setIsConfigureDialogOpen(true)
       },
@@ -346,7 +340,6 @@ export const DrpdVbusInstrumentView = ({
     return [resetControl, configureControl]
   }, [
     driver,
-    displayUpdateRateHz,
     isApplyingConfig,
     isProtectionTriggered,
     isEditMode,
@@ -439,15 +432,12 @@ export const DrpdVbusInstrumentView = ({
         vbusInfo={vbusInfo}
         ovpThresholdInput={ovpThresholdInput}
         ocpThresholdInput={ocpThresholdInput}
-        displayUpdateRateInput={displayUpdateRateInput}
         configureError={configureError}
         isApplyingConfig={isApplyingConfig}
         setOvpThresholdInput={setOvpThresholdInput}
         setOcpThresholdInput={setOcpThresholdInput}
-        setDisplayUpdateRateInput={setDisplayUpdateRateInput}
         setConfigureError={setConfigureError}
         setIsApplyingConfig={setIsApplyingConfig}
-        setDisplayUpdateRateHz={setDisplayUpdateRateHz}
       />
     </>
   )
