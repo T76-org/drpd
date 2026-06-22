@@ -93,6 +93,14 @@
   grid-template-columns: 160px minmax(0, 1fr);
 }
 
+.headerPopup .headerPopupRow {
+  align-items: baseline;
+}
+
+.headerPopup .headerPopupRow > label {
+  padding-top: 0;
+}
+
 .headerPopupStatusRow {
   display: grid;
   gap: var(--space-8);
