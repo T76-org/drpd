@@ -242,6 +242,61 @@ describe('SQLiteWasmStore', () => {
     ])
   })
 
+  it('sorts captured messages by insertion order when device timestamps move backward', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+
+    const rows = [
+      { index: 0, startTimestampUs: 2_000n, wallClockUs: 1_700_000_100_000_000n },
+      { index: 1, startTimestampUs: 2_010n, wallClockUs: 1_700_000_100_010_000n },
+      { index: 2, startTimestampUs: 1_000n, wallClockUs: 1_700_000_200_000_000n },
+      { index: 3, startTimestampUs: 1_010n, wallClockUs: 1_700_000_200_010_000n },
+    ]
+
+    for (const row of rows) {
+      await store.insertCapturedMessage({
+        ...buildMessage(row.index),
+        startTimestampUs: row.startTimestampUs,
+        endTimestampUs: row.startTimestampUs + 10n,
+        wallClockUs: row.wallClockUs,
+      })
+    }
+
+    const pendingAsc = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+    })
+    expect(pendingAsc.map((row) => row.wallClockUs)).toEqual(rows.map((row) => row.wallClockUs))
+
+    await store.flush()
+
+    const committedAsc = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+    })
+    expect(committedAsc.map((row) => row.wallClockUs)).toEqual(rows.map((row) => row.wallClockUs))
+
+    const timeBounds = await store.getTimeBounds()
+    expect(timeBounds.firstDeviceMessage?.startTimestampUs).toBe(1_000n)
+    expect(timeBounds.lastDeviceMessage?.startTimestampUs).toBe(2_010n)
+    expect(timeBounds.firstWallClockMessage?.wallClockUs).toBe(rows[0].wallClockUs)
+    expect(timeBounds.lastWallClockMessage?.wallClockUs).toBe(rows[3].wallClockUs)
+
+    const committedDesc = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'desc',
+      offset: 1,
+      limit: 2,
+    })
+    expect(committedDesc.map((row) => row.wallClockUs)).toEqual([
+      rows[2].wallClockUs,
+      rows[1].wallClockUs,
+    ])
+  })
+
   it('stores and exports mixed message and event rows in one stream', async () => {
     const store = new SQLiteWasmStore()
     await store.init()
