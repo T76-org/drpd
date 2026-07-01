@@ -11,6 +11,92 @@
 
 using namespace T76::DRPD;
 
+namespace T76::DRPD {
+    template <typename T>
+    void appendBytes(std::vector<uint8_t> &destination, const T &value) {
+        const uint8_t *bytes = reinterpret_cast<const uint8_t*>(&value);
+        destination.insert(destination.end(), bytes, bytes + sizeof(T));
+    }
+
+    void appendCapturedMessagePayload(std::vector<uint8_t> &messageBytes, const CapturedMessage &message) {
+        uint64_t startTimestamp = message.startTimestamp;
+        uint64_t endTimestamp = message.endTimestamp;
+
+        appendBytes(messageBytes, startTimestamp);
+        appendBytes(messageBytes, endTimestamp);
+
+        uint32_t decodingResult = static_cast<uint32_t>(message.decodingResult);
+        appendBytes(messageBytes, decodingResult);
+
+        const uint8_t* sopBytes = message.sop.data();
+        messageBytes.insert(messageBytes.end(), sopBytes, sopBytes + 4);
+
+        uint32_t pulseBufferLength = static_cast<uint32_t>(message.pulseBuffer.size());
+        appendBytes(messageBytes, pulseBufferLength);
+
+        if (!message.pulseBuffer.empty()) {
+            messageBytes.insert(
+                messageBytes.end(),
+                reinterpret_cast<const uint8_t*>(message.pulseBuffer.data()),
+                reinterpret_cast<const uint8_t*>(message.pulseBuffer.data()) + message.pulseBuffer.size() * sizeof(uint16_t)
+            );
+        }
+
+        uint32_t dataLength = static_cast<uint32_t>(message.data.size());
+        appendBytes(messageBytes, dataLength);
+
+        if (!message.data.empty()) {
+            messageBytes.insert(messageBytes.end(), message.data.data(), message.data.data() + message.data.size());
+        }
+    }
+
+    void appendCapturedEventPayload(std::vector<uint8_t> &messageBytes, const CapturedEvent &event) {
+        uint64_t timestamp = event.timestamp;
+        appendBytes(messageBytes, timestamp);
+        appendBytes(messageBytes, timestamp);
+
+        uint32_t decodingResult = 0xffffffffu;
+        appendBytes(messageBytes, decodingResult);
+
+        messageBytes.insert(messageBytes.end(), {0, 0, 0, 0});
+
+        uint32_t pulseBufferLength = 0;
+        appendBytes(messageBytes, pulseBufferLength);
+
+        uint32_t dataLength = static_cast<uint32_t>(sizeof(uint32_t) + event.text.size());
+        appendBytes(messageBytes, dataLength);
+        appendBytes(messageBytes, event.eventType);
+        messageBytes.insert(messageBytes.end(), event.text.begin(), event.text.end());
+    }
+
+    uint32_t capturedRecordPayloadSize(const CaptureRecord &record) {
+        if (record.kind == CaptureRecordKind::Event) {
+            return static_cast<uint32_t>(
+                sizeof(uint64_t) +                          // start timestamp
+                sizeof(uint64_t) +                          // end timestamp
+                sizeof(uint32_t) +                          // decoding result
+                4 +                                         // SOP
+                sizeof(uint32_t) +                          // pulse buffer length
+                sizeof(uint32_t) +                          // data length
+                sizeof(uint32_t) +                          // event type
+                record.event.text.size()                    // event text
+            );
+        }
+
+        const CapturedMessage &message = record.message;
+        return static_cast<uint32_t>(
+            sizeof(uint64_t) +                              // start timestamp
+            sizeof(uint64_t) +                              // end timestamp
+            sizeof(uint32_t) +                              // decoding result
+            4 +                                             // SOP
+            sizeof(uint32_t) +                              // pulse buffer length
+            message.pulseBuffer.size() * sizeof(uint16_t) + // pulse buffer
+            sizeof(uint32_t) +                              // data length
+            message.data.size()                             // data
+        );
+    }
+} // namespace T76::DRPD
+
 
 void App::_queryCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &params) {
     switch(_ccBusController.role()) {
@@ -114,18 +200,18 @@ void App::_queryCCBusCaptureCycleTime(const std::vector<T76::SCPI::ParameterValu
 }
 
 void App::_queryCCBusCapturedMessageCount(const std::vector<T76::SCPI::ParameterValue> &params) {
-    uint32_t count = _receivedMessages.size();
+    uint32_t count = _captureRecords.size();
     
     _sendTransportTextResponse(std::to_string(count), true);
 }
 
 void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterValue> &params) {
-    if (_receivedMessages.size() == 0) {
+    if (_captureRecords.size() == 0) {
         _interpreter.addError(_scpiErrorExecutionError, "Execution error");
         return;
     }
 
-    CapturedMessage message = _receivedMessages.pop();
+    CaptureRecord record = _captureRecords.pop();
 
     // Output the message data as an arbitrary data block
     // The format is:
@@ -137,63 +223,24 @@ void App::_queryCCBusNextCapturedMessage(const std::vector<T76::SCPI::ParameterV
     //   32-bit pulse buffer length (nPulse)
     //   nPulse bytes of pulse buffer
     //   32-bit data length (nData)
-    //   nData bytes of data
-
-    uint64_t startTimestamp = message.startTimestamp;
-    uint64_t endTimestamp = message.endTimestamp;
+    //   nData bytes of data. Firmware event records use decoding result
+    //   0xffffffff, zero SOP, zero pulse count, and data bytes containing:
+    //
+    //   32-bit event type
+    //   UTF-8 event text
 
     std::vector<uint8_t> messageBytes;
 
-    uint32_t totalSize = 
-        sizeof(uint64_t) +                          // start timestamp
-        sizeof(uint64_t) +                          // end timestamp
-        sizeof(uint32_t) +                          // decoding result
-        4 +                                         // SOP
-        sizeof(uint32_t) +                          // pulse buffer length
-        message.pulseBuffer.size() * sizeof(uint16_t) +     // pulse buffer
-        sizeof(uint32_t) +                          // data length
-        message.data.size();                        // data
-
+    uint32_t totalSize = capturedRecordPayloadSize(record);
 
     std::string header = _interpreter.abdPreamble(totalSize);
     messageBytes.insert(messageBytes.end(),  header.begin(), header.end());
 
-    // Timestamp
-
-    const uint8_t* startTimestampBytes = reinterpret_cast<const uint8_t*>(&startTimestamp);
-    messageBytes.insert(messageBytes.end(), startTimestampBytes, startTimestampBytes + sizeof(startTimestamp));
-
-    const uint8_t* endTimestampBytes = reinterpret_cast<const uint8_t*>(&endTimestamp);
-    messageBytes.insert(messageBytes.end(), endTimestampBytes, endTimestampBytes + sizeof(endTimestamp));
-    
-    // Decoding result
-    uint32_t decodingResult = static_cast<uint32_t>(message.decodingResult);
-    const uint8_t* resultBytes = reinterpret_cast<const uint8_t*>(&decodingResult);
-    messageBytes.insert(messageBytes.end(), resultBytes, resultBytes + sizeof(decodingResult));
-
-    // SOP
-    const uint8_t* sopBytes = message.sop.data();
-    messageBytes.insert(messageBytes.end(), sopBytes, sopBytes + 4);
-
-    // Pulse buffer length
-    uint32_t pulseBufferLength = static_cast<uint32_t>(message.pulseBuffer.size());
-    const uint8_t* pulseBufferLengthBytes = reinterpret_cast<const uint8_t*>(&pulseBufferLength);
-    messageBytes.insert(messageBytes.end(), pulseBufferLengthBytes, pulseBufferLengthBytes + sizeof(pulseBufferLength));
-
-    // Pulse buffer
-    messageBytes.insert(
-        messageBytes.end(),
-        reinterpret_cast<const uint8_t*>(message.pulseBuffer.data()),
-        reinterpret_cast<const uint8_t*>(message.pulseBuffer.data()) + message.pulseBuffer.size() * sizeof(uint16_t)
-    );
-
-    // Data length
-    uint32_t dataLength = static_cast<uint32_t>(message.data.size());
-    const uint8_t* dataLengthBytes = reinterpret_cast<const uint8_t*>(&dataLength);
-    messageBytes.insert(messageBytes.end(), dataLengthBytes, dataLengthBytes + sizeof(dataLength));
-
-    // Data
-    messageBytes.insert(messageBytes.end(), message.data.data(), message.data.data() + message.data.size());
+    if (record.kind == CaptureRecordKind::Event) {
+        appendCapturedEventPayload(messageBytes, record.event);
+    } else {
+        appendCapturedMessagePayload(messageBytes, record.message);
+    }
 
     // Newline to terminate the block
     messageBytes.push_back('\n');
@@ -228,6 +275,6 @@ void App::_queryCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterV
 }
 
 void App::_clearCCBusCapturedMessages(const std::vector<T76::SCPI::ParameterValue> &params) {
-    _receivedMessages.clear();
+    _captureRecords.clear();
     deviceStatus(DeviceStatusFlag::CaptureStatusChanged);
 }

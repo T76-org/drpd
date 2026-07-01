@@ -498,8 +498,73 @@ void App::_messageReceivedCallback(const PHY::BMCDecodedMessage &message) {
     captured.data.assign(data.begin(), data.end());
 
     // Store the captured message for later retrieval
-    _receivedMessages.push(std::move(captured));
+    CaptureRecord record;
+    record.kind = CaptureRecordKind::Message;
+    record.message = std::move(captured);
+    _captureRecords.push(std::move(record));
     deviceStatus(DeviceStatusFlag::MessageReceived);
+}
+
+void App::_publishCaptureEvent(uint32_t eventType, std::string_view text, std::optional<uint64_t> timestamp) {
+    CaptureRecord record;
+    record.kind = CaptureRecordKind::Event;
+    record.event.timestamp = timestamp.value_or(time_us_64());
+    record.event.eventType = eventType;
+    record.event.text.assign(text.begin(), text.end());
+    _captureRecords.push(std::move(record));
+    deviceStatus(DeviceStatusFlag::MessageReceived);
+}
+
+uint32_t App::_ccBusStateCaptureEventType(Logic::CCBusState state) const {
+    switch (state) {
+        case Logic::CCBusState::Unattached:
+            return _captureEventCCBusUnattached;
+        case Logic::CCBusState::SourceFound:
+            return _captureEventCCBusSourceFound;
+        case Logic::CCBusState::Attached:
+            return _captureEventCCBusAttached;
+        default:
+            return _captureEventCCBusUnattached;
+    }
+}
+
+std::string_view App::_ccBusStateCaptureEventText(Logic::CCBusState state) const {
+    switch (state) {
+        case Logic::CCBusState::Unattached:
+            return "Device status changed to UNATTACHED";
+        case Logic::CCBusState::SourceFound:
+            return "Device status changed to SOURCE_FOUND";
+        case Logic::CCBusState::Attached:
+            return "Device status changed to ATTACHED";
+        default:
+            return "Device status changed to UNKNOWN";
+    }
+}
+
+uint32_t App::_ccBusRoleCaptureEventType(Logic::CCBusRole role) const {
+    switch (role) {
+        case Logic::CCBusRole::Disabled:
+            return _captureEventCCBusRoleDisabled;
+        case Logic::CCBusRole::Observer:
+            return _captureEventCCBusRoleObserver;
+        case Logic::CCBusRole::Sink:
+            return _captureEventCCBusRoleSink;
+        default:
+            return _captureEventCCBusRoleDisabled;
+    }
+}
+
+std::string_view App::_ccBusRoleCaptureEventText(Logic::CCBusRole role) const {
+    switch (role) {
+        case Logic::CCBusRole::Disabled:
+            return "CC role changed to DISABLED";
+        case Logic::CCBusRole::Observer:
+            return "CC role changed to OBSERVER";
+        case Logic::CCBusRole::Sink:
+            return "CC role changed to SINK";
+        default:
+            return "CC role changed to UNKNOWN";
+    }
 }
 
 void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
@@ -510,16 +575,37 @@ void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
 void App::_ccBusStateChangedCallback(Logic::CCBusState state) {
     // Signal that the CC bus controller state has changed
     deviceStatus(DeviceStatusFlag::CCBusStatusChanged);
+    _publishCaptureEvent(_ccBusStateCaptureEventType(state), _ccBusStateCaptureEventText(state));
 }
 
 void App::_ccBusRoleChangedCallback(Logic::CCBusRole role) {
     // Signal that the CC bus controller role has changed
     deviceStatus(DeviceStatusFlag::RoleChanged);
+    _publishCaptureEvent(_ccBusRoleCaptureEventType(role), _ccBusRoleCaptureEventText(role));
 }
 
 void App::_vbusManagerChangedCallback() {
     // Signal that the VBUS manager state or settings have changed
     deviceStatus(DeviceStatusFlag::VBusStatusChanged);
+
+    const PHY::VBusState state = _vbusManager.state();
+
+    if (state == PHY::VBusState::OverVoltage) {
+        const uint64_t timestampUs = _vbusManager.lastOvpEventTimestampUs();
+        if (timestampUs != 0 && timestampUs != _lastPublishedOvpEventTimestampUs) {
+            _lastPublishedOvpEventTimestampUs = timestampUs;
+            _publishCaptureEvent(_captureEventVBusOvp, "VBUS OVP event", timestampUs);
+        }
+        return;
+    }
+
+    if (state == PHY::VBusState::OverCurrent) {
+        const uint64_t timestampUs = _vbusManager.lastOcpEventTimestampUs();
+        if (timestampUs != 0 && timestampUs != _lastPublishedOcpEventTimestampUs) {
+            _lastPublishedOcpEventTimestampUs = timestampUs;
+            _publishCaptureEvent(_captureEventVBusOcp, "VBUS OCP event", timestampUs);
+        }
+    }
 }
 
 void App::_sinkInfoChangedCallback(Logic::SinkInfoChange change) {

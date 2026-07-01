@@ -18,10 +18,12 @@ import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './
 import type {
   AnalogMonitorChannels,
   AnalogSampleQuery,
+  CapturedEvent,
   CapturedMessage,
   CapturedMessageImportOptions,
   CapturedMessageImportResult,
   CapturedMessageQuery,
+  CapturedRecord,
   CCBusRole,
   DRPDDeviceState,
   DRPDLogSelectionState,
@@ -33,7 +35,6 @@ import type {
   LoggedAnalogSample,
   LoggedCapturedMessage,
   OnOffState,
-  VBusInfo,
 } from './types'
 import type {
   DRPDClockSyncSnapshot,
@@ -56,6 +57,14 @@ const LEGACY_CAPTURE_RETENTION = 50
 const CLOCK_SYNC_SAMPLE_COUNT = 5
 const CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS = 64
 const LOGGING_CONNECT_START_TIMEOUT_MS = 250
+const FIRMWARE_EVENT_VBUS_OVP = 1
+const FIRMWARE_EVENT_VBUS_OCP = 2
+const FIRMWARE_EVENT_CC_BUS_UNATTACHED = 3
+const FIRMWARE_EVENT_CC_BUS_SOURCE_FOUND = 4
+const FIRMWARE_EVENT_CC_BUS_ATTACHED = 5
+const FIRMWARE_EVENT_CC_BUS_ROLE_DISABLED = 6
+const FIRMWARE_EVENT_CC_BUS_ROLE_OBSERVER = 7
+const FIRMWARE_EVENT_CC_BUS_ROLE_SINK = 8
 
 /**
  * Optional DRPD device constructor overrides.
@@ -129,9 +138,6 @@ export class DRPDDevice extends EventTarget {
   protected clockSyncInFlight?: Promise<void> ///< In-flight clock-sync task.
   protected clockSync: DRPDClockSyncSnapshot | null ///< Active device-to-host clock-sync snapshot.
   protected connectTasksActive: boolean ///< True while initial connect tasks are running.
-  protected lastSeenVBusOvpEventTimestampUs: bigint | null ///< Most recent observed OVP event timestamp.
-  protected lastSeenVBusOcpEventTimestampUs: bigint | null ///< Most recent observed OCP event timestamp.
-  protected hasSeenInitialVBusEventTimestamps: boolean ///< True once connect-time VBUS event timestamps are baselined.
 
   /**
    * Create a DRPD device driver.
@@ -192,9 +198,6 @@ export class DRPDDevice extends EventTarget {
     this.captureCycleTimeNs = null
     this.clockSync = null
     this.connectTasksActive = false
-    this.lastSeenVBusOvpEventTimestampUs = null
-    this.lastSeenVBusOcpEventTimestampUs = null
-    this.hasSeenInitialVBusEventTimestamps = false
     this.interruptPending = false
     this.interruptRescheduleTimer = undefined
     this.interruptHandler = () => {
@@ -816,9 +819,6 @@ export class DRPDDevice extends EventTarget {
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
-    this.lastSeenVBusOvpEventTimestampUs = null
-    this.lastSeenVBusOcpEventTimestampUs = null
-    this.hasSeenInitialVBusEventTimestamps = false
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -968,7 +968,6 @@ export class DRPDDevice extends EventTarget {
     }
 
     if (vbusResult.status === 'fulfilled') {
-      await this.observeVBusEventTimestamps(vbusResult.value)
       if (updated.vbusInfo !== vbusResult.value) {
         updated.vbusInfo = vbusResult.value
         changed.push('vbusInfo')
@@ -1077,9 +1076,6 @@ export class DRPDDevice extends EventTarget {
           detail: { role: updated.role, previousRole },
         }),
       )
-      if (updated.role && previousRole !== null) {
-        void this.logSignificantEvent('cc_role_changed', `CC role changed to ${updated.role}`)
-      }
     }
 
     if (changed.includes('ccBusRoleStatus')) {
@@ -1088,12 +1084,6 @@ export class DRPDDevice extends EventTarget {
           detail: { roleStatus: updated.ccBusRoleStatus, previousRoleStatus },
         }),
       )
-      if (updated.ccBusRoleStatus && previousRoleStatus !== null) {
-        void this.logSignificantEvent(
-          'cc_status_changed',
-          `Device status changed to ${updated.ccBusRoleStatus}`,
-        )
-      }
     }
 
     if (changed.includes('analogMonitor')) {
@@ -1282,9 +1272,6 @@ export class DRPDDevice extends EventTarget {
         detail: { role, previousRole },
       }),
     )
-    if (previousRole !== null) {
-      void this.logSignificantEvent('cc_role_changed', `CC role changed to ${role}`)
-    }
     if (
       shouldClearSink &&
       (
@@ -1361,12 +1348,6 @@ export class DRPDDevice extends EventTarget {
           detail: { roleStatus },
         }),
       )
-      if (previousRoleStatus !== null) {
-        void this.logSignificantEvent(
-          'cc_status_changed',
-          `Device status changed to ${roleStatus}`,
-        )
-      }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
           detail: { state: this.getState(), changed: ['ccBusRoleStatus'] },
@@ -1387,7 +1368,6 @@ export class DRPDDevice extends EventTarget {
   protected async refreshVBusFromDevice(): Promise<void> {
     try {
       const vbusInfo = await this.vbus.getInfo()
-      await this.observeVBusEventTimestamps(vbusInfo)
       if (this.state.vbusInfo === vbusInfo) {
         return
       }
@@ -1637,15 +1617,17 @@ export class DRPDDevice extends EventTarget {
 
       for (let index = 0; index < captureCount; index += 1) {
         try {
-          const message = await this.capture.getNextCapturedMessage()
-          await this.logCapturedMessage(message)
-          this.dispatchEvent(
-            new CustomEvent(DRPDDevice.MESSAGE_CAPTURED_EVENT, {
-              detail: { message },
-            }),
-          )
+          const record = await this.capture.getNextCapturedMessage()
+          await this.logCapturedRecord(record)
+          if (record.recordType === 'message') {
+            this.dispatchEvent(
+              new CustomEvent(DRPDDevice.MESSAGE_CAPTURED_EVENT, {
+                detail: { message: record },
+              }),
+            )
+          }
           processedMessages += 1
-          this.logDebug('refreshAndDrainCapturedMessages: message')
+          this.logDebug(`refreshAndDrainCapturedMessages: ${record.recordType}`)
           if (processedMessages >= CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS) {
             this.interruptPending = true
             this.logDebug(
@@ -1996,13 +1978,82 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
+   * Insert one captured record into the active log store.
+   *
+   * @param record - Captured record from the device.
+   */
+  protected async logCapturedRecord(record: CapturedRecord): Promise<void> {
+    if (record.recordType === 'event') {
+      await this.logCapturedFirmwareEvent(record)
+      return
+    }
+    await this.logCapturedMessage(record)
+  }
+
+  /**
+   * Insert one firmware-originated capture event into the active log store.
+   *
+   * @param event - Firmware event from the device.
+   */
+  protected async logCapturedFirmwareEvent(event: CapturedEvent): Promise<void> {
+    if (!this.loggingStarted || !this.logStore) {
+      return
+    }
+    try {
+      const wallClockUs = this.resolveWallClockUs(event.timestampUs)
+      const eventWallClockMs =
+        wallClockUs === null
+          ? null
+          : Number(wallClockUs / 1000n)
+      const firmwareEvent = this.normalizeFirmwareEvent(event)
+      if (this.activeDisplayEpochStartUs === null || this.pendingDisplayEpochReset) {
+        this.activeDisplayEpochStartUs = event.timestampUs
+        this.pendingDisplayEpochReset = false
+      }
+      this.lastKnownDeviceTimestampUs = event.timestampUs
+      const row: LoggedCapturedMessage = {
+        entryKind: 'event',
+        eventType: firmwareEvent.eventType,
+        eventText: firmwareEvent.eventText,
+        eventWallClockMs,
+        wallClockUs,
+        startTimestampUs: event.timestampUs,
+        endTimestampUs: event.timestampUs,
+        displayTimestampUs: event.timestampUs - this.activeDisplayEpochStartUs,
+        decodeResult: 0,
+        sopKind: null,
+        messageKind: null,
+        messageType: null,
+        messageId: null,
+        senderPowerRole: null,
+        senderDataRole: null,
+        pulseCount: 0,
+        rawPulseWidths: new Float64Array(),
+        rawSop: new Uint8Array(),
+        rawDecodedData: event.eventTextBytes,
+        parseError: null,
+        createdAtMs: eventWallClockMs ?? Date.now(),
+      }
+      await this.logStore.insertCapturedMessage(row)
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'event', row },
+        }),
+      )
+    } catch (error) {
+      this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
+      this.logDebug(`logging firmware event insert error=${String(error)}`)
+    }
+  }
+
+  /**
    * Insert one significant event into the captured-message stream.
    *
    * @param eventType - Significant event type.
    * @param eventSummary - Human-readable summary text.
    */
   protected async logSignificantEvent(
-    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'mark' | 'vbus_ovp' | 'vbus_ocp',
+    eventType: 'capture_changed' | 'cc_status_changed' | 'mark',
     eventSummary: string,
     options?: {
       timestampUs?: bigint
@@ -2088,40 +2139,39 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
-   * Observe device-originated VBUS event timestamps and log newly-seen events once.
+   * Normalize firmware event IDs into logged event metadata.
    *
-   * @param vbusInfo - Latest VBUS snapshot.
+   * @param event - Firmware event from the capture stream.
+   * @returns Event type and text for log storage.
    */
-  protected async observeVBusEventTimestamps(vbusInfo: VBusInfo): Promise<void> {
-    if (!this.hasSeenInitialVBusEventTimestamps) {
-      this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
-      this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
-      this.hasSeenInitialVBusEventTimestamps = true
-      return
+  protected normalizeFirmwareEvent(event: CapturedEvent): Pick<LoggedCapturedMessage, 'eventType' | 'eventText'> {
+    if (event.eventType === FIRMWARE_EVENT_VBUS_OVP) {
+      return { eventType: 'vbus_ovp', eventText: event.eventText }
     }
 
-    const previousOvp = this.lastSeenVBusOvpEventTimestampUs
-    const previousOcp = this.lastSeenVBusOcpEventTimestampUs
-
-    this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
-    this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
-
-    if (!this.loggingStarted || this.state.captureEnabled !== OnOffStateValues.ON) {
-      return
+    if (event.eventType === FIRMWARE_EVENT_VBUS_OCP) {
+      return { eventType: 'vbus_ocp', eventText: event.eventText }
     }
 
-    if (vbusInfo.ovpEventTimestampUs !== null && vbusInfo.ovpEventTimestampUs !== previousOvp) {
-      await this.logSignificantEvent('vbus_ovp', 'VBUS OVP event', {
-        timestampUs: vbusInfo.ovpEventTimestampUs,
-        resetDisplayEpoch: false,
-      })
+    if (
+      event.eventType === FIRMWARE_EVENT_CC_BUS_UNATTACHED ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_SOURCE_FOUND ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ATTACHED
+    ) {
+      return { eventType: 'cc_status_changed', eventText: event.eventText }
     }
 
-    if (vbusInfo.ocpEventTimestampUs !== null && vbusInfo.ocpEventTimestampUs !== previousOcp) {
-      await this.logSignificantEvent('vbus_ocp', 'VBUS OCP event', {
-        timestampUs: vbusInfo.ocpEventTimestampUs,
-        resetDisplayEpoch: false,
-      })
+    if (
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_DISABLED ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_OBSERVER ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_SINK
+    ) {
+      return { eventType: 'cc_role_changed', eventText: event.eventText }
+    }
+
+    return {
+      eventType: 'firmware_event',
+      eventText: `Firmware event ${event.eventType}: ${event.eventText}`,
     }
   }
 

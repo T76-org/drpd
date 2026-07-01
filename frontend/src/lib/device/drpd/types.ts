@@ -193,6 +193,7 @@ export const CaptureDecodeResult = {
   CRC_ERROR: 2,
   TIMEOUT_ERROR: 3,
   INCOMPLETE: 4,
+  FIRMWARE_EVENT: 0xffffffff,
 } as const
 
 /**
@@ -568,6 +569,8 @@ export interface DRPDSinkRequestConfig {
  * Captured CC bus message.
  */
 export interface CapturedMessage {
+  ///< Capture record discriminator.
+  recordType: 'message'
   ///< Capture start timestamp in microseconds.
   startTimestampUs: bigint
   ///< Capture end timestamp in microseconds.
@@ -589,6 +592,29 @@ export interface CapturedMessage {
   ///< Decoded message payload.
   decodedData: Uint8Array
 }
+
+/**
+ * Firmware-originated event returned through the capture stream.
+ */
+export interface CapturedEvent {
+  ///< Capture record discriminator.
+  recordType: 'event'
+  ///< Event timestamp in microseconds.
+  timestampUs: bigint
+  ///< Event timestamp in seconds (NaN if not safely representable).
+  timestampSeconds: number
+  ///< Firmware-defined event type identifier.
+  eventType: number
+  ///< UTF-8 event text.
+  eventText: string
+  ///< Raw UTF-8 event text bytes.
+  eventTextBytes: Uint8Array
+}
+
+/**
+ * Capture stream record returned by BUS:CC:CAP:DATA?.
+ */
+export type CapturedRecord = CapturedMessage | CapturedEvent
 
 /**
  * USB-PD message-log row selection tracked in the driver.

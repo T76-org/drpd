@@ -42,6 +42,25 @@ const buildCapturePayload = (
   return buffer
 }
 
+const buildCaptureEventPayload = (
+  eventType: number,
+  eventText: string,
+  timestampUs = 7_000n,
+): Uint8Array => {
+  const eventTextBytes = new TextEncoder().encode(eventText)
+  const dataLength = 4 + eventTextBytes.length
+  const buffer = new Uint8Array(8 + 8 + 4 + 4 + 4 + 4 + dataLength)
+  const view = new DataView(buffer.buffer)
+  view.setBigUint64(0, timestampUs, true)
+  view.setBigUint64(8, timestampUs, true)
+  view.setUint32(16, CaptureDecodeResult.FIRMWARE_EVENT, true)
+  view.setUint32(24, 0, true)
+  view.setUint32(28, dataLength, true)
+  view.setUint32(32, eventType, true)
+  buffer.set(eventTextBytes, 36)
+  return buffer
+}
+
 /**
  * Mock transport for logging integration tests.
  */
@@ -491,6 +510,89 @@ describe('DRPD logging integration', () => {
     expect(Array.from(messages[0].rawPulseWidths)).toEqual([2560, 2570, 2580])
   })
 
+  it('logs firmware capture events from the existing capture drain path', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['10'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+        5_000n,
+        6_000n,
+      ),
+      buildCaptureEventPayload(0x12345678, 'Policy engine ready', 7_000n),
+      buildCaptureEventPayload(1, 'VBUS OVP event', 8_000n),
+      buildCaptureEventPayload(2, 'VBUS OCP event', 9_000n),
+      buildCaptureEventPayload(3, 'Device status changed to UNATTACHED', 10_000n),
+      buildCaptureEventPayload(4, 'Device status changed to SOURCE_FOUND', 11_000n),
+      buildCaptureEventPayload(5, 'Device status changed to ATTACHED', 12_000n),
+      buildCaptureEventPayload(6, 'CC role changed to DISABLED', 13_000n),
+      buildCaptureEventPayload(7, 'CC role changed to OBSERVER', 14_000n),
+      buildCaptureEventPayload(8, 'CC role changed to SINK', 15_000n),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 20_000n,
+      sortOrder: 'asc',
+    })
+
+    expect(rows).toHaveLength(10)
+    expect(rows[0].entryKind).toBe('message')
+    expect(rows[1].entryKind).toBe('event')
+    expect(rows[1].eventType).toBe('firmware_event')
+    expect(rows[1].eventText).toBe('Firmware event 305419896: Policy engine ready')
+    expect(rows[1].startTimestampUs).toBe(7_000n)
+    expect(rows[2].entryKind).toBe('event')
+    expect(rows[2].eventType).toBe('vbus_ovp')
+    expect(rows[2].eventText).toBe('VBUS OVP event')
+    expect(rows[2].startTimestampUs).toBe(8_000n)
+    expect(rows[3].entryKind).toBe('event')
+    expect(rows[3].eventType).toBe('vbus_ocp')
+    expect(rows[3].eventText).toBe('VBUS OCP event')
+    expect(rows[3].startTimestampUs).toBe(9_000n)
+    expect(rows[4].entryKind).toBe('event')
+    expect(rows[4].eventType).toBe('cc_status_changed')
+    expect(rows[4].eventText).toBe('Device status changed to UNATTACHED')
+    expect(rows[4].startTimestampUs).toBe(10_000n)
+    expect(rows[5].entryKind).toBe('event')
+    expect(rows[5].eventType).toBe('cc_status_changed')
+    expect(rows[5].eventText).toBe('Device status changed to SOURCE_FOUND')
+    expect(rows[5].startTimestampUs).toBe(11_000n)
+    expect(rows[6].entryKind).toBe('event')
+    expect(rows[6].eventType).toBe('cc_status_changed')
+    expect(rows[6].eventText).toBe('Device status changed to ATTACHED')
+    expect(rows[6].startTimestampUs).toBe(12_000n)
+    expect(rows[7].entryKind).toBe('event')
+    expect(rows[7].eventType).toBe('cc_role_changed')
+    expect(rows[7].eventText).toBe('CC role changed to DISABLED')
+    expect(rows[7].startTimestampUs).toBe(13_000n)
+    expect(rows[8].entryKind).toBe('event')
+    expect(rows[8].eventType).toBe('cc_role_changed')
+    expect(rows[8].eventText).toBe('CC role changed to OBSERVER')
+    expect(rows[8].startTimestampUs).toBe(14_000n)
+    expect(rows[9].entryKind).toBe('event')
+    expect(rows[9].eventType).toBe('cc_role_changed')
+    expect(rows[9].eventText).toBe('CC role changed to SINK')
+    expect(rows[9].startTimestampUs).toBe(15_000n)
+  })
+
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['2', '0'])
@@ -774,9 +876,8 @@ describe('DRPD logging integration', () => {
     expect(analog[0].timestampUs).toBe(1000n)
   })
 
-  it('logs significant events and resets display epoch on next message', async () => {
+  it('logs firmware status events from the capture stream', async () => {
     const transport = new MockTransport()
-    transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
     transport.textResponses.set('MEAS:ALL?', [
       '10020',
       '5.0',
@@ -792,9 +893,10 @@ describe('DRPD logging integration', () => {
       '12',
       '34',
     ])
-    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['2', '0'])
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCaptureEventPayload(5, 'Device status changed to ATTACHED', 9_990n),
       buildCapturePayload(
         [0x18, 0x18, 0x18, 0x11],
         [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
@@ -816,9 +918,6 @@ describe('DRPD logging integration', () => {
 
     await device.setCaptureEnabled(OnOffState.ON)
     await (
-      device as unknown as { refreshRoleStatusFromDevice: () => Promise<void> }
-    ).refreshRoleStatusFromDevice()
-    await (
       device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
     ).refreshAndDrainCapturedMessagesFromDevice()
     await (device as unknown as { pollAnalogMonitor: () => Promise<void> }).pollAnalogMonitor()
@@ -836,10 +935,11 @@ describe('DRPD logging integration', () => {
     expect(messages).toHaveLength(2)
     expect(messages[0].entryKind).toBe('event')
     expect(messages[0].eventType).toBe('cc_status_changed')
+    expect(messages[0].eventText).toBe('Device status changed to ATTACHED')
     expect(messages[1].entryKind).toBe('message')
-    expect(messages[1].displayTimestampUs).toBe(0n)
+    expect(messages[1].displayTimestampUs).toBe(10n)
     expect(analog).toHaveLength(1)
-    expect(analog[0].displayTimestampUs).toBe(20n)
+    expect(analog[0].displayTimestampUs).toBe(30n)
   })
 
   it('inserts a manual mark event even while capture is off without starting logging', async () => {
@@ -877,7 +977,7 @@ describe('DRPD logging integration', () => {
     expect(addedKinds).toEqual(['event'])
   })
 
-  it('keeps logging role/status events after capture is toggled off then on', async () => {
+  it('does not log CC status events from status refresh after capture is toggled off then on', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['1', '0'])
@@ -919,8 +1019,37 @@ describe('DRPD logging integration', () => {
     })
     const statusEvent = rows.find((row) => row.entryKind === 'event' && row.eventType === 'cc_status_changed')
 
-    expect(statusEvent).toBeDefined()
-    expect(statusEvent!.startTimestampUs).toBeGreaterThanOrEqual(15_020n)
+    expect(statusEvent).toBeUndefined()
+  })
+
+  it('does not log CC role events from role refresh', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:ROLE?', ['OBSERVER'])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+    setRoleSnapshot(device, 'DISABLED')
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshRoleFromDevice: () => Promise<void> }
+    ).refreshRoleFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 30_000n,
+      sortOrder: 'asc',
+    })
+    const roleEvent = rows.find((row) => row.entryKind === 'event' && row.eventType === 'cc_role_changed')
+
+    expect(roleEvent).toBeUndefined()
   })
 
   it('derives microsecond wall-clock anchors from clock-sync samples', async () => {
@@ -971,7 +1100,7 @@ describe('DRPD logging integration', () => {
     ).toBe(1_700_000_000_000_525n)
   })
 
-  it('logs one VBUS OVP event for one newly-observed device timestamp', async () => {
+  it('does not log VBUS OVP events from status refresh timestamps', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:VBUS:STAT?', ['OVP', '12000', 'NONE'])
     transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
@@ -988,7 +1117,6 @@ describe('DRPD logging integration', () => {
     setConnected(device)
 
     await device.setCaptureEnabled(OnOffState.ON)
-    ;(device as unknown as { hasSeenInitialVBusEventTimestamps: boolean }).hasSeenInitialVBusEventTimestamps = true
     await (
       device as unknown as { refreshVBusFromDevice: () => Promise<void> }
     ).refreshVBusFromDevice()
@@ -1003,9 +1131,7 @@ describe('DRPD logging integration', () => {
     })
 
     const ovpEvents = rows.filter((row) => row.entryKind === 'event' && row.eventType === 'vbus_ovp')
-    expect(ovpEvents).toHaveLength(1)
-    expect(ovpEvents[0]?.startTimestampUs).toBe(12000n)
-    expect(ovpEvents[0]?.endTimestampUs).toBe(12000n)
+    expect(ovpEvents).toHaveLength(0)
   })
 
   it('does not backfill stale VBUS event timestamps when logging starts after connect', async () => {
