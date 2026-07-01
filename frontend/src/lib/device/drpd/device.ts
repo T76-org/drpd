@@ -62,6 +62,9 @@ const FIRMWARE_EVENT_VBUS_OCP = 2
 const FIRMWARE_EVENT_CC_BUS_UNATTACHED = 3
 const FIRMWARE_EVENT_CC_BUS_SOURCE_FOUND = 4
 const FIRMWARE_EVENT_CC_BUS_ATTACHED = 5
+const FIRMWARE_EVENT_CC_BUS_ROLE_DISABLED = 6
+const FIRMWARE_EVENT_CC_BUS_ROLE_OBSERVER = 7
+const FIRMWARE_EVENT_CC_BUS_ROLE_SINK = 8
 
 /**
  * Optional DRPD device constructor overrides.
@@ -1073,9 +1076,6 @@ export class DRPDDevice extends EventTarget {
           detail: { role: updated.role, previousRole },
         }),
       )
-      if (updated.role && previousRole !== null) {
-        void this.logSignificantEvent('cc_role_changed', `CC role changed to ${updated.role}`)
-      }
     }
 
     if (changed.includes('ccBusRoleStatus')) {
@@ -1272,9 +1272,6 @@ export class DRPDDevice extends EventTarget {
         detail: { role, previousRole },
       }),
     )
-    if (previousRole !== null) {
-      void this.logSignificantEvent('cc_role_changed', `CC role changed to ${role}`)
-    }
     if (
       shouldClearSink &&
       (
@@ -2056,7 +2053,7 @@ export class DRPDDevice extends EventTarget {
    * @param eventSummary - Human-readable summary text.
    */
   protected async logSignificantEvent(
-    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'mark',
+    eventType: 'capture_changed' | 'cc_status_changed' | 'mark',
     eventSummary: string,
     options?: {
       timestampUs?: bigint
@@ -2162,6 +2159,14 @@ export class DRPDDevice extends EventTarget {
       event.eventType === FIRMWARE_EVENT_CC_BUS_ATTACHED
     ) {
       return { eventType: 'cc_status_changed', eventText: event.eventText }
+    }
+
+    if (
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_DISABLED ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_OBSERVER ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_SINK
+    ) {
+      return { eventType: 'cc_role_changed', eventText: event.eventText }
     }
 
     return {

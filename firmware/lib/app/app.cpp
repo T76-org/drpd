@@ -541,6 +541,32 @@ std::string_view App::_ccBusStateCaptureEventText(Logic::CCBusState state) const
     }
 }
 
+uint32_t App::_ccBusRoleCaptureEventType(Logic::CCBusRole role) const {
+    switch (role) {
+        case Logic::CCBusRole::Disabled:
+            return _captureEventCCBusRoleDisabled;
+        case Logic::CCBusRole::Observer:
+            return _captureEventCCBusRoleObserver;
+        case Logic::CCBusRole::Sink:
+            return _captureEventCCBusRoleSink;
+        default:
+            return _captureEventCCBusRoleDisabled;
+    }
+}
+
+std::string_view App::_ccBusRoleCaptureEventText(Logic::CCBusRole role) const {
+    switch (role) {
+        case Logic::CCBusRole::Disabled:
+            return "CC role changed to DISABLED";
+        case Logic::CCBusRole::Observer:
+            return "CC role changed to OBSERVER";
+        case Logic::CCBusRole::Sink:
+            return "CC role changed to SINK";
+        default:
+            return "CC role changed to UNKNOWN";
+    }
+}
+
 void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
     // Signal that the trigger controller status has changed
     deviceStatus(DeviceStatusFlag::TriggerStatusChanged);
@@ -555,6 +581,7 @@ void App::_ccBusStateChangedCallback(Logic::CCBusState state) {
 void App::_ccBusRoleChangedCallback(Logic::CCBusRole role) {
     // Signal that the CC bus controller role has changed
     deviceStatus(DeviceStatusFlag::RoleChanged);
+    _publishCaptureEvent(_ccBusRoleCaptureEventType(role), _ccBusRoleCaptureEventText(role));
 }
 
 void App::_vbusManagerChangedCallback() {

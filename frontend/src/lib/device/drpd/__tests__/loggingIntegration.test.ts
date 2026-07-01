@@ -512,7 +512,7 @@ describe('DRPD logging integration', () => {
 
   it('logs firmware capture events from the existing capture drain path', async () => {
     const transport = new MockTransport()
-    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['7'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['10'])
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       buildCapturePayload(
@@ -527,6 +527,9 @@ describe('DRPD logging integration', () => {
       buildCaptureEventPayload(3, 'Device status changed to UNATTACHED', 10_000n),
       buildCaptureEventPayload(4, 'Device status changed to SOURCE_FOUND', 11_000n),
       buildCaptureEventPayload(5, 'Device status changed to ATTACHED', 12_000n),
+      buildCaptureEventPayload(6, 'CC role changed to DISABLED', 13_000n),
+      buildCaptureEventPayload(7, 'CC role changed to OBSERVER', 14_000n),
+      buildCaptureEventPayload(8, 'CC role changed to SINK', 15_000n),
     ])
 
     const store = new SQLiteWasmStore({
@@ -550,7 +553,7 @@ describe('DRPD logging integration', () => {
       sortOrder: 'asc',
     })
 
-    expect(rows).toHaveLength(7)
+    expect(rows).toHaveLength(10)
     expect(rows[0].entryKind).toBe('message')
     expect(rows[1].entryKind).toBe('event')
     expect(rows[1].eventType).toBe('firmware_event')
@@ -576,6 +579,18 @@ describe('DRPD logging integration', () => {
     expect(rows[6].eventType).toBe('cc_status_changed')
     expect(rows[6].eventText).toBe('Device status changed to ATTACHED')
     expect(rows[6].startTimestampUs).toBe(12_000n)
+    expect(rows[7].entryKind).toBe('event')
+    expect(rows[7].eventType).toBe('cc_role_changed')
+    expect(rows[7].eventText).toBe('CC role changed to DISABLED')
+    expect(rows[7].startTimestampUs).toBe(13_000n)
+    expect(rows[8].entryKind).toBe('event')
+    expect(rows[8].eventType).toBe('cc_role_changed')
+    expect(rows[8].eventText).toBe('CC role changed to OBSERVER')
+    expect(rows[8].startTimestampUs).toBe(14_000n)
+    expect(rows[9].entryKind).toBe('event')
+    expect(rows[9].eventType).toBe('cc_role_changed')
+    expect(rows[9].eventText).toBe('CC role changed to SINK')
+    expect(rows[9].startTimestampUs).toBe(15_000n)
   })
 
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {
@@ -1005,6 +1020,36 @@ describe('DRPD logging integration', () => {
     const statusEvent = rows.find((row) => row.entryKind === 'event' && row.eventType === 'cc_status_changed')
 
     expect(statusEvent).toBeUndefined()
+  })
+
+  it('does not log CC role events from role refresh', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:ROLE?', ['OBSERVER'])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+    setRoleSnapshot(device, 'DISABLED')
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshRoleFromDevice: () => Promise<void> }
+    ).refreshRoleFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 30_000n,
+      sortOrder: 'asc',
+    })
+    const roleEvent = rows.find((row) => row.entryKind === 'event' && row.eventType === 'cc_role_changed')
+
+    expect(roleEvent).toBeUndefined()
   })
 
   it('derives microsecond wall-clock anchors from clock-sync samples', async () => {
