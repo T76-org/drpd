@@ -277,6 +277,18 @@ namespace T76::DRPD::Logic {
          */
         [[nodiscard]] std::function<void(SinkInfoChange)> sinkInfoChanged() const;
 
+        /**
+         * @brief Register sink error callback.
+         * @param callback Callback invoked for Sink-originated errors.
+         */
+        void sinkErrorOccurred(SinkErrorCallback callback);
+
+        /**
+         * @brief Get current sink error callback.
+         * @return Registered callback (may be empty).
+         */
+        [[nodiscard]] SinkErrorCallback sinkErrorOccurred() const;
+
     protected:
         /**
          * @brief Results of processing an extended-message fragment.
@@ -324,6 +336,7 @@ namespace T76::DRPD::Logic {
         SinkMessageSender _messageSender;                        ///< Outbound message sender with GoodCRC tracking.
         SinkRuntimeState _runtimeState;                          ///< Mutable sink runtime state.
         std::function<void(SinkInfoChange)> _sinkInfoChangedCallback; ///< Sink info change callback.
+        SinkErrorCallback _sinkErrorCallback;                    ///< Sink error event callback.
         std::function<void(SinkTimeoutEvent)> _timeoutEventCallback; ///< Timeout event callback.
         SinkContext _context;                                    ///< Handler-facing context facade.
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.

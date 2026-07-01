@@ -86,6 +86,48 @@ void EPRModeEntryStateHandler::_onSenderResponseTimeout() {
     }
 }
 
+void EPRModeEntryStateHandler::_handleEntryRefusal(SinkContext& context, const char *reason) {
+    auto& state = context.runtimeState();
+    state._eprModeActive = false;
+    state._eprEntryRefusedFallbackActive = true;
+    context.reportError(reason);
+    context.transitionTo(_nonEPRPostContractState(context));
+}
+
+SinkState EPRModeEntryStateHandler::_nonEPRPostContractState(SinkContext& context) const {
+    const auto& state = context.runtimeState();
+    if (state._negotiatedPDO.has_value() &&
+        state._ppsStatusQueryEnabled &&
+        std::holds_alternative<Proto::SPRPPSAPDO>(state._negotiatedPDO.value())) {
+        return SinkState::PE_SNK_Get_PPS_Status;
+    }
+
+    return SinkState::PE_SNK_Ready;
+}
+
+const char *EPRModeEntryStateHandler::_enterFailedReasonText(uint8_t reason) const {
+    switch (static_cast<Proto::EPRMode::FailureReason>(reason)) {
+        case Proto::EPRMode::FailureReason::CableNotEprCapable:
+            return "EPR entry refused: Cable not EPR Capable; "
+                "falling back to SPR mode";
+        case Proto::EPRMode::FailureReason::SourceNotVconnSource:
+            return "EPR entry refused: Source failed to become VCONN Source; "
+                "falling back to SPR mode";
+        case Proto::EPRMode::FailureReason::EprCapableNotInRdo:
+            return "EPR entry refused: EPR Capable bit not set in RDO; "
+                "falling back to SPR mode";
+        case Proto::EPRMode::FailureReason::SourceCannotEnterEpr:
+            return "EPR entry refused: Source unable to enter EPR Mode; "
+                "falling back to SPR mode";
+        case Proto::EPRMode::FailureReason::EprCapableNotInPdo:
+            return "EPR entry refused: EPR Capable bit not set in PDO; "
+                "falling back to SPR mode";
+        case Proto::EPRMode::FailureReason::UnknownCause:
+        default:
+            return "EPR entry refused: Unknown cause; falling back to SPR mode";
+    }
+}
+
 void EPRModeEntryStateHandler::handleMessage(
     SinkContext& context,
     const T76::DRPD::PHY::BMCDecodedMessage *message) {
@@ -128,6 +170,11 @@ void EPRModeEntryStateHandler::handleMessage(
                 return;
             }
 
+            if (response.action() == Proto::EPRMode::Action::EnterFailed) {
+                _handleEntryRefusal(context, _enterFailedReasonText(response.data()));
+                return;
+            }
+
             context.setEPRModeActive(false);
             context.performReset(SinkResetType::SoftReset);
             return;
@@ -149,8 +196,11 @@ void EPRModeEntryStateHandler::handleMessage(
             (controlType.value() == Proto::ControlMessageType::Reject ||
              controlType.value() == Proto::ControlMessageType::Not_Supported ||
              controlType.value() == Proto::ControlMessageType::Wait)) {
-            context.setEPRModeActive(false);
-            context.performReset(SinkResetType::SoftReset);
+            _handleEntryRefusal(
+                context,
+                "EPR entry refused by Source control response; "
+                "falling back to SPR mode"
+            );
             return;
         }
     }

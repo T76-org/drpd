@@ -18,6 +18,7 @@
 
 #include <t76/app.hpp>
 #include <t76/scpi_interpreter.hpp>
+#include <pico/util/queue.h>
 
 #include "lib/phy/analog_monitor.hpp"
 #include "lib/phy/bmc_decoder.hpp"
@@ -93,6 +94,13 @@ namespace T76::DRPD {
         CaptureRecordKind kind = CaptureRecordKind::Message;   ///< Record payload discriminator.
         CapturedMessage message;   ///< Message payload when kind is Message.
         CapturedEvent event;       ///< Event payload when kind is Event.
+    };
+
+    struct PendingSinkErrorEvent {
+        const char *reason = nullptr;       ///< Static Sink error reason.
+        Logic::SinkState state = Logic::SinkState::Unknown; ///< Sink state when reported.
+        bool hasResetType = false;          ///< True when resetType is meaningful.
+        Logic::SinkResetType resetType = Logic::SinkResetType::Internal; ///< Associated reset type.
     };
 
     enum class DeviceStatusFlag : uint32_t {
@@ -444,6 +452,7 @@ namespace T76::DRPD {
         static constexpr uint32_t _captureEventCCBusRoleDisabled = 6; ///< Firmware event ID for CC bus disabled role.
         static constexpr uint32_t _captureEventCCBusRoleObserver = 7; ///< Firmware event ID for CC bus observer role.
         static constexpr uint32_t _captureEventCCBusRoleSink = 8; ///< Firmware event ID for CC bus sink role.
+        static constexpr uint32_t _captureEventSinkError = 9; ///< Firmware event ID for Sink errors.
 
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
@@ -460,6 +469,7 @@ namespace T76::DRPD {
         bool _winusbProtocolMismatch{false}; ///< True when request intent and response shape do not match.
 
         Util::CircularArray<CaptureRecord, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _captureRecords; ///< Captured messages and firmware-originated events.
+        queue_t _sinkErrorEventQueue; ///< Core-1 to core-0 queue for Sink error events.
         uint64_t _lastPublishedOvpEventTimestampUs{0}; ///< Last OVP latch timestamp published as a capture event.
         uint64_t _lastPublishedOcpEventTimestampUs{0}; ///< Last OCP latch timestamp published as a capture event.
 
@@ -490,11 +500,13 @@ namespace T76::DRPD {
         std::string_view _ccBusStateCaptureEventText(Logic::CCBusState state) const;
         uint32_t _ccBusRoleCaptureEventType(Logic::CCBusRole role) const;
         std::string_view _ccBusRoleCaptureEventText(Logic::CCBusRole role) const;
+        void _processSinkErrorEvents();
         void _triggerStatusChangedCallback(Logic::TriggerStatus status);
         void _ccBusStateChangedCallback(Logic::CCBusState state);
         void _ccBusRoleChangedCallback(Logic::CCBusRole role);
         void _vbusManagerChangedCallback();
         void _sinkInfoChangedCallback(Logic::SinkInfoChange change);
+        void _sinkErrorCallback(const Logic::SinkErrorEvent& event);
 
         /**
          * @brief Export persisted slices from each owner and save them to flash.

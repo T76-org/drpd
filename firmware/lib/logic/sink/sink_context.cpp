@@ -50,6 +50,7 @@ SinkContext::SinkContext(
     TransitionSinkStateHandler& transitionSinkStateHandler,
     WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
     std::function<void(SinkInfoChange)>& sinkInfoChangedCallback,
+    SinkErrorCallback& sinkErrorCallback,
     std::function<void(SinkTimeoutEvent)>& enqueueTimeoutEventCallback) :
     _runtimeState(runtimeState),
     _alarmService(alarmService),
@@ -69,6 +70,7 @@ SinkContext::SinkContext(
     _transitionSinkStateHandler(transitionSinkStateHandler),
     _waitForCapabilitiesStateHandler(waitForCapabilitiesStateHandler),
     _sinkInfoChangedCallback(sinkInfoChangedCallback),
+    _sinkErrorCallback(sinkErrorCallback),
     _enqueueTimeoutEventCallback(enqueueTimeoutEventCallback) {}
 
 SinkRuntimeState& SinkContext::runtimeState() {
@@ -153,6 +155,12 @@ void SinkContext::transitionTo(SinkState state) {
 }
 
 void SinkContext::performReset(SinkResetType resetType) {
+    if (resetType == SinkResetType::SoftReset) {
+        reportError("Sink protocol error; initiating Soft Reset", resetType);
+    } else if (resetType == SinkResetType::HardReset) {
+        reportError("Sink protocol error; initiating Hard Reset", resetType);
+    }
+
     _messageSender.reset();
     _runtimeState.resetStoredReceivedMessageId();
 
@@ -176,6 +184,10 @@ void SinkContext::performReset(SinkResetType resetType) {
     } else {
         transitionTo(SinkState::Disconnected);
     }
+}
+
+void SinkContext::reportError(const char *reason, std::optional<SinkResetType> resetType) {
+    _notifySinkError(reason, resetType);
 }
 
 void SinkContext::handleReceivedSoftReset() {
@@ -822,15 +834,21 @@ SinkRequestResult SinkContext::requestPDO(
     bool collisionAvoidanceExempt) {
     const SinkRequestResult validation = validatePDORequest(pdoIndex, voltageMV, currentMA);
     if (!validation) {
+        reportError(validation.error);
         return validation;
     }
 
-    return _selectCapabilityStateHandler.requestPDO(
+    SinkRequestResult result = _selectCapabilityStateHandler.requestPDO(
         *this,
         pdoIndex,
         voltageMV,
         currentMA,
         collisionAvoidanceExempt);
+    if (!result) {
+        reportError(result.error);
+    }
+
+    return result;
 }
 
 alarm_id_t SinkContext::addAlarmInUs(
@@ -921,6 +939,16 @@ SinkRequestResult SinkContext::_validateAugmentedPDORequest(
 void SinkContext::_notifySinkInfoChanged(SinkInfoChange change) {
     if (_sinkInfoChangedCallback) {
         _sinkInfoChangedCallback(change);
+    }
+}
+
+void SinkContext::_notifySinkError(const char *reason, std::optional<SinkResetType> resetType) {
+    if (_sinkErrorCallback) {
+        _sinkErrorCallback(SinkErrorEvent{
+            .reason = reason,
+            .state = _runtimeState._state,
+            .resetType = resetType,
+        });
     }
 }
 

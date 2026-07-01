@@ -13,6 +13,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <optional>
 
 
 namespace T76::DRPD::Logic {
@@ -95,6 +97,20 @@ namespace T76::DRPD::Logic {
         HardReset,  ///< Protocol hard reset sequence.
         SoftReset   ///< Protocol soft reset message.
     };
+
+    /**
+     * @brief Sink-originated error notification for higher-level event publishers.
+     */
+    struct SinkErrorEvent {
+        const char *reason = nullptr;                       ///< Static diagnostic reason.
+        SinkState state = SinkState::Unknown;               ///< State when the error was observed.
+        std::optional<SinkResetType> resetType = std::nullopt; ///< Reset caused by the error, if any.
+    };
+
+    /**
+     * @brief Callback used to publish Sink-originated errors.
+     */
+    using SinkErrorCallback = std::function<void(const SinkErrorEvent&)>;
 
     /**
      * @brief Timeout events produced by Sink timer callbacks.

@@ -96,6 +96,27 @@ namespace T76::DRPD::Logic {
         void _onSenderResponseTimeout();
 
         /**
+         * @brief Handle an explicit Source refusal of EPR mode entry.
+         * @param context Shared sink context.
+         * @param reason Static event text describing the refusal.
+         */
+        void _handleEntryRefusal(SinkContext& context, const char *reason);
+
+        /**
+         * @brief Return post-refusal non-EPR state for the active SPR contract.
+         * @param context Shared sink context.
+         * @return State to enter after EPR refusal fallback.
+         */
+        SinkState _nonEPRPostContractState(SinkContext& context) const;
+
+        /**
+         * @brief Map EPR_Mode EnterFailed data to static event text.
+         * @param reason Raw EPR_Mode EnterFailed reason byte.
+         * @return Static event text describing the failure.
+         */
+        const char *_enterFailedReasonText(uint8_t reason) const;
+
+        /**
          * @brief Static timer callback for EPR entry timeout.
          * @param id Alarm id.
          * @param user_data Pointer to handler instance.

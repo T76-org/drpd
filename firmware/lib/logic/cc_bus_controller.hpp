@@ -84,6 +84,9 @@ namespace T76::DRPD::Logic {
         /// @brief Type definition for sink info changed callback
         typedef std::function<void(SinkInfoChange)> SinkInfoChangedCallback;
 
+        /// @brief Type definition for sink error callback
+        typedef std::function<void(const SinkErrorEvent&)> SinkErrorCallback;
+
         /**
          * @brief Construct a new CCBusController object
          * 
@@ -120,6 +123,9 @@ namespace T76::DRPD::Logic {
         {
             _sink.sinkInfoChanged(
                 std::bind(&CCBusController::_repeatSinkInfoChanged, this, std::placeholders::_1)
+            );
+            _sink.sinkErrorOccurred(
+                std::bind(&CCBusController::_repeatSinkError, this, std::placeholders::_1)
             );
         }
 
@@ -264,6 +270,15 @@ namespace T76::DRPD::Logic {
          */
         void sinkInfoChanged(SinkInfoChangedCallback callback);
 
+        /**
+         * @brief Set a callback to be called when the Sink reports an error.
+         *
+         * This callback acts as a repeater for the Sink's sinkErrorOccurred callback.
+         *
+         * @param callback The callback function to be called when the Sink reports an error.
+         */
+        void sinkErrorOccurred(SinkErrorCallback callback);
+
     protected:
         /**
          * @brief Simple spin-lock guard for short callback-registry critical sections.
@@ -322,6 +337,7 @@ namespace T76::DRPD::Logic {
         ///< Registered role callbacks
 
         SinkInfoChangedCallback _sinkInfoChangedCallback;     ///< Callback for Sink info changes
+        SinkErrorCallback _sinkErrorCallback;                 ///< Callback for Sink errors.
         std::atomic_flag _callbacksLock = ATOMIC_FLAG_INIT;   ///< Cross-core callback registry lock.
 
         Sink _sink;                             ///< Sink instance for managing sink state.
@@ -376,6 +392,13 @@ namespace T76::DRPD::Logic {
          * @param change The type of sink info change.
          */
         void _repeatSinkInfoChanged(SinkInfoChange change);
+
+        /**
+         * @brief Internal method to repeat Sink error events.
+         *
+         * @param event Sink error event to forward.
+         */
+        void _repeatSinkError(const SinkErrorEvent& event);
 
         /**
          * @brief Main loop method for the CC bus controller
