@@ -543,7 +543,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(rowTexts.some((text) => text.includes('SourceCable'))).toBe(true)
   })
 
-  it('renders full-width event rows with shared event colors', async () => {
+  it('renders event rows with aligned timestamp cells and shared event colors', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1),
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
@@ -573,10 +573,16 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     ).toBeInTheDocument()
     const eventRow = container.querySelector('[class*="eventRowCapture"]')
     expect(eventRow).not.toBeNull()
+    const eventCells = Array.from(eventRow?.querySelectorAll('td') ?? [])
+    expect(eventCells).toHaveLength(2)
+    expect(eventCells[0].className).toContain('eventTimestamp')
+    expect(eventCells[0].textContent).toMatch(/\d\d:\d\d:\d\d/)
+    expect(eventCells[1].className).toContain('eventLabelAligned')
+    expect(eventCells[1].textContent).toBe('Capture turned off at 2026-02-28 10:00:00')
     expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOvp"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOcp"]')).not.toBeNull()
-    const eventLabel = container.querySelector('[class*="eventLabel"]')
+    const eventLabel = container.querySelector('[class*="eventLabelAligned"]')
     expect(eventLabel).not.toBeNull()
   })
 
