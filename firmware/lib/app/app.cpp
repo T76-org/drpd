@@ -498,7 +498,20 @@ void App::_messageReceivedCallback(const PHY::BMCDecodedMessage &message) {
     captured.data.assign(data.begin(), data.end());
 
     // Store the captured message for later retrieval
-    _receivedMessages.push(std::move(captured));
+    CaptureRecord record;
+    record.kind = CaptureRecordKind::Message;
+    record.message = std::move(captured);
+    _captureRecords.push(std::move(record));
+    deviceStatus(DeviceStatusFlag::MessageReceived);
+}
+
+void App::_publishCaptureEvent(uint32_t eventType, std::string_view text, std::optional<uint64_t> timestamp) {
+    CaptureRecord record;
+    record.kind = CaptureRecordKind::Event;
+    record.event.timestamp = timestamp.value_or(time_us_64());
+    record.event.eventType = eventType;
+    record.event.text.assign(text.begin(), text.end());
+    _captureRecords.push(std::move(record));
     deviceStatus(DeviceStatusFlag::MessageReceived);
 }
 

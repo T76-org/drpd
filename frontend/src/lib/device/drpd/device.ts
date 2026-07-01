@@ -18,10 +18,12 @@ import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './
 import type {
   AnalogMonitorChannels,
   AnalogSampleQuery,
+  CapturedEvent,
   CapturedMessage,
   CapturedMessageImportOptions,
   CapturedMessageImportResult,
   CapturedMessageQuery,
+  CapturedRecord,
   CCBusRole,
   DRPDDeviceState,
   DRPDLogSelectionState,
@@ -1637,15 +1639,17 @@ export class DRPDDevice extends EventTarget {
 
       for (let index = 0; index < captureCount; index += 1) {
         try {
-          const message = await this.capture.getNextCapturedMessage()
-          await this.logCapturedMessage(message)
-          this.dispatchEvent(
-            new CustomEvent(DRPDDevice.MESSAGE_CAPTURED_EVENT, {
-              detail: { message },
-            }),
-          )
+          const record = await this.capture.getNextCapturedMessage()
+          await this.logCapturedRecord(record)
+          if (record.recordType === 'message') {
+            this.dispatchEvent(
+              new CustomEvent(DRPDDevice.MESSAGE_CAPTURED_EVENT, {
+                detail: { message: record },
+              }),
+            )
+          }
           processedMessages += 1
-          this.logDebug('refreshAndDrainCapturedMessages: message')
+          this.logDebug(`refreshAndDrainCapturedMessages: ${record.recordType}`)
           if (processedMessages >= CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS) {
             this.interruptPending = true
             this.logDebug(
@@ -1992,6 +1996,75 @@ export class DRPDDevice extends EventTarget {
     } catch (error) {
       this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
       this.logDebug(`logging message insert error=${String(error)}`)
+    }
+  }
+
+  /**
+   * Insert one captured record into the active log store.
+   *
+   * @param record - Captured record from the device.
+   */
+  protected async logCapturedRecord(record: CapturedRecord): Promise<void> {
+    if (record.recordType === 'event') {
+      await this.logCapturedFirmwareEvent(record)
+      return
+    }
+    await this.logCapturedMessage(record)
+  }
+
+  /**
+   * Insert one firmware-originated capture event into the active log store.
+   *
+   * @param event - Firmware event from the device.
+   */
+  protected async logCapturedFirmwareEvent(event: CapturedEvent): Promise<void> {
+    if (!this.loggingStarted || !this.logStore) {
+      return
+    }
+    try {
+      const wallClockUs = this.resolveWallClockUs(event.timestampUs)
+      const eventWallClockMs =
+        wallClockUs === null
+          ? null
+          : Number(wallClockUs / 1000n)
+      const eventText = `Firmware event ${event.eventType}: ${event.eventText}`
+      if (this.activeDisplayEpochStartUs === null || this.pendingDisplayEpochReset) {
+        this.activeDisplayEpochStartUs = event.timestampUs
+        this.pendingDisplayEpochReset = false
+      }
+      this.lastKnownDeviceTimestampUs = event.timestampUs
+      const row: LoggedCapturedMessage = {
+        entryKind: 'event',
+        eventType: 'firmware_event',
+        eventText,
+        eventWallClockMs,
+        wallClockUs,
+        startTimestampUs: event.timestampUs,
+        endTimestampUs: event.timestampUs,
+        displayTimestampUs: event.timestampUs - this.activeDisplayEpochStartUs,
+        decodeResult: 0,
+        sopKind: null,
+        messageKind: null,
+        messageType: null,
+        messageId: null,
+        senderPowerRole: null,
+        senderDataRole: null,
+        pulseCount: 0,
+        rawPulseWidths: new Float64Array(),
+        rawSop: new Uint8Array(),
+        rawDecodedData: event.eventTextBytes,
+        parseError: null,
+        createdAtMs: eventWallClockMs ?? Date.now(),
+      }
+      await this.logStore.insertCapturedMessage(row)
+      this.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'event', row },
+        }),
+      )
+    } catch (error) {
+      this.dispatchEvent(new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }))
+      this.logDebug(`logging firmware event insert error=${String(error)}`)
     }
   }
 

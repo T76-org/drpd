@@ -10,9 +10,11 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <array>
 #include <atomic>
+#include <optional>
 
 #include <t76/app.hpp>
 #include <t76/scpi_interpreter.hpp>
@@ -74,6 +76,23 @@ namespace T76::DRPD {
         std::array<uint8_t, 4> sop = {0, 0, 0, 0};   ///< Raw SOP K-codes.
         std::vector<uint16_t> pulseBuffer;   ///< Captured pulse widths (PIO cycles).
         std::vector<uint8_t> data;   ///< Decoded message payload bytes.
+    };
+
+    struct CapturedEvent {
+        uint64_t timestamp = 0;       ///< Event timestamp in microseconds.
+        uint32_t eventType = 0;       ///< Firmware-defined event type identifier.
+        std::vector<uint8_t> text;    ///< UTF-8 event text bytes.
+    };
+
+    enum class CaptureRecordKind : uint8_t {
+        Message,    ///< Captured USB-PD message record.
+        Event,      ///< Firmware-originated event record.
+    };
+
+    struct CaptureRecord {
+        CaptureRecordKind kind = CaptureRecordKind::Message;   ///< Record payload discriminator.
+        CapturedMessage message;   ///< Message payload when kind is Message.
+        CapturedEvent event;       ///< Event payload when kind is Event.
     };
 
     enum class DeviceStatusFlag : uint32_t {
@@ -431,7 +450,7 @@ namespace T76::DRPD {
         bool _winusbDataResponseSent{false}; ///< True when the current WinUSB request emitted text or binary data.
         bool _winusbProtocolMismatch{false}; ///< True when request intent and response shape do not match.
 
-        Util::CircularArray<CapturedMessage, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _receivedMessages; ///< Compact snapshots of received messages; avoids queuing large PHY objects by value.
+        Util::CircularArray<CaptureRecord, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _captureRecords; ///< Captured messages and firmware-originated events.
 
         StatusLed _statusLed;
         bool _statusLedSupported{false}; ///< True on R2605-A and later boards with GPIO29 LED hardware.
@@ -455,6 +474,7 @@ namespace T76::DRPD {
         void _startCore1();
 
         void _messageReceivedCallback(const PHY::BMCDecodedMessage &message);
+        void _publishCaptureEvent(uint32_t eventType, std::string_view text, std::optional<uint64_t> timestamp = std::nullopt);
         void _triggerStatusChangedCallback(Logic::TriggerStatus status);
         void _ccBusStateChangedCallback(Logic::CCBusState state);
         void _ccBusRoleChangedCallback(Logic::CCBusRole role);

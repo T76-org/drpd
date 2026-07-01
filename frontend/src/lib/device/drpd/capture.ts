@@ -13,7 +13,7 @@ import {
   parseSingleInt,
   parseSingleNumber,
 } from './parsers'
-import type { CapturedMessage, OnOffState } from './types'
+import type { CapturedRecord, OnOffState } from './types'
 
 /**
  * Capture command group for DRPD devices.
@@ -55,7 +55,7 @@ export class DRPDCapture {
    *
    * @returns Captured message or null if none are available.
    */
-  public async getNextCapturedMessage(): Promise<CapturedMessage> {
+  public async getNextCapturedMessage(): Promise<CapturedRecord> {
     const response = await this.transport.queryBinary('BUS:CC:CAP:DATA?')
     if (!response.byteLength) {
       throw new Error('No captured messages available')

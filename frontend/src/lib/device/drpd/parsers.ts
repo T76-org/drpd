@@ -25,7 +25,8 @@ import {
 import type {
   AccumulatedMeasurements,
   AnalogMonitorChannels,
-  CapturedMessage,
+  CapturedEvent,
+  CapturedRecord,
   DeviceIdentity,
   DeviceStatusFlags,
   SinkInfo,
@@ -760,7 +761,7 @@ export const parseCaptureDecodeResult = (value: number): CaptureDecodeResult => 
  * @param data - Raw capture payload.
  * @returns Parsed capture message.
  */
-export const parseCapturedMessage = (data: Uint8Array): CapturedMessage => {
+export const parseCapturedMessage = (data: Uint8Array): CapturedRecord => {
   if (data.byteLength < 28) {
     throw new Error('Capture payload is too short')
   }
@@ -768,7 +769,6 @@ export const parseCapturedMessage = (data: Uint8Array): CapturedMessage => {
   const startTimestampUs = view.getBigUint64(0, true)
   const endTimestampUs = view.getBigUint64(8, true)
   const decodeResultValue = view.getUint32(16, true)
-  const decodeResult = parseCaptureDecodeResult(decodeResultValue)
   const sop = data.subarray(20, 24)
   const pulseCount = view.getUint32(24, true)
   let offset = 28
@@ -792,6 +792,31 @@ export const parseCapturedMessage = (data: Uint8Array): CapturedMessage => {
   if (decodedData.byteLength !== dataLength) {
     throw new Error('Capture payload data length mismatch')
   }
+
+  if (decodeResultValue === CaptureDecodeResult.FIRMWARE_EVENT) {
+    if (pulseCount !== 0) {
+      throw new Error('Capture event payload must not include pulse widths')
+    }
+    if (dataLength < 4) {
+      throw new Error('Capture event payload missing event type')
+    }
+    const eventType = view.getUint32(offset, true)
+    const eventTextBytes = decodedData.subarray(4)
+    const eventText = new TextDecoder().decode(eventTextBytes)
+    const maxSafe = BigInt(Number.MAX_SAFE_INTEGER)
+    const timestampSeconds =
+      startTimestampUs <= maxSafe ? Number(startTimestampUs) / 1_000_000 : Number.NaN
+    return {
+      recordType: 'event',
+      timestampUs: startTimestampUs,
+      timestampSeconds,
+      eventType,
+      eventText,
+      eventTextBytes,
+    } satisfies CapturedEvent
+  }
+
+  const decodeResult = parseCaptureDecodeResult(decodeResultValue)
   const maxSafe = BigInt(Number.MAX_SAFE_INTEGER)
   const startTimestampSeconds =
     startTimestampUs <= maxSafe ? Number(startTimestampUs) / 1_000_000 : Number.NaN
@@ -799,6 +824,7 @@ export const parseCapturedMessage = (data: Uint8Array): CapturedMessage => {
     endTimestampUs <= maxSafe ? Number(endTimestampUs) / 1_000_000 : Number.NaN
 
   return {
+    recordType: 'message',
     startTimestampUs,
     endTimestampUs,
     startTimestampSeconds,

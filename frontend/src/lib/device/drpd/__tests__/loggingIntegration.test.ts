@@ -42,6 +42,25 @@ const buildCapturePayload = (
   return buffer
 }
 
+const buildCaptureEventPayload = (
+  eventType: number,
+  eventText: string,
+  timestampUs = 7_000n,
+): Uint8Array => {
+  const eventTextBytes = new TextEncoder().encode(eventText)
+  const dataLength = 4 + eventTextBytes.length
+  const buffer = new Uint8Array(8 + 8 + 4 + 4 + 4 + 4 + dataLength)
+  const view = new DataView(buffer.buffer)
+  view.setBigUint64(0, timestampUs, true)
+  view.setBigUint64(8, timestampUs, true)
+  view.setUint32(16, CaptureDecodeResult.FIRMWARE_EVENT, true)
+  view.setUint32(24, 0, true)
+  view.setUint32(28, dataLength, true)
+  view.setUint32(32, eventType, true)
+  buffer.set(eventTextBytes, 36)
+  return buffer
+}
+
 /**
  * Mock transport for logging integration tests.
  */
@@ -489,6 +508,49 @@ describe('DRPD logging integration', () => {
     expect(analog[0].ibusA).toBe(0.2)
     expect(messages).toHaveLength(1)
     expect(Array.from(messages[0].rawPulseWidths)).toEqual([2560, 2570, 2580])
+  })
+
+  it('logs firmware capture events from the existing capture drain path', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['2'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+        5_000n,
+        6_000n,
+      ),
+      buildCaptureEventPayload(0x12345678, 'Policy engine ready', 7_000n),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+      sortOrder: 'asc',
+    })
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0].entryKind).toBe('message')
+    expect(rows[1].entryKind).toBe('event')
+    expect(rows[1].eventType).toBe('firmware_event')
+    expect(rows[1].eventText).toBe('Firmware event 305419896: Policy engine ready')
+    expect(rows[1].startTimestampUs).toBe(7_000n)
   })
 
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {

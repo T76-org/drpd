@@ -45,6 +45,21 @@ const buildCapturePayload = () => {
   return buffer
 }
 
+const buildCaptureEventPayload = () => {
+  const eventText = new TextEncoder().encode('Power path ready \u2713')
+  const dataLength = 4 + eventText.length
+  const buffer = new Uint8Array(8 + 8 + 4 + 4 + 4 + 4 + dataLength)
+  const view = new DataView(buffer.buffer)
+  view.setBigUint64(0, 2_000_000n, true)
+  view.setBigUint64(8, 2_000_000n, true)
+  view.setUint32(16, CaptureDecodeResult.FIRMWARE_EVENT, true)
+  view.setUint32(24, 0, true)
+  view.setUint32(28, dataLength, true)
+  view.setUint32(32, 0x12345678, true)
+  buffer.set(eventText, 36)
+  return buffer
+}
+
 const hexToBytes = (hex: string): Uint8Array => {
   const cleaned = hex.replace(/\s+/g, '')
   if (cleaned.length % 2 !== 0) {
@@ -176,6 +191,10 @@ describe('drpd parsers', () => {
   it('parses capture payloads', () => {
     const payload = buildCapturePayload()
     const message = parseCapturedMessage(payload)
+    expect(message.recordType).toBe('message')
+    if (message.recordType !== 'message') {
+      throw new Error('Expected message record')
+    }
     expect(message.startTimestampUs).toBe(1_000_000n)
     expect(message.endTimestampUs).toBe(1_000_500n)
     expect(message.decodeResult).toBe(CaptureDecodeResult.SUCCESS)
@@ -184,11 +203,30 @@ describe('drpd parsers', () => {
     expect(Array.from(message.decodedData)).toEqual([0x12, 0x34])
   })
 
+  it('parses firmware event capture payloads', () => {
+    const payload = buildCaptureEventPayload()
+    const record = parseCapturedMessage(payload)
+    expect(record.recordType).toBe('event')
+    if (record.recordType !== 'event') {
+      throw new Error('Expected event record')
+    }
+    expect(record.timestampUs).toBe(2_000_000n)
+    expect(record.eventType).toBe(0x12345678)
+    expect(record.eventText).toBe('Power path ready \u2713')
+    expect(Array.from(record.eventTextBytes)).toEqual(
+      Array.from(new TextEncoder().encode('Power path ready \u2713')),
+    )
+  })
+
   it('parses captured PS_RDY payloads and decodes USB-PD header fields', () => {
     const captureHex =
       '193dc20500000000193fc205000000000000000018181811e7000000f400a700a4004d01a500a6004c01a600a5004d01a500a6004c01a600a5004d01a500a6004c01a600a4004e01a500a6004b01a700a5004d01a400a7004b01a700a4004e01a400a6004c01a700a4004d01a500a6004c01a600a5004d01a500a7004b01a600a5004d01a500a6004c01a600a5004d01a500a6004c01a600a5004d01a500a6004b01a600a5004e01a400a6004c01a600a5004e01a400a6004c01a600a5004d01a500a6004c01a600a5004d01a500a6004c01a600a4004e01a500a6004b014e014b01a700a400a700a5004d014c014d01a400a700a400a6004c014d014c01a600a500a600a500a600a5004d014c014d01a500a6004c01a600a500a600a400a700a4004e014c01a600a400a600a5004d01a500a600a500a600a400a7004c01a600a5004d014c01a600a500a600a400a600a500a600a500a600a5004d01a500a600a500a600a400a700a400a7004b014d01a500a6004c01a600a500a600a5004d01a500a600a500a600a400a7004b01a600a500a600a500a600a5004d014c01a600a500a600a400a600a5004e014b01a700a400a600a500a600a500a600a500a600a5004d014c01a600a5004d01a500a6004c01a600a500a600a500a600a4004e01a400a600a500a6004c0106000000a6051ffdeec9'
     const payload = hexToBytes(captureHex)
     const message = parseCapturedMessage(payload)
+    expect(message.recordType).toBe('message')
+    if (message.recordType !== 'message') {
+      throw new Error('Expected message record')
+    }
     expect(message.startTimestampUs).toBe(0x0000000005c23d19n)
     expect(message.endTimestampUs).toBe(0x0000000005c23f19n)
     expect(message.decodeResult).toBe(CaptureDecodeResult.SUCCESS)
