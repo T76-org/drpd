@@ -6,8 +6,72 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react'
-import { useId, type ComponentPropsWithoutRef, type CSSProperties, type ReactNode } from 'react'
+import {
+  useId,
+  type ComponentPropsWithoutRef,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import styles from './Dialog.module.css'
+
+const PRIMARY_ACTION_SELECTOR = '[data-dialog-primary-action="true"]'
+
+/**
+ * Return whether an Enter key event should preserve native element behavior.
+ */
+const shouldIgnoreDialogEnter = (event: KeyboardEvent<HTMLElement>): boolean => {
+  if (
+    event.defaultPrevented ||
+    event.key !== 'Enter' ||
+    event.shiftKey ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.nativeEvent.isComposing
+  ) {
+    return true
+  }
+
+  const target = event.target
+  if (!(target instanceof HTMLElement)) {
+    return true
+  }
+  if (target.isContentEditable) {
+    return true
+  }
+
+  const tagName = target.tagName.toLowerCase()
+  return (
+    tagName === 'button' ||
+    tagName === 'textarea' ||
+    tagName === 'select' ||
+    tagName === 'a'
+  )
+}
+
+/**
+ * Activate the dialog's primary action when Enter is pressed from dialog content.
+ */
+const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+  if (shouldIgnoreDialogEnter(event)) {
+    return
+  }
+
+  const primaryAction = event.currentTarget.querySelector<HTMLButtonElement>(
+    PRIMARY_ACTION_SELECTOR,
+  )
+  if (
+    !primaryAction ||
+    primaryAction.disabled ||
+    primaryAction.getAttribute('aria-disabled') === 'true'
+  ) {
+    return
+  }
+
+  event.preventDefault()
+  primaryAction.click()
+}
 
 export type DialogProps = {
   ///< Controlled open state.
@@ -74,6 +138,7 @@ export const Dialog = ({
               'aria-label': ariaLabel,
               'aria-labelledby': ariaLabel ? undefined : titleId,
               'aria-describedby': description ? descriptionId : undefined,
+              onKeyDown: handleDialogKeyDown,
             })}
           >
             <DialogHeader
@@ -185,6 +250,7 @@ export const DialogButton = ({
 }: DialogButtonProps) => (
   <button
     type="button"
+    data-dialog-primary-action={variant === 'primary' ? 'true' : undefined}
     className={[
       styles.button,
       variant === 'primary' ? styles.primaryButton : '',

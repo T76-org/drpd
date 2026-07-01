@@ -1280,6 +1280,17 @@ describe('RackView', () => {
     expect(screen.getByText('Range: 0-60 V')).toBeInTheDocument()
     expect(screen.getByText('Range: 0-6 A')).toBeInTheDocument()
     expect(screen.queryByLabelText('Display Rate')).not.toBeInTheDocument()
+
+    await userEvent.clear(screen.getByLabelText('OVP (V)'))
+    await userEvent.type(screen.getByLabelText('OVP (V)'), '60')
+    await userEvent.clear(screen.getByLabelText('OCP (A)'))
+    await userEvent.type(screen.getByLabelText('OCP (A)'), '4')
+    await userEvent.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:OVPT 60')
+      expect(mockTransportState.sentCommands).toContain('BUS:VBUS:OCPT 4')
+    })
   })
 
   it('enables header protection context reset during a protection fault', async () => {
