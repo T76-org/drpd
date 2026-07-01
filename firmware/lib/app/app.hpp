@@ -436,6 +436,9 @@ namespace T76::DRPD {
          */
         static bool _supportsStatusLed(Logic::HardwareRevision revision);
 
+        static constexpr uint32_t _captureEventVBusOvp = 1; ///< Firmware event ID for VBUS OVP faults.
+        static constexpr uint32_t _captureEventVBusOcp = 2; ///< Firmware event ID for VBUS OCP faults.
+
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
         std::atomic<bool> _captureEnabled{false};  ///< Host-visible message capture gate; does not control Sink policy decode.
@@ -451,6 +454,8 @@ namespace T76::DRPD {
         bool _winusbProtocolMismatch{false}; ///< True when request intent and response shape do not match.
 
         Util::CircularArray<CaptureRecord, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _captureRecords; ///< Captured messages and firmware-originated events.
+        uint64_t _lastPublishedOvpEventTimestampUs{0}; ///< Last OVP latch timestamp published as a capture event.
+        uint64_t _lastPublishedOcpEventTimestampUs{0}; ///< Last OCP latch timestamp published as a capture event.
 
         StatusLed _statusLed;
         bool _statusLedSupported{false}; ///< True on R2605-A and later boards with GPIO29 LED hardware.

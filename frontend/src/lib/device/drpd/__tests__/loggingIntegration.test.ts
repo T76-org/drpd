@@ -512,7 +512,7 @@ describe('DRPD logging integration', () => {
 
   it('logs firmware capture events from the existing capture drain path', async () => {
     const transport = new MockTransport()
-    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['2'])
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['4'])
     transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
     transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
       buildCapturePayload(
@@ -522,6 +522,8 @@ describe('DRPD logging integration', () => {
         6_000n,
       ),
       buildCaptureEventPayload(0x12345678, 'Policy engine ready', 7_000n),
+      buildCaptureEventPayload(1, 'VBUS OVP event', 8_000n),
+      buildCaptureEventPayload(2, 'VBUS OCP event', 9_000n),
     ])
 
     const store = new SQLiteWasmStore({
@@ -545,12 +547,20 @@ describe('DRPD logging integration', () => {
       sortOrder: 'asc',
     })
 
-    expect(rows).toHaveLength(2)
+    expect(rows).toHaveLength(4)
     expect(rows[0].entryKind).toBe('message')
     expect(rows[1].entryKind).toBe('event')
     expect(rows[1].eventType).toBe('firmware_event')
     expect(rows[1].eventText).toBe('Firmware event 305419896: Policy engine ready')
     expect(rows[1].startTimestampUs).toBe(7_000n)
+    expect(rows[2].entryKind).toBe('event')
+    expect(rows[2].eventType).toBe('vbus_ovp')
+    expect(rows[2].eventText).toBe('VBUS OVP event')
+    expect(rows[2].startTimestampUs).toBe(8_000n)
+    expect(rows[3].entryKind).toBe('event')
+    expect(rows[3].eventType).toBe('vbus_ocp')
+    expect(rows[3].eventText).toBe('VBUS OCP event')
+    expect(rows[3].startTimestampUs).toBe(9_000n)
   })
 
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {
@@ -1033,7 +1043,7 @@ describe('DRPD logging integration', () => {
     ).toBe(1_700_000_000_000_525n)
   })
 
-  it('logs one VBUS OVP event for one newly-observed device timestamp', async () => {
+  it('does not log VBUS OVP events from status refresh timestamps', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:VBUS:STAT?', ['OVP', '12000', 'NONE'])
     transport.textResponses.set('BUS:VBUS:OVPT?', ['21'])
@@ -1050,7 +1060,6 @@ describe('DRPD logging integration', () => {
     setConnected(device)
 
     await device.setCaptureEnabled(OnOffState.ON)
-    ;(device as unknown as { hasSeenInitialVBusEventTimestamps: boolean }).hasSeenInitialVBusEventTimestamps = true
     await (
       device as unknown as { refreshVBusFromDevice: () => Promise<void> }
     ).refreshVBusFromDevice()
@@ -1065,9 +1074,7 @@ describe('DRPD logging integration', () => {
     })
 
     const ovpEvents = rows.filter((row) => row.entryKind === 'event' && row.eventType === 'vbus_ovp')
-    expect(ovpEvents).toHaveLength(1)
-    expect(ovpEvents[0]?.startTimestampUs).toBe(12000n)
-    expect(ovpEvents[0]?.endTimestampUs).toBe(12000n)
+    expect(ovpEvents).toHaveLength(0)
   })
 
   it('does not backfill stale VBUS event timestamps when logging starts after connect', async () => {

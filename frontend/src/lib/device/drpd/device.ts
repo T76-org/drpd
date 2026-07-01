@@ -35,7 +35,6 @@ import type {
   LoggedAnalogSample,
   LoggedCapturedMessage,
   OnOffState,
-  VBusInfo,
 } from './types'
 import type {
   DRPDClockSyncSnapshot,
@@ -58,6 +57,8 @@ const LEGACY_CAPTURE_RETENTION = 50
 const CLOCK_SYNC_SAMPLE_COUNT = 5
 const CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS = 64
 const LOGGING_CONNECT_START_TIMEOUT_MS = 250
+const FIRMWARE_EVENT_VBUS_OVP = 1
+const FIRMWARE_EVENT_VBUS_OCP = 2
 
 /**
  * Optional DRPD device constructor overrides.
@@ -131,9 +132,6 @@ export class DRPDDevice extends EventTarget {
   protected clockSyncInFlight?: Promise<void> ///< In-flight clock-sync task.
   protected clockSync: DRPDClockSyncSnapshot | null ///< Active device-to-host clock-sync snapshot.
   protected connectTasksActive: boolean ///< True while initial connect tasks are running.
-  protected lastSeenVBusOvpEventTimestampUs: bigint | null ///< Most recent observed OVP event timestamp.
-  protected lastSeenVBusOcpEventTimestampUs: bigint | null ///< Most recent observed OCP event timestamp.
-  protected hasSeenInitialVBusEventTimestamps: boolean ///< True once connect-time VBUS event timestamps are baselined.
 
   /**
    * Create a DRPD device driver.
@@ -194,9 +192,6 @@ export class DRPDDevice extends EventTarget {
     this.captureCycleTimeNs = null
     this.clockSync = null
     this.connectTasksActive = false
-    this.lastSeenVBusOvpEventTimestampUs = null
-    this.lastSeenVBusOcpEventTimestampUs = null
-    this.hasSeenInitialVBusEventTimestamps = false
     this.interruptPending = false
     this.interruptRescheduleTimer = undefined
     this.interruptHandler = () => {
@@ -818,9 +813,6 @@ export class DRPDDevice extends EventTarget {
     this.lastKnownDeviceTimestampUs = null
     this.captureCycleTimeNs = null
     this.clockSync = null
-    this.lastSeenVBusOvpEventTimestampUs = null
-    this.lastSeenVBusOcpEventTimestampUs = null
-    this.hasSeenInitialVBusEventTimestamps = false
     const hadRole = this.state.role !== null
     const hadRoleStatus = this.state.ccBusRoleStatus !== null
     const hadAnalog = this.state.analogMonitor !== null
@@ -970,7 +962,6 @@ export class DRPDDevice extends EventTarget {
     }
 
     if (vbusResult.status === 'fulfilled') {
-      await this.observeVBusEventTimestamps(vbusResult.value)
       if (updated.vbusInfo !== vbusResult.value) {
         updated.vbusInfo = vbusResult.value
         changed.push('vbusInfo')
@@ -1389,7 +1380,6 @@ export class DRPDDevice extends EventTarget {
   protected async refreshVBusFromDevice(): Promise<void> {
     try {
       const vbusInfo = await this.vbus.getInfo()
-      await this.observeVBusEventTimestamps(vbusInfo)
       if (this.state.vbusInfo === vbusInfo) {
         return
       }
@@ -2027,7 +2017,7 @@ export class DRPDDevice extends EventTarget {
         wallClockUs === null
           ? null
           : Number(wallClockUs / 1000n)
-      const eventText = `Firmware event ${event.eventType}: ${event.eventText}`
+      const firmwareEvent = this.normalizeFirmwareEvent(event)
       if (this.activeDisplayEpochStartUs === null || this.pendingDisplayEpochReset) {
         this.activeDisplayEpochStartUs = event.timestampUs
         this.pendingDisplayEpochReset = false
@@ -2035,8 +2025,8 @@ export class DRPDDevice extends EventTarget {
       this.lastKnownDeviceTimestampUs = event.timestampUs
       const row: LoggedCapturedMessage = {
         entryKind: 'event',
-        eventType: 'firmware_event',
-        eventText,
+        eventType: firmwareEvent.eventType,
+        eventText: firmwareEvent.eventText,
         eventWallClockMs,
         wallClockUs,
         startTimestampUs: event.timestampUs,
@@ -2075,7 +2065,7 @@ export class DRPDDevice extends EventTarget {
    * @param eventSummary - Human-readable summary text.
    */
   protected async logSignificantEvent(
-    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'mark' | 'vbus_ovp' | 'vbus_ocp',
+    eventType: 'capture_changed' | 'cc_role_changed' | 'cc_status_changed' | 'mark',
     eventSummary: string,
     options?: {
       timestampUs?: bigint
@@ -2161,40 +2151,23 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
-   * Observe device-originated VBUS event timestamps and log newly-seen events once.
+   * Normalize firmware event IDs into logged event metadata.
    *
-   * @param vbusInfo - Latest VBUS snapshot.
+   * @param event - Firmware event from the capture stream.
+   * @returns Event type and text for log storage.
    */
-  protected async observeVBusEventTimestamps(vbusInfo: VBusInfo): Promise<void> {
-    if (!this.hasSeenInitialVBusEventTimestamps) {
-      this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
-      this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
-      this.hasSeenInitialVBusEventTimestamps = true
-      return
+  protected normalizeFirmwareEvent(event: CapturedEvent): Pick<LoggedCapturedMessage, 'eventType' | 'eventText'> {
+    if (event.eventType === FIRMWARE_EVENT_VBUS_OVP) {
+      return { eventType: 'vbus_ovp', eventText: event.eventText }
     }
 
-    const previousOvp = this.lastSeenVBusOvpEventTimestampUs
-    const previousOcp = this.lastSeenVBusOcpEventTimestampUs
-
-    this.lastSeenVBusOvpEventTimestampUs = vbusInfo.ovpEventTimestampUs
-    this.lastSeenVBusOcpEventTimestampUs = vbusInfo.ocpEventTimestampUs
-
-    if (!this.loggingStarted || this.state.captureEnabled !== OnOffStateValues.ON) {
-      return
+    if (event.eventType === FIRMWARE_EVENT_VBUS_OCP) {
+      return { eventType: 'vbus_ocp', eventText: event.eventText }
     }
 
-    if (vbusInfo.ovpEventTimestampUs !== null && vbusInfo.ovpEventTimestampUs !== previousOvp) {
-      await this.logSignificantEvent('vbus_ovp', 'VBUS OVP event', {
-        timestampUs: vbusInfo.ovpEventTimestampUs,
-        resetDisplayEpoch: false,
-      })
-    }
-
-    if (vbusInfo.ocpEventTimestampUs !== null && vbusInfo.ocpEventTimestampUs !== previousOcp) {
-      await this.logSignificantEvent('vbus_ocp', 'VBUS OCP event', {
-        timestampUs: vbusInfo.ocpEventTimestampUs,
-        resetDisplayEpoch: false,
-      })
+    return {
+      eventType: 'firmware_event',
+      eventText: `Firmware event ${event.eventType}: ${event.eventText}`,
     }
   }
 

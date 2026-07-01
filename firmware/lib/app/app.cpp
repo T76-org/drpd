@@ -533,6 +533,25 @@ void App::_ccBusRoleChangedCallback(Logic::CCBusRole role) {
 void App::_vbusManagerChangedCallback() {
     // Signal that the VBUS manager state or settings have changed
     deviceStatus(DeviceStatusFlag::VBusStatusChanged);
+
+    const PHY::VBusState state = _vbusManager.state();
+
+    if (state == PHY::VBusState::OverVoltage) {
+        const uint64_t timestampUs = _vbusManager.lastOvpEventTimestampUs();
+        if (timestampUs != 0 && timestampUs != _lastPublishedOvpEventTimestampUs) {
+            _lastPublishedOvpEventTimestampUs = timestampUs;
+            _publishCaptureEvent(_captureEventVBusOvp, "VBUS OVP event", timestampUs);
+        }
+        return;
+    }
+
+    if (state == PHY::VBusState::OverCurrent) {
+        const uint64_t timestampUs = _vbusManager.lastOcpEventTimestampUs();
+        if (timestampUs != 0 && timestampUs != _lastPublishedOcpEventTimestampUs) {
+            _lastPublishedOcpEventTimestampUs = timestampUs;
+            _publishCaptureEvent(_captureEventVBusOcp, "VBUS OCP event", timestampUs);
+        }
+    }
 }
 
 void App::_sinkInfoChangedCallback(Logic::SinkInfoChange change) {
