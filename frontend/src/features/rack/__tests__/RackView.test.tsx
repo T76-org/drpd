@@ -2418,11 +2418,11 @@ describe('RackView', () => {
     const installPrompt = dispatchBeforeInstallPrompt()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Help' }))
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Install Dr.PD...' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Install Dr. PD as app...' }))
 
     expect(installPrompt.prompt).toHaveBeenCalledTimes(1)
     await waitFor(() => {
-      expect(screen.queryByRole('menuitem', { name: 'Install Dr.PD...' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: 'Install Dr. PD as app...' })).not.toBeInTheDocument()
     })
   })
 

@@ -1,0 +1,8 @@
+{
+  "label": "Exploration guide",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Explore Dr. PD workflows, bench measurements, protocol captures, safety guardrails, and automation paths."
+  }
+}

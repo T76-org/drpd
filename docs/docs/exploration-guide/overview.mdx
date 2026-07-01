@@ -1,0 +1,72 @@
+---
+sidebar_position: 1
+---
+
+# Start exploring Dr. PD
+
+![Dr. PD case render](/img/drpd-case-render.png)
+
+Dr. PD is an open-source USB Power Delivery analyzer and programmable sink for
+characterizing USB-PD sources, sinks, and cables. It captures decoded USB-PD
+traffic, correlates protocol activity with VBUS voltage and current
+measurements, and can act as a controllable sink when you want to see how a
+source responds to different power requests.
+
+This guide is a map of useful paths through the instrument. You can follow one
+path end to end, skip to the workflow that matches your bench setup, or use the
+links as a starting point before branching into your own tests.
+
+## What you can explore
+
+- **Protocol captures:** watch Source Capabilities, Requests, Accepts, PS RDY,
+  GoodCRC messages, resets, and errors in the Message Log.
+- **Power behavior:** correlate those messages with VBUS voltage and current
+  while a source attaches, changes contract, disconnects, or trips protection.
+- **Sink mode:** connect a USB-PD source to Port 1 and request advertised fixed,
+  PPS, AVS, or EPR contracts when the source and cable support them.
+- **Observer mode:** put Dr. PD inline between an existing source and sink to
+  watch what those devices negotiate with each other.
+- **Bench integration:** use the banana connectors, protection settings, sync
+  output, exports, and automation interfaces when you want deeper measurements.
+
+Dr. PD can work with USB-PD sources and cables up to 48 V / 5 A / 240 W when
+the source, cable, negotiated protocol state, load, and safety setup all support
+those conditions. EPR, PPS, and AVS behavior depends on what the attached source
+and cable advertise and what you explicitly enable.
+
+## A gentle first capture
+
+For a first look, use a known-good USB-PD charger and cable.
+
+1. Connect Dr. PD to the host computer with micro-USB, open the control software
+   in Chrome or Edge, and pair the device. If your browser offers it, you can
+   [install Dr. PD as an app](../how-to/installing-as-app.mdx) and launch the
+   same control software in a standalone app window later.
+2. Connect the USB-PD source to Port 1.
+3. Select **Mode -> Set mode -> Sink**.
+4. Select **Message Log -> Enable Capture**.
+5. Watch the Message Log populate with decoded USB-PD messages and correlated
+   VBUS measurements.
+6. Open **Mode -> Choose power contract...** if you want to compare another
+   contract that the source advertises.
+7. Select a few messages and use **Message Log -> Export Selected** if you want
+   CSV or JSON data for notes or external analysis.
+
+For an inline observation path, put Dr. PD in **Mode -> Set mode -> Observer**,
+connect it between a source and sink with two USB-C cables, enable capture, and
+then attach the second device to capture the negotiation.
+
+## Useful next paths
+
+- [Quickstart overview](../quickstart/overview.mdx) for basic setup and first
+  connection.
+- [Testing a USB-PD source](../quickstart/testing-usb-source.mdx) for the first
+  Sink mode walkthrough.
+- [Capturing USB-PD messages](../how-to/capturing-messages.mdx) for capture,
+  filtering, message details, and export.
+- [Operating Dr. PD as a sink](../how-to/operating-as-sink.mdx) for programmable
+  sink behavior, contract selection, PPS/AVS, and EPR notes.
+- [Observing a USB connection](../how-to/observing-connection.mdx) for inline
+  Observer mode setup.
+- [Important warnings and safety precautions](../important-warnings.mdx) before
+  high-power or unknown-device tests.

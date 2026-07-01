@@ -3161,7 +3161,7 @@ export const RackView = () => {
             ? [
                 {
                   id: 'install-drpd',
-                  label: 'Install Dr.PD...',
+                  label: 'Install Dr. PD as app...',
                   onSelect: () => {
                     void promptInstall()
                   },

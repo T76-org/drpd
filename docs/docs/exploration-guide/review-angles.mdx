@@ -1,0 +1,96 @@
+---
+sidebar_position: 2
+---
+
+# Choose an exploration path
+
+Dr. PD can be approached from several directions. The paths below are not
+scripts; they are starting points for deciding what you want to learn first.
+Each one points to the parts of the instrument that tend to be most useful for
+that kind of exploration.
+
+## Embedded and software path
+
+This path is useful when you care about repeatability, exported data, and how
+USB-PD behavior can fit into a development workflow.
+
+Things to try:
+
+- Capture and decode USB-PD messages while a device attaches, negotiates, and
+  changes state. The [message capture guide](../how-to/capturing-messages.mdx)
+  explains the decoded fields, timing information, and export flow.
+- Export selected captures as CSV or JSON, then inspect the decoded message
+  fields outside the UI.
+- Compare repeated attach or **Mode -> Cycle USB Connection** runs to see
+  whether the same source capabilities and contracts appear each time.
+- Use Python, JavaScript, SCPI, or USBTMC for small repeatable checks, such as
+  setting a mode, enabling capture, cycling the connection, and recording the
+  resulting negotiation.
+
+Look for how protocol state, exported data, and VBUS measurements line up. When
+automation enters the picture, treat it as a way to repeat the same setup more
+consistently, not as a guarantee that every attached source, sink, cable, and
+load will behave identically.
+
+## Bench power path
+
+This path is useful when you want to understand how a USB-PD source behaves
+under real load.
+
+Things to try:
+
+- Operate Dr. PD in [sink mode](../how-to/operating-as-sink.mdx), select an
+  offered source contract, and draw current through the banana connectors using
+  an external electronic load.
+- Correlate USB-PD messages with VBUS voltage and current during contract
+  changes, load steps, or disconnects.
+- Configure [OVP/OCP protection](../how-to/protection-mechanisms.mdx) before
+  tests that may exceed expected limits.
+- Use the [calibration workflow](../how-to/calibrating.mdx) when absolute
+  agreement with reference instruments matters.
+
+Useful comparisons include requested contract versus measured VBUS, voltage sag
+during load changes, recovery after a load step, and agreement between Dr. PD,
+the electronic load, and any external meter or power analyzer.
+
+## Diagnostics path
+
+This path is useful when a charger, dock, cable, laptop, power bank, or adapter
+does not negotiate the way you expect.
+
+Things to try:
+
+- Use [observer mode](../how-to/observing-connection.mdx) inline between two
+  USB-C devices to watch their negotiation.
+- Capture a working setup and a suspect setup, then compare Source
+  Capabilities, Requests, GoodCRC behavior, resets, detach events, and VBUS
+  changes.
+- Add manual markers in the Message Log when you swap a cable, connect a load,
+  or change the physical setup.
+- Use sink mode separately when you want to isolate a source from the rest of a
+  system.
+
+This path is best at narrowing possibilities. A capture can point toward a cable
+issue, a rejected request, repeated resets, or a missing capability, and the next
+step is usually a comparison with known-good hardware.
+
+## Protocol and signal path
+
+This path is useful when you want to relate decoded USB-PD packets to physical
+timing or external instruments.
+
+Things to try:
+
+- Configure the [sync output and triggers](../how-to/using-triggers.mdx) for
+  packet starts, message completion, hard resets, CRC errors, runt pulses, or
+  selected message types.
+- Connect the sync output to an oscilloscope or logic analyzer alongside CC,
+  VBUS, or an external load monitor.
+- Compare the trigger event, decoded Message Log row, and VBUS change in the
+  same run.
+- Use capture filters to focus on the message types relevant to the case you
+  are exploring.
+
+The sync output is firmware-managed and has measurable latency. For precise
+timing or signal-integrity work, pair Dr. PD's decoded log with a scope capture
+of the relevant physical signals.

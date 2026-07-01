@@ -1,0 +1,168 @@
+---
+sidebar_position: 5
+---
+
+# Software and automation tour
+
+The browser app is the easiest place to begin. It lets you connect the
+instrument, choose a mode, capture traffic, change USB-PD behavior, and export
+evidence. Once a workflow is familiar, the same ideas can move into scripts for
+repeatable exploration.
+
+## Browser requirements and pairing
+
+The control app runs in Chrome or Edge because it uses browser USB access to
+talk to the instrument. Use a recent desktop browser on Windows, macOS, or
+Linux, or a compatible Android browser setup, and connect Dr. PD to the host
+through the micro-USB control port.
+
+A typical first connection looks like this:
+
+1. Open the Dr. PD control software in Chrome or Edge.
+2. Connect Dr. PD over micro-USB and wait for the browser to detect it.
+3. Select **Device -> Pair new device...**.
+4. Choose the Dr. PD USB device in the browser permission prompt and approve
+   the connection.
+5. Confirm that the app shows the paired device and live instrument status.
+
+Pairing is a browser permission step, not a driver install. Once paired, the app
+can reconnect to the same instrument from the Device menu.
+
+## Installing as an app
+
+Chrome and Edge can offer Dr. PD as an installable web app when the current
+browser, URL, and app state meet their installability requirements. When that is
+available, choose **Help -> Install Dr. PD as app...** and follow the browser
+prompt.
+
+Installing the app does not add a driver or change the USB permission model. It
+gives the same control software a standalone app window and launcher entry. The
+menu item is intentionally conditional: it is hidden when the browser has not
+made installation available, when Dr. PD is already installed, or when the app
+is already running in standalone mode.
+
+See [Installing Dr. PD as an app](../how-to/installing-as-app.mdx) for the
+step-by-step notes.
+
+## App tour
+
+With a known-good USB-PD source and cable, you can explore the main app surfaces
+quickly:
+
+1. Select **Mode -> Set mode -> Sink**.
+2. Select **Message Log -> Enable Capture** before attaching the source if you
+   want the full attach and negotiation sequence.
+3. Connect the USB-PD source to Port 1.
+4. Watch the Message Log populate with decoded USB-PD messages, event rows, and
+   correlated VBUS voltage/current samples.
+5. Select a negotiation message to inspect decoded fields, raw data, warnings,
+   and timing details in the message detail view.
+6. Open **Mode -> Choose power contract...** to explore **Sink power contract
+   selection** and request one of the source's advertised contracts.
+7. Select relevant rows and use **Message Log -> Export Selected** when you want
+   CSV or JSON output.
+
+The **Sink power contract selection** dialog lists available PDOs and exposes
+voltage/current inputs where the selected PDO type allows a user-selected value.
+Fixed PDO voltage is shown read-only; PPS, AVS, variable, and battery style
+entries expose the relevant editable request fields.
+
+## Message Log workflow
+
+The Message Log is the main surface for protocol evidence.
+
+- **Message Log -> Enable Capture** starts recording decoded USB-PD traffic,
+  analog VBUS samples, and app-injected events.
+- **Message Log -> Configure...** controls visible table columns and capture
+  buffer depth. Column widths and layout choices are remembered by the app.
+- **Message Log -> Filter...** narrows the view by message properties, while
+  the search field helps find text in decoded fields.
+- **Message Log -> Hide GoodCRC Messages** keeps acknowledgements out of the
+  working view without changing the underlying capture.
+- **Message Log -> Add marker** inserts a manual event row when the physical
+  setup changes, such as swapping a cable or adding load.
+- **Message Log -> Export Selected -> JSON...** exports structured raw and
+  decoded message data.
+- **Message Log -> Export Selected -> CSV...** exports a spreadsheet-friendly
+  table.
+
+JSON is useful when another tool needs raw fields, decoded fields, warnings, and
+errors. CSV is useful for compact tables and quick comparisons between runs.
+
+## Sink and Observer paths
+
+Sink mode makes Dr. PD the USB-PD sink. It is useful for exploring how a
+charger, laptop port, power bank, or cable responds to specific contracts. The
+app path is **Mode -> Set mode -> Sink**, followed by **Mode -> Choose power
+contract...** when the source has advertised PDOs.
+
+Observer mode puts Dr. PD inline between an existing source and sink so you can
+capture a real device negotiation. Use **Mode -> Set mode -> Observer**, enable
+capture, connect one side, and then connect the other side to record the attach
+sequence.
+
+In either Sink or Observer mode, **Mode -> Cycle USB Connection** simulates a
+USB detach and reconnect from the app. This is useful when you want another
+negotiation capture without rewiring the bench.
+
+## Protection and calibration
+
+Set protection limits before high-voltage or high-current tests. Select
+**Protection -> Set thresholds...** to open **OVP/OCP settings**, then enter
+overvoltage and overcurrent thresholds within the ranges shown by the dialog.
+Treat those values as setup parameters, not as operating targets.
+
+Calibration is exposed per paired device through the Device menu:
+
+- **Device -> [paired device] -> Calibrate -> Voltage...**
+- **Device -> [paired device] -> Calibrate -> Current...**
+
+Use the calibration workflow when agreement with a reference DMM, load, or power
+analyzer matters. For a general workflow tour, it is enough to know where
+calibration lives and avoid relying on absolute accuracy without a cross-check.
+
+## Triggers and sync output
+
+The Trigger menu controls the external sync output and protocol-event triggers.
+Select **Trigger -> Configure...** to choose the trigger stage, sender filter,
+optional message-type filters, auto-repeat behavior, sync output mode, and pulse
+width. Select **Trigger -> Reset** after a one-shot trigger fires.
+
+One useful path is to connect the sync output to an oscilloscope or logic
+analyzer and compare three things in the same run: the physical trace, the
+Message Log row, and any VBUS change. The sync output is firmware-managed and
+has measurable latency, so it should not be treated as a zero-latency copy of
+the CC waveform.
+
+## Automation interfaces
+
+The same instrument behavior is available below the UI for repeatable tests.
+Current docs and source support these automation paths:
+
+- Python host code is present in the repository under `python/`, alongside SCPI
+  helpers.
+- The web app is implemented in TypeScript/JavaScript and includes host-side
+  device, transport, parser, logging, and export code used by the browser UI.
+  Do not imply a separately published JavaScript package unless you are citing
+  a specific release artifact.
+- The firmware exposes SCPI commands for identity, status, analog measurement,
+  role control, capture control, sink PDO selection, protection thresholds,
+  trigger configuration, sync output configuration, calibration, and reset
+  workflows.
+- Browser transport code can use the instrument over USBTMC-compatible and
+  WinUSB-style paths through WebUSB, depending on the platform and device
+  interface.
+
+Small scripted paths are often the most useful: query identity, set Sink or
+Observer mode, enable capture, cycle the USB connection, request a selected sink
+PDO, read status or measurements, then export or retrieve captured data.
+
+## Evidence exports
+
+For manual exploration, select rows in the Message Log and use **Message Log ->
+Export Selected**. JSON preserves structure and decoded details; CSV gives a
+compact table for notes, plotting, or comparisons.
+
+For scripted exploration, tie exported files or captured SCPI responses to the
+source, cable, selected mode, requested contract, load, and protection
+thresholds. That makes later comparisons easier to understand.

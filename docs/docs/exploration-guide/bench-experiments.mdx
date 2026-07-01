@@ -1,0 +1,178 @@
+---
+sidebar_position: 3
+---
+
+# Things to try on the bench
+
+These bench scenarios are optional starting points. They are intended to make
+Dr. PD easier to explore without having to invent every setup from scratch.
+
+Before running high-power tests, read the [important warnings](../important-warnings.mdx),
+the [Sink mode guide](../how-to/operating-as-sink.mdx), and the
+[protection mechanism guide](../how-to/protection-mechanisms.mdx). The maximum
+voltage, current, and power available in any setup is limited by the source,
+cable, negotiated protocol mode, external load, and Dr. PD hardware limits.
+
+:::warning
+The OVP and OCP settings are cutoff thresholds. They are not current limiting,
+voltage clamping, or electronic-load control features. If a threshold is
+crossed, Dr. PD disconnects power delivery and requires a manual reset.
+:::
+
+## Capture a USB-PD negotiation
+
+A first capture shows three useful views at once: decoded protocol messages,
+VBUS measurements, and timing.
+
+You can try this with a known-good USB-PD source connected to Port 1:
+
+1. Select **Mode -> Set mode -> Sink**.
+2. Select **Message Log -> Enable Capture** or press `C`.
+3. Use **Mode -> Cycle USB Connection** or press `T` to start a fresh attach
+   sequence.
+4. Open the Message Log and look for Source Capabilities, Request, Accept,
+   PS RDY, and GoodCRC messages.
+5. Select a message to inspect the raw data and decoded fields.
+
+For a simple charger, the first contract will normally be a fixed 5 V profile.
+More capable sources may also advertise PPS, AVS, or EPR capabilities.
+
+See [Capturing USB-PD messages](../how-to/capturing-messages.mdx) for the full
+capture workflow.
+
+## Observe an inline connection
+
+Observer mode is useful when you want to see what two real USB-C devices
+negotiate with each other.
+
+You can put Dr. PD inline between a source and sink with two USB-C cables, set
+**Mode -> Set mode -> Observer**, enable capture, and then complete the
+connection. When possible, use one passive, non-e-marked cable in the chain; two
+e-marked cables can confuse some connections.
+
+Things to compare:
+
+- The source capabilities advertised by the source.
+- The contract requested by the sink.
+- Whether the devices attach once, reset repeatedly, or drop VBUS.
+- Whether the same devices behave differently with another cable.
+
+See [Observing a USB connection](../how-to/observing-connection.mdx) for cable
+setup details.
+
+## Explore a source in Sink mode
+
+Sink mode lets Dr. PD act as a controllable USB-PD sink. This is useful for
+learning how a charger, power bank, dock, or USB-C port responds to specific
+power requests.
+
+Starting points:
+
+- Connect the source to Port 1 and select **Mode -> Set mode -> Sink**.
+- Confirm the header reports `Attached` and shows the current VBUS voltage and
+  power profile.
+- Open **Mode -> Choose power contract...** to see the advertised contracts.
+- Select a relevant contract and watch the Request, Accept, PS RDY, and VBUS
+  behavior in the Message Log.
+- Add manual markers before changing contracts, cables, or load settings.
+
+In Sink mode, Port 2 is disconnected from the USB-PD bus and VBUS line. Keeping
+Port 2 clear still makes the setup easier to reason about.
+
+## Compare fixed, PPS, AVS, and EPR contracts
+
+Different sources expose different USB-PD capabilities. A useful exploration is
+to compare what the same source offers across cable and load changes.
+
+You can start with a fixed PDO such as 9 V, 15 V, or 20 V when the source
+advertises one. If the source advertises PPS or AVS, try a few supported
+voltages and watch how the negotiated result appears in the log and VBUS
+readings. Enable EPR only when the source, cable, load, and bench setup are
+rated for the requested power level.
+
+Look for cases where a source advertises fewer profiles with one cable than
+another, refuses an unsupported request, changes behavior under load, or falls
+back after a protection event.
+
+:::danger
+EPR and other high-power tests can exceed 100 W and may approach 240 W with
+suitable equipment. Use an EPR-rated cable, a load rated for the requested
+voltage and power, short insulated banana leads, a non-flammable surface, and
+continuous supervision.
+:::
+
+## Add an electronic load
+
+The banana connectors let you draw controlled current from the negotiated VBUS
+rail with an external electronic load.
+
+Useful things to explore:
+
+- Set conservative OVP and OCP thresholds before connecting the load.
+- Start with the electronic load disabled or at zero current.
+- Increase load current gradually while watching VBUS voltage, source messages,
+  Dr. PD current readings, and the load readback.
+- Step the load up and down to observe voltage regulation, current capability,
+  and recovery behavior.
+
+Stay within the source rating, cable rating, load rating, and Dr. PD limits.
+Use the electronic load to control current draw; Dr. PD's OCP threshold is a
+cutoff, not a programmable current limit.
+
+## Compare cables and sources
+
+USB-C behavior often changes with the cable. A simple comparison can make the
+available contracts and limitations much easier to see.
+
+Things to compare:
+
+- The same source with passive, e-marked, high-current, or EPR-rated cables.
+- The same cable across several sources.
+- Source Capabilities, EPR availability, PPS ranges, and successful contracts.
+- Captures exported with file names that identify the source, cable, contract,
+  and load condition.
+
+This can expose missing high-current profiles, cable-limited EPR availability,
+source-specific PPS ranges, or sources that advertise a mode but reject a
+request under load.
+
+## Look at protection behavior
+
+Protection behavior is worth understanding before relying on it during more
+complex tests.
+
+You can set OVP/OCP thresholds near the expected contract and load range, then
+observe what happens when a threshold is crossed. Dr. PD should disconnect power
+delivery and require a manual reset before normal operation resumes.
+
+Keep this exploration conservative. Protection trips do not make an unsafe load
+safe, and they do not replace the source's protections, cable ratings, or an
+appropriately configured electronic load.
+
+## Use the sync output with an oscilloscope
+
+The sync output can correlate USB-PD events with an oscilloscope capture of CC
+activity, VBUS movement, or external load behavior.
+
+You can connect one scope channel to the sync output and another to the signal
+you want to compare, then select **Trigger -> Configure...** and choose an event
+such as SOP start, Message Complete, Hard Reset, CRC Error, or Any Error.
+
+The sync port is limited to 3.3 V and 10 mA. In pull-down mode, do not connect
+it to a voltage outside its specification. Trigger latency and exact timing
+behavior should be verified against the current firmware and datasheet before
+making precise timing claims.
+
+See [Using triggers and the sync output](../how-to/using-triggers.mdx) for
+trigger configuration details.
+
+## Export CSV and JSON
+
+Exports are useful when you want to compare runs outside the UI.
+
+- Use **Message Log -> Export Selected -> CSV...** for spreadsheet-friendly
+  tables.
+- Use **Message Log -> Export Selected -> JSON...** when you want raw message
+  data, decoded fields, warnings, and errors in a structured format.
+- Add manual markers before changing cables, contracts, or load settings so the
+  exported data is easier to interpret later.

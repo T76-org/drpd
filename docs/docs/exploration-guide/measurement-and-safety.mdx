@@ -1,0 +1,124 @@
+---
+sidebar_position: 4
+---
+
+# Measurement and safety guardrails
+
+Dr. PD makes USB-PD behavior easier to see, but high-power USB-C testing is
+still live power work. Use known-good cables, an appropriate load, intentional
+protection thresholds, and external instruments when the result matters.
+
+## Electrical and measurement ranges
+
+Use these limits when planning a setup or interpreting a capture.
+
+| Item | Value | Note |
+| --- | --- | --- |
+| VBUS voltage measurement | 0-60 V | Stay inside the instrument limit and the ratings of the source, cable, load, and fixture. |
+| VBUS current measurement | -5 A to +5 A | Current direction depends on the test mode and power flow. Confirm sign convention before comparing results. |
+| Display and command resolution | 10 mV / 10 mA | Resolution is not the same as absolute accuracy. |
+| Preliminary factory-calibrated accuracy | Typical +/-1% voltage and +/-2% current, full-scale | These specifications are preliminary, typical, and subject to change. Cross-check when accuracy matters. |
+| Sink requests | Up to 48 V / 5 A / 240 W | Requires compatible protocol state, source capability, cable capability, load, and EPR/PPS/AVS support where applicable. |
+| OVP/OCP thresholds | Up to 60 V / 6 A | Thresholds are protection settings, not operating recommendations. |
+
+## Reading captures carefully
+
+Dr. PD correlates decoded USB-PD traffic with VBUS voltage and current readings.
+That is useful for attach, contract changes, load steps, disconnects, hard
+resets, and protection events.
+
+It helps to keep three kinds of evidence separate:
+
+- **Protocol evidence:** messages observed, decoded, filtered, exported, or
+  timed in the Message Log.
+- **Electrical readings:** VBUS voltage, current, power, charge, or energy
+  reported during the same interval.
+- **External confirmation:** what a DMM, oscilloscope, electronic load, or power
+  analyzer measured at the same point in the setup.
+
+For timing-sensitive or signal-integrity questions, use an oscilloscope or logic
+analyzer with the relevant CC/VBUS nodes. A decoded message log is strong
+protocol evidence, but it is not an analog signal-integrity measurement by
+itself.
+
+## Calibration caveats
+
+Dr. PD ships factory-calibrated, and the current preliminary typical accuracy
+targets are +/-1% voltage and +/-2% current full-scale. Those values are not a
+blanket guarantee for every setup, environmental condition, or future hardware
+revision.
+
+Calibration affects all measurements and protections. If calibration data is
+wrong, VBUS readings can be wrong and OVP/OCP decisions can be wrong. Before
+changing calibration, read the [calibration guide](../how-to/calibrating.mdx)
+and use stable reference equipment.
+
+For absolute accuracy work, compare more than one operating point. A single 5 V
+reading does not characterize the 0-60 V voltage range, and a single load point
+does not characterize the current range.
+
+## OVP/OCP behavior
+
+Dr. PD provides configurable overvoltage protection (OVP) and overcurrent
+protection (OCP). These protections disconnect power delivery rather than
+regulate it:
+
+- OVP/OCP are cut-off protections, not voltage clamps or current limiters.
+- Thresholds can be configured up to 60 V for OVP and 6 A for OCP.
+- A triggered OVP or OCP condition latches and requires a manual reset before
+  normal operation resumes.
+- Threshold settings are stored on the device, so check the active limits before
+  changing the setup.
+- The protections depend on the same measurement calibration used for displayed
+  VBUS readings.
+
+Choose thresholds for the specific source, cable, load, and expected contract.
+If a protection trip occurs, check the requested contract, cable, load behavior,
+Dr. PD calibration, and independent measurements before drawing conclusions.
+
+## EPR and high-power cautions
+
+Sink mode can request high-power USB-PD contracts up to 48 V / 5 A / 240 W when
+the source, cable, protocol negotiation, and load all support that condition.
+That is enough power to damage equipment or start a fire if the bench setup is
+wrong.
+
+Before attempting EPR, AVS, PPS, or other high-power tests:
+
+- Use a cable rated for the requested current and mode.
+- Confirm the source actually advertises the requested contract.
+- Use an external load rated for the requested voltage, current, and power.
+- Set OVP/OCP thresholds intentionally rather than relying on defaults.
+- Keep the test attended and stop if cables, connectors, the source, the load,
+  or Dr. PD heat unexpectedly.
+
+If a high-power request fails, the limiting factor may be the cable, contract
+selection, EPR entry state, load, protection settings, or thermal behavior, not
+just the source.
+
+## Port 2 lockout and reverse polarity
+
+When Dr. PD operates as a sink on Port 1, Port 2 is disconnected from the USB-PD
+bus and VBUS line. This lockout protects a device that might have been left on
+Port 2, but a simple setup with unused devices removed is easier to understand.
+
+The banana connectors include reverse-polarity protection for cases where an
+external source or load is connected backwards. If it trips, Dr. PD disconnects
+the banana connector VBUS path; the control app does not present this as an
+OVP/OCP event. Treat an unexpected 0 V reading at the banana connectors as a
+reason to stop and inspect wiring before continuing.
+
+## External cross-checks
+
+Useful cross-checks include:
+
+- Comparing Dr. PD voltage readings with a DMM at the banana connectors.
+- Comparing Dr. PD current readings with the electronic load readback or a
+  current probe/shunt suitable for the expected current.
+- Capturing VBUS and CC with an oscilloscope while Dr. PD records decoded
+  protocol traffic.
+- Recording cable identity, source model, selected contract, load setting,
+  protection thresholds, firmware/software version, and calibration state.
+
+Dr. PD can make USB-PD behavior visible and repeatable. The bench setup,
+external validation, and safety decisions still matter.
