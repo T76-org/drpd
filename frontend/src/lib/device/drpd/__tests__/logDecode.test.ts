@@ -103,7 +103,7 @@ describe('decodeLoggedCapturedMessage', () => {
     const timingInformation = decoded.message.humanReadableMetadata.technicalData.getEntry('timingInformation')
     expect(timingInformation?.getEntry('startTimestamp')?.value).toBe('1000')
     expect(timingInformation?.getEntry('wallClockTimestamp')?.value).toBe('17:13:20.000000')
-    expect(timingInformation?.getEntry('duration')?.value).toBe('5')
+    expect(timingInformation?.getEntry('duration')?.value).toBe('5µs')
   })
 
   it('returns event rows without decode attempt', () => {

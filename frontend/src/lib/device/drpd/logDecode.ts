@@ -77,6 +77,7 @@ const stripChunkedFragmentCRC = (payload: Uint8Array): Uint8Array => {
 }
 
 const formatMicroseconds = (valueUs: number | bigint): string => valueUs.toString()
+const formatDurationMicroseconds = (valueUs: number | bigint): string => `${valueUs.toString()}µs`
 
 const formatWallClockUs = (valueUs: bigint | null): string => {
   if (valueUs === null) {
@@ -195,7 +196,7 @@ const buildTimingInformation = (row: LoggedCapturedMessage): HumanReadableField<
   )
   timingInformation.setEntry(
     'duration',
-    HumanReadableField.string(formatMicroseconds(durationUs), 'Duration', 'Total message duration in microseconds.'),
+    HumanReadableField.string(formatDurationMicroseconds(durationUs), 'Duration', 'Total message duration in microseconds.'),
   )
   timingInformation.setEntry(
     'pulseCount',

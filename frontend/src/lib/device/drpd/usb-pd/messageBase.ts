@@ -11,6 +11,7 @@ const USB_PD_BMC_CARRIER_KHZ = 300
 const USB_PD_BMC_TOLERANCE = 0.1
 
 const formatMicroseconds = (valueUs: number | bigint): string => valueUs.toString()
+const formatDurationMicroseconds = (valueUs: number | bigint): string => `${valueUs.toString()}µs`
 
 const formatWallClockUs = (valueUs: bigint | null): string => {
   if (valueUs === null) {
@@ -394,7 +395,7 @@ export class Message {
       2,
       'duration',
       HumanReadableField.string(
-        formatMicroseconds(durationUs),
+        formatDurationMicroseconds(durationUs),
         'Duration',
         'Total message duration in microseconds.',
       ),
