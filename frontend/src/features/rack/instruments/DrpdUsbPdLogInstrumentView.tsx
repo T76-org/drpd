@@ -1250,9 +1250,20 @@ export const DrpdUsbPdLogInstrumentView = ({
             }}
           >
             {row?.kind === 'event' ? (
-              <td className={styles.eventLabel} colSpan={visibleColumns.length}>
-                {row.timestamp ? `${row.timestamp}  ${row.messageType}` : row.messageType}
-              </td>
+              visibleColumns[0]?.id === 'timestamp' ? (
+                <>
+                  <td className={styles.eventTimestamp}>{row.timestamp}</td>
+                  {visibleColumns.length > 1 ? (
+                    <td className={styles.eventLabelAligned} colSpan={visibleColumns.length - 1}>
+                      {row.messageType}
+                    </td>
+                  ) : null}
+                </>
+              ) : (
+                <td className={styles.eventLabel} colSpan={visibleColumns.length}>
+                  {row.messageType}
+                </td>
+              )
             ) : (
               visibleColumns.map((column) => (
                 <td

@@ -789,7 +789,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
    * Query captured message rows.
    *
    * @param query - Query criteria.
-   * @returns Matching rows in ascending start timestamp order.
+   * @returns Matching rows in insertion order.
    */
   public async queryCapturedMessages(
     query: CapturedMessageQuery,
@@ -846,15 +846,6 @@ export class SQLiteWasmStore implements DRPDLogStore {
           }
           return true
         })
-        .sort((left, right) => {
-          const leftTimestamp = getRowQueryTimestamp(left) ?? 0n
-          const rightTimestamp = getRowQueryTimestamp(right) ?? 0n
-          return leftTimestamp < rightTimestamp
-            ? -1
-            : leftTimestamp > rightTimestamp
-              ? 1
-              : 0
-        })
       const sortedRows = sortOrder === 'desc' ? rows.reverse() : rows
       const pagedRows = offset > 0 ? sortedRows.slice(offset) : sortedRows
       if (limit === null) {
@@ -862,14 +853,8 @@ export class SQLiteWasmStore implements DRPDLogStore {
       }
       return pagedRows.slice(0, limit)
     }
-    const firstPendingQueryTimestamp =
-      this.pendingCapturedMessages.length > 0
-        ? getRowQueryTimestamp(this.pendingCapturedMessages[0].row)
-        : null
-    const hasPending =
-      firstPendingQueryTimestamp !== null &&
-      query.endTimestampUs >= firstPendingQueryTimestamp
-    if (!hasPending) {
+    const pendingRows = this.filterPendingCapturedMessages(query)
+    if (pendingRows.length === 0) {
       return await this.queryCommittedCapturedMessages(query)
     }
 
@@ -883,7 +868,6 @@ export class SQLiteWasmStore implements DRPDLogStore {
       !query.sopKinds?.length &&
       !query.eventTypes?.length
 
-    const pendingRows = this.filterPendingCapturedMessages(query)
     if (isUnfilteredFullRange && (offset > 0 || limit !== null)) {
       if (sortOrder === 'asc') {
         if (offset >= this.committedCounts.messages) {
@@ -929,15 +913,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
       offset: undefined,
       limit: undefined,
     })
-    const mergedRows = committedRows.concat(pendingRows).sort((left, right) => {
-      const cmp =
-        (getRowQueryTimestamp(left) ?? 0n) < (getRowQueryTimestamp(right) ?? 0n)
-          ? -1
-          : (getRowQueryTimestamp(left) ?? 0n) > (getRowQueryTimestamp(right) ?? 0n)
-            ? 1
-            : left.createdAtMs - right.createdAtMs
-      return sortOrder === 'desc' ? -cmp : cmp
-    })
+    const mergedRows =
+      sortOrder === 'desc'
+        ? pendingRows.concat(committedRows)
+        : committedRows.concat(pendingRows)
     const pagedRows = offset > 0 ? mergedRows.slice(offset) : mergedRows
     return limit === null ? pagedRows : pagedRows.slice(0, limit)
   }
@@ -968,32 +947,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
         sortOrder: 'desc',
         limit: 1,
       }),
-      this.queryCapturedMessages({
-        startTimestampUs: 0n,
-        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
-        sortOrder: 'asc',
-        limit: 1,
-      }),
-      this.queryCapturedMessages({
-        startTimestampUs: 0n,
-        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
-        sortOrder: 'desc',
-        limit: 1,
-      }),
-      this.queryCapturedMessages({
-        startTimestampUs: 0n,
-        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
-        timeBasis: 'wallClock',
-        sortOrder: 'asc',
-        limit: 1,
-      }),
-      this.queryCapturedMessages({
-        startTimestampUs: 0n,
-        endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
-        timeBasis: 'wallClock',
-        sortOrder: 'desc',
-        limit: 1,
-      }),
+      this.queryCapturedMessageTimeBound('device', 'asc'),
+      this.queryCapturedMessageTimeBound('device', 'desc'),
+      this.queryCapturedMessageTimeBound('wallClock', 'asc'),
+      this.queryCapturedMessageTimeBound('wallClock', 'desc'),
     ])
     return {
       firstAnalogSample: firstAnalogRows[0] ?? null,
@@ -1003,6 +960,64 @@ export class SQLiteWasmStore implements DRPDLogStore {
       firstWallClockMessage: firstWallClockRows[0] ?? null,
       lastWallClockMessage: lastWallClockRows[0] ?? null,
     }
+  }
+
+  /**
+   * Query the first or last captured-message row by timestamp for timeline bounds.
+   *
+   * @param timeBasis - Timestamp basis.
+   * @param sortOrder - Timestamp sort order.
+   * @returns The timestamp-bound row, if present.
+   */
+  protected async queryCapturedMessageTimeBound(
+    timeBasis: 'device' | 'wallClock',
+    sortOrder: 'asc' | 'desc',
+  ): Promise<LoggedCapturedMessage[]> {
+    const query: CapturedMessageQuery = {
+      startTimestampUs: 0n,
+      endTimestampUs: SQLITE_MAX_TIMESTAMP_US,
+      timeBasis,
+      sortOrder,
+      limit: 1,
+    }
+    const getRowQueryTimestamp = (row: LoggedCapturedMessage): bigint | null =>
+      timeBasis === 'wallClock' ? row.wallClockUs : row.startTimestampUs
+
+    if (this.memoryFallback) {
+      const rows = this.memoryFallback.capturedMessages
+        .filter((row) => getRowQueryTimestamp(row) !== null)
+        .sort((left, right) => {
+          const leftTimestamp = getRowQueryTimestamp(left) ?? 0n
+          const rightTimestamp = getRowQueryTimestamp(right) ?? 0n
+          const cmp = leftTimestamp < rightTimestamp ? -1 : leftTimestamp > rightTimestamp ? 1 : 0
+          return sortOrder === 'desc' ? -cmp : cmp
+        })
+      return rows.slice(0, 1)
+    }
+
+    const pendingRows = this.pendingCapturedMessages
+      .filter(({ row }) => getRowQueryTimestamp(row) !== null)
+      .sort((left, right) => {
+        const leftTimestamp = getRowQueryTimestamp(left.row) ?? 0n
+        const rightTimestamp = getRowQueryTimestamp(right.row) ?? 0n
+        const cmp =
+          leftTimestamp < rightTimestamp
+            ? -1
+            : leftTimestamp > rightTimestamp
+              ? 1
+              : left.sequence - right.sequence
+        return sortOrder === 'desc' ? -cmp : cmp
+      })
+      .map(({ row }) => row)
+    const committedRows = await this.queryCommittedCapturedMessagesByTimestamp(query)
+    const candidates = committedRows.concat(pendingRows.slice(0, 1))
+    candidates.sort((left, right) => {
+      const leftTimestamp = getRowQueryTimestamp(left) ?? 0n
+      const rightTimestamp = getRowQueryTimestamp(right) ?? 0n
+      const cmp = leftTimestamp < rightTimestamp ? -1 : leftTimestamp > rightTimestamp ? 1 : 0
+      return sortOrder === 'desc' ? -cmp : cmp
+    })
+    return candidates.slice(0, 1)
   }
 
   /**
@@ -1058,6 +1073,40 @@ export class SQLiteWasmStore implements DRPDLogStore {
     query: CapturedMessageQuery,
   ): Promise<LoggedCapturedMessage[]> {
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    return await this.queryCommittedCapturedMessagesWithOrder(
+      query,
+      `id ${sortOrder.toUpperCase()}`,
+    )
+  }
+
+  /**
+   * Query committed captured-message rows from SQLite by timestamp.
+   *
+   * @param query - Query criteria.
+   * @returns Matching committed rows.
+   */
+  protected async queryCommittedCapturedMessagesByTimestamp(
+    query: CapturedMessageQuery,
+  ): Promise<LoggedCapturedMessage[]> {
+    const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
+    const timeColumn = query.timeBasis === 'wallClock' ? 'wall_clock_us' : 'start_timestamp_us'
+    return await this.queryCommittedCapturedMessagesWithOrder(
+      query,
+      `${timeColumn} ${sortOrder.toUpperCase()}, id ${sortOrder.toUpperCase()}`,
+    )
+  }
+
+  /**
+   * Query committed captured-message rows from SQLite with a trusted order clause.
+   *
+   * @param query - Query criteria.
+   * @param orderBy - Trusted SQL ORDER BY expression.
+   * @returns Matching committed rows.
+   */
+  protected async queryCommittedCapturedMessagesWithOrder(
+    query: CapturedMessageQuery,
+    orderBy: string,
+  ): Promise<LoggedCapturedMessage[]> {
     const offset =
       query.offset != null && Number.isFinite(query.offset) && query.offset > 0
         ? Math.floor(query.offset)
@@ -1099,7 +1148,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
       'FROM captured_messages',
       `WHERE ${clauses.join(' AND ')}`,
-      `ORDER BY ${timeColumn} ${sortOrder.toUpperCase()}, id ${sortOrder.toUpperCase()}`,
+      `ORDER BY ${orderBy}`,
     ]
     if (limit !== null) {
       sqlParts.push('LIMIT ?')
@@ -1157,7 +1206,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
    * Filter queued message rows using the same semantics as SQLite queries.
    *
    * @param query - Query criteria.
-   * @returns Matching pending rows in query sort order.
+   * @returns Matching pending rows in insertion order.
    */
   protected filterPendingCapturedMessages(query: CapturedMessageQuery): LoggedCapturedMessage[] {
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
@@ -1197,15 +1246,11 @@ export class SQLiteWasmStore implements DRPDLogStore {
         }
         return true
       })
-      .sort((left, right) => {
-        const cmp =
-          (getRowQueryTimestamp(left.row) ?? 0n) < (getRowQueryTimestamp(right.row) ?? 0n)
-            ? -1
-            : (getRowQueryTimestamp(left.row) ?? 0n) > (getRowQueryTimestamp(right.row) ?? 0n)
-              ? 1
-              : left.sequence - right.sequence
-        return sortOrder === 'desc' ? -cmp : cmp
-      })
+      .sort((left, right) =>
+        sortOrder === 'desc'
+          ? right.sequence - left.sequence
+          : left.sequence - right.sequence,
+      )
       .map(({ row }) => row)
     return rows
   }
