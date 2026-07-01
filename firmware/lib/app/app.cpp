@@ -32,6 +32,7 @@ App::App() :
     _vbusManager(_analogMonitor),
     _ccBusController(_analogMonitor, _ccBusManager, _ccRoleManager, _bmcDecoder, _bmcEncoder, _vbusManager),
     _triggerController(_bmcDecoder, _syncManager) {
+    queue_init(&_sinkErrorEventQueue, sizeof(PendingSinkErrorEvent), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
 }
 
 void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) {
@@ -342,6 +343,7 @@ void App::_init() {
 void App::_loop() {
     while (true) {
         _analogMonitor.readVBusValues();
+        _processSinkErrorEvents();
 
         if (_interruptPending.exchange(false, std::memory_order_acq_rel)) {
             if (!_sendTransportNotification()) {
@@ -378,6 +380,7 @@ void App::_initCore0() {
     _ccBusController.addStateChangedCallback(std::bind(&App::_ccBusStateChangedCallback, this, std::placeholders::_1));
     _ccBusController.addRoleChangedCallback(std::bind(&App::_ccBusRoleChangedCallback, this, std::placeholders::_1));
     _ccBusController.sinkInfoChanged(std::bind(&App::_sinkInfoChangedCallback, this, std::placeholders::_1));
+    _ccBusController.sinkErrorOccurred(std::bind(&App::_sinkErrorCallback, this, std::placeholders::_1));
     _vbusManager.managerChangedCallback(std::bind(&App::_vbusManagerChangedCallback, this));
     _triggerController.statusChangedCallback(std::bind(&App::_triggerStatusChangedCallback, this, std::placeholders::_1));
     if (_statusLedSupported) {
@@ -567,6 +570,16 @@ std::string_view App::_ccBusRoleCaptureEventText(Logic::CCBusRole role) const {
     }
 }
 
+void App::_processSinkErrorEvents() {
+    PendingSinkErrorEvent event{};
+    while (queue_try_remove(&_sinkErrorEventQueue, &event)) {
+        std::string text = "Sink error: ";
+        text += event.reason != nullptr ? event.reason : "Unknown error";
+        _publishCaptureEvent(_captureEventSinkError, text);
+        deviceStatus(DeviceStatusFlag::SinkStatusChanged);
+    }
+}
+
 void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
     // Signal that the trigger controller status has changed
     deviceStatus(DeviceStatusFlag::TriggerStatusChanged);
@@ -617,6 +630,16 @@ void App::_sinkInfoChangedCallback(Logic::SinkInfoChange change) {
     }
 
     deviceStatus(DeviceStatusFlag::SinkStatusChanged);
+}
+
+void App::_sinkErrorCallback(const Logic::SinkErrorEvent& event) {
+    const PendingSinkErrorEvent pendingEvent{
+        .reason = event.reason,
+        .state = event.state,
+        .hasResetType = event.resetType.has_value(),
+        .resetType = event.resetType.value_or(Logic::SinkResetType::Internal),
+    };
+    (void)queue_try_add(&_sinkErrorEventQueue, &pendingEvent);
 }
 
 void App::_savePersistentConfig() {

@@ -87,6 +87,7 @@ namespace T76::DRPD::Logic {
          * @param transitionSinkStateHandler Handler instance for Transition Sink state.
          * @param waitForCapabilitiesStateHandler Handler instance for Wait for Capabilities state.
          * @param sinkInfoChangedCallback Callback used to notify host-visible sink info changes.
+         * @param sinkErrorCallback Callback used to notify host-visible sink errors.
          * @param enqueueTimeoutEventCallback Callback used to enqueue timeout
          *        events to the Sink policy loop context.
          */
@@ -107,6 +108,7 @@ namespace T76::DRPD::Logic {
             TransitionSinkStateHandler& transitionSinkStateHandler,
             WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
             std::function<void(SinkInfoChange)>& sinkInfoChangedCallback,
+            SinkErrorCallback& sinkErrorCallback,
             std::function<void(SinkTimeoutEvent)>& enqueueTimeoutEventCallback);
 
         /**
@@ -132,6 +134,13 @@ namespace T76::DRPD::Logic {
          * @param resetType Reset action to execute.
          */
         void performReset(SinkResetType resetType);
+
+        /**
+         * @brief Report a Sink-originated error without changing policy state.
+         * @param reason Static diagnostic text.
+         * @param resetType Reset associated with this error, if any.
+         */
+        void reportError(const char *reason, std::optional<SinkResetType> resetType = std::nullopt);
 
         /**
          * @brief Complete receiver-side Soft_Reset handling after the PHY GoodCRC.
@@ -457,6 +466,7 @@ namespace T76::DRPD::Logic {
         WaitForCapabilitiesStateHandler& _waitForCapabilitiesStateHandler; ///< Handler for Wait for Capabilities.
 
         std::function<void(SinkInfoChange)>& _sinkInfoChangedCallback;   ///< Host callback repeater.
+        SinkErrorCallback& _sinkErrorCallback;                           ///< Host error callback repeater.
         std::function<void(SinkTimeoutEvent)>& _enqueueTimeoutEventCallback; ///< Timeout event callback.
 
         /**
@@ -480,6 +490,13 @@ namespace T76::DRPD::Logic {
          * @param change Sink info change classification to notify.
          */
         void _notifySinkInfoChanged(SinkInfoChange change);
+
+        /**
+         * @brief Emit sink error callback if registered.
+         * @param reason Static diagnostic text.
+         * @param resetType Reset associated with this error, if any.
+         */
+        void _notifySinkError(const char *reason, std::optional<SinkResetType> resetType);
 
         /**
          * @brief Return default local Sink fixed PDO.

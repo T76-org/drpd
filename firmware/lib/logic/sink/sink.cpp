@@ -51,6 +51,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _transitionSinkStateHandler,
         _waitForCapabilitiesStateHandler,
         _sinkInfoChangedCallback,
+        _sinkErrorCallback,
         _timeoutEventCallback) {
 
     queue_init(&_messageQueue, sizeof(const PHY::BMCDecodedMessage*), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);

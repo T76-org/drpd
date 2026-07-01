@@ -193,6 +193,11 @@ void CCBusController::sinkInfoChanged(SinkInfoChangedCallback callback) {
     _sinkInfoChangedCallback = std::move(callback);
 }
 
+void CCBusController::sinkErrorOccurred(SinkErrorCallback callback) {
+    SpinLockGuard lock(_callbacksLock);
+    _sinkErrorCallback = std::move(callback);
+}
+
 void CCBusController::_repeatSinkInfoChanged(SinkInfoChange change) {
     SinkInfoChangedCallback callback = nullptr;
     {
@@ -202,6 +207,18 @@ void CCBusController::_repeatSinkInfoChanged(SinkInfoChange change) {
 
     if (callback) {
         callback(change);
+    }
+}
+
+void CCBusController::_repeatSinkError(const SinkErrorEvent& event) {
+    SinkErrorCallback callback = nullptr;
+    {
+        SpinLockGuard lock(_callbacksLock);
+        callback = _sinkErrorCallback;
+    }
+
+    if (callback) {
+        callback(event);
     }
 }
 

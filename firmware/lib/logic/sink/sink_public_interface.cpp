@@ -70,7 +70,15 @@ float Sink::negotiatedCurrent() const {
 
 SinkRequestResult Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t currentMA) {
     if (!_enabled.load()) {
-        return SinkRequestResult::failure("Sink is disabled");
+        const SinkRequestResult result = SinkRequestResult::failure("Sink is disabled");
+        if (_sinkErrorCallback) {
+            _sinkErrorCallback(SinkErrorEvent{
+                .reason = result.error,
+                .state = _runtimeState._state,
+                .resetType = std::nullopt,
+            });
+        }
+        return result;
     }
 
     const SinkRequestResult validation = _context.validatePDORequest(
@@ -79,12 +87,27 @@ SinkRequestResult Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t
         currentMA
     );
     if (!validation) {
+        if (_sinkErrorCallback) {
+            _sinkErrorCallback(SinkErrorEvent{
+                .reason = validation.error,
+                .state = _runtimeState._state,
+                .resetType = std::nullopt,
+            });
+        }
         return validation;
     }
 
     const PendingPDORequest request{pdoIndex, voltageMV, currentMA};
     if (!queue_try_add(&_pendingRequestQueue, &request)) {
-        return SinkRequestResult::failure("Sink request queue is full");
+        const SinkRequestResult result = SinkRequestResult::failure("Sink request queue is full");
+        if (_sinkErrorCallback) {
+            _sinkErrorCallback(SinkErrorEvent{
+                .reason = result.error,
+                .state = _runtimeState._state,
+                .resetType = std::nullopt,
+            });
+        }
+        return result;
     }
 
     return SinkRequestResult::ok();
@@ -136,6 +159,14 @@ void Sink::sinkInfoChanged(std::function<void(SinkInfoChange)> callback) {
 
 std::function<void(SinkInfoChange)> Sink::sinkInfoChanged() const {
     return _sinkInfoChangedCallback;
+}
+
+void Sink::sinkErrorOccurred(SinkErrorCallback callback) {
+    _sinkErrorCallback = std::move(callback);
+}
+
+SinkErrorCallback Sink::sinkErrorOccurred() const {
+    return _sinkErrorCallback;
 }
 
 void Sink::_sendExtendedChunkRequest(
