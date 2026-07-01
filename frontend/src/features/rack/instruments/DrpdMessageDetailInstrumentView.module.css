@@ -426,17 +426,3 @@
 .emptyStateText {
   font-size: var(--font-size-lg);
 }
-
-.invalidMessageState {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
-  padding: var(--space-12);
-  background: var(--message-bytes-invalid-background, color-mix(in srgb, #b91c1c 38%, var(--color-surface-panel)));
-  color: color-mix(in srgb, white 88%, var(--color-text, currentColor));
-  font-family: var(--font-family-monospace, monospace);
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  text-transform: lowercase;
-}

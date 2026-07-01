@@ -7,9 +7,12 @@
 
 import type { LoggedCapturedMessage } from './logging'
 import { Header } from './usb-pd/header'
+import { HumanReadableField, type HumanReadableMetadataRoot } from './usb-pd/humanReadableField'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import type { Message } from './usb-pd/message'
 import { SOP } from './usb-pd/sop'
+import type { SOPKind } from './usb-pd/types'
+import { CaptureDecodeResult } from './types'
 
 type ParsedRowPacket = {
   row: LoggedCapturedMessage
@@ -73,6 +76,376 @@ const stripChunkedFragmentCRC = (payload: Uint8Array): Uint8Array => {
   ])
 }
 
+const formatMicroseconds = (valueUs: number | bigint): string => valueUs.toString()
+const formatDurationMicroseconds = (valueUs: number | bigint): string => `${valueUs.toString()}µs`
+
+const formatWallClockUs = (valueUs: bigint | null): string => {
+  if (valueUs === null) {
+    return 'Unavailable'
+  }
+  const epochMs = valueUs / 1000n
+  const micros = valueUs % 1000n
+  const date = new Date(Number(epochMs))
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  const seconds = date.getSeconds().toString().padStart(2, '0')
+  const milliseconds = date.getMilliseconds().toString().padStart(3, '0')
+  return `${hours}:${minutes}:${seconds}.${milliseconds}${micros.toString().padStart(3, '0')}`
+}
+
+const formatKilohertz = (valueKhz: number): string => {
+  if (!Number.isFinite(valueKhz)) {
+    return 'Unavailable'
+  }
+  return `${Math.trunc(valueKhz)} kHz`
+}
+
+const computeBMCCarrierFrequencyKhz = (pulseWidthsNs: Float64Array): number => {
+  if (pulseWidthsNs.length <= 96) {
+    return Number.NaN
+  }
+
+  let preambleClockSeconds = 0
+  let messageClockSeconds = 0
+  for (let index = 0; index < pulseWidthsNs.length; index += 1) {
+    const pulseLengthSeconds = pulseWidthsNs[index] / 1_000_000_000
+    if (index < 96) {
+      preambleClockSeconds += index % 3 === 0 ? pulseLengthSeconds * 2 : pulseLengthSeconds
+      if (index === 95) {
+        preambleClockSeconds /= 96
+      }
+      continue
+    }
+    messageClockSeconds += pulseLengthSeconds > (preambleClockSeconds * 2) / 3
+      ? pulseLengthSeconds
+      : pulseLengthSeconds * 2
+  }
+
+  messageClockSeconds /= pulseWidthsNs.length - 96
+  if (!Number.isFinite(messageClockSeconds) || messageClockSeconds <= 0) {
+    return Number.NaN
+  }
+  return (1 / messageClockSeconds) / 1000
+}
+
+const formatSOPType = (kind: SOP['kind']): string => {
+  switch (kind) {
+    case 'SOP':
+      return 'SOP'
+    case 'SOP_PRIME':
+      return 'SOP\''
+    case 'SOP_DOUBLE_PRIME':
+      return 'SOP\'\''
+    case 'SOP_DEBUG_PRIME':
+      return 'SOP Debug\''
+    case 'SOP_DEBUG_DOUBLE_PRIME':
+      return 'SOP Debug\'\''
+    case 'SOP_HARD_RESET':
+      return 'Hard Reset'
+    case 'SOP_CABLE_RESET':
+      return 'Cable Reset'
+    default:
+      return 'Unknown'
+  }
+}
+
+const isResetSignalKind = (kind: SOPKind): boolean =>
+  kind === 'SOP_HARD_RESET' || kind === 'SOP_CABLE_RESET'
+
+const getResetSignalLabel = (kind: SOPKind): string =>
+  kind === 'SOP_CABLE_RESET' ? 'Cable Reset' : 'Hard Reset'
+
+const getRowResetSignalKind = (row: LoggedCapturedMessage): SOPKind | null => {
+  if (row.rawSop.length !== 4 || row.rawDecodedData.length !== 0) {
+    return null
+  }
+  const sop = new SOP(row.rawSop)
+  return isResetSignalKind(sop.kind) ? sop.kind : null
+}
+
+const describeDecodeResult = (decodeResult: number): string => {
+  switch (decodeResult) {
+    case CaptureDecodeResult.INVALID_KCODE:
+      return 'Invalid K-code'
+    case CaptureDecodeResult.CRC_ERROR:
+      return 'Bad CRC'
+    case CaptureDecodeResult.TIMEOUT_ERROR:
+      return 'Timeout'
+    case CaptureDecodeResult.INCOMPLETE:
+      return 'Truncated or incomplete capture'
+    default:
+      return `decodeResult=${decodeResult}`
+  }
+}
+
+const buildTimingInformation = (row: LoggedCapturedMessage): HumanReadableField<'OrderedDictionary'> => {
+  const startTimestampUs = row.startTimestampUs
+  const endTimestampUs = row.endTimestampUs
+  const durationUs = endTimestampUs >= startTimestampUs ? endTimestampUs - startTimestampUs : 0n
+  const timingInformation = HumanReadableField.orderedDictionary(
+    'Timing Information',
+    'Capture timing and pulse-derived measurements for this message.',
+  )
+  timingInformation.setEntry(
+    'startTimestamp',
+    HumanReadableField.string(formatMicroseconds(startTimestampUs), 'Device Timestamp', 'Device capture timestamp in microseconds.'),
+  )
+  timingInformation.setEntry(
+    'wallClockTimestamp',
+    HumanReadableField.string(formatWallClockUs(row.wallClockUs), 'Wall Clock Timestamp', 'Estimated host wall-clock timestamp in microseconds, synchronized from the device timestamp.'),
+  )
+  timingInformation.setEntry(
+    'duration',
+    HumanReadableField.string(formatDurationMicroseconds(durationUs), 'Duration', 'Total message duration in microseconds.'),
+  )
+  timingInformation.setEntry(
+    'pulseCount',
+    HumanReadableField.string(row.rawPulseWidths.length.toString(), 'Pulse Count', 'Number of captured BMC pulse widths used to decode this message.'),
+  )
+  const bmcFrequencyKhz = computeBMCCarrierFrequencyKhz(row.rawPulseWidths)
+  const bmcCarrierValid =
+    Number.isFinite(bmcFrequencyKhz) &&
+    bmcFrequencyKhz >= 300 * 0.9 &&
+    bmcFrequencyKhz <= 300 * 1.1
+  const bmcCarrier = HumanReadableField.orderedDictionary(
+    'BMC Carrier',
+    'Biphase Mark Coding carrier measurements derived from the pulse widths.',
+  )
+  bmcCarrier.setEntry('frequency', HumanReadableField.string(formatKilohertz(bmcFrequencyKhz), 'Frequency', 'Biphase Mark Coding carrier frequency in kilohertz.'))
+  bmcCarrier.setEntry('valid', HumanReadableField.string(bmcCarrierValid ? 'true' : 'false', 'Valid', 'Whether the measured Biphase Mark Coding carrier frequency is within the USB-PD specification tolerance of 300 kHz +/-10%.'))
+  timingInformation.setEntry('bmcCarrier', bmcCarrier)
+  return timingInformation
+}
+
+const buildSopField = (row: LoggedCapturedMessage): HumanReadableField<'OrderedDictionary'> | null => {
+  if (row.rawSop.length <= 0) {
+    return null
+  }
+  const sopField = HumanReadableField.orderedDictionary(
+    'SOP',
+    'Start of Packet metadata derived from the ordered-set prefix.',
+  )
+  if (row.rawSop.length === 4) {
+    const sop = new SOP(row.rawSop)
+    sopField.setEntry('type', HumanReadableField.string(formatSOPType(sop.kind), 'Type', 'Decoded Start of Packet type for this message.'))
+  } else {
+    sopField.setEntry('type', HumanReadableField.string('Unavailable', 'Type', 'SOP type cannot be decoded unless four K-code bytes are available.'))
+  }
+  sopField.setEntry('kCodes', HumanReadableField.byteData(row.rawSop, 8, false, 'K-Codes', 'Raw K-code bytes that form the Start of Packet ordered set.'))
+  return sopField
+}
+
+const buildResetSignalMetadata = (
+  row: LoggedCapturedMessage,
+  resetKind: SOPKind,
+): HumanReadableMetadataRoot => {
+  const payload = buildRowPayload(row)
+  const resetLabel = getResetSignalLabel(resetKind)
+  const baseInformation = HumanReadableField.orderedDictionary(
+    'Base Information',
+    'Container for USB-PD reset-signaling identity and descriptive fields.',
+    [[
+      'messageType',
+      HumanReadableField.string(
+        resetLabel,
+        'Message Type',
+        'USB Power Delivery reset signaling ordered-set type.',
+      ),
+    ]],
+  )
+  const technicalData = HumanReadableField.orderedDictionary(
+    'Technical Data',
+    'Container for technical-level decoded values that apply broadly.',
+  )
+  technicalData.setEntry('timingInformation', buildTimingInformation(row))
+  const sop = buildSopField(row)
+  if (sop) {
+    technicalData.setEntry('sop', sop)
+  }
+  technicalData.setEntry(
+    'messageBytes',
+    HumanReadableField.byteData(
+      payload,
+      8,
+      false,
+      'Message Bytes',
+      `Raw byte sequence for the ${resetLabel} ordered set.`,
+    ),
+  )
+  const headerData = HumanReadableField.orderedDictionary(
+    'Header Data',
+    'Container for parsed header-level fields and derived header metadata.',
+    [[
+      'headerStatus',
+      HumanReadableField.string(
+        'Reset signaling has no USB-PD message header.',
+        'Header Status',
+        'Explains why no header fields are shown for this reset signaling entry.',
+      ),
+    ]],
+  )
+  return {
+    baseInformation,
+    technicalData,
+    headerData,
+    messageSpecificData: HumanReadableField.orderedDictionary(
+      'Message-Specific Data',
+      'Container for decoded fields specific to this concrete message type.',
+    ),
+  }
+}
+
+const buildInvalidBaseInformation = (
+  reason: string,
+): HumanReadableField<'OrderedDictionary'> => HumanReadableField.orderedDictionary(
+  'Base Information',
+  'Container for general message identity and invalid-message diagnostic fields.',
+  [
+    [
+      'messageType',
+      HumanReadableField.string(
+        'Invalid',
+        'Message Type',
+        'Indicates that the captured row could not be accepted as a valid USB-PD message.',
+      ),
+    ],
+    [
+      'invalidReason',
+      HumanReadableField.string(
+        reason,
+        'Invalid Reason',
+        'Reason the message was classified as invalid.',
+      ),
+    ],
+  ],
+)
+
+const buildFallbackInvalidMetadata = (
+  row: LoggedCapturedMessage,
+  reason: string,
+  parseFailureReason?: string,
+): HumanReadableMetadataRoot => {
+  const payload = buildRowPayload(row)
+  const baseInformation = buildInvalidBaseInformation(reason)
+  if (parseFailureReason) {
+    baseInformation.setEntry(
+      'parseFailure',
+      HumanReadableField.string(
+        parseFailureReason,
+        'Best-Effort Parse Failure',
+        'Parser error encountered while attempting to recover additional message fields.',
+      ),
+    )
+  }
+
+  const technicalData = HumanReadableField.orderedDictionary(
+    'Technical Data',
+    'Container for technical-level decoded values that apply broadly.',
+  )
+  technicalData.setEntry('timingInformation', buildTimingInformation(row))
+
+  const sop = buildSopField(row)
+  if (sop) {
+    technicalData.setEntry('sop', sop)
+  }
+  technicalData.setEntry(
+    'messageBytes',
+    HumanReadableField.byteData(
+      payload,
+      8,
+      false,
+      'Message Bytes',
+      'Raw byte sequence captured for this invalid USB-PD message.',
+    ),
+  )
+
+  const headerData = HumanReadableField.orderedDictionary(
+    'Header Data',
+    'Container for parsed header-level fields and derived header metadata.',
+  )
+  headerData.setEntry(
+    'headerStatus',
+    HumanReadableField.string(
+      payload.length >= 6 ? 'Unavailable' : 'Truncated before complete message header',
+      'Header Status',
+      'Explains whether header-level fields could be recovered from the captured bytes.',
+    ),
+  )
+
+  return {
+    baseInformation,
+    technicalData,
+    headerData,
+    messageSpecificData: HumanReadableField.orderedDictionary(
+      'Message-Specific Data',
+      'Container for decoded fields specific to this concrete message type.',
+    ),
+  }
+}
+
+const buildInvalidMetadataFromMessage = (
+  message: Message,
+  reason: string,
+): HumanReadableMetadataRoot => {
+  const metadata = message.humanReadableMetadata
+  const inferredMessageType = metadata.baseInformation.getEntry('messageType')
+  metadata.baseInformation.insertEntryAt(
+    0,
+    'messageType',
+    HumanReadableField.string(
+      'Invalid',
+      'Message Type',
+      'Indicates that the captured row could not be accepted as a valid USB-PD message.',
+    ),
+  )
+  metadata.baseInformation.insertEntryAt(
+    1,
+    'invalidReason',
+    HumanReadableField.string(reason, 'Invalid Reason', 'Reason the message was classified as invalid.'),
+  )
+  if (inferredMessageType?.type === 'String' && typeof inferredMessageType.value === 'string') {
+    metadata.baseInformation.insertEntryAt(
+      2,
+      'inferredMessageType',
+      HumanReadableField.string(
+        inferredMessageType.value,
+        'Inferred Message Type',
+        'Best-effort message type decoded from the captured header.',
+      ),
+    )
+  }
+  return metadata
+}
+
+const decodeInvalidCapturedMessage = (
+  row: LoggedCapturedMessage,
+  reason: string,
+): DecodedLoggedCapturedMessage => {
+  const payload = buildRowPayload(row)
+  try {
+    const message = parseUSBPDMessage(payload, row.rawPulseWidths, {
+      startTimestampUs: row.startTimestampUs,
+      endTimestampUs: row.endTimestampUs,
+    })
+    message.setWallClockTimestampUs(row.wallClockUs)
+    return {
+      kind: 'invalid',
+      row,
+      reason,
+      message,
+      metadata: buildInvalidMetadataFromMessage(message, reason),
+    }
+  } catch (error) {
+    const parseFailureReason = error instanceof Error ? error.message : String(error)
+    return {
+      kind: 'invalid',
+      row,
+      reason,
+      metadata: buildFallbackInvalidMetadata(row, reason, parseFailureReason),
+    }
+  }
+}
+
 const decodeParsedPacket = (
   row: LoggedCapturedMessage,
   payload: Uint8Array,
@@ -90,7 +463,12 @@ const decodeParsedPacket = (
     return { kind: 'message', row, message }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
-    return { kind: 'invalid', row, reason }
+    return {
+      kind: 'invalid',
+      row,
+      reason,
+      metadata: buildFallbackInvalidMetadata(row, reason, reason),
+    }
   }
 }
 
@@ -106,6 +484,14 @@ export type DecodedLoggedCapturedMessage =
       kind: 'invalid'
       row: LoggedCapturedMessage
       reason: string
+      metadata: HumanReadableMetadataRoot
+      message?: Message
+    }
+  | {
+      kind: 'reset'
+      row: LoggedCapturedMessage
+      resetKind: SOPKind
+      metadata: HumanReadableMetadataRoot
     }
   | {
       kind: 'message'
@@ -146,11 +532,20 @@ export const decodeLoggedCapturedMessageWithContext = (
   if (row.entryKind === 'event') {
     return { kind: 'event', row }
   }
+  const rowResetKind = getRowResetSignalKind(row)
+  if (rowResetKind) {
+    return {
+      kind: 'reset',
+      row,
+      resetKind: rowResetKind,
+      metadata: buildResetSignalMetadata(row, rowResetKind),
+    }
+  }
   if (row.decodeResult !== 0) {
-    return { kind: 'invalid', row, reason: `decodeResult=${row.decodeResult}` }
+    return decodeInvalidCapturedMessage(row, describeDecodeResult(row.decodeResult))
   }
   if (row.parseError) {
-    return { kind: 'invalid', row, reason: row.parseError }
+    return decodeInvalidCapturedMessage(row, row.parseError)
   }
   const targetPayload = buildRowPayload(row)
   const reassemblyStates = new Map<string, ChunkReassemblyState>()
@@ -164,8 +559,8 @@ export const decodeLoggedCapturedMessageWithContext = (
     if (candidate.decodeResult !== 0 || candidate.parseError) {
       if (candidate === row) {
         return candidate.decodeResult !== 0
-          ? { kind: 'invalid', row: candidate, reason: `decodeResult=${candidate.decodeResult}` }
-          : { kind: 'invalid', row: candidate, reason: candidate.parseError ?? 'parseError' }
+          ? decodeInvalidCapturedMessage(candidate, describeDecodeResult(candidate.decodeResult))
+          : decodeInvalidCapturedMessage(candidate, candidate.parseError ?? 'parseError')
       }
       continue
     }
@@ -176,7 +571,12 @@ export const decodeLoggedCapturedMessageWithContext = (
     } catch (error) {
       if (candidate === row) {
         const reason = error instanceof Error ? error.message : String(error)
-        return { kind: 'invalid', row: candidate, reason }
+        return {
+          kind: 'invalid',
+          row: candidate,
+          reason,
+          metadata: buildFallbackInvalidMetadata(candidate, reason, reason),
+        }
       }
       continue
     }

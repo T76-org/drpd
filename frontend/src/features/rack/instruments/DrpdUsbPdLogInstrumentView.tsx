@@ -33,7 +33,7 @@ import {
   type MessageLogColumnVisibility,
   type MessageLogColumnWidths,
 } from '../overlays/usbPdLog/messageLogColumns'
-import { getLogMessageTypeLabel } from '../messageLogExport'
+import { getLogCrcLabel, getLogMessageTypeLabel, getLogSopLabel } from '../messageLogExport'
 import { formatWallClock } from '../messageLogFormat'
 import styles from './DrpdUsbPdLogInstrumentView.module.css'
 import { DRPD_USB_PD_LOG_CONFIG } from './DrpdUsbPdLog.config'
@@ -140,16 +140,17 @@ const normalizeSopType = (value: string | null): string => {
       return "SOP'-D"
     case 'SOP_DEBUG_DOUBLE_PRIME':
       return "SOP''-D"
+    case 'SOP_HARD_RESET':
+      return 'Hard Reset'
+    case 'SOP_CABLE_RESET':
+      return 'Cable Reset'
     default:
       return '--'
   }
 }
 
-const isRowCrcValid = (row: LoggedCapturedMessage): boolean =>
-  row.entryKind === 'message' && row.decodeResult === 0 && !row.parseError
-
 const resolveCrcValidLabel = (row: LoggedCapturedMessage): string =>
-  isRowCrcValid(row) ? CRC_VALID_LABEL : CRC_INVALID_LABEL
+  getLogCrcLabel(row) || (row.entryKind === 'message' ? CRC_INVALID_LABEL : '')
 
 const resolveSenderReceiver = (
   row: LoggedCapturedMessage,
@@ -206,7 +207,7 @@ const messageMatchesFilters = (
     filterRuleMatches(filters.messageTypes, getLogMessageTypeLabel(row)) &&
     filterRuleMatches(filters.senders, senderReceiver.sender) &&
     filterRuleMatches(filters.receivers, senderReceiver.receiver) &&
-    filterRuleMatches(filters.sopTypes, normalizeSopType(row.sopKind)) &&
+    filterRuleMatches(filters.sopTypes, getLogSopLabel(row) || normalizeSopType(row.sopKind)) &&
     filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row))
   )
 }
@@ -242,7 +243,7 @@ const toDisplayRows = (
     const deltaUs = previousEnd === null ? null : row.startTimestampUs - previousEnd
     previousEnd = row.endTimestampUs
     const senderReceiver = resolveSenderReceiver(row)
-    const isValid = row.decodeResult === 0 && !row.parseError
+    const crcLabel = resolveCrcValidLabel(row)
 
     return {
       kind: 'message',
@@ -255,11 +256,11 @@ const toDisplayRows = (
       duration: formatMicroseconds(durationUs),
       delta: formatMicroseconds(deltaUs),
       messageId: row.messageId == null ? '--' : row.messageId.toString(),
-        messageType: getLogMessageTypeLabel(row),
+      messageType: getLogMessageTypeLabel(row),
       sender: senderReceiver.sender,
       receiver: senderReceiver.receiver,
-      sopType: normalizeSopType(row.sopKind),
-      valid: isValid ? '✓' : '✗',
+      sopType: getLogSopLabel(row) || normalizeSopType(row.sopKind),
+      valid: crcLabel === CRC_VALID_LABEL ? '✓' : crcLabel === CRC_INVALID_LABEL ? '✗' : crcLabel,
     }
   })
 }

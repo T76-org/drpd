@@ -12,6 +12,7 @@ import {
   type DRPDTransport,
 } from './transport'
 import { parseUSBPDMessage } from './usb-pd/parser'
+import { decodeSOPKind } from './usb-pd/sop'
 import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
 import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './types'
 import type {
@@ -2268,31 +2269,40 @@ export class DRPDDevice extends EventTarget {
     let parseError: string | null = null
 
     try {
-      const usbPayload = new Uint8Array(rawSop.length + rawDecodedData.length)
-      usbPayload.set(rawSop, 0)
-      usbPayload.set(rawDecodedData, rawSop.length)
-      const parsedMessage = parseUSBPDMessage(usbPayload, rawPulseWidths, {
-        startTimestampUs: message.startTimestampUs,
-        endTimestampUs: message.endTimestampUs,
-      })
-      const header = parsedMessage.header.messageHeader
-      sopKind = parsedMessage.sop.kind
-      messageKind = header.messageKind
-      messageType = header.messageTypeNumber
-      messageId = header.messageId
-      if (sopKind === 'SOP') {
-        senderPowerRole = header.powerRole
-        senderDataRole = header.dataRole
-      } else if (
-        sopKind === 'SOP_PRIME' ||
-        sopKind === 'SOP_DOUBLE_PRIME' ||
-        sopKind === 'SOP_DEBUG_PRIME' ||
-        sopKind === 'SOP_DEBUG_DOUBLE_PRIME'
+      const decodedSopKind = decodeSOPKind(rawSop)
+      if (
+        rawSop.length === 4 &&
+        rawDecodedData.length === 0 &&
+        (decodedSopKind === 'SOP_HARD_RESET' || decodedSopKind === 'SOP_CABLE_RESET')
       ) {
-        // SOP'/SOP'' is communication between Source (VCONN source) and Cable Plug/VPD.
-        // Normalize port endpoint as SOURCE so sinks are never rendered as SOP'/SOP'' endpoints.
-        senderPowerRole = 'SOURCE'
-        senderDataRole = header.cablePlug
+        sopKind = decodedSopKind
+      } else {
+        const usbPayload = new Uint8Array(rawSop.length + rawDecodedData.length)
+        usbPayload.set(rawSop, 0)
+        usbPayload.set(rawDecodedData, rawSop.length)
+        const parsedMessage = parseUSBPDMessage(usbPayload, rawPulseWidths, {
+          startTimestampUs: message.startTimestampUs,
+          endTimestampUs: message.endTimestampUs,
+        })
+        const header = parsedMessage.header.messageHeader
+        sopKind = parsedMessage.sop.kind
+        messageKind = header.messageKind
+        messageType = header.messageTypeNumber
+        messageId = header.messageId
+        if (sopKind === 'SOP') {
+          senderPowerRole = header.powerRole
+          senderDataRole = header.dataRole
+        } else if (
+          sopKind === 'SOP_PRIME' ||
+          sopKind === 'SOP_DOUBLE_PRIME' ||
+          sopKind === 'SOP_DEBUG_PRIME' ||
+          sopKind === 'SOP_DEBUG_DOUBLE_PRIME'
+        ) {
+          // SOP'/SOP'' is communication between Source (VCONN source) and Cable Plug/VPD.
+          // Normalize port endpoint as SOURCE so sinks are never rendered as SOP'/SOP'' endpoints.
+          senderPowerRole = 'SOURCE'
+          senderDataRole = header.cablePlug
+        }
       }
     } catch (error) {
       parseError = error instanceof Error ? error.message : String(error)

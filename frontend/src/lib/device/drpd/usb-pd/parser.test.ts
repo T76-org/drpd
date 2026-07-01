@@ -72,7 +72,7 @@ describe('usb-pd parser', () => {
     expect(wallClockTimestamp?.value).toBe('Unavailable')
     const duration = timingInformation?.getEntry('duration')
     expect(duration?.Label).toBe('Duration')
-    expect(duration?.value).toBe('0')
+    expect(duration?.value).toBe('0µs')
     const bmcCarrier = timingInformation?.getEntry('bmcCarrier')
     expect(bmcCarrier?.type).toBe('OrderedDictionary')
     expect(bmcCarrier?.Label).toBe('BMC Carrier')
@@ -256,7 +256,7 @@ describe('usb-pd parser', () => {
     const timingInformation = message.humanReadableMetadata.technicalData.getEntry('timingInformation')
     expect(timingInformation?.getEntry('startTimestamp')?.value).toBe('1000')
     expect(timingInformation?.getEntry('wallClockTimestamp')?.value).toBe('Unavailable')
-    expect(timingInformation?.getEntry('duration')?.value).toBe('5')
+    expect(timingInformation?.getEntry('duration')?.value).toBe('5µs')
   })
 
   it('computes BMC carrier frequency using the DRPD preamble/message clock algorithm', () => {

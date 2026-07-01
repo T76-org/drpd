@@ -186,6 +186,18 @@ const buildMessage = (
   createdAtMs: 1_700_000_000_000 + index,
 })
 
+const buildHardResetMessage = (index: number): LoggedCapturedMessage => ({
+  ...buildMessage(index, 1),
+  sopKind: 'SOP_HARD_RESET',
+  messageKind: null,
+  messageType: null,
+  messageId: null,
+  senderPowerRole: null,
+  senderDataRole: null,
+  rawSop: Uint8Array.from([0x07, 0x07, 0x07, 0x19]),
+  rawDecodedData: new Uint8Array(),
+})
+
 const buildEvent = (
   index: number,
   text: string,
@@ -258,6 +270,27 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(screen.getByRole('columnheader', { name: /Wall time/ })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Message type/ })).toBeInTheDocument()
     expect(await screen.findByRole('cell', { name: 'GoodCRC' })).toBeInTheDocument()
+  })
+
+  it('renders Hard Reset signaling as a reset row with N/A CRC', async () => {
+    const driver = new TestLogDriver([buildHardResetMessage(0)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findAllByRole('cell', { name: 'Hard Reset' })).toHaveLength(2)
+    expect(screen.getByRole('cell', { name: 'N/A' })).toBeInTheDocument()
   })
 
   it('virtualizes a million-row message table and fetches visible pages', async () => {
@@ -710,6 +743,52 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       expect(canvasText).toContain('Accept')
       expect(canvasText).toContain('Reject')
       expect(canvasText).toContain('Mark')
+    })
+  })
+
+  it('applies N/A CRC filters to reset signaling rows', async () => {
+    const driver = new TestLogDriver([
+      buildHardResetMessage(0),
+      buildMessage(1, 3), // Accept
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    expect(await screen.findAllByText('Hard Reset')).toHaveLength(2)
+    expect(screen.getByText('Accept')).toBeInTheDocument()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent('drpd-message-log-filters-changed', {
+          detail: {
+            filters: {
+              messageTypes: { include: [], exclude: [] },
+              senders: { include: [], exclude: [] },
+              receivers: { include: [], exclude: [] },
+              sopTypes: { include: [], exclude: [] },
+              crcValid: { include: ['N/A'], exclude: [] },
+            },
+          },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      const canvasText = screen.getByTestId('drpd-usbpd-log-canvas').textContent ?? ''
+      expect(canvasText).toContain('Hard Reset')
+      expect(canvasText).not.toContain('Accept')
     })
   })
 

@@ -67,7 +67,15 @@ type MessageDetailSection = {
 
 type LoadedSelection =
   | { kind: 'none' }
-  | { kind: 'invalid' }
+  | {
+      kind: 'invalid'
+      message?: Message
+      sections: MessageDetailSection[]
+    }
+  | {
+      kind: 'reset'
+      sections: MessageDetailSection[]
+    }
   | {
       kind: 'message'
       message: Message
@@ -138,9 +146,15 @@ const buildMessageSpecificDataField = (message: Message): HumanReadableField<'Or
   )
 }
 
-const buildMetadataSections = (message: Message): MessageDetailSection[] => {
-  const metadata = message.humanReadableMetadata
-  const messageSpecificData = buildMessageSpecificDataField(message)
+const buildMetadataSections = (
+  metadata: HumanReadableMetadataRoot,
+  message?: Message,
+): MessageDetailSection[] => {
+  const messageSpecificData = message
+    ? buildMessageSpecificDataField(message)
+    : metadata.messageSpecificData.value.size > 0
+      ? metadata.messageSpecificData
+      : null
   return [
     { id: 'baseInformation', label: metadata.baseInformation.Label, field: metadata.baseInformation },
     { id: 'technicalData', label: metadata.technicalData.Label, field: metadata.technicalData },
@@ -581,11 +595,22 @@ export const DrpdMessageDetailInstrumentView = ({
       const decodeContext = targetIndex >= 0 ? orderedRows.slice(0, targetIndex + 1) : [row]
       const decoded = decodeLoggedCapturedMessageWithContext(row, decodeContext)
       if (decoded.kind !== 'message') {
+        const nextSections = decoded.kind === 'invalid' || decoded.kind === 'reset'
+          ? buildMetadataSections(decoded.metadata, decoded.kind === 'invalid' ? decoded.message : undefined)
+          : []
         setLoadedSelectionKey(activeSelectionKey)
-        setLoadedSelection({ kind: 'invalid' })
+        setLoadedSelection(
+          decoded.kind === 'reset'
+            ? { kind: 'reset', sections: nextSections }
+            : { kind: 'invalid', message: decoded.kind === 'invalid' ? decoded.message : undefined, sections: nextSections },
+        )
+        setCollapsedSectionIds((current) => {
+          const nextIds = nextSections.map((section) => section.id)
+          return current.filter((sectionId) => nextIds.includes(sectionId))
+        })
         return
       }
-      const nextSections = buildMetadataSections(decoded.message)
+      const nextSections = buildMetadataSections(decoded.message.humanReadableMetadata, decoded.message)
       setLoadedSelectionKey(activeSelectionKey)
       setLoadedSelection({
         kind: 'message',
@@ -635,9 +660,7 @@ export const DrpdMessageDetailInstrumentView = ({
     >
       {activeSelectionKey !== null ? (
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
-          {visibleSelection.kind === 'invalid' ? (
-            <div className={styles.invalidMessageState}>invalid</div>
-          ) : visibleSelection.kind === 'message' ? (
+          {visibleSelection.kind === 'invalid' || visibleSelection.kind === 'reset' || visibleSelection.kind === 'message' ? (
             <div className={styles.sectionsContainer}>
               {visibleSelection.sections.map((section) => {
                 const isExpanded = !collapsedSectionIds.includes(section.id)
@@ -667,6 +690,8 @@ export const DrpdMessageDetailInstrumentView = ({
                           field={section.field}
                           showHelpButton={section.id !== 'baseInformation'}
                           messageByteSegments={
+                            'message' in visibleSelection &&
+                            visibleSelection.message &&
                             section.id === 'technicalData' &&
                             section.field.getEntry('messageBytes')?.type === 'ByteData'
                               ? buildMessageByteSegments(visibleSelection.message)
