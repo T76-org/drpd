@@ -350,10 +350,10 @@ describe('DRPD command groups', () => {
   it('sends VBUS thresholds in firmware V/A units while keeping frontend mV/mA API', async () => {
     const transport = new MockTransport()
     const group = new DRPDVBus(transport)
-    await group.setOvpThresholdMv(12000)
+    await group.setOvpThresholdMv(60000)
     await group.setOcpThresholdMa(3000)
     expect(transport.commands).toEqual([
-      { command: 'BUS:VBUS:OVPT', params: [12] },
+      { command: 'BUS:VBUS:OVPT', params: [60] },
       { command: 'BUS:VBUS:OCPT', params: [3] },
     ])
   })

@@ -7,7 +7,7 @@ import {
   DialogInput,
 } from '../../../../ui/overlays'
 
-export const VBUS_OVP_MAX_V = 50
+export const VBUS_OVP_MAX_V = 60
 export const VBUS_OCP_MAX_A = 6
 export const VBUS_MIN_DISPLAY_UPDATE_RATE_HZ = 1
 export const VBUS_MAX_DISPLAY_UPDATE_RATE_HZ = 30
