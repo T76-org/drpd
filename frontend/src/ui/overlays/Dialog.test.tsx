@@ -64,6 +64,19 @@ describe('Dialog', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
   })
 
+  it('activates the primary dialog action with Enter from an input', async () => {
+    const user = userEvent.setup()
+    render(<DialogHarness />)
+
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    await user.click(screen.getByLabelText('Name'))
+    await user.keyboard('{Enter}')
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Rack settings' })).not.toBeInTheDocument(),
+    )
+  })
+
   it('dismisses with Escape and returns focus', async () => {
     const user = userEvent.setup()
     render(<DialogHarness />)
