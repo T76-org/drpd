@@ -438,6 +438,9 @@ namespace T76::DRPD {
 
         static constexpr uint32_t _captureEventVBusOvp = 1; ///< Firmware event ID for VBUS OVP faults.
         static constexpr uint32_t _captureEventVBusOcp = 2; ///< Firmware event ID for VBUS OCP faults.
+        static constexpr uint32_t _captureEventCCBusUnattached = 3; ///< Firmware event ID for CC bus unattached state.
+        static constexpr uint32_t _captureEventCCBusSourceFound = 4; ///< Firmware event ID for CC bus source-found state.
+        static constexpr uint32_t _captureEventCCBusAttached = 5; ///< Firmware event ID for CC bus attached state.
 
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
@@ -480,6 +483,8 @@ namespace T76::DRPD {
 
         void _messageReceivedCallback(const PHY::BMCDecodedMessage &message);
         void _publishCaptureEvent(uint32_t eventType, std::string_view text, std::optional<uint64_t> timestamp = std::nullopt);
+        uint32_t _ccBusStateCaptureEventType(Logic::CCBusState state) const;
+        std::string_view _ccBusStateCaptureEventText(Logic::CCBusState state) const;
         void _triggerStatusChangedCallback(Logic::TriggerStatus status);
         void _ccBusStateChangedCallback(Logic::CCBusState state);
         void _ccBusRoleChangedCallback(Logic::CCBusRole role);

@@ -59,6 +59,9 @@ const CAPTURE_DRAIN_MAX_MESSAGES_PER_PASS = 64
 const LOGGING_CONNECT_START_TIMEOUT_MS = 250
 const FIRMWARE_EVENT_VBUS_OVP = 1
 const FIRMWARE_EVENT_VBUS_OCP = 2
+const FIRMWARE_EVENT_CC_BUS_UNATTACHED = 3
+const FIRMWARE_EVENT_CC_BUS_SOURCE_FOUND = 4
+const FIRMWARE_EVENT_CC_BUS_ATTACHED = 5
 
 /**
  * Optional DRPD device constructor overrides.
@@ -1081,12 +1084,6 @@ export class DRPDDevice extends EventTarget {
           detail: { roleStatus: updated.ccBusRoleStatus, previousRoleStatus },
         }),
       )
-      if (updated.ccBusRoleStatus && previousRoleStatus !== null) {
-        void this.logSignificantEvent(
-          'cc_status_changed',
-          `Device status changed to ${updated.ccBusRoleStatus}`,
-        )
-      }
     }
 
     if (changed.includes('analogMonitor')) {
@@ -1354,12 +1351,6 @@ export class DRPDDevice extends EventTarget {
           detail: { roleStatus },
         }),
       )
-      if (previousRoleStatus !== null) {
-        void this.logSignificantEvent(
-          'cc_status_changed',
-          `Device status changed to ${roleStatus}`,
-        )
-      }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
           detail: { state: this.getState(), changed: ['ccBusRoleStatus'] },
@@ -2163,6 +2154,14 @@ export class DRPDDevice extends EventTarget {
 
     if (event.eventType === FIRMWARE_EVENT_VBUS_OCP) {
       return { eventType: 'vbus_ocp', eventText: event.eventText }
+    }
+
+    if (
+      event.eventType === FIRMWARE_EVENT_CC_BUS_UNATTACHED ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_SOURCE_FOUND ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ATTACHED
+    ) {
+      return { eventType: 'cc_status_changed', eventText: event.eventText }
     }
 
     return {

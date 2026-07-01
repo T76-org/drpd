@@ -515,6 +515,32 @@ void App::_publishCaptureEvent(uint32_t eventType, std::string_view text, std::o
     deviceStatus(DeviceStatusFlag::MessageReceived);
 }
 
+uint32_t App::_ccBusStateCaptureEventType(Logic::CCBusState state) const {
+    switch (state) {
+        case Logic::CCBusState::Unattached:
+            return _captureEventCCBusUnattached;
+        case Logic::CCBusState::SourceFound:
+            return _captureEventCCBusSourceFound;
+        case Logic::CCBusState::Attached:
+            return _captureEventCCBusAttached;
+        default:
+            return _captureEventCCBusUnattached;
+    }
+}
+
+std::string_view App::_ccBusStateCaptureEventText(Logic::CCBusState state) const {
+    switch (state) {
+        case Logic::CCBusState::Unattached:
+            return "Device status changed to UNATTACHED";
+        case Logic::CCBusState::SourceFound:
+            return "Device status changed to SOURCE_FOUND";
+        case Logic::CCBusState::Attached:
+            return "Device status changed to ATTACHED";
+        default:
+            return "Device status changed to UNKNOWN";
+    }
+}
+
 void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
     // Signal that the trigger controller status has changed
     deviceStatus(DeviceStatusFlag::TriggerStatusChanged);
@@ -523,6 +549,7 @@ void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
 void App::_ccBusStateChangedCallback(Logic::CCBusState state) {
     // Signal that the CC bus controller state has changed
     deviceStatus(DeviceStatusFlag::CCBusStatusChanged);
+    _publishCaptureEvent(_ccBusStateCaptureEventType(state), _ccBusStateCaptureEventText(state));
 }
 
 void App::_ccBusRoleChangedCallback(Logic::CCBusRole role) {
