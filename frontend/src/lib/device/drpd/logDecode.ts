@@ -11,6 +11,7 @@ import { HumanReadableField, type HumanReadableMetadataRoot } from './usb-pd/hum
 import { parseUSBPDMessage } from './usb-pd/parser'
 import type { Message } from './usb-pd/message'
 import { SOP } from './usb-pd/sop'
+import type { SOPKind } from './usb-pd/types'
 import { CaptureDecodeResult } from './types'
 
 type ParsedRowPacket = {
@@ -147,6 +148,20 @@ const formatSOPType = (kind: SOP['kind']): string => {
   }
 }
 
+const isResetSignalKind = (kind: SOPKind): boolean =>
+  kind === 'SOP_HARD_RESET' || kind === 'SOP_CABLE_RESET'
+
+const getResetSignalLabel = (kind: SOPKind): string =>
+  kind === 'SOP_CABLE_RESET' ? 'Cable Reset' : 'Hard Reset'
+
+const getRowResetSignalKind = (row: LoggedCapturedMessage): SOPKind | null => {
+  if (row.rawSop.length !== 4 || row.rawDecodedData.length !== 0) {
+    return null
+  }
+  const sop = new SOP(row.rawSop)
+  return isResetSignalKind(sop.kind) ? sop.kind : null
+}
+
 const describeDecodeResult = (decodeResult: number): string => {
   switch (decodeResult) {
     case CaptureDecodeResult.INVALID_KCODE:
@@ -159,6 +174,123 @@ const describeDecodeResult = (decodeResult: number): string => {
       return 'Truncated or incomplete capture'
     default:
       return `decodeResult=${decodeResult}`
+  }
+}
+
+const buildTimingInformation = (row: LoggedCapturedMessage): HumanReadableField<'OrderedDictionary'> => {
+  const startTimestampUs = row.startTimestampUs
+  const endTimestampUs = row.endTimestampUs
+  const durationUs = endTimestampUs >= startTimestampUs ? endTimestampUs - startTimestampUs : 0n
+  const timingInformation = HumanReadableField.orderedDictionary(
+    'Timing Information',
+    'Capture timing and pulse-derived measurements for this message.',
+  )
+  timingInformation.setEntry(
+    'startTimestamp',
+    HumanReadableField.string(formatMicroseconds(startTimestampUs), 'Device Timestamp', 'Device capture timestamp in microseconds.'),
+  )
+  timingInformation.setEntry(
+    'wallClockTimestamp',
+    HumanReadableField.string(formatWallClockUs(row.wallClockUs), 'Wall Clock Timestamp', 'Estimated host wall-clock timestamp in microseconds, synchronized from the device timestamp.'),
+  )
+  timingInformation.setEntry(
+    'duration',
+    HumanReadableField.string(formatMicroseconds(durationUs), 'Duration', 'Total message duration in microseconds.'),
+  )
+  timingInformation.setEntry(
+    'pulseCount',
+    HumanReadableField.string(row.rawPulseWidths.length.toString(), 'Pulse Count', 'Number of captured BMC pulse widths used to decode this message.'),
+  )
+  const bmcFrequencyKhz = computeBMCCarrierFrequencyKhz(row.rawPulseWidths)
+  const bmcCarrierValid =
+    Number.isFinite(bmcFrequencyKhz) &&
+    bmcFrequencyKhz >= 300 * 0.9 &&
+    bmcFrequencyKhz <= 300 * 1.1
+  const bmcCarrier = HumanReadableField.orderedDictionary(
+    'BMC Carrier',
+    'Biphase Mark Coding carrier measurements derived from the pulse widths.',
+  )
+  bmcCarrier.setEntry('frequency', HumanReadableField.string(formatKilohertz(bmcFrequencyKhz), 'Frequency', 'Biphase Mark Coding carrier frequency in kilohertz.'))
+  bmcCarrier.setEntry('valid', HumanReadableField.string(bmcCarrierValid ? 'true' : 'false', 'Valid', 'Whether the measured Biphase Mark Coding carrier frequency is within the USB-PD specification tolerance of 300 kHz +/-10%.'))
+  timingInformation.setEntry('bmcCarrier', bmcCarrier)
+  return timingInformation
+}
+
+const buildSopField = (row: LoggedCapturedMessage): HumanReadableField<'OrderedDictionary'> | null => {
+  if (row.rawSop.length <= 0) {
+    return null
+  }
+  const sopField = HumanReadableField.orderedDictionary(
+    'SOP',
+    'Start of Packet metadata derived from the ordered-set prefix.',
+  )
+  if (row.rawSop.length === 4) {
+    const sop = new SOP(row.rawSop)
+    sopField.setEntry('type', HumanReadableField.string(formatSOPType(sop.kind), 'Type', 'Decoded Start of Packet type for this message.'))
+  } else {
+    sopField.setEntry('type', HumanReadableField.string('Unavailable', 'Type', 'SOP type cannot be decoded unless four K-code bytes are available.'))
+  }
+  sopField.setEntry('kCodes', HumanReadableField.byteData(row.rawSop, 8, false, 'K-Codes', 'Raw K-code bytes that form the Start of Packet ordered set.'))
+  return sopField
+}
+
+const buildResetSignalMetadata = (
+  row: LoggedCapturedMessage,
+  resetKind: SOPKind,
+): HumanReadableMetadataRoot => {
+  const payload = buildRowPayload(row)
+  const resetLabel = getResetSignalLabel(resetKind)
+  const baseInformation = HumanReadableField.orderedDictionary(
+    'Base Information',
+    'Container for USB-PD reset-signaling identity and descriptive fields.',
+    [[
+      'messageType',
+      HumanReadableField.string(
+        resetLabel,
+        'Message Type',
+        'USB Power Delivery reset signaling ordered-set type.',
+      ),
+    ]],
+  )
+  const technicalData = HumanReadableField.orderedDictionary(
+    'Technical Data',
+    'Container for technical-level decoded values that apply broadly.',
+  )
+  technicalData.setEntry('timingInformation', buildTimingInformation(row))
+  const sop = buildSopField(row)
+  if (sop) {
+    technicalData.setEntry('sop', sop)
+  }
+  technicalData.setEntry(
+    'messageBytes',
+    HumanReadableField.byteData(
+      payload,
+      8,
+      false,
+      'Message Bytes',
+      `Raw byte sequence for the ${resetLabel} ordered set.`,
+    ),
+  )
+  const headerData = HumanReadableField.orderedDictionary(
+    'Header Data',
+    'Container for parsed header-level fields and derived header metadata.',
+    [[
+      'headerStatus',
+      HumanReadableField.string(
+        'Reset signaling has no USB-PD message header.',
+        'Header Status',
+        'Explains why no header fields are shown for this reset signaling entry.',
+      ),
+    ]],
+  )
+  return {
+    baseInformation,
+    technicalData,
+    headerData,
+    messageSpecificData: HumanReadableField.orderedDictionary(
+      'Message-Specific Data',
+      'Container for decoded fields specific to this concrete message type.',
+    ),
   }
 }
 
@@ -209,56 +341,11 @@ const buildFallbackInvalidMetadata = (
     'Technical Data',
     'Container for technical-level decoded values that apply broadly.',
   )
-  const startTimestampUs = row.startTimestampUs
-  const endTimestampUs = row.endTimestampUs
-  const durationUs = endTimestampUs >= startTimestampUs ? endTimestampUs - startTimestampUs : 0n
-  const timingInformation = HumanReadableField.orderedDictionary(
-    'Timing Information',
-    'Capture timing and pulse-derived measurements for this message.',
-  )
-  timingInformation.setEntry(
-    'startTimestamp',
-    HumanReadableField.string(formatMicroseconds(startTimestampUs), 'Device Timestamp', 'Device capture timestamp in microseconds.'),
-  )
-  timingInformation.setEntry(
-    'wallClockTimestamp',
-    HumanReadableField.string(formatWallClockUs(row.wallClockUs), 'Wall Clock Timestamp', 'Estimated host wall-clock timestamp in microseconds, synchronized from the device timestamp.'),
-  )
-  timingInformation.setEntry(
-    'duration',
-    HumanReadableField.string(formatMicroseconds(durationUs), 'Duration', 'Total message duration in microseconds.'),
-  )
-  timingInformation.setEntry(
-    'pulseCount',
-    HumanReadableField.string(row.rawPulseWidths.length.toString(), 'Pulse Count', 'Number of captured BMC pulse widths used to decode this message.'),
-  )
-  const bmcFrequencyKhz = computeBMCCarrierFrequencyKhz(row.rawPulseWidths)
-  const bmcCarrierValid =
-    Number.isFinite(bmcFrequencyKhz) &&
-    bmcFrequencyKhz >= 300 * 0.9 &&
-    bmcFrequencyKhz <= 300 * 1.1
-  const bmcCarrier = HumanReadableField.orderedDictionary(
-    'BMC Carrier',
-    'Biphase Mark Coding carrier measurements derived from the pulse widths.',
-  )
-  bmcCarrier.setEntry('frequency', HumanReadableField.string(formatKilohertz(bmcFrequencyKhz), 'Frequency', 'Biphase Mark Coding carrier frequency in kilohertz.'))
-  bmcCarrier.setEntry('valid', HumanReadableField.string(bmcCarrierValid ? 'true' : 'false', 'Valid', 'Whether the measured Biphase Mark Coding carrier frequency is within the USB-PD specification tolerance of 300 kHz +/-10%.'))
-  timingInformation.setEntry('bmcCarrier', bmcCarrier)
-  technicalData.setEntry('timingInformation', timingInformation)
+  technicalData.setEntry('timingInformation', buildTimingInformation(row))
 
-  if (row.rawSop.length > 0) {
-    const sopField = HumanReadableField.orderedDictionary(
-      'SOP',
-      'Start of Packet metadata derived from the ordered-set prefix.',
-    )
-    if (row.rawSop.length === 4) {
-      const sop = new SOP(row.rawSop)
-      sopField.setEntry('type', HumanReadableField.string(formatSOPType(sop.kind), 'Type', 'Decoded Start of Packet type for this message.'))
-    } else {
-      sopField.setEntry('type', HumanReadableField.string('Unavailable', 'Type', 'SOP type cannot be decoded unless four K-code bytes are available.'))
-    }
-    sopField.setEntry('kCodes', HumanReadableField.byteData(row.rawSop, 8, false, 'K-Codes', 'Raw K-code bytes that form the Start of Packet ordered set.'))
-    technicalData.setEntry('sop', sopField)
+  const sop = buildSopField(row)
+  if (sop) {
+    technicalData.setEntry('sop', sop)
   }
   technicalData.setEntry(
     'messageBytes',
@@ -400,6 +487,12 @@ export type DecodedLoggedCapturedMessage =
       message?: Message
     }
   | {
+      kind: 'reset'
+      row: LoggedCapturedMessage
+      resetKind: SOPKind
+      metadata: HumanReadableMetadataRoot
+    }
+  | {
       kind: 'message'
       row: LoggedCapturedMessage
       message: Message
@@ -437,6 +530,15 @@ export const decodeLoggedCapturedMessageWithContext = (
 ): DecodedLoggedCapturedMessage => {
   if (row.entryKind === 'event') {
     return { kind: 'event', row }
+  }
+  const rowResetKind = getRowResetSignalKind(row)
+  if (rowResetKind) {
+    return {
+      kind: 'reset',
+      row,
+      resetKind: rowResetKind,
+      metadata: buildResetSignalMetadata(row, rowResetKind),
+    }
   }
   if (row.decodeResult !== 0) {
     return decodeInvalidCapturedMessage(row, describeDecodeResult(row.decodeResult))

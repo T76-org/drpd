@@ -73,6 +73,10 @@ type LoadedSelection =
       sections: MessageDetailSection[]
     }
   | {
+      kind: 'reset'
+      sections: MessageDetailSection[]
+    }
+  | {
       kind: 'message'
       message: Message
       sections: MessageDetailSection[]
@@ -591,11 +595,15 @@ export const DrpdMessageDetailInstrumentView = ({
       const decodeContext = targetIndex >= 0 ? orderedRows.slice(0, targetIndex + 1) : [row]
       const decoded = decodeLoggedCapturedMessageWithContext(row, decodeContext)
       if (decoded.kind !== 'message') {
-        const nextSections = decoded.kind === 'invalid'
-          ? buildMetadataSections(decoded.metadata, decoded.message)
+        const nextSections = decoded.kind === 'invalid' || decoded.kind === 'reset'
+          ? buildMetadataSections(decoded.metadata, decoded.kind === 'invalid' ? decoded.message : undefined)
           : []
         setLoadedSelectionKey(activeSelectionKey)
-        setLoadedSelection({ kind: 'invalid', message: decoded.kind === 'invalid' ? decoded.message : undefined, sections: nextSections })
+        setLoadedSelection(
+          decoded.kind === 'reset'
+            ? { kind: 'reset', sections: nextSections }
+            : { kind: 'invalid', message: decoded.kind === 'invalid' ? decoded.message : undefined, sections: nextSections },
+        )
         setCollapsedSectionIds((current) => {
           const nextIds = nextSections.map((section) => section.id)
           return current.filter((sectionId) => nextIds.includes(sectionId))
@@ -652,7 +660,7 @@ export const DrpdMessageDetailInstrumentView = ({
     >
       {activeSelectionKey !== null ? (
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
-          {visibleSelection.kind === 'invalid' || visibleSelection.kind === 'message' ? (
+          {visibleSelection.kind === 'invalid' || visibleSelection.kind === 'reset' || visibleSelection.kind === 'message' ? (
             <div className={styles.sectionsContainer}>
               {visibleSelection.sections.map((section) => {
                 const isExpanded = !collapsedSectionIds.includes(section.id)
@@ -682,6 +690,7 @@ export const DrpdMessageDetailInstrumentView = ({
                           field={section.field}
                           showHelpButton={section.id !== 'baseInformation'}
                           messageByteSegments={
+                            'message' in visibleSelection &&
                             visibleSelection.message &&
                             section.id === 'technicalData' &&
                             section.field.getEntry('messageBytes')?.type === 'ByteData'

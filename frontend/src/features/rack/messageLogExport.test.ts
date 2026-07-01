@@ -7,7 +7,12 @@ import {
   toBytes32,
 } from '../../lib/device/drpd/usb-pd/messages/messageTestUtils'
 import { formatWallClock } from './messageLogFormat'
-import { buildSelectedMessageLogCsv } from './messageLogExport'
+import {
+  buildSelectedMessageLogCsv,
+  getLogCrcLabel,
+  getLogMessageTypeLabel,
+  getLogSopLabel,
+} from './messageLogExport'
 
 const SOP = [0x18, 0x18, 0x18, 0x11]
 
@@ -86,6 +91,37 @@ const buildCaptureChangedExportEvent = (index: number): LoggedCapturedMessage =>
   createdAtMs: 1_700_000_100_000 + index,
 })
 
+const buildHardResetExportRow = (): LoggedCapturedMessage => buildSourceCapabilitiesExportRow(3, {
+  rawSop: Uint8Array.from([0x07, 0x07, 0x07, 0x19]),
+  rawDecodedData: new Uint8Array(),
+  sopKind: 'SOP_HARD_RESET',
+  messageKind: null,
+  messageType: null,
+  messageId: null,
+  senderPowerRole: null,
+  senderDataRole: null,
+})
+
+describe('message log labels', () => {
+  it('labels Hard Reset signaling as valid reset signaling instead of an invalid message', () => {
+    const row = buildHardResetExportRow()
+
+    expect(getLogMessageTypeLabel(row)).toBe('Hard Reset')
+    expect(getLogSopLabel(row)).toBe('Hard Reset')
+    expect(getLogCrcLabel(row)).toBe('N/A')
+  })
+
+  it('labels imported Hard Reset rows from raw SOP bytes when sopKind was not stored', () => {
+    const row = buildHardResetExportRow()
+    row.sopKind = null
+    row.parseError = 'USB-PD payload too short: 4'
+
+    expect(getLogMessageTypeLabel(row)).toBe('Hard Reset')
+    expect(getLogSopLabel(row)).toBe('Hard Reset')
+    expect(getLogCrcLabel(row)).toBe('N/A')
+  })
+})
+
 describe('buildSelectedMessageLogCsv', () => {
   it('exports selected message and event rows with display fields and decoded metadata', () => {
     const previous = buildSourceCapabilitiesExportRow(0, {
@@ -125,6 +161,29 @@ describe('buildSelectedMessageLogCsv', () => {
     expect(payload).toContain('- 5V @ 2A')
     expect(payload).toContain(
       `event,${formatWallClock(event.wallClockUs)},,,,capture_changed,,,,,,`,
+    )
+  })
+
+  it('exports Hard Reset signaling with N/A CRC validity', () => {
+    const row = buildHardResetExportRow()
+
+    const payload = buildSelectedMessageLogCsv([row], [buildCapturedLogSelectionKey(row)])
+
+    expect(payload).toContain(
+      [
+        'message',
+        formatWallClock(row.wallClockUs),
+        '5',
+        '',
+        '',
+        'Hard Reset',
+        'Unknown',
+        'Unknown',
+        'Hard Reset',
+        '',
+        'N/A',
+        '',
+      ].join(','),
     )
   })
 })

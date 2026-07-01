@@ -799,6 +799,49 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(within(headerDataSection as HTMLElement).getByText('Message Header')).toBeInTheDocument()
   })
 
+  it('shows Hard Reset signaling details without invalid-message fields', async () => {
+    const row = buildMessageRow({
+      rawSop: Uint8Array.from([0x07, 0x07, 0x07, 0x19]),
+      rawDecodedData: new Uint8Array(),
+      sopKind: 'SOP_HARD_RESET',
+      messageKind: null,
+      messageType: null,
+      messageId: null,
+      senderPowerRole: null,
+      senderDataRole: null,
+    })
+
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState(
+          {
+            selectedKeys: ['message:1000:1005:1700000000000'],
+            anchorIndex: 0,
+            activeIndex: 0,
+          },
+          [row],
+        )}
+        isEditMode={false}
+      />,
+    )
+
+    const baseInformationSection = (await screen.findByRole('button', { name: /base information/i })).closest('section')
+    const technicalDataSection = screen.getByRole('button', { name: /technical data/i }).closest('section')
+    const headerDataSection = screen.getByRole('button', { name: /header data/i }).closest('section')
+
+    expect(within(baseInformationSection as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+    expect(within(baseInformationSection as HTMLElement).getByText('Hard Reset')).toBeInTheDocument()
+    expect(within(baseInformationSection as HTMLElement).queryByText('Invalid Reason')).toBeNull()
+    expect(within(technicalDataSection as HTMLElement).getByText('SOP')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getAllByText('07 07 07 19')).toHaveLength(2)
+    expect(within(headerDataSection as HTMLElement).getByText('Header Status')).toBeInTheDocument()
+    expect(
+      within(headerDataSection as HTMLElement).getByText('Reset signaling has no USB-PD message header.'),
+    ).toBeInTheDocument()
+  })
+
   it('uses prior rows to decode terminal chunked extended-message selections', async () => {
     const sop = [0x18, 0x18, 0x18, 0x11]
     const messageHeader = makeMessageHeader({

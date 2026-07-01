@@ -31,6 +31,61 @@ const buildMessageRow = (
 })
 
 describe('decodeLoggedCapturedMessage', () => {
+  it('decodes Hard Reset signaling without requiring a message header', () => {
+    const row = buildMessageRow({
+      rawSop: Uint8Array.from([0x07, 0x07, 0x07, 0x19]),
+      rawDecodedData: new Uint8Array(),
+      messageKind: null,
+      messageType: null,
+      messageId: null,
+    })
+    const decoded = decodeLoggedCapturedMessage(row)
+    expect(decoded.kind).toBe('reset')
+    if (decoded.kind !== 'reset') {
+      return
+    }
+    expect(decoded.resetKind).toBe('SOP_HARD_RESET')
+    expect(decoded.metadata.baseInformation.getEntry('messageType')?.value).toBe('Hard Reset')
+    expect(decoded.metadata.technicalData.getEntry('sop')?.getEntry('type')?.value).toBe('Hard Reset')
+    expect(decoded.metadata.headerData.getEntry('headerStatus')?.value).toBe(
+      'Reset signaling has no USB-PD message header.',
+    )
+  })
+
+  it('decodes imported Hard Reset rows that still carry the old parse error', () => {
+    const row = buildMessageRow({
+      rawSop: Uint8Array.from([0x07, 0x07, 0x07, 0x19]),
+      rawDecodedData: new Uint8Array(),
+      messageKind: null,
+      messageType: null,
+      messageId: null,
+      parseError: 'USB-PD payload too short: 4',
+    })
+    const decoded = decodeLoggedCapturedMessage(row)
+    expect(decoded.kind).toBe('reset')
+    if (decoded.kind !== 'reset') {
+      return
+    }
+    expect(decoded.metadata.baseInformation.getEntry('messageType')?.value).toBe('Hard Reset')
+  })
+
+  it('decodes Cable Reset signaling without requiring a message header', () => {
+    const row = buildMessageRow({
+      rawSop: Uint8Array.from([0x07, 0x18, 0x07, 0x06]),
+      rawDecodedData: new Uint8Array(),
+      messageKind: null,
+      messageType: null,
+      messageId: null,
+    })
+    const decoded = decodeLoggedCapturedMessage(row)
+    expect(decoded.kind).toBe('reset')
+    if (decoded.kind !== 'reset') {
+      return
+    }
+    expect(decoded.resetKind).toBe('SOP_CABLE_RESET')
+    expect(decoded.metadata.baseInformation.getEntry('messageType')?.value).toBe('Cable Reset')
+  })
+
   it('decodes valid message rows into concrete USB-PD message classes', () => {
     const row = buildMessageRow()
     const decoded = decodeLoggedCapturedMessage(row)

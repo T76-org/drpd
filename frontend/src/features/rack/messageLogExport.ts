@@ -8,14 +8,45 @@ import {
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../lib/device/drpd/usb-pd/message'
+import { decodeSOPKind } from '../../lib/device/drpd/usb-pd/sop'
+import type { SOPKind } from '../../lib/device/drpd/usb-pd/types'
 import { formatWallClock } from './messageLogFormat'
 
 const toCsvField = (value: string): string =>
   /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value
 
+const isResetSopKind = (kind: string | null): kind is 'SOP_HARD_RESET' | 'SOP_CABLE_RESET' =>
+  kind === 'SOP_HARD_RESET' || kind === 'SOP_CABLE_RESET'
+
+const getRowResetSopKind = (row: LoggedCapturedMessage): SOPKind | null => {
+  if (row.entryKind !== 'message') {
+    return null
+  }
+  if (isResetSopKind(row.sopKind)) {
+    return row.sopKind
+  }
+  if (row.rawSop.length !== 4 || row.rawDecodedData.length !== 0) {
+    return null
+  }
+  const decodedKind = decodeSOPKind(row.rawSop)
+  return isResetSopKind(decodedKind) ? decodedKind : null
+}
+
+export const getLogResetSignalLabel = (row: LoggedCapturedMessage): string | null => {
+  const resetKind = getRowResetSopKind(row)
+  if (!resetKind) {
+    return null
+  }
+  return resetKind === 'SOP_CABLE_RESET' ? 'Cable Reset' : 'Hard Reset'
+}
+
 export const getLogMessageTypeLabel = (row: LoggedCapturedMessage): string => {
   if (row.entryKind === 'event') {
     return row.eventType ?? 'Event'
+  }
+  const resetLabel = getLogResetSignalLabel(row)
+  if (resetLabel) {
+    return resetLabel
   }
   if (row.decodeResult !== 0 || row.parseError) {
     return 'Invalid message'
@@ -83,14 +114,21 @@ export const getLogSopLabel = (row: LoggedCapturedMessage): string => {
       return "SOP'-D"
     case 'SOP_DEBUG_DOUBLE_PRIME':
       return "SOP''-D"
+    case 'SOP_HARD_RESET':
+      return 'Hard Reset'
+    case 'SOP_CABLE_RESET':
+      return 'Cable Reset'
     default:
-      return '--'
+      return getLogResetSignalLabel(row) ?? '--'
   }
 }
 
 export const getLogCrcLabel = (row: LoggedCapturedMessage): string => {
   if (row.entryKind !== 'message') {
     return ''
+  }
+  if (getLogResetSignalLabel(row)) {
+    return 'N/A'
   }
   return row.decodeResult === 0 && !row.parseError ? 'Valid' : 'Invalid'
 }
