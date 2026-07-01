@@ -764,7 +764,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(screen.queryByRole('button', { name: 'Show description for Message Type' })).toBeNull()
   })
 
-  it('shows invalid message state when the selected message cannot be decoded', async () => {
+  it('shows best-effort metadata when the selected message is invalid', async () => {
     const row = buildMessageRow({
       decodeResult: 2,
     })
@@ -785,10 +785,18 @@ describe('DrpdMessageDetailInstrumentView', () => {
       />,
     )
 
-    await waitFor(() => {
-      expect(screen.getByText('invalid')).toBeInTheDocument()
-    })
-    expect(screen.getByText('invalid')).toHaveClass(/invalidMessageState/)
+    const baseInformationSection = (await screen.findByRole('button', { name: /base information/i })).closest('section')
+    const technicalDataSection = screen.getByRole('button', { name: /technical data/i }).closest('section')
+    const headerDataSection = screen.getByRole('button', { name: /header data/i }).closest('section')
+
+    expect(within(baseInformationSection as HTMLElement).getByText('Message Type')).toBeInTheDocument()
+    expect(within(baseInformationSection as HTMLElement).getByText('Invalid')).toBeInTheDocument()
+    expect(within(baseInformationSection as HTMLElement).getByText('Invalid Reason')).toBeInTheDocument()
+    expect(within(baseInformationSection as HTMLElement).getByText('Bad CRC')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('Technical Data')).toBeInTheDocument()
+    expect(within(technicalDataSection as HTMLElement).getByText('Message Bytes')).toBeInTheDocument()
+    expect(within(headerDataSection as HTMLElement).getByText('Header Data')).toBeInTheDocument()
+    expect(within(headerDataSection as HTMLElement).getByText('Message Header')).toBeInTheDocument()
   })
 
   it('uses prior rows to decode terminal chunked extended-message selections', async () => {

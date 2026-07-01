@@ -70,7 +70,12 @@ describe('decodeLoggedCapturedMessage', () => {
     if (decoded.kind !== 'invalid') {
       return
     }
-    expect(decoded.reason).toContain('decodeResult=2')
+    expect(decoded.reason).toBe('Bad CRC')
+    expect(decoded.metadata.baseInformation.getEntry('messageType')?.value).toBe('Invalid')
+    expect(decoded.metadata.baseInformation.getEntry('invalidReason')?.value).toBe('Bad CRC')
+    expect(decoded.metadata.baseInformation.getEntry('inferredMessageType')?.value).toBe('Accept')
+    expect(decoded.metadata.headerData.getEntry('messageHeader')).not.toBeUndefined()
+    expect(decoded.metadata.technicalData.getEntry('crc32')?.getEntry('actual')?.value).toBe('0x5DFAAC6F')
   })
 
   it('marks rows invalid when row contains parseError', () => {
@@ -81,6 +86,50 @@ describe('decodeLoggedCapturedMessage', () => {
       return
     }
     expect(decoded.reason).toContain('CRC mismatch')
+    expect(decoded.metadata.baseInformation.getEntry('messageType')?.value).toBe('Invalid')
+    expect(decoded.metadata.baseInformation.getEntry('invalidReason')?.value).toBe('CRC mismatch')
+    expect(decoded.metadata.headerData.getEntry('messageHeader')).not.toBeUndefined()
+  })
+
+  it('builds best-effort metadata for truncated invalid rows with a parseable header', () => {
+    const row = buildMessageRow({
+      decodeResult: 4,
+      rawDecodedData: Uint8Array.from([0x82, 0x10]),
+      messageKind: 'DATA',
+      messageType: 2,
+    })
+    const decoded = decodeLoggedCapturedMessage(row)
+    expect(decoded.kind).toBe('invalid')
+    if (decoded.kind !== 'invalid') {
+      return
+    }
+    expect(decoded.reason).toBe('Truncated or incomplete capture')
+    expect(decoded.metadata.baseInformation.getEntry('messageType')?.value).toBe('Invalid')
+    expect(decoded.metadata.baseInformation.getEntry('inferredMessageType')?.value).toBe('Request')
+    expect(decoded.metadata.headerData.getEntry('messageHeader')?.getEntry('messageType')?.value).toBe('Request (0x02)')
+    expect(decoded.metadata.technicalData.getEntry('messageBytes')?.type).toBe('ByteData')
+    expect(decoded.metadata.technicalData.getEntry('crc32')?.getEntry('actual')?.value).toBe('Unavailable')
+  })
+
+  it('builds fallback metadata for invalid rows that are too short to parse', () => {
+    const row = buildMessageRow({
+      decodeResult: 4,
+      rawSop: Uint8Array.from([0x18, 0x18]),
+      rawDecodedData: new Uint8Array(),
+      pulseCount: 2,
+      rawPulseWidths: Float64Array.from([1, 2]),
+    })
+    const decoded = decodeLoggedCapturedMessage(row)
+    expect(decoded.kind).toBe('invalid')
+    if (decoded.kind !== 'invalid') {
+      return
+    }
+    expect(decoded.reason).toBe('Truncated or incomplete capture')
+    expect(decoded.metadata.baseInformation.getEntry('messageType')?.value).toBe('Invalid')
+    expect(decoded.metadata.baseInformation.getEntry('parseFailure')?.value).toContain('USB-PD payload too short')
+    expect(decoded.metadata.technicalData.getEntry('timingInformation')?.getEntry('pulseCount')?.value).toBe('2')
+    expect(decoded.metadata.technicalData.getEntry('messageBytes')?.type).toBe('ByteData')
+    expect(decoded.metadata.headerData.getEntry('headerStatus')?.value).toBe('Truncated before complete message header')
   })
 
   it('reassembles chunked EPR source capabilities when decoding with ordered context', () => {
