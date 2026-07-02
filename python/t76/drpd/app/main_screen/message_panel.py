@@ -101,7 +101,7 @@ class MessageTable(DataTable):
             Text(f"{delta_t:>9}" if is_first else f"+{delta_t:>9}",
                  justify="right"),
             Text("FW", justify="right"),
-            f"Firmware event 0x{event.event_type:08X}: {event.event_text}",
+            event.event_text,
             "Firmware",
             "Host",
             "Event",

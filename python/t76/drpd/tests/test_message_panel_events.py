@@ -80,7 +80,7 @@ class TestMessagePanelEvents(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(panel.table.rows), 1)
             self.assertEqual(
                 panel.table.get_cell("1", "message"),
-                "Firmware event 0x00000007: CC role changed",
+                "CC role changed",
             )
             self.assertEqual(str(panel.table.get_cell("1", "id")), "FW")
             self.assertEqual(panel.table.get_cell("1", "from"), "Firmware")
@@ -143,5 +143,5 @@ class TestMessagePanelEvents(unittest.IsolatedAsyncioTestCase):
             self.assertIn("GoodCRC", panel.table.get_cell("1", "message"))
             self.assertEqual(
                 panel.table.get_cell("2", "message"),
-                "Firmware event 0x00000007: CC role changed",
+                "CC role changed",
             )
