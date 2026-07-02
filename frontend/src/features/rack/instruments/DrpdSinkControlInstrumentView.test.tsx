@@ -218,7 +218,7 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.type(currentInput, '2')
 
     await user.click(
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: /sink power contract selection/i })).getByRole('button', {
         name: /^set pdo$/i,
       }),
     )
@@ -240,7 +240,7 @@ describe('DrpdSinkControlInstrumentView', () => {
       },
     })
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: /sink power contract selection/i })).not.toBeInTheDocument()
     })
   })
 
@@ -270,16 +270,16 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.clear(voltageInput)
     await user.type(voltageInput, '2')
 
-    const dialog = screen.getByRole('dialog', { name: /sink request tuning/i })
+    const dialog = screen.getByRole('dialog', { name: /sink power contract selection/i })
     expect(within(dialog).getByText(/voltage must be between 5\.00 and 12\.00 v\./i)).toBeInTheDocument()
     expect(
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: /sink power contract selection/i })).getByRole('button', {
         name: /^set pdo$/i,
       }),
     ).toBeDisabled()
 
     await user.click(
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: /sink power contract selection/i })).getByRole('button', {
         name: /^set pdo$/i,
       }),
     )
@@ -322,7 +322,7 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.type(currentInput, '16')
 
     await user.click(
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: /sink power contract selection/i })).getByRole('button', {
         name: /^set pdo$/i,
       }),
     )
@@ -362,7 +362,7 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.clear(currentInput)
     await user.type(currentInput, '6')
     expect(
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: /sink power contract selection/i })).getByRole('button', {
         name: /^set pdo$/i,
       }),
     ).toBeEnabled()
@@ -371,7 +371,7 @@ describe('DrpdSinkControlInstrumentView', () => {
     await user.type(voltageInput, '28')
 
     const submitButton =
-      within(screen.getByRole('dialog', { name: /sink request tuning/i })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: /sink power contract selection/i })).getByRole('button', {
         name: /^set pdo$/i,
       })
     expect(submitButton).toBeEnabled()
@@ -402,14 +402,14 @@ describe('DrpdSinkControlInstrumentView', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
-    expect(screen.getByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: /sink power contract selection/i })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /cancel/i }))
-    expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /sink power contract selection/i })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
-    expect(screen.getByRole('dialog', { name: /sink request tuning/i })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: /sink power contract selection/i })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: /sink request tuning/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /sink power contract selection/i })).not.toBeInTheDocument()
   })
 
   it('shows fixed voltage as read-only', async () => {

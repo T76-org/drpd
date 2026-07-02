@@ -12,11 +12,12 @@ import {
   parseOnOffResponse,
   parseSingleInt,
   parseSingleScaledMilliInt,
+  parseSinkRequestStatus,
   parseSinkPdo,
   parseSinkStateResponse,
 } from './parsers'
 import { OnOffState } from './types'
-import type { SinkInfo, SinkPdo, SinkState } from './types'
+import type { SinkInfo, SinkPdo, SinkRequestStatus, SinkState } from './types'
 
 /**
  * Sink command group for DRPD devices.
@@ -63,6 +64,78 @@ export class DRPDSink {
    */
   public async requestPdo(index: number, voltageMv: number, currentMa: number): Promise<void> {
     await this.transport.sendCommand('SINK:PDO', index, voltageMv, currentMa)
+  }
+
+  /**
+   * Query the most recent Sink PDO request outcome.
+   *
+   * @returns Sink request status.
+   */
+  public async getRequestStatus(): Promise<SinkRequestStatus> {
+    const response = await this.transport.queryText('SINK:REQUEST:STATUS?')
+    return parseSinkRequestStatus(response)
+  }
+
+  /**
+   * Query the number of configured local SPR Sink capability PDOs.
+   *
+   * @returns SPR Sink capability slot count.
+   */
+  public async getSprCapabilityCount(): Promise<number> {
+    const response = await this.transport.queryText('SINK:CAP:SPR:COUNT?')
+    return parseSingleInt(response, 'SPR Sink capability count')
+  }
+
+  /**
+   * Query a configured local SPR Sink capability raw PDO.
+   *
+   * @param index - Local SPR Sink capability slot index.
+   * @returns Raw 32-bit PDO value.
+   */
+  public async getSprCapabilityPdo(index: number): Promise<number> {
+    const response = await this.transport.queryText('SINK:CAP:SPR?', index)
+    return parseSingleInt(response, 'SPR Sink capability PDO')
+  }
+
+  /**
+   * Set a configured local SPR Sink capability raw PDO.
+   *
+   * @param index - Local SPR Sink capability slot index.
+   * @param rawPdo - Raw 32-bit PDO value; 0 clears the slot.
+   */
+  public async setSprCapabilityPdo(index: number, rawPdo: number): Promise<void> {
+    await this.transport.sendCommand('SINK:CAP:SPR', index, rawPdo)
+  }
+
+  /**
+   * Query the number of configured local EPR-only Sink capability PDOs.
+   *
+   * @returns EPR Sink capability slot count.
+   */
+  public async getEprCapabilityCount(): Promise<number> {
+    const response = await this.transport.queryText('SINK:CAP:EPR:COUNT?')
+    return parseSingleInt(response, 'EPR Sink capability count')
+  }
+
+  /**
+   * Query a configured local EPR-only Sink capability raw PDO.
+   *
+   * @param index - Local EPR Sink capability slot index.
+   * @returns Raw 32-bit PDO value.
+   */
+  public async getEprCapabilityPdo(index: number): Promise<number> {
+    const response = await this.transport.queryText('SINK:CAP:EPR?', index)
+    return parseSingleInt(response, 'EPR Sink capability PDO')
+  }
+
+  /**
+   * Set a configured local EPR-only Sink capability raw PDO.
+   *
+   * @param index - Local EPR Sink capability slot index.
+   * @param rawPdo - Raw 32-bit PDO value; 0 clears the slot.
+   */
+  public async setEprCapabilityPdo(index: number, rawPdo: number): Promise<void> {
+    await this.transport.sendCommand('SINK:CAP:EPR', index, rawPdo)
   }
 
   /**

@@ -341,6 +341,36 @@ describe('DRPDWorkerDeviceProxy connect flow', () => {
   })
 })
 
+describe('DRPDWorkerDeviceProxy device event forwarding', () => {
+  it('forwards firmware capture event details from worker sessions', () => {
+    const callWorker = vi.fn(async () => null)
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const proxy = new TestDRPDWorkerDeviceProxy(client)
+    const listener = vi.fn()
+    const detail = {
+      record: {
+        recordType: 'event',
+        timestampUs: 8000n,
+        timestampSeconds: 0.008,
+        eventType: 1,
+        eventText: 'VBUS OVP event',
+        eventTextBytes: Uint8Array.from([0x56, 0x42]),
+      },
+    }
+
+    proxy.addEventListener(DRPDDevice.MESSAGE_CAPTURED_EVENT, listener)
+
+    proxy.emitWorkerDeviceEvent(DRPDDevice.MESSAGE_CAPTURED_EVENT, detail)
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual(detail)
+  })
+})
+
 describe('DRPDWorkerDeviceProxy debug logging', () => {
   it('forwards debug scope updates to the worker session RPC', async () => {
     const callWorker = vi.fn(async () => null)

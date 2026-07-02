@@ -9,7 +9,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from t76.drpd.device.device_sink_pdos import DeviceSinkPDO
-from t76.drpd.device.types import Mode, SinkState
+from t76.drpd.device.types import (
+    Mode,
+    SinkRequestOutcome,
+    SinkRequestStatus,
+    SinkState,
+)
 
 from .device_internal import DeviceInternal
 
@@ -193,6 +198,93 @@ class DeviceSink:
             )
         )
         return response[0].strip().upper() == "ON"
+
+    async def set_pps_status_query_enabled(self, enabled: bool) -> None:
+        """
+        Set whether Sink policy sends Get_PPS_Status after SPR PPS transitions.
+        """
+        await self._validate_sink_mode()
+        state = "ON" if enabled else "OFF"
+        await self._internal.write_ascii_and_check(
+            f"SINK:PPS:STATUS:EN {state}"
+        )
+
+    async def get_pps_status_query_enabled(self) -> bool:
+        """
+        Query whether Sink policy sends Get_PPS_Status after PPS transitions.
+        """
+        await self._validate_sink_mode()
+        response = (
+            await self._internal.query_ascii_values_and_check(
+                "SINK:PPS:STATUS:EN?", "s"
+            )
+        )
+        return response[0].strip().upper() == "ON"
+
+    async def get_request_status(self) -> SinkRequestStatus:
+        """
+        Query the most recent Sink PDO request outcome.
+        """
+        await self._validate_sink_mode()
+        response = (
+            await self._internal.query_ascii_values_and_check(
+                "SINK:REQUEST:STATUS?", "s"
+            )
+        )
+        parts = [str(part).strip() for part in response]
+        if len(parts) == 1 and "," in parts[0]:
+            parts = [part.strip() for part in parts[0].split(",")]
+        if not parts:
+            raise ValueError("Empty SINK:REQUEST:STATUS? response")
+
+        outcome = SinkRequestOutcome.from_string(parts[0])
+        if outcome == SinkRequestOutcome.NONE:
+            return SinkRequestStatus(outcome, None, None, None)
+        if len(parts) != 4:
+            raise ValueError(
+                "SINK:REQUEST:STATUS? response must contain "
+                "outcome,index,voltage_mv,current_ma"
+            )
+        return SinkRequestStatus(
+            outcome=outcome,
+            index=int(parts[1]),
+            voltage_mv=int(parts[2]),
+            current_ma=int(parts[3]),
+        )
+
+    async def get_spr_capability_count(self) -> int:
+        response = await self._internal.query_ascii_values_and_check(
+            "SINK:CAP:SPR:COUNT?"
+        )
+        return int(response[0])
+
+    async def get_spr_capability_pdo(self, index: int) -> int:
+        response = await self._internal.query_ascii_values_and_check(
+            f"SINK:CAP:SPR? {index}"
+        )
+        return int(str(response[0]), 0)
+
+    async def set_spr_capability_pdo(self, index: int, raw_pdo: int) -> None:
+        await self._internal.write_ascii_and_check(
+            f"SINK:CAP:SPR {index} {raw_pdo}"
+        )
+
+    async def get_epr_capability_count(self) -> int:
+        response = await self._internal.query_ascii_values_and_check(
+            "SINK:CAP:EPR:COUNT?"
+        )
+        return int(response[0])
+
+    async def get_epr_capability_pdo(self, index: int) -> int:
+        response = await self._internal.query_ascii_values_and_check(
+            f"SINK:CAP:EPR? {index}"
+        )
+        return int(str(response[0]), 0)
+
+    async def set_epr_capability_pdo(self, index: int, raw_pdo: int) -> None:
+        await self._internal.write_ascii_and_check(
+            f"SINK:CAP:EPR {index} {raw_pdo}"
+        )
 
     async def get_status(self) -> SinkState:
         """

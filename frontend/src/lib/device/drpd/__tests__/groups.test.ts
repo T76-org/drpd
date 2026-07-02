@@ -3,12 +3,15 @@ import { DRPDAnalogMonitor } from '../analogMonitor'
 import { DRPDCCBus } from '../ccBus'
 import { DRPDCapture } from '../capture'
 import { DRPDSink } from '../sink'
+import { DRPDTest } from '../test'
 import { DRPDTrigger } from '../trigger'
 import { DRPDVBus } from '../vbus'
 import type { DRPDTransport, DRPDSCPIParam } from '../transport'
 import {
   CCBusRole,
   OnOffState,
+  SinkRequestOutcome,
+  TestCcRole,
   TriggerEventType,
   TriggerMessageTypeFilterClass,
   TriggerSenderFilter,
@@ -131,6 +134,7 @@ describe('DRPD command groups', () => {
     const voltage = await group.getVBusVoltage()
     await group.setVBusCalibrationTablePoint(20, 0)
     await group.calibrateVBusBucket(20)
+    await group.resetVBusCalibrationToDefaults()
 
     expect(table).toHaveLength(61)
     expect(table[20]).toBeCloseTo(0.2)
@@ -142,6 +146,10 @@ describe('DRPD command groups', () => {
     expect(transport.commands[1]).toEqual({
       command: 'BUS:VBUS:CAL',
       params: [20],
+    })
+    expect(transport.commands[2]).toEqual({
+      command: 'BUS:VBUS:CAL:DEF',
+      params: [],
     })
   })
 
@@ -169,6 +177,7 @@ describe('DRPD command groups', () => {
     const rawCurrent = await group.getRawVBusCurrent()
     await group.setVBusCurrentCalibrationTablePoint(500, 0.5)
     await group.calibrateVBusCurrentBucket(500)
+    await group.resetVBusCurrentCalibrationToDefaults()
 
     expect(table).toHaveLength(13)
     expect(table[3]).toBeCloseTo(1.5)
@@ -180,6 +189,10 @@ describe('DRPD command groups', () => {
     expect(transport.commands[1]).toEqual({
       command: 'BUS:VBUS:CAL:CURR',
       params: [500],
+    })
+    expect(transport.commands[2]).toEqual({
+      command: 'BUS:VBUS:CAL:CURR:DEF',
+      params: [],
     })
   })
 
@@ -270,6 +283,42 @@ describe('DRPD command groups', () => {
     expect(enabled).toBe(false)
   })
 
+  it('queries sink request status outcomes', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SINK:REQUEST:STATUS?', ['ACCEPTED,2,9000,3000'])
+    const group = new DRPDSink(transport)
+
+    const status = await group.getRequestStatus()
+
+    expect(status).toEqual({
+      outcome: SinkRequestOutcome.ACCEPTED,
+      index: 2,
+      voltageMv: 9000,
+      currentMa: 3000,
+    })
+  })
+
+  it('queries and sets local sink capability PDOs', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SINK:CAP:SPR:COUNT?', ['7'])
+    transport.textResponses.set('SINK:CAP:SPR?', ['305419896'])
+    transport.textResponses.set('SINK:CAP:EPR:COUNT?', ['1'])
+    transport.textResponses.set('SINK:CAP:EPR?', ['0'])
+    const group = new DRPDSink(transport)
+
+    expect(await group.getSprCapabilityCount()).toBe(7)
+    expect(await group.getSprCapabilityPdo(0)).toBe(305419896)
+    await group.setSprCapabilityPdo(0, 0)
+    expect(await group.getEprCapabilityCount()).toBe(1)
+    expect(await group.getEprCapabilityPdo(0)).toBe(0)
+    await group.setEprCapabilityPdo(0, 0)
+
+    expect(transport.commands).toEqual([
+      { command: 'SINK:CAP:SPR', params: [0, 0] },
+      { command: 'SINK:CAP:EPR', params: [0, 0] },
+    ])
+  })
+
   it('sets trigger configuration using raw enum tokens', async () => {
     const transport = new MockTransport()
     const group = new DRPDTrigger(transport)
@@ -356,5 +405,20 @@ describe('DRPD command groups', () => {
       { command: 'BUS:VBUS:OVPT', params: [60] },
       { command: 'BUS:VBUS:OCPT', params: [3] },
     ])
+  })
+
+  it('uses firmware TEST:CCROLE role tokens', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('TEST:CCROLE:CC1?', ['SOURCE_1_5A'])
+    const group = new DRPDTest(transport)
+
+    await group.setCc1Role(TestCcRole.SOURCE_1_5A)
+    const role = await group.getCc1Role()
+
+    expect(transport.commands[0]).toEqual({
+      command: 'TEST:CCROLE:CC1',
+      params: [{ raw: 'SOURCE_1_5A' }],
+    })
+    expect(role).toBe(TestCcRole.SOURCE_1_5A)
   })
 })

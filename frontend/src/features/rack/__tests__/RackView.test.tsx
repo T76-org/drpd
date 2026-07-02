@@ -674,10 +674,8 @@ const mockUSB = (devices: USBDevice[]) => {
 const expectHydratedDrpdPanels = async (): Promise<void> => {
   expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
   expect(await screen.findAllByText('Attached')).not.toHaveLength(0)
-  expect(await screen.findAllByText('On')).not.toHaveLength(0)
   expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
   expect(await screen.findAllByText('Armed')).not.toHaveLength(0)
-  expect(await screen.findAllByText('Connected')).not.toHaveLength(0)
 }
 
 const openApplicationSubmenu = async (name: string | RegExp): Promise<void> => {
@@ -710,14 +708,12 @@ const openCalibrationMenuItem = async (
 }
 
 const disconnectCurrentDeviceFromMenu = async (): Promise<void> => {
-  await openApplicationSubmenu('Devices')
-  await userEvent.click(await screen.findByRole('menuitem', { name: /current device/i }))
+  await openPairedDeviceSubmenu(/dr\. pd/i)
   await userEvent.click(await screen.findByRole('menuitem', { name: /^disconnect$/i }))
 }
 
 const unpairCurrentDeviceFromMenu = async (): Promise<void> => {
-  await openApplicationSubmenu('Devices')
-  await userEvent.click(await screen.findByRole('menuitem', { name: /current device/i }))
+  await openPairedDeviceSubmenu(/dr\. pd/i)
   await userEvent.click(await screen.findByRole('menuitem', { name: /^unpair$/i }))
 }
 
@@ -821,8 +817,10 @@ const resetMockTransportState = (): void => {
   mockTransportState.triggerStatusResponse = ['ARMED']
   mockTransportState.triggerEventTypeResponse = ['MESSAGE_COMPLETE']
   mockTransportState.triggerEventThresholdResponse = ['2']
+  mockTransportState.triggerSenderFilterResponse = ['ANY']
   mockTransportState.triggerAutoRepeatResponse = ['ON']
   mockTransportState.triggerEventCountResponse = ['7']
+  mockTransportState.triggerMessageTypeFiltersResponse = ['']
   mockTransportState.triggerSyncModeResponse = ['TOGGLE']
   mockTransportState.triggerSyncPulseWidthResponse = ['25']
   mockTransportState.sinkPdoCountResponse = ['1']
@@ -2366,7 +2364,7 @@ describe('RackView', () => {
     await disconnectCurrentDeviceFromMenu()
 
     await openApplicationSubmenu('Devices')
-    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
+    expect(await screen.findByRole('menuitem', { name: /dr\. pd/i })).toBeInTheDocument()
     const stored = JSON.parse(
       window.localStorage.getItem('drpd:rack:document') ?? '{}',
     ) as RackDocument
@@ -2763,7 +2761,7 @@ describe('RackView', () => {
     dispatchDisconnect(usbDevice)
 
     await openApplicationSubmenu('Devices')
-    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
+    expect(await screen.findByRole('menuitem', { name: /dr\. pd/i })).toBeInTheDocument()
   })
 
   it('auto-connects a previously paired device when WebUSB reports it connected', async () => {
@@ -2773,7 +2771,7 @@ describe('RackView', () => {
     render(<RackView />)
 
     await openApplicationSubmenu('Devices')
-    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
+    expect(await screen.findByRole('menuitem', { name: /dr\. pd/i })).toBeInTheDocument()
     fireEvent.keyDown(document, { key: 'Escape' })
 
     dispatchConnect(usbDevice)
@@ -2868,9 +2866,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice('DRPD-TEST-001'), createUSBDevice('DRPD-TEST-002')])
     render(<RackView />)
 
-    await openApplicationSubmenu('Devices')
-    expect(await screen.findByRole('menuitem', { name: /current device: DRPD-TEST-002/i }))
-      .toBeInTheDocument()
+    expect(await screen.findByText(/connected to dr\. pd/i)).toBeInTheDocument()
   })
 
   it('does not auto-connect a plugged paired device when another device is already connected', async () => {
@@ -2905,14 +2901,11 @@ describe('RackView', () => {
     const { dispatchConnect } = mockUSB([firstDevice])
     render(<RackView />)
 
-    await openApplicationSubmenu('Devices')
-    expect(await screen.findByRole('menuitem', { name: /current device: DRPD-TEST-001/i }))
-      .toBeInTheDocument()
+    expect(await screen.findByText(/connected to dr\. pd/i)).toBeInTheDocument()
 
     dispatchConnect(secondDevice)
 
-    expect(screen.queryByRole('menuitem', { name: /current device: DRPD-TEST-002/i }))
-      .not.toBeInTheDocument()
+    expect(screen.queryByText(/DRPD-TEST-002/)).not.toBeInTheDocument()
   })
 
   it('pairs an additional device without connecting it when another device is already active', async () => {
@@ -2936,9 +2929,7 @@ describe('RackView', () => {
       'DRPD-TEST-001',
       'DRPD-TEST-002',
     ])
-    await openApplicationSubmenu('Devices')
-    expect(await screen.findByRole('menuitem', { name: /current device: DRPD-TEST-001/i }))
-      .toBeInTheDocument()
+    expect(await screen.findByText(/connected to dr\. pd/i)).toBeInTheDocument()
   })
 
   it('unpairs a device when unpair is clicked', async () => {
@@ -3016,30 +3007,23 @@ describe('RackView', () => {
     render(<RackView />)
 
     await openApplicationSubmenu('Devices')
-    expect(await screen.findByRole('menuitem', { name: /current device: none/i })).toBeDisabled()
+    expect(await screen.findByRole('menuitem', { name: /no paired devices/i })).toBeDisabled()
+    expect(screen.queryByRole('menuitem', { name: /current device/i })).not.toBeInTheDocument()
     mockTransportState.shouldFailOpen = false
   })
 
-  it('lists VBUS, Accumulator, CC Lines, Device Status, Sync Trigger, Timestrip, and MESSAGE DETAIL instruments for compatible devices', async () => {
+  it('does not expose the removed add-instrument control for compatible devices', async () => {
     saveRackDocument(
       buildRackDocument({
-        racks: [
+        pairedDevices: [
           {
-            id: 'bench-rack-a',
-            name: 'Bench Rack A',
-            totalUnits: 9,
-            devices: [
-              {
-                id: 'device-1',
-                identifier: 'com.mta.drpd',
-                displayName: 'Dr. PD',
-                vendorId: 0x2e8a,
-                productId: 0x000a,
-                serialNumber: 'DRPD-TEST-001',
-                productName: 'Dr. PD'
-              }
-            ],
-            rows: []
+            id: 'device-1',
+            identifier: 'com.mta.drpd',
+            displayName: 'Dr. PD',
+            vendorId: 0x2e8a,
+            productId: 0x000a,
+            serialNumber: 'DRPD-TEST-001',
+            productName: 'Dr. PD'
           }
         ]
       })
@@ -3047,70 +3031,17 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const addButton = await screen.findByRole('button', {
-      name: /add instrument/i
-    })
-    await userEvent.click(addButton)
-    expect(
-      await screen.findByRole('button', { name: /vbus/i }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /accumulator/i }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /cc lines/i }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /device status/i }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /sink control/i }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /sync trigger/i }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /timestrip/i }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole('button', { name: /message detail/i }),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/connected to dr\. pd/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add instrument/i })).not.toBeInTheDocument()
   })
 
   it('renders Timestrip with its default flex weight and CSS minimum size', async () => {
-    saveRackDocument(
-      buildRackDocument({
-        racks: [
-          {
-            id: 'bench-rack-a',
-            name: 'Bench Rack A',
-            totalUnits: 9,
-            devices: [],
-            rows: [
-              {
-                id: 'row-1',
-                instruments: [
-                  {
-                    id: 'inst-vbus',
-                    instrumentIdentifier: 'com.mta.drpd.vbus'
-                  },
-                  {
-                    id: 'inst-timestrip',
-                    instrumentIdentifier: 'com.mta.drpd.timestrip'
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      })
-    )
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveAttribute('data-flex', '100')
-    expect(await screen.findByTestId('rack-instrument-inst-timestrip')).toHaveStyle({
-      minHeight: '120px'
+    expect(await screen.findByTestId('rack-instrument-inst-default-timestrip')).toHaveAttribute('data-flex', '100')
+    expect(await screen.findByTestId('rack-instrument-inst-default-timestrip')).toHaveStyle({
+      minHeight: '230px'
     })
   })
 
@@ -3135,39 +3066,16 @@ describe('RackView', () => {
   })
 
   it('allocates MESSAGE DETAIL as horizontally and vertically flexible', async () => {
-    saveRackDocument(
-      buildRackDocument({
-        racks: [
-          {
-            id: 'bench-rack-a',
-            name: 'Bench Rack A',
-            totalUnits: 9,
-            devices: [],
-            rows: [
-              {
-                id: 'row-1',
-                instruments: [
-                  {
-                    id: 'inst-message-detail',
-                    instrumentIdentifier: 'com.mta.drpd.message-detail'
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      })
-    )
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findByTestId('rack-instrument-inst-message-detail')).toHaveAttribute('data-flex', '1')
-    expect(await screen.findByTestId('rack-instrument-inst-message-detail')).toHaveStyle({
+    expect(await screen.findByTestId('rack-instrument-inst-default-detail')).toHaveAttribute('data-flex', '1')
+    expect(await screen.findByTestId('rack-instrument-inst-default-detail')).toHaveStyle({
       height: '100%'
     })
   })
 
-  it('adds an instrument for compatible devices', async () => {
+  it('keeps compatible paired devices connected without an add-instrument control', async () => {
     saveRackDocument(
       buildRackDocument({
         racks: [
@@ -3175,18 +3083,18 @@ describe('RackView', () => {
             id: 'bench-rack-a',
             name: 'Bench Rack A',
             totalUnits: 9,
-            devices: [
-              {
-                id: 'device-1',
-                identifier: 'com.mta.drpd',
-                displayName: 'Dr. PD',
-                vendorId: 0x2e8a,
-                productId: 0x000a,
-                serialNumber: 'DRPD-TEST-001',
-                productName: 'Dr. PD'
-              }
-            ],
             rows: []
+          }
+        ],
+        pairedDevices: [
+          {
+            id: 'device-1',
+            identifier: 'com.mta.drpd',
+            displayName: 'Dr. PD',
+            vendorId: 0x2e8a,
+            productId: 0x000a,
+            serialNumber: 'DRPD-TEST-001',
+            productName: 'Dr. PD'
           }
         ]
       })
@@ -3194,15 +3102,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    const addButton = await screen.findByRole('button', {
-      name: /add instrument/i
-    })
-    await userEvent.click(addButton)
-    const option = await screen.findByRole('button', {
-      name: /vbus/i
-    })
-    await userEvent.click(option)
-
-    expect(await screen.findAllByText('VBUS')).not.toHaveLength(0)
+    expect(await screen.findByText(/connected to dr\. pd/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add instrument/i })).not.toBeInTheDocument()
   })
 })

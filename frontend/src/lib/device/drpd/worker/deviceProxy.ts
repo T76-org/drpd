@@ -30,6 +30,7 @@ import type {
   OnOffState,
   SinkInfo,
   SinkPdo,
+  SinkRequestStatus,
   TriggerEventType,
   TriggerInfo,
   TriggerSyncMode,
@@ -82,9 +83,11 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getVBusCalibrationTable: () => Promise<number[]>
     calibrateVBusBucket: (bucket: number) => Promise<void>
     setVBusCalibrationTablePoint: (bucket: number, correctionV: number) => Promise<void>
+    resetVBusCalibrationToDefaults: () => Promise<void>
     getVBusCurrentCalibrationTable: () => Promise<number[]>
     calibrateVBusCurrentBucket: (targetMa: number) => Promise<void>
     setVBusCurrentCalibrationTablePoint: (targetMa: number, rawCurrentA: number) => Promise<void>
+    resetVBusCurrentCalibrationToDefaults: () => Promise<void>
   } ///< Analog monitor command-group proxy.
   public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
   public readonly capture: { setCaptureEnabled: (enabled: OnOffState) => Promise<void> } ///< Capture command-group proxy.
@@ -100,6 +103,13 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     setEprEnabled: (enabled: boolean) => Promise<void>
     getPpsStatusQueryEnabled: () => Promise<boolean>
     setPpsStatusQueryEnabled: (enabled: boolean) => Promise<void>
+    getRequestStatus: () => Promise<SinkRequestStatus>
+    getSprCapabilityCount: () => Promise<number>
+    getSprCapabilityPdo: (index: number) => Promise<number>
+    setSprCapabilityPdo: (index: number, rawPdo: number) => Promise<void>
+    getEprCapabilityCount: () => Promise<number>
+    getEprCapabilityPdo: (index: number) => Promise<number>
+    setEprCapabilityPdo: (index: number, rawPdo: number) => Promise<void>
     requestPdo: (index: number, voltageMv: number, currentMa: number) => Promise<void>
   } ///< Sink command-group proxy.
   public readonly trigger: {
@@ -239,6 +249,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       setVBusCalibrationTablePoint: async (bucket, correctionV) => {
         await this.callGroup('analogMonitor', 'setVBusCalibrationTablePoint', bucket, correctionV)
       },
+      resetVBusCalibrationToDefaults: async () => {
+        await this.callGroup('analogMonitor', 'resetVBusCalibrationToDefaults')
+      },
       getVBusCurrentCalibrationTable: async () =>
         (await this.callGroup('analogMonitor', 'getVBusCurrentCalibrationTable')) as number[],
       calibrateVBusCurrentBucket: async (targetMa) => {
@@ -246,6 +259,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       },
       setVBusCurrentCalibrationTablePoint: async (targetMa, rawCurrentA) => {
         await this.callGroup('analogMonitor', 'setVBusCurrentCalibrationTablePoint', targetMa, rawCurrentA)
+      },
+      resetVBusCurrentCalibrationToDefaults: async () => {
+        await this.callGroup('analogMonitor', 'resetVBusCurrentCalibrationToDefaults')
       },
     }
     this.ccBus = {
@@ -277,6 +293,19 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
         (await this.callGroup('sink', 'getPpsStatusQueryEnabled')) as boolean,
       setPpsStatusQueryEnabled: async (enabled) => {
         await this.callGroup('sink', 'setPpsStatusQueryEnabled', enabled)
+      },
+      getRequestStatus: async () => (await this.callGroup('sink', 'getRequestStatus')) as SinkRequestStatus,
+      getSprCapabilityCount: async () => (await this.callGroup('sink', 'getSprCapabilityCount')) as number,
+      getSprCapabilityPdo: async (index) =>
+        (await this.callGroup('sink', 'getSprCapabilityPdo', index)) as number,
+      setSprCapabilityPdo: async (index, rawPdo) => {
+        await this.callGroup('sink', 'setSprCapabilityPdo', index, rawPdo)
+      },
+      getEprCapabilityCount: async () => (await this.callGroup('sink', 'getEprCapabilityCount')) as number,
+      getEprCapabilityPdo: async (index) =>
+        (await this.callGroup('sink', 'getEprCapabilityPdo', index)) as number,
+      setEprCapabilityPdo: async (index, rawPdo) => {
+        await this.callGroup('sink', 'setEprCapabilityPdo', index, rawPdo)
       },
       requestPdo: async (index, voltageMv, currentMa) => {
         await this.callGroup('sink', 'requestPdo', index, voltageMv, currentMa)
@@ -567,6 +596,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   protected normalizeWorkerEventDetail(detail: unknown): unknown {
     if (!detail || typeof detail !== 'object') {
+      return detail
+    }
+    if (ArrayBuffer.isView(detail) || detail instanceof ArrayBuffer) {
       return detail
     }
     if (Array.isArray(detail)) {

@@ -11,6 +11,45 @@ from t76.drpd.device.device_analog_monitor import DeviceAnalogMonitor
 class TestDeviceAnalogMonitor(unittest.IsolatedAsyncioTestCase):
     """Verify analog monitor response parsing."""
 
+    async def test_get_accumulated_measurements(self) -> None:
+        internal = MagicMock()
+        internal.query_ascii_values_and_check = AsyncMock(
+            return_value=["2500", "12", "34"]
+        )
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        counters = await analog_monitor.get_accumulated_measurements()
+
+        self.assertEqual(counters.accumulation_elapsed_time_us, 2500)
+        self.assertEqual(counters.accumulated_charge_mah, 12)
+        self.assertEqual(counters.accumulated_energy_mwh, 34)
+        internal.query_ascii_values_and_check.assert_awaited_once_with(
+            "MEAS:ACC?",
+        )
+
+    async def test_reset_accumulated_measurements(self) -> None:
+        internal = MagicMock()
+        internal.write_ascii_and_check = AsyncMock()
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        await analog_monitor.reset_accumulated_measurements()
+
+        internal.write_ascii_and_check.assert_awaited_once_with(
+            "MEAS:ACC:RESET"
+        )
+
+    async def test_individual_measurement_queries(self) -> None:
+        internal = MagicMock()
+        internal.query_ascii_values_and_check = AsyncMock(return_value=[5.25])
+        analog_monitor = DeviceAnalogMonitor(internal)
+
+        self.assertEqual(await analog_monitor.get_vbus_voltage(), 5.25)
+
+        internal.query_ascii_values_and_check.assert_awaited_once_with(
+            "MEAS:VOLT:VBUS?",
+            "f",
+        )
+
     async def test_get_vbus_calibration_table_parses_all_entries(self) -> None:
         internal = MagicMock()
         internal.query_ascii_values_and_check = AsyncMock(return_value=[

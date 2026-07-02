@@ -10,7 +10,7 @@ from t76.drpd.device.device_sink_pdos import DeviceSinkPDO
 from t76.drpd.device.device_trigger import TriggerInfo
 from t76.drpd.device.device_vbus import VBusInfo
 from t76.drpd.device.types import AnalogMonitorChannels, CCBusState, Mode, OnOffStatus
-from t76.drpd.message.bmc_sequence import BMCSequence
+from t76.drpd.message.bmc_sequence import BMCSequence, FirmwareCaptureEvent
 
 if TYPE_CHECKING:
     from t76.drpd.device.device import Device
@@ -79,6 +79,12 @@ class BMCSequenceCaptured(DeviceEvent):
     def __init__(self, device: "Device", message: BMCSequence):
         super().__init__(device)
         self.message = message
+
+
+class FirmwareEventCaptured(DeviceEvent):
+    def __init__(self, device: "Device", event: FirmwareCaptureEvent):
+        super().__init__(device)
+        self.event = event
 
 
 class AnalogMonitorStatusChanged(DeviceEvent):

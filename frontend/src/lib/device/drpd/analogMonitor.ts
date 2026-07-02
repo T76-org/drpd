@@ -136,6 +136,13 @@ export class DRPDAnalogMonitor {
   }
 
   /**
+   * Restore persisted VBUS voltage calibration to firmware defaults.
+   */
+  public async resetVBusCalibrationToDefaults(): Promise<void> {
+    await this.transport.sendCommand('BUS:VBUS:CAL:DEF')
+  }
+
+  /**
    * Query persisted VBUS current raw calibration table.
    *
    * @returns Raw current readings indexed by true-current half-amp point.
@@ -191,6 +198,13 @@ export class DRPDAnalogMonitor {
       throw new Error('rawCurrentA must be non-negative')
     }
     await this.transport.sendCommand('BUS:VBUS:CAL:CURR:TAB', targetMa, rawCurrentA)
+  }
+
+  /**
+   * Restore persisted VBUS current calibration to firmware defaults.
+   */
+  public async resetVBusCurrentCalibrationToDefaults(): Promise<void> {
+    await this.transport.sendCommand('BUS:VBUS:CAL:CURR:DEF')
   }
 
   /**

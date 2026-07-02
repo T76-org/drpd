@@ -198,6 +198,9 @@ const sanitizeEventDetail = (detail: unknown): unknown => {
   if (detail instanceof Error) {
     return { error: serializeWorkerError(detail) }
   }
+  if (ArrayBuffer.isView(detail) || detail instanceof ArrayBuffer) {
+    return detail
+  }
   if (Array.isArray(detail)) {
     return detail.map((value) => sanitizeEventDetail(value))
   }

@@ -14,7 +14,7 @@ import usb
 
 from t76.drpd.device.types import DeviceStatusFlags
 
-from ..message.bmc_sequence import BMCSequence
+from ..message.bmc_sequence import BMCSequence, FirmwareCaptureEvent
 from ..message.header import Header
 from ..message import Message
 
@@ -25,6 +25,7 @@ from .device_internal import DeviceInternal
 from .device_mode import DeviceMode
 from .device_sink import DeviceSink
 from .device_system import DeviceSystem
+from .device_test import DeviceTest
 from .device_trigger import DeviceTrigger
 from .device_vbus import DeviceVBus
 
@@ -34,6 +35,7 @@ from .events import (
     CaptureStatusChanged,
     DeviceConnected,
     DeviceDisconnected,
+    FirmwareEventCaptured,
     InterruptReceived,
     RoleChanged,
     SinkInfoChanged,
@@ -62,6 +64,7 @@ class Device:
             self._internal, self._capture_fetched_callback)
         self.sink = DeviceSink(self._internal, self)
         self.system = DeviceSystem(self._internal)
+        self.test = DeviceTest(self._internal)
         self.trigger = DeviceTrigger(self._internal)
         self.vbus = DeviceVBus(self._internal)
 
@@ -185,9 +188,14 @@ class Device:
 
         loop.create_task(self._safe_process_interrupt())
 
-    def _capture_fetched_callback(self, capture: BMCSequence) -> None:
+    def _capture_fetched_callback(
+            self,
+            capture: BMCSequence | FirmwareCaptureEvent) -> None:
         # Advise observers of the interrupt event
-        ev = BMCSequenceCaptured(self, capture)
+        if isinstance(capture, FirmwareCaptureEvent):
+            ev = FirmwareEventCaptured(self, capture)
+        else:
+            ev = BMCSequenceCaptured(self, capture)
 
         asyncio.create_task(self.events.dispatch_event(ev))
 

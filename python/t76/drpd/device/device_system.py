@@ -39,14 +39,49 @@ class DeviceSystem:
         assert len(
             result) == 4, "Expected 4 parameters in the identification response."
 
+        hardware_revision = None
+        try:
+            hardware_revision = await self.get_hardware_revision()
+        except (AssertionError, RuntimeError, ValueError, TimeoutError):
+            hardware_revision = None
+
         return DeviceInfo(
             manufacturer=result[0],
             model=result[1],
             serial_number=result[2],
             firmware_version=result[3],
+            hardware_revision=hardware_revision,
         )
 
     # System commands
+
+    async def reset(self) -> None:
+        """
+        Reset the instrument to its power-on state.
+        """
+        await self._internal.write_ascii_and_check("*RST")
+
+    @alru_cache
+    async def get_hardware_revision(self) -> str:
+        """
+        Query the detected hardware revision.
+
+        :return: Hardware revision string.
+        :rtype: str
+        """
+        result = await self._internal.query_ascii_values_and_check(
+            "SYST:HW:REV?", DeviceInternal.parse_scpi_string)
+
+        if not result:
+            raise ValueError("Failed to retrieve hardware revision.")
+
+        return str(result[0])
+
+    async def enter_firmware_updater(self) -> None:
+        """
+        Reboot into the resident firmware updater bootloader.
+        """
+        await self._internal.write_ascii_and_check("SYST:FIRM:UPD")
 
     @alru_cache(ttl=1)
     async def get_memory_usage(self) -> MemoryUsage:

@@ -13,6 +13,7 @@ import {
   CcChannel,
   OnOffState,
   SinkPdoType,
+  SinkRequestOutcome,
   SinkState,
   TestCcRole,
   TriggerEventType,
@@ -31,6 +32,7 @@ import type {
   DeviceStatusFlags,
   SinkInfo,
   SinkPdo,
+  SinkRequestStatus,
   TriggerMessageTypeFilter,
   VBusInfo,
 } from './types'
@@ -427,8 +429,10 @@ export const parseTestCcRole = (value: string): TestCcRole => {
   const normalized = value.trim().toUpperCase()
   const lookup: Record<string, TestCcRole> = {
     [TestCcRole.SOURCE_DEFAULT]: TestCcRole.SOURCE_DEFAULT,
-    [TestCcRole.SOURCE_15]: TestCcRole.SOURCE_15,
-    [TestCcRole.SOURCE_30]: TestCcRole.SOURCE_30,
+    SOURCE_1_5A: TestCcRole.SOURCE_1_5A,
+    SOURCE_3_0A: TestCcRole.SOURCE_3_0A,
+    SOURCE_15: TestCcRole.SOURCE_1_5A,
+    SOURCE_30: TestCcRole.SOURCE_3_0A,
     [TestCcRole.SINK]: TestCcRole.SINK,
     [TestCcRole.EMARKER]: TestCcRole.EMARKER,
     [TestCcRole.VCONN]: TestCcRole.VCONN,
@@ -684,6 +688,53 @@ export const parseSinkPdo = (values: string[]): SinkPdo => {
     }
   }
   throw new Error(`Unknown PDO type: ${parts[0]}`)
+}
+
+/**
+ * Parse a SINK:REQUEST:STATUS? response.
+ *
+ * @param values - Parsed response tokens.
+ * @returns Parsed request status.
+ */
+export const parseSinkRequestStatus = (
+  values: string[],
+): SinkRequestStatus => {
+  const parts = parseCommaSeparated(values)
+  if (!parts.length) {
+    throw new Error('Missing sink request status response')
+  }
+
+  const outcomeToken = parts[0].toUpperCase()
+  const outcomeLookup: Record<string, SinkRequestOutcome> = {
+    [SinkRequestOutcome.NONE]: SinkRequestOutcome.NONE,
+    [SinkRequestOutcome.PENDING]: SinkRequestOutcome.PENDING,
+    [SinkRequestOutcome.ACCEPTED]: SinkRequestOutcome.ACCEPTED,
+    [SinkRequestOutcome.REJECTED]: SinkRequestOutcome.REJECTED,
+    [SinkRequestOutcome.WAIT]: SinkRequestOutcome.WAIT,
+    [SinkRequestOutcome.NOT_SUPPORTED]: SinkRequestOutcome.NOT_SUPPORTED,
+    [SinkRequestOutcome.TIMEOUT]: SinkRequestOutcome.TIMEOUT,
+  }
+  const outcome = outcomeLookup[outcomeToken]
+  if (!outcome) {
+    throw new Error(`Invalid sink request outcome: ${parts[0]}`)
+  }
+
+  if (outcome === SinkRequestOutcome.NONE) {
+    return { outcome, index: null, voltageMv: null, currentMa: null }
+  }
+
+  if (parts.length !== 4) {
+    throw new Error(
+      `Invalid sink request status response: expected 4 fields, got ${parts.length}`,
+    )
+  }
+
+  return {
+    outcome,
+    index: parseIntValue(parts[1], 'sink request PDO index'),
+    voltageMv: parseIntValue(parts[2], 'sink request voltage'),
+    currentMa: parseIntValue(parts[3], 'sink request current'),
+  }
 }
 
 /**
