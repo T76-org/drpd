@@ -8,15 +8,19 @@ import {
   parseDeviceIdentity,
   parseDeviceStatus,
   parseSinkPdo,
+  parseSinkRequestStatus,
   parseTriggerMessageTypeFiltersResponse,
   parseTriggerSenderFilterResponse,
+  parseTestCcRoleResponse,
   parseTriggerSyncMode,
   parseSinkStateResponse,
 } from '../parsers'
 import {
   AnalogMonitorCCChannelStatus,
   CaptureDecodeResult,
+  SinkRequestOutcome,
   SinkState,
+  TestCcRole,
   TriggerMessageTypeFilterClass,
   TriggerSenderFilter,
   TriggerSyncMode,
@@ -156,6 +160,21 @@ describe('drpd parsers', () => {
     })
   })
 
+  it('parses sink request status responses', () => {
+    expect(parseSinkRequestStatus(['NONE'])).toEqual({
+      outcome: SinkRequestOutcome.NONE,
+      index: null,
+      voltageMv: null,
+      currentMa: null,
+    })
+    expect(parseSinkRequestStatus(['NOT_SUPPORTED,2,9000,3000'])).toEqual({
+      outcome: SinkRequestOutcome.NOT_SUPPORTED,
+      index: 2,
+      voltageMv: 9000,
+      currentMa: 3000,
+    })
+  })
+
   it('parses sink status responses using raw device state tokens', () => {
     expect(parseSinkStateResponse(['PE_SNK_READY'])).toBe(SinkState.PE_SNK_READY)
     expect(parseSinkStateResponse(['PE_SNK_TRANSITION_SINK'])).toBe(
@@ -186,6 +205,12 @@ describe('drpd parsers', () => {
   it('parses trigger sync mode values and rejects removed OFF', () => {
     expect(parseTriggerSyncMode('PULL_DOWN')).toBe(TriggerSyncMode.PULL_DOWN)
     expect(() => parseTriggerSyncMode('OFF')).toThrow('Invalid trigger sync mode')
+  })
+
+  it('parses firmware TEST:CCROLE tokens and compatibility aliases', () => {
+    expect(parseTestCcRoleResponse(['SOURCE_1_5A'])).toBe(TestCcRole.SOURCE_1_5A)
+    expect(parseTestCcRoleResponse(['SOURCE_3_0A'])).toBe(TestCcRole.SOURCE_3_0A)
+    expect(parseTestCcRoleResponse(['SOURCE_15'])).toBe(TestCcRole.SOURCE_1_5A)
   })
 
   it('parses capture payloads', () => {

@@ -7,11 +7,25 @@ the extraction of SOP, kcodes, and CRC validation.
 import logging
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Union
 
 from t76.drpd.message.header import CablePlug, Header, MessageType, PortDataRole, PortPowerRole
 from t76.drpd.message import Message
 from t76.drpd.message.sop import SOP
+
+FIRMWARE_EVENT_DECODE_RESULT = 0xFFFFFFFF
+
+
+@dataclass
+class FirmwareCaptureEvent:
+    """
+    Firmware-originated event returned through BUS:CC:CAP:DATA?.
+    """
+
+    timestamp: int
+    event_type: int
+    event_text: str
+    event_text_bytes: bytes
 
 
 @dataclass
@@ -62,7 +76,11 @@ class BMCSequence:
         return crc ^ 0xFFFFFFFF
 
     @classmethod
-    def from_scpi_response(cls, scpi_data: list[int], pulse_cycle_duration: float) -> 'BMCSequence':
+    def from_scpi_response(
+        cls,
+        scpi_data: list[int],
+        pulse_cycle_duration: float,
+    ) -> Union['BMCSequence', FirmwareCaptureEvent]:
         """
         Create a BMESequence instance from a list of transition times.
 
@@ -90,12 +108,11 @@ class BMCSequence:
         # The next 8 bytes are the end timestamp.
         end_timestamp = int.from_bytes(scpi_data[8:16], 'little')
 
-        # The next 4 bytes are the decoding result, we currently ignore it.
-        _ = scpi_data[16:20]
+        # The next 4 bytes are the decoding result.
+        decode_result = int.from_bytes(scpi_data[16:20], 'little')
 
         # The next 4 bytes are the SOP. We extract is a series of 4 integers.
         sop_bytes = scpi_data[20:24]
-        sop = SOP.from_kcodes(sop_bytes)
 
         # The next 4 bytes are the number of pulses that follow.
         pulse_count = int.from_bytes(scpi_data[24:28], 'little')
@@ -128,11 +145,6 @@ class BMCSequence:
             if counter == 96:
                 preamble_clock /= 96
 
-        message_clock /= (len(pulse_lengths) - 96)
-
-        preamble_frequency = 1 / preamble_clock
-        message_frequency = 1 / message_clock
-
         # The next 4 bytes are the number of data bytes that follow.
         data_count_start = pulse_data_end
         data_count_end = data_count_start + 4
@@ -143,6 +155,30 @@ class BMCSequence:
         data_start = data_count_end
         data_end = data_start + data_count
         decoded_bytes = scpi_data[data_start:data_end]
+
+        if decode_result == FIRMWARE_EVENT_DECODE_RESULT:
+            if pulse_count != 0:
+                raise ValueError(
+                    "Firmware event capture must not include pulse widths"
+                )
+            if len(decoded_bytes) < 4:
+                raise ValueError("Firmware event capture missing event type")
+            event_type = int.from_bytes(decoded_bytes[:4], 'little')
+            event_text_bytes = bytes(decoded_bytes[4:])
+            event_text = event_text_bytes.decode("utf-8")
+            return FirmwareCaptureEvent(
+                timestamp=start_timestamp,
+                event_type=event_type,
+                event_text=event_text,
+                event_text_bytes=event_text_bytes,
+            )
+
+        sop = SOP.from_kcodes(sop_bytes)
+
+        message_clock /= (len(pulse_lengths) - 96)
+
+        preamble_frequency = 1 / preamble_clock
+        message_frequency = 1 / message_clock
 
         # Validate the CRC32
 

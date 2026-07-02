@@ -18,6 +18,7 @@ class DeviceInfo:
     model: str
     serial_number: str
     firmware_version: str
+    hardware_revision: str | None = None
 
 
 class DeviceStatusFlags(enum.Flag):
@@ -69,6 +70,17 @@ class AnalogMonitorCCChannelStatus(enum.Enum):
             return AnalogMonitorCCChannelStatus.V_CONN
 
         return AnalogMonitorCCChannelStatus.UNKNOWN
+
+
+@dataclass
+class AccumulatedMeasurements:
+    """
+    Represents accumulated VBUS charge and energy counters.
+    """
+
+    accumulation_elapsed_time_us: int
+    accumulated_charge_mah: int
+    accumulated_energy_mwh: int
 
 
 @dataclass
@@ -377,6 +389,76 @@ class TriggerSyncMode(enum.Enum):
                 f"Unknown trigger output mode: {mode_str}") from exc
 
 
+class TriggerSenderFilter(enum.Enum):
+    """
+    Represents the trigger sender filter.
+    """
+
+    ANY = "ANY"
+    SOURCE = "SOURCE"
+    SINK = "SINK"
+    CABLE = "CABLE"
+
+    @classmethod
+    def from_string(cls, filter_str: str) -> 'TriggerSenderFilter':
+        try:
+            return cls(filter_str.upper())
+        except KeyError as exc:
+            raise ValueError(
+                f"Unknown trigger sender filter: {filter_str}") from exc
+
+
+class TriggerMessageTypeFilterClass(enum.Enum):
+    """
+    Represents a trigger message-type filter class.
+    """
+
+    CONTROL = "CONTROL"
+    DATA = "DATA"
+
+    @classmethod
+    def from_string(
+            cls,
+            class_str: str) -> 'TriggerMessageTypeFilterClass':
+        try:
+            return cls(class_str.upper())
+        except KeyError as exc:
+            raise ValueError(
+                f"Unknown trigger message type class: {class_str}") from exc
+
+
+@dataclass(frozen=True)
+class TriggerMessageTypeFilter:
+    """
+    Represents one trigger message-type filter slot.
+    """
+
+    filter_class: TriggerMessageTypeFilterClass
+    message_type_number: int
+
+    @classmethod
+    def from_string(cls, value: str) -> 'TriggerMessageTypeFilter':
+        class_token, separator, number_token = value.partition(":")
+        if not separator:
+            raise ValueError(f"Invalid trigger message type filter: {value}")
+
+        parsed_number = int(number_token)
+        if parsed_number < 0 or parsed_number > 0x1f:
+            raise ValueError(
+                f"Invalid trigger message type number: {value}"
+            )
+
+        return cls(
+            filter_class=TriggerMessageTypeFilterClass.from_string(
+                class_token
+            ),
+            message_type_number=parsed_number,
+        )
+
+    def to_scpi(self) -> str:
+        return f"{self.filter_class.value}:{self.message_type_number}"
+
+
 class VBusState(enum.Enum):
     """
     Represents the VBus state of the device.
@@ -413,7 +495,7 @@ class SinkState(enum.Enum):
     PE_SNK_STARTUP = "PE_SNK_STARTUP"
     PE_SNK_DISCOVERY = "PE_SNK_DISCOVERY"
     PE_SNK_WAIT_FOR_CAPABILITIES = "PE_SNK_WAIT_FOR_CAPABILITIES"
-    PE_SNK_EVALUATE_CAPABILITIY = "PE_SNK_EVALUATE_CAPABILITIY"
+    PE_SNK_EVALUATE_CAPABILITY = "PE_SNK_EVALUATE_CAPABILITY"
     PE_SNK_SELECT_CAPABILITY = "PE_SNK_SELECT_CAPABILITY"
     PE_SNK_TRANSITION_SINK = "PE_SNK_TRANSITION_SINK"
     PE_SNK_READY = "PE_SNK_READY"
@@ -443,3 +525,75 @@ class SinkState(enum.Enum):
             return cls(state_str.upper())
         except KeyError as exc:
             raise ValueError(f"Unknown Sink state: {state_str}") from exc
+
+
+class SinkRequestOutcome(enum.Enum):
+    """
+    Represents a SINK:REQUEST:STATUS? outcome token.
+    """
+
+    NONE = "NONE"
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    WAIT = "WAIT"
+    NOT_SUPPORTED = "NOT_SUPPORTED"
+    TIMEOUT = "TIMEOUT"
+
+    @classmethod
+    def from_string(cls, outcome_str: str) -> 'SinkRequestOutcome':
+        try:
+            return cls(outcome_str.upper())
+        except KeyError as exc:
+            raise ValueError(
+                f"Unknown sink request outcome: {outcome_str}") from exc
+
+
+@dataclass(frozen=True)
+class SinkRequestStatus:
+    """
+    Represents the most recent SINK:PDO request outcome.
+    """
+
+    outcome: SinkRequestOutcome
+    index: int | None
+    voltage_mv: int | None
+    current_ma: int | None
+
+
+class DiagnosticCCRole(enum.Enum):
+    """
+    Represents TEST:CCROLE role values.
+    """
+
+    SOURCE_DEFAULT = "SOURCE_DEFAULT"
+    SOURCE_1_5A = "SOURCE_1_5A"
+    SOURCE_3_0A = "SOURCE_3_0A"
+    SINK = "SINK"
+    EMARKER = "EMARKER"
+    VCONN = "VCONN"
+    OFF = "OFF"
+
+    @classmethod
+    def from_string(cls, role_str: str) -> 'DiagnosticCCRole':
+        try:
+            return cls(role_str.upper())
+        except KeyError as exc:
+            raise ValueError(f"Unknown test CC role: {role_str}") from exc
+
+
+class DiagnosticCCChannel(enum.Enum):
+    """
+    Represents TEST:CCBUS channel selections.
+    """
+
+    CC1 = "CC1"
+    CC2 = "CC2"
+
+    @classmethod
+    def from_string(cls, channel_str: str) -> 'DiagnosticCCChannel':
+        try:
+            return cls(channel_str.upper())
+        except KeyError as exc:
+            raise ValueError(
+                f"Unknown test CC channel: {channel_str}") from exc

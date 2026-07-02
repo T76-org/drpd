@@ -7,11 +7,11 @@ over USB using SCPI commands.
 
 import logging
 
-from typing import Callable
+from typing import Callable, Union
 
 from async_lru import alru_cache
 
-from ..message.bmc_sequence import BMCSequence
+from ..message.bmc_sequence import BMCSequence, FirmwareCaptureEvent
 
 from .device_internal import DeviceInternal
 
@@ -25,7 +25,13 @@ class DeviceCapture:
     :type internal: DeviceInternal
     """
 
-    def __init__(self, internal: DeviceInternal, capture_fetched_callback: Callable[[BMCSequence], None]):
+    CapturedRecord = Union[BMCSequence, FirmwareCaptureEvent]
+
+    def __init__(
+        self,
+        internal: DeviceInternal,
+        capture_fetched_callback: Callable[[CapturedRecord], None],
+    ):
         self._internal = internal
         self._capture_fetched_callback = capture_fetched_callback
 
@@ -105,7 +111,7 @@ class DeviceCapture:
         Fetch the next capture data from the device.
 
         :return: The capture data as a sequence of integers.
-        :rtype: BMCSequence
+        :rtype: BMCSequence | FirmwareCaptureEvent
 
         :raises RuntimeError: If there is an error communicating with the instrument.
         """

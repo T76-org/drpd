@@ -13,7 +13,7 @@ from async_lru import alru_cache
 
 from .device_internal import DeviceInternal
 from .events import AnalogMonitorStatusChanged
-from .types import (AnalogMonitorChannels)
+from .types import AccumulatedMeasurements, AnalogMonitorChannels
 
 if TYPE_CHECKING:
     from .device import Device
@@ -92,6 +92,88 @@ class DeviceAnalogMonitor:
             accumulation_elapsed_time_us=accumulation_elapsed_time_us,
             accumulated_charge_mah=accumulated_charge_mah,
             accumulated_energy_mwh=accumulated_energy_mwh,
+        )
+
+    async def get_accumulated_measurements(self) -> AccumulatedMeasurements:
+        """
+        Query accumulated VBUS charge and energy counters.
+        """
+        response = await self._internal.query_ascii_values_and_check(
+            "MEAS:ACC?",
+        )
+        if len(response) != 3:
+            raise ValueError(
+                "Invalid MEAS:ACC? response. Expected "
+                f"3 fields, got {len(response)}"
+            )
+
+        return AccumulatedMeasurements(
+            accumulation_elapsed_time_us=int(response[0]),
+            accumulated_charge_mah=int(response[1]),
+            accumulated_energy_mwh=int(response[2]),
+        )
+
+    async def reset_accumulated_measurements(self) -> None:
+        """
+        Reset accumulated VBUS charge and energy counters.
+        """
+        await self._internal.write_ascii_and_check("MEAS:ACC:RESET")
+
+    async def _query_single_float(self, command: str) -> float:
+        response = await self._internal.query_ascii_values_and_check(
+            command,
+            "f",
+        )
+        if len(response) != 1:
+            raise ValueError(
+                f"Invalid {command} response. Expected 1 field, "
+                f"got {len(response)}"
+            )
+        return float(response[0])
+
+    async def get_vbus_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:VBUS?"
+        )
+
+    async def get_vbus_current(self) -> float:
+        return await self._query_single_float(
+            "MEAS:CURR:VBUS?"
+        )
+
+    async def get_dut_cc1_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:CC:DUT1?"
+        )
+
+    async def get_dut_cc2_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:CC:DUT2?"
+        )
+
+    async def get_usds_cc1_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:CC:USDS1?"
+        )
+
+    async def get_usds_cc2_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:CC:USDS2?"
+        )
+
+    async def get_adc_reference_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:REF:ADC?"
+        )
+
+    async def get_current_reference_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:REF:CURR?"
+        )
+
+    async def get_ground_reference_voltage(self) -> float:
+        return await self._query_single_float(
+            "MEAS:VOLT:REF:GND?"
         )
 
     async def get_vbus_calibration_table(self) -> List[float]:

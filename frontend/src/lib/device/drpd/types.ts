@@ -236,8 +236,10 @@ export type SinkState = (typeof SinkState)[keyof typeof SinkState]
  */
 export const TestCcRole = {
   SOURCE_DEFAULT: 'SOURCE_DEFAULT',
-  SOURCE_15: 'SOURCE_15',
-  SOURCE_30: 'SOURCE_30',
+  SOURCE_1_5A: 'SOURCE_1_5A',
+  SOURCE_3_0A: 'SOURCE_3_0A',
+  SOURCE_15: 'SOURCE_1_5A',
+  SOURCE_30: 'SOURCE_3_0A',
   SINK: 'SINK',
   EMARKER: 'EMARKER',
   VCONN: 'VCONN',
@@ -248,6 +250,25 @@ export const TestCcRole = {
  * Test CC role option value.
  */
 export type TestCcRole = (typeof TestCcRole)[keyof typeof TestCcRole]
+
+/**
+ * Sink PDO request outcome token.
+ */
+export const SinkRequestOutcome = {
+  NONE: 'NONE',
+  PENDING: 'PENDING',
+  ACCEPTED: 'ACCEPTED',
+  REJECTED: 'REJECTED',
+  WAIT: 'WAIT',
+  NOT_SUPPORTED: 'NOT_SUPPORTED',
+  TIMEOUT: 'TIMEOUT',
+} as const
+
+/**
+ * Sink PDO request outcome value.
+ */
+export type SinkRequestOutcome =
+  (typeof SinkRequestOutcome)[keyof typeof SinkRequestOutcome]
 
 /**
  * CC channel selection.
@@ -563,6 +584,20 @@ export interface DRPDSinkRequestConfig {
   voltageMv: number
   ///< Requested current in milliamps.
   currentMa: number
+}
+
+/**
+ * Most recent Sink PDO request outcome reported by firmware.
+ */
+export interface SinkRequestStatus {
+  ///< Firmware outcome token.
+  outcome: SinkRequestOutcome
+  ///< Requested PDO index, absent for NONE outcomes.
+  index: number | null
+  ///< Requested voltage in millivolts, absent for NONE outcomes.
+  voltageMv: number | null
+  ///< Requested current in milliamps, absent for NONE outcomes.
+  currentMa: number | null
 }
 
 /**

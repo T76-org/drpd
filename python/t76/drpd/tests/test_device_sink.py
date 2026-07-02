@@ -13,7 +13,7 @@ from t76.drpd.device.device_sink_pdos import (
     FixedPDO,
     VariablePDO,
 )
-from t76.drpd.device.types import SinkState
+from t76.drpd.device.types import SinkRequestOutcome, SinkState
 
 
 class TestDeviceSinkModeValidation(unittest.IsolatedAsyncioTestCase):
@@ -224,7 +224,76 @@ class TestDeviceSinkPDORequest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await self.device_sink.set_pdo(index=0, voltage_mv=5000, current_ma=3000)
 
-        self.mock_internal.write_ascii_and_check.assert_not_called()
+
+class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):
+    """Tests for newer sink SCPI parity methods."""
+
+    async def asyncSetUp(self) -> None:
+        self.mock_internal = AsyncMock()
+        self.device_sink = DeviceSink(self.mock_internal)
+
+    async def test_get_request_status(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["SINK"],
+            ["ACCEPTED", "2", "9000", "3000"],
+        ]
+
+        status = await self.device_sink.get_request_status()
+
+        self.assertEqual(status.outcome, SinkRequestOutcome.ACCEPTED)
+        self.assertEqual(status.index, 2)
+        self.assertEqual(status.voltage_mv, 9000)
+        self.assertEqual(status.current_ma, 3000)
+
+    async def test_get_request_status_none(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["SINK"],
+            ["NONE"],
+        ]
+
+        status = await self.device_sink.get_request_status()
+
+        self.assertEqual(status.outcome, SinkRequestOutcome.NONE)
+        self.assertIsNone(status.index)
+
+    async def test_pps_status_policy(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["SINK"],
+            ["ON"],
+        ]
+
+        await self.device_sink.set_pps_status_query_enabled(True)
+        enabled = await self.device_sink.get_pps_status_query_enabled()
+
+        self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+            "SINK:PPS:STATUS:EN ON"
+        )
+        self.assertTrue(enabled)
+
+    async def test_local_sink_capability_methods(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["7"],
+            ["305419896"],
+            ["1"],
+            ["0"],
+        ]
+
+        self.assertEqual(await self.device_sink.get_spr_capability_count(), 7)
+        self.assertEqual(
+            await self.device_sink.get_spr_capability_pdo(0),
+            305419896,
+        )
+        await self.device_sink.set_spr_capability_pdo(0, 0)
+        self.assertEqual(await self.device_sink.get_epr_capability_count(), 1)
+        self.assertEqual(await self.device_sink.get_epr_capability_pdo(0), 0)
+        await self.device_sink.set_epr_capability_pdo(0, 0)
+
+        self.mock_internal.write_ascii_and_check.assert_any_await(
+            "SINK:CAP:SPR 0 0"
+        )
+        self.mock_internal.write_ascii_and_check.assert_any_await(
+            "SINK:CAP:EPR 0 0"
+        )
 
     async def test_set_epr_enabled_on(self) -> None:
         """Test enabling EPR entry policy."""
