@@ -18,8 +18,18 @@ from textual.reactive import reactive
 from textual.widgets import DataTable, Static
 
 from t76.drpd.device import Device
-from t76.drpd.device.events import BMCSequenceCaptured, DeviceEvent
-from t76.drpd.message.bmc_sequence import BMCSequence
+from t76.drpd.device.events import (
+    BMCSequenceCaptured,
+    CaptureStatusChanged,
+    DeviceConnected,
+    DeviceEvent,
+    FirmwareEventCaptured,
+)
+from t76.drpd.device.types import OnOffStatus
+from t76.drpd.message.bmc_sequence import BMCSequence, FirmwareCaptureEvent
+
+
+CapturedRecord = BMCSequence | FirmwareCaptureEvent
 
 
 class EventReceivedMessage(Message):
@@ -56,7 +66,7 @@ class MessageTable(DataTable):
         else:
             message_id = f"{sequence.header.message_id:02X}"
 
-        is_first = key == 0
+        is_first = key <= 1
 
         self.add_row(
             Text(str(len(self.rows) + 1), justify="right"),
@@ -74,9 +84,35 @@ class MessageTable(DataTable):
             key=str(key),
         )
 
+    def add_firmware_event(
+        self,
+        event: FirmwareCaptureEvent,
+        delta_t: int,
+        key: int,
+    ) -> None:
+        """Add a firmware-originated capture event to the message table."""
+
+        is_first = key <= 1
+
+        self.add_row(
+            Text(str(len(self.rows) + 1), justify="right"),
+            Text(str(event.timestamp)[-10:], justify="right"),
+            Text(str(event.timestamp)[-10:], justify="right"),
+            Text(f"{delta_t:>9}" if is_first else f"+{delta_t:>9}",
+                 justify="right"),
+            Text("FW", justify="right"),
+            f"Firmware event 0x{event.event_type:08X}: {event.event_text}",
+            "Firmware",
+            "Host",
+            "Event",
+            Text("0", justify="right"),
+            Text("—", justify="center"),
+            key=str(key),
+        )
+
 
 class MessageDetails(VerticalScroll):
-    message: reactive[BMCSequence | None] = reactive(None, recompose=True)
+    message: reactive[CapturedRecord | None] = reactive(None, recompose=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -85,6 +121,47 @@ class MessageDetails(VerticalScroll):
     def compose(self) -> ComposeResult:
         if self.message is None:
             yield Static("\nNo message selected", classes="message-details-empty")
+        elif isinstance(self.message, FirmwareCaptureEvent):
+            yield Static('Firmware event detail', classes="message-details-header")
+
+            yield HorizontalGroup(
+                Static("Timestamp",
+                       classes="message-details-property-label"),
+                Static(str(self.message.timestamp),
+                       classes="message-details-property-value"),
+                classes="message-details-property"
+            )
+
+            yield HorizontalGroup(
+                Static("Event type",
+                       classes="message-details-property-label"),
+                Static(f"0x{self.message.event_type:08X}",
+                       classes="message-details-property-value"),
+                classes="message-details-property"
+            )
+
+            yield HorizontalGroup(
+                Static("Event text",
+                       classes="message-details-property-label"),
+                Static(self.message.event_text,
+                       classes="message-details-property-value"),
+                classes="message-details-property"
+            )
+
+            if self.message.event_text_bytes:
+                lines = []
+                for i in range(0, len(self.message.event_text_bytes), 16):
+                    chunk = self.message.event_text_bytes[i:i+16]
+                    lines.append(" ".join(f"{b:02X}" for b in chunk))
+                formatted = "\n".join(lines)
+            else:
+                formatted = "(no data)"
+
+            yield Static(
+                f"Raw event text ({len(self.message.event_text_bytes):,} bytes)",
+                classes="message-details-header"
+            )
+            yield Static(formatted, classes="message-details-property-value")
         else:
             yield Static('BMC transmission detail', classes="message-details-header")
 
@@ -209,22 +286,43 @@ class MessagePanel(VerticalGroup):
 
         self.table = MessageTable()
         self.message_details = MessageDetails()
-        self.messages: List[BMCSequence] = []
+        self.messages: List[CapturedRecord] = []
+        self._capture_enabled = False
 
-    def watch_device(self, old_device: Optional[Device], new_device: Optional[Device]) -> None:
+    async def watch_device(
+        self,
+        old_device: Optional[Device],
+        new_device: Optional[Device],
+    ) -> None:
         if old_device is not None:
             old_device.unregister_event_observer(self._on_device_event)
 
         if new_device is None:
+            self._capture_enabled = False
             self.message_details.message = None
             self.table.clear()
             self.messages.clear()
         else:
             new_device.register_event_observer(self._on_device_event)
+            await self._refresh_capture_status(new_device)
 
-    def _on_device_event(self, event: DeviceEvent) -> None:
+    async def _refresh_capture_status(self, device: Device) -> None:
+        try:
+            self._capture_enabled = (
+                await device.capture.get_status()
+            ) == OnOffStatus.ON
+        except (AssertionError, RuntimeError, ValueError):
+            self._capture_enabled = False
+
+    async def _on_device_event(self, event: DeviceEvent) -> None:
         """Handle events from the device."""
-        if isinstance(event, BMCSequenceCaptured):
+        if isinstance(event, CaptureStatusChanged):
+            self._capture_enabled = event.is_capturing == OnOffStatus.ON
+        elif isinstance(event, DeviceConnected):
+            await self._refresh_capture_status(event.device)
+        elif isinstance(event, BMCSequenceCaptured):
+            self.post_message(EventReceivedMessage(event))
+        elif isinstance(event, FirmwareEventCaptured) and self._capture_enabled:
             self.post_message(EventReceivedMessage(event))
 
     async def on_event_received_message(self, msg: EventReceivedMessage) -> None:
@@ -234,10 +332,38 @@ class MessagePanel(VerticalGroup):
             self.messages.append(msg.event.message)
             self.table.add_sequence(
                 msg.event.message,
-                (msg.event.message.start_timestamp -
-                 self.messages[-2].end_timestamp if len(self.messages) > 1 else 0),
+                self._delta_t_for_record(msg.event.message),
                 len(self.messages)
             )
+        elif isinstance(msg.event, FirmwareEventCaptured):
+            self.messages.append(msg.event.event)
+            self.table.add_firmware_event(
+                msg.event.event,
+                self._delta_t_for_record(msg.event.event),
+                len(self.messages)
+            )
+
+    def _delta_t_for_record(self, record: CapturedRecord) -> int:
+        """Return capture delta from the previous table record."""
+
+        if len(self.messages) <= 1:
+            return 0
+
+        return self._record_start_timestamp(record) - self._record_end_timestamp(
+            self.messages[-2]
+        )
+
+    @staticmethod
+    def _record_start_timestamp(record: CapturedRecord) -> int:
+        if isinstance(record, FirmwareCaptureEvent):
+            return record.timestamp
+        return record.start_timestamp
+
+    @staticmethod
+    def _record_end_timestamp(record: CapturedRecord) -> int:
+        if isinstance(record, FirmwareCaptureEvent):
+            return record.timestamp
+        return record.end_timestamp
 
     async def on_data_table_row_selected(self, message: DataTable.RowSelected) -> None:
         """Handle the row_selected event from the message table."""
