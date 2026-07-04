@@ -345,7 +345,6 @@ void App::_loop() {
     while (true) {
         _analogMonitor.readVBusValues();
         _processSinkErrorEvents();
-        _processSyncTriggerEvents();
 
         if (_interruptPending.exchange(false, std::memory_order_acq_rel)) {
             if (!_sendTransportNotification()) {
@@ -385,7 +384,7 @@ void App::_initCore0() {
     _ccBusController.sinkErrorOccurred(std::bind(&App::_sinkErrorCallback, this, std::placeholders::_1));
     _vbusManager.managerChangedCallback(std::bind(&App::_vbusManagerChangedCallback, this));
     _triggerController.statusChangedCallback(std::bind(&App::_triggerStatusChangedCallback, this, std::placeholders::_1));
-    _triggerController.triggerFiredCallback(std::bind(&App::_triggerFiredCallback, this));
+    _triggerController.triggerFiredCallback(std::bind(&App::_triggerFiredCallback, this, std::placeholders::_1));
     if (_statusLedSupported) {
         _statusLed.start(&App::_statusLedModeProvider, this);
     }
@@ -503,12 +502,18 @@ void App::_messageReceivedCallback(const PHY::BMCDecodedMessage &message) {
     std::span<const uint8_t> data = message.data();
     captured.data.assign(data.begin(), data.end());
 
+    const uint64_t messageStartTimestamp = captured.startTimestamp;
+    const uint64_t messageEndTimestamp = captured.endTimestamp;
+    _publishDueSyncTriggerEventsBeforeMessage(messageStartTimestamp, messageEndTimestamp);
+
     // Store the captured message for later retrieval
     CaptureRecord record;
     record.kind = CaptureRecordKind::Message;
     record.message = std::move(captured);
     _captureRecords.push(std::move(record));
     deviceStatus(DeviceStatusFlag::MessageReceived);
+
+    _publishDueSyncTriggerEventsAfterMessage(messageEndTimestamp);
 }
 
 void App::_publishCaptureEvent(uint32_t eventType, std::string_view text, std::optional<uint64_t> timestamp) {
@@ -583,11 +588,55 @@ void App::_processSinkErrorEvents() {
     }
 }
 
-void App::_processSyncTriggerEvents() {
-    PendingSyncTriggerEvent event{};
-    while (queue_try_remove(&_syncTriggerEventQueue, &event)) {
-        _publishCaptureEvent(_captureEventSyncTrigger, "Sync trigger", event.timestampUs);
+void App::_publishDueSyncTriggerEventsBeforeMessage(uint64_t messageStartTimestamp, uint64_t messageEndTimestamp) {
+    while (true) {
+        auto event = _nextSyncTriggerEvent();
+        if (!event.has_value()) {
+            return;
+        }
+
+        if (event->timestampUs >= messageStartTimestamp) {
+            _deferSyncTriggerEvent(*event);
+            return;
+        }
+
+        _publishCaptureEvent(_captureEventSyncTrigger, "Sync trigger", event->timestampUs);
     }
+}
+
+void App::_publishDueSyncTriggerEventsAfterMessage(uint64_t messageEndTimestamp) {
+    while (true) {
+        auto event = _nextSyncTriggerEvent();
+        if (!event.has_value()) {
+            return;
+        }
+
+        if (event->timestampUs > messageEndTimestamp) {
+            _deferSyncTriggerEvent(*event);
+            return;
+        }
+
+        _publishCaptureEvent(_captureEventSyncTrigger, "Sync trigger", event->timestampUs);
+    }
+}
+
+std::optional<PendingSyncTriggerEvent> App::_nextSyncTriggerEvent() {
+    if (_deferredSyncTriggerEvent.has_value()) {
+        auto event = _deferredSyncTriggerEvent;
+        _deferredSyncTriggerEvent.reset();
+        return event;
+    }
+
+    PendingSyncTriggerEvent event{};
+    if (!queue_try_remove(&_syncTriggerEventQueue, &event)) {
+        return std::nullopt;
+    }
+
+    return event;
+}
+
+void App::_deferSyncTriggerEvent(PendingSyncTriggerEvent event) {
+    _deferredSyncTriggerEvent = event;
 }
 
 void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
@@ -595,9 +644,10 @@ void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
     deviceStatus(DeviceStatusFlag::TriggerStatusChanged);
 }
 
-void App::_triggerFiredCallback() {
+void App::_triggerFiredCallback(Logic::TriggerControllerMode mode) {
     const PendingSyncTriggerEvent event{
         .timestampUs = time_us_64(),
+        .triggerMode = mode,
     };
     (void)queue_try_add(&_syncTriggerEventQueue, &event);
 }

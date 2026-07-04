@@ -302,7 +302,7 @@ void TriggerController::_handleTriggerEvent(const PHY::BMCDecodedMessageEvent& e
         _syncManager.performSync();
 
         if (_triggerFiredCallback) {
-            _triggerFiredCallback();
+            _triggerFiredCallback(_mode);
         }
     }
 

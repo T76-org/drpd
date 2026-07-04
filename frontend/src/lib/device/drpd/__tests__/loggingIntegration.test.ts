@@ -952,6 +952,54 @@ describe('DRPD logging integration', () => {
     expect(analog[0].displayTimestampUs).toBe(30n)
   })
 
+  it('preserves capture stream order for sync trigger events inside completed messages', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['3', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+        20_000n,
+        21_000n,
+      ),
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0x61, 0x01, 0x00, 0x00],
+        20_200n,
+        20_700n,
+      ),
+      buildCaptureEventPayload(10, 'Sync trigger', 20_500n),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 30_000n,
+      sortOrder: 'asc',
+    })
+
+    expect(rows.map((row) => row.entryKind)).toEqual(['message', 'message', 'event'])
+    expect(rows[2].eventType).toBe('sync_trigger')
+    expect(rows[2].startTimestampUs).toBe(20_500n)
+    expect(rows[1].startTimestampUs).toBe(20_200n)
+    expect(rows[1].endTimestampUs).toBe(20_700n)
+  })
+
   it('inserts a manual mark event even while capture is off without starting logging', async () => {
     const transport = new MockTransport()
     const store = new SQLiteWasmStore({

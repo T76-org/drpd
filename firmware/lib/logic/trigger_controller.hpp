@@ -73,8 +73,9 @@ namespace T76::DRPD::Logic {
     /**
      * @brief Callback function type for completed sync trigger notifications.
      *
+     * @param mode Trigger mode that fired the SYNC output.
      */
-    using TriggerFiredCallback = std::function<void()>;
+    using TriggerFiredCallback = std::function<void(TriggerControllerMode mode)>;
 
     /**
      * @brief The TriggerController class
