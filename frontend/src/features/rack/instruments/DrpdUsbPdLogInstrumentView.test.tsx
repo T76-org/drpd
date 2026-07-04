@@ -550,8 +550,9 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       buildEvent(2, 'CC role changed to OBSERVER at 2026-02-28 10:00:01', 'cc_role_changed'),
       buildEvent(3, 'Device status changed to ATTACHED at 2026-02-28 10:00:02', 'cc_status_changed'),
       buildEvent(4, 'Mark', 'mark'),
-      buildEvent(5, 'VBUS OVP event at 2026-02-28 10:00:03', 'vbus_ovp'),
-      buildEvent(6, 'VBUS OCP event at 2026-02-28 10:00:04', 'vbus_ocp'),
+      buildEvent(5, 'Sink error: request rejected at 2026-02-28 10:00:03', 'sink_errors'),
+      buildEvent(6, 'VBUS OVP event at 2026-02-28 10:00:04', 'vbus_ovp'),
+      buildEvent(7, 'VBUS OCP event at 2026-02-28 10:00:05', 'vbus_ocp'),
     ])
     const deviceState: RackDeviceState = {
       record: buildDeviceRecord(),
@@ -580,6 +581,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(eventCells[1].className).toContain('eventLabelAligned')
     expect(eventCells[1].textContent).toBe('Capture turned off at 2026-02-28 10:00:00')
     expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
+    expect(container.querySelector('[class*="eventRowSinkErrors"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOvp"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOcp"]')).not.toBeNull()
     const eventLabel = container.querySelector('[class*="eventLabelAligned"]')

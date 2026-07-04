@@ -69,6 +69,8 @@ export const getTimestripEventColor = (
       return theme.eventStatusColor
     case 'mark':
       return theme.eventMarkColor
+    case 'sink_errors':
+      return theme.eventSinkErrorsColor
     case 'vbus_ovp':
       return theme.eventOvpColor
     case 'vbus_ocp':

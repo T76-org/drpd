@@ -1233,6 +1233,7 @@ export const DrpdUsbPdLogInstrumentView = ({
               row?.eventType === 'cc_role_changed' ? styles.eventRowRole : '',
               row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
               row?.eventType === 'mark' ? styles.eventRowMark : '',
+              row?.eventType === 'sink_errors' ? styles.eventRowSinkErrors : '',
               row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
               row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',
             ]

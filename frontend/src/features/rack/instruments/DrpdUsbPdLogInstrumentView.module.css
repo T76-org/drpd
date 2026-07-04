@@ -307,6 +307,11 @@
   background: var(--color-log-event-mark-bg);
 }
 
+.eventRowSinkErrors {
+  color: var(--color-log-event-sink-errors);
+  background: var(--color-log-event-sink-errors-bg);
+}
+
 .eventRowOvp {
   color: var(--color-log-event-ovp);
   background: var(--color-log-event-ovp-bg);
