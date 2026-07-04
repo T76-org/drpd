@@ -3474,10 +3474,6 @@ export const RackView = () => {
             })
             .then(setMessageLogFilterRows)
         }}
-        onClear={() => {
-          setMessageLogFilters(EMPTY_MESSAGE_LOG_FILTERS)
-          notifyMessageLogFiltersChanged(EMPTY_MESSAGE_LOG_FILTERS)
-        }}
       />
       <MessageLogClearPopover
         open={isMessageLogClearDialogOpen}

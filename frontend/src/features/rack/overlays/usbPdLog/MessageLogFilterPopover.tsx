@@ -20,7 +20,6 @@ type MessageLogFilterPopoverProps = {
     crcValid: FilterOption[]
   }
   onApply: (next: MessageLogFilters) => void
-  onClear: () => void
 }
 
 type MessageLogFilterDialogContentProps = Omit<MessageLogFilterPopoverProps, 'open'>
@@ -30,6 +29,14 @@ type MessageLogFilterGroup = {
   title: string
   options: FilterOption[]
 }
+
+const buildDefaultFilters = (): MessageLogFilters => ({
+  messageTypes: { include: [], exclude: [] },
+  senders: { include: [], exclude: [] },
+  receivers: { include: [], exclude: [] },
+  sopTypes: { include: [], exclude: [] },
+  crcValid: { include: [], exclude: [] },
+})
 
 const isFilterOptionChecked = (
   filters: MessageLogFilters,
@@ -157,7 +164,6 @@ const MessageLogFilterDialogContent = ({
   filters,
   options,
   onApply,
-  onClear,
 }: MessageLogFilterDialogContentProps) => {
   const formId = useId()
   const [draft, setDraft] = useState(filters)
@@ -207,8 +213,8 @@ const MessageLogFilterDialogContent = ({
     })
     setSelectedExcludedMessageTypes([])
   }
-  const resetMessageTypes = () => {
-    setDraft((previous) => setMessageTypeExcludedValues(previous, []))
+  const restoreDefaultFilters = () => {
+    setDraft(buildDefaultFilters())
     setSelectedIncludedMessageTypes([])
     setSelectedExcludedMessageTypes([])
   }
@@ -236,12 +242,9 @@ const MessageLogFilterDialogContent = ({
       footer={
         <>
           <DialogButton
-            onClick={() => {
-              onClear()
-              onOpenChange(false)
-            }}
+            onClick={restoreDefaultFilters}
           >
-            Clear
+            Restore defaults
           </DialogButton>
           <DialogButton
             type="submit"
@@ -311,13 +314,6 @@ const MessageLogFilterDialogContent = ({
                       }}
                     >
                       &lt;&lt;
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.messageTypeResetButton}
-                      onClick={resetMessageTypes}
-                    >
-                      Reset
                     </button>
                   </div>
                   <label className={styles.messageTypeListColumn}>
