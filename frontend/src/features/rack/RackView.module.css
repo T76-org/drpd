@@ -91,20 +91,12 @@
   justify-content: flex-start;
 }
 
-.page[data-layout-mode='fixed'] .headerScroll {
-  justify-content: safe center;
-}
-
 .header {
   container-type: inline-size;
   flex: 0 0 auto;
   width: min(100%, 1350px);
   box-sizing: border-box;
   background: var(--color-surface-header);
-}
-
-.page[data-layout-mode='fixed'] .header {
-  width: min(100%, var(--rack-canvas-width));
 }
 
 .headerContent {
