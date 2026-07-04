@@ -302,7 +302,9 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInReadingSOPState(u
                 _decodedHeader.raw(static_cast<uint16_t>(_data[0] | (_data[1] << 8)));
                 _decodedHeader.sop(_decodedSOP);
 
-                return BMCDecodedMessageEvent::DataStart;
+                if (_decodedHeader.numDataObjects() > 0) {
+                    return BMCDecodedMessageEvent::DataStart;
+                }
             }
         }
     }
