@@ -73,7 +73,7 @@ configure_file(
 
 # USB Settings
 
-set(T76_IC_USB_URL "t76.org/drpd" CACHE STRING "URL string for the USB WebUSB descriptor" FORCE)
+set(T76_IC_USB_URL "t76.org/drpd/app" CACHE STRING "URL string for the USB WebUSB descriptor" FORCE)
 set(T76_IC_USB_VENDOR_ID "0x2E8A" CACHE STRING "USB Vendor ID" FORCE)
 set(T76_IC_USB_PRODUCT_ID "0x000A" CACHE STRING "USB Product ID" FORCE)
 set(T76_IC_USB_MANUFACTURER_STRING "MTA Inc." CACHE STRING "USB Manufacturer String" FORCE)
