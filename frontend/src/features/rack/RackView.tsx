@@ -3224,11 +3224,34 @@ export const RackView = () => {
                 }}
               />
             ))}
-            <div className={styles.menuBarDeviceStatus} aria-live="polite">
-              {activeConnectedDeviceState
-                ? `Connected to ${activeConnectedDeviceState.record.displayName}`
-                : 'Waiting for device...'}
-            </div>
+            {activeConnectedDeviceState ? (
+              <ContextMenu
+                label="Device name menu"
+                items={[
+                  {
+                    id: `active-device-${activeConnectedDeviceState.record.id}-rename`,
+                    label: 'Change name...',
+                    onSelect: () => {
+                      handleOpenDeviceNameDialog(activeConnectedDeviceState.record.id)
+                    },
+                  },
+                ]}
+              >
+                {(props) => (
+                  <div
+                    {...props}
+                    className={`${styles.menuBarDeviceStatus} ${styles.menuBarDeviceStatusContextTarget}`}
+                    aria-live="polite"
+                  >
+                    {`Connected to ${activeConnectedDeviceState.record.displayName}`}
+                  </div>
+                )}
+              </ContextMenu>
+            ) : (
+              <div className={styles.menuBarDeviceStatus} aria-live="polite">
+                Waiting for device...
+              </div>
+            )}
           </div>
         </div>
       </div>
