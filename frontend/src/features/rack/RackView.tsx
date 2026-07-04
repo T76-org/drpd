@@ -133,10 +133,8 @@ import { parseMessageLogImportJson, serializeMessageLogRow } from './messageLogI
 import styles from './RackView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
-type LayoutMode = 'fixed' | 'full'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
-const LAYOUT_STORAGE_KEY = 'drpd:layout'
 const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
 const CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY = 'drpd:calibration-warning-suppressed'
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
@@ -886,7 +884,6 @@ export const RackView = () => {
     buildDefaultLoggingConfig().maxCapturedMessages.toString(),
   )
   const [messageLogBufferError, setMessageLogBufferError] = useState<string | null>(null)
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => getStoredLayoutMode())
   const [showTimestrip, setShowTimestrip] = useState<boolean>(() => getStoredShowTimestrip())
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
@@ -970,13 +967,6 @@ export const RackView = () => {
       storage.setItem(THEME_STORAGE_KEY, theme)
     }
   }, [theme])
-
-  useEffect(() => {
-    const storage = getBrowserStorage()
-    if (storage) {
-      storage.setItem(LAYOUT_STORAGE_KEY, layoutMode === 'full' ? 'responsive' : 'fixed')
-    }
-  }, [layoutMode])
 
   useEffect(() => {
     const storage = getBrowserStorage()
@@ -3103,27 +3093,6 @@ export const RackView = () => {
             onCheckedChange: () => setShowTimestrip((current) => !current),
           },
           {
-            id: 'layout',
-            type: 'submenu',
-            label: 'Layout',
-            items: [
-              {
-                id: 'layout-responsive',
-                type: 'checkbox',
-                label: 'Responsive',
-                checked: layoutMode === 'full',
-                onCheckedChange: () => setLayoutMode('full'),
-              },
-              {
-                id: 'layout-fixed',
-                type: 'checkbox',
-                label: 'Fixed',
-                checked: layoutMode === 'fixed',
-                onCheckedChange: () => setLayoutMode('fixed'),
-              },
-            ],
-          },
-          {
             id: 'theme',
             type: 'submenu',
             label: 'Theme',
@@ -3196,7 +3165,6 @@ export const RackView = () => {
     handleResetPowerChargeMeter,
     handleRefreshActiveDeviceState,
     isFirmwareUploadBusy,
-    layoutMode,
     messageLogMenuItems,
     modeMenuItems,
     pairedDevices,
@@ -3209,7 +3177,7 @@ export const RackView = () => {
   ])
 
   return (
-    <div className={styles.page} data-layout-mode={layoutMode}>
+    <div className={styles.page} data-layout-mode="full">
       <div className={styles.menuBarViewport}>
         <div className={styles.menuBarScroll}>
           <div className={styles.menuBar}>
@@ -4037,19 +4005,6 @@ const getStoredTheme = (): ThemeMode => {
     return storedTheme
   }
   return 'system'
-}
-
-/** Read the saved layout preference, defaulting to responsive mode. */
-const getStoredLayoutMode = (): LayoutMode => {
-  const storage = getBrowserStorage()
-  const storedLayout = storage?.getItem(LAYOUT_STORAGE_KEY)
-  if (storedLayout === 'responsive' || storedLayout === 'full') {
-    return 'full'
-  }
-  if (storedLayout === 'fixed') {
-    return 'fixed'
-  }
-  return 'full'
 }
 
 /** Read the saved timestrip visibility preference, defaulting to shown. */

@@ -728,16 +728,6 @@ const toggleTimestripFromMenu = async (): Promise<void> => {
   await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Show Timestrip' }))
 }
 
-const openLayoutMenu = async (): Promise<void> => {
-  await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Layout' }))
-}
-
-const chooseLayoutFromMenu = async (name: string | RegExp): Promise<void> => {
-  await openLayoutMenu()
-  await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
-}
-
 const chooseFirmwareChannelFromMenu = async (name: string | RegExp): Promise<void> => {
   await openApplicationSubmenu('Firmware updates')
   await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
@@ -2435,8 +2425,9 @@ describe('RackView', () => {
     })
   })
 
-  it('persists layout mode from the Display menu', async () => {
+  it('keeps the rack in responsive layout and omits the Display layout menu', async () => {
     saveRackDocument(buildRackDocument())
+    window.localStorage.setItem('drpd:layout', 'fixed')
     mockUSB([])
     const { unmount } = render(<RackView />)
 
@@ -2448,23 +2439,11 @@ describe('RackView', () => {
 
     expect(page).toHaveAttribute('data-layout-mode', 'full')
 
-    await chooseLayoutFromMenu('Fixed')
-    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
+    await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+    expect(screen.queryByRole('menuitem', { name: 'Layout' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Responsive' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Fixed' })).not.toBeInTheDocument()
     expect(window.localStorage.getItem('drpd:layout')).toBe('fixed')
-
-    await chooseLayoutFromMenu('Responsive')
-    expect(page).toHaveAttribute('data-layout-mode', 'full')
-    expect(window.localStorage.getItem('drpd:layout')).toBe('responsive')
-
-    await openLayoutMenu()
-    expect(screen.getByRole('menuitemcheckbox', { name: 'Responsive' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
-    expect(screen.getByRole('menuitemcheckbox', { name: 'Fixed' })).toHaveAttribute(
-      'aria-checked',
-      'false',
-    )
 
     unmount()
     render(<RackView />)
@@ -2474,21 +2453,6 @@ describe('RackView', () => {
       return element as HTMLElement
     })
     expect(restoredPage).toHaveAttribute('data-layout-mode', 'full')
-  })
-
-  it('restores an explicit fixed layout preference', async () => {
-    saveRackDocument(buildRackDocument())
-    window.localStorage.setItem('drpd:layout', 'fixed')
-    mockUSB([])
-    render(<RackView />)
-
-    const page = await waitFor(() => {
-      const element = document.querySelector('[data-layout-mode]')
-      expect(element).not.toBeNull()
-      return element as HTMLElement
-    })
-
-    expect(page).toHaveAttribute('data-layout-mode', 'fixed')
   })
 
   it('runs global Sink, Observer, and Capture shortcuts', async () => {

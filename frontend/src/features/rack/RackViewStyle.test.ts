@@ -15,13 +15,8 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.headerScroll\s*\{[^}]*justify-content: flex-start;/s)
   })
 
-  it('centers the fixed layout header within the rack canvas width', () => {
-    expect(rackViewCss).toMatch(
-      /\.page\[data-layout-mode='fixed'\]\s+\.headerScroll\s*\{[^}]*justify-content:\s*safe center;/s,
-    )
-    expect(rackViewCss).toMatch(
-      /\.page\[data-layout-mode='fixed'\]\s+\.header\s*\{[^}]*width:\s*min\(100%,\s*var\(--rack-canvas-width\)\);/s,
-    )
+  it('does not keep fixed-layout header overrides', () => {
+    expect(rackViewCss).not.toContain("data-layout-mode='fixed'")
   })
 
   it('sizes the rack status header from the header element', () => {
