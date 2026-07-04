@@ -2664,44 +2664,37 @@ export const RackView = () => {
   const modeMenuItems = useMemo<MenuItem[]>(
     () => [
       {
-        id: 'set-mode',
-        type: 'submenu',
-        label: 'Set mode',
-        items: [
-          {
-            id: 'mode-disabled',
-            type: 'checkbox',
-            label: 'Disabled',
-            meta: 'D',
-            checked: activeDriverState?.role === CCBusRole.DISABLED,
-            disabled: !activeDriver,
-            onCheckedChange: () => {
-              void handleSetActiveDeviceRole(CCBusRole.DISABLED)
-            },
-          },
-          {
-            id: 'mode-observer',
-            type: 'checkbox',
-            label: 'Observer',
-            meta: 'O',
-            checked: activeDriverState?.role === CCBusRole.OBSERVER,
-            disabled: !activeDriver,
-            onCheckedChange: () => {
-              void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
-            },
-          },
-          {
-            id: 'mode-sink',
-            type: 'checkbox',
-            label: 'Sink',
-            meta: 'S',
-            checked: activeDriverState?.role === CCBusRole.SINK,
-            disabled: !activeDriver,
-            onCheckedChange: () => {
-              void handleSetActiveDeviceRole(CCBusRole.SINK)
-            },
-          },
-        ],
+        id: 'mode-disabled',
+        type: 'checkbox',
+        label: 'Disabled',
+        meta: 'D',
+        checked: activeDriverState?.role === CCBusRole.DISABLED,
+        disabled: !activeDriver,
+        onCheckedChange: () => {
+          void handleSetActiveDeviceRole(CCBusRole.DISABLED)
+        },
+      },
+      {
+        id: 'mode-observer',
+        type: 'checkbox',
+        label: 'Observer',
+        meta: 'O',
+        checked: activeDriverState?.role === CCBusRole.OBSERVER,
+        disabled: !activeDriver,
+        onCheckedChange: () => {
+          void handleSetActiveDeviceRole(CCBusRole.OBSERVER)
+        },
+      },
+      {
+        id: 'mode-sink',
+        type: 'checkbox',
+        label: 'Sink',
+        meta: 'S',
+        checked: activeDriverState?.role === CCBusRole.SINK,
+        disabled: !activeDriver,
+        onCheckedChange: () => {
+          void handleSetActiveDeviceRole(CCBusRole.SINK)
+        },
       },
       {
         id: 'mode-separator-power-contract',
@@ -3054,6 +3047,11 @@ export const RackView = () => {
         items: deviceItems,
       },
       {
+        id: 'mode',
+        label: 'Mode',
+        items: modeMenuItems,
+      },
+      {
         id: 'protection',
         label: 'Protection',
         items: protectionMenuItems,
@@ -3078,11 +3076,6 @@ export const RackView = () => {
             onSelect: () => undefined,
           },
         ],
-      },
-      {
-        id: 'mode',
-        label: 'Mode',
-        items: modeMenuItems,
       },
       {
         id: 'logging',
