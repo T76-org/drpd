@@ -253,6 +253,7 @@ void App::_setCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterVal
     std::transform(stateStr.begin(), stateStr.end(), stateStr.begin(), ::toupper);
 
     if (stateStr == "ON") {
+        _clearPendingSyncTriggerEvents();
         _captureEnabled.store(true, std::memory_order_relaxed);
         _bmcDecoder.enabled(true);
     } else if (stateStr == "OFF") {
@@ -276,5 +277,6 @@ void App::_queryCCBusMessageCaptureState(const std::vector<T76::SCPI::ParameterV
 
 void App::_clearCCBusCapturedMessages(const std::vector<T76::SCPI::ParameterValue> &params) {
     _captureRecords.clear();
+    _clearPendingSyncTriggerEvents();
     deviceStatus(DeviceStatusFlag::CaptureStatusChanged);
 }

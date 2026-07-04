@@ -103,6 +103,11 @@ namespace T76::DRPD {
         Logic::SinkResetType resetType = Logic::SinkResetType::Internal; ///< Associated reset type.
     };
 
+    struct PendingSyncTriggerEvent {
+        uint64_t timestampUs = 0;       ///< Timestamp captured when the sync trigger fired.
+        Logic::TriggerControllerMode triggerMode = Logic::TriggerControllerMode::Off; ///< Trigger mode that fired.
+    };
+
     enum class DeviceStatusFlag : uint32_t {
         None                    = 0,        ///< No status bits set
         VBusStatusChanged       = 1 << 0,   ///< VBus Over-Voltage Protection Fault
@@ -453,6 +458,7 @@ namespace T76::DRPD {
         static constexpr uint32_t _captureEventCCBusRoleObserver = 7; ///< Firmware event ID for CC bus observer role.
         static constexpr uint32_t _captureEventCCBusRoleSink = 8; ///< Firmware event ID for CC bus sink role.
         static constexpr uint32_t _captureEventSinkError = 9; ///< Firmware event ID for Sink errors.
+        static constexpr uint32_t _captureEventSyncTrigger = 10; ///< Firmware event ID for sync trigger events.
 
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};
@@ -470,6 +476,8 @@ namespace T76::DRPD {
 
         Util::CircularArray<CaptureRecord, APP_RECEIVED_MESSAGE_QUEUE_LENGTH> _captureRecords; ///< Captured messages and firmware-originated events.
         queue_t _sinkErrorEventQueue; ///< Core-1 to core-0 queue for Sink error events.
+        queue_t _syncTriggerEventQueue; ///< Core-1 to core-0 queue for sync trigger events.
+        std::optional<PendingSyncTriggerEvent> _deferredSyncTriggerEvent; ///< Lookahead event for ordered capture merge.
         uint64_t _lastPublishedOvpEventTimestampUs{0}; ///< Last OVP latch timestamp published as a capture event.
         uint64_t _lastPublishedOcpEventTimestampUs{0}; ///< Last OCP latch timestamp published as a capture event.
 
@@ -501,7 +509,44 @@ namespace T76::DRPD {
         uint32_t _ccBusRoleCaptureEventType(Logic::CCBusRole role) const;
         std::string_view _ccBusRoleCaptureEventText(Logic::CCBusRole role) const;
         void _processSinkErrorEvents();
+        void _clearPendingSyncTriggerEvents();
+        /**
+         * @brief Publish pending sync trigger events that should precede a decoded message.
+         *
+         * Events whose timestamp falls inside the decoded message interval are
+         * deferred until after that message row so the capture stream remains
+         * consistent with message-row timestamp ordering.
+         *
+         * @param messageStartTimestamp Decoded message start timestamp in microseconds.
+         * @param messageEndTimestamp Decoded message end timestamp in microseconds.
+         */
+        void _publishDueSyncTriggerEventsBeforeMessage(
+            uint64_t messageStartTimestamp,
+            uint64_t messageEndTimestamp);
+
+        /**
+         * @brief Publish pending sync trigger events that should follow a decoded message.
+         *
+         * @param messageEndTimestamp Decoded message end timestamp in microseconds.
+         */
+        void _publishDueSyncTriggerEventsAfterMessage(uint64_t messageEndTimestamp);
+
+        /**
+         * @brief Return the next queued sync trigger event, including deferred lookahead.
+         *
+         * @return std::optional<PendingSyncTriggerEvent> Pending event when available.
+         */
+        std::optional<PendingSyncTriggerEvent> _nextSyncTriggerEvent();
+
+        /**
+         * @brief Defer a sync trigger event that belongs later in the capture stream.
+         *
+         * @param event Event to retain as one-item lookahead.
+         */
+        void _deferSyncTriggerEvent(PendingSyncTriggerEvent event);
+
         void _triggerStatusChangedCallback(Logic::TriggerStatus status);
+        void _triggerFiredCallback(Logic::TriggerControllerMode mode);
         void _ccBusStateChangedCallback(Logic::CCBusState state);
         void _ccBusRoleChangedCallback(Logic::CCBusRole role);
         void _vbusManagerChangedCallback();

@@ -531,6 +531,7 @@ describe('DRPD logging integration', () => {
       buildCaptureEventPayload(7, 'CC role changed to OBSERVER', 14_000n),
       buildCaptureEventPayload(8, 'CC role changed to SINK', 15_000n),
       buildCaptureEventPayload(9, 'Sink error flags changed: 0x00000001', 16_000n),
+      buildCaptureEventPayload(10, 'Sync trigger', 17_000n),
     ])
 
     const store = new SQLiteWasmStore({
@@ -554,7 +555,7 @@ describe('DRPD logging integration', () => {
       sortOrder: 'asc',
     })
 
-    expect(rows).toHaveLength(11)
+    expect(rows).toHaveLength(12)
     expect(rows[0].entryKind).toBe('message')
     expect(rows[1].entryKind).toBe('event')
     expect(rows[1].eventType).toBe('firmware_event')
@@ -596,6 +597,10 @@ describe('DRPD logging integration', () => {
     expect(rows[10].eventType).toBe('sink_errors')
     expect(rows[10].eventText).toBe('Sink error flags changed: 0x00000001')
     expect(rows[10].startTimestampUs).toBe(16_000n)
+    expect(rows[11].entryKind).toBe('event')
+    expect(rows[11].eventType).toBe('sync_trigger')
+    expect(rows[11].eventText).toBe('Sync trigger')
+    expect(rows[11].startTimestampUs).toBe(17_000n)
   })
 
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {
@@ -945,6 +950,54 @@ describe('DRPD logging integration', () => {
     expect(messages[1].displayTimestampUs).toBe(10n)
     expect(analog).toHaveLength(1)
     expect(analog[0].displayTimestampUs).toBe(30n)
+  })
+
+  it('preserves capture stream order for sync trigger events inside completed messages', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('BUS:CC:CAP:COUNT?', ['3', '0'])
+    transport.textResponses.set('BUS:CC:CAP:CYCLETIME?', ['10'])
+    transport.binaryResponses.set('BUS:CC:CAP:DATA?', [
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d],
+        20_000n,
+        21_000n,
+      ),
+      buildCapturePayload(
+        [0x18, 0x18, 0x18, 0x11],
+        [0x61, 0x01, 0x00, 0x00],
+        20_200n,
+        20_700n,
+      ),
+      buildCaptureEventPayload(10, 'Sync trigger', 20_500n),
+    ])
+
+    const store = new SQLiteWasmStore({
+      maxAnalogSamples: 100,
+      maxCapturedMessages: 100,
+      retentionTrimBatchSize: 10,
+    })
+    const device = new DRPDDevice(transport, {
+      createLogStore: () => store,
+    })
+    setConnected(device)
+
+    await device.setCaptureEnabled(OnOffState.ON)
+    await (
+      device as unknown as { refreshAndDrainCapturedMessagesFromDevice: () => Promise<void> }
+    ).refreshAndDrainCapturedMessagesFromDevice()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 30_000n,
+      sortOrder: 'asc',
+    })
+
+    expect(rows.map((row) => row.entryKind)).toEqual(['message', 'message', 'event'])
+    expect(rows[2].eventType).toBe('sync_trigger')
+    expect(rows[2].startTimestampUs).toBe(20_500n)
+    expect(rows[1].startTimestampUs).toBe(20_200n)
+    expect(rows[1].endTimestampUs).toBe(20_700n)
   })
 
   it('inserts a manual mark event even while capture is off without starting logging', async () => {

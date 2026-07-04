@@ -17,6 +17,7 @@ target_compile_definitions(drpd-firmware PUBLIC
 
     PHY_BMC_DECODER_RUNT_PULSE_WIDTH_NS=1000                    # Minimum pulse width in nanoseconds for a valid pulse
     PHY_BMC_DECODER_TIMEOUT_PULSE_WIDTH_NS=10000                # Pulse width in nanoseconds indicating a timeout
+    PHY_BMC_DECODER_PREAMBLE_START_MIN_PULSES=4                 # Minimum preamble pulse entries before emitting PreambleStart
 
     PHY_BMC_DECODER_MAX_MESSAGE_DATA_SIZE=262                   # Maximum data size in bytes for a decoded BMC message
     PHY_BMC_DECODER_MAX_MESSAGE_PULSE_BUFFER_SIZE=5600          # Maximum size of pulse buffer in uint16_t words for a decoded message

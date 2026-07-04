@@ -14,6 +14,7 @@ from t76.drpd.message import Message
 from t76.drpd.message.sop import SOP
 
 FIRMWARE_EVENT_DECODE_RESULT = 0xFFFFFFFF
+FIRMWARE_EVENT_SYNC_TRIGGER = 10
 
 
 @dataclass

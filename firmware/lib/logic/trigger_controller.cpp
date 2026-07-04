@@ -157,6 +157,14 @@ void TriggerController::statusChangedCallback(TriggerStatusChangedCallback callb
     _statusChangedCallback = callback;
 }
 
+void TriggerController::triggerFiredCallback(TriggerFiredCallback callback) {
+    _triggerFiredCallback = callback;
+}
+
+TriggerFiredCallback TriggerController::triggerFiredCallback() const {
+    return _triggerFiredCallback;
+}
+
 void TriggerController::applyPersistentConfig(const T76::DRPD::TriggerPersistentConfig &config) {
     _autoRepeat = config.autoRepeat;
     _senderFilter = static_cast<SenderFilter>(config.senderFilter);
@@ -292,6 +300,10 @@ void TriggerController::_handleTriggerEvent(const PHY::BMCDecodedMessageEvent& e
         }
 
         _syncManager.performSync();
+
+        if (_triggerFiredCallback) {
+            _triggerFiredCallback(_mode);
+        }
     }
 
     // Notify that the status has changed (since at least the event count has changed, and possibly the status as well)
