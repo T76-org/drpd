@@ -862,6 +862,17 @@ describe('RackView', () => {
     expect(screen.getByTestId('rack-instrument-inst-2')).toBeInTheDocument()
   })
 
+  it('places the Mode menu immediately after Device', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([])
+    render(<RackView />)
+
+    await screen.findByRole('button', { name: 'Device' })
+
+    const menuButtons = screen.getAllByRole('button').map((button) => button.textContent)
+    expect(menuButtons.slice(0, 2)).toEqual(['Device', 'Mode'])
+  })
+
   it('toggles theme mode from the header control', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
@@ -1474,7 +1485,11 @@ describe('RackView', () => {
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
 
-    expect(within(menu).getByRole('menuitem', { name: 'Set mode' })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: 'Set mode' })).not.toBeInTheDocument()
+    expect(within(menu).getByRole('menuitemcheckbox', { name: /Disabled/ })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitemcheckbox', { name: /Observer/ })).toBeInTheDocument()
+    const sinkMode = within(menu).getByRole('menuitemcheckbox', { name: /Sink/ })
+    expect(sinkMode).toHaveAttribute('aria-checked', 'true')
     expect(
       within(menu).getByRole('menuitem', {
         name: /Choose power contract/,
@@ -1486,13 +1501,6 @@ describe('RackView', () => {
         name: /Cycle USB Connection/,
       }),
     ).toBeInTheDocument()
-
-    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Set mode' }))
-
-    expect(await screen.findByRole('menuitemcheckbox', { name: /Disabled/ })).toBeInTheDocument()
-    expect(await screen.findByRole('menuitemcheckbox', { name: /Observer/ })).toBeInTheDocument()
-    const sinkMode = await screen.findByRole('menuitemcheckbox', { name: /Sink/ })
-    expect(sinkMode).toHaveAttribute('aria-checked', 'true')
   })
 
   it('opens the mode menu from the menu bar and follows sink-mode rules', async () => {
@@ -1505,7 +1513,11 @@ describe('RackView', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
-    const setMode = within(menu).getByRole('menuitem', { name: 'Set mode' })
+    expect(within(menu).queryByRole('menuitem', { name: 'Set mode' })).not.toBeInTheDocument()
+    expect(within(menu).getByRole('menuitemcheckbox', { name: /Disabled/ })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitemcheckbox', { name: /Observer/ })).toBeInTheDocument()
+    const sinkMode = within(menu).getByRole('menuitemcheckbox', { name: /Sink/ })
+    expect(sinkMode).toHaveAttribute('aria-checked', 'true')
     const choosePowerContract = within(menu).getByRole('menuitem', {
       name: /Choose power contract/,
     })
@@ -1517,13 +1529,6 @@ describe('RackView', () => {
     expect(choosePowerContract).toBeEnabled()
     expect(sinkBehaviour).toBeEnabled()
     expect(cycleUsbConnection).toBeEnabled()
-
-    await userEvent.click(setMode)
-
-    expect(await screen.findByRole('menuitemcheckbox', { name: /Disabled/ })).toBeInTheDocument()
-    expect(await screen.findByRole('menuitemcheckbox', { name: /Observer/ })).toBeInTheDocument()
-    const sinkMode = await screen.findByRole('menuitemcheckbox', { name: /Sink/ })
-    expect(sinkMode).toHaveAttribute('aria-checked', 'true')
 
     await userEvent.click(choosePowerContract)
 
@@ -1558,8 +1563,7 @@ describe('RackView', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
-    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Set mode' }))
-    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: /Observer/ }))
+    await userEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /Observer/ }))
 
     await waitFor(() => {
       expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE OBSERVER')
@@ -2774,7 +2778,6 @@ describe('RackView', () => {
     expect(await screen.findAllByText('Disabled')).not.toHaveLength(0)
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
     expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).toBeDisabled()
-    await userEvent.click(await screen.findByRole('menuitem', { name: /Set mode/ }))
     const disabledModeItem = await screen.findByRole('menuitemcheckbox', { name: /Disabled/ })
     expect(disabledModeItem).not.toBeDisabled()
     expect(disabledModeItem).toHaveAttribute('aria-checked', 'true')
