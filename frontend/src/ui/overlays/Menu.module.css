@@ -51,6 +51,10 @@
   cursor: not-allowed;
 }
 
+.menuItemMuted {
+  color: var(--color-text-muted);
+}
+
 .menuItemDestructive {
   color: var(--color-status-error);
 }
