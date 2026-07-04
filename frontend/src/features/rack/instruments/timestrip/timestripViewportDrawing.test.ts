@@ -116,6 +116,7 @@ describe('timestripViewportDrawing', () => {
       eventRoleColor: '#0f0',
       eventStatusColor: '#00f',
       eventMarkColor: '#ff0',
+      eventSinkErrorsColor: '#f08',
       eventOvpColor: '#f0f',
       eventOcpColor: '#0ff',
       voltageTraceColor: '#05BAFA',
