@@ -682,7 +682,6 @@ const openApplicationSubmenu = async (name: string | RegExp): Promise<void> => {
   const topLevelName = typeof name === 'string'
     ? ({
         Devices: 'Device',
-        'Firmware updates': 'Firmware',
       }[name] ?? name)
     : name
   await userEvent.click(await screen.findByRole('button', { name: topLevelName }))
@@ -729,7 +728,7 @@ const toggleTimestripFromMenu = async (): Promise<void> => {
 }
 
 const chooseFirmwareChannelFromMenu = async (name: string | RegExp): Promise<void> => {
-  await openApplicationSubmenu('Firmware updates')
+  await openPairedDeviceSubmenu(/dr\. pd/i)
   await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
   await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
 }
@@ -1166,7 +1165,8 @@ describe('RackView', () => {
 
     await pairNewDeviceFromMenu()
     expect(requestDevice).toHaveBeenCalled()
-    await openApplicationSubmenu('Firmware updates')
+    expect(screen.queryByRole('button', { name: 'Firmware' })).not.toBeInTheDocument()
+    await openPairedDeviceSubmenu(/dr\. pd/i)
     await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
 
     expect(screen.getByRole('menuitemcheckbox', { name: 'Production' })).toHaveAttribute(
@@ -1200,7 +1200,7 @@ describe('RackView', () => {
     const { unmount } = render(<RackView />)
     await pairNewDeviceFromMenu()
     expect(requestDevice).toHaveBeenCalled()
-    await openApplicationSubmenu('Firmware updates')
+    await openPairedDeviceSubmenu(/dr\. pd/i)
     await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
     expect(screen.getByRole('menuitemcheckbox', { name: 'Beta' })).toHaveAttribute(
       'aria-checked',
@@ -1210,7 +1210,7 @@ describe('RackView', () => {
     unmount()
     render(<RackView />)
     await pairNewDeviceFromMenu()
-    await openApplicationSubmenu('Firmware updates')
+    await openPairedDeviceSubmenu(/dr\. pd/i)
     await userEvent.click(await screen.findByRole('menuitem', { name: /update channel/i }))
     expect(screen.getByRole('menuitemcheckbox', { name: 'Beta' })).toHaveAttribute(
       'aria-checked',
