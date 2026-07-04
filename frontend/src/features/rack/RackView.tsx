@@ -101,7 +101,6 @@ import {
 } from './overlays/calibration/CalibrationDialogs'
 import {
   MessageLogClearPopover,
-  MessageLogConfigurePopover,
   MessageLogImportConfirmPopover,
   MessageLogImportPopover,
 } from './overlays/usbPdLog/LogActionPopovers'
@@ -116,10 +115,8 @@ import {
   DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY,
   DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS,
   notifyMessageLogColumnVisibilityChanged,
-  readMessageLogColumnVisibility,
   saveMessageLogColumnVisibility,
   saveMessageLogColumnWidths,
-  type MessageLogColumnVisibility,
 } from './overlays/usbPdLog/messageLogColumns'
 import {
   buildSelectedMessageLogCsv,
@@ -151,8 +148,6 @@ const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
 const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
-const MIN_CAPTURED_MESSAGE_BUFFER = 100
-const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
 const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
   senders: { include: [], exclude: [] },
@@ -862,28 +857,18 @@ export const RackView = () => {
   const [messageLogSelectionKeys, setMessageLogSelectionKeys] = useState<string[]>([])
   const [messageLogFilters, setMessageLogFilters] =
     useState<MessageLogFilters>(EMPTY_MESSAGE_LOG_FILTERS)
-  const [messageLogColumnVisibility, setMessageLogColumnVisibility] =
-    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
-  const [messageLogColumnVisibilityInput, setMessageLogColumnVisibilityInput] =
-    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
   const [messageLogFilterRows, setMessageLogFilterRows] = useState<LoggedCapturedMessage[]>([])
   const [isMessageLogFilterDialogOpen, setIsMessageLogFilterDialogOpen] = useState(false)
   const [isMessageLogClearDialogOpen, setIsMessageLogClearDialogOpen] = useState(false)
-  const [isMessageLogConfigureDialogOpen, setIsMessageLogConfigureDialogOpen] = useState(false)
   const [isMessageLogImportDialogOpen, setIsMessageLogImportDialogOpen] = useState(false)
   const [isMessageLogImportConfirmOpen, setIsMessageLogImportConfirmOpen] = useState(false)
   const [isMessageLogMarking, setIsMessageLogMarking] = useState(false)
   const [isMessageLogClearing, setIsMessageLogClearing] = useState(false)
   const [isMessageLogExporting, setIsMessageLogExporting] = useState(false)
   const [isMessageLogImporting, setIsMessageLogImporting] = useState(false)
-  const [isMessageLogConfiguring, setIsMessageLogConfiguring] = useState(false)
   const [messageLogError, setMessageLogError] = useState<string | null>(null)
   const [messageLogImportFile, setMessageLogImportFile] = useState<File | null>(null)
   const [messageLogImportError, setMessageLogImportError] = useState<string | null>(null)
-  const [messageLogBufferInput, setMessageLogBufferInput] = useState(
-    buildDefaultLoggingConfig().maxCapturedMessages.toString(),
-  )
-  const [messageLogBufferError, setMessageLogBufferError] = useState<string | null>(null)
   const [showTimestrip, setShowTimestrip] = useState<boolean>(() => getStoredShowTimestrip())
   const rackDocumentRef = useRef<RackDocument | null>(null)
   const deviceStatesRef = useRef<RackDeviceState[]>([])
@@ -983,11 +968,6 @@ export const RackView = () => {
   useEffect(() => {
     rackDocumentRef.current = rackDocument
   }, [rackDocument])
-
-  useEffect(() => {
-    saveMessageLogColumnVisibility(messageLogColumnVisibility)
-    notifyMessageLogColumnVisibilityChanged(messageLogColumnVisibility)
-  }, [messageLogColumnVisibility])
 
   useEffect(() => {
     deviceStatesRef.current = deviceStates
@@ -2476,8 +2456,6 @@ export const RackView = () => {
   }, [])
 
   const handleRestoreMessageLogTableLayout = useCallback(() => {
-    setMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
-    setMessageLogColumnVisibilityInput(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
     saveMessageLogColumnVisibility(DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY)
     saveMessageLogColumnWidths(DEFAULT_MESSAGE_LOG_COLUMN_WIDTHS)
     notifyMessageLogColumnVisibilityChanged(
@@ -2844,27 +2822,6 @@ export const RackView = () => {
         onSelect: () => setIsMessageLogFilterDialogOpen(true),
       },
       {
-        id: 'logging-separator-configure',
-        type: 'separator',
-      },
-      {
-        id: 'logging-configure',
-        label: 'Configure...',
-        disabled: !activeDriver || !activeDeviceRecord || isMessageLogConfiguring,
-        onSelect: () => {
-          const configured = activeDeviceRecord?.config &&
-            typeof activeDeviceRecord.config === 'object'
-            ? normalizeLoggingConfig(
-                (activeDeviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
-              )
-            : buildDefaultLoggingConfig()
-          setMessageLogBufferInput(configured.maxCapturedMessages.toString())
-          setMessageLogBufferError(null)
-          setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
-          setIsMessageLogConfigureDialogOpen(true)
-        },
-      },
-      {
         id: 'logging-separator-restore-layout',
         type: 'separator',
       },
@@ -2875,7 +2832,6 @@ export const RackView = () => {
       },
     ],
     [
-      activeDeviceRecord,
       activeDriver,
       addMessageLogMarker,
       captureMenuItems,
@@ -2884,11 +2840,9 @@ export const RackView = () => {
       hasSelectedMessages,
       isGoodCrcHidden,
       isMessageLogClearing,
-      isMessageLogConfiguring,
       isMessageLogExporting,
       isMessageLogImporting,
       isMessageLogMarking,
-      messageLogColumnVisibility,
       messageLogFilters,
       toggleGoodCrcMessages,
     ],
@@ -3533,71 +3487,6 @@ export const RackView = () => {
           setIsMessageLogImportDialogOpen(true)
         }}
         onConfirm={confirmMessageLogImport}
-      />
-      <MessageLogConfigurePopover
-        open={isMessageLogConfigureDialogOpen}
-        onOpenChange={setIsMessageLogConfigureDialogOpen}
-        instrumentId="global-message-log"
-        minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
-        maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
-        bufferInput={messageLogBufferInput}
-        bufferError={messageLogBufferError}
-        columnVisibility={messageLogColumnVisibilityInput}
-        isApplyingBuffer={isMessageLogConfiguring}
-        setBufferInput={setMessageLogBufferInput}
-        setBufferError={setMessageLogBufferError}
-        setColumnVisibility={setMessageLogColumnVisibilityInput}
-        onCancel={() => {
-          setMessageLogBufferError(null)
-          setMessageLogColumnVisibilityInput(messageLogColumnVisibility)
-          setIsMessageLogConfigureDialogOpen(false)
-        }}
-        onApply={() => {
-          if (!activeDeviceRecord) {
-            return
-          }
-          if (!/^\d+$/.test(messageLogBufferInput)) {
-            setMessageLogBufferError(
-              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
-            )
-            return
-          }
-          const parsed = Number(messageLogBufferInput)
-          if (
-            !Number.isFinite(parsed) ||
-            parsed < MIN_CAPTURED_MESSAGE_BUFFER ||
-            parsed > MAX_CAPTURED_MESSAGE_BUFFER
-          ) {
-            setMessageLogBufferError(
-              `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
-            )
-            return
-          }
-          setIsMessageLogConfiguring(true)
-          setMessageLogBufferError(null)
-          setMessageLogColumnVisibility(messageLogColumnVisibilityInput)
-          void handleUpdateDeviceConfig(activeDeviceRecord.id, (current) => {
-            const source = current && typeof current === 'object'
-              ? (current as { logging?: Partial<DRPDLoggingConfig> })
-              : {}
-            return {
-              ...source,
-              logging: normalizeLoggingConfig({
-                ...source.logging,
-                maxCapturedMessages: Math.floor(parsed),
-              }),
-            }
-          })
-            .then(() => {
-              setIsMessageLogConfigureDialogOpen(false)
-            })
-            .catch((error) => {
-              setMessageLogBufferError(error instanceof Error ? error.message : String(error))
-            })
-            .finally(() => {
-              setIsMessageLogConfiguring(false)
-            })
-        }}
       />
       <TriggerConfigurePopover
         open={isGlobalTriggerDialogOpen}

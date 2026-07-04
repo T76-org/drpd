@@ -13,6 +13,7 @@ export interface InstrumentHeaderPopoverRenderContext {
 export interface InstrumentHeaderControl {
   id: string
   label: string
+  icon?: ReactNode
   disabled?: boolean
   onClick?: () => void
   renderPopover?: (context: InstrumentHeaderPopoverRenderContext) => ReactNode
@@ -172,7 +173,10 @@ export const InstrumentBase = ({
               <div key={control.id} className={styles.headerControl}>
                 <button
                   type="button"
-                  className={styles.headerControlButton}
+                  className={[
+                    styles.headerControlButton,
+                    control.icon ? styles.headerControlIconButton : '',
+                  ].filter(Boolean).join(' ')}
                   ref={(element) => {
                     if (element) {
                       controlButtonRefMap.current.set(control.id, element)
@@ -181,6 +185,7 @@ export const InstrumentBase = ({
                     }
                   }}
                   disabled={control.disabled}
+                  aria-label={control.icon ? control.label : undefined}
                   aria-haspopup={hasPopover ? 'dialog' : undefined}
                   aria-expanded={hasPopover ? isOpen : undefined}
                   onClick={(event) => {
@@ -195,7 +200,7 @@ export const InstrumentBase = ({
                     closePopover()
                   }}
                 >
-                  {control.label}
+                  {control.icon ?? control.label}
                 </button>
                 {hasPopover && isOpen ? (
                   typeof document !== 'undefined'

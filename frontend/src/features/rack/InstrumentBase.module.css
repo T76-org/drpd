@@ -130,6 +130,21 @@
   background: var(--color-surface-panel-accent);
 }
 
+.headerControlIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-icon-size-sm);
+  min-width: var(--control-icon-size-sm);
+  height: var(--control-icon-size-sm);
+  padding: var(--space-0);
+}
+
+.headerControlIconButton svg {
+  width: calc(var(--control-icon-size-sm) - var(--space-6));
+  height: calc(var(--control-icon-size-sm) - var(--space-6));
+}
+
 .headerControlButton:disabled {
   opacity: var(--opacity-disabled);
   cursor: not-allowed;
