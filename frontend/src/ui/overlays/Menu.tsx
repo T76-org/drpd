@@ -34,6 +34,8 @@ type MenuBaseItem = {
   meta?: ReactNode
   ///< Disable pointer and keyboard selection.
   disabled?: boolean
+  ///< Render with lower visual emphasis while keeping the item operable.
+  muted?: boolean
 }
 
 export type MenuActionItem = MenuBaseItem & {
@@ -693,6 +695,7 @@ const MenuItemButton = ({
   const itemClassName = [
     styles.menuItem,
     active ? styles.menuItemActive : '',
+    item.muted ? styles.menuItemMuted : '',
     'destructive' in item && item.destructive ? styles.menuItemDestructive : '',
   ]
     .filter(Boolean)
@@ -720,6 +723,7 @@ const MenuItemButton = ({
         aria-checked={item.type === 'checkbox' ? item.checked : undefined}
         aria-haspopup={item.type === 'submenu' ? 'menu' : undefined}
         aria-expanded={item.type === 'submenu' ? submenuOpen : undefined}
+        data-muted={item.muted ? 'true' : undefined}
         disabled={item.disabled}
         className={itemClassName}
         tabIndex={itemIndex === 0 ? 0 : -1}

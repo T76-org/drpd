@@ -2911,96 +2911,103 @@ export const RackView = () => {
     ],
   )
   const menuBarMenus = useMemo<Array<{ id: string; label: string; items: MenuItem[] }>>(() => {
+    const connectedDeviceIds = new Set(
+      deviceStates
+        .filter((entry) => entry.status === 'connected')
+        .map((entry) => entry.record.id),
+    )
+    const connectedPairedDevices = pairedDevices.filter((record) => connectedDeviceIds.has(record.id))
+    const disconnectedPairedDevices = pairedDevices.filter((record) => !connectedDeviceIds.has(record.id))
+    const buildPairedDeviceMenuItem = (record: RackDeviceRecord): MenuItem => {
+      const state = deviceStates.find((entry) => entry.record.id === record.id)
+      const isConnected = state?.status === 'connected'
+      return {
+        id: `paired-device-${record.id}`,
+        type: 'submenu' as const,
+        label: record.displayName,
+        muted: !isConnected,
+        items: [
+          {
+            id: `paired-device-${record.id}-hardware`,
+            label: `Hardware version: ${record.hardwareRevision ?? 'Unknown'}`,
+            disabled: true,
+            onSelect: () => undefined,
+          },
+          {
+            id: `paired-device-${record.id}-firmware`,
+            label: `Firmware version: ${record.firmwareVersion ?? 'Unknown'}`,
+            disabled: true,
+            onSelect: () => undefined,
+          },
+          {
+            id: `paired-device-${record.id}-separator`,
+            type: 'separator' as const,
+          },
+          {
+            id: `paired-device-${record.id}-rename`,
+            label: 'Change name...',
+            onSelect: () => {
+              handleOpenDeviceNameDialog(record.id)
+            },
+          },
+          {
+            id: `paired-device-${record.id}-connection`,
+            label: isConnected ? 'Disconnect' : 'Connect',
+            onSelect: () => {
+              if (isConnected) {
+                void handleDisconnectDevice(record.id)
+                return
+              }
+              void handleConnectPairedDevice(record.id)
+            },
+          },
+          {
+            id: `paired-device-${record.id}-calibrate`,
+            type: 'submenu' as const,
+            label: 'Calibrate',
+            disabled: !isConnected,
+            items: [
+              {
+                id: `paired-device-${record.id}-calibrate-voltage`,
+                label: 'Voltage...',
+                disabled: !isConnected,
+                onSelect: () => {
+                  handleOpenCalibrationDialog(record.id, 'voltage')
+                },
+              },
+              {
+                id: `paired-device-${record.id}-calibrate-current`,
+                label: 'Current...',
+                disabled: !isConnected,
+                onSelect: () => {
+                  handleOpenCalibrationDialog(record.id, 'current')
+                },
+              },
+            ],
+          },
+          {
+            id: `paired-device-${record.id}-unpair`,
+            label: 'Unpair',
+            destructive: true,
+            onSelect: () => {
+              void handleRemoveDevice(record.id)
+            },
+          },
+        ],
+      }
+    }
     const deviceItems: MenuItem[] = [
-      {
-        id: 'pair-new-device',
-        label: 'Pair new device...',
-        onSelect: () => {
-          void handleConnectDevice()
-        },
-      },
-      {
-        id: 'device-separator',
-        type: 'separator',
-      },
       ...(pairedDevices.length > 0
-        ? pairedDevices.map((record) => {
-            const state = deviceStates.find((entry) => entry.record.id === record.id)
-            const isConnected = state?.status === 'connected'
-            return {
-              id: `paired-device-${record.id}`,
-              type: 'submenu' as const,
-              label: record.displayName,
-              items: [
-                {
-                  id: `paired-device-${record.id}-hardware`,
-                  label: `Hardware version: ${record.hardwareRevision ?? 'Unknown'}`,
-                  disabled: true,
-                  onSelect: () => undefined,
-                },
-                {
-                  id: `paired-device-${record.id}-firmware`,
-                  label: `Firmware version: ${record.firmwareVersion ?? 'Unknown'}`,
-                  disabled: true,
-                  onSelect: () => undefined,
-                },
-                {
-                  id: `paired-device-${record.id}-separator`,
+        ? [
+            ...connectedPairedDevices.map(buildPairedDeviceMenuItem),
+            ...(connectedPairedDevices.length > 0 && disconnectedPairedDevices.length > 0
+              ? [{
+                  id: 'device-separator-disconnected',
                   type: 'separator' as const,
-                },
-                {
-                  id: `paired-device-${record.id}-rename`,
-                  label: 'Change name...',
-                  onSelect: () => {
-                    handleOpenDeviceNameDialog(record.id)
-                  },
-                },
-                {
-                  id: `paired-device-${record.id}-connection`,
-                  label: isConnected ? 'Disconnect' : 'Connect',
-                  onSelect: () => {
-                    if (isConnected) {
-                      void handleDisconnectDevice(record.id)
-                      return
-                    }
-                    void handleConnectPairedDevice(record.id)
-                  },
-                },
-                {
-                  id: `paired-device-${record.id}-calibrate`,
-                  type: 'submenu' as const,
-                  label: 'Calibrate',
-                  disabled: !isConnected,
-                  items: [
-                    {
-                      id: `paired-device-${record.id}-calibrate-voltage`,
-                      label: 'Voltage...',
-                      disabled: !isConnected,
-                      onSelect: () => {
-                        handleOpenCalibrationDialog(record.id, 'voltage')
-                      },
-                    },
-                    {
-                      id: `paired-device-${record.id}-calibrate-current`,
-                      label: 'Current...',
-                      disabled: !isConnected,
-                      onSelect: () => {
-                        handleOpenCalibrationDialog(record.id, 'current')
-                      },
-                    },
-                  ],
-                },
-                {
-                  id: `paired-device-${record.id}-unpair`,
-                  label: 'Unpair',
-                  destructive: true,
-                  onSelect: () => {
-                    void handleRemoveDevice(record.id)
-                  },
-                },
-              ],
-            } satisfies MenuItem
-          })
+                }]
+              : []),
+            ...disconnectedPairedDevices.map(buildPairedDeviceMenuItem),
+          ]
         : [
             {
               id: 'no-paired-devices',
@@ -3009,6 +3016,17 @@ export const RackView = () => {
               onSelect: () => undefined,
             } satisfies MenuItem,
           ]),
+      {
+        id: 'device-separator',
+        type: 'separator',
+      },
+      {
+        id: 'pair-new-device',
+        label: 'Pair new device...',
+        onSelect: () => {
+          void handleConnectDevice()
+        },
+      },
     ]
 
     return [

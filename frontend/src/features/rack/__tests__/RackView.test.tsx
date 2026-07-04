@@ -902,6 +902,56 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
   })
 
+  it('orders the Device menu with connected devices first, muted disconnected devices, and pairing last', async () => {
+    saveRackDocument(
+      buildRackDocument({
+        pairedDevices: [
+          {
+            id: 'device-1',
+            identifier: 'com.mta.drpd',
+            displayName: 'Dr. PD Idle',
+            vendorId: 0x2e8a,
+            productId: 0x000a,
+            serialNumber: 'DRPD-TEST-001',
+            productName: 'Dr. PD',
+          },
+          {
+            id: 'device-2',
+            identifier: 'com.mta.drpd',
+            displayName: 'Dr. PD Connected',
+            vendorId: 0x2e8a,
+            productId: 0x000a,
+            serialNumber: 'DRPD-TEST-002',
+            productName: 'Dr. PD',
+          },
+        ],
+      }),
+    )
+    mockUSB([createUSBDevice('DRPD-TEST-002')])
+    render(<RackView />)
+
+    expect(await screen.findByText('Connected to Dr. PD Connected')).toBeInTheDocument()
+
+    await openApplicationSubmenu('Devices')
+
+    const deviceMenu = screen.getByRole('menu', { name: 'Device menu' })
+    const deviceMenuItems = screen
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent?.replace('›', '').trim())
+    const connectedItem = screen.getByRole('menuitem', { name: 'Dr. PD Connected' })
+    const disconnectedItem = screen.getByRole('menuitem', { name: 'Dr. PD Idle' })
+
+    expect(deviceMenuItems).toEqual([
+      'Dr. PD Connected',
+      'Dr. PD Idle',
+      'Pair new device...',
+    ])
+    expect(within(deviceMenu).getAllByRole('separator')).toHaveLength(2)
+    expect(connectedItem).not.toHaveAttribute('data-muted')
+    expect(disconnectedItem).toHaveAttribute('data-muted', 'true')
+    expect(disconnectedItem).not.toBeDisabled()
+  })
+
   it('restores Message Log table layout from the menu', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
