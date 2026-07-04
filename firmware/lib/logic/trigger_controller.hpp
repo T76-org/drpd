@@ -71,6 +71,12 @@ namespace T76::DRPD::Logic {
     using TriggerStatusChangedCallback = std::function<void(TriggerStatus status)>;
 
     /**
+     * @brief Callback function type for completed sync trigger notifications.
+     *
+     */
+    using TriggerFiredCallback = std::function<void()>;
+
+    /**
      * @brief The TriggerController class
      * 
      * This class manages triggering logic based on events from the BMC decoder.
@@ -278,6 +284,20 @@ namespace T76::DRPD::Logic {
         void statusChangedCallback(TriggerStatusChangedCallback callback);
 
         /**
+         * @brief Set a callback to be invoked when the trigger threshold fires SYNC.
+         *
+         * @param callback The callback function to invoke on sync trigger events.
+         */
+        void triggerFiredCallback(TriggerFiredCallback callback);
+
+        /**
+         * @brief Return the configured sync trigger fired callback.
+         *
+         * @return TriggerFiredCallback Current callback.
+         */
+        TriggerFiredCallback triggerFiredCallback() const;
+
+        /**
          * @brief Apply the persisted trigger settings owned by this controller.
          *
          * The controller updates its local trigger mode, threshold, sender
@@ -311,6 +331,7 @@ namespace T76::DRPD::Logic {
         std::array<bool, LOGIC_TRIGGER_CONTROLLER_MAX_MESSAGE_TYPE_FILTERS> _messageTypeFilterEnabled{};
 
         TriggerStatusChangedCallback _statusChangedCallback;  ///< Callback for status change notifications
+        TriggerFiredCallback _triggerFiredCallback;  ///< Callback for completed sync trigger notifications.
 
         /** 
          * @brief Internal handler for BMC decoder events

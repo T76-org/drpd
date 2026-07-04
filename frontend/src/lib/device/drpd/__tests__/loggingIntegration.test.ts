@@ -531,6 +531,7 @@ describe('DRPD logging integration', () => {
       buildCaptureEventPayload(7, 'CC role changed to OBSERVER', 14_000n),
       buildCaptureEventPayload(8, 'CC role changed to SINK', 15_000n),
       buildCaptureEventPayload(9, 'Sink error flags changed: 0x00000001', 16_000n),
+      buildCaptureEventPayload(10, 'Sync trigger', 17_000n),
     ])
 
     const store = new SQLiteWasmStore({
@@ -554,7 +555,7 @@ describe('DRPD logging integration', () => {
       sortOrder: 'asc',
     })
 
-    expect(rows).toHaveLength(11)
+    expect(rows).toHaveLength(12)
     expect(rows[0].entryKind).toBe('message')
     expect(rows[1].entryKind).toBe('event')
     expect(rows[1].eventType).toBe('firmware_event')
@@ -596,6 +597,10 @@ describe('DRPD logging integration', () => {
     expect(rows[10].eventType).toBe('sink_errors')
     expect(rows[10].eventText).toBe('Sink error flags changed: 0x00000001')
     expect(rows[10].startTimestampUs).toBe(16_000n)
+    expect(rows[11].entryKind).toBe('event')
+    expect(rows[11].eventType).toBe('sync_trigger')
+    expect(rows[11].eventText).toBe('Sync trigger')
+    expect(rows[11].startTimestampUs).toBe(17_000n)
   })
 
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {

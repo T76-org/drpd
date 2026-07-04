@@ -312,6 +312,11 @@
   background: var(--color-log-event-sink-errors-bg);
 }
 
+.eventRowSyncTrigger {
+  color: var(--color-log-event-sync-trigger);
+  background: var(--color-log-event-sync-trigger-bg);
+}
+
 .eventRowOvp {
   color: var(--color-log-event-ovp);
   background: var(--color-log-event-ovp-bg);

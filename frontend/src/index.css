@@ -160,6 +160,7 @@
   --color-log-event-status: var(--color-status-success);
   --color-log-event-mark: #d67bff;
   --color-log-event-sink-errors: #ff4d83;
+  --color-log-event-sync-trigger: #4f7cff;
   --color-log-event-ovp: #ff7c5c;
   --color-log-event-ocp: #f0c04d;
   --color-log-event-capture-bg: color-mix(in srgb, var(--color-log-event-capture) 18%, transparent);
@@ -167,6 +168,7 @@
   --color-log-event-status-bg: color-mix(in srgb, var(--color-log-event-status) 18%, transparent);
   --color-log-event-mark-bg: color-mix(in srgb, var(--color-log-event-mark) 18%, transparent);
   --color-log-event-sink-errors-bg: color-mix(in srgb, var(--color-log-event-sink-errors) 18%, transparent);
+  --color-log-event-sync-trigger-bg: color-mix(in srgb, var(--color-log-event-sync-trigger) 18%, transparent);
   --color-log-event-ovp-bg: color-mix(in srgb, var(--color-log-event-ovp) 18%, transparent);
   --color-log-event-ocp-bg: color-mix(in srgb, var(--color-log-event-ocp) 18%, transparent);
 

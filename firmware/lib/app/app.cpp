@@ -33,6 +33,7 @@ App::App() :
     _ccBusController(_analogMonitor, _ccBusManager, _ccRoleManager, _bmcDecoder, _bmcEncoder, _vbusManager),
     _triggerController(_bmcDecoder, _syncManager) {
     queue_init(&_sinkErrorEventQueue, sizeof(PendingSinkErrorEvent), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
+    queue_init(&_syncTriggerEventQueue, sizeof(PendingSyncTriggerEvent), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
 }
 
 void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) {
@@ -344,6 +345,7 @@ void App::_loop() {
     while (true) {
         _analogMonitor.readVBusValues();
         _processSinkErrorEvents();
+        _processSyncTriggerEvents();
 
         if (_interruptPending.exchange(false, std::memory_order_acq_rel)) {
             if (!_sendTransportNotification()) {
@@ -383,6 +385,7 @@ void App::_initCore0() {
     _ccBusController.sinkErrorOccurred(std::bind(&App::_sinkErrorCallback, this, std::placeholders::_1));
     _vbusManager.managerChangedCallback(std::bind(&App::_vbusManagerChangedCallback, this));
     _triggerController.statusChangedCallback(std::bind(&App::_triggerStatusChangedCallback, this, std::placeholders::_1));
+    _triggerController.triggerFiredCallback(std::bind(&App::_triggerFiredCallback, this));
     if (_statusLedSupported) {
         _statusLed.start(&App::_statusLedModeProvider, this);
     }
@@ -580,9 +583,23 @@ void App::_processSinkErrorEvents() {
     }
 }
 
+void App::_processSyncTriggerEvents() {
+    PendingSyncTriggerEvent event{};
+    while (queue_try_remove(&_syncTriggerEventQueue, &event)) {
+        _publishCaptureEvent(_captureEventSyncTrigger, "Sync trigger", event.timestampUs);
+    }
+}
+
 void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
     // Signal that the trigger controller status has changed
     deviceStatus(DeviceStatusFlag::TriggerStatusChanged);
+}
+
+void App::_triggerFiredCallback() {
+    const PendingSyncTriggerEvent event{
+        .timestampUs = time_us_64(),
+    };
+    (void)queue_try_add(&_syncTriggerEventQueue, &event);
 }
 
 void App::_ccBusStateChangedCallback(Logic::CCBusState state) {
