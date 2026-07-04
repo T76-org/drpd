@@ -952,14 +952,17 @@ describe('RackView', () => {
     expect(disconnectedItem).not.toBeDisabled()
   })
 
-  it('restores Message Log table layout from the menu', async () => {
+  it('restores Message Log table layout from the Capture menu', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
     window.localStorage.setItem('drpd:message-log:columns', JSON.stringify({ sender: false }))
     window.localStorage.setItem('drpd:message-log:column-widths', JSON.stringify({ messageType: 320 }))
     render(<RackView />)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Message Log' }))
+    const topLevelButtons = (await screen.findAllByRole('button')).map((button) => button.textContent)
+    expect(topLevelButtons.indexOf('Capture')).toBe(topLevelButtons.indexOf('Mode') + 1)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Capture' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Restore Table Layout' }))
 
     const columns = JSON.parse(window.localStorage.getItem('drpd:message-log:columns') ?? '{}')
@@ -968,7 +971,7 @@ describe('RackView', () => {
     expect(widths.messageType).toBe(200)
   })
 
-  it('shows filter options for messages added after device connection', async () => {
+  it('shows filter options from the Capture menu for messages added after device connection', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -999,7 +1002,7 @@ describe('RackView', () => {
       )
     })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Message Log' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Capture' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: /^Filter/ }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Filter message log' })
@@ -1087,7 +1090,7 @@ describe('RackView', () => {
     })
   })
 
-  it('imports Message Log JSON after destructive confirmation', async () => {
+  it('imports Message Log JSON from the Capture menu after destructive confirmation', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -1112,7 +1115,7 @@ describe('RackView', () => {
       { type: 'application/json' },
     )
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Message Log' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Capture' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Import JSON...' }))
 
     let dialog = await screen.findByRole('dialog', { name: 'Import message log' })

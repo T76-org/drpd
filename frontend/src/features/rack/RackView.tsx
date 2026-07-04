@@ -3052,6 +3052,11 @@ export const RackView = () => {
         items: modeMenuItems,
       },
       {
+        id: 'capture',
+        label: 'Capture',
+        items: messageLogMenuItems,
+      },
+      {
         id: 'protection',
         label: 'Protection',
         items: protectionMenuItems,
@@ -3076,11 +3081,6 @@ export const RackView = () => {
             onSelect: () => undefined,
           },
         ],
-      },
-      {
-        id: 'logging',
-        label: 'Message Log',
-        items: messageLogMenuItems,
       },
       {
         id: 'trigger',
