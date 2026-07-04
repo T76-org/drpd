@@ -9,17 +9,22 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Gear } from '@phosphor-icons/react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { DRPDDevice } from '../../../lib/device'
 import {
+  buildDefaultLoggingConfig,
   buildCapturedLogSelectionKey,
+  normalizeLoggingConfig,
+  type DRPDLoggingConfig,
   type DRPDLogSelectionState,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
-import { InstrumentBase } from '../InstrumentBase'
+import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
 import type { RackDeviceState } from '../RackRenderer'
 import { ContextMenu, type ContextMenuTriggerProps, type MenuItem } from '../../../ui/overlays'
+import { MessageLogConfigurePopover } from '../overlays/usbPdLog/LogActionPopovers'
 import {
   type MessageLogFilterRule,
   type MessageLogFilters,
@@ -28,7 +33,9 @@ import {
   MESSAGE_LOG_COLUMNS,
   readMessageLogColumnVisibility,
   readMessageLogColumnWidths,
+  saveMessageLogColumnVisibility,
   saveMessageLogColumnWidths,
+  notifyMessageLogColumnVisibilityChanged,
   type MessageLogColumnId,
   type MessageLogColumnVisibility,
   type MessageLogColumnWidths,
@@ -44,6 +51,8 @@ const PAGE_SIZE = DRPD_USB_PD_LOG_CONFIG.tableBehavior.pageSize
 const OVERSCAN_ROWS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.overscanRows
 const COUNT_SYNC_INTERVAL_MS = DRPD_USB_PD_LOG_CONFIG.tableBehavior.countSyncIntervalMs
 const HORIZONTAL_SCROLLBAR_GUTTER_PX = 12
+const MIN_CAPTURED_MESSAGE_BUFFER = 100
+const MAX_CAPTURED_MESSAGE_BUFFER = 1_000_000
 const EMPTY_SELECTION: DRPDLogSelectionState = {
   selectedKeys: [],
   anchorIndex: null,
@@ -268,9 +277,11 @@ const toDisplayRows = (
 export const DrpdUsbPdLogInstrumentView = ({
   instrument,
   displayName,
+  deviceRecord,
   deviceState,
   isEditMode,
   onRemove,
+  onUpdateDeviceConfig,
   messageLogMenuItems,
 }: {
   instrument: RackInstrument
@@ -321,10 +332,18 @@ export const DrpdUsbPdLogInstrumentView = ({
   const [filters, setFilters] = useState<MessageLogFilters>(EMPTY_FILTERS)
   const [columnVisibility, setColumnVisibility] =
     useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
+  const [columnVisibilityInput, setColumnVisibilityInput] =
+    useState<MessageLogColumnVisibility>(() => readMessageLogColumnVisibility())
   const [columnWidths, setColumnWidths] =
     useState<MessageLogColumnWidths>(() => readMessageLogColumnWidths())
   const [resizingColumnId, setResizingColumnId] = useState<MessageLogColumnId | null>(null)
   const [filterRows, setFilterRows] = useState<LoggedCapturedMessage[]>([])
+  const [isConfigureDialogOpen, setIsConfigureDialogOpen] = useState(false)
+  const [isConfiguring, setIsConfiguring] = useState(false)
+  const [bufferInput, setBufferInput] = useState(
+    buildDefaultLoggingConfig().maxCapturedMessages.toString(),
+  )
+  const [bufferError, setBufferError] = useState<string | null>(null)
   const driver = deviceState?.drpdDriver
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
@@ -353,6 +372,84 @@ export const DrpdUsbPdLogInstrumentView = ({
   const tableBottomGutterPx =
     viewportWidth > 0 && tableOuterWidthPx > viewportWidth ? HORIZONTAL_SCROLLBAR_GUTTER_PX : 0
   const hasActiveFilters = activeFilterCount > 0
+  const openConfigureDialog = useCallback(() => {
+    const configured = deviceRecord?.config && typeof deviceRecord.config === 'object'
+      ? normalizeLoggingConfig(
+          (deviceRecord.config as { logging?: Partial<DRPDLoggingConfig> }).logging,
+        )
+      : buildDefaultLoggingConfig()
+    setBufferInput(configured.maxCapturedMessages.toString())
+    setBufferError(null)
+    setColumnVisibilityInput(readMessageLogColumnVisibility())
+    setIsConfigureDialogOpen(true)
+  }, [deviceRecord])
+  const cancelConfigureDialog = useCallback(() => {
+    setBufferError(null)
+    setColumnVisibilityInput(readMessageLogColumnVisibility())
+    setIsConfigureDialogOpen(false)
+  }, [])
+  const applyConfigureDialog = useCallback(() => {
+    if (!deviceRecord || !onUpdateDeviceConfig) {
+      return
+    }
+    if (!/^\d+$/.test(bufferInput)) {
+      setBufferError(
+        `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+      )
+      return
+    }
+    const parsed = Number(bufferInput)
+    if (
+      !Number.isFinite(parsed) ||
+      parsed < MIN_CAPTURED_MESSAGE_BUFFER ||
+      parsed > MAX_CAPTURED_MESSAGE_BUFFER
+    ) {
+      setBufferError(
+        `Enter an integer value from ${MIN_CAPTURED_MESSAGE_BUFFER} to ${MAX_CAPTURED_MESSAGE_BUFFER}.`,
+      )
+      return
+    }
+    setIsConfiguring(true)
+    setBufferError(null)
+    setColumnVisibility(columnVisibilityInput)
+    saveMessageLogColumnVisibility(columnVisibilityInput)
+    notifyMessageLogColumnVisibilityChanged(columnVisibilityInput)
+    void Promise.resolve(
+      onUpdateDeviceConfig(deviceRecord.id, (current) => {
+        const source = current && typeof current === 'object'
+          ? (current as { logging?: Partial<DRPDLoggingConfig> })
+          : {}
+        return {
+          ...source,
+          logging: normalizeLoggingConfig({
+            ...source.logging,
+            maxCapturedMessages: Math.floor(parsed),
+          }),
+        }
+      }),
+    )
+      .then(() => {
+        setIsConfigureDialogOpen(false)
+      })
+      .catch((error) => {
+        setBufferError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        setIsConfiguring(false)
+      })
+  }, [bufferInput, columnVisibilityInput, deviceRecord, onUpdateDeviceConfig])
+  const headerControls = useMemo<InstrumentHeaderControl[]>(
+    () => [
+      {
+        id: 'message-log-configure',
+        label: 'Configure',
+        icon: <Gear aria-hidden="true" weight="bold" />,
+        disabled: !deviceRecord || !onUpdateDeviceConfig || isConfiguring,
+        onClick: openConfigureDialog,
+      },
+    ],
+    [deviceRecord, isConfiguring, onUpdateDeviceConfig, openConfigureDialog],
+  )
   const filteredRows = useMemo(
     () => (hasActiveFilters ? filterRows.filter((row) => messageMatchesFilters(row, filters)) : []),
     [filterRows, filters, hasActiveFilters],
@@ -1315,24 +1412,43 @@ export const DrpdUsbPdLogInstrumentView = ({
   )
 
   return (
-    <InstrumentBase
-      instrument={instrument}
-      displayName={displayName}
-      isEditMode={isEditMode}
-      contentClassName={styles.contentFill}
-      onClose={
-        onRemove
-          ? () => {
-              onRemove(instrument.id)
-            }
-        : undefined
-      }
-    >
-      {messageLogMenuItems ? (
-        <ContextMenu label="Message Log menu" items={messageLogMenuItems}>
-          {(props) => renderContent(props)}
-        </ContextMenu>
-      ) : renderContent()}
-    </InstrumentBase>
+    <>
+      <InstrumentBase
+        instrument={instrument}
+        displayName={displayName}
+        isEditMode={isEditMode}
+        contentClassName={styles.contentFill}
+        headerControls={headerControls}
+        onClose={
+          onRemove
+            ? () => {
+                onRemove(instrument.id)
+              }
+            : undefined
+        }
+      >
+        {messageLogMenuItems ? (
+          <ContextMenu label="Message Log menu" items={messageLogMenuItems}>
+            {(props) => renderContent(props)}
+          </ContextMenu>
+        ) : renderContent()}
+      </InstrumentBase>
+      <MessageLogConfigurePopover
+        open={isConfigureDialogOpen}
+        onOpenChange={setIsConfigureDialogOpen}
+        instrumentId={instrument.id}
+        minBuffer={MIN_CAPTURED_MESSAGE_BUFFER}
+        maxBuffer={MAX_CAPTURED_MESSAGE_BUFFER}
+        bufferInput={bufferInput}
+        bufferError={bufferError}
+        columnVisibility={columnVisibilityInput}
+        isApplyingBuffer={isConfiguring}
+        setBufferInput={setBufferInput}
+        setBufferError={setBufferError}
+        setColumnVisibility={setColumnVisibilityInput}
+        onCancel={cancelConfigureDialog}
+        onApply={applyConfigureDialog}
+      />
+    </>
   )
 }

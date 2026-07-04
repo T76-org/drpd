@@ -1041,12 +1041,25 @@ describe('RackView', () => {
       name: /Hide GoodCRC Messages/,
     })).toBeEnabled()
     expect(within(menu).getByRole('menuitem', { name: /Filter\.\.\./ })).toBeEnabled()
-    expect(within(menu).getByRole('menuitem', { name: 'Configure...' })).toBeEnabled()
+    expect(within(menu).queryByRole('menuitem', { name: 'Configure...' })).not.toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: 'Restore Table Layout' })).toBeEnabled()
 
     await userEvent.click(within(menu).getByRole('menuitem', { name: /Filter\.\.\./ }))
 
     expect(await screen.findByRole('dialog', { name: 'Filter message log' })).toBeInTheDocument()
+  })
+
+  it('opens Message Log configuration from the instrument header', async () => {
+    saveRackDocument(buildBoundMessageLogRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Configure' }))
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Message Log configuration' }),
+    ).toBeInTheDocument()
   })
 
   it('toggles capture from the message log context menu', async () => {
