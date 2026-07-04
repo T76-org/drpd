@@ -2911,6 +2911,7 @@ export const RackView = () => {
     const buildPairedDeviceMenuItem = (record: RackDeviceRecord): MenuItem => {
       const state = deviceStates.find((entry) => entry.record.id === record.id)
       const isConnected = state?.status === 'connected'
+      const hasFirmwareUpdatePrompt = firmwareUpdatePrompt?.deviceRecordId === record.id
       return {
         id: `paired-device-${record.id}`,
         type: 'submenu' as const,
@@ -2939,6 +2940,33 @@ export const RackView = () => {
             onSelect: () => {
               handleOpenDeviceNameDialog(record.id)
             },
+          },
+          {
+            id: `paired-device-${record.id}-update-firmware`,
+            label: 'Update firmware...',
+            disabled: !hasFirmwareUpdatePrompt || isFirmwareUploadBusy,
+            onSelect: () => undefined,
+          },
+          {
+            id: `paired-device-${record.id}-firmware-channel`,
+            type: 'submenu' as const,
+            label: 'Update channel',
+            items: [
+              {
+                id: `paired-device-${record.id}-firmware-channel-production`,
+                type: 'checkbox' as const,
+                label: 'Production',
+                checked: firmwareUpdateChannel === 'production',
+                onCheckedChange: () => setFirmwareUpdateChannel('production'),
+              },
+              {
+                id: `paired-device-${record.id}-firmware-channel-beta`,
+                type: 'checkbox' as const,
+                label: 'Beta',
+                checked: firmwareUpdateChannel === 'beta',
+                onCheckedChange: () => setFirmwareUpdateChannel('beta'),
+              },
+            ],
           },
           {
             id: `paired-device-${record.id}-connection`,
@@ -3065,39 +3093,6 @@ export const RackView = () => {
         id: 'trigger',
         label: 'Trigger',
         items: triggerMenuItems,
-      },
-      {
-        id: 'firmware',
-        label: 'Firmware',
-        items: [
-          {
-            id: 'update-firmware',
-            label: 'Update firmware...',
-            disabled: !firmwareUpdatePrompt || isFirmwareUploadBusy,
-            onSelect: () => undefined,
-          },
-          {
-            id: 'firmware-channel',
-            type: 'submenu',
-            label: 'Update channel',
-            items: [
-              {
-                id: 'firmware-channel-production',
-                type: 'checkbox',
-                label: 'Production',
-                checked: firmwareUpdateChannel === 'production',
-                onCheckedChange: () => setFirmwareUpdateChannel('production'),
-              },
-              {
-                id: 'firmware-channel-beta',
-                type: 'checkbox',
-                label: 'Beta',
-                checked: firmwareUpdateChannel === 'beta',
-                onCheckedChange: () => setFirmwareUpdateChannel('beta'),
-              },
-            ],
-          },
-        ],
       },
       {
         id: 'display',
