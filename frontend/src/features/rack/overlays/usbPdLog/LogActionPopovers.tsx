@@ -31,10 +31,6 @@ export const MessageLogClearPopover = ({
     open={open}
     onOpenChange={onOpenChange}
     title="Clear logs"
-    description={
-      clearError ??
-      'This will permanently delete all logged messages and analog samples.'
-    }
     dismissible={!isClearing}
     footer={
       <>
@@ -54,7 +50,13 @@ export const MessageLogClearPopover = ({
       </>
     }
   >
-    Are you sure?
+    <div className={styles.clearWarningStack}>
+      <h3 className={styles.clearQuestion}>Are you sure?</h3>
+      <p className={styles.clearWarning}>
+        This will permanently delete all logged messages and analog samples.
+      </p>
+      {clearError ? <p className={styles.clearError}>{clearError}</p> : null}
+    </div>
   </Dialog>
 )
 
