@@ -2054,6 +2054,30 @@ describe('RackView', () => {
     expect(stored.pairedDevices?.[0]?.displayName).toBe('Marco')
   })
 
+  it('renames the connected device from the device-name menu', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    const connectedStatus = await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')
+    expect(screen.queryByRole('button', { name: 'Connected to Dr. PD #DRPD-TEST-001' })).not.toBeInTheDocument()
+    fireEvent.contextMenu(connectedStatus)
+    await userEvent.click(await screen.findByRole('menuitem', { name: /change name/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /change device name/i })
+    const nameInput = within(dialog).getByLabelText('Name')
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'Bench supply analyzer')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Connected to Bench supply analyzer')).toBeInTheDocument()
+    const stored = JSON.parse(
+      window.localStorage.getItem('drpd:rack:document') ?? '{}',
+    ) as RackDocument
+    expect(stored.pairedDevices?.[0]?.displayName).toBe('Bench supply analyzer')
+  })
+
   it('rejects blank paired device names', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])

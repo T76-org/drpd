@@ -50,6 +50,19 @@
   white-space: nowrap;
 }
 
+.menuBarDeviceStatusContextTarget {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  height: var(--menu-bar-height);
+}
+
+.menuBarDeviceStatusContextTarget:hover,
+.menuBarDeviceStatusContextTarget:focus-visible,
+.menuBarDeviceStatusContextTarget[aria-expanded='true'] {
+  outline: none;
+}
+
 .menuBarButton {
   border: none;
   border-radius: 2px;
