@@ -497,11 +497,9 @@
   display: grid;
   align-content: center;
   gap: var(--space-8);
-  padding-top: 10px;
 }
 
-.messageTypeMoveButton,
-.messageTypeResetButton {
+.messageTypeMoveButton {
   min-width: 44px;
   border: var(--border-thin) solid var(--color-border-panel);
   background: color-mix(in srgb, var(--color-surface-panel) 80%, transparent);
@@ -510,10 +508,6 @@
   line-height: var(--line-height-tight);
   padding: var(--space-4) var(--space-6);
   cursor: pointer;
-}
-
-.messageTypeResetButton {
-  min-width: 56px;
 }
 
 @media (max-width: 520px) {
@@ -526,7 +520,7 @@
   }
 
   .messageTypeActions {
-    grid-template-columns: repeat(3, auto);
+    grid-template-columns: repeat(2, auto);
     justify-content: center;
   }
 }

@@ -37,7 +37,6 @@ describe('MessageLogFilterPopover', () => {
         filters={emptyFilters()}
         options={options}
         onApply={onApply}
-        onClear={vi.fn()}
       />,
     )
 
@@ -70,7 +69,6 @@ describe('MessageLogFilterPopover', () => {
         }}
         options={options}
         onApply={onApply}
-        onClear={vi.fn()}
       />,
     )
 
@@ -103,7 +101,6 @@ describe('MessageLogFilterPopover', () => {
         filters={emptyFilters()}
         options={options}
         onApply={onApply}
-        onClear={vi.fn()}
       />,
     )
 
@@ -148,7 +145,6 @@ describe('MessageLogFilterPopover', () => {
         filters={emptyFilters()}
         options={options}
         onApply={onApply}
-        onClear={vi.fn()}
       />,
     )
 
@@ -166,7 +162,7 @@ describe('MessageLogFilterPopover', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('resets Message Type lists without changing GoodCRC visibility', async () => {
+  it('restores default filters across all groups', async () => {
     const user = userEvent.setup()
     const onApply = vi.fn()
 
@@ -177,22 +173,30 @@ describe('MessageLogFilterPopover', () => {
         filters={{
           ...emptyFilters(),
           messageTypes: { include: [], exclude: ['Accept', 'GoodCRC'] },
+          senders: { include: [], exclude: ['Source'] },
+          receivers: { include: [], exclude: ['Sink'] },
         }}
         options={options}
         onApply={onApply}
-        onClear={vi.fn()}
       />,
     )
 
     expect(screen.getByRole('checkbox', { name: 'Hide GoodCRC messages' })).toBeChecked()
     expect(within(screen.getByLabelText('Excluded message types')).getByRole('option', { name: 'Accept' }))
       .toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Source' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Sink' })).not.toBeChecked()
 
-    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    await user.click(screen.getByRole('button', { name: 'Restore defaults' }))
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Filter message log' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Hide GoodCRC messages' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Source' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Sink' })).toBeChecked()
     await user.click(screen.getByRole('button', { name: 'Apply' }))
 
     expect(onApply).toHaveBeenCalledWith({
-      messageTypes: { include: [], exclude: ['GoodCRC'] },
+      messageTypes: { include: [], exclude: [] },
       senders: { include: [], exclude: [] },
       receivers: { include: [], exclude: [] },
       sopTypes: { include: [], exclude: [] },
@@ -200,28 +204,19 @@ describe('MessageLogFilterPopover', () => {
     })
   })
 
-  it('clears filters and closes the dialog', async () => {
-    const user = userEvent.setup()
-    const onClear = vi.fn()
-    const onOpenChange = vi.fn()
-
+  it('does not show a message type restore button', () => {
     render(
       <MessageLogFilterPopover
         open
-        onOpenChange={onOpenChange}
-        filters={{
-          ...emptyFilters(),
-          messageTypes: { include: [], exclude: ['GoodCRC'] },
-        }}
+        onOpenChange={vi.fn()}
+        filters={emptyFilters()}
         options={options}
         onApply={vi.fn()}
-        onClear={onClear}
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Clear' }))
-
-    expect(onClear).toHaveBeenCalledTimes(1)
-    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(within(screen.getByRole('group', { name: 'Message type' }))
+      .queryByRole('button', { name: 'Restore defaults' }))
+      .not.toBeInTheDocument()
   })
 })
