@@ -509,6 +509,7 @@ namespace T76::DRPD {
         uint32_t _ccBusRoleCaptureEventType(Logic::CCBusRole role) const;
         std::string_view _ccBusRoleCaptureEventText(Logic::CCBusRole role) const;
         void _processSinkErrorEvents();
+        void _clearPendingSyncTriggerEvents();
         /**
          * @brief Publish pending sync trigger events that should precede a decoded message.
          *

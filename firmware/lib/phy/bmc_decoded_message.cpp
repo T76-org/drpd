@@ -14,6 +14,10 @@
 using namespace T76::DRPD;
 using namespace T76::DRPD::PHY;
 
+#if PHY_BMC_DECODER_PREAMBLE_START_MIN_PULSES < 1 || PHY_BMC_DECODER_PREAMBLE_START_MIN_PULSES > 96
+#error PHY_BMC_DECODER_PREAMBLE_START_MIN_PULSES must be between 1 and 96 inclusive
+#endif
+
 
 BMCDecodedMessage::BMCDecodedMessage() {
     reset();
@@ -215,7 +219,7 @@ BMCDecodedMessageEvent inline BMCDecodedMessage::_processEdgeInPreambleState(uin
         return BMCDecodedMessageEvent::SOPStart;
     }
 
-    if (_decoderState.carrierEntryCount == 1) {
+    if (_decoderState.carrierEntryCount == PHY_BMC_DECODER_PREAMBLE_START_MIN_PULSES) {
         return BMCDecodedMessageEvent::PreambleStart;
     }
 

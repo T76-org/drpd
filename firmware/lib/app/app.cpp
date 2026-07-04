@@ -588,6 +588,14 @@ void App::_processSinkErrorEvents() {
     }
 }
 
+void App::_clearPendingSyncTriggerEvents() {
+    _deferredSyncTriggerEvent.reset();
+
+    PendingSyncTriggerEvent event{};
+    while (queue_try_remove(&_syncTriggerEventQueue, &event)) {
+    }
+}
+
 void App::_publishDueSyncTriggerEventsBeforeMessage(uint64_t messageStartTimestamp, uint64_t messageEndTimestamp) {
     while (true) {
         auto event = _nextSyncTriggerEvent();
@@ -645,6 +653,10 @@ void App::_triggerStatusChangedCallback(Logic::TriggerStatus status) {
 }
 
 void App::_triggerFiredCallback(Logic::TriggerControllerMode mode) {
+    if (!_captureEnabled.load(std::memory_order_relaxed)) {
+        return;
+    }
+
     const PendingSyncTriggerEvent event{
         .timestampUs = time_us_64(),
         .triggerMode = mode,
