@@ -1,3 +1,33 @@
+.clearWarningStack {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.clearQuestion {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-header-popup-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-snug);
+}
+
+.clearWarning {
+  margin: 0;
+  padding: var(--space-8) var(--space-10);
+  border-left: 3px solid var(--color-status-error);
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-status-error) 12%, var(--color-surface-panel));
+  font-size: var(--font-size-header-popup-text);
+  line-height: var(--line-height-normal);
+}
+
+.clearError {
+  margin: 0;
+  color: var(--color-status-error);
+  font-size: var(--font-size-header-popup-hint);
+  line-height: var(--line-height-snug);
+}
+
 .bufferField {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
