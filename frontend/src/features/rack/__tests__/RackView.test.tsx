@@ -1078,7 +1078,7 @@ describe('RackView', () => {
     })
   })
 
-  it('updates the time since reset while the Power/Charge Meter menu is open', async () => {
+  it('omits the Power/Charge Meter timer display', async () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -1086,21 +1086,11 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
     expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
     await openApplicationSubmenu('Power/Charge Meter')
-    expect(
-      await screen.findByRole('menuitem', { name: /Time since reset\s+00:00:00/ }),
-    ).toBeDisabled()
+    const menu = screen.getByRole('menu', { name: 'Power/Charge Meter menu' })
 
-    mockTransportState.analogResponse = [
-      ...mockTransportState.analogResponse.slice(0, 10),
-      '3661000000',
-      ...mockTransportState.analogResponse.slice(11),
-    ]
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('menuitem', { name: /Time since reset\s+01:01:01/ }),
-      ).toBeDisabled()
-    })
+    expect(within(menu).getByRole('menuitem', { name: /Reset/ })).toBeEnabled()
+    expect(within(menu).queryByRole('menuitem', { name: /Time since reset/ })).not.toBeInTheDocument()
+    expect(document.querySelector('[title*="Time since accumulator reset"]')).not.toBeInTheDocument()
   })
 
   it('imports Message Log JSON from the Capture menu after destructive confirmation', async () => {
