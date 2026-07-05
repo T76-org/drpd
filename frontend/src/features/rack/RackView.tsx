@@ -377,6 +377,22 @@ const formatHeaderAccumulatorMetricWithGhostZeros = (
   }
 }
 
+const formatHeaderAccumulatorElapsed = (elapsedUs: bigint | null | undefined): string => {
+  if (elapsedUs == null) {
+    return '--'
+  }
+  const totalSeconds = Number(elapsedUs / 1_000_000n)
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return '--'
+  }
+  const days = Math.floor(totalSeconds / 86_400)
+  const hours = Math.floor((totalSeconds % 86_400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const hhmmss = [hours, minutes, seconds].map((part) => part.toString().padStart(2, '0')).join(':')
+  return days > 0 ? `${days}d ${hhmmss}` : hhmmss
+}
+
 const HeaderGhostValue = ({
   text,
 }: {
@@ -401,6 +417,10 @@ const HeaderAccumulatorValue = ({
     </span>
     <span className={styles.headerVbusAccumulatorUnit}>{unit}</span>
   </span>
+)
+
+const HeaderAccumulatorElapsedValue = ({ text }: { text: string }) => (
+  <span className={styles.headerVbusAccumulatorElapsedValue}>{text}</span>
 )
 
 const HeaderProtectionValue = ({
@@ -2548,6 +2568,20 @@ export const RackView = () => {
     ],
     [activeDriver, handleToggleActiveDeviceCapture, isCaptureEnabled],
   )
+  const powerChargeMeterMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'reset-power-charge-meter',
+        label: 'Reset',
+        meta: 'Z',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void handleResetPowerChargeMeter()
+        },
+      },
+    ],
+    [activeDriver, handleResetPowerChargeMeter],
+  )
   const modeMenuItems = useMemo<MenuItem[]>(
     () => [
       {
@@ -2927,17 +2961,7 @@ export const RackView = () => {
       {
         id: 'power-charge-meter',
         label: 'Power/Charge Meter',
-        items: [
-          {
-            id: 'reset-power-charge-meter',
-            label: 'Reset',
-            meta: 'Z',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void handleResetPowerChargeMeter()
-            },
-          },
-        ],
+        items: powerChargeMeterMenuItems,
       },
       {
         id: 'trigger',
@@ -3025,12 +3049,12 @@ export const RackView = () => {
     handleOpenDeviceNameDialog,
     handleOpenDocumentation,
     handleRemoveDevice,
-    handleResetPowerChargeMeter,
     handleRefreshActiveDeviceState,
     isFirmwareUploadBusy,
     messageLogMenuItems,
     modeMenuItems,
     pairedDevices,
+    powerChargeMeterMenuItems,
     protectionMenuItems,
     promptInstall,
     showTimestrip,
@@ -3118,6 +3142,7 @@ export const RackView = () => {
                     driver={activeConnectedDeviceState?.drpdDriver}
                     captureMenuItems={captureMenuItems}
                     modeMenuItems={modeMenuItems}
+                    powerChargeMeterMenuItems={powerChargeMeterMenuItems}
                     protectionMenuItems={protectionMenuItems}
                     triggerMenuItems={triggerMenuItems}
                   />
@@ -3460,12 +3485,14 @@ const HeaderVbusMetrics = ({
   driver,
   captureMenuItems,
   modeMenuItems,
+  powerChargeMeterMenuItems,
   protectionMenuItems,
   triggerMenuItems,
 }: {
   driver?: DRPDDriverRuntime
   captureMenuItems: MenuItem[]
   modeMenuItems: MenuItem[]
+  powerChargeMeterMenuItems: MenuItem[]
   protectionMenuItems: MenuItem[]
   triggerMenuItems: MenuItem[]
 }) => {
@@ -3624,7 +3651,9 @@ const HeaderVbusMetrics = ({
       : null
   const accumulatedChargeText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedChargeAh)
   const accumulatedEnergyText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedEnergyWh)
-  const isChargingIndicatorActive = signedVbusCurrent != null && signedVbusCurrent !== 0
+  const accumulationElapsedText = formatHeaderAccumulatorElapsed(
+    analogMonitor?.accumulationElapsedTimeUs,
+  )
   const ovpValueText = formatHeaderProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
   const ocpValueText = formatHeaderProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
   const isOvpTriggered = vbusInfo?.status === VBusStatus.OVP
@@ -3666,22 +3695,32 @@ const HeaderVbusMetrics = ({
           </div>
         </div>
         <div className={styles.headerVbusDivider} aria-hidden="true" />
-        <div className={styles.headerVbusSecondaryGroup}>
+        <div className={`${styles.headerVbusSecondaryGroup} ${styles.headerVbusPowerGroup}`}>
           <div className={`${styles.headerVbusMetric} ${styles.headerVbusPower}`}>
             <span className={styles.headerVbusNumber}>
               <HeaderGhostValue text={powerText} />
             </span>
             <span className={styles.headerVbusUnit}>W</span>
           </div>
-          <div className={styles.headerVbusAccumulation}>
-            <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
-            <span
-              className={styles.headerVbusChargeIndicator}
-              data-active={isChargingIndicatorActive ? 'true' : 'false'}
-              aria-hidden="true"
-            />
-            <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
-          </div>
+          <ContextMenu label="Power/Charge Meter menu" items={powerChargeMeterMenuItems}>
+            {(props) => (
+              <div
+                {...props}
+                className={styles.headerVbusAccumulatorPanel}
+                aria-label="Power and charge meter"
+              >
+                <div className={styles.headerVbusAccumulatorValueRow} aria-label="Energy">
+                  <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
+                </div>
+                <div className={styles.headerVbusAccumulatorValueRow} aria-label="Power">
+                  <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
+                </div>
+                <div className={styles.headerVbusAccumulatorValueRow} aria-label="Time">
+                  <HeaderAccumulatorElapsedValue text={accumulationElapsedText} />
+                </div>
+              </div>
+            )}
+          </ContextMenu>
         </div>
       </div>
       <div className={styles.headerVbusStatusGrid}>

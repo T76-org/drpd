@@ -1077,19 +1077,35 @@ describe('RackView', () => {
     })
   })
 
-  it('omits the Power/Charge Meter timer display', async () => {
+  it('shows accumulator metrics in the header and keeps reset in the menu', async () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
     expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
     expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
+    const accumulatorPanel = screen.getByLabelText('Power and charge meter')
+    expect(within(accumulatorPanel).queryByText('ENERGY')).not.toBeInTheDocument()
+    expect(within(accumulatorPanel).queryByText('POWER')).not.toBeInTheDocument()
+    expect(within(accumulatorPanel).queryByText('TIME')).not.toBeInTheDocument()
+    expect(accumulatorPanel).toHaveTextContent('00:00:00')
+    expect(accumulatorPanel).toHaveTextContent('0.01Ah')
+    expect(accumulatorPanel).toHaveTextContent('0.03Wh')
+    expect(screen.getByLabelText('VBUS protection')).toBeInTheDocument()
+    expect(screen.getByLabelText('Profile and capture status')).toBeInTheDocument()
+    expect(screen.getByLabelText('Trigger status')).toBeInTheDocument()
+
+    fireEvent.contextMenu(accumulatorPanel)
+    const headerMenu = screen.getByRole('menu', { name: 'Power/Charge Meter menu' })
+    expect(within(headerMenu).getByRole('menuitem', { name: /Reset/ })).toBeEnabled()
+    expect(within(headerMenu).queryByRole('menuitem', { name: /Time since reset/ })).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
     await openApplicationSubmenu('Power/Charge Meter')
     const menu = screen.getByRole('menu', { name: 'Power/Charge Meter menu' })
 
     expect(within(menu).getByRole('menuitem', { name: /Reset/ })).toBeEnabled()
     expect(within(menu).queryByRole('menuitem', { name: /Time since reset/ })).not.toBeInTheDocument()
-    expect(document.querySelector('[title*="Time since accumulator reset"]')).not.toBeInTheDocument()
   })
 
   it('imports Message Log JSON from the Capture menu after destructive confirmation', async () => {
@@ -1290,6 +1306,7 @@ describe('RackView', () => {
     ).map((element) => element.textContent)
 
     expect(within(header).getByLabelText('VBUS metrics')).toBeInTheDocument()
+    expect(within(header).getByLabelText('Power and charge meter')).toBeInTheDocument()
     expect(within(header).getByText('OVP')).toBeInTheDocument()
     expect(within(header).getByText('OCP')).toBeInTheDocument()
     expect(within(header).getByText('CAPTURE')).toBeInTheDocument()

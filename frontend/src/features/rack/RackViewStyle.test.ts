@@ -37,13 +37,21 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toContain(
       'font-size: calc(var(--font-size-4xl) * 1.38 * var(--rack-header-scale));',
     )
-    expect(rackViewCss).toContain('font-size: calc(1.9rem * var(--rack-header-scale));')
     expect(rackViewCss).toContain(
       'font-size: calc(var(--font-size-sm) * 1.25 * var(--rack-header-scale));',
     )
     expect(rackViewCss).toContain('min-width: calc(102px * var(--rack-header-scale));')
     expect(rackViewCss).toMatch(
-      /\.headerVbusVoltage,\s*\.headerVbusCurrent\s*\{[^}]*font-size:\s*calc\(var\(--font-size-4xl\) \* 1\.38 \* var\(--rack-header-scale\)\);/s,
+      /\.headerVbusVoltage,\s*\.headerVbusCurrent,\s*\.headerVbusPower\s*\{[^}]*font-size:\s*calc\(var\(--font-size-4xl\) \* 1\.38 \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusAccumulatorValue\s*\{[^}]*grid-template-columns:\s*8ch 2\.6ch;[^}]*font-variant-numeric:\s*tabular-nums;/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusAccumulatorUnit\s*\{[^}]*min-width:\s*2\.6ch;/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusAccumulatorElapsedValue\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*right;[^}]*font-variant-numeric:\s*tabular-nums;/s,
     )
   })
 
@@ -65,6 +73,7 @@ describe('RackView responsive header CSS', () => {
 
   it('shows context-menu cursor over header context menu targets', () => {
     expect(rackViewCss).toMatch(/\.headerVbusProtection\s*\{[^}]*cursor:\s*context-menu;/s)
+    expect(rackViewCss).toMatch(/\.headerVbusAccumulatorPanel\s*\{[^}]*cursor:\s*context-menu;/s)
     expect(rackViewCss).toMatch(/\.menuBarDeviceStatusContextTarget\s*\{[^}]*cursor:\s*context-menu;/s)
   })
 })
