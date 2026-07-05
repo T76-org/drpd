@@ -3,7 +3,6 @@ import type { Device } from '../../lib/device'
 import type { DeviceIdentity } from '../../lib/device'
 import {
   CCBusRole,
-  CCBusRoleStatus,
   DRPDDevice,
   DRPDDeviceDefinition,
   OnOffState,
@@ -429,81 +428,6 @@ const formatHeaderMetricWithGhostZeros = (
   return {
     ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
     value: formattedValue,
-  }
-}
-
-const resolveHeaderCurrentFlow = (
-  role: CCBusRole | null,
-  current: number | null,
-): {
-  kind: 'flow'
-  from: string
-  to: string
-  direction: 'right' | 'left'
-  toPort: boolean
-  toBananaPort: boolean
-} | { kind: 'text'; text: string } => {
-  if (role !== CCBusRole.OBSERVER && role !== CCBusRole.SINK) {
-    return { kind: 'text', text: '—' }
-  }
-  if (role === CCBusRole.OBSERVER && current === 0) {
-    return { kind: 'text', text: 'IDLE' }
-  }
-  if (current == null || current === 0) {
-    return { kind: 'text', text: '—' }
-  }
-  if (role === CCBusRole.OBSERVER) {
-    return {
-      kind: 'flow',
-      from: '1',
-      to: '2',
-      direction: current > 0 ? 'right' : 'left',
-      toPort: true,
-      toBananaPort: false,
-    }
-  }
-  if (current < 0) {
-    return { kind: 'text', text: '—' }
-  }
-  return {
-    kind: 'flow',
-    from: '1',
-    to: 'B',
-    direction: 'right',
-    toPort: false,
-    toBananaPort: true,
-  }
-}
-
-const formatHeaderRoleLabel = (role: CCBusRole | null): string => {
-  if (!role) {
-    return '--'
-  }
-  switch (role) {
-    case CCBusRole.DISABLED:
-      return 'Disabled'
-    case CCBusRole.OBSERVER:
-      return 'Observer'
-    case CCBusRole.SINK:
-      return 'Sink'
-    default:
-      return '--'
-  }
-}
-
-const formatHeaderRoleStatusLabel = (status: CCBusRoleStatus | null): string => {
-  if (!status) {
-    return '--'
-  }
-  switch (status) {
-    case CCBusRoleStatus.UNATTACHED:
-      return 'Unattached'
-    case CCBusRoleStatus.SOURCE_FOUND:
-      return 'Source Found'
-    case CCBusRoleStatus.ATTACHED:
-      return 'Attached'
-    default:
-      return '--'
   }
 }
 
@@ -3551,9 +3475,6 @@ const HeaderVbusMetrics = ({
   const [role, setRole] = useState<CCBusRole | null>(
     driver ? driver.getState().role ?? null : null,
   )
-  const [roleStatus, setRoleStatus] = useState<CCBusRoleStatus | null>(
-    driver ? driver.getState().ccBusRoleStatus ?? null : null,
-  )
   const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
     driver ? driver.getState().vbusInfo ?? null : null,
   )
@@ -3580,7 +3501,6 @@ const HeaderVbusMetrics = ({
     const initialAnalogMonitor = initialState?.analogMonitor ?? null
     setAnalogMonitor(initialAnalogMonitor)
     setRole(initialState?.role ?? null)
-    setRoleStatus(initialState?.ccBusRoleStatus ?? null)
     setVbusInfo(initialState?.vbusInfo ?? null)
     setSinkInfo(initialState?.sinkInfo ?? null)
     setTriggerInfo(initialState?.triggerInfo ?? null)
@@ -3605,7 +3525,6 @@ const HeaderVbusMetrics = ({
         changed &&
         !changed.includes('analogMonitor') &&
         !changed.includes('role') &&
-        !changed.includes('ccBusRoleStatus') &&
         !changed.includes('vbusInfo') &&
         !changed.includes('sinkInfo') &&
         !changed.includes('triggerInfo') &&
@@ -3619,9 +3538,6 @@ const HeaderVbusMetrics = ({
       }
       if (!changed || changed.includes('role')) {
         setRole(state.role ?? null)
-      }
-      if (!changed || changed.includes('ccBusRoleStatus')) {
-        setRoleStatus(state.ccBusRoleStatus ?? null)
       }
       if (!changed || changed.includes('vbusInfo')) {
         setVbusInfo(state.vbusInfo ?? null)
@@ -3698,7 +3614,6 @@ const HeaderVbusMetrics = ({
   const voltageText = formatHeaderMetricWithGhostZeros(vbusVoltage, 5)
   const currentText = formatHeaderMetricWithGhostZeros(vbusCurrent, 4)
   const powerText = formatHeaderMetricWithGhostZeros(vbusPower, 6)
-  const currentFlow = resolveHeaderCurrentFlow(role, signedVbusCurrent)
   const accumulatedChargeAh =
     analogMonitor && Number.isFinite(analogMonitor.accumulatedChargeMah)
       ? analogMonitor.accumulatedChargeMah / 1000
@@ -3714,8 +3629,6 @@ const HeaderVbusMetrics = ({
   const ocpValueText = formatHeaderProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
   const isOvpTriggered = vbusInfo?.status === VBusStatus.OVP
   const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
-  const roleText = formatHeaderRoleLabel(role)
-  const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
   const activeSinkInfo = role === CCBusRole.SINK ? sinkInfo : null
   const captureStatusText = formatHeaderCaptureStatus(captureEnabled)
   const sinkContractText = formatHeaderSinkContract(activeSinkInfo)
@@ -3739,32 +3652,6 @@ const HeaderVbusMetrics = ({
               <HeaderGhostValue text={currentText} />
             </span>
             <span className={styles.headerVbusUnit}>A</span>
-          </div>
-          <div className={styles.headerVbusFlow}>
-            {currentFlow.kind === 'flow' ? (
-              <>
-                <span className={styles.headerVbusFlowEndpoint}>
-                  <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
-                  {currentFlow.from}
-                </span>
-                <span
-                  className={styles.headerVbusFlowTrack}
-                  data-direction={currentFlow.direction}
-                  aria-hidden="true"
-                />
-                <span className={styles.headerVbusFlowEndpoint}>
-                  {currentFlow.to}
-                  {currentFlow.toPort ? (
-                    <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
-                  ) : null}
-                  {currentFlow.toBananaPort ? (
-                    <span className={styles.headerVbusBananaPort} aria-hidden="true" />
-                  ) : null}
-                </span>
-              </>
-            ) : (
-              currentFlow.text
-            )}
           </div>
         </div>
         <div className={styles.headerVbusDivider} aria-hidden="true" />
@@ -3816,12 +3703,8 @@ const HeaderVbusMetrics = ({
             <div
               {...props}
               className={styles.headerVbusProtection}
-              aria-label="Mode status"
+              aria-label="Profile status"
             >
-              <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>MODE</span>
-                <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
-              </div>
               <div className={styles.headerVbusProtectionCell}>
                 <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
                 <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
@@ -3839,10 +3722,6 @@ const HeaderVbusMetrics = ({
               <div className={styles.headerVbusProtectionCell}>
                 <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
                 <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
-              </div>
-              <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
-                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
               </div>
             </div>
           )}

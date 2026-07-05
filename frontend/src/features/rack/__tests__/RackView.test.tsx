@@ -672,8 +672,7 @@ const mockUSB = (devices: USBDevice[]) => {
 }
 
 const expectHydratedDrpdPanels = async (): Promise<void> => {
-  expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
-  expect(await screen.findAllByText('Attached')).not.toHaveLength(0)
+  expect(await screen.findByText(/connected to dr\. pd/i)).toBeInTheDocument()
   expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
   expect(await screen.findAllByText('Armed')).not.toHaveLength(0)
 }
@@ -1293,19 +1292,19 @@ describe('RackView', () => {
     expect(within(header).getByLabelText('VBUS metrics')).toBeInTheDocument()
     expect(within(header).getByText('OVP')).toBeInTheDocument()
     expect(within(header).getByText('OCP')).toBeInTheDocument()
-    expect(within(header).getByText('MODE')).toBeInTheDocument()
-    expect(within(header).getByText('STATUS')).toBeInTheDocument()
     expect(within(header).getByText('CAPTURE')).toBeInTheDocument()
     expect(within(header).getByText('PROFILE')).toBeInTheDocument()
     expect(within(header).getByText('SYNC STATE')).toBeInTheDocument()
     expect(within(header).getByText('EVENT COUNT')).toBeInTheDocument()
+    expect(within(header).queryByText('MODE')).not.toBeInTheDocument()
+    expect(within(header).queryByText('STATUS')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mode' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
     expect(headerLabels).toEqual([
       'OVP',
       'OCP',
-      'MODE',
       'PROFILE',
       'CAPTURE',
-      'STATUS',
       'SYNC STATE',
       'EVENT COUNT',
     ])
@@ -1487,7 +1486,7 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Profile status'))
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
 
@@ -2683,7 +2682,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
     mockTransportState.sinkPpsStatusQueryEnabledResponse = ['ON']
 
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
@@ -2711,7 +2710,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
 
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
@@ -2726,7 +2725,7 @@ describe('RackView', () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
     expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).not.toBeDisabled()
@@ -2754,7 +2753,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Observer')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
     expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).not.toBeDisabled()
 
@@ -2781,7 +2780,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Disabled')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
     expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).toBeDisabled()
     const disabledModeItem = await screen.findByRole('menuitemcheckbox', { name: /Disabled/ })
@@ -2802,8 +2801,7 @@ describe('RackView', () => {
 
     await pairNewDeviceFromMenu()
     expect(requestDevice).toHaveBeenCalled()
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
-    expect(await screen.findAllByText('Attached')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
 
     dispatchDisconnect(usbDevice)
 
