@@ -123,6 +123,18 @@ const isSelectableItem = (item: MenuItem | NestedMenuItem | MenuLeafItem): item 
 const isSubmenuItem = (item: MenuItem | NestedMenuItem): item is MenuSubmenuItem | MenuNestedSubmenuItem =>
   item.type === 'submenu'
 
+const renderMenuMeta = (meta: ReactNode) => {
+  if (typeof meta !== 'string') {
+    return meta
+  }
+
+  return Array.from(meta).map((character, index) => (
+    <span className={styles.itemMetaKeycap} key={`${character}-${index}`}>
+      {character}
+    </span>
+  ))
+}
+
 const getNextEnabledIndex = (
   items: Array<MenuItem | NestedMenuItem>,
   currentIndex: number,
@@ -735,7 +747,7 @@ const MenuItemButton = ({
         </span>
         <span className={styles.itemLabel}>{item.label}</span>
         <span className={styles.itemMeta} aria-hidden={item.meta === undefined}>
-          {item.type === 'submenu' ? '›' : item.meta}
+          {item.type === 'submenu' ? '›' : renderMenuMeta(item.meta)}
         </span>
       </button>
       {item.type === 'submenu' && submenuOpen ? (
@@ -1045,7 +1057,7 @@ const NestedMenuButton = ({
         </span>
         <span className={styles.itemLabel}>{item.label}</span>
         <span className={styles.itemMeta} aria-hidden={item.meta === undefined}>
-          {item.type === 'submenu' ? '›' : item.meta}
+          {item.type === 'submenu' ? '›' : renderMenuMeta(item.meta)}
         </span>
       </button>
       {item.type === 'submenu' && submenuOpen ? (
@@ -1252,7 +1264,7 @@ const LeafMenuButton = ({
       </span>
       <span className={styles.itemLabel}>{item.label}</span>
       <span className={styles.itemMeta} aria-hidden={item.meta === undefined}>
-        {item.meta}
+        {renderMenuMeta(item.meta)}
       </span>
     </button>
   )
