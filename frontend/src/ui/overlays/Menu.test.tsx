@@ -96,6 +96,38 @@ describe('Menu', () => {
     expect(screen.queryByRole('menu', { name: 'Test menu' })).not.toBeInTheDocument()
   })
 
+  it('renders shortcut meta strings as keycaps without changing menuitem names', async () => {
+    const user = userEvent.setup()
+    renderMenu([
+      {
+        id: 'rename',
+        label: 'Rename',
+        meta: 'R',
+        onSelect: vi.fn(),
+      },
+      {
+        id: 'display',
+        type: 'submenu',
+        label: 'Display',
+        items: [
+          {
+            id: 'compact',
+            label: 'Compact',
+            onSelect: vi.fn(),
+          },
+        ],
+      },
+    ])
+
+    await user.click(screen.getByRole('button', { name: 'Open menu' }))
+
+    const renameItem = screen.getByRole('menuitem', { name: 'Rename R' })
+    expect(within(renameItem).getByText('R')).toHaveClass(/itemMetaKeycap/)
+    expect(within(screen.getByRole('menuitem', { name: 'Display' })).getByText('›')).not.toHaveClass(
+      /itemMetaKeycap/,
+    )
+  })
+
   it('supports one nested submenu level with keyboard navigation', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
