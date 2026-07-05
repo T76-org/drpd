@@ -53,7 +53,7 @@
 .menuBarDeviceStatusContextTarget {
   display: flex;
   align-items: center;
-  cursor: pointer;
+  cursor: context-menu;
   height: var(--menu-bar-height);
 }
 

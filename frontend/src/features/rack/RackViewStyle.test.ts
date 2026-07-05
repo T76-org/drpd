@@ -66,5 +66,6 @@ describe('RackView responsive header CSS', () => {
 
   it('shows context-menu cursor over header context menu targets', () => {
     expect(rackViewCss).toMatch(/\.headerVbusProtection\s*\{[^}]*cursor:\s*context-menu;/s)
+    expect(rackViewCss).toMatch(/\.menuBarDeviceStatusContextTarget\s*\{[^}]*cursor:\s*context-menu;/s)
   })
 })
