@@ -1301,10 +1301,17 @@ describe('RackView', () => {
     render(<RackView />)
 
     const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
     const headerLabels = Array.from(
       header.querySelectorAll('[class*="headerVbusProtectionLabel"]'),
     ).map((element) => element.textContent)
 
+    expect(frontPanel).toHaveAccessibleName('Front panel ports')
+    expect(frontPanel).toHaveAttribute('data-disabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-connected', 'false')
+    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(header.querySelectorAll('[data-port="1"], [data-port="2"]')).toHaveLength(2)
+    expect(header.querySelectorAll('[data-polarity="positive"], [data-polarity="negative"]')).toHaveLength(2)
     expect(within(header).getByLabelText('VBUS metrics')).toBeInTheDocument()
     expect(within(header).getByLabelText('Power and charge meter')).toBeInTheDocument()
     expect(within(header).getByText('OVP')).toBeInTheDocument()
@@ -1335,6 +1342,10 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => expect(frontPanel).toHaveAttribute('data-disabled', 'false'))
+    expect(frontPanel).toHaveAttribute('data-connected', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'idle')
     fireEvent.contextMenu(within(header).getByLabelText('VBUS protection'))
 
     const menu = screen.getByRole('menu', { name: 'Protection menu' })
