@@ -259,7 +259,7 @@
 
 .headerVbusStatusGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(max-content, 1fr));
+  grid-template-columns: repeat(4, minmax(max-content, 1fr));
   align-items: center;
   column-gap: calc(var(--space-16) * var(--rack-header-scale));
   row-gap: calc(var(--space-6) * var(--rack-header-scale));
