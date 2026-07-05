@@ -323,6 +323,7 @@
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  cursor: context-menu;
 }
 
 .headerVbusStatusGrid {
