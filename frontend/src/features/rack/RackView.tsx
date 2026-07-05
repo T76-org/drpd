@@ -147,6 +147,7 @@ const WINUSB_INTERFACE_PROTOCOL = 0x02
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
 const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
+const HEADER_CURRENT_FLOW_IDLE_THRESHOLD_A = 0.01
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
@@ -445,6 +446,7 @@ const HeaderFrontPanelVisual = ({
   port2Disabled,
   usbPortsEnabled,
   flow,
+  flowDirection,
   role,
   roleStatus,
 }: {
@@ -455,6 +457,7 @@ const HeaderFrontPanelVisual = ({
   port2Disabled: boolean
   usbPortsEnabled: boolean
   flow: 'off' | 'idle' | 'sink' | 'monitor'
+  flowDirection: 'idle' | 'port-1-to-port-2' | 'port-2-to-port-1' | 'port-1-to-vbus' | 'vbus-to-port-1'
   role: CCBusRole | null
   roleStatus: CCBusRoleStatus | null
 }) => (
@@ -468,6 +471,7 @@ const HeaderFrontPanelVisual = ({
     data-role={role ?? 'UNKNOWN'}
     data-role-status={roleStatus ?? 'UNKNOWN'}
     data-flow={flow}
+    data-flow-direction={flowDirection}
   >
     <div className={styles.headerFrontPanelDeviceRow} aria-hidden="true">
       <div className={styles.headerFrontPanelDevice} data-device="usb-c-1">
@@ -3808,7 +3812,23 @@ const HeaderVbusMetrics = ({
     )
   const isFrontPanelPort1Disabled = !driver || role === CCBusRole.DISABLED
   const isFrontPanelPort2Disabled = isFrontPanelPort1Disabled || isSinkMode
-  const frontPanelFlow = isFrontPanelDisabled ? 'off' : isSinkAttached ? 'sink' : 'idle'
+  const frontPanelFlow = aggregateObserverConnected
+    ? 'monitor'
+    : isFrontPanelDisabled
+      ? 'off'
+      : isSinkAttached
+        ? 'sink'
+        : 'idle'
+  const frontPanelFlowDirection =
+    frontPanelFlow === 'monitor' && signedVbusCurrent != null && Math.abs(signedVbusCurrent) > HEADER_CURRENT_FLOW_IDLE_THRESHOLD_A
+      ? signedVbusCurrent > 0
+        ? 'port-1-to-port-2'
+        : 'port-2-to-port-1'
+      : frontPanelFlow === 'sink' && signedVbusCurrent != null && Math.abs(signedVbusCurrent) > HEADER_CURRENT_FLOW_IDLE_THRESHOLD_A
+        ? signedVbusCurrent > 0
+          ? 'port-1-to-vbus'
+          : 'vbus-to-port-1'
+        : 'idle'
   const profileCaptureMenuItems = useMemo<MenuItem[]>(
     () => [
       ...captureMenuItems,
@@ -3831,6 +3851,7 @@ const HeaderVbusMetrics = ({
         port2Disabled={isFrontPanelPort2Disabled}
         usbPortsEnabled={areFrontPanelUsbPortsEnabled}
         flow={frontPanelFlow}
+        flowDirection={frontPanelFlowDirection}
         role={role}
         roleStatus={roleStatus}
       />
