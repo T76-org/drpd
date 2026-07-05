@@ -39,13 +39,12 @@ describe('RackView responsive header CSS', () => {
     )
     expect(rackViewCss).toContain('font-size: calc(1.9rem * var(--rack-header-scale));')
     expect(rackViewCss).toContain(
-      'font-size: calc(var(--font-size-xs) * 1.15 * var(--rack-header-scale));',
-    )
-    expect(rackViewCss).toContain(
       'font-size: calc(var(--font-size-sm) * 1.25 * var(--rack-header-scale));',
     )
     expect(rackViewCss).toContain('min-width: calc(102px * var(--rack-header-scale));')
-    expect(rackViewCss).toContain('width: calc(27.6px * var(--rack-header-scale));')
+    expect(rackViewCss).toMatch(
+      /\.headerVbusVoltage,\s*\.headerVbusCurrent\s*\{[^}]*font-size:\s*calc\(var\(--font-size-4xl\) \* 1\.38 \* var\(--rack-header-scale\)\);/s,
+    )
   })
 
   it('wraps secondary status groups without scaled fixed ch tracks', () => {

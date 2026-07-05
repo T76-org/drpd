@@ -170,7 +170,8 @@
   white-space: nowrap;
 }
 
-.headerVbusVoltage {
+.headerVbusVoltage,
+.headerVbusCurrent {
   font-size: calc(var(--font-size-4xl) * 1.38 * var(--rack-header-scale));
 }
 
@@ -194,7 +195,6 @@
   gap: var(--space-0);
 }
 
-.headerVbusCurrent,
 .headerVbusPower {
   font-size: calc(1.9rem * var(--rack-header-scale));
   line-height: var(--line-height-tight);
@@ -202,6 +202,7 @@
 
 .headerVbusCurrent {
   color: var(--color-metric-current);
+  line-height: var(--line-height-snug);
 }
 
 .headerVbusPower {
@@ -226,76 +227,6 @@
 
 .headerVbusGhostZeros {
   opacity: 0.2;
-}
-
-.headerVbusFlow {
-  color: var(--color-text-muted);
-  font-size: calc(var(--font-size-xs) * 1.15 * var(--rack-header-scale));
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--space-2) * var(--rack-header-scale));
-  min-height: calc(var(--font-size-xs) * var(--rack-header-scale));
-  align-self: center;
-}
-
-.headerVbusFlowEndpoint {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(2px * var(--rack-header-scale));
-}
-
-.headerVbusUsbCPort {
-  width: calc(9.2px * var(--rack-header-scale));
-  height: calc(4.6px * var(--rack-header-scale));
-  border: var(--border-thin) solid currentColor;
-  border-radius: 999px;
-  opacity: 0.9;
-}
-
-.headerVbusBananaPort {
-  position: relative;
-  display: inline-block;
-  width: calc(7px * var(--rack-header-scale));
-  height: calc(7px * var(--rack-header-scale));
-  border: var(--border-thin) solid currentColor;
-  border-radius: 50%;
-  opacity: 0.9;
-}
-
-.headerVbusBananaPort::after {
-  content: '';
-  position: absolute;
-  inset: calc(1px * var(--rack-header-scale));
-  border: var(--border-thin) solid currentColor;
-  border-radius: 50%;
-}
-
-.headerVbusFlowTrack {
-  --flow-dot-size: calc(1.15px * var(--rack-header-scale));
-  --flow-dot-gap: calc(6.9px * var(--rack-header-scale));
-
-  display: inline-block;
-  width: calc(27.6px * var(--rack-header-scale));
-  height: calc(5.75px * var(--rack-header-scale));
-  border-radius: 999px;
-  background-image: radial-gradient(
-    circle,
-    currentColor var(--flow-dot-size),
-    transparent calc(var(--flow-dot-size) + 0.5px)
-  );
-  background-size: var(--flow-dot-gap) 100%;
-  background-repeat: repeat-x;
-  opacity: 0.85;
-  animation: headerVbusFlowRight 0.75s linear infinite;
-}
-
-.headerVbusFlowTrack[data-direction='left'] {
-  animation-name: headerVbusFlowLeft;
 }
 
 .headerVbusAccumulation {
@@ -452,26 +383,6 @@
 
 .headerVbusAccumulatorUnit {
   text-align: left;
-}
-
-@keyframes headerVbusFlowRight {
-  from {
-    background-position-x: 0;
-  }
-
-  to {
-    background-position-x: var(--flow-dot-gap);
-  }
-}
-
-@keyframes headerVbusFlowLeft {
-  from {
-    background-position-x: 0;
-  }
-
-  to {
-    background-position-x: calc(var(--flow-dot-gap) * -1);
-  }
 }
 
 @property --header-vbus-charge-angle {
