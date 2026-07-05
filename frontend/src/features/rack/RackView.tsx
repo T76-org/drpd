@@ -441,6 +441,8 @@ const HeaderFrontPanelVisual = ({
   disabled,
   port1Connected,
   port2Connected,
+  port1Disabled,
+  port2Disabled,
   usbPortsEnabled,
   flow,
   role,
@@ -449,6 +451,8 @@ const HeaderFrontPanelVisual = ({
   disabled: boolean
   port1Connected: boolean
   port2Connected: boolean
+  port1Disabled: boolean
+  port2Disabled: boolean
   usbPortsEnabled: boolean
   flow: 'off' | 'idle' | 'sink' | 'monitor'
   role: CCBusRole | null
@@ -472,6 +476,7 @@ const HeaderFrontPanelVisual = ({
           className={styles.headerUsbCPort}
           data-port="1"
           data-connected={port1Connected ? 'true' : 'false'}
+          data-disabled={port1Disabled ? 'true' : 'false'}
         >
           <span className={styles.headerUsbCSlot} />
         </span>
@@ -482,6 +487,7 @@ const HeaderFrontPanelVisual = ({
           className={styles.headerUsbCPort}
           data-port="2"
           data-connected={port2Connected ? 'true' : 'false'}
+          data-disabled={port2Disabled ? 'true' : 'false'}
         >
           <span className={styles.headerUsbCSlot} />
         </span>
@@ -500,10 +506,26 @@ const HeaderFrontPanelVisual = ({
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <path className={styles.headerFrontPanelFlowPath} d="M18 13 H112" />
-      <path className={styles.headerFrontPanelFlowPath} d="M18 13 C18 8 18 5 18 1" />
-      <path className={styles.headerFrontPanelFlowPath} d="M56 13 C56 8 60 5 60 1" />
-      <path className={styles.headerFrontPanelFlowPath} d="M101 13 C101 8 99 5 99 1" />
+      <path
+        className={styles.headerFrontPanelFlowPath}
+        data-flow-segment="bus"
+        d="M18 13 H112"
+      />
+      <path
+        className={styles.headerFrontPanelFlowPath}
+        data-flow-segment="port-1"
+        d="M18 13 C18 8 18 5 18 1"
+      />
+      <path
+        className={styles.headerFrontPanelFlowPath}
+        data-flow-segment="port-2"
+        d="M56 13 C56 8 60 5 60 1"
+      />
+      <path
+        className={styles.headerFrontPanelFlowPath}
+        data-flow-segment="vbus"
+        d="M101 13 C101 8 99 5 99 1"
+      />
     </svg>
   </div>
 )
@@ -3771,14 +3793,22 @@ const HeaderVbusMetrics = ({
   const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
   const isTriggerStateTriggered = triggerInfo?.status === TriggerStatus.TRIGGERED
   const isObserverMode = role === CCBusRole.OBSERVER
+  const isSinkMode = role === CCBusRole.SINK
+  const isSinkAttached = isSinkMode && roleStatus === CCBusRoleStatus.ATTACHED
   const isFrontPanelDisabled = !driver || role === CCBusRole.DISABLED || isObserverMode
   const areFrontPanelUsbPortsEnabled = Boolean(driver) && role !== CCBusRole.DISABLED
   const aggregateObserverConnected = isObserverMode && roleStatus === CCBusRoleStatus.ATTACHED
-  const isFrontPanelConnected =
+  const isFrontPanelPort1Connected =
     Boolean(driver) && (
-      isObserverMode ? aggregateObserverConnected : role !== CCBusRole.DISABLED
+      isObserverMode ? aggregateObserverConnected : isSinkMode ? isSinkAttached : role !== CCBusRole.DISABLED
     )
-  const frontPanelFlow = isFrontPanelDisabled ? 'off' : 'idle'
+  const isFrontPanelPort2Connected =
+    Boolean(driver) && (
+      isObserverMode ? aggregateObserverConnected : role !== CCBusRole.DISABLED && !isSinkMode
+    )
+  const isFrontPanelPort1Disabled = !driver || role === CCBusRole.DISABLED
+  const isFrontPanelPort2Disabled = isFrontPanelPort1Disabled || isSinkMode
+  const frontPanelFlow = isFrontPanelDisabled ? 'off' : isSinkAttached ? 'sink' : 'idle'
   const profileCaptureMenuItems = useMemo<MenuItem[]>(
     () => [
       ...captureMenuItems,
@@ -3795,8 +3825,10 @@ const HeaderVbusMetrics = ({
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
       <HeaderFrontPanelVisual
         disabled={isFrontPanelDisabled}
-        port1Connected={isFrontPanelConnected}
-        port2Connected={isFrontPanelConnected}
+        port1Connected={isFrontPanelPort1Connected}
+        port2Connected={isFrontPanelPort2Connected}
+        port1Disabled={isFrontPanelPort1Disabled}
+        port2Disabled={isFrontPanelPort2Disabled}
         usbPortsEnabled={areFrontPanelUsbPortsEnabled}
         flow={frontPanelFlow}
         role={role}
