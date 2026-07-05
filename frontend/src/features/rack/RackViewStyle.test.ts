@@ -71,6 +71,18 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.headerVbusStatusGrid\s*\{[^}]*flex:\s*1 1 420px;/s)
   })
 
+  it('keeps the front-panel visual compact while states change through data hooks', () => {
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*--header-front-panel-width:\s*calc\(126px \* var\(--rack-header-scale\)\);/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*flex:\s*0 0 var\(--header-front-panel-width\);/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*height:\s*var\(--header-front-panel-height\);/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-disabled='true'\]\s*\{/s)
+    expect(rackViewCss).toMatch(/\.headerUsbCPort\[data-connected='true'\]\s*\{/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanelFlowRail\s*\{[^}]*height:\s*calc\(16px \* var\(--rack-header-scale\)\);/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanelFlowPath\s*\{[^}]*stroke-dasharray:\s*1 7;/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow='sink'\]\s+\.headerFrontPanelFlowPath/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow='monitor'\]\s+\.headerFrontPanelFlowPath/s)
+  })
+
   it('shows context-menu cursor over header context menu targets', () => {
     expect(rackViewCss).toMatch(/\.headerVbusProtection\s*\{[^}]*cursor:\s*context-menu;/s)
     expect(rackViewCss).toMatch(/\.headerVbusAccumulatorPanel\s*\{[^}]*cursor:\s*context-menu;/s)

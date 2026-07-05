@@ -436,6 +436,66 @@ const HeaderProtectionValue = ({
   </span>
 )
 
+const HeaderFrontPanelVisual = ({
+  disabled,
+  connected,
+  flow,
+}: {
+  disabled: boolean
+  connected: boolean
+  flow: 'off' | 'idle' | 'sink' | 'monitor'
+}) => (
+  <div
+    className={styles.headerFrontPanel}
+    aria-label="Front panel ports"
+    data-testid="header-front-panel"
+    data-disabled={disabled ? 'true' : 'false'}
+    data-connected={connected ? 'true' : 'false'}
+    data-flow={flow}
+  >
+    <div className={styles.headerFrontPanelDeviceRow} aria-hidden="true">
+      <div className={styles.headerFrontPanelDevice} data-device="usb-c-1">
+        <span className={styles.headerFrontPanelLabel}>1</span>
+        <span
+          className={styles.headerUsbCPort}
+          data-port="1"
+          data-connected={connected ? 'true' : 'false'}
+        >
+          <span className={styles.headerUsbCSlot} />
+        </span>
+      </div>
+      <div className={styles.headerFrontPanelDevice} data-device="usb-c-2">
+        <span className={styles.headerFrontPanelLabel}>2</span>
+        <span
+          className={styles.headerUsbCPort}
+          data-port="2"
+          data-connected={connected ? 'true' : 'false'}
+        >
+          <span className={styles.headerUsbCSlot} />
+        </span>
+      </div>
+      <div className={styles.headerFrontPanelDevice} data-device="vbus">
+        <span className={styles.headerFrontPanelLabel}>VBUS</span>
+        <span className={styles.headerBananaJackPair}>
+          <span className={styles.headerBananaJack} data-polarity="positive" />
+          <span className={styles.headerBananaJack} data-polarity="negative" />
+        </span>
+      </div>
+    </div>
+    <svg
+      className={styles.headerFrontPanelFlowRail}
+      viewBox="0 0 126 16"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <path className={styles.headerFrontPanelFlowPath} d="M18 13 H112" />
+      <path className={styles.headerFrontPanelFlowPath} d="M18 13 C18 8 18 5 18 1" />
+      <path className={styles.headerFrontPanelFlowPath} d="M56 13 C56 8 60 5 60 1" />
+      <path className={styles.headerFrontPanelFlowPath} d="M101 13 C101 8 99 5 99 1" />
+    </svg>
+  </div>
+)
+
 const formatHeaderMetricWithGhostZeros = (
   value: number | null | undefined,
   width: number,
@@ -3664,6 +3724,9 @@ const HeaderVbusMetrics = ({
   const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
   const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
   const isTriggerStateTriggered = triggerInfo?.status === TriggerStatus.TRIGGERED
+  const isFrontPanelDisabled = !driver || role === CCBusRole.DISABLED
+  const isFrontPanelConnected = Boolean(driver) && !isFrontPanelDisabled
+  const frontPanelFlow = isFrontPanelDisabled ? 'off' : 'idle'
   const profileCaptureMenuItems = useMemo<MenuItem[]>(
     () => [
       ...captureMenuItems,
@@ -3678,6 +3741,11 @@ const HeaderVbusMetrics = ({
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
+      <HeaderFrontPanelVisual
+        disabled={isFrontPanelDisabled}
+        connected={isFrontPanelConnected}
+        flow={frontPanelFlow}
+      />
       <div className={styles.headerVbusPrimaryMetrics}>
         <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>
           <span className={styles.headerVbusNumber}>

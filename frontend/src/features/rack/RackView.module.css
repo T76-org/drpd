@@ -154,6 +154,120 @@
   min-width: 0;
 }
 
+.headerFrontPanel {
+  --header-front-panel-width: calc(126px * var(--rack-header-scale));
+  --header-front-panel-height: calc(48px * var(--rack-header-scale));
+
+  flex: 0 0 var(--header-front-panel-width);
+  width: var(--header-front-panel-width);
+  height: var(--header-front-panel-height);
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) calc(16px * var(--rack-header-scale));
+  align-items: end;
+  padding: var(--space-0);
+}
+
+.headerFrontPanel[data-disabled='true'] {
+  opacity: 0.55;
+}
+
+.headerFrontPanelDeviceRow {
+  display: grid;
+  grid-template-columns: calc(30px * var(--rack-header-scale)) calc(30px * var(--rack-header-scale)) calc(42px * var(--rack-header-scale));
+  justify-content: center;
+  column-gap: calc(8px * var(--rack-header-scale));
+  min-width: 0;
+}
+
+.headerFrontPanelDevice {
+  display: grid;
+  grid-template-rows: calc(14px * var(--rack-header-scale)) calc(14px * var(--rack-header-scale));
+  justify-items: center;
+  align-items: end;
+  min-width: 0;
+}
+
+.headerFrontPanelLabel {
+  color: var(--color-text-muted);
+  font-size: calc(var(--font-size-2xs) * 0.9 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.headerUsbCPort {
+  width: calc(26px * var(--rack-header-scale));
+  height: calc(12px * var(--rack-header-scale));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-text-muted) 68%, transparent);
+  border-radius: calc(5px * var(--rack-header-scale));
+  background: transparent;
+}
+
+.headerUsbCPort[data-connected='true'] {
+  border-color: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
+  box-shadow: inset 0 0 0 var(--border-thin) color-mix(in srgb, var(--color-status-success) 32%, transparent);
+}
+
+.headerUsbCSlot {
+  width: calc(15px * var(--rack-header-scale));
+  height: calc(3px * var(--rack-header-scale));
+  border-radius: calc(4px * var(--rack-header-scale));
+  background: color-mix(in srgb, var(--color-text-primary) 42%, transparent);
+}
+
+.headerBananaJackPair {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--rack-header-scale));
+}
+
+.headerBananaJack {
+  width: calc(12px * var(--rack-header-scale));
+  height: calc(12px * var(--rack-header-scale));
+  box-sizing: border-box;
+  border: calc(2px * var(--rack-header-scale)) solid var(--color-border-divider);
+  border-radius: 50%;
+  background: var(--color-surface-header);
+}
+
+.headerBananaJack[data-polarity='positive'] {
+  border-color: color-mix(in srgb, var(--color-status-error) 76%, var(--color-border-divider));
+}
+
+.headerBananaJack[data-polarity='negative'] {
+  border-color: color-mix(in srgb, var(--color-text-muted) 82%, var(--color-border-divider));
+}
+
+.headerFrontPanelFlowRail {
+  justify-self: center;
+  width: calc(118px * var(--rack-header-scale));
+  height: calc(16px * var(--rack-header-scale));
+  overflow: visible;
+}
+
+.headerFrontPanelFlowPath {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-border-divider) 84%, transparent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1 7;
+  vector-effect: non-scaling-stroke;
+}
+
+.headerFrontPanel[data-flow='sink'] .headerFrontPanelFlowPath,
+.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath {
+  stroke: color-mix(in srgb, var(--color-status-success) 70%, var(--color-border-divider));
+}
+
+.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath {
+  stroke: color-mix(in srgb, var(--color-metric-voltage) 66%, var(--color-border-divider));
+}
+
 .headerVbusPrimaryMetrics {
   display: flex;
   align-items: center;
