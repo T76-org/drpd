@@ -3635,6 +3635,17 @@ const HeaderVbusMetrics = ({
   const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
   const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
   const isTriggerStateTriggered = triggerInfo?.status === TriggerStatus.TRIGGERED
+  const profileCaptureMenuItems = useMemo<MenuItem[]>(
+    () => [
+      ...captureMenuItems,
+      {
+        id: 'profile-capture-separator',
+        type: 'separator',
+      },
+      ...modeMenuItems,
+    ],
+    [captureMenuItems, modeMenuItems],
+  )
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
@@ -3698,30 +3709,20 @@ const HeaderVbusMetrics = ({
             </div>
           )}
         </ContextMenu>
-        <ContextMenu label="Mode menu" items={modeMenuItems}>
+        <ContextMenu label="Profile and capture menu" items={profileCaptureMenuItems}>
           {(props) => (
             <div
               {...props}
               className={styles.headerVbusProtection}
-              aria-label="Profile status"
-            >
-              <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
-                <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
-              </div>
-            </div>
-          )}
-        </ContextMenu>
-        <ContextMenu label="Capture menu" items={captureMenuItems}>
-          {(props) => (
-            <div
-              {...props}
-              className={styles.headerVbusProtection}
-              aria-label="Capture status"
+              aria-label="Profile and capture status"
             >
               <div className={styles.headerVbusProtectionCell}>
                 <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
                 <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
               </div>
             </div>
           )}

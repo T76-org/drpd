@@ -1303,8 +1303,8 @@ describe('RackView', () => {
     expect(headerLabels).toEqual([
       'OVP',
       'OCP',
-      'PROFILE',
       'CAPTURE',
+      'PROFILE',
       'SYNC STATE',
       'EVENT COUNT',
     ])
@@ -1421,12 +1421,11 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Profile and capture status'))
 
-    const menu = screen.getByRole('menu', { name: 'Capture menu' })
+    const menu = screen.getByRole('menu', { name: 'Profile and capture menu' })
     const disableCapture = within(menu).getByRole('menuitem', { name: /Disable Capture/ })
 
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
     expect(disableCapture).toBeEnabled()
 
     await userEvent.click(disableCapture)
@@ -1435,7 +1434,7 @@ describe('RackView', () => {
       expect(mockTransportState.sentCommands).toContain('BUS:CC:CAP:EN OFF')
     })
     await waitFor(() => {
-      expect(screen.queryByRole('menu', { name: 'Capture menu' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('menu', { name: 'Profile and capture menu' })).not.toBeInTheDocument()
     })
   })
 
@@ -1448,12 +1447,11 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Profile and capture status'))
 
-    const menu = screen.getByRole('menu', { name: 'Capture menu' })
+    const menu = screen.getByRole('menu', { name: 'Profile and capture menu' })
     const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
 
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
     expect(enableCapture).toBeEnabled()
 
     await userEvent.click(enableCapture)
@@ -1469,16 +1467,15 @@ describe('RackView', () => {
     render(<RackView />)
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Profile and capture status'))
 
-    const menu = screen.getByRole('menu', { name: 'Capture menu' })
+    const menu = screen.getByRole('menu', { name: 'Profile and capture menu' })
     const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
 
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
     expect(enableCapture).toBeDisabled()
   })
 
-  it('opens the mode context menu from the top header', async () => {
+  it('opens the profile and capture context menu from the top header', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -1486,9 +1483,9 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Profile status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Profile and capture status'))
 
-    const menu = screen.getByRole('menu', { name: 'Mode menu' })
+    const menu = screen.getByRole('menu', { name: 'Profile and capture menu' })
 
     expect(within(menu).queryByRole('menuitem', { name: 'Set mode' })).not.toBeInTheDocument()
     expect(within(menu).getByRole('menuitemcheckbox', { name: /Disabled/ })).toBeInTheDocument()
@@ -1506,6 +1503,7 @@ describe('RackView', () => {
         name: /Cycle USB Connection/,
       }),
     ).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /Disable Capture/ })).toBeInTheDocument()
   })
 
   it('opens the mode menu from the menu bar and follows sink-mode rules', async () => {
