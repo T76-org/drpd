@@ -1306,9 +1306,12 @@ describe('RackView', () => {
       header.querySelectorAll('[class*="headerVbusProtectionLabel"]'),
     ).map((element) => element.textContent)
 
-    expect(frontPanel).toHaveAccessibleName('Front panel ports')
+    expect(frontPanel).toHaveAccessibleName(/Front panel ports/)
     expect(frontPanel).toHaveAttribute('data-disabled', 'true')
     expect(frontPanel).toHaveAttribute('data-connected', 'false')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'false')
+    expect(frontPanel).toHaveAttribute('data-role', 'UNKNOWN')
+    expect(frontPanel).toHaveAttribute('data-role-status', 'UNKNOWN')
     expect(frontPanel).toHaveAttribute('data-flow', 'off')
     expect(header.querySelectorAll('[data-port="1"], [data-port="2"]')).toHaveLength(2)
     expect(header.querySelectorAll('[data-polarity="positive"], [data-polarity="negative"]')).toHaveLength(2)
@@ -1332,6 +1335,60 @@ describe('RackView', () => {
       'SYNC STATE',
       'EVENT COUNT',
     ])
+  })
+
+  it.each([
+    ['UNATTACHED', 'Unattached'],
+    ['SOURCE_FOUND', 'Source Found'],
+  ])('renders observer front-panel ports as unconnected for %s aggregate status', async (
+    status,
+    statusLabel,
+  ) => {
+    mockTransportState.roleResponse = ['OBSERVER']
+    mockTransportState.roleStatusResponse = [status]
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'OBSERVER')
+      expect(frontPanel).toHaveAttribute('data-role-status', status)
+    })
+
+    expect(frontPanel).toHaveAccessibleName(`Front panel ports: Observer, ${statusLabel}`)
+    expect(frontPanel).toHaveAttribute('data-disabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-connected', 'false')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
+  })
+
+  it('renders observer front-panel ports as connected from aggregate attached status', async () => {
+    mockTransportState.roleResponse = ['OBSERVER']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'OBSERVER')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAccessibleName('Front panel ports: Observer, Attached')
+    expect(frontPanel).toHaveAttribute('data-disabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-connected', 'true')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'true')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'true')
   })
 
   it('opens the protection context menu from the top header and follows menu rules', async () => {

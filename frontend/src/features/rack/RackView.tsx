@@ -3,6 +3,7 @@ import type { Device } from '../../lib/device'
 import type { DeviceIdentity } from '../../lib/device'
 import {
   CCBusRole,
+  CCBusRoleStatus,
   DRPDDevice,
   DRPDDeviceDefinition,
   OnOffState,
@@ -438,19 +439,30 @@ const HeaderProtectionValue = ({
 
 const HeaderFrontPanelVisual = ({
   disabled,
-  connected,
+  port1Connected,
+  port2Connected,
+  usbPortsEnabled,
   flow,
+  role,
+  roleStatus,
 }: {
   disabled: boolean
-  connected: boolean
+  port1Connected: boolean
+  port2Connected: boolean
+  usbPortsEnabled: boolean
   flow: 'off' | 'idle' | 'sink' | 'monitor'
+  role: CCBusRole | null
+  roleStatus: CCBusRoleStatus | null
 }) => (
   <div
     className={styles.headerFrontPanel}
-    aria-label="Front panel ports"
+    aria-label={`Front panel ports: ${formatHeaderRoleLabel(role)}, ${formatHeaderRoleStatusLabel(roleStatus)}`}
     data-testid="header-front-panel"
     data-disabled={disabled ? 'true' : 'false'}
-    data-connected={connected ? 'true' : 'false'}
+    data-connected={port1Connected || port2Connected ? 'true' : 'false'}
+    data-usb-ports-enabled={usbPortsEnabled ? 'true' : 'false'}
+    data-role={role ?? 'UNKNOWN'}
+    data-role-status={roleStatus ?? 'UNKNOWN'}
     data-flow={flow}
   >
     <div className={styles.headerFrontPanelDeviceRow} aria-hidden="true">
@@ -459,7 +471,7 @@ const HeaderFrontPanelVisual = ({
         <span
           className={styles.headerUsbCPort}
           data-port="1"
-          data-connected={connected ? 'true' : 'false'}
+          data-connected={port1Connected ? 'true' : 'false'}
         >
           <span className={styles.headerUsbCSlot} />
         </span>
@@ -469,7 +481,7 @@ const HeaderFrontPanelVisual = ({
         <span
           className={styles.headerUsbCPort}
           data-port="2"
-          data-connected={connected ? 'true' : 'false'}
+          data-connected={port2Connected ? 'true' : 'false'}
         >
           <span className={styles.headerUsbCSlot} />
         </span>
@@ -495,6 +507,32 @@ const HeaderFrontPanelVisual = ({
     </svg>
   </div>
 )
+
+const formatHeaderRoleLabel = (role: CCBusRole | null): string => {
+  switch (role) {
+    case CCBusRole.DISABLED:
+      return 'Disabled'
+    case CCBusRole.OBSERVER:
+      return 'Observer'
+    case CCBusRole.SINK:
+      return 'Sink'
+    default:
+      return '--'
+  }
+}
+
+const formatHeaderRoleStatusLabel = (status: CCBusRoleStatus | null): string => {
+  switch (status) {
+    case CCBusRoleStatus.UNATTACHED:
+      return 'Unattached'
+    case CCBusRoleStatus.SOURCE_FOUND:
+      return 'Source Found'
+    case CCBusRoleStatus.ATTACHED:
+      return 'Attached'
+    default:
+      return '--'
+  }
+}
 
 const formatHeaderMetricWithGhostZeros = (
   value: number | null | undefined,
@@ -3562,6 +3600,9 @@ const HeaderVbusMetrics = ({
   const [role, setRole] = useState<CCBusRole | null>(
     driver ? driver.getState().role ?? null : null,
   )
+  const [roleStatus, setRoleStatus] = useState<CCBusRoleStatus | null>(
+    driver ? driver.getState().ccBusRoleStatus ?? null : null,
+  )
   const [vbusInfo, setVbusInfo] = useState<VBusInfo | null>(
     driver ? driver.getState().vbusInfo ?? null : null,
   )
@@ -3588,6 +3629,7 @@ const HeaderVbusMetrics = ({
     const initialAnalogMonitor = initialState?.analogMonitor ?? null
     setAnalogMonitor(initialAnalogMonitor)
     setRole(initialState?.role ?? null)
+    setRoleStatus(initialState?.ccBusRoleStatus ?? null)
     setVbusInfo(initialState?.vbusInfo ?? null)
     setSinkInfo(initialState?.sinkInfo ?? null)
     setTriggerInfo(initialState?.triggerInfo ?? null)
@@ -3612,6 +3654,7 @@ const HeaderVbusMetrics = ({
         changed &&
         !changed.includes('analogMonitor') &&
         !changed.includes('role') &&
+        !changed.includes('ccBusRoleStatus') &&
         !changed.includes('vbusInfo') &&
         !changed.includes('sinkInfo') &&
         !changed.includes('triggerInfo') &&
@@ -3625,6 +3668,9 @@ const HeaderVbusMetrics = ({
       }
       if (!changed || changed.includes('role')) {
         setRole(state.role ?? null)
+      }
+      if (!changed || changed.includes('ccBusRoleStatus')) {
+        setRoleStatus(state.ccBusRoleStatus ?? null)
       }
       if (!changed || changed.includes('vbusInfo')) {
         setVbusInfo(state.vbusInfo ?? null)
@@ -3724,8 +3770,14 @@ const HeaderVbusMetrics = ({
   const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
   const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
   const isTriggerStateTriggered = triggerInfo?.status === TriggerStatus.TRIGGERED
-  const isFrontPanelDisabled = !driver || role === CCBusRole.DISABLED
-  const isFrontPanelConnected = Boolean(driver) && !isFrontPanelDisabled
+  const isObserverMode = role === CCBusRole.OBSERVER
+  const isFrontPanelDisabled = !driver || role === CCBusRole.DISABLED || isObserverMode
+  const areFrontPanelUsbPortsEnabled = Boolean(driver) && role !== CCBusRole.DISABLED
+  const aggregateObserverConnected = isObserverMode && roleStatus === CCBusRoleStatus.ATTACHED
+  const isFrontPanelConnected =
+    Boolean(driver) && (
+      isObserverMode ? aggregateObserverConnected : role !== CCBusRole.DISABLED
+    )
   const frontPanelFlow = isFrontPanelDisabled ? 'off' : 'idle'
   const profileCaptureMenuItems = useMemo<MenuItem[]>(
     () => [
@@ -3743,8 +3795,12 @@ const HeaderVbusMetrics = ({
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
       <HeaderFrontPanelVisual
         disabled={isFrontPanelDisabled}
-        connected={isFrontPanelConnected}
+        port1Connected={isFrontPanelConnected}
+        port2Connected={isFrontPanelConnected}
+        usbPortsEnabled={areFrontPanelUsbPortsEnabled}
         flow={frontPanelFlow}
+        role={role}
+        roleStatus={roleStatus}
       />
       <div className={styles.headerVbusPrimaryMetrics}>
         <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>

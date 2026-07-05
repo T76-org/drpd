@@ -157,6 +157,7 @@
 .headerFrontPanel {
   --header-front-panel-width: calc(126px * var(--rack-header-scale));
   --header-front-panel-height: calc(48px * var(--rack-header-scale));
+  --header-banana-jack-opacity: 1;
 
   flex: 0 0 var(--header-front-panel-width);
   width: var(--header-front-panel-width);
@@ -169,7 +170,7 @@
 }
 
 .headerFrontPanel[data-disabled='true'] {
-  opacity: 0.55;
+  --header-banana-jack-opacity: 0.45;
 }
 
 .headerFrontPanelDeviceRow {
@@ -205,12 +206,17 @@
   justify-content: center;
   border: var(--border-thin) solid color-mix(in srgb, var(--color-text-muted) 68%, transparent);
   border-radius: calc(5px * var(--rack-header-scale));
-  background: transparent;
+  background: color-mix(in srgb, #fff 94%, var(--color-surface-header));
 }
 
 .headerUsbCPort[data-connected='true'] {
   border-color: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
+  background: color-mix(in srgb, #fff 94%, var(--color-surface-header));
   box-shadow: inset 0 0 0 var(--border-thin) color-mix(in srgb, var(--color-status-success) 32%, transparent);
+}
+
+.headerFrontPanel[data-usb-ports-enabled='true'] .headerUsbCPort[data-connected='false'] {
+  animation: headerUsbCPortAvailablePulse 2.8s ease-in-out infinite;
 }
 
 .headerUsbCSlot {
@@ -224,6 +230,7 @@
   display: inline-flex;
   align-items: center;
   gap: calc(4px * var(--rack-header-scale));
+  opacity: var(--header-banana-jack-opacity);
 }
 
 .headerBananaJack {
@@ -241,6 +248,11 @@
 
 .headerBananaJack[data-polarity='negative'] {
   border-color: color-mix(in srgb, var(--color-text-muted) 82%, var(--color-border-divider));
+}
+
+.headerFrontPanel[data-disabled='true'] .headerBananaJack {
+  border-color: color-mix(in srgb, var(--color-text-muted) 64%, var(--color-border-divider));
+  background: color-mix(in srgb, var(--color-text-muted) 16%, var(--color-surface-header));
 }
 
 .headerFrontPanelFlowRail {
@@ -491,6 +503,27 @@
 
   50% {
     opacity: 0.25;
+  }
+}
+
+@keyframes headerUsbCPortAvailablePulse {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--color-text-muted) 68%, transparent);
+    box-shadow: 0 0 0 color-mix(in srgb, var(--color-metric-voltage) 0%, transparent);
+  }
+
+  50% {
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 76%, var(--color-border-divider));
+    box-shadow: 0 0 calc(7px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headerFrontPanel[data-usb-ports-enabled='true'] .headerUsbCPort[data-connected='false'] {
+    animation: none;
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 62%, var(--color-border-divider));
+    box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 18%, transparent);
   }
 }
 
