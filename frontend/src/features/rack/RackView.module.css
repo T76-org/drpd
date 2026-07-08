@@ -286,6 +286,26 @@
   stroke: color-mix(in srgb, var(--color-metric-voltage) 66%, var(--color-border-divider));
 }
 
+.headerFrontPanel[data-flow-direction='port-1-to-port-2'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
+.headerFrontPanel[data-flow-direction='port-1-to-port-2'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
+.headerFrontPanel[data-flow-direction='port-1-to-port-2'] .headerFrontPanelFlowPath[data-flow-segment='port-2'],
+.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
+.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
+.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='port-2'],
+.headerFrontPanel[data-flow-direction='port-1-to-vbus'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
+.headerFrontPanel[data-flow-direction='port-1-to-vbus'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
+.headerFrontPanel[data-flow-direction='port-1-to-vbus'] .headerFrontPanelFlowPath[data-flow-segment='vbus'],
+.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
+.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
+.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='vbus'] {
+  animation: headerFrontPanelCurrentFlow 1.4s linear infinite;
+}
+
+.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath,
+.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath {
+  animation-direction: reverse;
+}
+
 .headerVbusPrimaryMetrics {
   display: flex;
   align-items: center;
@@ -525,11 +545,21 @@
   }
 }
 
+@keyframes headerFrontPanelCurrentFlow {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .headerFrontPanel[data-usb-ports-enabled='true'] .headerUsbCPort[data-connected='false'] {
     animation: none;
     border-color: color-mix(in srgb, var(--color-metric-voltage) 62%, var(--color-border-divider));
     box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 18%, transparent);
+  }
+
+  .headerFrontPanelFlowPath {
+    animation: none;
   }
 }
 

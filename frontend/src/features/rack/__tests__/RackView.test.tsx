@@ -1313,6 +1313,7 @@ describe('RackView', () => {
     expect(frontPanel).toHaveAttribute('data-role', 'UNKNOWN')
     expect(frontPanel).toHaveAttribute('data-role-status', 'UNKNOWN')
     expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'idle')
     expect(header.querySelectorAll('[data-port="1"], [data-port="2"]')).toHaveLength(2)
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'true')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'true')
@@ -1365,15 +1366,17 @@ describe('RackView', () => {
     expect(frontPanel).toHaveAttribute('data-connected', 'false')
     expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
     expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'idle')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'false')
   })
 
-  it('renders observer front-panel ports as connected from aggregate attached status', async () => {
+  it('renders observer front-panel ports as connected with port 1 to port 2 current flow', async () => {
     mockTransportState.roleResponse = ['OBSERVER']
     mockTransportState.roleStatusResponse = ['ATTACHED']
+    mockTransportState.analogResponse[2] = '0.12'
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -1390,11 +1393,32 @@ describe('RackView', () => {
     expect(frontPanel).toHaveAttribute('data-disabled', 'true')
     expect(frontPanel).toHaveAttribute('data-connected', 'true')
     expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
-    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(frontPanel).toHaveAttribute('data-flow', 'monitor')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'port-1-to-port-2')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'true')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'true')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'false')
+  })
+
+  it('uses signed current to reverse observer front-panel current flow', async () => {
+    mockTransportState.roleResponse = ['OBSERVER']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    mockTransportState.analogResponse[2] = '-0.12'
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'OBSERVER')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAttribute('data-flow', 'monitor')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'port-2-to-port-1')
   })
 
   it('renders sink front-panel state with port 1 and banana jacks as the active path', async () => {
@@ -1417,6 +1441,7 @@ describe('RackView', () => {
     expect(frontPanel).toHaveAttribute('data-connected', 'true')
     expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
     expect(frontPanel).toHaveAttribute('data-flow', 'sink')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'port-1-to-vbus')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'true')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
@@ -1424,6 +1449,47 @@ describe('RackView', () => {
     expect(header.querySelector('[data-flow-segment="bus"]')).toBeInTheDocument()
     expect(header.querySelector('[data-flow-segment="port-1"]')).toBeInTheDocument()
     expect(header.querySelector('[data-flow-segment="vbus"]')).toBeInTheDocument()
+  })
+
+  it('uses signed current to reverse sink front-panel current flow without changing current display clamp', async () => {
+    mockTransportState.roleResponse = ['SINK']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    mockTransportState.analogResponse[2] = '-0.12'
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'SINK')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAttribute('data-flow', 'sink')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'vbus-to-port-1')
+    expect(header.querySelector('[class*="headerVbusCurrent"]')).toHaveTextContent('0.00A')
+  })
+
+  it('keeps sink front-panel current flow stationary for idle current', async () => {
+    mockTransportState.roleResponse = ['SINK']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    mockTransportState.analogResponse[2] = '0.005'
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'SINK')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAttribute('data-flow', 'sink')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'idle')
   })
 
   it.each([
@@ -1452,6 +1518,7 @@ describe('RackView', () => {
     expect(frontPanel).toHaveAttribute('data-connected', 'false')
     expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
     expect(frontPanel).toHaveAttribute('data-flow', 'idle')
+    expect(frontPanel).toHaveAttribute('data-flow-direction', 'idle')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'false')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')

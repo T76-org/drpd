@@ -94,6 +94,12 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow='sink'\]\s+\.headerFrontPanelFlowPath\[data-flow-segment='port-1'\]/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow='sink'\]\s+\.headerFrontPanelFlowPath\[data-flow-segment='vbus'\]/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow='monitor'\]\s+\.headerFrontPanelFlowPath/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow-direction='port-1-to-port-2'\]\s+\.headerFrontPanelFlowPath\[data-flow-segment='bus'\]/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow-direction='port-1-to-vbus'\]\s+\.headerFrontPanelFlowPath\[data-flow-segment='vbus'\]/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-flow-direction='vbus-to-port-1'\]\s+\.headerFrontPanelFlowPath[^{]*\{[^}]*animation-direction:\s*reverse;/s)
+    expect(rackViewCss).toMatch(/@keyframes\s+headerFrontPanelCurrentFlow\s*\{[^}]*stroke-dashoffset:\s*-8;/s)
+    expect(rackViewCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/)
+    expect(rackViewCss).toMatch(/\.headerFrontPanelFlowPath\s*\{[^}]*animation:\s*none;/s)
   })
 
   it('shows context-menu cursor over header context menu targets', () => {
