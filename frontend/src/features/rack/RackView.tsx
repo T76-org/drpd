@@ -3796,6 +3796,8 @@ const HeaderVbusMetrics = ({
   const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
   const activeSinkInfo = role === CCBusRole.SINK ? sinkInfo : null
   const captureStatusText = formatHeaderCaptureStatus(captureEnabled)
+  const roleText = formatHeaderRoleLabel(role)
+  const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
   const sinkContractText = formatHeaderSinkContract(activeSinkInfo)
   const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
   const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
@@ -3834,17 +3836,6 @@ const HeaderVbusMetrics = ({
         : signedVbusCurrent > 0
           ? 'port-1-to-port-2'
           : 'port-2-to-port-1'
-  const profileCaptureMenuItems = useMemo<MenuItem[]>(
-    () => [
-      ...captureMenuItems,
-      {
-        id: 'profile-capture-separator',
-        type: 'separator',
-      },
-      ...modeMenuItems,
-    ],
-    [captureMenuItems, modeMenuItems],
-  )
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
@@ -3931,20 +3922,38 @@ const HeaderVbusMetrics = ({
             </div>
           )}
         </ContextMenu>
-        <ContextMenu label="Profile and capture menu" items={profileCaptureMenuItems}>
+        <ContextMenu label="Mode menu" items={modeMenuItems}>
           {(props) => (
             <div
               {...props}
               className={styles.headerVbusProtection}
-              aria-label="Profile and capture status"
+              aria-label="Mode and profile status"
             >
               <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
-                <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
+                <span className={styles.headerVbusProtectionLabel}>MODE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
               </div>
               <div className={styles.headerVbusProtectionCell}>
                 <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
                 <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
+        <ContextMenu label="Capture menu" items={captureMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Status and capture status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
               </div>
             </div>
           )}
