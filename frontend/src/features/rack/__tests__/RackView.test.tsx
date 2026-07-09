@@ -1315,6 +1315,7 @@ describe('RackView', () => {
     expect(frontPanel).toHaveAttribute('data-flow', 'off')
     expect(frontPanel).toHaveAttribute('data-port-rail-route', 'ports')
     expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'idle')
+    expect(within(frontPanel).queryByText('OFF')).not.toBeInTheDocument()
     expect(header.querySelectorAll('[data-port="1"], [data-port="2"]')).toHaveLength(2)
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'true')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'true')
@@ -1373,6 +1374,26 @@ describe('RackView', () => {
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'false')
+  })
+
+  it('shows an OFF badge in the front-panel visual for Disabled mode', async () => {
+    mockTransportState.roleResponse = ['DISABLED']
+    mockTransportState.roleStatusResponse = ['UNATTACHED']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'DISABLED')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'UNATTACHED')
+    })
+
+    expect(frontPanel).toHaveAccessibleName('Front panel ports: Disabled, Unattached')
+    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(within(frontPanel).getByText('OFF')).toBeInTheDocument()
   })
 
   it('renders observer front-panel ports as connected', async () => {

@@ -530,6 +530,11 @@ const HeaderFrontPanelVisual = ({
         d="M19 -8 V9 Q19 13 23 13 H97 Q101 13 101 9 V-8"
       />
     </svg>
+    {role === CCBusRole.DISABLED ? (
+      <span className={styles.headerFrontPanelDisabledBadge} aria-hidden="true">
+        OFF
+      </span>
+    ) : null}
   </div>
 )
 

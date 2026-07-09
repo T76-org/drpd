@@ -163,6 +163,7 @@
   width: var(--header-front-panel-width);
   height: var(--header-front-panel-height);
   box-sizing: border-box;
+  position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) calc(16px * var(--rack-header-scale));
   align-items: end;
@@ -278,6 +279,23 @@
 
 .headerFrontPanel[data-role='DISABLED'] .headerFrontPanelPortRailLine {
   display: none;
+}
+
+.headerFrontPanelDisabledBadge {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(2px * var(--rack-header-scale));
+  transform: translateX(-50%);
+  color: color-mix(in srgb, var(--color-text-muted) 82%, var(--color-text-primary));
+  font-size: calc(var(--font-size-2xs) * 0.82 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  letter-spacing: var(--letter-spacing-sm);
+}
+
+.headerFrontPanel[data-role='DISABLED'] .headerFrontPanelDisabledBadge {
+  display: block;
 }
 
 .headerFrontPanel[data-port-rail-direction='port-1-to-port-2'] .headerFrontPanelPortRailLine,
