@@ -4,14 +4,14 @@ Dr. PD features a sync output on the back panel that can be used to synchronize 
 
 ## Sync modes
 
-The sync output can be configure to trigger in three ways:
+The sync output can be configured to use one of four modes:
 
-- High-going pulse: The sync output goes high for a short duration when the specified event occurs.
-- Low-going pulse: The sync output goes low for a short duration when the specified event occurs.
+- Pulse High: The sync output pulses high for a configured duration when the specified event occurs.
+- Pulse Low: The sync output pulses low for a configured duration when the specified event occurs.
 - Toggle: The sync output toggles its state (from high to low or low to high) each time the specified event occurs.
-- Pull-down: The sync output is in high-impedance state by default and pulls an external signal to ground when the specified event occurs.
+- Pull-Down: The sync output remains high-impedance by default, then pulls down for a configured duration when the specified event occurs.
 
-In all cases, you can also configure the duration of the pulse or toggle, which can be set from 1 microsecond to 1 second.
+For Pulse High, Pulse Low, and Pull-Down, you can configure the pulse width in microseconds. Toggle ignores the pulse width.
 
 :::danger
 When using the pull-down trigger mode, ensure that the sync port is not connected to a voltage that exceeds its specifications, as this could damage your Dr. PD unit.
@@ -21,7 +21,7 @@ The sync port is limited to 3.3V and 10mA. It includes a series resistor to limi
 
 ## Configuring triggers
 
-You can configure the sync mode and trigger events in the control app by selecting Trigger -> Configure… from the menu. This will open a dialog where you can choose the desired trigger mode and specify which events should activate the sync output.
+You can configure the sync mode and trigger events in the control app by selecting **Trigger -> Configure...** from the menu. This will open a dialog where you can choose the desired trigger mode and specify which events should activate the sync output.
 
 You can trigger on the following events:
 
@@ -51,10 +51,10 @@ The trigger mechanism is managed in firmware, and there is a small—but not neg
 
 Certain events can occur multiple times during a USB-PD negotiation, and so it might be convenient to only trigger on the nth occurrence of an event, or to automatically repeat the trigger every n occurrences. For example, you might want to trigger on the 3rd SOP start event, which would correspond to the 3rd packet in a negotiation, or you might want to trigger on every 5th SOP start event.
 
-You can configure these options in the trigger configuration dialog. The threshold option allows you to specify that the trigger should only activate on the nth occurrence of the selected event(s). The autorepeat option allows you to specify that the trigger should automatically repeat every n occurrences of the selected event(s) after the initial trigger.
+You can configure these options in the trigger configuration dialog. The threshold option allows you to specify that the trigger should only activate on the nth occurrence of the selected event(s). The Auto-repeat option allows you to specify that the trigger should automatically repeat every n occurrences of the selected event(s) after the initial trigger.
 
 ## Resetting the trigger
 
-Under normal circumstances, the trigger will stay active until you manually reset it by clicking on Trigger -> Reset from the menu or pressing the R key. You can see the status of the trigger in the header under “Sync State,” which will show as “Triggered” in red when the trigger has been activated.
+Under normal circumstances, the trigger will stay active until you manually reset it by clicking on **Trigger -> Reset** from the menu or pressing the `R` key. You can see the status of the trigger in the header under “Sync State,” which will show as “Triggered” in red when the trigger has been activated.
 
 A notable exception to this behaviour occurs when autorepeat is set. In this case, the trigger will automatically reset itself after each activation and will be ready to trigger again on the next occurrence of the specified event(s) based on the autorepeat configuration.

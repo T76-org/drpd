@@ -14,12 +14,12 @@ repeatable exploration.
 The control app runs in Chrome or Edge because it uses browser USB access to
 talk to the instrument. Use a recent desktop browser on Windows, macOS, or
 Linux, or a compatible Android browser setup, and connect Dr. PD to the host
-through the micro-USB control port.
+through the control port on the back of the device.
 
 A typical first connection looks like this:
 
 1. Open the Dr. PD control software in Chrome or Edge.
-2. Connect Dr. PD over micro-USB and wait for the browser to detect it.
+2. Connect Dr. PD over the control port and wait for the browser to detect it.
 3. Select **Device -> Pair new device...**.
 4. Choose the Dr. PD USB device in the browser permission prompt and approve
    the connection.
@@ -49,8 +49,8 @@ step-by-step notes.
 With a known-good USB-PD source and cable, you can explore the main app surfaces
 quickly:
 
-1. Select **Mode -> Set mode -> Sink**.
-2. Select **Message Log -> Enable Capture** before attaching the source if you
+1. Select **Mode -> Sink**.
+2. Select **Capture -> Enable Capture** before attaching the source if you
    want the full attach and negotiation sequence.
 3. Connect the USB-PD source to Port 1.
 4. Watch the Message Log populate with decoded USB-PD messages, event rows, and
@@ -59,8 +59,8 @@ quickly:
    and timing details in the message detail view.
 6. Open **Mode -> Choose power contract...** to explore **Sink power contract
    selection** and request one of the source's advertised contracts.
-7. Select relevant rows and use **Message Log -> Export Selected** when you want
-   CSV or JSON output.
+7. Select relevant rows and use **Capture -> Export Selected -> CSV...** or
+   **Capture -> Export Selected -> JSON...** when you want output.
 
 The **Sink power contract selection** dialog lists available PDOs and exposes
 voltage/current inputs where the selected PDO type allows a user-selected value.
@@ -71,19 +71,20 @@ entries expose the relevant editable request fields.
 
 The Message Log is the main surface for protocol evidence.
 
-- **Message Log -> Enable Capture** starts recording decoded USB-PD traffic,
+- **Capture -> Enable Capture** starts recording decoded USB-PD traffic,
   analog VBUS samples, and app-injected events.
-- **Message Log -> Configure...** controls visible table columns and capture
-  buffer depth. Column widths and layout choices are remembered by the app.
-- **Message Log -> Filter...** narrows the view by message properties, while
+- Click the **Configure** button in the Message Log panel header to control
+  visible table columns and capture buffer depth. Column widths and layout
+  choices are remembered by the app.
+- **Capture -> Filter...** narrows the view by message properties, while
   the search field helps find text in decoded fields.
-- **Message Log -> Hide GoodCRC Messages** keeps acknowledgements out of the
+- **Capture -> Hide GoodCRC Messages** keeps acknowledgements out of the
   working view without changing the underlying capture.
-- **Message Log -> Add marker** inserts a manual event row when the physical
+- **Capture -> Add marker** inserts a manual event row when the physical
   setup changes, such as swapping a cable or adding load.
-- **Message Log -> Export Selected -> JSON...** exports structured raw and
+- **Capture -> Export Selected -> JSON...** exports structured raw and
   decoded message data.
-- **Message Log -> Export Selected -> CSV...** exports a spreadsheet-friendly
+- **Capture -> Export Selected -> CSV...** exports a spreadsheet-friendly
   table.
 
 JSON is useful when another tool needs raw fields, decoded fields, warnings, and
@@ -93,13 +94,13 @@ errors. CSV is useful for compact tables and quick comparisons between runs.
 
 Sink mode makes Dr. PD the USB-PD sink. It is useful for exploring how a
 charger, laptop port, power bank, or cable responds to specific contracts. The
-app path is **Mode -> Set mode -> Sink**, followed by **Mode -> Choose power
+app path is **Mode -> Sink**, followed by **Mode -> Choose power
 contract...** when the source has advertised PDOs.
 
 Observer mode puts Dr. PD inline between an existing source and sink so you can
-capture a real device negotiation. Use **Mode -> Set mode -> Observer**, enable
-capture, connect one side, and then connect the other side to record the attach
-sequence.
+capture a real device negotiation. Use **Mode -> Observer**, select
+**Capture -> Enable Capture**, connect one side, and then connect the other
+side to record the attach sequence.
 
 In either Sink or Observer mode, **Mode -> Cycle USB Connection** simulates a
 USB detach and reconnect from the app. This is useful when you want another
@@ -159,9 +160,10 @@ PDO, read status or measurements, then export or retrieve captured data.
 
 ## Evidence exports
 
-For manual exploration, select rows in the Message Log and use **Message Log ->
-Export Selected**. JSON preserves structure and decoded details; CSV gives a
-compact table for notes, plotting, or comparisons.
+For manual exploration, select rows in the Message Log and use **Capture ->
+Export Selected -> JSON...** or **Capture -> Export Selected -> CSV...**. JSON
+preserves structure and decoded details; CSV gives a compact table for notes,
+plotting, or comparisons.
 
 For scripted exploration, tie exported files or captured SCPI responses to the
 source, cable, selected mode, requested contract, load, and protection

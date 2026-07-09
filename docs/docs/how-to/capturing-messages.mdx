@@ -4,7 +4,7 @@ In either Observer or Sink mode, Dr. PD can capture and log USB-PD messages. Thi
 
 ## Setting up the capture
 
-You can turn capture on and off at any time by clicking Message Log -> Enable/Disable Capture in the menu, or by pressing the C key on your keboard. 
+You can turn capture on and off at any time by selecting **Capture -> Enable Capture** or **Capture -> Disable Capture** from the menu, or by pressing the `C` key on your keyboard.
 
 When capture is enabled, Dr. PD will log both analog VBUS information (voltage and current) and the decoded USB-PD messages, and correlate both so that you can visualize how messaging affects the power delivery.
 
@@ -16,7 +16,7 @@ In Sink mode, if you want to capture what happens when you connect a device to D
 
 In Observer mode, you should connect one of the two devices, enable capture, and then connect the other device to complete the USB-PD connection.
 
-In both modes, you can click on Mode -> Cycle USB Connection, or press the T key, to simulate a physical disconnection and reconnection of the devices. This can be useful to trigger a new USB-PD negotiation, and to capture the messages that are exchanged during the connection process.
+In both modes, you can click on **Mode -> Cycle USB Connection**, or press the `T` key, to simulate a physical disconnection and reconnection of the devices. This can be useful to trigger a new USB-PD negotiation, and to capture the messages that are exchanged during the connection process.
 
 :::
 
@@ -38,9 +38,9 @@ If you select one of the messages in the log, you can see a detailed breakdown o
 
 ## Configuring the message log
 
-Clicking on the Message Log -> Configure… menu item will open a dialog where you can configure the fields that are shown in the message log table. You can also resize the various columns in the log by dragging their edges, and the software will remember your preferences for the next time you open it. This can be useful to focus on the specific information that is relevant to your analysis, and to hide any fields that you find less useful.
+Clicking the **Configure** button in the Message Log panel header will open a dialog where you can configure the fields that are shown in the message log table. You can also resize the various columns in the log by dragging their edges, and the software will remember your preferences for the next time you open it. This can be useful to focus on the specific information that is relevant to your analysis, and to hide any fields that you find less useful.
 
-You can quickly restore the table to its default configuration by clicking on the Message Log -> Restore Table Layout menu item.
+You can quickly restore the table to its default configuration by clicking on the **Capture -> Restore Table Layout** menu item.
 
 :::note[Adjusting capture duration]
 The configuration dialog can also be used to adjust the memory depth of the capture buffer.By default, the control software will capture up to 1,000,000 data points, which corresponds to approximately 2.5 days of continuous capture time. You can adjust this setting to increase or decrease the capture duration, depending on your needs and the available memory on your computer. Keep in mind that increasing the capture duration will require more memory, and may affect the performance of the software if you are capturing a large amount of data.
@@ -48,10 +48,10 @@ The configuration dialog can also be used to adjust the memory depth of the capt
 
 ## Filtering messages
 
-Some captures can be very long and contain a lot of messages, which can make it difficult to find the specific messages you are interested in. Dr. PD provides several filtering options to help you narrow down the log to the messages that are relevant to your analysis. You can filter messages by clicking on Messages -> Filter… in the menu, or pressing the F key. This will open a dialog where you can specify various criteria to filter the messages, such as the message type, sender, receiver, SOP type, and more. You can also use the search bar at the top of the Message Log panel to quickly find messages that contain specific text in their decoded fields.
+Some captures can be very long and contain a lot of messages, which can make it difficult to find the specific messages you are interested in. Dr. PD provides several filtering options to help you narrow down the log to the messages that are relevant to your analysis. You can filter messages by clicking on **Capture -> Filter...** in the menu, or pressing the `F` key. This will open a dialog where you can specify various criteria to filter the messages, such as the message type, sender, receiver, SOP type, and more. You can also use the search bar at the top of the Message Log panel to quickly find messages that contain specific text in their decoded fields.
 
 :::note[Hiding GoodCRC messages]
-GoodCRC messages are control messages that are sent by the receiver to acknowledge the receipt of a message. They are very common in USB-PD communication, and can clutter the log if you are not interested in them. You can choose to hide GoodCRC messages from the log by clicking on Messages -> Hide GoodCRC Messages, or by pressing the G key. This will make it easier to focus on the more relevant messages in the capture.
+GoodCRC messages are control messages that are sent by the receiver to acknowledge the receipt of a message. They are very common in USB-PD communication, and can clutter the log if you are not interested in them. You can choose to hide GoodCRC messages from the log by clicking on **Capture -> Hide GoodCRC Messages**, or by pressing the `G` key. This will make it easier to focus on the more relevant messages in the capture.
 :::
 
 ## Logging events
@@ -59,19 +59,18 @@ GoodCRC messages are control messages that are sent by the receiver to acknowled
 Dr. PD injects _events_ in the message log when certain conditions occur during a capture. These include starting or stopping a capture, changes in the connection state, and overvoltage/overprotection triggers. These events are marked with a different color in the log, and can be used to correlate changes in the connection state or power delivery with the messages being exchanged between the devices.
 
 :::note[Adding manual markers]
-You can add a “Manual Marker” event to the log by clicking on Message Log -> Add Marker, or by pressing the M key. This can be useful to mark a specific point in the capture, for example when you perform a specific action on the device, or when you want to highlight a particular message or sequence of messages.
+You can add a “Manual Marker” event to the log by clicking on **Capture -> Add marker**, or by pressing the `M` key. This can be useful to mark a specific point in the capture, for example when you perform a specific action on the device, or when you want to highlight a particular message or sequence of messages.
 :::
 
 ## Clearing the log
 
-You can clear the message buffer at any time by clicking on Message Log -> Clear Log, or by pressing the X key.
+You can clear the message buffer at any time by clicking on **Capture -> Clear Log**, or by pressing the `X` key.
 
 ## Exporting a capture
 
-You can export any selected messages from the log to either CSV or JSON files by selecting the appropriate option from the Message Log -> Export Selected... menu. This can be useful to analyze the captured messages in other tools, or to share them with others for debugging purposes.
+You can export any selected messages from the log to either CSV or JSON files by selecting **Capture -> Export Selected -> CSV...** or **Capture -> Export Selected -> JSON...**. This can be useful to analyze the captured messages in other tools, or to share them with others for debugging purposes.
 
 The two export formats serve different purposes:
 
 - The CSV format is a simple, tabular representation of the message log; it includes the same columns as the log view table, as well as a human-readable representation of the decoded message fields. This format is useful for quick analysis in spreadsheet software, or for sharing with others who may not be familiar with the raw message data.
 - The JSON format is a more structured representation of the captured messages, which includes all the raw message data, as well as the decoded fields and any associated errors or warnings. This format is useful for more in-depth analysis, or for importing the captured messages into other tools that can parse JSON data.
-
