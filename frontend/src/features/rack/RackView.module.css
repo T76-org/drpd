@@ -113,7 +113,7 @@
 }
 
 .headerContent {
-  --rack-header-design-width: 1200px;
+  --rack-header-design-width: 1325px;
   --rack-header-scale: clamp(0.5, calc(100cqw / var(--rack-header-design-width)), 1.7);
 
   display: flex;
@@ -146,9 +146,9 @@
 
 .headerVbusMetrics {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: calc(var(--space-8) * 1.15 * var(--rack-header-scale));
   flex: 1 1 auto;
   min-width: 0;
@@ -389,10 +389,12 @@
 }
 
 .headerVbusProtection {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: max-content max-content;
   justify-content: center;
-  gap: calc(9.5px * var(--rack-header-scale));
+  align-items: baseline;
+  column-gap: calc(var(--space-4) * var(--rack-header-scale));
+  row-gap: calc(9.5px * var(--rack-header-scale));
   color: var(--color-text-primary);
   font-size: calc(var(--font-size-sm) * 1.25 * var(--rack-header-scale));
   font-weight: var(--font-weight-semibold);
@@ -425,11 +427,10 @@
 
 .headerVbusStatusGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(max-content, 1fr));
+  grid-template-columns: repeat(4, max-content);
   align-items: center;
-  column-gap: calc(var(--space-16) * var(--rack-header-scale));
-  row-gap: calc(var(--space-6) * var(--rack-header-scale));
-  flex: 1 1 560px;
+  column-gap: calc(var(--space-12) * var(--rack-header-scale));
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -439,25 +440,8 @@
   border-left: var(--border-thin) solid color-mix(in srgb, var(--color-border-divider) 58%, transparent);
 }
 
-@container (max-width: 980px) {
-  .headerVbusStatusGrid {
-    grid-template-columns: repeat(2, minmax(max-content, 1fr));
-  }
-}
-
-@container (max-width: 660px) {
-  .headerVbusStatusGrid {
-    grid-template-columns: max-content;
-  }
-}
-
 .headerVbusProtectionCell {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: calc(var(--space-4) * var(--rack-header-scale));
-  align-items: baseline;
-  justify-content: space-between;
-  min-width: 0;
+  display: contents;
 }
 
 .headerVbusRoleStatusValue {
@@ -470,6 +454,11 @@
 }
 
 .headerVbusProtectionCell[data-triggered='true'] {
+  color: var(--color-status-error);
+  animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
+}
+
+.headerVbusProtectionCell[data-triggered='true'] > * {
   color: var(--color-status-error);
   animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
 }

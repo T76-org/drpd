@@ -1329,15 +1329,17 @@ describe('RackView', () => {
     expect(within(header).getByText('PROFILE')).toBeInTheDocument()
     expect(within(header).getByText('SYNC STATE')).toBeInTheDocument()
     expect(within(header).getByText('EVENT COUNT')).toBeInTheDocument()
-    expect(within(header).queryByText('MODE')).not.toBeInTheDocument()
-    expect(within(header).queryByText('STATUS')).not.toBeInTheDocument()
+    expect(within(header).getByText('MODE')).toBeInTheDocument()
+    expect(within(header).getByText('STATUS')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mode' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
     expect(headerLabels).toEqual([
       'OVP',
       'OCP',
-      'CAPTURE',
+      'MODE',
       'PROFILE',
+      'STATUS',
+      'CAPTURE',
       'SYNC STATE',
       'EVENT COUNT',
     ])
