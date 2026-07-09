@@ -3911,7 +3911,11 @@ const HeaderVbusMetrics = ({
               </div>
               <div className={styles.headerVbusProtectionCell}>
                 <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
-                <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+                <span
+                  className={`${styles.headerVbusRoleStatusValue} ${styles.headerVbusProfileStatusValue}`}
+                >
+                  {sinkContractText}
+                </span>
               </div>
             </div>
           )}

@@ -23,7 +23,7 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.header\s*\{[^}]*container-type: inline-size;/s)
     expect(rackViewCss).toMatch(/\.header\s*\{[^}]*width:\s*min\(100%,\s*1350px\);/s)
     expect(rackViewCss).toMatch(/\.headerContent\s*\{[^}]*--rack-header-scale:/s)
-    expect(rackViewCss).toContain('--rack-header-design-width: 1325px;')
+    expect(rackViewCss).toContain('--rack-header-design-width: 1450px;')
     expect(rackViewCss).toMatch(
       /--rack-header-scale:\s*clamp\([^,]+,\s*calc\(100cqw \/ var\(--rack-header-design-width\)\),\s*[^)]+\);/,
     )
@@ -61,6 +61,8 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.headerVbusProtection\s*\{[^}]*display:\s*grid;/s)
     expect(rackViewCss).toMatch(/\.headerVbusProtection\s*\{[^}]*grid-template-columns:\s*max-content max-content;/s)
     expect(rackViewCss).toMatch(/\.headerVbusProtectionCell\s*\{[^}]*display:\s*contents;/s)
+    expect(rackViewCss).toMatch(/\.headerVbusRoleStatusValue\s*\{[^}]*text-align:\s*right;[^}]*min-width:\s*max-content;/s)
+    expect(rackViewCss).toMatch(/\.headerVbusProfileStatusValue\s*\{[^}]*min-width:\s*18ch;[^}]*text-align:\s*right;/s)
     expect(rackViewCss).not.toMatch(/\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2/s)
     expect(rackViewCss).not.toMatch(/\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*max-content;/s)
     expect(rackViewCss).not.toContain('--header-vbus-capture-profile-label-width')
