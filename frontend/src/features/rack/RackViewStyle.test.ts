@@ -56,7 +56,7 @@ describe('RackView responsive header CSS', () => {
   })
 
   it('wraps secondary status groups without scaled fixed ch tracks', () => {
-    expect(rackViewCss).toMatch(/\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(max-content,\s*1fr\)\);/s)
+    expect(rackViewCss).toMatch(/\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(max-content,\s*1fr\)\);/s)
     expect(rackViewCss).toMatch(/@container\s*\(max-width:\s*980px\)\s*\{[^}]*\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(max-content,\s*1fr\)\);/s)
     expect(rackViewCss).toMatch(/@container\s*\(max-width:\s*660px\)\s*\{[^}]*\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*max-content;/s)
     expect(rackViewCss).not.toContain('--header-vbus-capture-profile-label-width')
@@ -68,7 +68,7 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.titleBlock\s*\{[^}]*width:\s*100%;/s)
     expect(rackViewCss).toMatch(/\.headerVbusMetrics\s*\{[^}]*justify-content:\s*space-between;/s)
     expect(rackViewCss).toMatch(/\.headerVbusMetrics\s*\{[^}]*flex:\s*1 1 auto;/s)
-    expect(rackViewCss).toMatch(/\.headerVbusStatusGrid\s*\{[^}]*flex:\s*1 1 420px;/s)
+    expect(rackViewCss).toMatch(/\.headerVbusStatusGrid\s*\{[^}]*flex:\s*1 1 560px;/s)
   })
 
   it('keeps the front-panel visual compact while states change through data hooks', () => {
