@@ -1303,6 +1303,9 @@ describe('RackView', () => {
 
     const header = await screen.findByRole('banner')
     const frontPanel = within(header).getByTestId('header-front-panel')
+    const metricsContainer = within(header).getByLabelText('VBUS metrics')
+    const primaryMetrics = metricsContainer.querySelector('[class*="headerVbusPrimaryMetrics"]')
+    const statusGrid = metricsContainer.querySelector('[class*="headerVbusStatusGrid"]')
     const headerLabels = Array.from(
       header.querySelectorAll('[class*="headerVbusProtectionLabel"]'),
     ).map((element) => element.textContent)
@@ -1333,13 +1336,23 @@ describe('RackView', () => {
     expect(within(header).getByText('STATUS')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mode' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+    expect(primaryMetrics).not.toBeNull()
+    expect(statusGrid).not.toBeNull()
+    expect(
+      frontPanel.compareDocumentPosition(primaryMetrics as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      (primaryMetrics as HTMLElement).compareDocumentPosition(statusGrid as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(headerLabels).toEqual([
-      'OVP',
-      'OCP',
       'MODE',
       'PROFILE',
       'STATUS',
       'CAPTURE',
+      'OVP',
+      'OCP',
       'SYNC STATE',
       'EVENT COUNT',
     ])

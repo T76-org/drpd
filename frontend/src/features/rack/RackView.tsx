@@ -3898,30 +3898,6 @@ const HeaderVbusMetrics = ({
         </div>
       </div>
       <div className={styles.headerVbusStatusGrid}>
-        <ContextMenu label="Protection menu" items={protectionMenuItems}>
-          {(props) => (
-            <div
-              {...props}
-              className={styles.headerVbusProtection}
-              aria-label="VBUS protection"
-            >
-              <div
-                className={styles.headerVbusProtectionCell}
-                data-triggered={isOvpTriggered ? 'true' : 'false'}
-              >
-                <span className={styles.headerVbusProtectionLabel}>OVP</span>
-                <HeaderProtectionValue value={ovpValueText} />
-              </div>
-              <div
-                className={styles.headerVbusProtectionCell}
-                data-triggered={isOcpTriggered ? 'true' : 'false'}
-              >
-                <span className={styles.headerVbusProtectionLabel}>OCP</span>
-                <HeaderProtectionValue value={ocpValueText} />
-              </div>
-            </div>
-          )}
-        </ContextMenu>
         <ContextMenu label="Mode menu" items={modeMenuItems}>
           {(props) => (
             <div
@@ -3954,6 +3930,30 @@ const HeaderVbusMetrics = ({
               <div className={styles.headerVbusProtectionCell}>
                 <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
                 <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
+        <ContextMenu label="Protection menu" items={protectionMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="VBUS protection"
+            >
+              <div
+                className={styles.headerVbusProtectionCell}
+                data-triggered={isOvpTriggered ? 'true' : 'false'}
+              >
+                <span className={styles.headerVbusProtectionLabel}>OVP</span>
+                <HeaderProtectionValue value={ovpValueText} />
+              </div>
+              <div
+                className={styles.headerVbusProtectionCell}
+                data-triggered={isOcpTriggered ? 'true' : 'false'}
+              >
+                <span className={styles.headerVbusProtectionLabel}>OCP</span>
+                <HeaderProtectionValue value={ocpValueText} />
               </div>
             </div>
           )}
