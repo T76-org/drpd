@@ -276,6 +276,10 @@
   display: none;
 }
 
+.headerFrontPanel[data-role='DISABLED'] .headerFrontPanelPortRailLine {
+  display: none;
+}
+
 .headerFrontPanel[data-port-rail-direction='port-1-to-port-2'] .headerFrontPanelPortRailLine,
 .headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine,
 .headerFrontPanel[data-port-rail-direction='port-1-to-banana'] .headerFrontPanelPortRailLine,

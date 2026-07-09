@@ -94,6 +94,7 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.headerFrontPanelPortRailLine\s*\{[^}]*stroke-dasharray:\s*0 4;/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-port-rail-route='ports'\]\s+\.headerFrontPanelPortRailLine\[data-port-rail-route='banana'\]/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-port-rail-route='banana'\]\s+\.headerFrontPanelPortRailLine\[data-port-rail-route='ports'\][^{]*\{[^}]*display:\s*none;/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-role='DISABLED'\]\s+\.headerFrontPanelPortRailLine\s*\{[^}]*display:\s*none;/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-port-rail-direction='port-1-to-port-2'\]\s+\.headerFrontPanelPortRailLine[^{]*\{[^}]*animation:\s*headerFrontPanelPortRailFlow 1\.4s linear infinite;/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-port-rail-direction='port-1-to-port-2'\]\s+\.headerFrontPanelPortRailLine[^{]*\{[^}]*stroke:\s*color-mix\(in srgb, var\(--color-status-success\) 74%, var\(--color-border-divider\)\);/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-port-rail-direction='port-1-to-banana'\]\s+\.headerFrontPanelPortRailLine/s)
