@@ -113,7 +113,7 @@
 }
 
 .headerContent {
-  --rack-header-design-width: 1325px;
+  --rack-header-design-width: 1450px;
   --rack-header-scale: clamp(0.5, calc(100cqw / var(--rack-header-design-width)), 1.7);
 
   display: flex;
@@ -447,6 +447,11 @@
 .headerVbusRoleStatusValue {
   text-align: right;
   min-width: max-content;
+}
+
+.headerVbusProfileStatusValue {
+  min-width: 18ch;
+  text-align: right;
 }
 
 .headerVbusRoleStatusValue[data-alert='true'] {
