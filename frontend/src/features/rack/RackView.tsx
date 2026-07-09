@@ -147,7 +147,6 @@ const WINUSB_INTERFACE_PROTOCOL = 0x02
 const CONSOLE_LOG_END_TS_US = (2n ** 63n) - 1n
 const EMPTY_PAIRED_DEVICES: RackDeviceRecord[] = []
 const HEADER_VBUS_DISPLAY_UPDATE_RATE_HZ = 3
-const HEADER_CURRENT_FLOW_IDLE_THRESHOLD_A = 0.01
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
   messageTypes: { include: [], exclude: [] },
@@ -446,7 +445,7 @@ const HeaderFrontPanelVisual = ({
   port2Disabled,
   usbPortsEnabled,
   flow,
-  flowDirection,
+  portRailDirection,
   role,
   roleStatus,
 }: {
@@ -457,7 +456,7 @@ const HeaderFrontPanelVisual = ({
   port2Disabled: boolean
   usbPortsEnabled: boolean
   flow: 'off' | 'idle' | 'sink' | 'monitor'
-  flowDirection: 'idle' | 'port-1-to-port-2' | 'port-2-to-port-1' | 'port-1-to-vbus' | 'vbus-to-port-1'
+  portRailDirection: 'idle' | 'port-1-to-port-2' | 'port-2-to-port-1'
   role: CCBusRole | null
   roleStatus: CCBusRoleStatus | null
 }) => (
@@ -471,7 +470,7 @@ const HeaderFrontPanelVisual = ({
     data-role={role ?? 'UNKNOWN'}
     data-role-status={roleStatus ?? 'UNKNOWN'}
     data-flow={flow}
-    data-flow-direction={flowDirection}
+    data-port-rail-direction={portRailDirection}
   >
     <div className={styles.headerFrontPanelDeviceRow} aria-hidden="true">
       <div className={styles.headerFrontPanelDevice} data-device="usb-c-1">
@@ -505,30 +504,20 @@ const HeaderFrontPanelVisual = ({
       </div>
     </div>
     <svg
-      className={styles.headerFrontPanelFlowRail}
+      className={styles.headerFrontPanelPortRail}
       viewBox="0 0 126 16"
       preserveAspectRatio="none"
       aria-hidden="true"
     >
+      <defs>
+        <clipPath id="header-front-panel-port-rail-clip">
+          <rect x="0" y="6" width="126" height="10" />
+        </clipPath>
+      </defs>
       <path
-        className={styles.headerFrontPanelFlowPath}
-        data-flow-segment="bus"
-        d="M18 13 H112"
-      />
-      <path
-        className={styles.headerFrontPanelFlowPath}
-        data-flow-segment="port-1"
-        d="M18 13 C18 8 18 5 18 1"
-      />
-      <path
-        className={styles.headerFrontPanelFlowPath}
-        data-flow-segment="port-2"
-        d="M56 13 C56 8 60 5 60 1"
-      />
-      <path
-        className={styles.headerFrontPanelFlowPath}
-        data-flow-segment="vbus"
-        d="M101 13 C101 8 99 5 99 1"
+        className={styles.headerFrontPanelPortRailLine}
+        clipPath="url(#header-front-panel-port-rail-clip)"
+        d="M19 -8 V9 Q19 13 23 13 H53 Q57 13 57 9 V-8"
       />
     </svg>
   </div>
@@ -3819,16 +3808,12 @@ const HeaderVbusMetrics = ({
       : isSinkAttached
         ? 'sink'
         : 'idle'
-  const frontPanelFlowDirection =
-    frontPanelFlow === 'monitor' && signedVbusCurrent != null && Math.abs(signedVbusCurrent) > HEADER_CURRENT_FLOW_IDLE_THRESHOLD_A
-      ? signedVbusCurrent > 0
+  const frontPanelPortRailDirection =
+    signedVbusCurrent == null || signedVbusCurrent === 0
+      ? 'idle'
+      : signedVbusCurrent > 0
         ? 'port-1-to-port-2'
         : 'port-2-to-port-1'
-      : frontPanelFlow === 'sink' && signedVbusCurrent != null && Math.abs(signedVbusCurrent) > HEADER_CURRENT_FLOW_IDLE_THRESHOLD_A
-        ? signedVbusCurrent > 0
-          ? 'port-1-to-vbus'
-          : 'vbus-to-port-1'
-        : 'idle'
   const profileCaptureMenuItems = useMemo<MenuItem[]>(
     () => [
       ...captureMenuItems,
@@ -3851,7 +3836,7 @@ const HeaderVbusMetrics = ({
         port2Disabled={isFrontPanelPort2Disabled}
         usbPortsEnabled={areFrontPanelUsbPortsEnabled}
         flow={frontPanelFlow}
-        flowDirection={frontPanelFlowDirection}
+        portRailDirection={frontPanelPortRailDirection}
         role={role}
         roleStatus={roleStatus}
       />

@@ -255,54 +255,29 @@
   background: transparent;
 }
 
-.headerFrontPanelFlowRail {
+.headerFrontPanelPortRail {
   justify-self: center;
-  width: calc(118px * var(--rack-header-scale));
+  width: var(--header-front-panel-width);
   height: calc(16px * var(--rack-header-scale));
   overflow: visible;
 }
 
-.headerFrontPanelFlowPath {
+.headerFrontPanelPortRailLine {
   fill: none;
-  stroke: color-mix(in srgb, var(--color-border-divider) 84%, transparent);
-  stroke-width: 2;
+  stroke: color-mix(in srgb, var(--color-text-muted) 72%, var(--color-border-divider));
+  stroke-width: 1.5;
   stroke-linecap: round;
-  stroke-dasharray: 1 7;
+  stroke-dasharray: 0 4;
   vector-effect: non-scaling-stroke;
 }
 
-.headerFrontPanel[data-flow='sink'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
-.headerFrontPanel[data-flow='sink'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
-.headerFrontPanel[data-flow='sink'] .headerFrontPanelFlowPath[data-flow-segment='vbus'],
-.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
-.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
-.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath[data-flow-segment='port-2'] {
-  stroke: color-mix(in srgb, var(--color-status-success) 70%, var(--color-border-divider));
+.headerFrontPanel[data-port-rail-direction='port-1-to-port-2'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine {
+  animation: headerFrontPanelPortRailFlow 1.4s linear infinite;
+  stroke: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
 }
 
-.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
-.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
-.headerFrontPanel[data-flow='monitor'] .headerFrontPanelFlowPath[data-flow-segment='port-2'] {
-  stroke: color-mix(in srgb, var(--color-metric-voltage) 66%, var(--color-border-divider));
-}
-
-.headerFrontPanel[data-flow-direction='port-1-to-port-2'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
-.headerFrontPanel[data-flow-direction='port-1-to-port-2'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
-.headerFrontPanel[data-flow-direction='port-1-to-port-2'] .headerFrontPanelFlowPath[data-flow-segment='port-2'],
-.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
-.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
-.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='port-2'],
-.headerFrontPanel[data-flow-direction='port-1-to-vbus'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
-.headerFrontPanel[data-flow-direction='port-1-to-vbus'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
-.headerFrontPanel[data-flow-direction='port-1-to-vbus'] .headerFrontPanelFlowPath[data-flow-segment='vbus'],
-.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='bus'],
-.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='port-1'],
-.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath[data-flow-segment='vbus'] {
-  animation: headerFrontPanelCurrentFlow 1.4s linear infinite;
-}
-
-.headerFrontPanel[data-flow-direction='port-2-to-port-1'] .headerFrontPanelFlowPath,
-.headerFrontPanel[data-flow-direction='vbus-to-port-1'] .headerFrontPanelFlowPath {
+.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine {
   animation-direction: reverse;
 }
 
@@ -545,7 +520,7 @@
   }
 }
 
-@keyframes headerFrontPanelCurrentFlow {
+@keyframes headerFrontPanelPortRailFlow {
   to {
     stroke-dashoffset: -8;
   }
@@ -558,7 +533,7 @@
     box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 18%, transparent);
   }
 
-  .headerFrontPanelFlowPath {
+  .headerFrontPanelPortRailLine {
     animation: none;
   }
 }
