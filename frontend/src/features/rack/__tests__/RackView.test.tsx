@@ -672,8 +672,7 @@ const mockUSB = (devices: USBDevice[]) => {
 }
 
 const expectHydratedDrpdPanels = async (): Promise<void> => {
-  expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
-  expect(await screen.findAllByText('Attached')).not.toHaveLength(0)
+  expect(await screen.findByText(/connected to dr\. pd/i)).toBeInTheDocument()
   expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
   expect(await screen.findAllByText('Armed')).not.toHaveLength(0)
 }
@@ -1078,19 +1077,36 @@ describe('RackView', () => {
     })
   })
 
-  it('omits the Power/Charge Meter timer display', async () => {
+  it('shows accumulator metrics in the header and keeps reset in the menu', async () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
     expect(await screen.findByText('Connected to Dr. PD')).toBeInTheDocument()
     expect(await screen.findAllByText('5.00')).not.toHaveLength(0)
+    const accumulatorPanel = screen.getByLabelText('Power and charge meter')
+    expect(within(accumulatorPanel).queryByText('ENERGY')).not.toBeInTheDocument()
+    expect(within(accumulatorPanel).queryByText('POWER')).not.toBeInTheDocument()
+    expect(within(accumulatorPanel).queryByText('TIME')).not.toBeInTheDocument()
+    expect(accumulatorPanel).toHaveTextContent('00:00:00')
+    expect(accumulatorPanel).toHaveTextContent('0.01Ah')
+    expect(accumulatorPanel).toHaveTextContent('0.03Wh')
+    expect(screen.getByLabelText('VBUS protection')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mode and profile status')).toBeInTheDocument()
+    expect(screen.getByLabelText('Status and capture status')).toBeInTheDocument()
+    expect(screen.getByLabelText('Trigger status')).toBeInTheDocument()
+
+    fireEvent.contextMenu(accumulatorPanel)
+    const headerMenu = screen.getByRole('menu', { name: 'Power/Charge Meter menu' })
+    expect(within(headerMenu).getByRole('menuitem', { name: /Reset/ })).toBeEnabled()
+    expect(within(headerMenu).queryByRole('menuitem', { name: /Time since reset/ })).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
     await openApplicationSubmenu('Power/Charge Meter')
     const menu = screen.getByRole('menu', { name: 'Power/Charge Meter menu' })
 
     expect(within(menu).getByRole('menuitem', { name: /Reset/ })).toBeEnabled()
     expect(within(menu).queryByRole('menuitem', { name: /Time since reset/ })).not.toBeInTheDocument()
-    expect(document.querySelector('[title*="Time since accumulator reset"]')).not.toBeInTheDocument()
   })
 
   it('imports Message Log JSON from the Capture menu after destructive confirmation', async () => {
@@ -1286,29 +1302,246 @@ describe('RackView', () => {
     render(<RackView />)
 
     const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    const metricsContainer = within(header).getByLabelText('VBUS metrics')
+    const primaryMetrics = metricsContainer.querySelector('[class*="headerVbusPrimaryMetrics"]')
+    const statusGrid = metricsContainer.querySelector('[class*="headerVbusStatusGrid"]')
     const headerLabels = Array.from(
       header.querySelectorAll('[class*="headerVbusProtectionLabel"]'),
     ).map((element) => element.textContent)
 
+    expect(frontPanel).toHaveAccessibleName(/Front panel ports/)
+    expect(frontPanel).toHaveAttribute('data-disabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-connected', 'false')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'false')
+    expect(frontPanel).toHaveAttribute('data-role', 'UNKNOWN')
+    expect(frontPanel).toHaveAttribute('data-role-status', 'UNKNOWN')
+    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'ports')
+    expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'idle')
+    expect(within(frontPanel).queryByText('OFF')).not.toBeInTheDocument()
+    expect(header.querySelectorAll('[data-port="1"], [data-port="2"]')).toHaveLength(2)
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'true')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'true')
+    expect(header.querySelectorAll('[data-polarity="positive"], [data-polarity="negative"]')).toHaveLength(2)
     expect(within(header).getByLabelText('VBUS metrics')).toBeInTheDocument()
+    expect(within(header).getByLabelText('Power and charge meter')).toBeInTheDocument()
     expect(within(header).getByText('OVP')).toBeInTheDocument()
     expect(within(header).getByText('OCP')).toBeInTheDocument()
-    expect(within(header).getByText('MODE')).toBeInTheDocument()
-    expect(within(header).getByText('STATUS')).toBeInTheDocument()
     expect(within(header).getByText('CAPTURE')).toBeInTheDocument()
     expect(within(header).getByText('PROFILE')).toBeInTheDocument()
     expect(within(header).getByText('SYNC STATE')).toBeInTheDocument()
     expect(within(header).getByText('EVENT COUNT')).toBeInTheDocument()
+    expect(within(header).getByText('MODE')).toBeInTheDocument()
+    expect(within(header).getByText('STATUS')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mode' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Capture' })).toBeInTheDocument()
+    expect(primaryMetrics).not.toBeNull()
+    expect(statusGrid).not.toBeNull()
+    expect(
+      frontPanel.compareDocumentPosition(primaryMetrics as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      (primaryMetrics as HTMLElement).compareDocumentPosition(statusGrid as HTMLElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
     expect(headerLabels).toEqual([
-      'OVP',
-      'OCP',
       'MODE',
       'PROFILE',
-      'CAPTURE',
       'STATUS',
+      'CAPTURE',
+      'OVP',
+      'OCP',
       'SYNC STATE',
       'EVENT COUNT',
     ])
+  })
+
+  it.each([
+    ['UNATTACHED', 'Unattached'],
+    ['SOURCE_FOUND', 'Source Found'],
+  ])('renders observer front-panel ports as unconnected for %s aggregate status', async (
+    status,
+    statusLabel,
+  ) => {
+    mockTransportState.roleResponse = ['OBSERVER']
+    mockTransportState.roleStatusResponse = [status]
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'OBSERVER')
+      expect(frontPanel).toHaveAttribute('data-role-status', status)
+    })
+
+    expect(frontPanel).toHaveAccessibleName(`Front panel ports: Observer, ${statusLabel}`)
+    expect(frontPanel).toHaveAttribute('data-disabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-connected', 'false')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'ports')
+    expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'port-1-to-port-2')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'false')
+  })
+
+  it('shows an OFF badge in the front-panel visual for Disabled mode', async () => {
+    mockTransportState.roleResponse = ['DISABLED']
+    mockTransportState.roleStatusResponse = ['UNATTACHED']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'DISABLED')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'UNATTACHED')
+    })
+
+    expect(frontPanel).toHaveAccessibleName('Front panel ports: Disabled, Unattached')
+    expect(frontPanel).toHaveAttribute('data-flow', 'off')
+    expect(within(frontPanel).getByText('OFF')).toBeInTheDocument()
+  })
+
+  it('renders observer front-panel ports as connected', async () => {
+    mockTransportState.roleResponse = ['OBSERVER']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'OBSERVER')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAccessibleName('Front panel ports: Observer, Attached')
+    expect(frontPanel).toHaveAttribute('data-disabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-connected', 'true')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'monitor')
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'ports')
+    expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'port-1-to-port-2')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'true')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'true')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'false')
+  })
+
+  it('keeps observer front-panel port rail stationary when current is zero', async () => {
+    mockTransportState.roleResponse = ['OBSERVER']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    mockTransportState.analogResponse[2] = '0'
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'OBSERVER')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'ports')
+    expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'idle')
+  })
+
+  it('renders sink front-panel state with port 1 and banana jacks as the active path', async () => {
+    mockTransportState.roleResponse = ['SINK']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'SINK')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAccessibleName('Front panel ports: Sink, Attached')
+    expect(frontPanel).toHaveAttribute('data-disabled', 'false')
+    expect(frontPanel).toHaveAttribute('data-connected', 'true')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'sink')
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'banana')
+    expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'port-1-to-banana')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'true')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'true')
+  })
+
+  it('clamps negative sink current display without changing active front-panel state', async () => {
+    mockTransportState.roleResponse = ['SINK']
+    mockTransportState.roleStatusResponse = ['ATTACHED']
+    mockTransportState.analogResponse[2] = '-0.12'
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'SINK')
+      expect(frontPanel).toHaveAttribute('data-role-status', 'ATTACHED')
+    })
+
+    expect(frontPanel).toHaveAttribute('data-flow', 'sink')
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'banana')
+    expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'banana-to-port-1')
+    expect(header.querySelector('[class*="headerVbusCurrent"]')).toHaveTextContent('0.00A')
+  })
+
+  it.each([
+    ['UNATTACHED', 'Unattached'],
+    ['SOURCE_FOUND', 'Source Found'],
+  ])('renders sink front-panel state as waiting for source for %s status', async (
+    status,
+    statusLabel,
+  ) => {
+    mockTransportState.roleResponse = ['SINK']
+    mockTransportState.roleStatusResponse = [status]
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => {
+      expect(frontPanel).toHaveAttribute('data-role', 'SINK')
+      expect(frontPanel).toHaveAttribute('data-role-status', status)
+    })
+
+    expect(frontPanel).toHaveAccessibleName(`Front panel ports: Sink, ${statusLabel}`)
+    expect(frontPanel).toHaveAttribute('data-disabled', 'false')
+    expect(frontPanel).toHaveAttribute('data-connected', 'false')
+    expect(frontPanel).toHaveAttribute('data-usb-ports-enabled', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'idle')
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'banana')
+    expect(frontPanel).toHaveAttribute('data-port-rail-direction', 'port-1-to-banana')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-connected', 'false')
+    expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
+    expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'true')
   })
 
   it('opens the protection context menu from the top header and follows menu rules', async () => {
@@ -1319,6 +1552,10 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => expect(frontPanel).toHaveAttribute('data-disabled', 'false'))
+    expect(frontPanel).toHaveAttribute('data-connected', 'true')
+    expect(frontPanel).toHaveAttribute('data-flow', 'sink')
     fireEvent.contextMenu(within(header).getByLabelText('VBUS protection'))
 
     const menu = screen.getByRole('menu', { name: 'Protection menu' })
@@ -1422,12 +1659,11 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Status and capture status'))
 
     const menu = screen.getByRole('menu', { name: 'Capture menu' })
     const disableCapture = within(menu).getByRole('menuitem', { name: /Disable Capture/ })
 
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
     expect(disableCapture).toBeEnabled()
 
     await userEvent.click(disableCapture)
@@ -1449,12 +1685,11 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Status and capture status'))
 
     const menu = screen.getByRole('menu', { name: 'Capture menu' })
     const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
 
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
     expect(enableCapture).toBeEnabled()
 
     await userEvent.click(enableCapture)
@@ -1470,16 +1705,15 @@ describe('RackView', () => {
     render(<RackView />)
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Capture status'))
+    fireEvent.contextMenu(within(header).getByLabelText('Status and capture status'))
 
     const menu = screen.getByRole('menu', { name: 'Capture menu' })
     const enableCapture = within(menu).getByRole('menuitem', { name: /Enable Capture/ })
 
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(1)
     expect(enableCapture).toBeDisabled()
   })
 
-  it('opens the mode context menu from the top header', async () => {
+  it('opens the mode and profile context menu from the top header', async () => {
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -1487,7 +1721,10 @@ describe('RackView', () => {
     expect(await screen.findByText('Connected to Dr. PD #DRPD-TEST-001')).toBeInTheDocument()
 
     const header = await screen.findByRole('banner')
-    fireEvent.contextMenu(within(header).getByLabelText('Mode status'))
+    const modeProfileStatus = within(header).getByLabelText('Mode and profile status')
+    expect(modeProfileStatus).toHaveTextContent('MODESink')
+    expect(modeProfileStatus).toHaveTextContent('PROFILEFixed 5V @ 2A')
+    fireEvent.contextMenu(modeProfileStatus)
 
     const menu = screen.getByRole('menu', { name: 'Mode menu' })
 
@@ -1507,6 +1744,7 @@ describe('RackView', () => {
         name: /Cycle USB Connection/,
       }),
     ).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /Disable Capture/ })).not.toBeInTheDocument()
   })
 
   it('opens the mode menu from the menu bar and follows sink-mode rules', async () => {
@@ -2683,7 +2921,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
     mockTransportState.sinkPpsStatusQueryEnabledResponse = ['ON']
 
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
@@ -2711,7 +2949,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
 
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
@@ -2726,7 +2964,7 @@ describe('RackView', () => {
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
     expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).not.toBeDisabled()
@@ -2754,7 +2992,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Observer')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
     expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).not.toBeDisabled()
 
@@ -2781,7 +3019,7 @@ describe('RackView', () => {
     mockUSB([createUSBDevice()])
     render(<RackView />)
 
-    expect(await screen.findAllByText('Disabled')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
     expect(await screen.findByRole('menuitem', { name: /Cycle USB Connection/ })).toBeDisabled()
     const disabledModeItem = await screen.findByRole('menuitemcheckbox', { name: /Disabled/ })
@@ -2802,8 +3040,7 @@ describe('RackView', () => {
 
     await pairNewDeviceFromMenu()
     expect(requestDevice).toHaveBeenCalled()
-    expect(await screen.findAllByText('Sink')).not.toHaveLength(0)
-    expect(await screen.findAllByText('Attached')).not.toHaveLength(0)
+    await expectHydratedDrpdPanels()
 
     dispatchDisconnect(usbDevice)
 

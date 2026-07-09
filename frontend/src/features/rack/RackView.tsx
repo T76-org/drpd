@@ -378,6 +378,22 @@ const formatHeaderAccumulatorMetricWithGhostZeros = (
   }
 }
 
+const formatHeaderAccumulatorElapsed = (elapsedUs: bigint | null | undefined): string => {
+  if (elapsedUs == null) {
+    return '--'
+  }
+  const totalSeconds = Number(elapsedUs / 1_000_000n)
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return '--'
+  }
+  const days = Math.floor(totalSeconds / 86_400)
+  const hours = Math.floor((totalSeconds % 86_400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const hhmmss = [hours, minutes, seconds].map((part) => part.toString().padStart(2, '0')).join(':')
+  return days > 0 ? `${days}d ${hhmmss}` : hhmmss
+}
+
 const HeaderGhostValue = ({
   text,
 }: {
@@ -404,6 +420,10 @@ const HeaderAccumulatorValue = ({
   </span>
 )
 
+const HeaderAccumulatorElapsedValue = ({ text }: { text: string }) => (
+  <span className={styles.headerVbusAccumulatorElapsedValue}>{text}</span>
+)
+
 const HeaderProtectionValue = ({
   value,
 }: {
@@ -417,68 +437,108 @@ const HeaderProtectionValue = ({
   </span>
 )
 
-const formatHeaderMetricWithGhostZeros = (
-  value: number | null | undefined,
-  width: number,
-): { ghost: string; value: string } => {
-  const formattedValue = formatHeaderMetric(value)
-  if (formattedValue === '--') {
-    return { ghost: '', value: formattedValue }
-  }
-  const paddedValue = formattedValue.padStart(width, '0')
-  return {
-    ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
-    value: formattedValue,
-  }
-}
-
-const resolveHeaderCurrentFlow = (
-  role: CCBusRole | null,
-  current: number | null,
-): {
-  kind: 'flow'
-  from: string
-  to: string
-  direction: 'right' | 'left'
-  toPort: boolean
-  toBananaPort: boolean
-} | { kind: 'text'; text: string } => {
-  if (role !== CCBusRole.OBSERVER && role !== CCBusRole.SINK) {
-    return { kind: 'text', text: '—' }
-  }
-  if (role === CCBusRole.OBSERVER && current === 0) {
-    return { kind: 'text', text: 'IDLE' }
-  }
-  if (current == null || current === 0) {
-    return { kind: 'text', text: '—' }
-  }
-  if (role === CCBusRole.OBSERVER) {
-    return {
-      kind: 'flow',
-      from: '1',
-      to: '2',
-      direction: current > 0 ? 'right' : 'left',
-      toPort: true,
-      toBananaPort: false,
-    }
-  }
-  if (current < 0) {
-    return { kind: 'text', text: '—' }
-  }
-  return {
-    kind: 'flow',
-    from: '1',
-    to: 'B',
-    direction: 'right',
-    toPort: false,
-    toBananaPort: true,
-  }
-}
+const HeaderFrontPanelVisual = ({
+  disabled,
+  port1Connected,
+  port2Connected,
+  port1Disabled,
+  port2Disabled,
+  usbPortsEnabled,
+  flow,
+  portRailRoute,
+  portRailDirection,
+  role,
+  roleStatus,
+}: {
+  disabled: boolean
+  port1Connected: boolean
+  port2Connected: boolean
+  port1Disabled: boolean
+  port2Disabled: boolean
+  usbPortsEnabled: boolean
+  flow: 'off' | 'idle' | 'sink' | 'monitor'
+  portRailRoute: 'ports' | 'banana'
+  portRailDirection: 'idle' | 'port-1-to-port-2' | 'port-2-to-port-1' | 'port-1-to-banana' | 'banana-to-port-1'
+  role: CCBusRole | null
+  roleStatus: CCBusRoleStatus | null
+}) => (
+  <div
+    className={styles.headerFrontPanel}
+    aria-label={`Front panel ports: ${formatHeaderRoleLabel(role)}, ${formatHeaderRoleStatusLabel(roleStatus)}`}
+    data-testid="header-front-panel"
+    data-disabled={disabled ? 'true' : 'false'}
+    data-connected={port1Connected || port2Connected ? 'true' : 'false'}
+    data-usb-ports-enabled={usbPortsEnabled ? 'true' : 'false'}
+    data-role={role ?? 'UNKNOWN'}
+    data-role-status={roleStatus ?? 'UNKNOWN'}
+    data-flow={flow}
+    data-port-rail-route={portRailRoute}
+    data-port-rail-direction={portRailDirection}
+  >
+    <div className={styles.headerFrontPanelDeviceRow} aria-hidden="true">
+      <div className={styles.headerFrontPanelDevice} data-device="usb-c-1">
+        <span className={styles.headerFrontPanelLabel}>1</span>
+        <span
+          className={styles.headerUsbCPort}
+          data-port="1"
+          data-connected={port1Connected ? 'true' : 'false'}
+          data-disabled={port1Disabled ? 'true' : 'false'}
+        >
+          <span className={styles.headerUsbCSlot} />
+        </span>
+      </div>
+      <div className={styles.headerFrontPanelDevice} data-device="usb-c-2">
+        <span className={styles.headerFrontPanelLabel}>2</span>
+        <span
+          className={styles.headerUsbCPort}
+          data-port="2"
+          data-connected={port2Connected ? 'true' : 'false'}
+          data-disabled={port2Disabled ? 'true' : 'false'}
+        >
+          <span className={styles.headerUsbCSlot} />
+        </span>
+      </div>
+      <div className={styles.headerFrontPanelDevice} data-device="vbus">
+        <span className={styles.headerFrontPanelLabel}>VBUS</span>
+        <span className={styles.headerBananaJackPair}>
+          <span className={styles.headerBananaJack} data-polarity="positive" />
+          <span className={styles.headerBananaJack} data-polarity="negative" />
+        </span>
+      </div>
+    </div>
+    <svg
+      className={styles.headerFrontPanelPortRail}
+      viewBox="0 0 126 16"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <clipPath id="header-front-panel-port-rail-clip">
+          <rect x="0" y="6" width="126" height="10" />
+        </clipPath>
+      </defs>
+      <path
+        className={styles.headerFrontPanelPortRailLine}
+        data-port-rail-route="ports"
+        clipPath="url(#header-front-panel-port-rail-clip)"
+        d="M19 -8 V9 Q19 13 23 13 H53 Q57 13 57 9 V-8"
+      />
+      <path
+        className={styles.headerFrontPanelPortRailLine}
+        data-port-rail-route="banana"
+        clipPath="url(#header-front-panel-port-rail-clip)"
+        d="M19 -8 V9 Q19 13 23 13 H97 Q101 13 101 9 V-8"
+      />
+    </svg>
+    {role === CCBusRole.DISABLED ? (
+      <span className={styles.headerFrontPanelDisabledBadge} aria-hidden="true">
+        OFF
+      </span>
+    ) : null}
+  </div>
+)
 
 const formatHeaderRoleLabel = (role: CCBusRole | null): string => {
-  if (!role) {
-    return '--'
-  }
   switch (role) {
     case CCBusRole.DISABLED:
       return 'Disabled'
@@ -492,9 +552,6 @@ const formatHeaderRoleLabel = (role: CCBusRole | null): string => {
 }
 
 const formatHeaderRoleStatusLabel = (status: CCBusRoleStatus | null): string => {
-  if (!status) {
-    return '--'
-  }
   switch (status) {
     case CCBusRoleStatus.UNATTACHED:
       return 'Unattached'
@@ -504,6 +561,21 @@ const formatHeaderRoleStatusLabel = (status: CCBusRoleStatus | null): string => 
       return 'Attached'
     default:
       return '--'
+  }
+}
+
+const formatHeaderMetricWithGhostZeros = (
+  value: number | null | undefined,
+  width: number,
+): { ghost: string; value: string } => {
+  const formattedValue = formatHeaderMetric(value)
+  if (formattedValue === '--') {
+    return { ghost: '', value: formattedValue }
+  }
+  const paddedValue = formattedValue.padStart(width, '0')
+  return {
+    ghost: paddedValue.slice(0, paddedValue.length - formattedValue.length),
+    value: formattedValue,
   }
 }
 
@@ -2624,6 +2696,20 @@ export const RackView = () => {
     ],
     [activeDriver, handleToggleActiveDeviceCapture, isCaptureEnabled],
   )
+  const powerChargeMeterMenuItems = useMemo<MenuItem[]>(
+    () => [
+      {
+        id: 'reset-power-charge-meter',
+        label: 'Reset',
+        meta: 'Z',
+        disabled: !activeDriver,
+        onSelect: () => {
+          void handleResetPowerChargeMeter()
+        },
+      },
+    ],
+    [activeDriver, handleResetPowerChargeMeter],
+  )
   const modeMenuItems = useMemo<MenuItem[]>(
     () => [
       {
@@ -3003,17 +3089,7 @@ export const RackView = () => {
       {
         id: 'power-charge-meter',
         label: 'Power/Charge Meter',
-        items: [
-          {
-            id: 'reset-power-charge-meter',
-            label: 'Reset',
-            meta: 'Z',
-            disabled: !activeDriver,
-            onSelect: () => {
-              void handleResetPowerChargeMeter()
-            },
-          },
-        ],
+        items: powerChargeMeterMenuItems,
       },
       {
         id: 'trigger',
@@ -3101,12 +3177,12 @@ export const RackView = () => {
     handleOpenDeviceNameDialog,
     handleOpenDocumentation,
     handleRemoveDevice,
-    handleResetPowerChargeMeter,
     handleRefreshActiveDeviceState,
     isFirmwareUploadBusy,
     messageLogMenuItems,
     modeMenuItems,
     pairedDevices,
+    powerChargeMeterMenuItems,
     protectionMenuItems,
     promptInstall,
     showTimestrip,
@@ -3194,6 +3270,7 @@ export const RackView = () => {
                     driver={activeConnectedDeviceState?.drpdDriver}
                     captureMenuItems={captureMenuItems}
                     modeMenuItems={modeMenuItems}
+                    powerChargeMeterMenuItems={powerChargeMeterMenuItems}
                     protectionMenuItems={protectionMenuItems}
                     triggerMenuItems={triggerMenuItems}
                   />
@@ -3536,12 +3613,14 @@ const HeaderVbusMetrics = ({
   driver,
   captureMenuItems,
   modeMenuItems,
+  powerChargeMeterMenuItems,
   protectionMenuItems,
   triggerMenuItems,
 }: {
   driver?: DRPDDriverRuntime
   captureMenuItems: MenuItem[]
   modeMenuItems: MenuItem[]
+  powerChargeMeterMenuItems: MenuItem[]
   protectionMenuItems: MenuItem[]
   triggerMenuItems: MenuItem[]
 }) => {
@@ -3698,7 +3777,6 @@ const HeaderVbusMetrics = ({
   const voltageText = formatHeaderMetricWithGhostZeros(vbusVoltage, 5)
   const currentText = formatHeaderMetricWithGhostZeros(vbusCurrent, 4)
   const powerText = formatHeaderMetricWithGhostZeros(vbusPower, 6)
-  const currentFlow = resolveHeaderCurrentFlow(role, signedVbusCurrent)
   const accumulatedChargeAh =
     analogMonitor && Number.isFinite(analogMonitor.accumulatedChargeMah)
       ? analogMonitor.accumulatedChargeMah / 1000
@@ -3709,22 +3787,71 @@ const HeaderVbusMetrics = ({
       : null
   const accumulatedChargeText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedChargeAh)
   const accumulatedEnergyText = formatHeaderAccumulatorMetricWithGhostZeros(accumulatedEnergyWh)
-  const isChargingIndicatorActive = signedVbusCurrent != null && signedVbusCurrent !== 0
+  const accumulationElapsedText = formatHeaderAccumulatorElapsed(
+    analogMonitor?.accumulationElapsedTimeUs,
+  )
   const ovpValueText = formatHeaderProtectionThreshold(vbusInfo?.ovpThresholdMv, 1000, 'V')
   const ocpValueText = formatHeaderProtectionThreshold(vbusInfo?.ocpThresholdMa, 1000, 'A')
   const isOvpTriggered = vbusInfo?.status === VBusStatus.OVP
   const isOcpTriggered = vbusInfo?.status === VBusStatus.OCP
-  const roleText = formatHeaderRoleLabel(role)
-  const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
   const activeSinkInfo = role === CCBusRole.SINK ? sinkInfo : null
   const captureStatusText = formatHeaderCaptureStatus(captureEnabled)
+  const roleText = formatHeaderRoleLabel(role)
+  const roleStatusText = formatHeaderRoleStatusLabel(roleStatus)
   const sinkContractText = formatHeaderSinkContract(activeSinkInfo)
   const triggerStateText = formatHeaderTriggerStatus(triggerInfo?.status)
   const triggerCountText = formatHeaderTriggerCount(triggerInfo?.eventCount)
   const isTriggerStateTriggered = triggerInfo?.status === TriggerStatus.TRIGGERED
+  const isObserverMode = role === CCBusRole.OBSERVER
+  const isSinkMode = role === CCBusRole.SINK
+  const isSinkAttached = isSinkMode && roleStatus === CCBusRoleStatus.ATTACHED
+  const isFrontPanelDisabled = !driver || role === CCBusRole.DISABLED || isObserverMode
+  const areFrontPanelUsbPortsEnabled = Boolean(driver) && role !== CCBusRole.DISABLED
+  const aggregateObserverConnected = isObserverMode && roleStatus === CCBusRoleStatus.ATTACHED
+  const isFrontPanelPort1Connected =
+    Boolean(driver) && (
+      isObserverMode ? aggregateObserverConnected : isSinkMode ? isSinkAttached : role !== CCBusRole.DISABLED
+    )
+  const isFrontPanelPort2Connected =
+    Boolean(driver) && (
+      isObserverMode ? aggregateObserverConnected : role !== CCBusRole.DISABLED && !isSinkMode
+    )
+  const isFrontPanelPort1Disabled = !driver || role === CCBusRole.DISABLED
+  const isFrontPanelPort2Disabled = isFrontPanelPort1Disabled || isSinkMode
+  const frontPanelFlow = aggregateObserverConnected
+    ? 'monitor'
+    : isFrontPanelDisabled
+      ? 'off'
+      : isSinkAttached
+        ? 'sink'
+        : 'idle'
+  const frontPanelPortRailRoute = isSinkMode ? 'banana' : 'ports'
+  const frontPanelPortRailDirection =
+    signedVbusCurrent == null || signedVbusCurrent === 0
+      ? 'idle'
+      : frontPanelPortRailRoute === 'banana'
+        ? signedVbusCurrent > 0
+          ? 'port-1-to-banana'
+          : 'banana-to-port-1'
+        : signedVbusCurrent > 0
+          ? 'port-1-to-port-2'
+          : 'port-2-to-port-1'
 
   return (
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
+      <HeaderFrontPanelVisual
+        disabled={isFrontPanelDisabled}
+        port1Connected={isFrontPanelPort1Connected}
+        port2Connected={isFrontPanelPort2Connected}
+        port1Disabled={isFrontPanelPort1Disabled}
+        port2Disabled={isFrontPanelPort2Disabled}
+        usbPortsEnabled={areFrontPanelUsbPortsEnabled}
+        flow={frontPanelFlow}
+        portRailRoute={frontPanelPortRailRoute}
+        portRailDirection={frontPanelPortRailDirection}
+        role={role}
+        roleStatus={roleStatus}
+      />
       <div className={styles.headerVbusPrimaryMetrics}>
         <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>
           <span className={styles.headerVbusNumber}>
@@ -3740,53 +3867,73 @@ const HeaderVbusMetrics = ({
             </span>
             <span className={styles.headerVbusUnit}>A</span>
           </div>
-          <div className={styles.headerVbusFlow}>
-            {currentFlow.kind === 'flow' ? (
-              <>
-                <span className={styles.headerVbusFlowEndpoint}>
-                  <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
-                  {currentFlow.from}
-                </span>
-                <span
-                  className={styles.headerVbusFlowTrack}
-                  data-direction={currentFlow.direction}
-                  aria-hidden="true"
-                />
-                <span className={styles.headerVbusFlowEndpoint}>
-                  {currentFlow.to}
-                  {currentFlow.toPort ? (
-                    <span className={styles.headerVbusUsbCPort} aria-hidden="true" />
-                  ) : null}
-                  {currentFlow.toBananaPort ? (
-                    <span className={styles.headerVbusBananaPort} aria-hidden="true" />
-                  ) : null}
-                </span>
-              </>
-            ) : (
-              currentFlow.text
-            )}
-          </div>
         </div>
         <div className={styles.headerVbusDivider} aria-hidden="true" />
-        <div className={styles.headerVbusSecondaryGroup}>
+        <div className={`${styles.headerVbusSecondaryGroup} ${styles.headerVbusPowerGroup}`}>
           <div className={`${styles.headerVbusMetric} ${styles.headerVbusPower}`}>
             <span className={styles.headerVbusNumber}>
               <HeaderGhostValue text={powerText} />
             </span>
             <span className={styles.headerVbusUnit}>W</span>
           </div>
-          <div className={styles.headerVbusAccumulation}>
-            <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
-            <span
-              className={styles.headerVbusChargeIndicator}
-              data-active={isChargingIndicatorActive ? 'true' : 'false'}
-              aria-hidden="true"
-            />
-            <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
-          </div>
+          <ContextMenu label="Power/Charge Meter menu" items={powerChargeMeterMenuItems}>
+            {(props) => (
+              <div
+                {...props}
+                className={styles.headerVbusAccumulatorPanel}
+                aria-label="Power and charge meter"
+              >
+                <div className={styles.headerVbusAccumulatorValueRow} aria-label="Energy">
+                  <HeaderAccumulatorValue text={accumulatedChargeText} unit="Ah" />
+                </div>
+                <div className={styles.headerVbusAccumulatorValueRow} aria-label="Power">
+                  <HeaderAccumulatorValue text={accumulatedEnergyText} unit="Wh" />
+                </div>
+                <div className={styles.headerVbusAccumulatorValueRow} aria-label="Time">
+                  <HeaderAccumulatorElapsedValue text={accumulationElapsedText} />
+                </div>
+              </div>
+            )}
+          </ContextMenu>
         </div>
       </div>
       <div className={styles.headerVbusStatusGrid}>
+        <ContextMenu label="Mode menu" items={modeMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Mode and profile status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>MODE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
+        <ContextMenu label="Capture menu" items={captureMenuItems}>
+          {(props) => (
+            <div
+              {...props}
+              className={styles.headerVbusProtection}
+              aria-label="Status and capture status"
+            >
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
+                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
+              </div>
+              <div className={styles.headerVbusProtectionCell}>
+                <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
+                <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
+              </div>
+            </div>
+          )}
+        </ContextMenu>
         <ContextMenu label="Protection menu" items={protectionMenuItems}>
           {(props) => (
             <div
@@ -3807,42 +3954,6 @@ const HeaderVbusMetrics = ({
               >
                 <span className={styles.headerVbusProtectionLabel}>OCP</span>
                 <HeaderProtectionValue value={ocpValueText} />
-              </div>
-            </div>
-          )}
-        </ContextMenu>
-        <ContextMenu label="Mode menu" items={modeMenuItems}>
-          {(props) => (
-            <div
-              {...props}
-              className={styles.headerVbusProtection}
-              aria-label="Mode status"
-            >
-              <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>MODE</span>
-                <span className={styles.headerVbusRoleStatusValue}>{roleText}</span>
-              </div>
-              <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>PROFILE</span>
-                <span className={styles.headerVbusRoleStatusValue}>{sinkContractText}</span>
-              </div>
-            </div>
-          )}
-        </ContextMenu>
-        <ContextMenu label="Capture menu" items={captureMenuItems}>
-          {(props) => (
-            <div
-              {...props}
-              className={styles.headerVbusProtection}
-              aria-label="Capture status"
-            >
-              <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>CAPTURE</span>
-                <span className={styles.headerVbusRoleStatusValue}>{captureStatusText}</span>
-              </div>
-              <div className={styles.headerVbusProtectionCell}>
-                <span className={styles.headerVbusProtectionLabel}>STATUS</span>
-                <span className={styles.headerVbusRoleStatusValue}>{roleStatusText}</span>
               </div>
             </div>
           )}

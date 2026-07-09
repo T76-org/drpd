@@ -113,7 +113,7 @@
 }
 
 .headerContent {
-  --rack-header-design-width: 1200px;
+  --rack-header-design-width: 1325px;
   --rack-header-scale: clamp(0.5, calc(100cqw / var(--rack-header-design-width)), 1.7);
 
   display: flex;
@@ -146,12 +146,169 @@
 
 .headerVbusMetrics {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: calc(var(--space-8) * 1.15 * var(--rack-header-scale));
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.headerFrontPanel {
+  --header-front-panel-width: calc(126px * var(--rack-header-scale));
+  --header-front-panel-height: calc(48px * var(--rack-header-scale));
+  --header-banana-jack-color: color-mix(in srgb, #fff 94%, var(--color-surface-header));
+
+  flex: 0 0 var(--header-front-panel-width);
+  width: var(--header-front-panel-width);
+  height: var(--header-front-panel-height);
+  box-sizing: border-box;
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) calc(16px * var(--rack-header-scale));
+  align-items: end;
+  padding: var(--space-0);
+}
+
+.headerFrontPanel[data-disabled='true'] {
+  --header-banana-jack-color: color-mix(in srgb, var(--color-text-muted) 56%, var(--color-border-divider));
+}
+
+.headerFrontPanel[data-flow='sink'] {
+  --header-banana-jack-color: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
+}
+
+.headerFrontPanelDeviceRow {
+  display: grid;
+  grid-template-columns: calc(30px * var(--rack-header-scale)) calc(30px * var(--rack-header-scale)) calc(42px * var(--rack-header-scale));
+  justify-content: center;
+  column-gap: calc(8px * var(--rack-header-scale));
+  min-width: 0;
+}
+
+.headerFrontPanelDevice {
+  display: grid;
+  grid-template-rows: calc(14px * var(--rack-header-scale)) calc(14px * var(--rack-header-scale));
+  justify-items: center;
+  align-items: end;
+  min-width: 0;
+}
+
+.headerFrontPanelLabel {
+  color: var(--color-text-muted);
+  font-size: calc(var(--font-size-2xs) * 0.9 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.headerUsbCPort {
+  width: calc(26px * var(--rack-header-scale));
+  height: calc(12px * var(--rack-header-scale));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-thin) solid color-mix(in srgb, var(--color-text-muted) 68%, transparent);
+  border-radius: calc(5px * var(--rack-header-scale));
+  background: color-mix(in srgb, #fff 94%, var(--color-surface-header));
+}
+
+.headerUsbCPort[data-connected='true'] {
+  border-color: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
+  background: color-mix(in srgb, #fff 94%, var(--color-surface-header));
+  box-shadow: inset 0 0 0 var(--border-thin) color-mix(in srgb, var(--color-status-success) 32%, transparent);
+}
+
+.headerUsbCPort[data-disabled='true'] {
+  border-color: color-mix(in srgb, var(--color-text-muted) 56%, var(--color-border-divider));
+  background: color-mix(in srgb, var(--color-text-muted) 14%, var(--color-surface-header));
+  box-shadow: none;
+}
+
+.headerUsbCPort[data-disabled='true'] .headerUsbCSlot {
+  background: color-mix(in srgb, var(--color-text-muted) 38%, transparent);
+}
+
+.headerFrontPanel[data-usb-ports-enabled='true'] .headerUsbCPort[data-connected='false'][data-disabled='false'] {
+  animation: headerUsbCPortAvailablePulse 2.8s ease-in-out infinite;
+}
+
+.headerUsbCSlot {
+  width: calc(15px * var(--rack-header-scale));
+  height: calc(3px * var(--rack-header-scale));
+  border-radius: calc(4px * var(--rack-header-scale));
+  background: color-mix(in srgb, var(--color-text-primary) 42%, transparent);
+}
+
+.headerBananaJackPair {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--rack-header-scale));
+}
+
+.headerBananaJack {
+  width: calc(12px * var(--rack-header-scale));
+  height: calc(12px * var(--rack-header-scale));
+  box-sizing: border-box;
+  border: calc(2px * var(--rack-header-scale)) solid var(--header-banana-jack-color);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.headerFrontPanelPortRail {
+  justify-self: center;
+  width: var(--header-front-panel-width);
+  height: calc(16px * var(--rack-header-scale));
+  overflow: visible;
+}
+
+.headerFrontPanelPortRailLine {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-text-muted) 72%, var(--color-border-divider));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 0 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.headerFrontPanel[data-port-rail-route='ports'] .headerFrontPanelPortRailLine[data-port-rail-route='banana'],
+.headerFrontPanel[data-port-rail-route='banana'] .headerFrontPanelPortRailLine[data-port-rail-route='ports'] {
+  display: none;
+}
+
+.headerFrontPanel[data-role='DISABLED'] .headerFrontPanelPortRailLine {
+  display: none;
+}
+
+.headerFrontPanelDisabledBadge {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(2px * var(--rack-header-scale));
+  transform: translateX(-50%);
+  color: color-mix(in srgb, var(--color-text-muted) 82%, var(--color-text-primary));
+  font-size: calc(var(--font-size-2xs) * 0.82 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  letter-spacing: var(--letter-spacing-sm);
+}
+
+.headerFrontPanel[data-role='DISABLED'] .headerFrontPanelDisabledBadge {
+  display: block;
+}
+
+.headerFrontPanel[data-port-rail-direction='port-1-to-port-2'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='port-1-to-banana'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='banana-to-port-1'] .headerFrontPanelPortRailLine {
+  animation: headerFrontPanelPortRailFlow 1.4s linear infinite;
+  stroke: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
+}
+
+.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='banana-to-port-1'] .headerFrontPanelPortRailLine {
+  animation-direction: reverse;
 }
 
 .headerVbusPrimaryMetrics {
@@ -170,7 +327,9 @@
   white-space: nowrap;
 }
 
-.headerVbusVoltage {
+.headerVbusVoltage,
+.headerVbusCurrent,
+.headerVbusPower {
   font-size: calc(var(--font-size-4xl) * 1.38 * var(--rack-header-scale));
 }
 
@@ -194,14 +353,15 @@
   gap: var(--space-0);
 }
 
-.headerVbusCurrent,
-.headerVbusPower {
-  font-size: calc(1.9rem * var(--rack-header-scale));
-  line-height: var(--line-height-tight);
+.headerVbusPowerGroup {
+  flex-direction: row;
+  align-items: center;
+  gap: calc(var(--space-10) * var(--rack-header-scale));
 }
 
 .headerVbusCurrent {
   color: var(--color-metric-current);
+  line-height: var(--line-height-snug);
 }
 
 .headerVbusPower {
@@ -228,95 +388,13 @@
   opacity: 0.2;
 }
 
-.headerVbusFlow {
-  color: var(--color-text-muted);
-  font-size: calc(var(--font-size-xs) * 1.15 * var(--rack-header-scale));
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
-  letter-spacing: 0;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--space-2) * var(--rack-header-scale));
-  min-height: calc(var(--font-size-xs) * var(--rack-header-scale));
-  align-self: center;
-}
-
-.headerVbusFlowEndpoint {
-  display: inline-flex;
-  align-items: center;
-  gap: calc(2px * var(--rack-header-scale));
-}
-
-.headerVbusUsbCPort {
-  width: calc(9.2px * var(--rack-header-scale));
-  height: calc(4.6px * var(--rack-header-scale));
-  border: var(--border-thin) solid currentColor;
-  border-radius: 999px;
-  opacity: 0.9;
-}
-
-.headerVbusBananaPort {
-  position: relative;
-  display: inline-block;
-  width: calc(7px * var(--rack-header-scale));
-  height: calc(7px * var(--rack-header-scale));
-  border: var(--border-thin) solid currentColor;
-  border-radius: 50%;
-  opacity: 0.9;
-}
-
-.headerVbusBananaPort::after {
-  content: '';
-  position: absolute;
-  inset: calc(1px * var(--rack-header-scale));
-  border: var(--border-thin) solid currentColor;
-  border-radius: 50%;
-}
-
-.headerVbusFlowTrack {
-  --flow-dot-size: calc(1.15px * var(--rack-header-scale));
-  --flow-dot-gap: calc(6.9px * var(--rack-header-scale));
-
-  display: inline-block;
-  width: calc(27.6px * var(--rack-header-scale));
-  height: calc(5.75px * var(--rack-header-scale));
-  border-radius: 999px;
-  background-image: radial-gradient(
-    circle,
-    currentColor var(--flow-dot-size),
-    transparent calc(var(--flow-dot-size) + 0.5px)
-  );
-  background-size: var(--flow-dot-gap) 100%;
-  background-repeat: repeat-x;
-  opacity: 0.85;
-  animation: headerVbusFlowRight 0.75s linear infinite;
-}
-
-.headerVbusFlowTrack[data-direction='left'] {
-  animation-name: headerVbusFlowLeft;
-}
-
-.headerVbusAccumulation {
-  color: var(--color-text-muted);
-  font-size: calc(var(--font-size-3xs) * 1.15 * var(--rack-header-scale));
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--line-height-tight);
-  font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: calc(var(--space-4) * var(--rack-header-scale));
-  white-space: nowrap;
-  min-height: calc(var(--font-size-xs) * var(--rack-header-scale));
-}
-
 .headerVbusProtection {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: max-content max-content;
   justify-content: center;
-  gap: calc(9.5px * var(--rack-header-scale));
+  align-items: baseline;
+  column-gap: calc(var(--space-4) * var(--rack-header-scale));
+  row-gap: calc(9.5px * var(--rack-header-scale));
   color: var(--color-text-primary);
   font-size: calc(var(--font-size-sm) * 1.25 * var(--rack-header-scale));
   font-weight: var(--font-weight-semibold);
@@ -326,13 +404,33 @@
   cursor: context-menu;
 }
 
+.headerVbusAccumulatorPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: calc(3px * var(--rack-header-scale));
+  color: var(--color-text-primary);
+  font-size: calc(var(--font-size-2xs) * 1.08 * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: context-menu;
+}
+
+.headerVbusAccumulatorValueRow {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 .headerVbusStatusGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(max-content, 1fr));
+  grid-template-columns: repeat(4, max-content);
   align-items: center;
-  column-gap: calc(var(--space-16) * var(--rack-header-scale));
-  row-gap: calc(var(--space-6) * var(--rack-header-scale));
-  flex: 1 1 420px;
+  column-gap: calc(var(--space-12) * var(--rack-header-scale));
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -342,25 +440,8 @@
   border-left: var(--border-thin) solid color-mix(in srgb, var(--color-border-divider) 58%, transparent);
 }
 
-@container (max-width: 980px) {
-  .headerVbusStatusGrid {
-    grid-template-columns: repeat(2, minmax(max-content, 1fr));
-  }
-}
-
-@container (max-width: 660px) {
-  .headerVbusStatusGrid {
-    grid-template-columns: max-content;
-  }
-}
-
 .headerVbusProtectionCell {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: calc(var(--space-4) * var(--rack-header-scale));
-  align-items: baseline;
-  justify-content: space-between;
-  min-width: 0;
+  display: contents;
 }
 
 .headerVbusRoleStatusValue {
@@ -373,6 +454,11 @@
 }
 
 .headerVbusProtectionCell[data-triggered='true'] {
+  color: var(--color-status-error);
+  animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
+}
+
+.headerVbusProtectionCell[data-triggered='true'] > * {
   color: var(--color-status-error);
   animation: headerVbusProtectionFlash 0.3s steps(2, end) infinite;
 }
@@ -404,94 +490,29 @@
   text-align: left;
 }
 
-.headerVbusChargeIndicator {
-  --header-vbus-charge-angle: 0deg;
-
-  position: relative;
-  width: calc(4.025px * var(--rack-header-scale));
-  height: calc(4.025px * var(--rack-header-scale));
-  border-radius: 999px;
-  opacity: 0;
-  margin-left: var(--space-0);
-  margin-right: calc(var(--space-3) * -1 * var(--rack-header-scale));
-}
-
-.headerVbusChargeIndicator[data-active='true'] {
-  opacity: 0.7;
-}
-
-.headerVbusChargeIndicator::after {
-  content: '';
-  position: absolute;
-  inset: calc(var(--border-thin) * -1);
-  border-radius: inherit;
-  background: conic-gradient(currentColor var(--header-vbus-charge-angle), transparent 0);
-  mask: radial-gradient(
-    farthest-side,
-    transparent calc(100% - var(--border-thin)),
-    #000 calc(100% - var(--border-thin))
-  );
-  opacity: 0;
-}
-
-.headerVbusChargeIndicator[data-active='true']::after {
-  opacity: 1;
-  animation: headerVbusChargeFill 3.25s linear infinite;
-}
-
 .headerVbusAccumulatorValue {
   display: inline-grid;
-  grid-template-columns: 6ch auto;
+  grid-template-columns: 8ch 2.6ch;
   column-gap: calc(2px * var(--rack-header-scale));
   align-items: baseline;
+  font-variant-numeric: tabular-nums;
 }
 
 .headerVbusAccumulatorNumber {
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .headerVbusAccumulatorUnit {
   text-align: left;
+  min-width: 2.6ch;
 }
 
-@keyframes headerVbusFlowRight {
-  from {
-    background-position-x: 0;
-  }
-
-  to {
-    background-position-x: var(--flow-dot-gap);
-  }
-}
-
-@keyframes headerVbusFlowLeft {
-  from {
-    background-position-x: 0;
-  }
-
-  to {
-    background-position-x: calc(var(--flow-dot-gap) * -1);
-  }
-}
-
-@property --header-vbus-charge-angle {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-
-@keyframes headerVbusChargeFill {
-  0% {
-    --header-vbus-charge-angle: 0deg;
-  }
-
-  80% {
-    --header-vbus-charge-angle: 360deg;
-  }
-
-  100% {
-    --header-vbus-charge-angle: 360deg;
-  }
+.headerVbusAccumulatorElapsedValue {
+  display: block;
+  width: 100%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes headerVbusProtectionFlash {
@@ -502,6 +523,37 @@
 
   50% {
     opacity: 0.25;
+  }
+}
+
+@keyframes headerUsbCPortAvailablePulse {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--color-text-muted) 68%, transparent);
+    box-shadow: 0 0 0 color-mix(in srgb, var(--color-metric-voltage) 0%, transparent);
+  }
+
+  50% {
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 76%, var(--color-border-divider));
+    box-shadow: 0 0 calc(7px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 30%, transparent);
+  }
+}
+
+@keyframes headerFrontPanelPortRailFlow {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headerFrontPanel[data-usb-ports-enabled='true'] .headerUsbCPort[data-connected='false'] {
+    animation: none;
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 62%, var(--color-border-divider));
+    box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 18%, transparent);
+  }
+
+  .headerFrontPanelPortRailLine {
+    animation: none;
   }
 }
 
