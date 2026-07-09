@@ -271,13 +271,21 @@
   vector-effect: non-scaling-stroke;
 }
 
+.headerFrontPanel[data-port-rail-route='ports'] .headerFrontPanelPortRailLine[data-port-rail-route='banana'],
+.headerFrontPanel[data-port-rail-route='banana'] .headerFrontPanelPortRailLine[data-port-rail-route='ports'] {
+  display: none;
+}
+
 .headerFrontPanel[data-port-rail-direction='port-1-to-port-2'] .headerFrontPanelPortRailLine,
-.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine {
+.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='port-1-to-banana'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='banana-to-port-1'] .headerFrontPanelPortRailLine {
   animation: headerFrontPanelPortRailFlow 1.4s linear infinite;
   stroke: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
 }
 
-.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine {
+.headerFrontPanel[data-port-rail-direction='port-2-to-port-1'] .headerFrontPanelPortRailLine,
+.headerFrontPanel[data-port-rail-direction='banana-to-port-1'] .headerFrontPanelPortRailLine {
   animation-direction: reverse;
 }
 

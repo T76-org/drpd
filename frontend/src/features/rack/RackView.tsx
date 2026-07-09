@@ -445,6 +445,7 @@ const HeaderFrontPanelVisual = ({
   port2Disabled,
   usbPortsEnabled,
   flow,
+  portRailRoute,
   portRailDirection,
   role,
   roleStatus,
@@ -456,7 +457,8 @@ const HeaderFrontPanelVisual = ({
   port2Disabled: boolean
   usbPortsEnabled: boolean
   flow: 'off' | 'idle' | 'sink' | 'monitor'
-  portRailDirection: 'idle' | 'port-1-to-port-2' | 'port-2-to-port-1'
+  portRailRoute: 'ports' | 'banana'
+  portRailDirection: 'idle' | 'port-1-to-port-2' | 'port-2-to-port-1' | 'port-1-to-banana' | 'banana-to-port-1'
   role: CCBusRole | null
   roleStatus: CCBusRoleStatus | null
 }) => (
@@ -470,6 +472,7 @@ const HeaderFrontPanelVisual = ({
     data-role={role ?? 'UNKNOWN'}
     data-role-status={roleStatus ?? 'UNKNOWN'}
     data-flow={flow}
+    data-port-rail-route={portRailRoute}
     data-port-rail-direction={portRailDirection}
   >
     <div className={styles.headerFrontPanelDeviceRow} aria-hidden="true">
@@ -516,8 +519,15 @@ const HeaderFrontPanelVisual = ({
       </defs>
       <path
         className={styles.headerFrontPanelPortRailLine}
+        data-port-rail-route="ports"
         clipPath="url(#header-front-panel-port-rail-clip)"
         d="M19 -8 V9 Q19 13 23 13 H53 Q57 13 57 9 V-8"
+      />
+      <path
+        className={styles.headerFrontPanelPortRailLine}
+        data-port-rail-route="banana"
+        clipPath="url(#header-front-panel-port-rail-clip)"
+        d="M19 -8 V9 Q19 13 23 13 H97 Q101 13 101 9 V-8"
       />
     </svg>
   </div>
@@ -3808,12 +3818,17 @@ const HeaderVbusMetrics = ({
       : isSinkAttached
         ? 'sink'
         : 'idle'
+  const frontPanelPortRailRoute = isSinkMode ? 'banana' : 'ports'
   const frontPanelPortRailDirection =
     signedVbusCurrent == null || signedVbusCurrent === 0
       ? 'idle'
-      : signedVbusCurrent > 0
-        ? 'port-1-to-port-2'
-        : 'port-2-to-port-1'
+      : frontPanelPortRailRoute === 'banana'
+        ? signedVbusCurrent > 0
+          ? 'port-1-to-banana'
+          : 'banana-to-port-1'
+        : signedVbusCurrent > 0
+          ? 'port-1-to-port-2'
+          : 'port-2-to-port-1'
   const profileCaptureMenuItems = useMemo<MenuItem[]>(
     () => [
       ...captureMenuItems,
@@ -3836,6 +3851,7 @@ const HeaderVbusMetrics = ({
         port2Disabled={isFrontPanelPort2Disabled}
         usbPortsEnabled={areFrontPanelUsbPortsEnabled}
         flow={frontPanelFlow}
+        portRailRoute={frontPanelPortRailRoute}
         portRailDirection={frontPanelPortRailDirection}
         role={role}
         roleStatus={roleStatus}
