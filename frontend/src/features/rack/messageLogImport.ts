@@ -51,6 +51,8 @@ export const serializeMessageLogRow = (row: LoggedCapturedMessage): Record<strin
   eventType: row.eventType,
   eventText: row.eventText,
   eventWallClockMs: row.eventWallClockMs,
+  flagged: row.flagged === true,
+  comment: row.comment ?? null,
   wallClockUs: row.wallClockUs?.toString() ?? null,
   startTimestampUs: row.startTimestampUs.toString(),
   endTimestampUs: row.endTimestampUs.toString(),
@@ -91,6 +93,10 @@ const normalizeCapturedMessage = (value: unknown, index: number): LoggedCaptured
     eventType: readNullableString(value.eventType, `${label}.eventType`) as LoggedCapturedMessage['eventType'],
     eventText: readNullableString(value.eventText, `${label}.eventText`),
     eventWallClockMs: readNullableNumber(value.eventWallClockMs, `${label}.eventWallClockMs`),
+    flagged: entryKind === 'message' && readOptionalBoolean(value.flagged, `${label}.flagged`),
+    comment: entryKind === 'message'
+      ? readNullableString(value.comment, `${label}.comment`)
+      : null,
     wallClockUs: readNullableBigInt(value.wallClockUs, `${label}.wallClockUs`),
     startTimestampUs: readBigInt(value.startTimestampUs, `${label}.startTimestampUs`),
     endTimestampUs: readBigInt(value.endTimestampUs, `${label}.endTimestampUs`),
@@ -120,6 +126,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const readString = (value: unknown, label: string): string => {
   if (typeof value !== 'string') {
     throw new Error(`${label} must be a string.`)
+  }
+  return value
+}
+
+const readOptionalBoolean = (value: unknown, label: string): boolean => {
+  if (value == null) {
+    return false
+  }
+  if (typeof value !== 'boolean') {
+    throw new Error(`${label} must be a boolean.`)
   }
   return value
 }
