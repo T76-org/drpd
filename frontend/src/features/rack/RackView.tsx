@@ -926,6 +926,8 @@ export const RackView = ({
   const [isMessageLogClearDialogOpen, setIsMessageLogClearDialogOpen] = useState(false)
   const [isMessageLogImportDialogOpen, setIsMessageLogImportDialogOpen] = useState(false)
   const [isMessageLogImportConfirmOpen, setIsMessageLogImportConfirmOpen] = useState(false)
+  const [isMessageCommentDialogOpen, setIsMessageCommentDialogOpen] = useState(false)
+  const [messageCommentDraft, setMessageCommentDraft] = useState('')
   const [isMessageLogMarking, setIsMessageLogMarking] = useState(false)
   const [isMessageLogClearing, setIsMessageLogClearing] = useState(false)
   const [isMessageLogExporting, setIsMessageLogExporting] = useState(false)
@@ -1754,6 +1756,33 @@ export const RackView = ({
       setMessageLogError(error instanceof Error ? error.message : String(error))
     }
   }, [activeDriver, selectedAnnotatableMessage])
+
+  const openSelectedMessageComment = useCallback(() => {
+    if (!selectedAnnotatableMessage) return
+    setMessageCommentDraft(selectedAnnotatableMessage.comment ?? '')
+    setIsMessageCommentDialogOpen(true)
+  }, [selectedAnnotatableMessage])
+
+  const saveSelectedMessageComment = useCallback(async () => {
+    if (!activeDriver || !selectedAnnotatableMessage) return
+    const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+    const comment = messageCommentDraft.trim() || null
+    setMessageLogError(null)
+    try {
+      const updated = await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
+        flagged: selectedAnnotatableMessage.flagged === true,
+        comment,
+      })
+      if (updated) {
+        setMessageLogFilterRows((current) => current.map((row) =>
+          buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, comment } : row,
+        ))
+        setIsMessageCommentDialogOpen(false)
+      }
+    } catch (error) {
+      setMessageLogError(error instanceof Error ? error.message : String(error))
+    }
+  }, [activeDriver, messageCommentDraft, selectedAnnotatableMessage])
 
   const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
     setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
@@ -2742,6 +2771,12 @@ export const RackView = ({
         },
       },
       {
+        id: 'logging-edit-message-comment',
+        label: selectedAnnotatableMessage?.comment ? 'Edit comment' : 'Add comment',
+        disabled: !activeDriver || !selectedAnnotatableMessage,
+        onSelect: openSelectedMessageComment,
+      },
+      {
         id: 'logging-toggle-capture',
         label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
         meta: 'C',
@@ -2756,6 +2791,7 @@ export const RackView = ({
       handleToggleActiveDeviceCapture,
       isCaptureEnabled,
       selectedAnnotatableMessage,
+      openSelectedMessageComment,
       toggleSelectedMessageFlag,
     ],
   )
@@ -3394,6 +3430,28 @@ export const RackView = ({
         }}
         onDone={() => setFirmwareUpdatePrompt(null)}
       />
+      <Dialog
+        open={isMessageCommentDialogOpen}
+        onOpenChange={setIsMessageCommentDialogOpen}
+        title={selectedAnnotatableMessage?.comment ? 'Edit comment' : 'Add comment'}
+        description="Write a Markdown comment for the selected message. Save empty text to remove it."
+        footer={
+          <>
+            <DialogButton onClick={() => setIsMessageCommentDialogOpen(false)}>Cancel</DialogButton>
+            <DialogButton variant="primary" onClick={() => void saveSelectedMessageComment()}>
+              Save
+            </DialogButton>
+          </>
+        }
+      >
+        <textarea
+          className={styles.messageCommentEditor}
+          aria-label="Message comment Markdown"
+          value={messageCommentDraft}
+          autoFocus
+          onChange={(event) => setMessageCommentDraft(event.currentTarget.value)}
+        />
+      </Dialog>
       <Dialog
         open={isStartupPairingDialogOpen}
         onOpenChange={setIsStartupPairingDialogOpen}

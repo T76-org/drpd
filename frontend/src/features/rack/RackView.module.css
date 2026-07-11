@@ -689,3 +689,10 @@
   white-space: nowrap;
   border: 0;
 }
+.messageCommentEditor {
+  box-sizing: border-box;
+  width: min(560px, 70vw);
+  min-height: 180px;
+  resize: vertical;
+  font: inherit;
+}
