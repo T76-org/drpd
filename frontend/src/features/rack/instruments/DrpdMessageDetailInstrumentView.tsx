@@ -523,6 +523,7 @@ export const DrpdMessageDetailInstrumentView = ({
   const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null)
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection>({ kind: 'none' })
   const [annotationRevision, setAnnotationRevision] = useState(0)
+  const [isCommentCollapsed, setIsCommentCollapsed] = useState(false)
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<(keyof HumanReadableMetadataRoot)[]>(
     () => (readStoredCollapsedSectionIds(instrument.id) ?? []) as (keyof HumanReadableMetadataRoot)[],
   )
@@ -685,16 +686,35 @@ export const DrpdMessageDetailInstrumentView = ({
             <div className={styles.sectionsContainer}>
               {visibleSelection.comment ? (
                 <section className={styles.section} data-section-id="comment" aria-label="Comment">
-                  <h3 className={styles.sectionHeading}>Comment</h3>
-                  {visibleSelection.commentCreatedAtMs !== null ? (
-                    <p className={styles.commentTimestamp}>
-                      Comment added on {new Date(visibleSelection.commentCreatedAtMs).toLocaleDateString()} at{' '}
-                      {new Date(visibleSelection.commentCreatedAtMs).toLocaleTimeString()}
-                    </p>
+                  <h3 className={styles.sectionHeading}>
+                    <button
+                      type="button"
+                      className={styles.sectionToggle}
+                      aria-expanded={!isCommentCollapsed}
+                      onClick={() => setIsCommentCollapsed((current) => !current)}
+                    >
+                      <span
+                        className={`${styles.sectionArrow} ${!isCommentCollapsed ? styles.sectionArrowExpanded : ''}`}
+                        aria-hidden="true"
+                      >
+                        ▶
+                      </span>
+                      <span className={styles.sectionHeadingText}>Comment</span>
+                    </button>
+                  </h3>
+                  {!isCommentCollapsed ? (
+                    <div className={styles.sectionContent}>
+                      {visibleSelection.commentCreatedAtMs !== null ? (
+                        <p className={styles.commentTimestamp}>
+                          Comment added on {new Date(visibleSelection.commentCreatedAtMs).toLocaleDateString()} at{' '}
+                          {new Date(visibleSelection.commentCreatedAtMs).toLocaleTimeString()}
+                        </p>
+                      ) : null}
+                      <div className={styles.commentContent}>
+                        <ReactMarkdown skipHtml>{visibleSelection.comment}</ReactMarkdown>
+                      </div>
+                    </div>
                   ) : null}
-                  <div className={styles.commentContent}>
-                    <ReactMarkdown skipHtml>{visibleSelection.comment}</ReactMarkdown>
-                  </div>
                 </section>
               ) : null}
               {visibleSelection.sections.map((section) => {
