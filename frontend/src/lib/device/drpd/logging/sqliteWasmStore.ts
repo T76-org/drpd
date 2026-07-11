@@ -13,6 +13,7 @@ import {
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
+  CapturedMessageAnnotations,
   DRPDLogCounts,
   DRPDLogStore,
   DRPDLoggingTimeBounds,
@@ -582,6 +583,36 @@ export class SQLiteWasmStore implements DRPDLogStore {
       sequence: this.nextPendingSequence++,
     })
     this.scheduleFlush()
+  }
+
+  public async updateCapturedMessageAnnotations(
+    selectionKey: string,
+    annotations: CapturedMessageAnnotations,
+  ): Promise<boolean> {
+    this.ensureInitialized()
+    await this.flush()
+    const match = /^message:(-?\d+):(-?\d+):(\d+)$/.exec(selectionKey)
+    if (!match) {
+      return false
+    }
+    const [, startTimestampUs, endTimestampUs, createdAtMs] = match
+    if (this.memoryFallback) {
+      const row = this.memoryFallback.capturedMessages.find((candidate) =>
+        candidate.entryKind === 'message' &&
+        candidate.startTimestampUs === BigInt(startTimestampUs) &&
+        candidate.endTimestampUs === BigInt(endTimestampUs) &&
+        candidate.createdAtMs === Number(createdAtMs))
+      if (!row) return false
+      row.flagged = annotations.flagged
+      row.comment = annotations.comment
+      return true
+    }
+    const db = this.requireDb()
+    db.exec(
+      'UPDATE captured_messages SET flagged = ?, comment = ? WHERE entry_kind = ? AND start_timestamp_us = ? AND end_timestamp_us = ? AND created_at_ms = ?',
+      { bind: [annotations.flagged ? 1 : 0, annotations.comment, 'message', BigInt(startTimestampUs), BigInt(endTimestampUs), Number(createdAtMs)] },
+    )
+    return this.selectCount('SELECT changes()') > 0
   }
 
   /**

@@ -35,6 +35,7 @@ import type {
   TriggerInfo,
   TriggerSyncMode,
 } from '../types'
+import type { CapturedMessageAnnotations } from '../logging/types'
 import { DRPDDevice } from '../device'
 import type { WorkerUSBDeviceSelection } from './protocol'
 import { deserializeWorkerError } from './serialization'
@@ -454,6 +455,17 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
    */
   public async queryCapturedMessages(query: CapturedMessageQuery): Promise<LoggedCapturedMessage[]> {
     return (await this.callDevice('queryCapturedMessages', query)) as LoggedCapturedMessage[]
+  }
+
+  public async updateCapturedMessageAnnotations(
+    selectionKey: string,
+    annotations: CapturedMessageAnnotations,
+  ): Promise<boolean> {
+    return (await this.callDevice(
+      'updateCapturedMessageAnnotations',
+      selectionKey,
+      annotations,
+    )) as boolean
   }
 
   /**

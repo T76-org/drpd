@@ -176,6 +176,13 @@ export interface CapturedMessageQuery {
   limit?: number
 }
 
+export interface CapturedMessageAnnotations {
+  ///< Whether message is flagged.
+  flagged: boolean
+  ///< Optional Markdown comment.
+  comment: string | null
+}
+
 /**
  * Active device-to-wall-clock synchronization anchor.
  */
@@ -335,6 +342,11 @@ export interface DRPDLogStore {
    * @param message - Captured message row.
    */
   insertCapturedMessage(message: LoggedCapturedMessage): Promise<void>
+
+  updateCapturedMessageAnnotations?(
+    selectionKey: string,
+    annotations: CapturedMessageAnnotations,
+  ): Promise<boolean>
 
   /**
    * Query analog sample rows.
