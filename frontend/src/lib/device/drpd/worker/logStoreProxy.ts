@@ -8,6 +8,7 @@
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
+  CapturedMessageAnnotations,
   DRPDLoggingTimeBounds,
   DRPDLogStore,
   DRPDLoggingConfig,
@@ -130,6 +131,20 @@ export class DRPDWorkerLogStoreProxy implements DRPDLogStore {
       logStoreId: this.id,
       op: 'queryCapturedMessages',
       query,
+    })
+  }
+
+  public async updateCapturedMessageAnnotations(
+    selectionKey: string,
+    annotations: CapturedMessageAnnotations,
+  ): Promise<boolean> {
+    this.ensureOpen()
+    await this.ensureCreated()
+    return await this.client.callWorker<boolean>('logStore.call', {
+      logStoreId: this.id,
+      op: 'updateCapturedMessageAnnotations',
+      selectionKey,
+      annotations,
     })
   }
 

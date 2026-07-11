@@ -182,6 +182,7 @@ const DRPD_EVENT_NAMES = [
   DRPDDevice.MESSAGE_CAPTURED_EVENT,
   DRPDDevice.LOG_ENTRY_ADDED_EVENT,
   DRPDDevice.LOG_ENTRY_DELETED_EVENT,
+  DRPDDevice.LOG_ENTRY_UPDATED_EVENT,
   DRPDDevice.STATE_ERROR_EVENT,
 ] as const ///< DRPD event names forwarded from worker to main thread.
 
@@ -434,6 +435,11 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           return await store.queryAnalogSamples(request.params.query)
         case 'queryCapturedMessages':
           return await store.queryCapturedMessages(request.params.query)
+        case 'updateCapturedMessageAnnotations':
+          return await store.updateCapturedMessageAnnotations?.(
+            request.params.selectionKey,
+            request.params.annotations,
+          ) ?? false
         case 'getTimeBounds':
           return typeof store.getTimeBounds === 'function'
             ? await store.getTimeBounds()

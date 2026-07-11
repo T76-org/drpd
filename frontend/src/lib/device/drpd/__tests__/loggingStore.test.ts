@@ -70,6 +70,30 @@ const buildEvent = (index: number): LoggedCapturedMessage => ({
 })
 
 describe('SQLiteWasmStore', () => {
+  it('updates annotations by stable message key and rejects event keys', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+    const message = buildMessage(0)
+    await store.insertCapturedMessage(message)
+    const key = `message:${message.startTimestampUs}:${message.endTimestampUs}:${message.createdAtMs}`
+
+    await expect(store.updateCapturedMessageAnnotations(key, {
+      flagged: true,
+      comment: '**Important**',
+    })).resolves.toBe(true)
+    await expect(store.updateCapturedMessageAnnotations('event:1:2:mark', {
+      flagged: true,
+      comment: 'No',
+    })).resolves.toBe(false)
+
+    const [updated] = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+    })
+    expect(updated.flagged).toBe(true)
+    expect(updated.comment).toBe('**Important**')
+    await store.close()
+  })
   it('falls back to an in-memory SQLite database when OPFS open fails', () => {
     const store = new OpenDatabaseTestStore()
     const memoryDb = { dbVfsName: () => 'memdb' } as unknown as Database
