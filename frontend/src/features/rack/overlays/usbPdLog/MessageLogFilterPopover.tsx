@@ -18,6 +18,7 @@ type MessageLogFilterPopoverProps = {
     receivers: FilterOption[]
     sopTypes: FilterOption[]
     crcValid: FilterOption[]
+    flagged?: FilterOption[]
   }
   onApply: (next: MessageLogFilters) => void
 }
@@ -36,6 +37,7 @@ const buildDefaultFilters = (): MessageLogFilters => ({
   receivers: { include: [], exclude: [] },
   sopTypes: { include: [], exclude: [] },
   crcValid: { include: [], exclude: [] },
+  flagged: { include: [], exclude: [] },
 })
 
 const isFilterOptionChecked = (
@@ -43,7 +45,7 @@ const isFilterOptionChecked = (
   key: MessageLogFilterKey,
   value: string,
 ): boolean => {
-  const rule = filters[key]
+  const rule = filters[key] ?? { include: [], exclude: [] }
   if (rule.include.length > 0) {
     return rule.include.includes(value)
   }
@@ -179,6 +181,10 @@ const MessageLogFilterDialogContent = ({
     { key: 'receivers', title: 'Receiver', options: options.receivers },
     { key: 'sopTypes', title: 'SOP type', options: options.sopTypes },
     { key: 'crcValid', title: 'CRC', options: options.crcValid },
+    { key: 'flagged', title: 'Flagged', options: options.flagged ?? [
+      { value: 'Flagged', label: 'Flagged' },
+      { value: 'Unflagged', label: 'Unflagged' },
+    ] },
   ]
   const hideGoodCrc = isGoodCrcHidden(draft)
   const messageTypeOptions = groups[0]?.options ?? []
