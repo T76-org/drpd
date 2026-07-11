@@ -176,7 +176,7 @@ commands:
     handler:      _queryCCBusControllerRole
 
   - syntax:       "BUS:CC:ROLE"
-    description:  "Set the CC bus controller role"
+    description:  "Set and persist the CC bus controller role. The factory default role is OBSERVER."
     parameters:
       - name:        role
         type:        enum

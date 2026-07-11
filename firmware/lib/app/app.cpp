@@ -371,12 +371,13 @@ void App::_initCore0() {
     );
     _analogMonitor.init();
     _analogMonitor.applyPersistentConfig(PersistentConfig::instance().current().analogMonitor);
-    _ccBusController.init();
-    _bmcDecoder.initCore0();
     _vbusManager.applyPersistentConfig(PersistentConfig::instance().current().vbus);
     _syncManager.applyPersistentConfig(PersistentConfig::instance().current().sync);
     _triggerController.applyPersistentConfig(PersistentConfig::instance().current().trigger);
     _ccBusController.applySinkPersistentConfig(PersistentConfig::instance().current().sink);
+    _ccBusController.applyPersistentConfig(PersistentConfig::instance().current().ccBus);
+    _ccBusController.init();
+    _bmcDecoder.initCore0();
     _bmcDecoder.messageReceivedCallbackCore0(std::bind(&App::_messageReceivedCallback, this, std::placeholders::_1));
     _ccBusController.addStateChangedCallback(std::bind(&App::_ccBusStateChangedCallback, this, std::placeholders::_1));
     _ccBusController.addRoleChangedCallback(std::bind(&App::_ccBusRoleChangedCallback, this, std::placeholders::_1));
@@ -729,6 +730,7 @@ void App::_savePersistentConfig() {
         data.trigger = _triggerController.exportPersistentConfig();
         data.sync = _syncManager.exportPersistentConfig();
         data.sink = _ccBusController.exportSinkPersistentConfig();
+        data.ccBus = _ccBusController.exportPersistentConfig();
     });
     (void)config.save();
 }

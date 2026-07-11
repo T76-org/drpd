@@ -178,7 +178,10 @@ void App::_setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &
         _ccBusController.role(Logic::CCBusRole::Sink);
     } else {
         _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
+        return;
     }
+
+    _savePersistentConfig();
 }
 
 void App::_queryCCBusControllerRoleStatus(const std::vector<T76::SCPI::ParameterValue> &params) {
