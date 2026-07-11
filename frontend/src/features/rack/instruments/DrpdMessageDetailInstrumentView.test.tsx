@@ -146,6 +146,26 @@ afterEach(() => {
 })
 
 describe('DrpdMessageDetailInstrumentView', () => {
+  it('renders a non-empty comment as safe Markdown and hides raw HTML', async () => {
+    const row = buildMessageRow({ comment: '**Important** <script>alert(1)</script>' })
+    render(<DrpdMessageDetailInstrumentView instrument={buildInstrument()} displayName="MESSAGE DETAIL" deviceState={buildDeviceState({ selectedKeys: ['message:1000:1005:1700000000000'], anchorIndex: 0, activeIndex: 0 }, [row])} isEditMode={false} />)
+
+    expect(await screen.findByRole('region', { name: 'Comment' })).toBeInTheDocument()
+    expect(screen.getByText('Important').tagName).toBe('STRONG')
+    expect(document.querySelector('script')).toBeNull()
+  })
+
+  it('refreshes and hides an emptied comment after a log update event', async () => {
+    const row = buildMessageRow({ comment: 'Before' })
+    const driver = new TestSelectionDriver({ selectedKeys: ['message:1000:1005:1700000000000'], anchorIndex: 0, activeIndex: 0 }, [row])
+    render(<DrpdMessageDetailInstrumentView instrument={buildInstrument()} displayName="MESSAGE DETAIL" deviceState={{ record: buildDeviceRecord(), status: 'connected', drpdDriver: driver as unknown as RackDeviceState['drpdDriver'] }} isEditMode={false} />)
+
+    expect(await screen.findByText('Before')).toBeInTheDocument()
+    row.comment = null
+    act(() => driver.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, { detail: { selectionKey: 'message:1000:1005:1700000000000' } })))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Comment' })).not.toBeInTheDocument())
+  })
+
   it('shows the inspect prompt when nothing is selected', async () => {
     render(
       <DrpdMessageDetailInstrumentView
