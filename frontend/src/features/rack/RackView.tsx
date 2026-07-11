@@ -858,7 +858,11 @@ const getSinkVoltageHint = (pdo: SinkPdo | null | undefined): string => {
 /**
  * Render the rack view with rack selection and layout rendering.
  */
-export const RackView = () => {
+export const RackView = ({
+  startupPairingPromptEnabled = false,
+}: {
+  startupPairingPromptEnabled?: boolean
+}) => {
   const { canInstall, promptInstall } = usePWAInstallPrompt()
   const [rackDocument, setRackDocument] = useState<RackDocument | null>(null)
   const [activeRack, setActiveRack] = useState<RackDefinition | null>(null)
@@ -881,6 +885,8 @@ export const RackView = () => {
   )
   const [deviceStates, setDeviceStates] = useState<RackDeviceState[]>([])
   const [deviceError, setDeviceError] = useState<string | null>(null)
+  const [isStartupPairingDialogOpen, setIsStartupPairingDialogOpen] = useState(false)
+  const hasHandledStartupPairingPromptRef = useRef(false)
   const isRackEditMode = false
   const [draggedRackInstrumentId, setDraggedRackInstrumentId] = useState<string | null>(null)
   const [firmwareUpdatePrompt, setFirmwareUpdatePrompt] = useState<FirmwareUpdatePromptState | null>(null)
@@ -941,6 +947,21 @@ export const RackView = () => {
     [deviceStates],
   )
   const activeDeviceRecord = activeConnectedDeviceState?.record
+
+  useEffect(() => {
+    if (
+      !startupPairingPromptEnabled ||
+      isLoading ||
+      !rackDocument ||
+      pairedDevices.length > 0 ||
+      hasHandledStartupPairingPromptRef.current
+    ) {
+      return
+    }
+
+    hasHandledStartupPairingPromptRef.current = true
+    setIsStartupPairingDialogOpen(true)
+  }, [isLoading, pairedDevices.length, rackDocument, startupPairingPromptEnabled])
 
   useEffect(() => {
     let isMounted = true
@@ -3331,6 +3352,27 @@ export const RackView = () => {
         }}
         onDone={() => setFirmwareUpdatePrompt(null)}
       />
+      <Dialog
+        open={isStartupPairingDialogOpen}
+        onOpenChange={setIsStartupPairingDialogOpen}
+        title="Pair a device"
+        footer={
+          <>
+            <DialogButton onClick={() => setIsStartupPairingDialogOpen(false)}>No</DialogButton>
+            <DialogButton
+              variant="primary"
+              onClick={() => {
+                setIsStartupPairingDialogOpen(false)
+                void handleConnectDevice()
+              }}
+            >
+              Yes
+            </DialogButton>
+          </>
+        }
+      >
+        <p>There are no paired devices. Would you like to pair a new device?</p>
+      </Dialog>
       <Dialog
         open={deviceNameDialog != null}
         onOpenChange={handleDeviceNameDialogOpenChange}

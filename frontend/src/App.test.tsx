@@ -138,4 +138,45 @@ describe('App', () => {
     render(<App />)
     expect(await screen.findByRole('dialog', { name: /Before you begin… 1 of 3/ })).toBeInTheDocument()
   })
+
+  it('offers pairing after the initial notice when there are no paired devices', async () => {
+    const user = userEvent.setup()
+    saveRackDocument({
+      pairedDevices: [],
+      racks: [{ id: 'bench-rack-a', name: 'Bench Rack A', totalUnits: 8, rows: [] }],
+    })
+    render(<App />)
+
+    const notice = await screen.findByRole('dialog', { name: /Before you begin… 1 of 3/ })
+    expect(screen.queryByRole('dialog', { name: 'Pair a device' })).not.toBeInTheDocument()
+
+    await user.click(within(notice).getByRole('button', { name: 'Next' }))
+    await user.click(within(notice).getByRole('button', { name: 'Next' }))
+    await user.click(within(notice).getByRole('button', { name: 'OK' }))
+
+    const pairingDialog = await screen.findByRole('dialog', { name: 'Pair a device' })
+    expect(within(pairingDialog).getByText(/There are no paired devices/i)).toBeInTheDocument()
+  })
+
+  it('launches the USB picker when startup pairing is accepted', async () => {
+    const user = userEvent.setup()
+    const requestDevice = vi.fn(async () => {
+      throw new DOMException('User cancelled', 'NotFoundError')
+    })
+    window.localStorage.setItem('drpd:initial-notice-suppressed', 'true')
+    Object.defineProperty(navigator, 'usb', {
+      configurable: true,
+      value: { getDevices: vi.fn(async () => []), requestDevice },
+    })
+    saveRackDocument({
+      pairedDevices: [],
+      racks: [{ id: 'bench-rack-a', name: 'Bench Rack A', totalUnits: 8, rows: [] }],
+    })
+    render(<App />)
+
+    const pairingDialog = await screen.findByRole('dialog', { name: 'Pair a device' })
+    await user.click(within(pairingDialog).getByRole('button', { name: 'Yes' }))
+
+    expect(requestDevice).toHaveBeenCalledOnce()
+  })
 })
