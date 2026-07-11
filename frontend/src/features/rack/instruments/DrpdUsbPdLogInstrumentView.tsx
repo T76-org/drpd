@@ -99,6 +99,7 @@ type DisplayRow = {
   eventType: LoggedCapturedMessage['eventType']
   startTimestampUs: bigint
   endTimestampUs: bigint
+  flagged: string
   timestamp: string
   duration: string
   delta: string
@@ -112,7 +113,7 @@ type DisplayRow = {
 
 type DisplayColumnField = keyof Pick<
   DisplayRow,
-  'timestamp' | 'duration' | 'delta' | 'messageId' | 'messageType' | 'sender' | 'receiver' | 'sopType' | 'valid'
+  'flagged' | 'timestamp' | 'duration' | 'delta' | 'messageId' | 'messageType' | 'sender' | 'receiver' | 'sopType' | 'valid'
 >
 
 const EMPTY_FILTERS: MessageLogFilters = {
@@ -236,6 +237,7 @@ const toDisplayRows = (
         eventType: row.eventType,
         startTimestampUs: row.startTimestampUs,
         endTimestampUs: row.endTimestampUs,
+        flagged: '',
         timestamp: formatWallClock(row.wallClockUs),
         duration: '',
         delta: '',
@@ -261,6 +263,7 @@ const toDisplayRows = (
       selectionKey: buildCapturedLogSelectionKey(row),
       startTimestampUs: row.startTimestampUs,
       endTimestampUs: row.endTimestampUs,
+      flagged: row.flagged === true ? '⚑' : '',
       timestamp: formatTimestampCell(row),
       duration: formatMicroseconds(durationUs),
       delta: formatMicroseconds(deltaUs),
@@ -1349,7 +1352,17 @@ export const DrpdUsbPdLogInstrumentView = ({
             }}
           >
             {row?.kind === 'event' ? (
-              visibleColumns[0]?.id === 'timestamp' ? (
+              visibleColumns[0]?.id === 'flagged' && visibleColumns[1]?.id === 'timestamp' ? (
+                <>
+                  <td className={styles.center} aria-label="Not flaggable" />
+                  <td className={styles.eventTimestamp}>{row.timestamp}</td>
+                  {visibleColumns.length > 2 ? (
+                    <td className={styles.eventLabelAligned} colSpan={visibleColumns.length - 2}>
+                      {row.messageType}
+                    </td>
+                  ) : null}
+                </>
+              ) : visibleColumns[0]?.id === 'timestamp' ? (
                 <>
                   <td className={styles.eventTimestamp}>{row.timestamp}</td>
                   {visibleColumns.length > 1 ? (
@@ -1359,9 +1372,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                   ) : null}
                 </>
               ) : (
-                <td className={styles.eventLabel} colSpan={visibleColumns.length}>
-                  {row.messageType}
-                </td>
+                <td className={styles.eventLabel} colSpan={visibleColumns.length}>{row.messageType}</td>
               )
             ) : (
               visibleColumns.map((column) => (

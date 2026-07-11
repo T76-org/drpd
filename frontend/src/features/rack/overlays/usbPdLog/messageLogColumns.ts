@@ -1,5 +1,14 @@
 export const MESSAGE_LOG_COLUMNS = [
   {
+    id: 'flagged',
+    label: 'Flag',
+    widthVar: '--column-width-flagged',
+    defaultWidthPx: 44,
+    minWidthPx: 36,
+    align: 'center',
+    field: 'flagged',
+  },
+  {
     id: 'timestamp',
     label: 'Wall time',
     widthVar: '--column-width-timestamp',
