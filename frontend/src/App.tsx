@@ -39,13 +39,15 @@ const isInitialNoticeSuppressed = (): boolean => {
  */
 const App = () => {
   const path = typeof window === 'undefined' ? '/' : window.location.pathname
-  const content = path === '/firmware-upload' ? <FirmwareUploadTestPage /> : <RackView />
   const [isInitialNoticeOpen, setIsInitialNoticeOpen] = useState(
     () => !isInitialNoticeSuppressed(),
   )
   const [suppressInitialNotice, setSuppressInitialNotice] = useState(false)
   const [initialNoticePage, setInitialNoticePage] = useState(0)
   const isLastInitialNoticePage = initialNoticePage === INITIAL_NOTICE_PAGES.length - 1
+  const content = path === '/firmware-upload'
+    ? <FirmwareUploadTestPage />
+    : <RackView startupPairingPromptEnabled={!isInitialNoticeOpen} />
 
   /** Accept the notice and persist suppression when requested. */
   const acceptInitialNotice = (): void => {
