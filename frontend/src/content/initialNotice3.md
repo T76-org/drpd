@@ -1,6 +1,6 @@
 ## Getting started
 
-That's it! If this is your first time using Dr. PD, the application will prompt you to pair your device as soon as you dismiss this notice.
+That's it! If this is your first time using Dr. PD, the application will prompt you to pair your device as soon as you close this message.
 
 There is no need to install any drivers or other software. Dr. PD runs entirely in your web browser, and all of your settings and log data are stored locally on your device. 
 
