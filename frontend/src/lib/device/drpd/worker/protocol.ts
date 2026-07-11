@@ -11,6 +11,7 @@ import type { DebugLogScopeRule } from '../../../debugLogger'
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
+  CapturedMessageAnnotations,
   DRPDLoggingConfig,
   LogClearResult,
   LogClearScope,
@@ -116,6 +117,7 @@ export type WorkerRpcRequest =
         | { logStoreId: string; op: 'insertCapturedMessage'; message: LoggedCapturedMessage }
         | { logStoreId: string; op: 'queryAnalogSamples'; query: AnalogSampleQuery }
         | { logStoreId: string; op: 'queryCapturedMessages'; query: CapturedMessageQuery }
+        | { logStoreId: string; op: 'updateCapturedMessageAnnotations'; selectionKey: string; annotations: CapturedMessageAnnotations }
         | { logStoreId: string; op: 'getTimeBounds' }
         | { logStoreId: string; op: 'exportData'; request: LogExportRequest }
         | { logStoreId: string; op: 'clear'; scope: LogClearScope }
@@ -159,6 +161,7 @@ export type WorkerRpcRequest =
               | 'refreshState'
               | 'queryAnalogSamples'
               | 'queryCapturedMessages'
+              | 'updateCapturedMessageAnnotations'
               | 'markLog'
               | 'getLogSelectionState'
               | 'setLogSelectionState'

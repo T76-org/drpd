@@ -10,6 +10,7 @@ const emptyFilters = (): MessageLogFilters => ({
   receivers: { include: [], exclude: [] },
   sopTypes: { include: [], exclude: [] },
   crcValid: { include: [], exclude: [] },
+  flagged: { include: [], exclude: [] },
 })
 
 const options = {
@@ -22,6 +23,7 @@ const options = {
   receivers: [{ value: 'Sink', label: 'Sink' }],
   sopTypes: [{ value: 'SOP', label: 'SOP' }],
   crcValid: [{ value: 'Valid', label: 'Valid' }],
+  flagged: [{ value: 'Flagged', label: 'Flagged' }, { value: 'Unflagged', label: 'Unflagged' }],
 }
 
 describe('MessageLogFilterPopover', () => {
@@ -51,6 +53,7 @@ describe('MessageLogFilterPopover', () => {
       receivers: { include: [], exclude: [] },
       sopTypes: { include: [], exclude: [] },
       crcValid: { include: [], exclude: [] },
+      flagged: { include: [], exclude: [] },
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -87,6 +90,7 @@ describe('MessageLogFilterPopover', () => {
       receivers: { include: [], exclude: [] },
       sopTypes: { include: [], exclude: [] },
       crcValid: { include: [], exclude: [] },
+      flagged: { include: [], exclude: [] },
     })
   })
 
@@ -130,6 +134,7 @@ describe('MessageLogFilterPopover', () => {
       receivers: { include: [], exclude: [] },
       sopTypes: { include: [], exclude: [] },
       crcValid: { include: [], exclude: [] },
+      flagged: { include: [], exclude: [] },
     })
   })
 
@@ -158,6 +163,7 @@ describe('MessageLogFilterPopover', () => {
       receivers: { include: [], exclude: [] },
       sopTypes: { include: [], exclude: [] },
       crcValid: { include: [], exclude: [] },
+      flagged: { include: [], exclude: [] },
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
@@ -201,6 +207,7 @@ describe('MessageLogFilterPopover', () => {
       receivers: { include: [], exclude: [] },
       sopTypes: { include: [], exclude: [] },
       crcValid: { include: [], exclude: [] },
+      flagged: { include: [], exclude: [] },
     })
   })
 

@@ -81,6 +81,30 @@
   --detail-value-surface-alt: color-mix(in srgb, #8a4f67 10%, var(--color-surface-panel));
 }
 
+.section[data-section-id='comment'] {
+  --detail-section-surface: color-mix(in srgb, #6b5b95 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #6b5b95 42%, var(--color-border-panel));
+}
+
+.commentContent {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.commentTimestamp {
+  margin: 0 0 var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.commentContent > :first-child {
+  margin-top: 0;
+}
+
+.commentContent > :last-child {
+  margin-bottom: 0;
+}
+
 .sectionToggle {
   display: flex;
   align-items: center;

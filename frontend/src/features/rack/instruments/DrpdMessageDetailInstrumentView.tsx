@@ -71,15 +71,21 @@ type LoadedSelection =
       kind: 'invalid'
       message?: Message
       sections: MessageDetailSection[]
+      comment: string | null
+      commentCreatedAtMs: number | null
     }
   | {
       kind: 'reset'
       sections: MessageDetailSection[]
+      comment: string | null
+      commentCreatedAtMs: number | null
     }
   | {
       kind: 'message'
       message: Message
       sections: MessageDetailSection[]
+      comment: string | null
+      commentCreatedAtMs: number | null
     }
 
 type MessageByteSegment = {
@@ -516,6 +522,8 @@ export const DrpdMessageDetailInstrumentView = ({
   const activeSelectionKey = selection.selectedKeys.length === 1 ? selection.selectedKeys[0] : null
   const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null)
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection>({ kind: 'none' })
+  const [annotationRevision, setAnnotationRevision] = useState(0)
+  const [isCommentCollapsed, setIsCommentCollapsed] = useState(false)
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<(keyof HumanReadableMetadataRoot)[]>(
     () => (readStoredCollapsedSectionIds(instrument.id) ?? []) as (keyof HumanReadableMetadataRoot)[],
   )
@@ -552,6 +560,18 @@ export const DrpdMessageDetailInstrumentView = ({
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     }
   }, [driver])
+
+  useEffect(() => {
+    if (!driver) return
+    const handleEntryUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ selectionKey?: string }>).detail
+      if (!detail?.selectionKey || detail.selectionKey === activeSelectionKey) {
+        setAnnotationRevision((current) => current + 1)
+      }
+    }
+    driver.addEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleEntryUpdated)
+    return () => driver.removeEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleEntryUpdated)
+  }, [activeSelectionKey, driver])
 
   useEffect(() => {
     if (
@@ -601,8 +621,8 @@ export const DrpdMessageDetailInstrumentView = ({
         setLoadedSelectionKey(activeSelectionKey)
         setLoadedSelection(
           decoded.kind === 'reset'
-            ? { kind: 'reset', sections: nextSections }
-            : { kind: 'invalid', message: decoded.kind === 'invalid' ? decoded.message : undefined, sections: nextSections },
+            ? { kind: 'reset', sections: nextSections, comment: row.comment?.trim() || null, commentCreatedAtMs: row.commentCreatedAtMs ?? null }
+            : { kind: 'invalid', message: decoded.kind === 'invalid' ? decoded.message : undefined, sections: nextSections, comment: row.comment?.trim() || null, commentCreatedAtMs: row.commentCreatedAtMs ?? null },
         )
         setCollapsedSectionIds((current) => {
           const nextIds = nextSections.map((section) => section.id)
@@ -616,6 +636,8 @@ export const DrpdMessageDetailInstrumentView = ({
         kind: 'message',
         message: decoded.message,
         sections: nextSections,
+        comment: row.comment?.trim() || null,
+        commentCreatedAtMs: row.commentCreatedAtMs ?? null,
       })
       setCollapsedSectionIds((current) => {
         const nextIds = nextSections.map((section) => section.id)
@@ -628,7 +650,7 @@ export const DrpdMessageDetailInstrumentView = ({
     return () => {
       cancelled = true
     }
-  }, [activeSelectionKey, driver])
+  }, [activeSelectionKey, annotationRevision, driver])
 
   const toggleSection = (sectionId: keyof HumanReadableMetadataRoot) => {
     setCollapsedSectionIds((current) =>
@@ -662,6 +684,39 @@ export const DrpdMessageDetailInstrumentView = ({
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
           {visibleSelection.kind === 'invalid' || visibleSelection.kind === 'reset' || visibleSelection.kind === 'message' ? (
             <div className={styles.sectionsContainer}>
+              {visibleSelection.comment ? (
+                <section className={styles.section} data-section-id="comment" aria-label="Comment">
+                  <h3 className={styles.sectionHeading}>
+                    <button
+                      type="button"
+                      className={styles.sectionToggle}
+                      aria-expanded={!isCommentCollapsed}
+                      onClick={() => setIsCommentCollapsed((current) => !current)}
+                    >
+                      <span
+                        className={`${styles.sectionArrow} ${!isCommentCollapsed ? styles.sectionArrowExpanded : ''}`}
+                        aria-hidden="true"
+                      >
+                        ▶
+                      </span>
+                      <span className={styles.sectionHeadingText}>Comment</span>
+                    </button>
+                  </h3>
+                  {!isCommentCollapsed ? (
+                    <div className={styles.sectionContent}>
+                      {visibleSelection.commentCreatedAtMs !== null ? (
+                        <p className={styles.commentTimestamp}>
+                          Comment added on {new Date(visibleSelection.commentCreatedAtMs).toLocaleDateString()} at{' '}
+                          {new Date(visibleSelection.commentCreatedAtMs).toLocaleTimeString()}
+                        </p>
+                      ) : null}
+                      <div className={styles.commentContent}>
+                        <ReactMarkdown skipHtml>{visibleSelection.comment}</ReactMarkdown>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
               {visibleSelection.sections.map((section) => {
                 const isExpanded = !collapsedSectionIds.includes(section.id)
                 return (

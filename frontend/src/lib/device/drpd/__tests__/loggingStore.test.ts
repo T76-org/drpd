@@ -70,6 +70,32 @@ const buildEvent = (index: number): LoggedCapturedMessage => ({
 })
 
 describe('SQLiteWasmStore', () => {
+  it('updates annotations by stable message key and rejects event keys', async () => {
+    const store = new SQLiteWasmStore()
+    await store.init()
+    const message = buildMessage(0)
+    await store.insertCapturedMessage(message)
+    const key = `message:${message.startTimestampUs}:${message.endTimestampUs}:${message.createdAtMs}`
+
+    await expect(store.updateCapturedMessageAnnotations(key, {
+      flagged: true,
+      comment: '**Important**',
+      commentCreatedAtMs: 1_700_000_000_000,
+    })).resolves.toBe(true)
+    await expect(store.updateCapturedMessageAnnotations('event:1:2:mark', {
+      flagged: true,
+      comment: 'No',
+      commentCreatedAtMs: 1_700_000_000_000,
+    })).resolves.toBe(false)
+
+    const [updated] = await store.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: 10_000n,
+    })
+    expect(updated.flagged).toBe(true)
+    expect(updated.comment).toBe('**Important**')
+    await store.close()
+  })
   it('falls back to an in-memory SQLite database when OPFS open fails', () => {
     const store = new OpenDatabaseTestStore()
     const memoryDb = { dbVfsName: () => 'memdb' } as unknown as Database
@@ -316,7 +342,9 @@ describe('SQLiteWasmStore', () => {
       includeAnalog: false,
       includeMessages: true,
     })
-    expect(exportData.payload).toContain('entry_kind,event_type,event_text,event_wall_clock_ms,wall_clock_us')
+    expect(exportData.payload).toContain(
+      'entry_kind,event_type,event_text,event_wall_clock_ms,flagged,comment,comment_created_at_ms,wall_clock_us',
+    )
     expect(exportData.payload).toContain('event,capture_changed')
   })
 

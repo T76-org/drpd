@@ -348,6 +348,12 @@
   text-align: left;
 }
 
+.eventLabelAfterFlag {
+  grid-column: 3 / -1;
+  justify-self: stretch;
+  text-align: left;
+}
+
 .headerPopup {
   display: grid;
   gap: var(--space-8);

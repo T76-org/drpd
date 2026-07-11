@@ -99,6 +99,7 @@ type DisplayRow = {
   eventType: LoggedCapturedMessage['eventType']
   startTimestampUs: bigint
   endTimestampUs: bigint
+  flagged: string
   timestamp: string
   duration: string
   delta: string
@@ -112,7 +113,7 @@ type DisplayRow = {
 
 type DisplayColumnField = keyof Pick<
   DisplayRow,
-  'timestamp' | 'duration' | 'delta' | 'messageId' | 'messageType' | 'sender' | 'receiver' | 'sopType' | 'valid'
+  'flagged' | 'timestamp' | 'duration' | 'delta' | 'messageId' | 'messageType' | 'sender' | 'receiver' | 'sopType' | 'valid'
 >
 
 const EMPTY_FILTERS: MessageLogFilters = {
@@ -121,6 +122,7 @@ const EMPTY_FILTERS: MessageLogFilters = {
   receivers: { include: [], exclude: [] },
   sopTypes: { include: [], exclude: [] },
   crcValid: { include: [], exclude: [] },
+  flagged: { include: [], exclude: [] },
 }
 
 const CRC_VALID_LABEL = 'Valid'
@@ -197,7 +199,8 @@ const countActiveFilters = (filters: MessageLogFilters): number =>
     0,
   )
 
-const filterRuleMatches = (rule: MessageLogFilterRule, value: string): boolean => {
+const filterRuleMatches = (rule: MessageLogFilterRule | undefined, value: string): boolean => {
+  if (!rule) return true
   if (rule.exclude.includes(value)) {
     return false
   }
@@ -217,7 +220,8 @@ const messageMatchesFilters = (
     filterRuleMatches(filters.senders, senderReceiver.sender) &&
     filterRuleMatches(filters.receivers, senderReceiver.receiver) &&
     filterRuleMatches(filters.sopTypes, getLogSopLabel(row) || normalizeSopType(row.sopKind)) &&
-    filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row))
+    filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row)) &&
+    filterRuleMatches(filters.flagged, row.flagged === true ? 'Flagged' : 'Unflagged')
   )
 }
 
@@ -236,6 +240,7 @@ const toDisplayRows = (
         eventType: row.eventType,
         startTimestampUs: row.startTimestampUs,
         endTimestampUs: row.endTimestampUs,
+        flagged: '',
         timestamp: formatWallClock(row.wallClockUs),
         duration: '',
         delta: '',
@@ -261,6 +266,7 @@ const toDisplayRows = (
       selectionKey: buildCapturedLogSelectionKey(row),
       startTimestampUs: row.startTimestampUs,
       endTimestampUs: row.endTimestampUs,
+      flagged: row.flagged === true ? '⚑' : '',
       timestamp: formatTimestampCell(row),
       duration: formatMicroseconds(durationUs),
       delta: formatMicroseconds(deltaUs),
@@ -1095,12 +1101,34 @@ export const DrpdUsbPdLogInstrumentView = ({
       })
     }
 
+    const handleUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const selectionKey = typeof detail?.selectionKey === 'string' ? detail.selectionKey : null
+      setPages(new Map())
+      if (selectionKey) {
+        setFilterRows((current) => current.map((row) =>
+          buildCapturedLogSelectionKey(row) === selectionKey
+            ? {
+                ...row,
+                flagged: detail.flagged === true,
+                comment: typeof detail.comment === 'string' ? detail.comment : null,
+                commentCreatedAtMs: typeof detail.commentCreatedAtMs === 'number'
+                  ? detail.commentCreatedAtMs
+                  : null,
+              }
+            : row,
+        ))
+      }
+    }
+
     driver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
     driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+    driver.addEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleUpdated)
 
     return () => {
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+      driver.removeEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleUpdated)
     }
   }, [driver])
 
@@ -1234,6 +1262,28 @@ export const DrpdUsbPdLogInstrumentView = ({
     })
   }
 
+  const handleRowContextMenu = (index: number, row: DisplayRow | null) => {
+    if (
+      !row ||
+      !driver ||
+      isEditMode ||
+      index < 0 ||
+      index >= displayedTotalRows ||
+      selection.selectedKeys.includes(row.selectionKey)
+    ) {
+      return
+    }
+    const nextSelection: DRPDLogSelectionState = {
+      selectedKeys: [row.selectionKey],
+      anchorIndex: index,
+      activeIndex: index,
+    }
+    setSelection(nextSelection)
+    enqueueSelectionTask(async () => {
+      await persistSelection(nextSelection)
+    })
+  }
+
   const handleViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!driver || isEditMode) {
       return
@@ -1347,9 +1397,22 @@ export const DrpdUsbPdLogInstrumentView = ({
             onClick={(event) => {
               handleRowClick(event, index, row)
             }}
+            onContextMenu={() => {
+              handleRowContextMenu(index, row)
+            }}
           >
             {row?.kind === 'event' ? (
-              visibleColumns[0]?.id === 'timestamp' ? (
+              visibleColumns[0]?.id === 'flagged' && visibleColumns[1]?.id === 'timestamp' ? (
+                <>
+                  <td className={styles.center} aria-label="Not flaggable" />
+                  <td className={styles.eventTimestamp}>{row.timestamp}</td>
+                  {visibleColumns.length > 2 ? (
+                    <td className={styles.eventLabelAfterFlag} colSpan={visibleColumns.length - 2}>
+                      {row.messageType}
+                    </td>
+                  ) : null}
+                </>
+              ) : visibleColumns[0]?.id === 'timestamp' ? (
                 <>
                   <td className={styles.eventTimestamp}>{row.timestamp}</td>
                   {visibleColumns.length > 1 ? (
@@ -1359,9 +1422,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                   ) : null}
                 </>
               ) : (
-                <td className={styles.eventLabel} colSpan={visibleColumns.length}>
-                  {row.messageType}
-                </td>
+                <td className={styles.eventLabel} colSpan={visibleColumns.length}>{row.messageType}</td>
               )
             ) : (
               visibleColumns.map((column) => (

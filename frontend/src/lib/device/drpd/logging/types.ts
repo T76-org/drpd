@@ -84,6 +84,12 @@ export type LoggedCapturedEventType =
  * Logged captured USB-PD message row.
  */
 export interface LoggedCapturedMessage {
+  ///< Whether the message has been user-flagged.
+  flagged?: boolean
+  ///< Optional user-authored Markdown comment.
+  comment?: string | null
+  ///< Wall-clock time when comment was first added.
+  commentCreatedAtMs?: number | null
   ///< Row kind discriminator.
   entryKind: LoggedCapturedEntryKind
   ///< Optional event type for event rows.
@@ -170,6 +176,15 @@ export interface CapturedMessageQuery {
   offset?: number
   ///< Optional row limit.
   limit?: number
+}
+
+export interface CapturedMessageAnnotations {
+  ///< Whether message is flagged.
+  flagged: boolean
+  ///< Optional Markdown comment.
+  comment: string | null
+  ///< Wall-clock time when comment was first added.
+  commentCreatedAtMs: number | null
 }
 
 /**
@@ -331,6 +346,11 @@ export interface DRPDLogStore {
    * @param message - Captured message row.
    */
   insertCapturedMessage(message: LoggedCapturedMessage): Promise<void>
+
+  updateCapturedMessageAnnotations?(
+    selectionKey: string,
+    annotations: CapturedMessageAnnotations,
+  ): Promise<boolean>
 
   /**
    * Query analog sample rows.

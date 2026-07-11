@@ -94,6 +94,7 @@ export class DRPDDevice extends EventTarget {
   public static readonly MESSAGE_CAPTURED_EVENT = 'messagecaptured' ///< Captured message event.
   public static readonly LOG_ENTRY_ADDED_EVENT = 'logentryadded' ///< Logged entry added event.
   public static readonly LOG_ENTRY_DELETED_EVENT = 'logentrydeleted' ///< Logged entry deleted event.
+  public static readonly LOG_ENTRY_UPDATED_EVENT = 'logentryupdated' ///< Logged entry annotation update event.
   public static readonly STATE_ERROR_EVENT = 'stateerror' ///< State error event.
 
   public readonly system: DRPDSystem ///< System command group.
@@ -467,6 +468,20 @@ export class DRPDDevice extends EventTarget {
       return []
     }
     return this.logStore.queryCapturedMessages(query)
+  }
+
+  public async updateCapturedMessageAnnotations(
+    selectionKey: string,
+    annotations: import('./logging').CapturedMessageAnnotations,
+  ): Promise<boolean> {
+    if (!this.logStore?.updateCapturedMessageAnnotations) return false
+    const updated = await this.logStore.updateCapturedMessageAnnotations(selectionKey, annotations)
+    if (updated) {
+      this.dispatchEvent(new CustomEvent(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, {
+        detail: { selectionKey, ...annotations },
+      }))
+    }
+    return updated
   }
 
   /**

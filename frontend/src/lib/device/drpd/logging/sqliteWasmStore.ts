@@ -13,6 +13,7 @@ import {
 import type {
   AnalogSampleQuery,
   CapturedMessageQuery,
+  CapturedMessageAnnotations,
   DRPDLogCounts,
   DRPDLogStore,
   DRPDLoggingTimeBounds,
@@ -282,6 +283,9 @@ const normalizeCapturedMessageForStorage = (message: LoggedCapturedMessage): Log
   const endTimestampUs = clampSqliteTimestampUs(message.endTimestampUs)
   return {
     ...message,
+    flagged: message.entryKind === 'message' && message.flagged === true,
+    comment: message.entryKind === 'message' ? message.comment ?? null : null,
+    commentCreatedAtMs: message.entryKind === 'message' ? message.commentCreatedAtMs ?? null : null,
     wallClockUs: clampNullableSqliteTimestampUs(message.wallClockUs),
     startTimestampUs,
     endTimestampUs: endTimestampUs < startTimestampUs ? startTimestampUs : endTimestampUs,
@@ -341,6 +345,9 @@ const toSerializableMessage = (row: LoggedCapturedMessage): Record<string, unkno
     eventType: row.eventType,
     eventText: row.eventText,
     eventWallClockMs: row.eventWallClockMs,
+    flagged: row.flagged === true,
+    comment: row.comment ?? null,
+    commentCreatedAtMs: row.commentCreatedAtMs ?? null,
     wallClockUs: row.wallClockUs?.toString() ?? null,
     startTimestampUs: row.startTimestampUs.toString(),
     endTimestampUs: row.endTimestampUs.toString(),
@@ -454,6 +461,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
       this.ensureColumnExists('captured_messages', 'event_type', 'TEXT')
       this.ensureColumnExists('captured_messages', 'event_text', 'TEXT')
       this.ensureColumnExists('captured_messages', 'event_wall_clock_ms', 'INTEGER')
+      this.ensureColumnExists('captured_messages', 'flagged', 'INTEGER NOT NULL DEFAULT 0')
+      this.ensureColumnExists('captured_messages', 'comment', 'TEXT')
+      this.ensureColumnExists('captured_messages', 'comment_created_at_ms', 'INTEGER')
       this.ensureColumnExists('captured_messages', 'wall_clock_us', 'INTEGER')
       this.ensureColumnExists('captured_messages', 'display_timestamp_us', 'INTEGER')
       this.db.exec(
@@ -578,6 +588,48 @@ export class SQLiteWasmStore implements DRPDLogStore {
     this.scheduleFlush()
   }
 
+  public async updateCapturedMessageAnnotations(
+    selectionKey: string,
+    annotations: CapturedMessageAnnotations,
+  ): Promise<boolean> {
+    this.ensureInitialized()
+    await this.flush()
+    const match = /^message:(-?\d+):(-?\d+):(\d+)$/.exec(selectionKey)
+    if (!match) {
+      return false
+    }
+    const [, startTimestampUs, endTimestampUs, createdAtMs] = match
+    if (this.memoryFallback) {
+      const row = this.memoryFallback.capturedMessages.find((candidate) =>
+        candidate.entryKind === 'message' &&
+        candidate.startTimestampUs === BigInt(startTimestampUs) &&
+        candidate.endTimestampUs === BigInt(endTimestampUs) &&
+        candidate.createdAtMs === Number(createdAtMs))
+      if (!row) return false
+      row.flagged = annotations.flagged
+      row.comment = annotations.comment
+      row.commentCreatedAtMs = annotations.commentCreatedAtMs
+      return true
+    }
+    const statement = this.requireDb().prepare(
+      'UPDATE captured_messages SET flagged = ?, comment = ?, comment_created_at_ms = ? WHERE entry_kind = ? AND start_timestamp_us = ? AND end_timestamp_us = ? AND created_at_ms = ?',
+    )
+    try {
+      statement.bind([
+        annotations.flagged ? 1 : 0,
+        annotations.comment,
+        annotations.commentCreatedAtMs,
+        'message',
+        BigInt(startTimestampUs),
+        BigInt(endTimestampUs),
+        Number(createdAtMs),
+      ]).stepReset()
+    } finally {
+      statement.finalize()
+    }
+    return true
+  }
+
   /**
    * Schedule a background flush if one is not already pending.
    */
@@ -623,9 +675,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
     this.insertCapturedMessageStmt = db.prepare(
       [
         'INSERT INTO captured_messages(',
-        'entry_kind,event_type,event_text,event_wall_clock_ms,wall_clock_us,start_timestamp_us,end_timestamp_us,display_timestamp_us,decode_result,sop_kind,message_kind,message_type,message_id,',
+        'entry_kind,event_type,event_text,event_wall_clock_ms,flagged,comment,comment_created_at_ms,wall_clock_us,start_timestamp_us,end_timestamp_us,display_timestamp_us,decode_result,sop_kind,message_kind,message_type,message_id,',
         'sender_power_role,sender_data_role,pulse_count,raw_pulse_widths,raw_sop,raw_decoded_data,parse_error,created_at_ms',
-        ') VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        ') VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ],
     )
   }
@@ -679,6 +731,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
           message.row.eventType,
           message.row.eventText,
           message.row.eventWallClockMs,
+          message.row.flagged === true ? 1 : 0,
+          message.row.comment ?? null,
+          message.row.commentCreatedAtMs ?? null,
           message.row.wallClockUs,
           message.row.startTimestampUs,
           message.row.endTimestampUs,
@@ -1143,7 +1198,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     }
 
     const sqlParts = [
-      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, wall_clock_us, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
+      'SELECT entry_kind, event_type, event_text, event_wall_clock_ms, flagged, comment, comment_created_at_ms, wall_clock_us, start_timestamp_us, end_timestamp_us, display_timestamp_us, decode_result, sop_kind, message_kind,',
       'message_type, message_id, sender_power_role, sender_data_role, pulse_count,',
       'raw_pulse_widths, raw_sop, raw_decoded_data, parse_error, created_at_ms',
       'FROM captured_messages',
@@ -1170,6 +1225,11 @@ export class SQLiteWasmStore implements DRPDLogStore {
         record.event_wall_clock_ms === null || record.event_wall_clock_ms === undefined
           ? null
           : toNumberValue(record.event_wall_clock_ms as SqlValue, 'message.event_wall_clock_ms'),
+      flagged: toNumberValue(record.flagged as SqlValue, 'message.flagged') !== 0,
+      comment: (record.comment ?? null) as string | null,
+      commentCreatedAtMs: record.comment_created_at_ms == null
+        ? null
+        : toNumberValue(record.comment_created_at_ms as SqlValue, 'message.comment_created_at_ms'),
       wallClockUs:
         record.wall_clock_us === null || record.wall_clock_us === undefined
           ? null
@@ -1326,6 +1386,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
           'event_type',
           'event_text',
           'event_wall_clock_ms',
+          'flagged',
+          'comment',
+          'comment_created_at_ms',
           'wall_clock_us',
           'start_timestamp_us',
           'end_timestamp_us',
@@ -1352,6 +1415,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
             toCSVField(row.eventType ?? ''),
             toCSVField(row.eventText ?? ''),
             row.eventWallClockMs?.toString() ?? '',
+            row.flagged === true ? '1' : '0',
+            toCSVField(row.comment ?? ''),
+            row.commentCreatedAtMs?.toString() ?? '',
             row.wallClockUs?.toString() ?? '',
             row.startTimestampUs.toString(),
             row.endTimestampUs.toString(),

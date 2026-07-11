@@ -128,6 +128,7 @@ import {
 } from './messageLogExport'
 import { parseMessageLogImportJson, serializeMessageLogRow } from './messageLogImport'
 import styles from './RackView.module.css'
+import messageLogStyles from './instruments/DrpdUsbPdLogInstrumentView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
 
@@ -154,6 +155,7 @@ const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
   receivers: { include: [], exclude: [] },
   sopTypes: { include: [], exclude: [] },
   crcValid: { include: [], exclude: [] },
+  flagged: { include: [], exclude: [] },
 }
 
 interface DRPDLogsConsoleHelper {
@@ -698,6 +700,7 @@ const buildMessageLogFilterOptions = (
   receivers: FilterOption[]
   sopTypes: FilterOption[]
   crcValid: FilterOption[]
+  flagged: FilterOption[]
 } => {
   const messageRows = rows.filter((row) => row.entryKind === 'message')
   return {
@@ -725,6 +728,12 @@ const buildMessageLogFilterOptions = (
       ...messageRows.map(getLogCrcLabel),
       ...filters.crcValid.include,
       ...filters.crcValid.exclude,
+    ]),
+    flagged: uniqueLogOptions([
+      'Flagged',
+      'Unflagged',
+      ...(filters.flagged?.include ?? []),
+      ...(filters.flagged?.exclude ?? []),
     ]),
   }
 }
@@ -926,6 +935,9 @@ export const RackView = ({
   const [isMessageLogClearDialogOpen, setIsMessageLogClearDialogOpen] = useState(false)
   const [isMessageLogImportDialogOpen, setIsMessageLogImportDialogOpen] = useState(false)
   const [isMessageLogImportConfirmOpen, setIsMessageLogImportConfirmOpen] = useState(false)
+  const [isMessageCommentDialogOpen, setIsMessageCommentDialogOpen] = useState(false)
+  const [isDeleteMessageCommentConfirmOpen, setIsDeleteMessageCommentConfirmOpen] = useState(false)
+  const [messageCommentDraft, setMessageCommentDraft] = useState('')
   const [isMessageLogMarking, setIsMessageLogMarking] = useState(false)
   const [isMessageLogClearing, setIsMessageLogClearing] = useState(false)
   const [isMessageLogExporting, setIsMessageLogExporting] = useState(false)
@@ -1538,6 +1550,14 @@ export const RackView = ({
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
+  const selectedAnnotatableMessage = useMemo(() => {
+    if (messageLogSelectionKeys.length !== 1) return null
+    const selectionKey = messageLogSelectionKeys[0]
+    const row = messageLogFilterRows.find(
+      (candidate) => buildCapturedLogSelectionKey(candidate) === selectionKey,
+    )
+    return row?.entryKind === 'message' ? row : null
+  }, [messageLogFilterRows, messageLogSelectionKeys])
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const isGoodCrcHidden = !isGoodCrcShown
@@ -1727,6 +1747,105 @@ export const RackView = ({
       })
   }, [activeDriver, isMessageLogMarking])
 
+  const toggleSelectedMessageFlag = useCallback(async () => {
+    console.debug('[message-annotation] flag handler entered', {
+      hasDriver: !!activeDriver,
+      selectionKeys: messageLogSelectionKeys,
+      selectedMessage: selectedAnnotatableMessage
+        ? buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+        : null,
+    })
+    if (!activeDriver || !selectedAnnotatableMessage) {
+      console.warn('[message-annotation] flag handler blocked', {
+        hasDriver: !!activeDriver,
+        selectionCount: messageLogSelectionKeys.length,
+        selectedEntryKind: selectedAnnotatableMessage?.entryKind ?? null,
+      })
+      return
+    }
+    const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+    setMessageLogError(null)
+    try {
+      const flagged = selectedAnnotatableMessage.flagged !== true
+      console.debug('[message-annotation] sending flag update', {
+        selectionKey,
+        previousFlagged: selectedAnnotatableMessage.flagged === true,
+        nextFlagged: flagged,
+      })
+      const updated = await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
+        flagged,
+        comment: selectedAnnotatableMessage.comment ?? null,
+        commentCreatedAtMs: selectedAnnotatableMessage.commentCreatedAtMs ?? null,
+      })
+      console.debug('[message-annotation] flag update RPC completed', {
+        selectionKey,
+        updated,
+      })
+      setMessageLogFilterRows((current) => current.map((row) =>
+        buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, flagged } : row,
+      ))
+      console.debug('[message-annotation] local flag state refreshed', {
+        selectionKey,
+        flagged,
+      })
+    } catch (error) {
+      console.error('[message-annotation] flag update failed', error)
+      setMessageLogError(error instanceof Error ? error.message : String(error))
+    }
+  }, [activeDriver, messageLogSelectionKeys, selectedAnnotatableMessage])
+
+  const openSelectedMessageComment = useCallback(() => {
+    if (!selectedAnnotatableMessage) return
+    setMessageCommentDraft(selectedAnnotatableMessage.comment ?? '')
+    setIsMessageCommentDialogOpen(true)
+  }, [selectedAnnotatableMessage])
+
+  const saveSelectedMessageComment = useCallback(async () => {
+    if (!activeDriver || !selectedAnnotatableMessage) return
+    const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+    const comment = messageCommentDraft.trim()
+    if (!comment) return
+    const commentCreatedAtMs = selectedAnnotatableMessage.commentCreatedAtMs ?? Date.now()
+    setMessageLogError(null)
+    try {
+      await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
+        flagged: selectedAnnotatableMessage.flagged === true,
+        comment,
+        commentCreatedAtMs,
+      })
+      setMessageLogFilterRows((current) => current.map((row) =>
+        buildCapturedLogSelectionKey(row) === selectionKey
+          ? { ...row, comment, commentCreatedAtMs }
+          : row,
+      ))
+      setIsMessageCommentDialogOpen(false)
+    } catch (error) {
+      setMessageLogError(error instanceof Error ? error.message : String(error))
+    }
+  }, [activeDriver, messageCommentDraft, selectedAnnotatableMessage])
+
+  const deleteSelectedMessageComment = useCallback(async () => {
+    if (!activeDriver || !selectedAnnotatableMessage) return
+    const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+    setMessageLogError(null)
+    try {
+      await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
+        flagged: selectedAnnotatableMessage.flagged === true,
+        comment: null,
+        commentCreatedAtMs: null,
+      })
+      setMessageLogFilterRows((current) => current.map((row) =>
+        buildCapturedLogSelectionKey(row) === selectionKey
+          ? { ...row, comment: null, commentCreatedAtMs: null }
+          : row,
+      ))
+      setMessageCommentDraft('')
+      setIsDeleteMessageCommentConfirmOpen(false)
+    } catch (error) {
+      setMessageLogError(error instanceof Error ? error.message : String(error))
+    }
+  }, [activeDriver, selectedAnnotatableMessage])
+
   const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
     setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
   }, [])
@@ -1816,13 +1935,23 @@ export const RackView = ({
         .catch(() => setMessageLogFilterRows([]))
     }
 
+    const handleLogEntryUpdated = () => {
+      void activeDriver.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: LOG_END_TIMESTAMP_US,
+        sortOrder: 'asc',
+      }).then(setMessageLogFilterRows).catch(() => setMessageLogFilterRows([]))
+    }
+
     activeDriver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleLogEntryAdded)
     activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleLogEntryDeleted)
+    activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleLogEntryUpdated)
     return () => {
       activeDriver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
       activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleLogEntryAdded)
       activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleLogEntryDeleted)
+      activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleLogEntryUpdated)
     }
   }, [activeDriver])
 
@@ -2706,6 +2835,24 @@ export const RackView = ({
   const captureMenuItems = useMemo<MenuItem[]>(
     () => [
       {
+        id: 'logging-toggle-message-flag',
+        label: selectedAnnotatableMessage?.flagged === true ? 'Unflag message' : 'Flag message',
+        disabled: !activeDriver || !selectedAnnotatableMessage,
+        onSelect: () => {
+          console.debug('[message-annotation] Flag/Unflag menu item selected', {
+            label: selectedAnnotatableMessage?.flagged === true ? 'Unflag message' : 'Flag message',
+            selectionKeys: messageLogSelectionKeys,
+          })
+          void toggleSelectedMessageFlag()
+        },
+      },
+      {
+        id: 'logging-edit-message-comment',
+        label: selectedAnnotatableMessage?.comment ? 'Edit comment' : 'Add comment',
+        disabled: !activeDriver || !selectedAnnotatableMessage,
+        onSelect: openSelectedMessageComment,
+      },
+      {
         id: 'logging-toggle-capture',
         label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
         meta: 'C',
@@ -2715,7 +2862,15 @@ export const RackView = ({
         },
       },
     ],
-    [activeDriver, handleToggleActiveDeviceCapture, isCaptureEnabled],
+    [
+      activeDriver,
+      handleToggleActiveDeviceCapture,
+      isCaptureEnabled,
+      messageLogSelectionKeys,
+      selectedAnnotatableMessage,
+      openSelectedMessageComment,
+      toggleSelectedMessageFlag,
+    ],
   )
   const powerChargeMeterMenuItems = useMemo<MenuItem[]>(
     () => [
@@ -3352,6 +3507,71 @@ export const RackView = ({
         }}
         onDone={() => setFirmwareUpdatePrompt(null)}
       />
+      <Dialog
+        open={isMessageCommentDialogOpen}
+        onOpenChange={setIsMessageCommentDialogOpen}
+        title={selectedAnnotatableMessage?.comment ? 'Edit comment' : 'Add comment'}
+        footer={
+          <>
+            {selectedAnnotatableMessage?.comment ? (
+              <DialogButton
+                className={styles.messageCommentDeleteButton}
+                variant="danger"
+                onClick={() => {
+                  setIsMessageCommentDialogOpen(false)
+                  setIsDeleteMessageCommentConfirmOpen(true)
+                }}
+              >
+                Delete Comment
+              </DialogButton>
+            ) : null}
+            <DialogButton onClick={() => setIsMessageCommentDialogOpen(false)}>Cancel</DialogButton>
+            <DialogButton
+              variant="primary"
+              disabled={!messageCommentDraft.trim()}
+              onClick={() => void saveSelectedMessageComment()}
+            >
+              Save
+            </DialogButton>
+          </>
+        }
+      >
+        <textarea
+          className={styles.messageCommentEditor}
+          aria-label="Message comment Markdown"
+          value={messageCommentDraft}
+          autoFocus
+          onChange={(event) => setMessageCommentDraft(event.currentTarget.value)}
+        />
+        <p className={`${messageLogStyles.headerPopupHint} ${styles.messageCommentHint}`}>
+          Markdown supported.
+        </p>
+      </Dialog>
+      <Dialog
+        open={isDeleteMessageCommentConfirmOpen}
+        onOpenChange={(open) => {
+          setIsDeleteMessageCommentConfirmOpen(open)
+          if (!open) setIsMessageCommentDialogOpen(true)
+        }}
+        title="Delete comment?"
+        footer={
+          <>
+            <DialogButton
+              onClick={() => {
+                setIsDeleteMessageCommentConfirmOpen(false)
+                setIsMessageCommentDialogOpen(true)
+              }}
+            >
+              Cancel
+            </DialogButton>
+            <DialogButton variant="danger" onClick={() => void deleteSelectedMessageComment()}>
+              Delete Comment
+            </DialogButton>
+          </>
+        }
+      >
+        <p>Delete this message comment? This cannot be undone.</p>
+      </Dialog>
       <Dialog
         open={isStartupPairingDialogOpen}
         onOpenChange={setIsStartupPairingDialogOpen}

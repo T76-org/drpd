@@ -163,6 +163,8 @@ const buildMessage = (
   index: number,
   messageType = 1,
 ): LoggedCapturedMessage => ({
+  flagged: index === 0,
+  comment: null,
   entryKind: 'message',
   eventType: null,
   eventText: null,
@@ -267,6 +269,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     const table = await screen.findByRole('table', { name: 'USB-PD message log' })
     expect(table).toHaveAttribute('aria-rowcount', '1')
+    expect(screen.getByRole('columnheader', { name: /Flag/ })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Wall time/ })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Message type/ })).toBeInTheDocument()
     expect(await screen.findByRole('cell', { name: 'GoodCRC' })).toBeInTheDocument()
@@ -575,16 +578,18 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     const eventRow = container.querySelector('[class*="eventRowCapture"]')
     expect(eventRow).not.toBeNull()
     const eventCells = Array.from(eventRow?.querySelectorAll('td') ?? [])
-    expect(eventCells).toHaveLength(2)
-    expect(eventCells[0].className).toContain('eventTimestamp')
-    expect(eventCells[0].textContent).toMatch(/\d\d:\d\d:\d\d/)
-    expect(eventCells[1].className).toContain('eventLabelAligned')
-    expect(eventCells[1].textContent).toBe('Capture turned off at 2026-02-28 10:00:00')
+    expect(eventCells).toHaveLength(3)
+    expect(eventCells[0]).toHaveAttribute('aria-label', 'Not flaggable')
+    expect(eventCells[0].textContent).toBe('')
+    expect(eventCells[1].className).toContain('eventTimestamp')
+    expect(eventCells[1].textContent).toMatch(/\d\d:\d\d:\d\d/)
+    expect(eventCells[2].className).toContain('eventLabelAfterFlag')
+    expect(eventCells[2].textContent).toBe('Capture turned off at 2026-02-28 10:00:00')
     expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowSinkErrors"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOvp"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOcp"]')).not.toBeNull()
-    const eventLabel = container.querySelector('[class*="eventLabelAligned"]')
+    const eventLabel = container.querySelector('[class*="eventLabelAfterFlag"]')
     expect(eventLabel).not.toBeNull()
   })
 
@@ -833,6 +838,64 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
     await waitFor(() => {
       expect(driver.logSelection.selectedKeys).toHaveLength(2)
+    })
+  })
+
+  it('selects the targeted row before opening its context menu when selection is empty', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+        messageLogMenuItems={[{ id: 'test-action', label: 'Test action', onSelect: vi.fn() }]}
+      />,
+    )
+    await screen.findByText('Accept')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+
+    fireEvent.contextMenu(rows[1] as HTMLElement)
+
+    expect(rows[1]).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('menu', { name: 'Message Log menu' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toEqual([buildCapturedLogSelectionKey(driver.rows[1])])
+    })
+  })
+
+  it('replaces selection when context-clicking an unselected row', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+        messageLogMenuItems={[{ id: 'test-action', label: 'Test action', onSelect: vi.fn() }]}
+      />,
+    )
+    await screen.findByText('Accept')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    await userEvent.click(rows[0] as HTMLElement)
+    await waitFor(() => expect(driver.logSelection.selectedKeys).toHaveLength(1))
+
+    fireEvent.contextMenu(rows[1] as HTMLElement)
+
+    expect(rows[0]).toHaveAttribute('aria-selected', 'false')
+    expect(rows[1]).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toEqual([buildCapturedLogSelectionKey(driver.rows[1])])
     })
   })
 
