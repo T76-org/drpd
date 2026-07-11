@@ -1101,12 +1101,31 @@ export const DrpdUsbPdLogInstrumentView = ({
       })
     }
 
+    const handleUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const selectionKey = typeof detail?.selectionKey === 'string' ? detail.selectionKey : null
+      setPages(new Map())
+      if (selectionKey) {
+        setFilterRows((current) => current.map((row) =>
+          buildCapturedLogSelectionKey(row) === selectionKey
+            ? {
+                ...row,
+                flagged: detail.flagged === true,
+                comment: typeof detail.comment === 'string' ? detail.comment : null,
+              }
+            : row,
+        ))
+      }
+    }
+
     driver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
     driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+    driver.addEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleUpdated)
 
     return () => {
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
+      driver.removeEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleUpdated)
     }
   }, [driver])
 
@@ -1360,7 +1379,7 @@ export const DrpdUsbPdLogInstrumentView = ({
                   <td className={styles.center} aria-label="Not flaggable" />
                   <td className={styles.eventTimestamp}>{row.timestamp}</td>
                   {visibleColumns.length > 2 ? (
-                    <td className={styles.eventLabelAligned} colSpan={visibleColumns.length - 2}>
+                    <td className={styles.eventLabelAfterFlag} colSpan={visibleColumns.length - 2}>
                       {row.messageType}
                     </td>
                   ) : null}

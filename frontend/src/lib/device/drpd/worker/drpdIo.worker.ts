@@ -556,6 +556,11 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             return await session.device.queryAnalogSamples(args[0] as never)
           case 'queryCapturedMessages':
             return await session.device.queryCapturedMessages(args[0] as never)
+          case 'updateCapturedMessageAnnotations':
+            return await session.device.updateCapturedMessageAnnotations(
+              args[0] as string,
+              args[1] as never,
+            )
           case 'markLog':
             await session.device.markLog()
             return null

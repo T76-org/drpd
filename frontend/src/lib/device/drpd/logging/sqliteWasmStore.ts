@@ -607,12 +607,22 @@ export class SQLiteWasmStore implements DRPDLogStore {
       row.comment = annotations.comment
       return true
     }
-    const db = this.requireDb()
-    db.exec(
+    const statement = this.requireDb().prepare(
       'UPDATE captured_messages SET flagged = ?, comment = ? WHERE entry_kind = ? AND start_timestamp_us = ? AND end_timestamp_us = ? AND created_at_ms = ?',
-      { bind: [annotations.flagged ? 1 : 0, annotations.comment, 'message', BigInt(startTimestampUs), BigInt(endTimestampUs), Number(createdAtMs)] },
     )
-    return this.selectCount('SELECT changes()') > 0
+    try {
+      statement.bind([
+        annotations.flagged ? 1 : 0,
+        annotations.comment,
+        'message',
+        BigInt(startTimestampUs),
+        BigInt(endTimestampUs),
+        Number(createdAtMs),
+      ]).stepReset()
+    } finally {
+      statement.finalize()
+    }
+    return true
   }
 
   /**

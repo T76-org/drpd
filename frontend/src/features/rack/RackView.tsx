@@ -1746,24 +1746,50 @@ export const RackView = ({
   }, [activeDriver, isMessageLogMarking])
 
   const toggleSelectedMessageFlag = useCallback(async () => {
-    if (!activeDriver || !selectedAnnotatableMessage) return
+    console.debug('[message-annotation] flag handler entered', {
+      hasDriver: !!activeDriver,
+      selectionKeys: messageLogSelectionKeys,
+      selectedMessage: selectedAnnotatableMessage
+        ? buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+        : null,
+    })
+    if (!activeDriver || !selectedAnnotatableMessage) {
+      console.warn('[message-annotation] flag handler blocked', {
+        hasDriver: !!activeDriver,
+        selectionCount: messageLogSelectionKeys.length,
+        selectedEntryKind: selectedAnnotatableMessage?.entryKind ?? null,
+      })
+      return
+    }
     const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
     setMessageLogError(null)
     try {
       const flagged = selectedAnnotatableMessage.flagged !== true
+      console.debug('[message-annotation] sending flag update', {
+        selectionKey,
+        previousFlagged: selectedAnnotatableMessage.flagged === true,
+        nextFlagged: flagged,
+      })
       const updated = await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
         flagged,
         comment: selectedAnnotatableMessage.comment ?? null,
       })
-      if (updated) {
-        setMessageLogFilterRows((current) => current.map((row) =>
-          buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, flagged } : row,
-        ))
-      }
+      console.debug('[message-annotation] flag update RPC completed', {
+        selectionKey,
+        updated,
+      })
+      setMessageLogFilterRows((current) => current.map((row) =>
+        buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, flagged } : row,
+      ))
+      console.debug('[message-annotation] local flag state refreshed', {
+        selectionKey,
+        flagged,
+      })
     } catch (error) {
+      console.error('[message-annotation] flag update failed', error)
       setMessageLogError(error instanceof Error ? error.message : String(error))
     }
-  }, [activeDriver, selectedAnnotatableMessage])
+  }, [activeDriver, messageLogSelectionKeys, selectedAnnotatableMessage])
 
   const openSelectedMessageComment = useCallback(() => {
     if (!selectedAnnotatableMessage) return
@@ -1777,16 +1803,14 @@ export const RackView = ({
     const comment = messageCommentDraft.trim() || null
     setMessageLogError(null)
     try {
-      const updated = await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
+      await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
         flagged: selectedAnnotatableMessage.flagged === true,
         comment,
       })
-      if (updated) {
-        setMessageLogFilterRows((current) => current.map((row) =>
-          buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, comment } : row,
-        ))
-        setIsMessageCommentDialogOpen(false)
-      }
+      setMessageLogFilterRows((current) => current.map((row) =>
+        buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, comment } : row,
+      ))
+      setIsMessageCommentDialogOpen(false)
     } catch (error) {
       setMessageLogError(error instanceof Error ? error.message : String(error))
     }
@@ -2785,6 +2809,10 @@ export const RackView = ({
         label: selectedAnnotatableMessage?.flagged === true ? 'Unflag message' : 'Flag message',
         disabled: !activeDriver || !selectedAnnotatableMessage,
         onSelect: () => {
+          console.debug('[message-annotation] Flag/Unflag menu item selected', {
+            label: selectedAnnotatableMessage?.flagged === true ? 'Unflag message' : 'Flag message',
+            selectionKeys: messageLogSelectionKeys,
+          })
           void toggleSelectedMessageFlag()
         },
       },
@@ -2808,6 +2836,7 @@ export const RackView = ({
       activeDriver,
       handleToggleActiveDeviceCapture,
       isCaptureEnabled,
+      messageLogSelectionKeys,
       selectedAnnotatableMessage,
       openSelectedMessageComment,
       toggleSelectedMessageFlag,
