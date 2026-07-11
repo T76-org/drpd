@@ -1262,6 +1262,28 @@ export const DrpdUsbPdLogInstrumentView = ({
     })
   }
 
+  const handleRowContextMenu = (index: number, row: DisplayRow | null) => {
+    if (
+      !row ||
+      !driver ||
+      isEditMode ||
+      index < 0 ||
+      index >= displayedTotalRows ||
+      selection.selectedKeys.includes(row.selectionKey)
+    ) {
+      return
+    }
+    const nextSelection: DRPDLogSelectionState = {
+      selectedKeys: [row.selectionKey],
+      anchorIndex: index,
+      activeIndex: index,
+    }
+    setSelection(nextSelection)
+    enqueueSelectionTask(async () => {
+      await persistSelection(nextSelection)
+    })
+  }
+
   const handleViewportKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!driver || isEditMode) {
       return
@@ -1374,6 +1396,9 @@ export const DrpdUsbPdLogInstrumentView = ({
             }}
             onClick={(event) => {
               handleRowClick(event, index, row)
+            }}
+            onContextMenu={() => {
+              handleRowContextMenu(index, row)
             }}
           >
             {row?.kind === 'event' ? (

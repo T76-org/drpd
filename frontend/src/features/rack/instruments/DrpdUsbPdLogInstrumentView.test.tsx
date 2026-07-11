@@ -841,6 +841,64 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
   })
 
+  it('selects the targeted row before opening its context menu when selection is empty', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+        messageLogMenuItems={[{ id: 'test-action', label: 'Test action', onSelect: vi.fn() }]}
+      />,
+    )
+    await screen.findByText('Accept')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+
+    fireEvent.contextMenu(rows[1] as HTMLElement)
+
+    expect(rows[1]).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('menu', { name: 'Message Log menu' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toEqual([buildCapturedLogSelectionKey(driver.rows[1])])
+    })
+  })
+
+  it('replaces selection when context-clicking an unselected row', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+        messageLogMenuItems={[{ id: 'test-action', label: 'Test action', onSelect: vi.fn() }]}
+      />,
+    )
+    await screen.findByText('Accept')
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    await userEvent.click(rows[0] as HTMLElement)
+    await waitFor(() => expect(driver.logSelection.selectedKeys).toHaveLength(1))
+
+    fireEvent.contextMenu(rows[1] as HTMLElement)
+
+    expect(rows[0]).toHaveAttribute('aria-selected', 'false')
+    expect(rows[1]).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toEqual([buildCapturedLogSelectionKey(driver.rows[1])])
+    })
+  })
+
   it('supports shift-click range selection', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1),
