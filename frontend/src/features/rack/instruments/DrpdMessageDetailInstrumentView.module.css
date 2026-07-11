@@ -91,6 +91,12 @@
   overflow-wrap: anywhere;
 }
 
+.commentTimestamp {
+  margin: 0 0 var(--space-6);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .commentContent > :first-child {
   margin-top: 0;
 }

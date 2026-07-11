@@ -128,6 +128,7 @@ import {
 } from './messageLogExport'
 import { parseMessageLogImportJson, serializeMessageLogRow } from './messageLogImport'
 import styles from './RackView.module.css'
+import messageLogStyles from './instruments/DrpdUsbPdLogInstrumentView.module.css'
 
 type ThemeMode = 'system' | 'light' | 'dark'
 
@@ -935,6 +936,7 @@ export const RackView = ({
   const [isMessageLogImportDialogOpen, setIsMessageLogImportDialogOpen] = useState(false)
   const [isMessageLogImportConfirmOpen, setIsMessageLogImportConfirmOpen] = useState(false)
   const [isMessageCommentDialogOpen, setIsMessageCommentDialogOpen] = useState(false)
+  const [isDeleteMessageCommentConfirmOpen, setIsDeleteMessageCommentConfirmOpen] = useState(false)
   const [messageCommentDraft, setMessageCommentDraft] = useState('')
   const [isMessageLogMarking, setIsMessageLogMarking] = useState(false)
   const [isMessageLogClearing, setIsMessageLogClearing] = useState(false)
@@ -1773,6 +1775,7 @@ export const RackView = ({
       const updated = await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
         flagged,
         comment: selectedAnnotatableMessage.comment ?? null,
+        commentCreatedAtMs: selectedAnnotatableMessage.commentCreatedAtMs ?? null,
       })
       console.debug('[message-annotation] flag update RPC completed', {
         selectionKey,
@@ -1800,21 +1803,48 @@ export const RackView = ({
   const saveSelectedMessageComment = useCallback(async () => {
     if (!activeDriver || !selectedAnnotatableMessage) return
     const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
-    const comment = messageCommentDraft.trim() || null
+    const comment = messageCommentDraft.trim()
+    if (!comment) return
+    const commentCreatedAtMs = selectedAnnotatableMessage.commentCreatedAtMs ?? Date.now()
     setMessageLogError(null)
     try {
       await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
         flagged: selectedAnnotatableMessage.flagged === true,
         comment,
+        commentCreatedAtMs,
       })
       setMessageLogFilterRows((current) => current.map((row) =>
-        buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, comment } : row,
+        buildCapturedLogSelectionKey(row) === selectionKey
+          ? { ...row, comment, commentCreatedAtMs }
+          : row,
       ))
       setIsMessageCommentDialogOpen(false)
     } catch (error) {
       setMessageLogError(error instanceof Error ? error.message : String(error))
     }
   }, [activeDriver, messageCommentDraft, selectedAnnotatableMessage])
+
+  const deleteSelectedMessageComment = useCallback(async () => {
+    if (!activeDriver || !selectedAnnotatableMessage) return
+    const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+    setMessageLogError(null)
+    try {
+      await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
+        flagged: selectedAnnotatableMessage.flagged === true,
+        comment: null,
+        commentCreatedAtMs: null,
+      })
+      setMessageLogFilterRows((current) => current.map((row) =>
+        buildCapturedLogSelectionKey(row) === selectionKey
+          ? { ...row, comment: null, commentCreatedAtMs: null }
+          : row,
+      ))
+      setMessageCommentDraft('')
+      setIsDeleteMessageCommentConfirmOpen(false)
+    } catch (error) {
+      setMessageLogError(error instanceof Error ? error.message : String(error))
+    }
+  }, [activeDriver, selectedAnnotatableMessage])
 
   const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
     setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
@@ -3481,11 +3511,26 @@ export const RackView = ({
         open={isMessageCommentDialogOpen}
         onOpenChange={setIsMessageCommentDialogOpen}
         title={selectedAnnotatableMessage?.comment ? 'Edit comment' : 'Add comment'}
-        description="Write a Markdown comment for the selected message. Save empty text to remove it."
         footer={
           <>
+            {selectedAnnotatableMessage?.comment ? (
+              <DialogButton
+                className={styles.messageCommentDeleteButton}
+                variant="danger"
+                onClick={() => {
+                  setIsMessageCommentDialogOpen(false)
+                  setIsDeleteMessageCommentConfirmOpen(true)
+                }}
+              >
+                Delete Comment
+              </DialogButton>
+            ) : null}
             <DialogButton onClick={() => setIsMessageCommentDialogOpen(false)}>Cancel</DialogButton>
-            <DialogButton variant="primary" onClick={() => void saveSelectedMessageComment()}>
+            <DialogButton
+              variant="primary"
+              disabled={!messageCommentDraft.trim()}
+              onClick={() => void saveSelectedMessageComment()}
+            >
               Save
             </DialogButton>
           </>
@@ -3498,6 +3543,34 @@ export const RackView = ({
           autoFocus
           onChange={(event) => setMessageCommentDraft(event.currentTarget.value)}
         />
+        <p className={`${messageLogStyles.headerPopupHint} ${styles.messageCommentHint}`}>
+          Markdown supported.
+        </p>
+      </Dialog>
+      <Dialog
+        open={isDeleteMessageCommentConfirmOpen}
+        onOpenChange={(open) => {
+          setIsDeleteMessageCommentConfirmOpen(open)
+          if (!open) setIsMessageCommentDialogOpen(true)
+        }}
+        title="Delete comment?"
+        footer={
+          <>
+            <DialogButton
+              onClick={() => {
+                setIsDeleteMessageCommentConfirmOpen(false)
+                setIsMessageCommentDialogOpen(true)
+              }}
+            >
+              Cancel
+            </DialogButton>
+            <DialogButton variant="danger" onClick={() => void deleteSelectedMessageComment()}>
+              Delete Comment
+            </DialogButton>
+          </>
+        }
+      >
+        <p>Delete this message comment? This cannot be undone.</p>
       </Dialog>
       <Dialog
         open={isStartupPairingDialogOpen}

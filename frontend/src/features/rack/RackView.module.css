@@ -690,9 +690,25 @@
   border: 0;
 }
 .messageCommentEditor {
+  display: block;
   box-sizing: border-box;
-  width: min(560px, 70vw);
+  width: 100%;
+  max-width: 100%;
   min-height: 180px;
   resize: vertical;
   font: inherit;
+}
+
+.messageCommentEditor:focus,
+.messageCommentEditor:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.messageCommentHint {
+  font-size: var(--font-size-sm);
+}
+
+.messageCommentDeleteButton {
+  margin-right: auto;
 }

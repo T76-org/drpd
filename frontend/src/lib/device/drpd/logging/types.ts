@@ -88,6 +88,8 @@ export interface LoggedCapturedMessage {
   flagged?: boolean
   ///< Optional user-authored Markdown comment.
   comment?: string | null
+  ///< Wall-clock time when comment was first added.
+  commentCreatedAtMs?: number | null
   ///< Row kind discriminator.
   entryKind: LoggedCapturedEntryKind
   ///< Optional event type for event rows.
@@ -181,6 +183,8 @@ export interface CapturedMessageAnnotations {
   flagged: boolean
   ///< Optional Markdown comment.
   comment: string | null
+  ///< Wall-clock time when comment was first added.
+  commentCreatedAtMs: number | null
 }
 
 /**

@@ -53,6 +53,7 @@ export const serializeMessageLogRow = (row: LoggedCapturedMessage): Record<strin
   eventWallClockMs: row.eventWallClockMs,
   flagged: row.flagged === true,
   comment: row.comment ?? null,
+  commentCreatedAtMs: row.commentCreatedAtMs ?? null,
   wallClockUs: row.wallClockUs?.toString() ?? null,
   startTimestampUs: row.startTimestampUs.toString(),
   endTimestampUs: row.endTimestampUs.toString(),
@@ -96,6 +97,9 @@ const normalizeCapturedMessage = (value: unknown, index: number): LoggedCaptured
     flagged: entryKind === 'message' && readOptionalBoolean(value.flagged, `${label}.flagged`),
     comment: entryKind === 'message'
       ? readNullableString(value.comment, `${label}.comment`)
+      : null,
+    commentCreatedAtMs: entryKind === 'message'
+      ? readNullableNumber(value.commentCreatedAtMs, `${label}.commentCreatedAtMs`)
       : null,
     wallClockUs: readNullableBigInt(value.wallClockUs, `${label}.wallClockUs`),
     startTimestampUs: readBigInt(value.startTimestampUs, `${label}.startTimestampUs`),

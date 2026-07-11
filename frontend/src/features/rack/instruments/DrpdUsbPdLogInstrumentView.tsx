@@ -1112,6 +1112,9 @@ export const DrpdUsbPdLogInstrumentView = ({
                 ...row,
                 flagged: detail.flagged === true,
                 comment: typeof detail.comment === 'string' ? detail.comment : null,
+                commentCreatedAtMs: typeof detail.commentCreatedAtMs === 'number'
+                  ? detail.commentCreatedAtMs
+                  : null,
               }
             : row,
         ))

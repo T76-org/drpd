@@ -80,10 +80,12 @@ describe('SQLiteWasmStore', () => {
     await expect(store.updateCapturedMessageAnnotations(key, {
       flagged: true,
       comment: '**Important**',
+      commentCreatedAtMs: 1_700_000_000_000,
     })).resolves.toBe(true)
     await expect(store.updateCapturedMessageAnnotations('event:1:2:mark', {
       flagged: true,
       comment: 'No',
+      commentCreatedAtMs: 1_700_000_000_000,
     })).resolves.toBe(false)
 
     const [updated] = await store.queryCapturedMessages({
@@ -341,7 +343,7 @@ describe('SQLiteWasmStore', () => {
       includeMessages: true,
     })
     expect(exportData.payload).toContain(
-      'entry_kind,event_type,event_text,event_wall_clock_ms,flagged,comment,wall_clock_us',
+      'entry_kind,event_type,event_text,event_wall_clock_ms,flagged,comment,comment_created_at_ms,wall_clock_us',
     )
     expect(exportData.payload).toContain('event,capture_changed')
   })

@@ -72,17 +72,20 @@ type LoadedSelection =
       message?: Message
       sections: MessageDetailSection[]
       comment: string | null
+      commentCreatedAtMs: number | null
     }
   | {
       kind: 'reset'
       sections: MessageDetailSection[]
       comment: string | null
+      commentCreatedAtMs: number | null
     }
   | {
       kind: 'message'
       message: Message
       sections: MessageDetailSection[]
       comment: string | null
+      commentCreatedAtMs: number | null
     }
 
 type MessageByteSegment = {
@@ -617,8 +620,8 @@ export const DrpdMessageDetailInstrumentView = ({
         setLoadedSelectionKey(activeSelectionKey)
         setLoadedSelection(
           decoded.kind === 'reset'
-            ? { kind: 'reset', sections: nextSections, comment: row.comment?.trim() || null }
-            : { kind: 'invalid', message: decoded.kind === 'invalid' ? decoded.message : undefined, sections: nextSections, comment: row.comment?.trim() || null },
+            ? { kind: 'reset', sections: nextSections, comment: row.comment?.trim() || null, commentCreatedAtMs: row.commentCreatedAtMs ?? null }
+            : { kind: 'invalid', message: decoded.kind === 'invalid' ? decoded.message : undefined, sections: nextSections, comment: row.comment?.trim() || null, commentCreatedAtMs: row.commentCreatedAtMs ?? null },
         )
         setCollapsedSectionIds((current) => {
           const nextIds = nextSections.map((section) => section.id)
@@ -633,6 +636,7 @@ export const DrpdMessageDetailInstrumentView = ({
         message: decoded.message,
         sections: nextSections,
         comment: row.comment?.trim() || null,
+        commentCreatedAtMs: row.commentCreatedAtMs ?? null,
       })
       setCollapsedSectionIds((current) => {
         const nextIds = nextSections.map((section) => section.id)
@@ -682,6 +686,12 @@ export const DrpdMessageDetailInstrumentView = ({
               {visibleSelection.comment ? (
                 <section className={styles.section} data-section-id="comment" aria-label="Comment">
                   <h3 className={styles.sectionHeading}>Comment</h3>
+                  {visibleSelection.commentCreatedAtMs !== null ? (
+                    <p className={styles.commentTimestamp}>
+                      Comment added on {new Date(visibleSelection.commentCreatedAtMs).toLocaleDateString()} at{' '}
+                      {new Date(visibleSelection.commentCreatedAtMs).toLocaleTimeString()}
+                    </p>
+                  ) : null}
                   <div className={styles.commentContent}>
                     <ReactMarkdown skipHtml>{visibleSelection.comment}</ReactMarkdown>
                   </div>
