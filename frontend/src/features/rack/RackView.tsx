@@ -1538,6 +1538,14 @@ export const RackView = ({
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
+  const selectedAnnotatableMessage = useMemo(() => {
+    if (messageLogSelectionKeys.length !== 1) return null
+    const selectionKey = messageLogSelectionKeys[0]
+    const row = messageLogFilterRows.find(
+      (candidate) => buildCapturedLogSelectionKey(candidate) === selectionKey,
+    )
+    return row?.entryKind === 'message' ? row : null
+  }, [messageLogFilterRows, messageLogSelectionKeys])
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const isGoodCrcHidden = !isGoodCrcShown
@@ -1726,6 +1734,26 @@ export const RackView = ({
         setIsMessageLogMarking(false)
       })
   }, [activeDriver, isMessageLogMarking])
+
+  const toggleSelectedMessageFlag = useCallback(async () => {
+    if (!activeDriver || !selectedAnnotatableMessage) return
+    const selectionKey = buildCapturedLogSelectionKey(selectedAnnotatableMessage)
+    setMessageLogError(null)
+    try {
+      const flagged = selectedAnnotatableMessage.flagged !== true
+      const updated = await activeDriver.updateCapturedMessageAnnotations(selectionKey, {
+        flagged,
+        comment: selectedAnnotatableMessage.comment ?? null,
+      })
+      if (updated) {
+        setMessageLogFilterRows((current) => current.map((row) =>
+          buildCapturedLogSelectionKey(row) === selectionKey ? { ...row, flagged } : row,
+        ))
+      }
+    } catch (error) {
+      setMessageLogError(error instanceof Error ? error.message : String(error))
+    }
+  }, [activeDriver, selectedAnnotatableMessage])
 
   const updateFirmwarePromptState = useCallback((patch: Partial<FirmwareUpdatePromptState>) => {
     setFirmwareUpdatePrompt((current) => current ? { ...current, ...patch } : current)
@@ -2706,6 +2734,14 @@ export const RackView = ({
   const captureMenuItems = useMemo<MenuItem[]>(
     () => [
       {
+        id: 'logging-toggle-message-flag',
+        label: selectedAnnotatableMessage?.flagged === true ? 'Unflag message' : 'Flag message',
+        disabled: !activeDriver || !selectedAnnotatableMessage,
+        onSelect: () => {
+          void toggleSelectedMessageFlag()
+        },
+      },
+      {
         id: 'logging-toggle-capture',
         label: isCaptureEnabled ? 'Disable Capture' : 'Enable Capture',
         meta: 'C',
@@ -2715,7 +2751,13 @@ export const RackView = ({
         },
       },
     ],
-    [activeDriver, handleToggleActiveDeviceCapture, isCaptureEnabled],
+    [
+      activeDriver,
+      handleToggleActiveDeviceCapture,
+      isCaptureEnabled,
+      selectedAnnotatableMessage,
+      toggleSelectedMessageFlag,
+    ],
   )
   const powerChargeMeterMenuItems = useMemo<MenuItem[]>(
     () => [
