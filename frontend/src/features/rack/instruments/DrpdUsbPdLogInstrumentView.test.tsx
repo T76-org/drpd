@@ -163,6 +163,8 @@ const buildMessage = (
   index: number,
   messageType = 1,
 ): LoggedCapturedMessage => ({
+  flagged: index === 0,
+  comment: null,
   entryKind: 'message',
   eventType: null,
   eventText: null,
@@ -267,6 +269,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
 
     const table = await screen.findByRole('table', { name: 'USB-PD message log' })
     expect(table).toHaveAttribute('aria-rowcount', '1')
+    expect(screen.getByRole('columnheader', { name: /Flag/ })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Wall time/ })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Message type/ })).toBeInTheDocument()
     expect(await screen.findByRole('cell', { name: 'GoodCRC' })).toBeInTheDocument()
@@ -575,11 +578,13 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     const eventRow = container.querySelector('[class*="eventRowCapture"]')
     expect(eventRow).not.toBeNull()
     const eventCells = Array.from(eventRow?.querySelectorAll('td') ?? [])
-    expect(eventCells).toHaveLength(2)
-    expect(eventCells[0].className).toContain('eventTimestamp')
-    expect(eventCells[0].textContent).toMatch(/\d\d:\d\d:\d\d/)
-    expect(eventCells[1].className).toContain('eventLabelAligned')
-    expect(eventCells[1].textContent).toBe('Capture turned off at 2026-02-28 10:00:00')
+    expect(eventCells).toHaveLength(3)
+    expect(eventCells[0]).toHaveAttribute('aria-label', 'Not flaggable')
+    expect(eventCells[0].textContent).toBe('')
+    expect(eventCells[1].className).toContain('eventTimestamp')
+    expect(eventCells[1].textContent).toMatch(/\d\d:\d\d:\d\d/)
+    expect(eventCells[2].className).toContain('eventLabelAligned')
+    expect(eventCells[2].textContent).toBe('Capture turned off at 2026-02-28 10:00:00')
     expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowSinkErrors"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOvp"]')).not.toBeNull()
