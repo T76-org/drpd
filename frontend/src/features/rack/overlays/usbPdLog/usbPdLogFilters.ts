@@ -9,8 +9,11 @@ export type MessageLogFilterKey =
   | 'receivers'
   | 'sopTypes'
   | 'crcValid'
+  | 'flagged'
 
-export type MessageLogFilters = Record<MessageLogFilterKey, MessageLogFilterRule>
+export type MessageLogFilters = Record<Exclude<MessageLogFilterKey, 'flagged'>, MessageLogFilterRule> & {
+  flagged?: MessageLogFilterRule
+}
 
 export type FilterOption = {
   value: string
@@ -26,6 +29,7 @@ export const toggleFilterValue = (
   value: string,
 ): MessageLogFilters => {
   const currentRule = filters[key]
+    ?? { include: [], exclude: [] }
   const otherMode: keyof MessageLogFilterRule = mode === 'include' ? 'exclude' : 'include'
   const nextModeValues = currentRule[mode].includes(value)
     ? currentRule[mode].filter((entry) => entry !== value)

@@ -122,6 +122,7 @@ const EMPTY_FILTERS: MessageLogFilters = {
   receivers: { include: [], exclude: [] },
   sopTypes: { include: [], exclude: [] },
   crcValid: { include: [], exclude: [] },
+  flagged: { include: [], exclude: [] },
 }
 
 const CRC_VALID_LABEL = 'Valid'
@@ -198,7 +199,8 @@ const countActiveFilters = (filters: MessageLogFilters): number =>
     0,
   )
 
-const filterRuleMatches = (rule: MessageLogFilterRule, value: string): boolean => {
+const filterRuleMatches = (rule: MessageLogFilterRule | undefined, value: string): boolean => {
+  if (!rule) return true
   if (rule.exclude.includes(value)) {
     return false
   }
@@ -218,7 +220,8 @@ const messageMatchesFilters = (
     filterRuleMatches(filters.senders, senderReceiver.sender) &&
     filterRuleMatches(filters.receivers, senderReceiver.receiver) &&
     filterRuleMatches(filters.sopTypes, getLogSopLabel(row) || normalizeSopType(row.sopKind)) &&
-    filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row))
+    filterRuleMatches(filters.crcValid, resolveCrcValidLabel(row)) &&
+    filterRuleMatches(filters.flagged, row.flagged === true ? 'Flagged' : 'Unflagged')
   )
 }
 

@@ -154,6 +154,7 @@ const EMPTY_MESSAGE_LOG_FILTERS: MessageLogFilters = {
   receivers: { include: [], exclude: [] },
   sopTypes: { include: [], exclude: [] },
   crcValid: { include: [], exclude: [] },
+  flagged: { include: [], exclude: [] },
 }
 
 interface DRPDLogsConsoleHelper {
@@ -698,6 +699,7 @@ const buildMessageLogFilterOptions = (
   receivers: FilterOption[]
   sopTypes: FilterOption[]
   crcValid: FilterOption[]
+  flagged: FilterOption[]
 } => {
   const messageRows = rows.filter((row) => row.entryKind === 'message')
   return {
@@ -725,6 +727,12 @@ const buildMessageLogFilterOptions = (
       ...messageRows.map(getLogCrcLabel),
       ...filters.crcValid.include,
       ...filters.crcValid.exclude,
+    ]),
+    flagged: uniqueLogOptions([
+      'Flagged',
+      'Unflagged',
+      ...(filters.flagged?.include ?? []),
+      ...(filters.flagged?.exclude ?? []),
     ]),
   }
 }
@@ -1873,13 +1881,23 @@ export const RackView = ({
         .catch(() => setMessageLogFilterRows([]))
     }
 
+    const handleLogEntryUpdated = () => {
+      void activeDriver.queryCapturedMessages({
+        startTimestampUs: 0n,
+        endTimestampUs: LOG_END_TIMESTAMP_US,
+        sortOrder: 'asc',
+      }).then(setMessageLogFilterRows).catch(() => setMessageLogFilterRows([]))
+    }
+
     activeDriver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleLogEntryAdded)
     activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleLogEntryDeleted)
+    activeDriver.addEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleLogEntryUpdated)
     return () => {
       activeDriver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
       activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleLogEntryAdded)
       activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleLogEntryDeleted)
+      activeDriver.removeEventListener(DRPDDevice.LOG_ENTRY_UPDATED_EVENT, handleLogEntryUpdated)
     }
   }, [activeDriver])
 
