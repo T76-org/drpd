@@ -316,7 +316,9 @@ describe('SQLiteWasmStore', () => {
       includeAnalog: false,
       includeMessages: true,
     })
-    expect(exportData.payload).toContain('entry_kind,event_type,event_text,event_wall_clock_ms,wall_clock_us')
+    expect(exportData.payload).toContain(
+      'entry_kind,event_type,event_text,event_wall_clock_ms,flagged,comment,wall_clock_us',
+    )
     expect(exportData.payload).toContain('event,capture_changed')
   })
 

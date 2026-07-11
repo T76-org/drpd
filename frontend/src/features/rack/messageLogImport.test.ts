@@ -27,6 +27,21 @@ const buildRow = (): LoggedCapturedMessage => ({
 })
 
 describe('parseMessageLogImportJson', () => {
+  it('preserves message annotations and defaults missing annotations', () => {
+    const annotated = serializeMessageLogRow(buildRow())
+    annotated.flagged = true
+    annotated.comment = '**Important**'
+    const [row] = parseMessageLogImportJson(JSON.stringify([annotated]))
+    expect(row.flagged).toBe(true)
+    expect(row.comment).toBe('**Important**')
+
+    const legacy = serializeMessageLogRow(buildRow())
+    delete legacy.flagged
+    delete legacy.comment
+    const [legacyRow] = parseMessageLogImportJson(JSON.stringify([legacy]))
+    expect(legacyRow.flagged).toBe(false)
+    expect(legacyRow.comment).toBeNull()
+  })
   it('imports selected-array JSON rows', () => {
     const [row] = parseMessageLogImportJson(JSON.stringify([serializeMessageLogRow(buildRow())]))
 

@@ -84,6 +84,10 @@ export type LoggedCapturedEventType =
  * Logged captured USB-PD message row.
  */
 export interface LoggedCapturedMessage {
+  ///< Whether the message has been user-flagged.
+  flagged?: boolean
+  ///< Optional user-authored Markdown comment.
+  comment?: string | null
   ///< Row kind discriminator.
   entryKind: LoggedCapturedEntryKind
   ///< Optional event type for event rows.
