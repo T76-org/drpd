@@ -214,6 +214,18 @@ namespace T76::DRPD::Logic {
         [[nodiscard]] SinkTransmitPermission sinkTransmitPermission() const;
 
         /**
+         * @brief Apply persisted CC bus role settings.
+         * @param config Persisted CC bus settings.
+         */
+        void applyPersistentConfig(const T76::DRPD::CCBusPersistentConfig& config);
+
+        /**
+         * @brief Export current CC bus role settings for persistence.
+         * @return Current CC bus persistent settings.
+         */
+        [[nodiscard]] T76::DRPD::CCBusPersistentConfig exportPersistentConfig() const;
+
+        /**
          * @brief Apply persisted Sink policy settings.
          * @param config Persisted Sink settings.
          */

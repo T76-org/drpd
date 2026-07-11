@@ -122,6 +122,29 @@ SinkTransmitPermission CCBusController::sinkTransmitPermission() const {
     return SinkTransmitPermission::Unknown;
 }
 
+void CCBusController::applyPersistentConfig(const T76::DRPD::CCBusPersistentConfig& config) {
+    switch (static_cast<CCBusRole>(config.role)) {
+        case CCBusRole::Disabled:
+            role(CCBusRole::Disabled);
+            break;
+
+        case CCBusRole::Sink:
+            role(CCBusRole::Sink);
+            break;
+
+        case CCBusRole::Observer:
+        default:
+            role(CCBusRole::Observer);
+            break;
+    }
+}
+
+T76::DRPD::CCBusPersistentConfig CCBusController::exportPersistentConfig() const {
+    return T76::DRPD::CCBusPersistentConfig{
+        .role = static_cast<uint32_t>(_role),
+    };
+}
+
 void CCBusController::applySinkPersistentConfig(const T76::DRPD::SinkPersistentConfig& config) {
     _sink.applyPersistentConfig(config);
 }

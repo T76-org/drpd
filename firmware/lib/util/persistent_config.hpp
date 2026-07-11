@@ -20,9 +20,10 @@
  * Runtime ownership is split deliberately:
  * - this module owns persistence, schema selection, validation, migration, and
  *   flash erase/program sequencing
- * - feature owners such as `VBusManager`, `TriggerController`, and
- *   `SyncManager` own the semantic meaning of their persisted slices and expose
- *   `applyPersistentConfig(...)` / `exportPersistentConfig()` methods
+ * - feature owners such as `VBusManager`, `CCBusController`,
+ *   `TriggerController`, and `SyncManager` own the semantic meaning of their
+ *   persisted slices and expose `applyPersistentConfig(...)` /
+ *   `exportPersistentConfig()` methods
  * - the app layer only coordinates when settings are loaded or saved
  *
  * Flash writes require special handling because both RP2350 cores normally
@@ -137,6 +138,13 @@ namespace T76::DRPD {
     };
 
     /**
+     * @brief Persisted CC bus role settings owned by CCBusController.
+     */
+    struct CCBusPersistentConfig {
+        uint32_t role = 1; ///< Stored CCBusRole value; 1 is Observer.
+    };
+
+    /**
      * @brief Historical analog-monitor calibration settings for schema versions 1 and 2.
      */
     struct AnalogMonitorPersistentConfigV1 {
@@ -192,6 +200,18 @@ namespace T76::DRPD {
     };
 
     /**
+     * @brief Version 4 persistent payload layout.
+     */
+    struct PersistentConfigDataV4 {
+        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
+        AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
+        TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
+        SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
+        SinkPersistentConfig sink{};       ///< Persisted Sink policy settings.
+        CCBusPersistentConfig ccBus{};     ///< Persisted CC bus role settings.
+    };
+
+    /**
      * @brief Fixed header stored ahead of the persistent payload in flash.
      */
     struct PersistentConfigHeader {
@@ -226,8 +246,16 @@ namespace T76::DRPD {
         PersistentConfigDataV3 payload{};  ///< On-flash payload.
     };
 
-    using PersistentConfigDataCurrent = PersistentConfigDataV3;
-    using PersistentConfigImageCurrent = PersistentConfigImageV3;
+    /**
+     * @brief Complete on-flash image for schema version 4.
+     */
+    struct PersistentConfigImageV4 {
+        PersistentConfigHeader header{};   ///< On-flash header.
+        PersistentConfigDataV4 payload{};  ///< On-flash payload.
+    };
+
+    using PersistentConfigDataCurrent = PersistentConfigDataV4;
+    using PersistentConfigImageCurrent = PersistentConfigImageV4;
 
     /**
      * @brief Persistent configuration store backed by a dedicated flash sector.
@@ -238,7 +266,7 @@ namespace T76::DRPD {
      */
     class PersistentConfig {
     public:
-        static constexpr uint32_t CurrentSchemaVersion = 3;   ///< Latest supported schema version.
+        static constexpr uint32_t CurrentSchemaVersion = 4;   ///< Latest supported schema version.
         static constexpr uint32_t Magic = 0x44525044u;        ///< Flash image identification marker.
         static constexpr uint32_t FlashSize = FLASH_SECTOR_SIZE;  ///< Reserved flash region size in bytes.
         static constexpr uint32_t FlashOffset = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;   ///< Offset of the reserved sector from flash base.
@@ -355,6 +383,11 @@ namespace T76::DRPD {
          * @brief Decode a version 3 payload into the current config representation.
          */
         bool _decodeVersion3(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+
+        /**
+         * @brief Decode a version 4 payload into the current config representation.
+         */
+        bool _decodeVersion4(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
 
         /**
          * @brief Decode any supported stored schema into the current representation.
