@@ -1,0 +1,502 @@
+---
+sidebar_position: 80
+sidebar_label: TEST
+---
+
+# TEST Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+:::warning[Test-only commands]
+These commands are protected unless firmware is built with `DRPD_ENABLE_TEST_SCPI_COMMANDS` enabled. Standard firmware reports `-203, "Command protected"` for these commands.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `TEST:VBUSMAN:EN`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TEST:VBUSMAN:EN
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:VBUSMAN:EN` |
+| Short form | `TEST:VBUSMAN:EN` |
+
+Enable or disable VBUS pass-through
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `state` | enum | `ON`, `OFF` | The desired pass-through state. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The requested VBUS pass-through state was not ON or OFF. |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_setVBusManagerState`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:VBUSMAN:EN?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TEST:VBUSMAN:EN?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:VBUSMAN:EN?` |
+| Short form | `TEST:VBUSMAN:EN?` |
+
+Query the VBUS pass-through status
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_queryVBusManagerState`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCROLE:CC1`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TEST:CCROLE:CC1
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCROLE:CC1` |
+| Short form | `TEST:CCROLE:CC1` |
+
+Set the CC1 port role
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `role` | enum | `SOURCE_DEFAULT`, `SOURCE_1_5A`, `SOURCE_3_0A`, `SINK`, `EMARKER`, `VCONN`, `OFF` | The desired role for the CC1 port. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The requested CC1 role was not supported. |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_setCC1Role`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCROLE:CC1?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TEST:CCROLE:CC1?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCROLE:CC1?` |
+| Short form | `TEST:CCROLE:CC1?` |
+
+Query the CC1 port role
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_queryCC1Role`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCROLE:CC2`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TEST:CCROLE:CC2
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCROLE:CC2` |
+| Short form | `TEST:CCROLE:CC2` |
+
+Set the CC2 port role
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `role` | enum | `SOURCE_DEFAULT`, `SOURCE_1_5A`, `SOURCE_3_0A`, `SINK`, `EMARKER`, `VCONN`, `OFF` | The desired role for the CC2 port. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The requested CC2 role was not supported. |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_setCC2Role`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCROLE:CC2?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TEST:CCROLE:CC2?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCROLE:CC2?` |
+| Short form | `TEST:CCROLE:CC2?` |
+
+Query the CC2 port role
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_queryCC2Role`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCBUS:DUT:CHANNEL`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TEST:CCBUS:DUT:CHANNEL
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCBUS:DUT:CHANNEL` |
+| Short form | `TEST:CCBUS:DUT:CHANNEL` |
+
+Select the active CC bus
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `channel` | enum | `CC1`, `CC2` | The desired CC bus channel. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The requested DUT CC bus channel was not CC1 or CC2. |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_setDUTChannel`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCBUS:DUT:CHANNEL?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TEST:CCBUS:DUT:CHANNEL?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCBUS:DUT:CHANNEL?` |
+| Short form | `TEST:CCBUS:DUT:CHANNEL?` |
+
+Query the active CC bus
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_queryDUTChannel`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCBUS:USDS:CHANNEL`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TEST:CCBUS:USDS:CHANNEL
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCBUS:USDS:CHANNEL` |
+| Short form | `TEST:CCBUS:USDS:CHANNEL` |
+
+Select the active CC bus for the USDS
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `channel` | enum | `CC1`, `CC2` | The desired CC bus channel for the USDS. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The requested USDS CC bus channel was not CC1 or CC2. |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_setUSDSChannel`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCBUS:USDS:CHANNEL?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TEST:CCBUS:USDS:CHANNEL?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCBUS:USDS:CHANNEL?` |
+| Short form | `TEST:CCBUS:USDS:CHANNEL?` |
+
+Query the active CC bus for the USDS
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_queryUSDSChannel`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCBUS:MUX`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TEST:CCBUS:MUX
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCBUS:MUX` |
+| Short form | `TEST:CCBUS:MUX` |
+
+Enable or disable the DUT CC bus multiplexer
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `state` | enum | `ON`, `OFF` | The desired DUT CC bus multiplexer state. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The requested DUT CC bus multiplexer state was not ON or OFF. |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_setCCMuxState`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+
+## `TEST:CCBUS:MUX?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TEST:CCBUS:MUX?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TEST:CCBUS:MUX?` |
+| Short form | `TEST:CCBUS:MUX?` |
+
+Query the DUT CC bus multiplexer status
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-203` | Command protected | Test SCPI commands are disabled in this firmware build. |
+
+### Source
+
+- Catalog handler: `_queryCCMuxState`
+- Handler source: `firmware/lib/app/app_scpi_test.cpp`
+

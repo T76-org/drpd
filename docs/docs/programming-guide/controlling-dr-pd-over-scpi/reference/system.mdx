@@ -1,0 +1,276 @@
+---
+sidebar_position: 20
+sidebar_label: SYSTem
+---
+
+# SYSTem Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `SYSTem:ERRor?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:ERRor?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:ERRor?` |
+| Short form | `SYST:ERR?` |
+
+Query the error queue and return the oldest error.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySystemError`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:MEMory?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:MEMory?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:MEMory?` |
+| Short form | `SYST:MEM?` |
+
+Query the amount of free memory on the FreeRTOS heap in bytes.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySystemMemory`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:SPeed?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:SPeed?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:SPeed?` |
+| Short form | `SYST:SP?` |
+
+Query the system clock frequency in hertz.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySystemSpeed`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:UPTime?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:UPTime?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:UPTime?` |
+| Short form | `SYST:UPT?` |
+
+Query the number of microseconds since the system was booted.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySystemUptime`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:TIMEstamp?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:TIMEstamp?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:TIMEstamp?` |
+| Short form | `SYST:TIME?` |
+
+Query the current timestamp in microseconds.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySystemTimestamp`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:HW:REVision?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:HW:REVision?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:HW:REVision?` |
+| Short form | `SYST:HW:REV?` |
+
+Query the detected hardware revision.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySystemHardwareRevision`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:FIRMware:UPDater`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SYSTem:FIRMware:UPDater
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:FIRMware:UPDater` |
+| Short form | `SYST:FIRM:UPD` |
+
+Reboot into the resident firmware updater bootloader.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_enterFirmwareUpdater`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+

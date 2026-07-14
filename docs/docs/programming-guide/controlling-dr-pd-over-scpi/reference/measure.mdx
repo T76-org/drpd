@@ -1,0 +1,512 @@
+---
+sidebar_position: 40
+sidebar_label: MEASure
+---
+
+# MEASure Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `MEASure:ALL?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:ALL?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:ALL?` |
+| Short form | `MEAS:ALL?` |
+
+Measure all analog monitor voltages and currents.
+Returns comma-separated values in the following order:
+- VBUS capture timestamp (uint64, microseconds)
+- VBUS voltage
+- VBUS current
+- DUT CC1 voltage
+- DUT CC2 voltage
+- USDS CC1 voltage
+- USDS CC2 voltage
+- ADC VREF voltage
+- Ground reference voltage
+- Current reference voltage
+- Accumulation elapsed time (uint64, microseconds)
+- Accumulated absolute charge (uint32, mAh)
+- Accumulated absolute energy (uint32, mWh)
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns comma-separated values in the following order:
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureAllAnalogValues`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:ACCumulated?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:ACCumulated?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:ACCumulated?` |
+| Short form | `MEAS:ACC?` |
+
+Query accumulated VBUS charge and energy counters.
+Returns comma-separated values in the following order:
+- Accumulation elapsed time (uint64, microseconds)
+- Accumulated absolute charge (uint32, mAh)
+- Accumulated absolute energy (uint32, mWh)
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns comma-separated values in the following order:
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureAccumulatedValues`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:ACCumulated:RESET`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+MEASure:ACCumulated:RESET
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:ACCumulated:RESET` |
+| Short form | `MEAS:ACC:RESET` |
+
+Reset the accumulated VBUS charge and energy counters.
+The accumulation start timestamp is set to the current system
+time, and both counters are cleared to zero.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_resetAccumulatedValues`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:VBUS?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:VBUS?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:VBUS?` |
+| Short form | `MEAS:VOLT:VBUS?` |
+
+Measure the VBUS voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureVBusVoltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:CURRent:VBUS?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:CURRent:VBUS?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:CURRent:VBUS?` |
+| Short form | `MEAS:CURR:VBUS?` |
+
+Measure the VBUS current.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureVBusCurrent`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:CURRent:VBUS:RAW?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:CURRent:VBUS:RAW?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:CURRent:VBUS:RAW?` |
+| Short form | `MEAS:CURR:VBUS:RAW?` |
+
+Measure the latest raw scaled VBUS current before calibration.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureRawVBusCurrent`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:CC:DUT1?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:CC:DUT1?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:CC:DUT1?` |
+| Short form | `MEAS:VOLT:CC:DUT1?` |
+
+Measure the DUT CC1 voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureDUTCC1Voltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:CC:DUT2?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:CC:DUT2?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:CC:DUT2?` |
+| Short form | `MEAS:VOLT:CC:DUT2?` |
+
+Measure the DUT CC2 voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureDUTCC2Voltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:CC:USDS1?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:CC:USDS1?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:CC:USDS1?` |
+| Short form | `MEAS:VOLT:CC:USDS1?` |
+
+Measure the USDS CC1 voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureUSDSCC1Voltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:CC:USDS2?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:CC:USDS2?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:CC:USDS2?` |
+| Short form | `MEAS:VOLT:CC:USDS2?` |
+
+Measure the USDS CC2 voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureUSDSCC2Voltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:REF:ADC?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:REF:ADC?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:REF:ADC?` |
+| Short form | `MEAS:VOLT:REF:ADC?` |
+
+Measure the ADC reference voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureADCRefVoltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:REF:CURRent?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:REF:CURRent?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:REF:CURRent?` |
+| Short form | `MEAS:VOLT:REF:CURR?` |
+
+Measure the current reference voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureCurrentRefVoltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+
+## `MEASure:VOLTage:REF:GND?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+MEASure:VOLTage:REF:GND?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `MEASure:VOLTage:REF:GND?` |
+| Short form | `MEAS:VOLT:REF:GND?` |
+
+Measure the ground reference voltage.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_measureGroundRefVoltage`
+- Handler source: `firmware/lib/app/app_scpi_analog_monitor.cpp`
+

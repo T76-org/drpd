@@ -1,0 +1,96 @@
+---
+sidebar_position: 10
+sidebar_label: Common SCPI
+---
+
+# Common SCPI Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `*IDN?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+*IDN?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `*IDN?` |
+| Short form | `*IDN?` |
+
+Query the instrument identification string.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryIDN`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `*RST`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+*RST
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `*RST` |
+| Short form | `*RST` |
+
+Reset the instrument to its power-on state.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_resetInstrument`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+

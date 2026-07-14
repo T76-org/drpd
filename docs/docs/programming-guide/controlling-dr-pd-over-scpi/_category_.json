@@ -1,0 +1,10 @@
+{
+  "label": "Controlling Dr. PD over SCPI",
+  "position": 10,
+  "collapsible": true,
+  "collapsed": false,
+  "link": {
+    "type": "doc",
+    "id": "programming-guide/controlling-dr-pd-over-scpi/index"
+  }
+}
