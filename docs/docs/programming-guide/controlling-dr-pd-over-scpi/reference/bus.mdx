@@ -1,0 +1,938 @@
+---
+sidebar_position: 50
+sidebar_label: BUS
+---
+
+# BUS Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `BUS:CC:ROLE?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:CC:ROLE?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:ROLE?` |
+| Short form | `BUS:CC:ROLE?` |
+
+Query the CC bus controller role
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryCCBusControllerRole`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:ROLE`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:CC:ROLE
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:ROLE` |
+| Short form | `BUS:CC:ROLE` |
+
+Set and persist the CC bus controller role. The factory default role is OBSERVER.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `role` | enum | `DISABLED`, `OBSERVER`, `SINK` | The desired role for the CC bus controller. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The role value was not one of DISABLED, OBSERVER, or SINK. |
+| `-104` | Data type error | The role parameter was missing or was not parsed as a valid enumerated value. |
+
+### Source
+
+- Catalog handler: `_setCCBusControllerRole`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:ROLE:STATus?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:CC:ROLE:STATus?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:ROLE:STATus?` |
+| Short form | `BUS:CC:ROLE:STAT?` |
+
+Query the CC bus controller role status. Returns one of: UNATTACHED, SOURCE_FOUND, ATTACHED
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryCCBusControllerRoleStatus`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:CAPture:CYCLETIME?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:CC:CAPture:CYCLETIME?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:CAPture:CYCLETIME?` |
+| Short form | `BUS:CC:CAP:CYCLETIME?` |
+
+Query the length of a capture cycle in nanoseconds
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryCCBusCaptureCycleTime`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:CAPture:COUNT?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:CC:CAPture:COUNT?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:CAPture:COUNT?` |
+| Short form | `BUS:CC:CAP:COUNT?` |
+
+Query the number of captured CC bus messages
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryCCBusCapturedMessageCount`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:CAPture:DATA?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:CC:CAPture:DATA?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:CAPture:DATA?` |
+| Short form | `BUS:CC:CAP:DATA?` |
+
+Query the CC bus for the next available captured message.
+If no messages are available, returns an error.
+Messages are returned as arbitrary data blocks with the following
+format:
+
+- Start timestamp (8 bytes, uint64_t): The timestamp of when message capture started, in microseconds.
+- End timestamp (8 bytes, uint64_t): The timestamp of when message capture ended, in microseconds.
+- Message decoding result (4 bytes, uint32_t): The result of decoding the message.
+  Possible values are:
+  - 0: Success
+  - 1: Invalid K-code
+  - 2: CRC error
+  - 3: Timeout error
+  - 4: Incomplete message
+- SOP (4 bytes): The Start of Packet identifier.
+- Pulse count (4 bytes, uint32_t): The number of pulses in the captured message.
+- Pulse widths (N * 2 bytes, uint16_t): An array of pulse widths in PIO cycles.
+- Data length (4 bytes, uint32_t): The length of the decoded data in bytes.
+- Decoded data (M * 1 bytes, uint8_t): The decoded message
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-200` | Execution error | No captured CC bus messages are available to return. |
+
+### Source
+
+- Catalog handler: `_queryCCBusNextCapturedMessage`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:CAPture:EN`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:CC:CAPture:EN
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:CAPture:EN` |
+| Short form | `BUS:CC:CAP:EN` |
+
+Enable or disable CC bus message capture
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `state` | enum | `ON`, `OFF` | The desired capture state. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The capture state value was not ON or OFF. |
+
+### Source
+
+- Catalog handler: `_setCCBusMessageCaptureState`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:CAPture:EN?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:CC:CAPture:EN?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:CAPture:EN?` |
+| Short form | `BUS:CC:CAP:EN?` |
+
+Query the CC bus message capture status
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryCCBusMessageCaptureState`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:CC:CAPture:CLEAR`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:CC:CAPture:CLEAR
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:CC:CAPture:CLEAR` |
+| Short form | `BUS:CC:CAP:CLEAR` |
+
+Clear the captured CC bus message buffer
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_clearCCBusCapturedMessages`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
+
+## `BUS:VBUS:STATus?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:STATus?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:STATus?` |
+| Short form | `BUS:VBUS:STAT?` |
+
+Query the VBUS status and latched protection event timestamps.
+Returns three comma-separated fields:
+- Status token: ENABLED, DISABLED, OVP, or OCP
+- Most recent OVP event timestamp in microseconds, or NONE
+- Most recent OCP event timestamp in microseconds, or NONE
+If OVP or OCP is returned, the VBUS controller is in a FAULT state and must be reset.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns three comma-separated fields:
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryVBusStatus`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:RESET`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:RESET
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:RESET` |
+| Short form | `BUS:VBUS:RESET` |
+
+Reset the VBUS controller from a FAULT state.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_resetVBus`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:OVPThreshold`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:OVPThreshold
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:OVPThreshold` |
+| Short form | `BUS:VBUS:OVPT` |
+
+Set the VBUS overvoltage protection threshold in millivolts.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `threshold_mv` | number | — | The desired OVP threshold in millivolts. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-222` | Data out of range | The OVP threshold was negative or greater than the supported 60 V limit. |
+
+### Source
+
+- Catalog handler: `_setVBusOVPThreshold`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:OVPThreshold?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:OVPThreshold?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:OVPThreshold?` |
+| Short form | `BUS:VBUS:OVPT?` |
+
+Query the VBUS overvoltage protection threshold in millivolts
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryVBusOVPThreshold`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:OCPThreshold`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:OCPThreshold
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:OCPThreshold` |
+| Short form | `BUS:VBUS:OCPT` |
+
+Set the VBUS overcurrent protection threshold in milliamps.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `threshold_ma` | number | — | The desired OCP threshold in milliamps. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-222` | Data out of range | The OCP threshold was negative or greater than the supported 6 A limit. |
+
+### Source
+
+- Catalog handler: `_setVBusOCPThreshold`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:OCPThreshold?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:OCPThreshold?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:OCPThreshold?` |
+| Short form | `BUS:VBUS:OCPT?` |
+
+Query the VBUS overcurrent protection threshold in milliamps
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryVBusOCPThreshold`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate?` |
+| Short form | `BUS:VBUS:CAL?` |
+
+Query the full VBUS correction table.
+Returns 61 comma-separated correction values ordered by
+raw VBUS bucket from 0V through 60V.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns 61 comma-separated correction values ordered by
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryVBusCalibration`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate` |
+| Short form | `BUS:VBUS:CAL` |
+
+Capture the current live VBUS reading and store the
+resulting correction for the specified raw VBUS bucket.
+The command stores bucket - measured_vbus for the selected
+integer raw bucket and persists the updated correction table.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `bucket` | number | — | Raw integer-voltage VBUS bucket to update, from 0 to 60. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The calibration bucket was not an integer value. |
+| `-222` | Data out of range | The calibration bucket was outside the supported range of 0 through 60. |
+| `-109` | Missing parameter | No calibration bucket parameter was provided. |
+
+### Source
+
+- Catalog handler: `_setVBusCalibrationPoint`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate:TABle`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate:TABle
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate:TABle` |
+| Short form | `BUS:VBUS:CAL:TAB` |
+
+Set one persisted VBUS correction table entry directly.
+This is intended for importing a previously exported
+calibration table; unlike BUS:VBUS:CALibrate it does not
+read the live VBUS measurement.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `bucket` | number | — | Raw integer-voltage VBUS bucket to update, from 0 to 60. |
+| `correction_v` | number | — | Additive VBUS correction in volts for the selected bucket. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The calibration bucket was not an integer value or the correction was not finite. |
+| `-222` | Data out of range | The calibration bucket was outside the supported range of 0 through 60. |
+
+### Source
+
+- Catalog handler: `_setVBusCalibrationTablePoint`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate:DEFault`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate:DEFault
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate:DEFault` |
+| Short form | `BUS:VBUS:CAL:DEF` |
+
+Restore the full VBUS correction table to its default
+firmware-defined values and persist the updated table.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_resetVBusCalibration`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate:CURRent?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate:CURRent?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate:CURRent?` |
+| Short form | `BUS:VBUS:CAL:CURR?` |
+
+Query the full VBUS current raw calibration table.
+Returns 13 comma-separated raw measured current values in
+amps, ordered by true current point from 0A through 6A in
+500mA intervals.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns 13 comma-separated raw measured current values in
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryVBusCurrentCalibration`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate:CURRent`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate:CURRent
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate:CURRent` |
+| Short form | `BUS:VBUS:CAL:CURR` |
+
+Capture the current live VBUS current reading and store
+the raw measured current for the specified true current.
+Runtime current calibration inverts the resulting
+piecewise-linear raw-to-true-current curve.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `target_ma` | number | — | True VBUS current calibration point in milliamps; must be 0 through 6000 in 500mA intervals. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The calibration current was not an integer value or was not aligned to a 500 mA interval. |
+| `-222` | Data out of range | The calibration current was outside the supported range of 0 through 6000 mA. |
+| `-109` | Missing parameter | No calibration current parameter was provided. |
+
+### Source
+
+- Catalog handler: `_setVBusCurrentCalibrationPoint`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate:CURRent:TABle`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate:CURRent:TABle
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate:CURRent:TABle` |
+| Short form | `BUS:VBUS:CAL:CURR:TAB` |
+
+Set one persisted VBUS current raw calibration table entry
+directly. This is intended for importing a previously
+exported calibration table; unlike BUS:VBUS:CALibrate:CURRent
+it does not read the live VBUS current measurement.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `target_ma` | number | — | True VBUS current calibration point in milliamps; must be 0 through 6000 in 500mA intervals. |
+| `raw_current_a` | number | — | Raw measured current in amps for the selected true-current point. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The calibration current was not an integer value, was not aligned to a 500 mA interval, or the raw current was negative or not finite. |
+| `-222` | Data out of range | The calibration current was outside the supported range of 0 through 6000 mA. |
+
+### Source
+
+- Catalog handler: `_setVBusCurrentCalibrationTablePoint`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+
+## `BUS:VBUS:CALibrate:CURRent:DEFault`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+BUS:VBUS:CALibrate:CURRent:DEFault
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `BUS:VBUS:CALibrate:CURRent:DEFault` |
+| Short form | `BUS:VBUS:CAL:CURR:DEF` |
+
+Restore the full VBUS current raw calibration table to its
+default firmware-defined values and persist the updated
+table. The VBUS voltage correction table is preserved.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_resetVBusCurrentCalibration`
+- Handler source: `firmware/lib/app/app_scpi_vbus.cpp`
+

@@ -1,0 +1,912 @@
+---
+sidebar_position: 60
+sidebar_label: SINK
+---
+
+# SINK Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `SINK:PDO:COUNT?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:PDO:COUNT?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:PDO:COUNT?` |
+| Short form | `SINK:PDO:COUNT?` |
+
+Query the number of currently available source PDOs.
+Returns SPR PDOs after initial Source_Capabilities and includes
+EPR PDOs as soon as EPR Source Capabilities are retrieved.
+Returns a single integer value.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns SPR PDOs after initial Source_Capabilities and includes
+- Returns a single integer value.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkAvailablePDOCount`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:PDO?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:PDO?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:PDO?` |
+| Short form | `SINK:PDO?` |
+
+Query information about a PDO at the specified index in the current
+merged source capability list (SPR first, then EPR when available).
+Returns comma-separated values with format depending on PDO type:
+
+- Fixed Supply PDO: "FIXED,&lt;voltage&gt;,&lt;max_current&gt;"
+  - voltage: Voltage in volts (float)
+  - max_current: Maximum current in amps (float)
+
+- Variable Supply PDO: "VARIABLE,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_current&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_current: Maximum current in amps (float)
+
+- Battery Supply PDO: "BATTERY,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_power: Maximum power in watts (float)
+
+- SPR PPS APDO: "SPR_PPS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_current&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_current: Maximum current in amps (float)
+
+- SPR AVS APDO: "SPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_power: Maximum power in watts (float)
+
+- EPR AVS APDO: "EPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_power: Maximum power in watts (float)
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `index` | number | — | The index of the requested PDO (0-based). |
+
+### Response
+
+- Returns comma-separated values with format depending on PDO type:
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The requested PDO index does not exist in the current source capability list. |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkRequestedPDOAtIndex`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:PDO`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SINK:PDO
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:PDO` |
+| Short form | `SINK:PDO` |
+
+Request a PDO at the specified index with a specific voltage and current.
+The sink will request the specified current from the source, or the maximum
+available current if 0 is specified.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `index` | number | — | The index of the PDO to request (0-based). |
+| `voltage_mv` | number | — | The desired voltage in millivolts. |
+| `current_ma` | number | — | The desired current in milliamps. Set to 0 to request the maximum available current. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not in Sink role, the Sink state cannot accept a PDO request, or the sink policy rejected the request. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_setSinkPDO`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:REQUEST:STATUS?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:REQUEST:STATUS?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:REQUEST:STATUS?` |
+| Short form | `SINK:REQUEST:STATUS?` |
+
+Query the most recent Sink PDO request outcome. This is intended for
+source-test observability: SINK:PDO accepts the host command before
+the Source replies, while this query reports the later Accept, Reject,
+Wait, Not_Supported, or timeout outcome.
+Returns "OUTCOME,index,voltage_mv,current_ma".
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns "OUTCOME,index,voltage_mv,current_ma".
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkRequestStatus`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:CAPability:SPR:COUNT?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:CAPability:SPR:COUNT?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:CAPability:SPR:COUNT?` |
+| Short form | `SINK:CAP:SPR:COUNT?` |
+
+Query the number of configured local SPR Sink capability PDOs.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+| `-200` | Execution error. Unable to access sink policy engine. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_querySinkCapabilityCount`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:CAPability:SPR?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:CAPability:SPR?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:CAPability:SPR?` |
+| Short form | `SINK:CAP:SPR?` |
+
+Query a configured local SPR Sink capability raw PDO.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `index` | number | — | The local SPR Sink capability PDO slot index (0-based). |
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value. Sink capability index out of range. | Extracted from handler implementation. |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+| `-200` | Execution error. Unable to access sink policy engine. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_querySinkCapabilityPDO`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:CAPability:SPR`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SINK:CAPability:SPR
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:CAPability:SPR` |
+| Short form | `SINK:CAP:SPR` |
+
+Set a configured local SPR Sink capability raw PDO.
+A raw PDO value of 0 clears the slot; at least one SPR
+Sink capability PDO must remain configured.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `index` | number | — | The local SPR Sink capability PDO slot index (0-based). |
+| `raw_pdo` | number | — | Raw 32-bit Sink PDO value. Use 0 to clear the slot. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value. Sink capabilities must keep at least one valid SPR PDO. | Extracted from handler implementation. |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+| `-200` | Execution error. Unable to access sink policy engine. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_setSinkCapabilityPDO`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:CAPability:EPR:COUNT?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:CAPability:EPR:COUNT?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:CAPability:EPR:COUNT?` |
+| Short form | `SINK:CAP:EPR:COUNT?` |
+
+Query the number of configured local EPR-only Sink capability PDOs.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+| `-200` | Execution error. Unable to access sink policy engine. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_querySinkEPRCapabilityCount`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:CAPability:EPR?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:CAPability:EPR?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:CAPability:EPR?` |
+| Short form | `SINK:CAP:EPR?` |
+
+Query a configured local EPR-only Sink capability raw PDO.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `index` | number | — | The local EPR-only Sink capability PDO slot index (0-based). |
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value. EPR Sink capability index out of range. | Extracted from handler implementation. |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+| `-200` | Execution error. Unable to access sink policy engine. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_querySinkEPRCapabilityPDO`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:CAPability:EPR`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SINK:CAPability:EPR
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:CAPability:EPR` |
+| Short form | `SINK:CAP:EPR` |
+
+Set a configured local EPR-only Sink capability raw PDO.
+A raw PDO value of 0 clears the slot. If no EPR-only PDOs
+are configured, EPR_Get_Sink_Cap is answered Not_Supported.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `index` | number | — | The local EPR-only Sink capability PDO slot index (0-based). |
+| `raw_pdo` | number | — | Raw 32-bit EPR Sink PDO value. Use 0 to clear the slot. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value. EPR Sink capability index out of range. | Extracted from handler implementation. |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+| `-200` | Execution error. Unable to access sink policy engine. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_setSinkEPRCapabilityPDO`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:EPR:EN`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SINK:EPR:EN
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:EPR:EN` |
+| Short form | `SINK:EPR:EN` |
+
+Enable or disable local Sink policy for EPR entry. When disabled,
+the Sink remains in SPR mode even if the Source advertises EPR.
+The setting defaults to ON and is persisted in flash.
+If disabled during active EPR mode, the Sink sends EPR_Mode
+Exit and returns to SPR policy.
+Enabling affects future negotiation and does not force immediate
+entry into EPR mode for an existing explicit contract.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `state` | enum | `ON`, `OFF` | ON enables EPR entry policy; OFF keeps Sink negotiation SPR-only. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The EPR enable state value was not ON or OFF. |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_setSinkEPREntryState`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:EPR:EN?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:EPR:EN?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:EPR:EN?` |
+| Short form | `SINK:EPR:EN?` |
+
+Query whether local Sink policy allows EPR entry.
+Returns ON or OFF. The setting defaults to ON and is
+persisted in flash.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns ON or OFF. The setting defaults to ON and is
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkEPREntryState`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:PPS:STATUS:EN`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SINK:PPS:STATUS:EN
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:PPS:STATUS:EN` |
+| Short form | `SINK:PPS:STATUS:EN` |
+
+Enable or disable local Sink policy for sending Get_PPS_Status
+after SPR PPS transitions. When disabled, SPR PPS negotiation
+and periodic PPS Request refresh remain active, but the Sink
+skips the follow-up Get_PPS_Status query after PS_RDY.
+The setting defaults to OFF and is persisted in flash.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `state` | enum | `ON`, `OFF` | ON enables Get_PPS_Status queries after SPR PPS transitions; OFF disables them. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The PPS status query state value was not ON or OFF. |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_setSinkPPSStatusQueryState`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:PPS:STATUS:EN?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:PPS:STATUS:EN?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:PPS:STATUS:EN?` |
+| Short form | `SINK:PPS:STATUS:EN?` |
+
+Query whether local Sink policy sends Get_PPS_Status after
+SPR PPS transitions. Returns ON or OFF. The setting defaults
+to OFF and is persisted in flash.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkPPSStatusQueryState`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:STATUS?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:STATUS?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:STATUS?` |
+| Short form | `SINK:STATUS?` |
+
+Query the current state of the sink state machine.
+Returns one of:
+- DISCONNECTED: No source detected
+- PE_SNK_STARTUP
+- PE_SNK_DISCOVERY
+- PE_SNK_WAIT_FOR_CAPABILITIES
+- PE_SNK_EVALUATE_CAPABILITY
+- PE_SNK_SELECT_CAPABILITY
+- PE_SNK_TRANSITION_SINK
+- PE_SNK_READY
+- PE_SNK_SEND_EPR_MODE_ENTRY
+- PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE
+- PE_SNK_SEND_EPR_MODE_EXIT
+- PE_SNK_GIVE_SINK_CAP
+- PE_SNK_GET_SOURCE_CAP
+- PE_SNK_GET_PPS_STATUS
+- PE_SNK_EPR_KEEPALIVE
+- PE_SNK_HARD_RESET
+- PE_SNK_TRANSITION_TO_DEFAULT
+- ERROR: An error occurred during negotiation
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns one of:
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkStatus`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:STATUS:PDO?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:STATUS:PDO?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:STATUS:PDO?` |
+| Short form | `SINK:STATUS:PDO?` |
+
+Query information about the negotiated PDO.
+Returns comma-separated values with format depending on PDO type:
+
+- Fixed Supply PDO: "FIXED,&lt;voltage&gt;,&lt;max_current&gt;"
+  - voltage: Voltage in volts (float)
+  - max_current: Maximum current in amps (float)
+
+- Variable Supply PDO: "VARIABLE,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_current&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_current: Maximum current in amps (float)
+
+- Battery Supply PDO: "BATTERY,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_power: Maximum power in watts (float)
+
+- SPR PPS APDO: "SPR_PPS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_current&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_current: Maximum current in amps (float)
+
+- SPR AVS APDO: "SPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_power: Maximum power in watts (float)
+
+- EPR AVS APDO: "EPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+  - min_voltage: Minimum voltage in volts (float)
+  - max_voltage: Maximum voltage in volts (float)
+  - max_power: Maximum power in watts (float)
+
+Returns "NONE" if no PDO has been negotiated yet.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns comma-separated values with format depending on PDO type:
+- Returns "NONE" if no PDO has been negotiated yet.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkNegotiatedPDO`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:STATUS:VOLTAGE?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:STATUS:VOLTAGE?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:STATUS:VOLTAGE?` |
+| Short form | `SINK:STATUS:VOLTAGE?` |
+
+Query the negotiated voltage.
+Returns a single float value in millivolts.
+Returns 0 if no voltage has been negotiated.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns a single float value in millivolts.
+- Returns 0 if no voltage has been negotiated.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkNegotiatedVoltage`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:STATUS:CURRENT?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:STATUS:CURRENT?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:STATUS:CURRENT?` |
+| Short form | `SINK:STATUS:CURRENT?` |
+
+Query the negotiated current.
+Returns a single float value in milliamps.
+Returns 0 if no current has been negotiated.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns a single float value in milliamps.
+- Returns 0 if no current has been negotiated.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkNegotiatedCurrent`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:STATUS:ERROR?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:STATUS:ERROR?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:STATUS:ERROR?` |
+| Short form | `SINK:STATUS:ERROR?` |
+
+Query the error status of the sink.
+Returns:
+- 1: Sink is in ERROR state
+- 0: Sink is not in ERROR state
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns:
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict | The device is not currently operating in Sink role. |
+| `-200` | Execution error | The CC bus controller is in Sink role, but no Sink object is available. |
+
+### Source
+
+- Catalog handler: `_querySinkErrorStatus`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+

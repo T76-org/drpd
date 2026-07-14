@@ -1,0 +1,719 @@
+---
+sidebar_position: 70
+sidebar_label: TRIGger
+---
+
+# TRIGger Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `TRIGger:RESET`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:RESET
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:RESET` |
+| Short form | `TRIG:RESET` |
+
+Reset the trigger controller
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_resetTriggerController`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:STATus?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:STATus?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:STATus?` |
+| Short form | `TRIG:STAT?` |
+
+Query the trigger controller status. Returns one of: IDLE, ARMED, TRIGGERED
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryTriggerControllerStatus`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:TYPE`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:TYPE
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:TYPE` |
+| Short form | `TRIG:EV:TYPE` |
+
+Set the trigger event type
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `mode` | enum | `OFF`, `PREAMBLE_START`, `SOP_START`, `HEADER_START`, `DATA_START`, `MESSAGE_COMPLETE`, `HARD_RESET_RECEIVED`, `INVALID_KCODE`, `CRC_ERROR`, `TIMEOUT_ERROR`, `RUNT_PULSE_ERROR`, `ANY_ERROR` | The desired trigger event type. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The trigger event type was not one of the supported trigger modes. |
+
+### Source
+
+- Catalog handler: `_setTriggerEventType`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:TYPE?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:TYPE?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:TYPE?` |
+| Short form | `TRIG:EV:TYPE?` |
+
+Query the trigger event type
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryTriggerEventType`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:THRESHold`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:THRESHold
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:THRESHold` |
+| Short form | `TRIG:EV:THRESH` |
+
+Set the number of events before triggering
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `count` | number | — | The desired number of events before triggering. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_setTriggerEventThreshold`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:THRESHold?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:THRESHold?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:THRESHold?` |
+| Short form | `TRIG:EV:THRESH?` |
+
+Query the number of events before triggering
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryTriggerEventThreshold`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:SENDer`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:SENDer
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:SENDer` |
+| Short form | `TRIG:EV:SEND` |
+
+Set the sender filter used in addition to the selected trigger event criteria.
+Supported sender values are:
+- ANY for no sender constraint
+- SOURCE for source-originated messages
+- SINK for sink-originated messages
+- CABLE for cable or VPD-originated messages
+
+For plain SOP traffic, SOURCE and SINK are derived from the header power-role bit.
+For SOP' / SOP'' and debug variants, UFP_DFP maps to SOURCE and CABLE_PLUG_VPD maps to CABLE.
+Sender filtering is ignored until the header is known, starting at DATA_START.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `sender` | enum | `ANY`, `SOURCE`, `SINK`, `CABLE` | The desired sender filter. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The sender filter was not ANY, SOURCE, SINK, or CABLE. |
+
+### Source
+
+- Catalog handler: `_setTriggerEventSenderFilter`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:SENDer?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:SENDer?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:SENDer?` |
+| Short form | `TRIG:EV:SEND?` |
+
+Query the configured sender filter.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryTriggerEventSenderFilter`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:MSGType:FILTer`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:MSGType:FILTer
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:MSGType:FILTer` |
+| Short form | `TRIG:EV:MSGT:FILT` |
+
+Set one message type filter slot used in addition to the selected trigger event criteria.
+The first parameter is a zero-based slot index. The second parameter must use one of these forms:
+- CONTROL:&lt;n&gt; for messages with zero data objects (numDataObjects() == 0)
+- DATA:&lt;n&gt; for messages with one or more data objects (numDataObjects() &gt; 0)
+
+Example:
+TRIGger:EVent:MSGType:FILTer 0, CONTROL:3
+TRIGger:EVent:MSGType:FILTer 1, DATA:1
+TRIGger:EVent:MSGType:FILTer 2, DATA:15
+
+If no filter slots are configured, any message type matches.
+Message type filters only apply once the PD header is known, starting at DATA_START and for later
+completion/error events where decoding already produced a header.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `slot` | number | — | Zero-based message type filter slot index. |
+| `filter` | string | — | Message type filter entry formatted as CONTROL:&lt;n&gt; or DATA:&lt;n&gt;. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The slot index was invalid, the filter token was malformed, the slot was out of range, or the filter duplicated another slot. |
+
+### Source
+
+- Catalog handler: `_setTriggerEventMessageTypeFilter`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:MSGType:FILTer?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:MSGType:FILTer?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:MSGType:FILTer?` |
+| Short form | `TRIG:EV:MSGT:FILT?` |
+
+Query the configured message type filter list in slot order.
+Returns space-separated entries in CONTROL:&lt;n&gt; / DATA:&lt;n&gt; form.
+Returns an empty response when no message type filters are configured.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Returns space-separated entries in CONTROL:&lt;n&gt; / DATA:&lt;n&gt; form.
+- Returns an empty response when no message type filters are configured.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryTriggerEventMessageTypeFilter`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:MSGType:FILTer:CLEAR`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:MSGType:FILTer:CLEAR
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:MSGType:FILTer:CLEAR` |
+| Short form | `TRIG:EV:MSGT:FILT:CLEAR` |
+
+Clear all configured message type filters. After clearing, any message type matches if the other trigger conditions are met.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_clearTriggerEventMessageTypeFilter`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:AUTOREPEAT`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:AUTOREPEAT
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:AUTOREPEAT` |
+| Short form | `TRIG:EV:AUTOREPEAT` |
+
+Enable or disable auto-repeating triggers
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `state` | enum | `ON`, `OFF` | The desired auto-repeat state. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_setTriggerAutoRepeatState`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:AUTOREPEAT?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:AUTOREPEAT?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:AUTOREPEAT?` |
+| Short form | `TRIG:EV:AUTOREPEAT?` |
+
+Query the auto-repeat state
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryTriggerAutoRepeatState`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:EVent:COUNT?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:EVent:COUNT?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:EVent:COUNT?` |
+| Short form | `TRIG:EV:COUNT?` |
+
+Query the number of events counted since the last reset
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryTriggerEventCount`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:SYNC:MODE`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:SYNC:MODE
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:SYNC:MODE` |
+| Short form | `TRIG:SYNC:MODE` |
+
+Set the sync output mode
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `mode` | enum | `PULSE_HIGH`, `PULSE_LOW`, `TOGGLE`, `PULL_DOWN` | The desired sync output mode. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The sync output mode was not PULSE_HIGH, PULSE_LOW, TOGGLE, or PULL_DOWN. |
+
+### Source
+
+- Catalog handler: `_setSyncOutputMode`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:SYNC:MODE?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:SYNC:MODE?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:SYNC:MODE?` |
+| Short form | `TRIG:SYNC:MODE?` |
+
+Query the sync output mode
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySyncOutputMode`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:SYNC:PULSEwidth`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+TRIGger:SYNC:PULSEwidth
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:SYNC:PULSEwidth` |
+| Short form | `TRIG:SYNC:PULSE` |
+
+Set the sync pulse width in microseconds
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `width_us` | number | — | The desired sync pulse width in microseconds. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_setSyncPulseWidth`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+
+## `TRIGger:SYNC:PULSEwidth?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+TRIGger:SYNC:PULSEwidth?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `TRIGger:SYNC:PULSEwidth?` |
+| Short form | `TRIG:SYNC:PULSE?` |
+
+Query the sync pulse width in microseconds
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_querySyncPulseWidth`
+- Handler source: `firmware/lib/app/app_scpi_trigger.cpp`
+

@@ -1,0 +1,11 @@
+{
+  "label": "Programming Guide",
+  "position": 40,
+  "collapsible": true,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "title": "Programming Guide",
+    "description": "Automation and programming interfaces for Dr. PD."
+  }
+}

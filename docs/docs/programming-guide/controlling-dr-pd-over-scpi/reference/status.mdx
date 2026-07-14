@@ -1,0 +1,72 @@
+---
+sidebar_position: 30
+sidebar_label: STATus
+---
+
+# STATus Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `STATus:DEVice?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+STATus:DEVice?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `STATus:DEVice?` |
+| Short form | `STAT:DEV?` |
+
+Query device status register; returns a 32-bit integer value and clears it.
+The returned value is a bitfield with the following bits:
+
+- Bit 0 (0x00000001): VBusStatusChanged - VBUS status changed
+- Bit 1 (0x00000002): RoleChanged - CC bus controller role changed
+- Bit 2 (0x00000004): CaptureStatusChanged - Message capture status changed
+- Bit 3 (0x00000008): CCBusStatusChanged - CC bus controller status changed
+- Bit 4 (0x00000010): TriggerStatusChanged - Trigger controller status changed
+- Bit 5 (0x00000020): SinkPDOListChanged - Sink PDO list changed
+- Bit 6 (0x00000040): SinkStatusChanged - Sink status changed
+- Bit 7 (0x00000080): MessageReceived - New message received on CC bus
+
+Multiple bits may be set simultaneously. Reading this register clears all bits.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryDeviceStatus`
+- Handler source: `firmware/lib/app/app_scpi_device.cpp`
+

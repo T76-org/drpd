@@ -1,0 +1,56 @@
+---
+sidebar_position: 10
+sidebar_label: Overview
+---
+
+# Controlling Dr. PD over SCPI
+
+Dr. PD exposes SCPI commands over two USB interfaces:
+
+- **USBTMC** for standard instrument-control tools.
+- **WinUSB** for the browser control app and host software that uses Dr. PD's framed control protocol.
+
+Both interfaces execute the same SCPI command catalog. Choose the interface based on host software support, not command availability.
+
+## USBTMC interface
+
+USBTMC is the instrument-style interface. Use it when your host environment already understands USB Test and Measurement Class devices, or when you want to script Dr. PD like lab equipment.
+
+USBTMC requests are passed directly into the SCPI interpreter. When a USBTMC transfer is marked complete, firmware finalizes the command by adding a newline. Query responses are returned on the USBTMC bulk IN endpoint, and service-request notifications are sent through the USBTMC interrupt endpoint when device status is pending.
+
+Typical host flow:
+
+1. Open the Dr. PD USBTMC interface from your instrument-control library.
+2. Send one SCPI command or query per completed transfer.
+3. Read the response for queries that end in `?`.
+4. Poll `SYSTem:ERRor?` if a command failed or if you need to drain the error queue.
+
+## WinUSB interface
+
+WinUSB is the framed control interface used by the Dr. PD app-side protocol. It carries SCPI payloads inside Dr. PD frames rather than exposing raw instrument transfers.
+
+Each WinUSB frame has a request type and tag. Command requests acknowledge with a command-ack frame when they complete without producing data. Query requests must produce a text or binary response frame. If a command request produces data, or a query request produces no response, firmware returns an error frame.
+
+Supported WinUSB request types include:
+
+- command request
+- query request
+- session reset request
+
+WinUSB can also return protocol errors such as `Device busy`, `Unsupported frame`, `Command request produced data response`, and `Missing query response`.
+
+## Command termination and responses
+
+Send one complete SCPI command at a time. Firmware feeds received bytes into the SCPI interpreter and finalizes each completed transport request with a newline.
+
+For text responses, Dr. PD appends a newline at the transport boundary. Binary responses are returned as binary payloads on the active transport.
+
+Query commands end in `?` and return data. Non-query commands change device state and normally return no SCPI data. On WinUSB, this distinction is enforced by separate command and query request frame types.
+
+## Interface arbitration
+
+Only one SCPI transport owns the interpreter at a time. If USBTMC and WinUSB requests overlap, firmware rejects or ignores the second owner until the active request completes. WinUSB reports `Device busy` when it cannot acquire command ownership.
+
+## Command reference
+
+See the generated SCPI command reference pages, starting with [common commands](./reference/common), for commands grouped by top-level namespace.
