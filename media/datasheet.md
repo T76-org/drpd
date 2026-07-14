@@ -39,7 +39,7 @@ Date: 2026-03-27
 | CPU | Raspberry Pi RP2354 dual-core Cortex-M0+ microcontroller at 200 MHz |
 | USB-PD controller | Implemented on the RP2354 with custom open-source firmware for real-time protocol analysis and sink control |
 | Power requirements | Powered from host USB, 100 mA @ 5 V typical |
-| External ports | Separate DUT and pass-through USB-C ports, banana jacks for external power and measurement access, dedicated CC tap for monitoring USB-PD communication, hardware sync, USB micro receptacle for host connection |
+| External ports | Separate DUT and pass-through USB-C ports, banana jacks for external power and measurement access, dedicated CC tap for monitoring USB-PD communication, hardware sync, USB-C receptacle for host connection |
 | VBUS voltage range | 0 - 60 V bidirectional, 10 mV resolution, ±1% full-scale accuracy (factory calibrated) * |
 | VBUS current range | -5 - +5 A bidirectional, 10 mA resolution, ±2% full-scale accuracy (burden voltage 5mV/V, factory calibrated) * |
 | Timestamp resolution | 1 µs |
