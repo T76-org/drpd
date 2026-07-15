@@ -1,0 +1,3596 @@
+---
+sidebar_position: 20
+sidebar_label: USB-PD Message API
+---
+
+# USB-PD Message API
+
+:::info[Generated reference]
+This page is generated from the Python source under `python/t76`. Do not edit it by hand; update source docstrings or the generator instead.
+:::
+
+USB-PD message models, headers, SOP identifiers, BMC capture records, and decoded data objects.
+
+## `t76.drpd.message`
+
+**Source:** `python/t76/drpd/message/__init__.py`
+
+**Exports:** `Message`, `Origin`, `ExtendedMessage`, `StandardMessage`, `ControlMessage`, `AlertMessage`, `BatteryStatusMessage`, `BISTMessage`, `GetCountryInfoMessage`, `EnterUSBMessage`, `EPRModeMessage`, `EPRRequestMessage`, `GenericExtendedMessage`, `RequestMessage`, `RevisionMessage`, `SinkCapabilitiesMessage`, `SourceCapabilitiesMessage`, `SourceInformationMessage`, `UnknownMessage`, `VendorDefinedMessage`
+
+USB-PD Message Module
+
+This module contains message type definitions and factory methods for USB-PD communication.
+All message classes are re-exported from the messages subpackage for direct access.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.message.bmc_sequence`
+
+**Source:** `python/t76/drpd/message/bmc_sequence.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines the BMCSequence class for decoding USB-PD BMC sequences, including
+the extraction of SOP, kcodes, and CRC validation.
+
+### `t76.drpd.message.bmc_sequence.FirmwareCaptureEvent`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Firmware-originated event returned through BUS:CC:CAP:DATA?.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `timestamp` | int | — |
+| `event_type` | int | — |
+| `event_text` | str | — |
+| `event_text_bytes` | bytes | — |
+
+
+
+### `t76.drpd.message.bmc_sequence.BMCSequence`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents a decoded BME sequence with its associated SOP and kcodes.
+
+Attributes:
+    sop (SOP): The SOP block associated with the BME sequence.
+    kcodes (List[int]): The list of kcodes that form the BME sequence.
+    matched_kcodes (int): The number of kcodes that matched the expected SOP pattern.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `start_timestamp` | int | — |
+| `end_timestamp` | int | — |
+| `preamble_clock` | float | — |
+| `preamble_frequency` | float | — |
+| `message_clock` | float | — |
+| `message_frequency` | float | — |
+| `pulse_lengths` | List[float] | — |
+| `decoded_bytes` | List[int] | — |
+| `sop` | SOP | — |
+| `header` | Header | — |
+| `message` | Message | — |
+| `crc` | int | — |
+| `expected_crc` | int | — |
+| `crc_valid` | bool | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_scpi_response` | `(cls, scpi_data: list[int], pulse_cycle_duration: float) -> Union['BMCSequence', FirmwareCaptureEvent]` | Create a BMESequence instance from a list of transition times. |
+| `generate_goodcrc` | `(self, port_power_role: PortPowerRole, port_data_role: PortDataRole, cable_plug: CablePlug) -> Header` | Generate a GoodCRC header for the current BMCSequence. |
+
+
+## `t76.drpd.message.codes`
+
+**Source:** `python/t76/drpd/message/codes.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines the various k-codes used by USB-PD communications.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.message.data_objects`
+
+**Source:** `python/t76/drpd/message/data_objects/__init__.py`
+
+**Exports:** `AlertDataObject`, `ExtendedADO`, `ExtendedAlertType`, `FixedSupplyExtendedADO`, `BatteryStatusExtendedADO`, `ManufacturerInfoExtendedADO`, `BistDataObject`, `BistCarrierMode`, `BistTestData`, `BistSharedTestModeEntry`, `BistSharedTestModeExit`, `BistReservedOrUnknown`, `BatterySupplyPDO`, `EPRAvsApdo`, `FixedSupplyPDO`, `SourcePDO`, `SPRAvsApdo`, `SPRPpsApdo`, `UnknownApdo`, `VariableSupplyPDO`, `BatterySinkPDO`, `EprAvsSinkApdo`, `FixedSinkPDO`, `SinkPDO`, `SprPpsSinkApdo`, `UnknownSinkApdo`, `VariableSinkPDO`, `RequestDO`, `FixedVariableRDO`, `BatteryRDO`, `PpsRDO`, `AvsSprRDO`, `AvsEprRDO`, `VDO`, `UvdmHeaderVDO`, `SvdmHeaderVDO`, `GenericPayloadVDO`, `UnknownVDO`, `IdHeaderVDO`, `CertStatVDO`, `ProductVDO`, `ProductTypeUfpVDO`, `ProductTypeDfpVDO`, `PassiveCableVDO`, `ActiveCableVDO1`, `ActiveCableVDO2`, `ActiveCableVDO3`, `AmaVDO`, `VpdVDO`, `SvidsVDO`, `ModesVDO`, `EnterModePayloadVDO`, `ExitModePayloadVDO`, `AttentionVDO`
+
+Copyright (c) 2025 MTA, Inc.
+
+Data Objects module for USB Power Delivery message processing.
+Provides access to various Data Object classes for BIST, Power, Request, Alert, and Vendor messages.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.message.data_objects.alert`
+
+**Source:** `python/t76/drpd/message/data_objects/alert.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines Alert Data Object (ADO) classes for USB-PD Alert messages.
+Alert Data Objects are used to indicate various alert conditions in USB-PD communications.
+
+### `t76.drpd.message.data_objects.alert.ExtendedAlertType`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+USB-PD Extended Alert Types
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `FIXED_SUPPLY` | — | 0 |
+| `BATTERY_STATUS` | — | 1 |
+| `MANUFACTURER_INFO` | — | 2 |
+
+
+
+### `t76.drpd.message.data_objects.alert.AlertDataObject`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Alert Data Object (ADO) class for USB-PD Alert messages.
+
+According to USB PD Section 6.4.6, Alert Message contains:
+
+Bits 0:       Reserved, Shall be set to zero
+Bits 1-7:     Type of Alert (Battery Status Change, OCP, OTP, etc.)
+Bits 8:       Extended Alert Event
+Bits 9-14:    Reserved
+Bits 15:      Reserved (part of Type field)
+Bits 23-20:   Fixed Batteries (which fixed batteries have status change)
+Bits 19-16:   Hot Swappable Batteries (which hot swappable batteries have status change)
+Bits 31-24:   Type of Alert (bit layout)
+
+When Extended Alert Event bit (7) is set, Extended Alert Type field (bits 3-0) indicates:
+0 = Reserved
+1 = Power state change (DFP only)
+2 = Power button press (UFP only)
+3 = Power button release (UFP only)
+4 = Controller initiated wake (UFP only)
+5-15 = Reserved
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw_value` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `battery_status_change_event` | `(self) -> bool` | Whether a Battery Status Change Event occurred (bit 1). |
+| `ocp_event` | `(self) -> bool` | Whether an Over Current Protection event occurred (bit 2). |
+| `otp_event` | `(self) -> bool` | Whether an Over Temperature Protection event occurred (bit 3). |
+| `operating_condition_change` | `(self) -> bool` | Whether an Operating Condition Change occurred (bit 4). |
+| `source_input_change` | `(self) -> bool` | Whether a Source Input Change occurred (bit 5). |
+| `ovp_event` | `(self) -> bool` | Whether an Over Voltage Protection event occurred (bit 6). |
+| `extended_alert_event` | `(self) -> bool` | Whether an Extended Alert event is present (bit 7). |
+| `fixed_batteries` | `(self) -> int` | Which Fixed Batteries have had a status change (bits 23-20). |
+| `hot_swappable_batteries` | `(self) -> int` | Which Hot Swappable Batteries have had a status change (bits 19-16). |
+| `extended_alert_event_type` | `(self) -> int` | Extended Alert Event Type field (bits 3-0) indicates the type of extended alert. |
+| `get_fixed_batteries_list` | `(self) -> list` | Get list of fixed battery indices that have status changes. |
+| `get_hot_swappable_batteries_list` | `(self) -> list` | Get list of hot swappable battery indices (4-7) that have status changes. |
+| `get_alert_description` | `(self) -> str` | Get a human-readable description of what the alert indicates. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the ADO to a dictionary for display. |
+| `encode` | `(self) -> bytes` | Encode the Alert Data Object as 4 bytes (little-endian). |
+
+
+### `t76.drpd.message.data_objects.alert.ExtendedADO`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Extended Alert Data Object base class.
+This is used for extended alert information that follows an ADO.
+
+Bits:
+0-7   -> Type-specific data
+8-14  -> Reserved
+15    -> Type (1: Extended ADO Header)
+16-31 -> Type-specific data
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw_value` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `type` | `(self) -> ExtendedAlertType` | The type of extended alert. |
+| `from_raw` | `(cls, raw_value: int) -> ExtendedADO` | Create the appropriate ExtendedADO subclass based on the type field. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the Extended ADO to a dictionary for display. |
+
+
+### `t76.drpd.message.data_objects.alert.FixedSupplyExtendedADO`
+
+**Kind:** dataclass
+
+**Bases:** `ExtendedADO`
+
+**Decorators:** `dataclass`
+
+Fixed Supply Extended ADO.
+Contains information about fixed supply alerts.
+According to USB PD Section 6.4.6.4.1, this is used for power state change events.
+For DFP only - indicates power state transitions.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `power_state_info` | `(self) -> int` | Power state information field (bits 15-8). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.alert.BatteryStatusExtendedADO`
+
+**Kind:** dataclass
+
+**Bases:** `ExtendedADO`
+
+**Decorators:** `dataclass`
+
+Battery Status Extended ADO.
+Contains information about battery-related alerts.
+Battery information is encoded in bits 7-0 (battery index).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `battery_index` | `(self) -> int` | The index of the battery this status refers to. |
+| `battery_status_info` | `(self) -> int` | Additional battery status information field (bits 15-8). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.alert.ManufacturerInfoExtendedADO`
+
+**Kind:** dataclass
+
+**Bases:** `ExtendedADO`
+
+**Decorators:** `dataclass`
+
+Manufacturer Info Extended ADO.
+Contains manufacturer-specific alert information.
+Bits 15-0 contain the manufacturer-specific information field.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `manufacturer_info` | `(self) -> int` | The manufacturer-specific information field (bits 15-0). |
+| `manufacturer_reserved_data` | `(self) -> int` | Additional manufacturer-specific data field (bits 31-16). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+## `t76.drpd.message.data_objects.bist`
+
+**Source:** `python/t76/drpd/message/data_objects/bist.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines BIST Data Object (BISTDO) classes for USB-PD BIST messages.
+BIST Data Objects are used to indicate various BIST conditions in USB-PD communications.
+
+### `t76.drpd.message.data_objects.bist.BistDataObject`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Base class for a 32-bit BIST Data Object (BDO).
+
+USB PD R3.2 V1.1 Section 6.4.3 - BIST Message
+
+Layout (per USB PD Table 6.27 "BIST Data Object"):
+  - Bits [31:28]: BIST Mode selector (0101b-1010b, others reserved)
+  - Bits [27:0] : Reserved (must be zero per spec Section 1.4.2)
+
+BIST Modes Supported:
+  - 0b0101 (5): BIST Carrier Mode (Mandatory) - continuous BMC carrier
+  - 0b1000 (8): BIST Test Data (Mandatory) - test frame transmission
+  - 0b1001 (9): BIST Shared Test Mode Entry (for Shared Capacity Groups)
+  - 0b1010 (10): BIST Shared Test Mode Exit (for Shared Capacity Groups)
+
+Reserved modes (0b0000-0b0100, 0b0110-0b0111, 0b1011-0b1111) shall not be used
+per USB PD Section 1.4.2 and Section 6.4.3 Table 6.27.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `mode_code` | `(self) -> int` | Bits [31:28] — BIST mode code from raw value. |
+| `reserved_bits` | `(self) -> int` | Bits [27:0] — reserved, must be 0 per USB PD spec. |
+| `is_reserved_clean` | `(self) -> bool` | True if all reserved bits [27:0] are zero (spec compliant). |
+| `mode_name` | `(self) -> str` | Human-friendly BIST mode name (USB PD R3.2 Table 6.27). |
+| `to_dict` | `(self) -> Dict[str, Any]` | Serialize BIST Data Object to dictionary for logging/UI. |
+| `spec_warnings` | `(self) -> List[str]` | Return list of USB PD spec compliance warnings. |
+| `encode` | `(self) -> bytes` | Encode the BIST Data Object as 4 bytes (little-endian). |
+| `from_raw` | `(raw: int) -> 'BistDataObject'` | Factory method that creates appropriate BIST subclass. |
+
+
+### `t76.drpd.message.data_objects.bist.BistCarrierMode`
+
+**Kind:** dataclass
+
+**Bases:** `BistDataObject`
+
+**Decorators:** `dataclass(frozen=True)`
+
+BIST Carrier Mode (Mode Code 0101b = 5).
+
+USB PD R3.2 V1.1 Section 6.4.3.1 - BIST Carrier Mode
+
+Purpose:
+  Request the UUT (Unit Under Test) to transmit a continuous string
+  of BMC encoded alternating "1"s and "0"s for PHY layer testing.
+
+Behavior:
+  - UUT generates continuous BMC encoded test pattern
+  - Duration: within tBISTContMode of enablement (compliance test timing)
+  - After timeout: UUT exits BIST and returns to normal operation
+  - Supported: Mandatory for all ports at vSafe5V
+
+Applicability:
+  - Mandatory per USB PD R3.2 Section 6.4.3
+  - Only valid when operating at vSafe5V
+  - If received at other voltages: message is ignored
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.bist.BistTestData`
+
+**Kind:** dataclass
+
+**Bases:** `BistDataObject`
+
+**Decorators:** `dataclass(frozen=True)`
+
+BIST Test Data Mode (Mode Code 1000b = 8).
+
+USB PD R3.2 V1.1 Section 6.4.3.2 - BIST Test Data Mode
+
+Purpose:
+  Request the UUT to enter test data mode for PHY compliance testing.
+  Defined in USB PD Section 5.9.2 "BIST Test Data Mode".
+
+Behavior:
+  - UUT returns GoodCRC acknowledgment
+  - Enters BIST Test Data Mode (responses limited to GoodCRC only)
+  - Ignores all other received messages except Hard Reset
+  - No other messages are transmitted beyond GoodCRC responses
+
+Exit Conditions:
+  - Hard Reset Signaling: Resets UUT and exits BIST mode
+  - Cable/device detach
+  - Power removal
+
+Applicability:
+  - Mandatory per USB PD R3.2 Section 6.4.3
+  - Only valid when operating at vSafe5V
+  - If received at other voltages: message is ignored
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.bist.BistSharedTestModeEntry`
+
+**Kind:** dataclass
+
+**Bases:** `BistDataObject`
+
+**Decorators:** `dataclass(frozen=True)`
+
+BIST Shared Capacity Test Mode - ENTRY (Mode Code 1001b = 9).
+
+USB PD R3.2 V1.1 Section 6.4.3.3.1 - BIST Shared Test Mode Entry
+
+Purpose:
+  Enter compliance test mode for multi-port Shared Capacity Groups.
+  Disables power sharing management for full capability testing.
+
+Applicability:
+  - UUTs with ports in a Shared Capacity Group only
+  - Master Ports in the group recognize this command
+  - Non-Master Ports: do not enter compliance mode
+  - Only valid in PE_SRC_Ready state
+  - Only valid at vSafe5V
+
+Behavior:
+  - Master Ports enter BIST Shared Capacity Test Mode
+  - All shared power management is disabled
+  - Each Port in group offers maximum Source Capabilities (unconditional)
+  - UUT returns GoodCRC acknowledgment
+  - Within tBISTSharedTestMode: send new Source_Capabilities Message
+
+Exit:
+  - Only via BIST Shared Test Mode Exit message
+  - Or power off/attach/detach
+
+Constraint:
+  - Tester shall not exceed shared capacity during test
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.bist.BistSharedTestModeExit`
+
+**Kind:** dataclass
+
+**Bases:** `BistDataObject`
+
+**Decorators:** `dataclass(frozen=True)`
+
+BIST Shared Capacity Test Mode - EXIT (Mode Code 1010b = 10).
+
+USB PD R3.2 V1.1 Section 6.4.3.3.2 - BIST Shared Test Mode Exit
+
+Purpose:
+  Exit BIST Shared Capacity Test Mode and return to normal operation.
+  Re-enable power sharing management across Shared Capacity Group.
+
+Applicability:
+  - UUTs with ports in a Shared Capacity Group only
+  - Master Ports in the group recognize this command
+  - Non-Master Ports: should not exit on receipt
+  - Only valid when in BIST Shared Capacity Test Mode
+
+Behavior:
+  - Master Ports exit BIST Shared Capacity Test Mode
+  - Power sharing management re-enabled
+  - UUT returns GoodCRC acknowledgment
+  - Post-exit options:
+    * May send new Source_Capabilities Message to each Port
+    * May perform ErrorRecovery on each Port
+
+Important Notes:
+  - Non-Message traffic (PD messages other than BIST Shared Test Mode Exit)
+    received during BIST mode does NOT trigger auto-exit
+  - UUT exits if powered off
+  - UUT remains in BIST mode for PD events (Hard Reset, Cable Reset, etc.)
+    unless Exit message received
+  - UUT may exit if Tester makes request exceeding UUT capabilities
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.bist.BistReservedOrUnknown`
+
+**Kind:** dataclass
+
+**Bases:** `BistDataObject`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Reserved or Unknown BIST mode code.
+
+USB PD R3.2 V1.1 Section 6.4.3 Table 6.27
+
+Per USB PD R3.2 Section 1.4.2:
+  Mode codes outside the defined set (0b0101, 0b1000-0b1010) are
+  reserved and shall not be used. Reserved values must be treated
+  as protocol violations.
+
+Reserved Ranges:
+  - 0b0000-0b0100: Reserved, Shall Not be used
+  - 0b0110-0b0111: Reserved, Shall Not be used
+  - 0b1011-0b1111: Reserved, Shall Not be used
+
+Handling:
+  - Device behavior is implementation-specific
+  - BIST Message should be ignored when received
+  - No defined response behavior
+  - Tester should not send reserved codes
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+## `t76.drpd.message.data_objects.bit_helpers`
+
+**Source:** `python/t76/drpd/message/data_objects/bit_helpers.py`
+
+**Exports:** `_bits`, `_u32`, `_byte`
+
+Copyright (c) 2025 MTA, Inc.
+
+Helper functions for bit manipulation in 32-bit integers.
+These are used in various data objects to extract specific bits or ranges of bits.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.message.data_objects.power`
+
+**Source:** `python/t76/drpd/message/data_objects/power.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines classes for decoding and representing USB Power Delivery (USB-PD)
+Power Data Objects (PDOs) used in Source_Capabilities messages. It includes support
+for Fixed, Variable, Battery, and various types of Augmented PDOs (APDOs).
+
+USB PD R3.2 V1.1 Specification References:
+  - Section 6.4.1: Capabilities Message
+  - Section 6.4.1.1-6.4.1.3: Power Data Objects
+  - Section 6.4.1.4: APDO structure
+  - Table 6.7-6.15: PDO/APDO definitions
+
+### `t76.drpd.message.data_objects.power.PDOType`
+
+**Kind:** enum
+
+**Bases:** `Enum`
+
+No docstring.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `FIXED` | — | 'Fixed' |
+| `VARIABLE` | — | 'Variable' |
+| `BATTERY` | — | 'Battery' |
+| `APDO` | — | 'APDO' |
+
+
+
+### `t76.drpd.message.data_objects.power.SourcePDO`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Base class for all Source Power Data Objects (PDO/APDO).
+
+USB PD R3.2 V1.1 Section 6.4.1 - Capabilities Message
+
+Each instance wraps a 32-bit PDO/APDO value from a Source_Capabilities message.
+Subclasses provide typed accessors for their respective fields and units.
+
+PDO Types (bits [31:30]):
+  - 0b00: Fixed Supply PDO (Section 6.4.1.2.1 Table 6.9)
+  - 0b01: Variable Supply or Battery Supply PDO (Tables 6.11-6.12)
+  - 0b10: Battery Supply PDO
+  - 0b11: APDO - SPR PPS (0b00), SPR AVS (0b10), EPR AVS (0b01) (Tables 6.13-6.15)
+
+Args:
+    raw (int): 32-bit PDO/APDO value as received on the wire.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `pdo_type` | `(self) -> PDOType` | PDO/APDO major type decoded from bits [31:30]. Returns a PDOType enum value. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Serialize this PDO/APDO to a plain dict with human units (V, A, W) and flags. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Return True if this advertised PDO/APDO can satisfy the given (voltage, current) need. |
+| `encode` | `(self) -> bytes` | Encode the SourcePDO as 4 bytes (little-endian). |
+| `from_raw` | `(raw: int) -> 'SourcePDO'` | Factory: decode the top bits and return the proper subclass instance. |
+
+
+### `t76.drpd.message.data_objects.power.FixedSupplyPDO`
+
+**Kind:** dataclass
+
+**Bases:** `SourcePDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Fixed Supply PDO for Source (bits per USB PD R3.2 V1.1 Table 6.9).
+
+USB PD R3.2 V1.1 Section 6.4.1.2.1 - Fixed Supply Power Data Object
+
+Used to expose well-regulated fixed voltage power supplies. The vSafe5V
+(5V) Fixed Supply PDO is mandatory and always the first PDO in any
+Source_Capabilities Message.
+
+Fields (per Table 6.9):
+  - Voltage: bits [19:10], 50 mV units (mandatory in all Fixed PDOs)
+  - Max Current: bits [9:0], 10 mA units
+  - Dual-Role Power: bit 29 (set for DRPs per Section 6.4.1.2.1.1)
+  - USB Suspend Supported: bit 28
+  - Unconstrained Power: bit 27 (for external power sources)
+  - USB Communications Capable: bit 26 (for USB data lines)
+  - Dual-Role Data: bit 25 (set for DRD capable per Section 6.4.1.2.1.5)
+  - Unchunked Extended Messages: bit 24 (for >26-byte extended messages)
+  - EPR Capable: bit 23 (set if source can operate in EPR mode)
+  - Peak Current Code: bits [21:20] (per Table 6.10 for overload capability)
+  - Bits [22] and [31:30]: Format identifier (00b)
+
+Special Notes:
+  - For vSafe5V PDO only: bits [29:23] convey additional info per Section 6.4.1.2.1
+  - For other Fixed PDOs: bits [29:23] shall be zero
+  - Peak Current field indicates overload capability (see Table 6.10)
+  - Reserved bit 22 shall be zero
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `dual_role_power` | `(self) -> bool` | Bit 29: Dual-Role Power capability flag (Section 6.4.1.2.1.1). |
+| `usb_suspend_supported` | `(self) -> bool` | Bit 28: USB Suspend supported flag (Section 6.4.1.2.1). |
+| `unconstrained_power` | `(self) -> bool` | Bit 27: Unconstrained Power flag (Section 6.4.1.2.1.2). |
+| `usb_comm_capable` | `(self) -> bool` | Bit 26: USB Communications Capable flag (Section 6.4.1.2.1.4). |
+| `dual_role_data` | `(self) -> bool` | Bit 25: Dual-Role Data flag (Section 6.4.1.2.1.5). |
+| `unchunked_ext_supported` | `(self) -> bool` | Bit 24: Unchunked Extended Messages Supported flag (Section 6.4.1.2.1.6). |
+| `epr_capable` | `(self) -> bool` | Bit 23: EPR Capable flag - Source can operate in EPR mode (Section 6.4.1.2.1.7). |
+| `peak_current_code` | `(self) -> int` | Bits [21:20]: Peak current capability code (Table 6.10 - source-dependent table). |
+| `voltage` | `(self) -> float` | Bits [19:10]: Fixed output voltage, in volts (50 mV units). |
+| `max_current` | `(self) -> float` | Bits [9:0]: Maximum source current, in amps (10 mA units). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `supports` | `(self, voltage: float, current: float) -> bool` | — |
+
+
+### `t76.drpd.message.data_objects.power.VariableSupplyPDO`
+
+**Kind:** dataclass
+
+**Bases:** `SourcePDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Variable Supply (non-Battery) PDO for Source.
+
+USB PD R3.2 V1.1 Section 6.4.1.2.2 - Variable Supply (non-Battery) Power Data Object
+
+Used for poorly regulated power supplies with a defined voltage range.
+Allows specifying voltage flexibility and corresponding current capability.
+
+Fields (per Table 6.11):
+  - Maximum Voltage: bits [29:20], 50 mV units
+  - Minimum Voltage: bits [19:10], 50 mV units
+  - Maximum Current: bits [9:0], 10 mA units
+  - Bits [31:30]: Format identifier (01b)
+
+Constraints:
+  - Absolute voltage including variation must be within Min/Max range
+  - Source must be capable of supplying specified current over entire voltage range
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `max_voltage` | `(self) -> float` | Bits [29:20]: Maximum voltage, volts (50 mV units). |
+| `min_voltage` | `(self) -> float` | Bits [19:10]: Minimum voltage, volts (50 mV units). |
+| `max_current` | `(self) -> float` | Bits [9:0]: Maximum current, amps (10 mA units). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `supports` | `(self, voltage: float, current: float) -> bool` | — |
+
+
+### `t76.drpd.message.data_objects.power.BatterySupplyPDO`
+
+**Kind:** dataclass
+
+**Bases:** `SourcePDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Battery Supply PDO for Source.
+
+USB PD R3.2 V1.1 Section 6.4.1.2.3 - Battery Supply Power Data Object
+
+Used to expose batteries that can be directly connected to VBUS.
+Voltage fields represent battery's voltage range.
+
+Fields (per Table 6.12):
+  - Maximum Voltage: bits [29:20], 50 mV units
+  - Minimum Voltage: bits [19:10], 50 mV units
+  - Maximum Allowable Power: bits [9:0], 250 mW units
+  - Bits [31:30]: Format identifier (10b)
+
+Constraints:
+  - Battery shall be capable of supplying specified power over entire voltage range
+  - Absolute voltage including variation must be within Min/Max range
+  - Unlike other PDOs, uses POWER (not current) for specification
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `max_voltage` | `(self) -> float` | Bits [29:20]: Maximum voltage, volts (50 mV units). |
+| `min_voltage` | `(self) -> float` | Bits [19:10]: Minimum voltage, volts (50 mV units). |
+| `max_power` | `(self) -> float` | Bits [9:0]: Maximum allowable power, watts (250 mW units). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `supports` | `(self, voltage: float, current: float) -> bool` | — |
+
+
+### `t76.drpd.message.data_objects.power.SPRPpsApdo`
+
+**Kind:** dataclass
+
+**Bases:** `SourcePDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+SPR Programmable Power Supply (PPS) APDO.
+
+USB PD R3.2 V1.1 Section 6.4.1.4.1 - SPR PPS APDO (Table 6.13)
+
+Augmented PDO for programmable voltage supply in Standard Power Range (5-20V).
+Allows source to adjust voltage in 20 mV steps within specified range.
+
+Fields (per Table 6.13):
+  - PPS Power Limited: bit [27], indicates power limitation
+  - Maximum Voltage: bits [24:17], 100 mV units
+  - Minimum Voltage: bits [15:8], 100 mV units
+  - Maximum Current: bits [6:0], 50 mA units
+  - Reserved bits [31:28]=0b0010, [26:25]=0b00, [16]=0b0, [7]=0b0
+  - Bits [31:30]: Format identifier (11b = APDO)
+
+Constraints:
+  - Voltage range must be between 5V and 20V (SPR limits)
+  - 20 mV voltage step granularity supported
+  - Maximum voltage must be ≥ minimum voltage
+  - Power Limited flag indicates source cannot sustain max current across entire range
+
+PPS allows charging optimization by negotiating exact voltage/current needed
+rather than fixed discrete power levels.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `pps_power_limited` | `(self) -> bool` | Bit 27: PPS Power Limited flag - source cannot sustain max current across voltage range. |
+| `reserved_bits_ok` | `(self) -> bool` | Verify reserved bits [26:25], [16], and [7] are 0 per spec compliance. |
+| `max_voltage` | `(self) -> float` | Bits [24:17]: Maximum voltage, volts (100 mV units). |
+| `min_voltage` | `(self) -> float` | Bits [15:8]: Minimum voltage, volts (100 mV units). |
+| `max_current` | `(self) -> float` | Bits [6:0]: Maximum current, amps (50 mA units). |
+| `max_power_at_max_voltage` | `(self) -> float` | Maximum power when sourcing at maximum voltage (simplified, ignores power limitation). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this PPS APDO can support the requested voltage and current. |
+
+
+### `t76.drpd.message.data_objects.power.SPRAvsApdo`
+
+**Kind:** dataclass
+
+**Bases:** `SourcePDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+SPR Adjustable Voltage Supply (AVS) APDO.
+
+USB PD R3.2 V1.1 Section 6.4.1.4.2 - SPR AVS APDO (Table 6.14)
+
+Augmented PDO for adjustable voltage supply in Standard Power Range.
+Supports two voltage bands with different current limits:
+- 9-15V band (lower voltage, higher current capability typically)
+- 15-20V band (higher voltage, potentially lower current)
+
+Fields (per Table 6.14):
+  - Peak Current Code: bits [27:26], overload capability (Table 6.10)
+  - Minimum Voltage: bits [25:20], 100 mV units (typically 15V minimum for AVS)
+  - Maximum Current 9-15V: bits [19:10], 10 mA units
+  - Maximum Current 15-20V: bits [9:0], 10 mA units (0 = not supported)
+  - Reserved bits [31:28]=0b0010, [16]=0b0
+  - Bits [31:30]: Format identifier (11b = APDO)
+
+Constraints:
+  - Minimum voltage normally ≥15V to avoid overlap with PPS
+  - If max_current_20V is 0, the 15-20V band is not supported
+  - Different current limits for each band allow independent negotiation
+  - Peak current code indicates short-term overload capability per Table 6.10
+
+AVS allows sources to offer different power delivery strategies across
+voltage bands, useful for supply designs optimized for specific ranges.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `peak_current_code` | `(self) -> int` | Bits [27:26]: Peak current code (same coding as fixed PDO peak current, Table 6.10). |
+| `min_voltage` | `(self) -> float` | Bits [25:20]: Minimum voltage, volts (100 mV units). Typically ≥ 15V for SPR AVS. |
+| `max_current_15V` | `(self) -> float` | Bits [19:10]: Max current for 9–15 V band, amps (10 mA units). |
+| `max_current_20V` | `(self) -> float` | Bits [9:0]: Max current for 15–20 V band, amps (10 mA units). Zero means band not supported. |
+| `max_power_at` | `(self, voltage: float) -> float` | Calculate maximum power at requested voltage based on applicable current limit. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this AVS APDO can support the requested voltage and current. |
+
+
+### `t76.drpd.message.data_objects.power.EPRAvsApdo`
+
+**Kind:** dataclass
+
+**Bases:** `SourcePDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+EPR Adjustable Voltage Supply (AVS) APDO.
+
+USB PD R3.2 V1.1 Section 6.4.1.4.3 - EPR AVS APDO (Table 6.15)
+
+Augmented PDO for adjustable voltage supply in Extended Power Range (20-48V).
+Defines voltage range and power delivery via Port Data Power (PDP) specification.
+Actual current at any voltage is derived from PDP / voltage (up to peak limits).
+
+Fields (per Table 6.15):
+  - Peak Current Code: bits [27:26], EPR overload capability (Table 6.16)
+  - Maximum Voltage: bits [25:17], 100 mV units (up to 48V)
+  - Minimum Voltage: bits [15:8], 100 mV units (minimum 20V for EPR)
+  - Port Data Power (PDP): bits [7:0], 1W units (max 240W for EPR)
+  - Reserved bits [31:28]=0b0010, [16]=0b0
+  - Bits [31:30]: Format identifier (11b = APDO)
+
+Constraints:
+  - Minimum voltage must be ≥ 20V (EPR minimum)
+  - Maximum voltage must be ≤ 48V (EPR maximum)
+  - PDP is the maximum continuous power the source can deliver
+  - Actual current = min(PDP / voltage, peak overload current from peak_current_code)
+  - Maximum source current in EPR is typically 5A continuous
+
+EPR enables high-power delivery for demanding applications:
+  - 48V @ 5A = 240W maximum
+  - Power is voltage-independent when specified as PDP
+  - Replaces PPS for extended voltage/power range
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `peak_current_code` | `(self) -> int` | Bits [27:26]: EPR AVS peak current code per Table 6.16 for overload capability. |
+| `reserved_bits_ok` | `(self) -> bool` | Verify reserved bit [16] is 0 per spec compliance. |
+| `max_voltage` | `(self) -> float` | Bits [25:17]: Maximum voltage, volts (100 mV units). Must be ≤ 48V for EPR. |
+| `min_voltage` | `(self) -> float` | Bits [15:8]: Minimum voltage, volts (100 mV units). Must be ≥ 20V for EPR. |
+| `pdp` | `(self) -> float` | Bits [7:0]: Port Data Power (PDP), watts (1 W units). Max 240W for EPR. |
+| `max_current_at` | `(self, voltage: float) -> float` | Compute the maximum continuous current implied by PDP at the requested voltage. |
+| `power_available_at` | `(self, voltage: float) -> float` | Calculate available power at requested voltage (PDP-limited). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this EPR AVS APDO can support the requested voltage and current. |
+
+
+### `t76.drpd.message.data_objects.power.UnknownApdo`
+
+**Kind:** dataclass
+
+**Bases:** `SourcePDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Fallback wrapper for reserved/unknown APDO kinds.
+
+USB PD R3.2 V1.1 Section 6.4.1 - Capabilities Message
+
+Used when an APDO with an unrecognized type code is encountered.
+Bits [31:30] = 11b (APDO) but bits [29:28] or other encoding bits
+don't match any known APDO type (SPR PPS, SPR AVS, EPR AVS).
+
+Reserved for future use or vendor-specific extensions.
+This class provides minimal functionality - just wraps the raw value
+and cannot satisfy any voltage/current requests until type is understood.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Unknown APDOs cannot satisfy any requests until type is understood. |
+
+
+## `t76.drpd.message.data_objects.request`
+
+**Source:** `python/t76/drpd/message/data_objects/request.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines Request Data Object (RDO) classes for USB-PD Request messages.
+Request Data Objects are sent by the Sink to request power from the Source.
+
+### `t76.drpd.message.data_objects.request.RequestDO`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Base class for all Request Data Objects (RDO/ARDO).
+
+Wraps a 32-bit value from a Request message. Subclasses implement
+type-specific accessors and validation.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `object_position` | `(self) -> int` | Bits [31:28]: 1-based index of referenced PDO/APDO in Source_Capabilities. |
+| `give_back` | `(self) -> bool` | Bit 27: GiveBack flag (legacy; must be 0 in PD3). |
+| `capability_mismatch` | `(self) -> bool` | Bit 26: Capability Mismatch flag (Sink indicates request exceeds capability). |
+| `usb_comm_capable` | `(self) -> bool` | Bit 25: Sink is USB Communications Capable. |
+| `no_usb_suspend` | `(self) -> bool` | Bit 24: No USB Suspend requested by Sink. |
+| `unchunked_ext_supported` | `(self) -> bool` | Bit 23: Unchunked Extended Messages Supported by the Sink. |
+| `epr_mode_capable` | `(self) -> bool` | Bit 22: EPR Mode Capable (used in EPR requests). |
+| `to_dict` | `(self) -> Dict[str, Any]` | Serialize to a plain dict. Subclasses add type-specific fields. |
+| `encode` | `(self) -> bytes` | Return the 32-bit raw value as a bytes object (little-endian). |
+| `is_compatible_with` | `(self, pdo: SourcePDO) -> bool` | Return True if this request is within the advertised limits of `pdo`. |
+| `from_raw_and_pdo` | `(raw: int, referenced_pdo: SourcePDO) -> 'RequestDO'` | Pick the correct RDO subclass based on the referenced PDO/APDO type. |
+| `guess_from_raw` | `(cls, raw: int) -> 'RequestDO'` | Best-effort classification without knowing the PDO type. |
+| `from_source_pdo` | `(cls, reference_pdo_position: int, reference_pdo: SourcePDO, give_back: bool, capability_mismatch: bool, usb_comm_capable: bool, no_usb_suspend: bool, unchunked_ext_supported: bool, epr_mode_capable: bool) -> 'RequestDO'` | Create a RequestDO from a SourcePDO. |
+
+
+### `t76.drpd.message.data_objects.request.FixedVariableRDO`
+
+**Kind:** dataclass
+
+**Bases:** `RequestDO`
+
+**Decorators:** `dataclass`
+
+Standard RDO for Fixed/Variable PDOs (current-based).
+Fields:
+  - Operating Current: bits [19:10] in 10 mA units
+  - Max Operating Current: bits [9:0] in 10 mA units
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `operating_current` | `(self) -> float` | Requested operating current (A). |
+| `operating_current` | `(self, value: float) -> None` | Set the operating current (A). |
+| `max_operating_current` | `(self) -> float` | Maximum operating current the sink can draw (A). |
+| `max_operating_current` | `(self, value: float) -> None` | Set the maximum operating current (A). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `is_compatible_with` | `(self, pdo: SourcePDO) -> bool` | Valid if both requested currents are ≤ the PDO's max current (and operating ≤ max). |
+
+
+### `t76.drpd.message.data_objects.request.BatteryRDO`
+
+**Kind:** dataclass
+
+**Bases:** `RequestDO`
+
+**Decorators:** `dataclass`
+
+Standard RDO for Battery PDOs (power-based).
+Fields:
+  - Operating Power: bits [19:10] in 250 mW units
+  - Max Operating Power: bits [9:0] in 250 mW units
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `operating_power` | `(self) -> float` | Requested operating power (W). |
+| `max_operating_power` | `(self) -> float` | Maximum operating power the sink can draw (W). |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `is_compatible_with` | `(self, pdo: SourcePDO) -> bool` | Valid if both requested powers are ≤ the Battery PDO's max power (and operating ≤ max). |
+
+
+### `t76.drpd.message.data_objects.request.PpsRDO`
+
+**Kind:** dataclass
+
+**Bases:** `RequestDO`
+
+**Decorators:** `dataclass`
+
+SPR PPS RDO (for SPR PPS APDO).
+Fields:
+  - Output Voltage: bits [20:9] in 20 mV units
+  - Operating Current: bits [6:0] in 50 mA units
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `target_voltage` | `(self) -> float` | Requested target voltage (V), 20 mV units. |
+| `operating_current` | `(self) -> float` | Requested operating current (A), 50 mA units. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `is_compatible_with` | `(self, pdo: SourcePDO) -> bool` | Valid if: |
+
+
+### `t76.drpd.message.data_objects.request.AvsSprRDO`
+
+**Kind:** dataclass
+
+**Bases:** `RequestDO`
+
+**Decorators:** `dataclass`
+
+SPR AVS RDO (for SPR AVS APDO).
+Fields:
+  - Output Voltage: bits [20:9] in 25 mV units
+  - Operating Current: bits [6:0] in 50 mA units
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `target_voltage` | `(self) -> float` | Requested target voltage (V), 25 mV units. |
+| `operating_current` | `(self) -> float` | Requested operating current (A), 50 mA units. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `is_compatible_with` | `(self, pdo: SourcePDO) -> bool` | Valid if: |
+
+
+### `t76.drpd.message.data_objects.request.AvsEprRDO`
+
+**Kind:** dataclass
+
+**Bases:** `RequestDO`
+
+**Decorators:** `dataclass`
+
+EPR AVS RDO (for EPR AVS APDO).
+Fields:
+  - Output Voltage: bits [20:9] in 25 mV units
+  - Operating Current: bits [6:0] in 50 mA units
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `target_voltage` | `(self) -> float` | Requested target voltage (V), 25 mV units. |
+| `operating_current` | `(self) -> float` | Requested operating current (A), 50 mA units. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+| `is_compatible_with` | `(self, pdo: SourcePDO) -> bool` | Valid if: |
+
+
+## `t76.drpd.message.data_objects.sink`
+
+**Source:** `python/t76/drpd/message/data_objects/sink.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Power Data Objects (PDOs) for USB Power Delivery - Sink (Consumer) side.
+Defines classes to represent and interpret Sink PDOs, including Fixed, Variable, Battery, and APDO types.
+
+### `t76.drpd.message.data_objects.sink.SinkPDO`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Base class for all Sink Power Data Objects.
+
+This class serves as the foundation for all sink-side Power Data Objects in USB-PD.
+It provides common functionality for PDO type identification and raw value handling.
+
+Attributes:
+    raw (int): The raw 32-bit PDO value.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `pdo_type` | `(self) -> str` | Get the PDO type string from bits [31:30]. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the PDO to a dictionary representation. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this PDO supports the given voltage and current requirements. |
+| `encode` | `(self) -> bytes` | Encode the SinkPDO as 4 bytes (little-endian). |
+| `from_raw` | `(raw: int) -> 'SinkPDO'` | Create a specific PDO instance from a raw 32-bit value. |
+
+
+### `t76.drpd.message.data_objects.sink.FixedSinkPDO`
+
+**Kind:** dataclass
+
+**Bases:** `SinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Fixed Power Supply Sink PDO.
+
+Represents a fixed-voltage power supply sink capability with additional USB-PD 3.1
+features such as EPR mode and FR swap support.
+
+Inherits from:
+    SinkPDO: Base class for all sink PDOs.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `voltage` | `(self) -> float` | Get the fixed voltage value in volts. |
+| `op_current` | `(self) -> float` | Get the operational current in amperes. |
+| `higher_capability` | `(self) -> bool` | Check if the sink supports higher capability. |
+| `unconstrained_power` | `(self) -> bool` | Check if the sink supports unconstrained power. |
+| `usb_comm_capable` | `(self) -> bool` | Check if the sink supports USB communications. |
+| `dual_role_data` | `(self) -> bool` | Check if the sink supports dual-role data. |
+| `unchunked_ext_supported` | `(self) -> bool` | Check if the sink supports unchunked extended messages. |
+| `epr_mode_capable` | `(self) -> bool` | Check if the sink supports Extended Power Range (EPR) mode. |
+| `fr_swap_required_current_code` | `(self) -> int` | Get the Fast Role Swap required current code. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the Fixed PDO to a dictionary representation. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this Fixed PDO supports the given voltage and current requirements. |
+
+
+### `t76.drpd.message.data_objects.sink.VariableSinkPDO`
+
+**Kind:** dataclass
+
+**Bases:** `SinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Variable Power Supply Sink PDO.
+
+Represents a variable-voltage power supply sink capability that can operate
+within a specified voltage range at a given current.
+
+Inherits from:
+    SinkPDO: Base class for all sink PDOs.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `max_voltage` | `(self) -> float` | Get the maximum supported voltage in volts. |
+| `min_voltage` | `(self) -> float` | Get the minimum supported voltage in volts. |
+| `op_current` | `(self) -> float` | Get the operational current in amperes. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the Variable PDO to a dictionary representation. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this Variable PDO supports the given voltage and current requirements. |
+
+
+### `t76.drpd.message.data_objects.sink.BatterySinkPDO`
+
+**Kind:** dataclass
+
+**Bases:** `SinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Battery Power Supply Sink PDO.
+
+Represents a battery-powered sink capability that operates within a voltage range
+and specifies power requirements instead of current.
+
+Inherits from:
+    SinkPDO: Base class for all sink PDOs.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `max_voltage` | `(self) -> float` | Get the maximum supported voltage in volts. |
+| `min_voltage` | `(self) -> float` | Get the minimum supported voltage in volts. |
+| `op_power` | `(self) -> float` | Get the operational power in watts. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the Battery PDO to a dictionary representation. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this Battery PDO supports the given voltage and power requirements. |
+
+
+### `t76.drpd.message.data_objects.sink.SprPpsSinkApdo`
+
+**Kind:** dataclass
+
+**Bases:** `SinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Standard Power Range (SPR) Programmable Power Supply (PPS) Sink APDO.
+
+Represents a PPS sink capability that supports a continuously adjustable voltage
+range with specified maximum current limits.
+
+Inherits from:
+    SinkPDO: Base class for all sink PDOs.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `max_voltage` | `(self) -> float` | Get the maximum supported PPS voltage in volts. |
+| `min_voltage` | `(self) -> float` | Get the minimum supported PPS voltage in volts. |
+| `op_current_max` | `(self) -> float` | Get the maximum operational current in amperes. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the SPR PPS APDO to a dictionary representation. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this PPS APDO supports the given voltage and current requirements. |
+
+
+### `t76.drpd.message.data_objects.sink.EprAvsSinkApdo`
+
+**Kind:** dataclass
+
+**Bases:** `SinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Extended Power Range (EPR) Adjustable Voltage Supply (AVS) Sink APDO.
+
+Represents an EPR AVS sink capability that supports a continuously adjustable voltage
+range with power-based specifications.
+
+Inherits from:
+    SinkPDO: Base class for all sink PDOs.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `max_voltage` | `(self) -> float` | Get the maximum supported EPR voltage in volts. |
+| `min_voltage` | `(self) -> float` | Get the minimum supported EPR voltage in volts. |
+| `pdp` | `(self) -> float` | Get the Programmable Power Delivery Profile (PDP) in watts. |
+| `min_current_at` | `(self, voltage: float) -> float` | Calculate the minimum current required at a given voltage to meet PDP. |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the EPR AVS APDO to a dictionary representation. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this EPR AVS APDO supports the given voltage and current requirements. |
+
+
+### `t76.drpd.message.data_objects.sink.UnknownSinkApdo`
+
+**Kind:** dataclass
+
+**Bases:** `SinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Unknown Sink APDO type.
+
+Represents an unrecognized or unsupported APDO type. This class is used as a
+fallback when encountering APDO types that are not defined in the current
+implementation.
+
+Inherits from:
+    SinkPDO: Base class for all sink PDOs.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | Convert the Unknown APDO to a dictionary representation. |
+| `supports` | `(self, voltage: float, current: float) -> bool` | Check if this Unknown APDO supports the given voltage and current requirements. |
+
+
+## `t76.drpd.message.data_objects.vendor`
+
+**Source:** `python/t76/drpd/message/data_objects/vendor.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Vendor Data Objects (VDOs) module for USB Power Delivery message processing.
+Provides access to various VDO classes for Unstructured VDM, Structured VDM, and Generic Payload VDOs.
+
+NOTE: This file is intentionally display-first. It avoids speculative semantics where the spec
+      is mode/SVID-dependent, but exposes stable, useful fields for UI and basic analysis.
+
+### `t76.drpd.message.data_objects.vendor.SvdmCommandType`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+Command types for Structured VDM Header.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `REQUEST` | — | 0 |
+| `ACK` | — | 1 |
+| `NAK` | — | 2 |
+| `BUSY` | — | 3 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `description` | `(self) -> str` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.SvdmCommand`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+Standard commands for Structured VDM.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `RESERVED` | — | 0 |
+| `DISCOVER_IDENTITY` | — | 1 |
+| `DISCOVER_SVIDS` | — | 2 |
+| `DISCOVER_MODES` | — | 3 |
+| `ENTER_MODE` | — | 4 |
+| `EXIT_MODE` | — | 5 |
+| `ATTENTION` | — | 6 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `description` | `(self) -> str` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.UsbCapability`
+
+**Kind:** class
+
+**Bases:** `Flag`
+
+USB Capability flags for IDHeaderVDO.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `NONE` | — | 0 |
+| `USB_2_0_HOST` | — | auto() |
+| `USB_2_0_DEVICE` | — | auto() |
+| `USB_2_0_HUB` | — | auto() |
+| `USB_3_2_CAPABLE` | — | auto() |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `description` | `(self) -> str` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ProductType`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+Product Type codes for IDHeaderVDO.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UNDEFINED` | — | 0 |
+| `PDUSB_HUB` | — | 1 |
+| `PDUSB_PERIPHERAL` | — | 2 |
+| `POWER_BRICK` | — | 3 |
+| `AMC` | — | 4 |
+| `AMA` | — | 5 |
+| `VCONN_POWERED` | — | 6 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `description` | `(self) -> str` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.CableSpeed`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+USB Highest Speed field values used in cable-related VDOs.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `USB2_ONLY` | — | 0 |
+| `USB31_GEN1` | — | 1 |
+| `USB31_GEN2` | — | 2 |
+| `USB4_GEN3` | — | 3 |
+| `USB4_GEN4` | — | 4 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `description` | `(self) -> str` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.CableLatency`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+Cable latency categories for Passive/Active cable VDOs.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `RESERVED` | — | 0 |
+| `LESS_THAN_10NS` | — | 1 |
+| `BETWEEN_10NS_20NS` | — | 2 |
+| `BETWEEN_20NS_30NS` | — | 3 |
+| `BETWEEN_30NS_40NS` | — | 4 |
+| `BETWEEN_40NS_50NS` | — | 5 |
+| `BETWEEN_50NS_60NS` | — | 6 |
+| `BETWEEN_60NS_70NS` | — | 7 |
+| `MORE_THAN_70NS` | — | 8 |
+| `ACTIVE_2000NS` | — | 9 |
+| `ACTIVE_3000NS` | — | 10 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `description` | `(self) -> str` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.CableTermination`
+
+**Kind:** class
+
+**Bases:** `Flag`
+
+Cable termination type flags.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `NONE` | — | 0 |
+| `DFP_D` | — | auto() |
+| `UFP_D` | — | auto() |
+| `VCONN_POWERED` | — | auto() |
+| `ACTIVE` | — | auto() |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `description` | `(self) -> str` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.VDO`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Base class for a 32-bit Vendor Data Object (VDO).
+Subclasses provide typed accessors for header or payload fields.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | Minimal dictionary view (subclasses extend). |
+| `encode` | `(self) -> bytes` | Encode the VDO as 4 bytes (little-endian). |
+
+
+### `t76.drpd.message.data_objects.vendor.UvdmHeaderVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Unstructured VDM Header.
+Layout (stable across PD revisions):
+  B31..16 : VID (USB Vendor ID)
+  B15     : VDM Type = 0 (Unstructured)
+  B14..0  : Vendor-defined (opaque)
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `vid` | `(self) -> int` | USB Vendor ID (VID), 16-bit (B31..16). |
+| `vdm_type` | `(self) -> int` | VDM Type bit (B15). 0 for Unstructured. |
+| `vendor_bits` | `(self) -> int` | Vendor-defined field (B14..0), opaque to the spec. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.SvdmHeaderVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Structured VDM Header (SVDM).
+Common layout:
+  B31..16 : SVID (Standard or Vendor ID)
+  B15     : VDM Type = 1 (Structured)
+  B14..13 : SVDM Version (Major)
+  B12..11 : SVDM Version (Minor)
+  B10..8  : Object Position
+  B7..6   : Command Type (00=Request, 01=ACK, 10=NAK, 11=Busy)
+  B5      : Reserved
+  B4..0   : Command (0..31; 0..15 common, 16..31 SVID-specific)
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `svid` | `(self) -> int` | Standard or Vendor ID (SVID), 16-bit (B31..16). |
+| `vdm_type` | `(self) -> int` | VDM Type bit (B15). 1 for Structured. |
+| `svdm_version_major` | `(self) -> int` | Structured VDM Version (Major), bits B14..13. |
+| `svdm_version_minor` | `(self) -> int` | Structured VDM Version (Minor), bits B12..11. |
+| `object_position` | `(self) -> int` | Object Position (B10..8). |
+| `command_type` | `(self) -> int` | Command Type (B7..6): 00=Request, 01=ACK, 10=NAK, 11=Busy. |
+| `command` | `(self) -> int` | Command number (B4..0): 0..31. |
+| `is_structured` | `(self) -> bool` | True if VDM Type == 1. |
+| `command_type_enum` | `(self) -> SvdmCommandType` | Get the command type as an enum. |
+| `command_enum` | `(self) -> SvdmCommand` | Get the command as an enum if it's a standard command. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.GenericPayloadVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Simple wrapper for a payload VDO that follows a VDM header.
+This class doesn’t attempt to interpret contents; it’s display-only.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `index` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.UnknownVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Fallback VDO for any unexpected layout.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `index` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.IdHeaderVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Identity Header VDO (first payload VDO in Discover Identity response).
+USB-PD 3.2 Table 6.33.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `usb_host_capable` | `(self) -> bool` | B31: USB Communications Capable as USB Host. |
+| `usb_device_capable` | `(self) -> bool` | B30: USB Communications Capable as USB Device. |
+| `sop_ufp_product_type` | `(self) -> int` | B29..27: SOP Product Type (UFP). |
+| `sop_prime_cable_vpd_product_type` | `(self) -> int` | B29..27: SOP' Product Type (Cable Plug/VPD). |
+| `modal_operation_supported` | `(self) -> bool` | B26: Modal Operation Supported. |
+| `sop_dfp_product_type` | `(self) -> int` | B25..23: SOP Product Type (DFP). |
+| `connector_type` | `(self) -> int` | B22..21: Connector Type. |
+| `usb_vendor_id` | `(self) -> int` | B15..0: USB Vendor ID. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.CertStatVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Certification Status VDO.
+Traditionally carries an XID (32-bit). Display as hex and split halves.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `xid` | `(self) -> int` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ProductVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Product VDO (Table 6.38):
+  - B31..16 : USB Product ID
+  - B15..0  : bcdDevice
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `pid` | `(self) -> int` | — |
+| `bcd_device` | `(self) -> int` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ProductTypeUfpVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+UFP VDO (Table 6.39).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `vdo_version` | `(self) -> int` | — |
+| `device_capability` | `(self) -> int` | — |
+| `vconn_power` | `(self) -> int` | — |
+| `vconn_required` | `(self) -> bool` | — |
+| `vbus_required` | `(self) -> bool` | — |
+| `alternate_modes` | `(self) -> int` | — |
+| `usb_highest_speed` | `(self) -> int` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ProductTypeDfpVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+DFP VDO (Table 6.40).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `vdo_version` | `(self) -> int` | — |
+| `host_capability` | `(self) -> int` | — |
+| `port_number` | `(self) -> int` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.PassiveCableVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Passive Cable VDO (Table 6.41).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `usb_highest_speed_bits` | `(self) -> int` | — |
+| `usb_speed` | `(self) -> CableSpeed` | Get the USB Highest Speed field. |
+| `latency` | `(self) -> CableLatency` | Get cable latency category from B16..13. |
+| `vconn_required` | `(self) -> bool` | — |
+| `epr_capable` | `(self) -> bool` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ActiveCableVDO1`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Active Cable VDO1 (Table 6.42).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `usb_highest_speed_bits` | `(self) -> int` | — |
+| `usb_speed` | `(self) -> CableSpeed` | Get the USB Highest Speed field. |
+| `latency` | `(self) -> CableLatency` | Get cable latency category from B16..13. |
+| `epr_capable` | `(self) -> bool` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ActiveCableVDO2`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Active Cable VDO2 (Table 6.43).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ActiveCableVDO3`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Active Cable VDO #3 (extensions for newer capabilities).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.AmaVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Alternate Mode Adapter (AMA) VDO.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.VpdVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+VCONN-Powered Device (VPD) VDO (Table 6.44).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.SvidsVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+SVIDs VDO: packs up to two 16-bit SVIDs per VDO.
+  - B15..0  : SVID0
+  - B31..16 : SVID1
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `svid0` | `(self) -> int` | — |
+| `svid1` | `(self) -> int` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ModesVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Modes VDO: commonly conveys a compact list of mode numbers for a given SVID.
+The exact packing can vary; for display we expose six 4-bit nibbles plus raw bytes.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `mode_nibbles` | `(self) -> List[int]` | Return six 4-bit values (nibbles 0..5) extracted from the 32-bit word. |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.EnterModePayloadVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Enter Mode payload (usually header-only; this is a display wrapper if present).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.ExitModePayloadVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Exit Mode payload (usually header-only; this is a display wrapper if present).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+### `t76.drpd.message.data_objects.vendor.AttentionVDO`
+
+**Kind:** dataclass
+
+**Bases:** `VDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Attention payload VDO (SVID/mode specific — shown generically).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+## `t76.drpd.message.header`
+
+**Source:** `python/t76/drpd/message/header.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines the Header class for USB-PD messages, including the decoding of various fields
+such as message type, port roles, and actors involved in the communication.
+
+### `t76.drpd.message.header.MessageCategory`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Enum representing the category of a USB-PD message.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `CONTROL` | — | 'Control' |
+| `DATA` | — | 'Data' |
+| `EXTENDED` | — | 'Extended' |
+
+
+
+### `t76.drpd.message.header.MessageType`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Enum representing the different types of USB-PD messages, including
+standard control/data messages and PD 3.x extended messages.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `GOOD_CRC` | — | 'GoodCRC' |
+| `GOTO_MIN` | — | 'GotoMin' |
+| `ACCEPT` | — | 'Accept' |
+| `REJECT` | — | 'Reject' |
+| `PING` | — | 'Ping' |
+| `PS_RDY` | — | 'PS_RDY' |
+| `GET_SOURCE_CAP` | — | 'Get_Source_Cap' |
+| `GET_SINK_CAP` | — | 'Get_Sink_Cap' |
+| `DR_SWAP` | — | 'DR_Swap' |
+| `PR_SWAP` | — | 'PR_Swap' |
+| `VCONN_SWAP` | — | 'VCONN_Swap' |
+| `WAIT` | — | 'Wait' |
+| `SOFT_RESET` | — | 'Soft_Reset' |
+| `DATA_RESET` | — | 'Data_Reset' |
+| `DATA_RESET_COMPLETE` | — | 'Data_Reset_Complete' |
+| `NOT_SUPPORTED` | — | 'Not_Supported' |
+| `GET_SOURCE_CAP_EXTENDED` | — | 'Get_Source_Cap_Extended' |
+| `GET_STATUS` | — | 'Get_Status' |
+| `FR_SWAP` | — | 'FR_Swap' |
+| `GET_PPS_STATUS` | — | 'Get_PPS_Status' |
+| `GET_COUNTRY_CODES` | — | 'Get_Country_Codes' |
+| `GET_SINK_CAP_EXTENDED` | — | 'Get_Sink_Cap_Extended' |
+| `GET_SOURCE_INFO` | — | 'Get_Source_Info' |
+| `GET_REVISION` | — | 'Get_Revision' |
+| `SOURCE_CAPABILITIES` | — | 'Source_Capabilities' |
+| `REQUEST` | — | 'Request' |
+| `BIST` | — | 'BIST' |
+| `SINK_CAPABILITIES` | — | 'Sink_Capabilities' |
+| `BATTERY_STATUS` | — | 'Battery_Status' |
+| `ALERT` | — | 'Alert' |
+| `GET_COUNTRY_INFORMATION` | — | 'Get_Country_Info' |
+| `ENTER_USB` | — | 'Enter_USB' |
+| `EPR_REQUEST` | — | 'EPR_Request' |
+| `EPR_MODE` | — | 'EPR_Mode' |
+| `SOURCE_INFORMATION` | — | 'Source_Info' |
+| `REVISION` | — | 'Revision' |
+| `VENDOR_DEFINED` | — | 'Vendor_Defined' |
+| `SOURCE_CAPABILITIES_EXTENDED` | — | 'Source_Capabilities_Extended' |
+| `STATUS` | — | 'Status' |
+| `GET_BATTERY_CAP` | — | 'Get_Battery_Cap' |
+| `GET_BATTERY_STATUS` | — | 'Get_Battery_Status' |
+| `BATTERY_CAPABILITIES` | — | 'Battery_Capabilities' |
+| `GET_MANUFACTURER_INFO` | — | 'Get_Manufacturer_Info' |
+| `MANUFACTURER_INFO` | — | 'Manufacturer_Info' |
+| `SECURITY_REQUEST` | — | 'Security_Request' |
+| `SECURITY_RESPONSE` | — | 'Security_Response' |
+| `FIRMWARE_UPDATE_REQUEST` | — | 'Firmware_Update_Request' |
+| `FIRMWARE_UPDATE_RESPONSE` | — | 'Firmware_Update_Response' |
+| `PPS_STATUS` | — | 'PPS_Status' |
+| `COUNTRY_INFO` | — | 'Country_Info' |
+| `COUNTRY_CODES` | — | 'Country_Codes' |
+| `SINK_CAPABILITIES_EXTENDED` | — | 'Sink_Capabilities_Extended' |
+| `EXTENDED_CONTROL` | — | 'Extended_Control' |
+| `EPR_SOURCE_CAPABILITIES` | — | 'EPR_Source_Capabilities' |
+| `EPR_SINK_CAPABILITIES` | — | 'EPR_Sink_Capabilities' |
+| `VENDOR_DEFINED_EXTENDED` | — | 'Vendor_Defined_Extended' |
+| `RESERVED` | — | 'Reserved' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_header` | `(cls, header_value: int, data_object_count: int, extended: bool = False) -> 'MessageType'` | Determine the message type from the header value, data object count, |
+
+
+### `t76.drpd.message.header.PortPowerRole`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Enum representing the power role of a USB-PD port.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SOURCE` | — | 'Source' |
+| `SINK` | — | 'Sink' |
+| `INVALID` | — | 'N/A' |
+
+
+
+### `t76.drpd.message.header.PortDataRole`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Enum representing the data role of a USB-PD port.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UFP` | — | 'UFP' |
+| `DFP` | — | 'DFP' |
+| `INVALID` | — | 'N/A' |
+
+
+
+### `t76.drpd.message.header.CablePlug`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Enum representing the type of cable plug in USB-PD communication.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UFPDFP` | — | 'UFP/DFP' |
+| `CABLE_PLUG` | — | 'Cable Plug' |
+| `INVALID` | — | 'N/A' |
+
+
+
+### `t76.drpd.message.header.SpecificationRevision`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Enum representing the USB-PD specification revision.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `REV1` | — | '1.0' |
+| `REV2` | — | '2.0' |
+| `REV3` | — | '3.x' |
+| `RESERVED` | — | 'Reserved' |
+
+
+
+### `t76.drpd.message.header.Actor`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Enum representing the actor in a USB-PD message.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SOURCE` | — | 'Source' |
+| `SINK` | — | 'Sink' |
+| `NEAR_CABLE_PLUG` | — | 'Near Plug' |
+| `FAR_CABLE_PLUG` | — | 'Far Plug' |
+| `UNKNOWN` | — | 'Unknown' |
+
+
+
+### `t76.drpd.message.header.Header`
+
+**Kind:** class
+
+Header decoder for a USB-PD message.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> Dict` | Convert the header instance into a dictionary representation with human-readable keys. |
+| `encode` | `(self) -> bytes` | Output the encoded header as bytes, starting with the four SOP entries (one byte each), |
+| `extended` | `(self) -> bool` | Check if the header is extended. |
+| `category` | `(self) -> MessageCategory` | Get the category of the message (Control or Data). |
+| `data_object_count` | `(self) -> int` | Get the number of data objects in the message. |
+| `message_id` | `(self) -> int` | Get the message ID from the header data. |
+| `message_type_number` | `(self) -> int` | Get the message type number from the header data. |
+| `message_type` | `(self) -> MessageType` | Get the message type based on the header data and SOP. |
+| `port_power_role` | `(self) -> PortPowerRole` | Get the port power role from the header data. |
+| `port_data_role` | `(self) -> PortDataRole` | Get the port data role from the header data. |
+| `cable_plug` | `(self) -> CablePlug` | Get the cable plug type from the header data. |
+| `specification_revision` | `(self) -> SpecificationRevision` | Get the USB-PD specification revision from the header data. |
+| `from_actor` | `(self) -> Actor` | Determine the actor (Source, Sink, Cable, Unknown) based on the SOP type and port roles. |
+| `to_actor` | `(self) -> Actor` | Determine the recipient actor (Source, Sink, Cable, Unknown) based on the SOP type and port roles. |
+| `from_fields` | `(cls, sop: SOP, message_type: MessageType, data_object_count: int = 0, message_id: int = 0, specification_revision: SpecificationRevision = SpecificationRevision.REV2, port_power_role: PortPowerRole = PortPowerRole.SOURCE, port_data_role: PortDataRole = PortDataRole.DFP, cable_plug: CablePlug = CablePlug.UFPDFP, extended: bool = False) -> 'Header'` | Create a Header instance from explicit field values. |
+
+
+### `t76.drpd.message.header.ExtendedHeader`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+USB-PD Extended Message Header (first 2 bytes of the body, little-endian).
+
+Field layout (per USB PD R3.2, Section 6.4 Data Message):
+  - Bits 0-8   (Data Size): Number of data bytes that follow the extended header.
+  - Bits 9-10  (Reserved): Shall be zero; non-zero indicates a malformed header.
+  - Bits 11-13 (Chunk Number): 0 for the first chunk, increments for subsequent chunks.
+  - Bit  14    (Request Chunk, RCH): Set by a receiver to ask the sender for the chunk
+                indicated by Chunk Number.
+  - Bit  15    (Chunked, CH): When set, the message is chunked; when clear, the entire
+                data block is contained in a single, unchunked message.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `data_size_bytes` | `(self) -> int` | Number of data bytes that follow the 2-byte extended header. |
+| `reserved_bits` | `(self) -> int` | Reserved bits (bits 9-10); should always be zero in valid PD traffic. |
+| `chunk_number` | `(self) -> int` | Chunk number (bits 11-13); 0 for the first chunk in a chunked transfer. |
+| `request_chunk` | `(self) -> bool` | Request Chunk flag (bit 14); True when the sender is requesting chunk chunk_number. |
+| `chunked` | `(self) -> bool` | Chunked flag (bit 15); True when the extended message uses chunking. |
+| `to_dict` | `(self) -> Dict[str, object]` | — |
+
+
+## `t76.drpd.message.messages`
+
+**Source:** `python/t76/drpd/message/messages/__init__.py`
+
+**Exports:** `Message`, `Origin`, `ExtendedMessage`, `StandardMessage`, `ControlMessage`, `AlertMessage`, `BatteryStatusMessage`, `BISTMessage`, `GetCountryInfoMessage`, `EnterUSBMessage`, `EPRModeMessage`, `EPRRequestMessage`, `GenericExtendedMessage`, `SourceCapabilitiesExtendedMessage`, `StatusMessage`, `GetBatteryCapabilitiesMessage`, `GetBatteryStatusMessage`, `BatteryCapabilitiesMessage`, `GetManufacturerInfoMessage`, `ManufacturerInfoMessage`, `SecurityRequestMessage`, `SecurityResponseMessage`, `FirmwareUpdateRequestMessage`, `FirmwareUpdateResponseMessage`, `PPSStatusMessage`, `CountryInfoExtendedMessage`, `CountryCodesMessage`, `SinkCapabilitiesExtendedMessage`, `ExtendedControlMessage`, `EPRSourceCapabilitiesMessage`, `EPRSinkCapabilitiesMessage`, `VendorDefinedExtendedMessage`, `RequestMessage`, `RevisionMessage`, `SinkCapabilitiesMessage`, `SourceCapabilitiesMessage`, `SourceInformationMessage`, `UnknownMessage`, `VendorDefinedMessage`
+
+USB-PD Message Types and Classes
+
+This package contains all USB-PD message type definitions and their implementations.
+Classes are organized per message type for better maintainability.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.message.messages._base`
+
+**Source:** `python/t76/drpd/message/messages/_base.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Base message classes and factory for USB-PD messages.
+
+### `t76.drpd.message.messages._base.Origin`
+
+**Kind:** enum
+
+**Bases:** `Enum`
+
+Enum representing the origin of a USB-PD message.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SOURCE` | — | 'Source' |
+| `SINK` | — | 'Sink' |
+| `CABLE` | — | 'Cable' |
+| `UNKNOWN` | — | 'Unknown' |
+
+
+
+### `t76.drpd.message.messages._base.Message`
+
+**Kind:** class
+
+**Bases:** `ABC`
+
+Base class representing a USB-PD message.
+It encapsulates the header, SOP, and data objects of the message.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `register_factory` | `(cls, key: str, factory_func: Callable[..., 'Message']) -> None` | Register a factory function for a specific message type. |
+| `from_body` | `(cls, header: Header, body: List[int]) -> 'Message'` | Factory method to create a Message instance from a body. |
+| `name` | `(self) -> str` | Abstract property to get the name of the message. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties that can be rendered for display. |
+
+
+### `t76.drpd.message.messages._base.ExtendedMessage`
+
+**Kind:** class
+
+**Bases:** `Message`
+
+Mixin/base for PD Extended Messages.
+Assumes `self.body: List[int]` exists (from your Message base) and contains:
+  [0:2]   -> Extended Header (little-endian)
+  [2:2+N] -> Payload bytes (N = data_size_bytes)
+Provides:
+  - extended_header: ExtendedHeader
+  - payload_bytes: bytes
+  - payload_words_le: List[int] of 32-bit little-endian words (for VDO-like parsing)
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `extended_header` | `(self) -> ExtendedHeader` | — |
+| `payload_bytes` | `(self) -> bytes` | — |
+| `payload_expected_length` | `(self) -> int` | Expected payload length from the extended header Data Size field. |
+| `payload_available_length` | `(self) -> int` | Payload bytes currently available in this message body. |
+| `payload_complete` | `(self) -> bool` | True when available payload is at least the extended header Data Size. |
+| `payload_words_le` | `(self) -> List[int]` | View payload as 32-bit little-endian words (ignore trailing less than 4 bytes). |
+| `renderable_extended` | `(self) -> Dict[str, str]` | Convenience block to merge into subclass renderables. |
+
+
+### `t76.drpd.message.messages._base.StandardMessage`
+
+**Kind:** class
+
+**Bases:** `Message`
+
+Base class for standard (non-extended) data messages.
+
+
+
+
+## `t76.drpd.message.messages.alert`
+
+**Source:** `python/t76/drpd/message/messages/alert.py`
+
+Alert Message
+
+### `t76.drpd.message.messages.alert.AlertMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a USB-PD Alert data message.
+
+Per the USB-PD spec, Alert is a standard data message and does not use the
+Extended Message format. When the `Extended Alert Event` bit is set in the
+ADO, any additional alert information is conveyed via subsequent 32-bit
+words in the same standard message body (i.e., additional ADO/Extended ADO
+words), not via an Extended Header + payload.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, ado: AlertDataObject, extended_alert_data: Optional[List[ExtendedADO]] = None) -> bytes` | Creates a bytes representation of an Alert message. |
+| `alert_data_object` | `(self) -> AlertDataObject` | Returns the Alert Data Object from the message body. |
+| `extended_alert_data` | `(self) -> List[ExtendedADO]` | Returns additional 32-bit alert words following the primary ADO. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties that can be rendered for display. |
+
+
+## `t76.drpd.message.messages.battery_capabilities`
+
+**Source:** `python/t76/drpd/message/messages/battery_capabilities.py`
+
+Battery Capabilities (PD 3.x Extended)
+
+### `t76.drpd.message.messages.battery_capabilities.BatteryCapabilitiesMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended response describing battery capabilities.
+USB-PD 3.2 Section 6.5.5 / Table 6.59 (9-byte BCDB).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `vid` | `(self) -> Optional[int]` | — |
+| `pid` | `(self) -> Optional[int]` | — |
+| `battery_design_capacity_wh_10x` | `(self) -> Optional[int]` | — |
+| `battery_last_full_charge_wh_10x` | `(self) -> Optional[int]` | — |
+| `battery_type_raw` | `(self) -> Optional[int]` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.battery_status`
+
+**Source:** `python/t76/drpd/message/messages/battery_status.py`
+
+Battery Status Message
+
+### `t76.drpd.message.messages.battery_status.BatteryStatusMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a Battery Status USB-PD message.
+Contains one Battery Status Data Object (BSDO) which provides information about
+battery status including present capacity, time to empty/full, and charging status.
+
+BSDO format (32-bit):
+- Bits 31-16: Battery Present Capacity (0-0xFFFF, resolution 10mWh or 10%)
+- Bits 15-8:  Battery Information:
+    - Bit 15: Reserved, shall be set to 0
+    - Bit 14: Invalid Battery Reference, 1=invalid
+    - Bit 13: Battery Is Present, 1=present
+    - Bit 12: Reserved, shall be set to 0
+    - Bits 11-8: Reserved, shall be set to 0
+- Bits 7-0:   Time to Empty/Full in minutes (0-0xFF, 0=unknown)
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, present_capacity: int, is_battery_present: bool = True, is_battery_reference_invalid: bool = False, time_to_empty_full: int = 0) -> bytes` | Creates a bytes representation of a Battery Status message. |
+| `present_capacity` | `(self) -> int` | Returns the battery's present capacity in 10mWh or 10% units |
+| `is_battery_present` | `(self) -> bool` | Returns True if a battery is present |
+| `is_battery_reference_invalid` | `(self) -> bool` | Returns True if the battery reference is invalid |
+| `time_to_empty_full` | `(self) -> int` | Returns time to empty/full in minutes, 0 means unknown |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties for display |
+
+
+## `t76.drpd.message.messages.bist`
+
+**Source:** `python/t76/drpd/message/messages/bist.py`
+
+BIST (Built-in Self Test) Message
+
+### `t76.drpd.message.messages.bist.BISTMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a USB-PD BIST message.
+
+The BIST message body contains one or seven 32-bit BIST Data Objects (BDOs).
+This class extracts each 32-bit BDO, decodes it into the proper subclass,
+and exposes convenient renderable properties.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | Human-readable message name. |
+| `encode` | `(cls, bdos: List[BistDataObject]) -> bytes` | Creates a bytes representation of a BIST message. |
+| `data_objects_raw` | `(self) -> List[int]` | Return all 32-bit words parsed little-endian from the message body. |
+| `bist_data_objects` | `(self) -> List['BistDataObject']` | Decode each raw 32-bit word into a typed BistDataObject subclass. |
+| `primary_bdo` | `(self) -> 'BistDataObject \| None'` | Convenience accessor: the first BDO if present, else None. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | A dictionary of stringified properties suitable for UI rendering. |
+
+
+## `t76.drpd.message.messages.control`
+
+**Source:** `python/t76/drpd/message/messages/control.py`
+
+Control Message
+
+### `t76.drpd.message.messages.control.ControlMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a control USB-PD message.
+It inherits from the StandardMessage class and does not add any additional functionality.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+
+
+## `t76.drpd.message.messages.country_codes`
+
+**Source:** `python/t76/drpd/message/messages/country_codes.py`
+
+Country Codes (PD 3.x Extended)
+
+### `t76.drpd.message.messages.country_codes.CountryCodesMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended response listing supported country codes.
+
+Payload is a sequence of 16-bit codes (ISO 3166-1 numeric).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `codes` | `(self) -> List[int]` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.country_info`
+
+**Source:** `python/t76/drpd/message/messages/country_info.py`
+
+Get Country Info Message
+
+### `t76.drpd.message.messages.country_info.GetCountryInfoMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a Get Country Info USB-PD message.
+Contains one Country Info Data Object (CIDO) which specifies the range
+of country codes to retrieve from a port partner.
+
+CIDO format (32-bit):
+- Bits 31-16: Last Country Code (0-0xFFFF)
+- Bits 15-0:  First Country Code (0-0xFFFF)
+
+Country codes are specified according to ISO 3166-1 numeric standard.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, first_country_code: int, last_country_code: int) -> bytes` | Creates a bytes representation of a Get Country Info message. |
+| `first_country_code` | `(self) -> int` | Returns the first country code in the requested range |
+| `last_country_code` | `(self) -> int` | Returns the last country code in the requested range |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties for display |
+
+
+## `t76.drpd.message.messages.country_info_extended`
+
+**Source:** `python/t76/drpd/message/messages/country_info_extended.py`
+
+Country Information (PD 3.x Extended)
+
+### `t76.drpd.message.messages.country_info_extended.CountryInfoExtendedMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended response providing detailed country information.
+
+Payload content varies; we expose raw details and any printable text.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `decoded_text` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.enter_usb`
+
+**Source:** `python/t76/drpd/message/messages/enter_usb.py`
+
+Enter USB Message
+
+### `t76.drpd.message.messages.enter_usb.EnterUSBMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing an Enter USB USB-PD message.
+Contains one Enter USB Data Object (EUDO) which specifies USB4 parameters and state.
+
+EUDO format (32-bit):
+- Bits 31-28: Reserved, shall be set to 0
+- Bits 27-24: Host Present Data Operation Rate (0-15)
+- Bits 23:    USB4 DRD supported, 1=yes
+- Bits 22:    USB3 DRD supported, 1=yes
+- Bits 21:    USB4 Device supported, 1=yes
+- Bits 20:    USB3 Device supported, 1=yes
+- Bits 19:    USB4 Host supported, 1=yes
+- Bits 18:    USB3 Host supported, 1=yes
+- Bits 17-16: Cable Speed Support
+- Bits 15-8:  Reserved, shall be set to 0
+- Bits 7-0:   Reserved, shall be set to 0
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, host_data_rate: int = 0, usb4_drd_supported: bool = False, usb3_drd_supported: bool = False, usb4_device_supported: bool = False, usb3_device_supported: bool = False, usb4_host_supported: bool = False, usb3_host_supported: bool = False, cable_speed: int = 0) -> bytes` | Creates a bytes representation of an Enter USB message. |
+| `host_data_rate` | `(self) -> int` | Returns the Host Present Data Operation Rate (0-15) |
+| `usb4_drd_supported` | `(self) -> bool` | Returns True if USB4 DRD is supported |
+| `usb3_drd_supported` | `(self) -> bool` | Returns True if USB3 DRD is supported |
+| `usb4_device_supported` | `(self) -> bool` | Returns True if USB4 Device mode is supported |
+| `usb3_device_supported` | `(self) -> bool` | Returns True if USB3 Device mode is supported |
+| `usb4_host_supported` | `(self) -> bool` | Returns True if USB4 Host mode is supported |
+| `usb3_host_supported` | `(self) -> bool` | Returns True if USB3 Host mode is supported |
+| `cable_speed` | `(self) -> int` | Returns the Cable Speed Support value (0-3) |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties for display |
+
+
+## `t76.drpd.message.messages.epr_mode`
+
+**Source:** `python/t76/drpd/message/messages/epr_mode.py`
+
+EPR (Extended Power Range) Mode Message
+
+### `t76.drpd.message.messages.epr_mode.EPRModeAction`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+Action values from USB-PD 3.2 Table 6.50.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `ENTER` | — | 1 |
+| `ENTER_ACKNOWLEDGED` | — | 2 |
+| `ENTER_SUCCEEDED` | — | 3 |
+| `ENTER_FAILED` | — | 4 |
+| `EXIT` | — | 5 |
+
+
+
+### `t76.drpd.message.messages.epr_mode.EPRModeEnterFailedReason`
+
+**Kind:** enum
+
+**Bases:** `IntEnum`
+
+Enter Failed Data field values from USB-PD 3.2 Table 6.50.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UNKNOWN` | — | 0 |
+| `CABLE_NOT_EPR_CAPABLE` | — | 1 |
+| `SOURCE_FAILED_BECOME_VCONN_SOURCE` | — | 2 |
+| `EPR_CAPABLE_RDO_BIT_NOT_SET` | — | 3 |
+| `SOURCE_UNABLE_TO_ENTER_EPR` | — | 4 |
+| `EPR_CAPABLE_PDO_BIT_NOT_SET` | — | 5 |
+
+
+
+### `t76.drpd.message.messages.epr_mode.EPRModeMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+EPR_Mode message wrapper with EPRMDO decoding (USB-PD 3.2 Table 6.50).
+- B31..24: Action
+- B23..16: Data
+- B15..0: Reserved
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, action: int, data: int = 0) -> bytes` | Create a 4-byte EPRMDO. |
+| `eprmdo` | `(self) -> int` | Return the raw EPRMDO word or zero if payload is too short. |
+| `action` | `(self) -> int` | Action field (B31..24). |
+| `data` | `(self) -> int` | Data field (B23..16). |
+| `reserved` | `(self) -> int` | Reserved field (B15..0). |
+| `action_text` | `(self) -> str` | Human-readable action text. |
+| `data_text` | `(self) -> str` | Human-readable data text based on Action. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties for display |
+
+
+## `t76.drpd.message.messages.epr_request`
+
+**Source:** `python/t76/drpd/message/messages/epr_request.py`
+
+EPR (Extended Power Range) Request Message.
+
+### `t76.drpd.message.messages.epr_request.EPRRequestMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Decode wrapper for EPR_Request (USB-PD 3.2 Section 6.4.9).
+
+The EPR_Request message carries an RDO whose layout follows the same
+RDO family used by Request messages, with EPR-specific use in EPR mode.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, rdo: RequestDO \| int) -> bytes` | Encode an EPR_Request body from an RDO object or a raw 32-bit word. |
+| `raw_rdo` | `(self) -> int` | — |
+| `rdo` | `(self) -> RequestDO` | — |
+| `raw_requested_pdo_copy` | `(self) -> int` | — |
+| `requested_pdo_copy` | `(self) -> SourcePDO \| None` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.epr_sink_capabilities`
+
+**Source:** `python/t76/drpd/message/messages/epr_sink_capabilities.py`
+
+EPR Sink Capabilities (PD 3.x extended).
+
+### `t76.drpd.message.messages.epr_sink_capabilities.EPRSinkCapabilitiesMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+EPR_Sink_Capabilities wrapper (USB-PD 3.2 Section 6.5.15.3).
+Payload is a list of 32-bit Sink (A)PDOs in little-endian order.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `sink_power_data_objects` | `(self) -> List[SinkPDO]` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.epr_source_capabilities`
+
+**Source:** `python/t76/drpd/message/messages/epr_source_capabilities.py`
+
+EPR Source Capabilities (PD 3.x extended).
+
+### `t76.drpd.message.messages.epr_source_capabilities.EPRSourceCapabilitiesMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+EPR_Source_Capabilities wrapper (USB-PD 3.2 Section 6.5.15.2).
+Payload is a list of 32-bit Source (A)PDOs in little-endian order.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `power_data_objects` | `(self) -> List[SourcePDO]` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.extended_control`
+
+**Source:** `python/t76/drpd/message/messages/extended_control.py`
+
+Extended Control (PD 3.x extended).
+
+### `t76.drpd.message.messages.extended_control.ExtendedControlMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended_Control wrapper (USB-PD 3.2 Section 6.5.14, Table 6.66).
+
+ECDB layout:
+- Byte 0: Type
+- Byte 1: Data (set to zero when not used for current defined types)
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `ecdb_type` | `(self) -> int` | — |
+| `ecdb_data` | `(self) -> int` | — |
+| `ecdb_size_valid` | `(self) -> bool` | ECDB is fixed at 2 bytes (Type + Data) per USB-PD 3.2 Table 6.66. |
+| `ecdb_type_name` | `(self) -> str` | — |
+| `ecdb_data_must_be_zero` | `(self) -> bool` | Known currently-defined ECDB types require Data=0x00. |
+| `ecdb_data_valid` | `(self) -> bool` | True when ECDB Data field is valid for the decoded type. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.firmware_update_request`
+
+**Source:** `python/t76/drpd/message/messages/firmware_update_request.py`
+
+Firmware Update Request (PD 3.x Extended)
+
+### `t76.drpd.message.messages.firmware_update_request.FirmwareUpdateRequestMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended message used to request firmware update actions.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.firmware_update_response`
+
+**Source:** `python/t76/drpd/message/messages/firmware_update_response.py`
+
+Firmware Update Response (PD 3.x Extended)
+
+### `t76.drpd.message.messages.firmware_update_response.FirmwareUpdateResponseMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended message used to respond to firmware update actions.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.generic_extended`
+
+**Source:** `python/t76/drpd/message/messages/generic_extended.py`
+
+Generic Extended Message
+
+### `t76.drpd.message.messages.generic_extended.GenericExtendedMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Minimal wrapper for PD extended messages when no specialized
+subclass exists yet.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.get_battery_cap`
+
+**Source:** `python/t76/drpd/message/messages/get_battery_cap.py`
+
+Get Battery Capabilities (PD 3.x Extended)
+
+### `t76.drpd.message.messages.get_battery_cap.GetBatteryCapabilitiesMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended request to query battery capabilities.
+
+Typical payload contains a 1-byte Battery Reference (index). If empty,
+the request may be for all batteries.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `battery_reference` | `(self) -> int` | — |
+| `encode` | `(cls, battery_reference: int = 0) -> bytes` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.get_battery_status`
+
+**Source:** `python/t76/drpd/message/messages/get_battery_status.py`
+
+Get Battery Status (PD 3.x Extended)
+
+### `t76.drpd.message.messages.get_battery_status.GetBatteryStatusMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended request to query battery status.
+
+Typical payload contains a 1-byte Battery Reference (index).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `battery_reference` | `(self) -> int` | — |
+| `encode` | `(cls, battery_reference: int = 0) -> bytes` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.get_manufacturer_info`
+
+**Source:** `python/t76/drpd/message/messages/get_manufacturer_info.py`
+
+Get Manufacturer Info (PD 3.x Extended)
+
+### `t76.drpd.message.messages.get_manufacturer_info.GetManufacturerInfoMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended request to read manufacturer information.
+
+Typical payload: an Info Type selector and optional string index.
+We expose the first two bytes as type and index when present.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `info_type` | `(self) -> int` | — |
+| `string_index` | `(self) -> int` | — |
+| `encode` | `(cls, info_type: int = 0, string_index: int = 0) -> bytes` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.manufacturer_info`
+
+**Source:** `python/t76/drpd/message/messages/manufacturer_info.py`
+
+Manufacturer Info (PD 3.x Extended)
+
+### `t76.drpd.message.messages.manufacturer_info.ManufacturerInfoMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended response with manufacturer information.
+
+Payload often contains ASCII/UTF-8 strings and/or structured fields.
+We expose both raw words and an attempted textual decode.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `decoded_text` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.pps_status`
+
+**Source:** `python/t76/drpd/message/messages/pps_status.py`
+
+PPS Status (PD 3.x Extended)
+
+### `t76.drpd.message.messages.pps_status.PPSStatusMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended PPS Status message.
+
+We provide a general view and a simple attempt to decode the first two
+bytes as a voltage code (20 mV units) and next two as a current code
+(50 mA units). When payload doesn't match, fields show 0.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `voltage_mv` | `(self) -> int` | — |
+| `current_ma` | `(self) -> int` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.request`
+
+**Source:** `python/t76/drpd/message/messages/request.py`
+
+Request Message
+
+### `t76.drpd.message.messages.request.RequestMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a USB-PD Request message.
+
+The Request message body contains exactly one 32-bit Request Data Object (RDO/ARDO).
+This class extracts that RDO, exposes it as a typed object, and can optionally
+resolve/validate it against the advertised Source PDO/APDO list.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | Human-readable message name. |
+| `from_rdo` | `(cls, rdo: RequestDO) -> 'RequestMessage'` | Creates a Request message from a given RDO. |
+| `rdo_raw` | `(self) -> int` | The 32-bit raw Request Data Object (little-endian) extracted from the message body. |
+| `request_data_object` | `(self) -> 'RequestDO'` | The Request Data Object as a best-effort typed instance. |
+| `resolved_request` | `(self, pdos: List['SourcePDO']) -> Tuple['SourcePDO', 'RequestDO', bool]` | Resolve this Request against the advertised Source PDOs and validate it. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | A dictionary of stringified properties suitable for UI rendering. |
+
+
+## `t76.drpd.message.messages.revision`
+
+**Source:** `python/t76/drpd/message/messages/revision.py`
+
+Revision Message
+
+### `t76.drpd.message.messages.revision.RevisionMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a Revision USB-PD message.
+Contains one Revision Data Object (RDO) which indicates the supported
+USB-PD specification version information.
+
+RDO format (32-bit):
+- Bits 31-16: Reserved, shall be set to 0
+- Bits 15-12: Major Version Number (1-3)
+- Bits 11-8:  Minor Version Number (0-9)
+- Bits 7-0:   Reserved, shall be set to 0
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, major_version: int = 3, minor_version: int = 1) -> bytes` | Creates a bytes representation of a Revision message. |
+| `major_version` | `(self) -> int` | Returns the major version number (1-3) |
+| `minor_version` | `(self) -> int` | Returns the minor version number (0-9) |
+| `version_string` | `(self) -> str` | Returns the version as a string in format 'major.minor' |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties for display |
+
+
+## `t76.drpd.message.messages.security_request`
+
+**Source:** `python/t76/drpd/message/messages/security_request.py`
+
+Security Request (PD 3.x Extended)
+
+### `t76.drpd.message.messages.security_request.SecurityRequestMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended message for security/authentication request payloads.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.security_response`
+
+**Source:** `python/t76/drpd/message/messages/security_response.py`
+
+Security Response (PD 3.x Extended)
+
+### `t76.drpd.message.messages.security_response.SecurityResponseMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Extended message for security/authentication response payloads.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.sink_capabilities`
+
+**Source:** `python/t76/drpd/message/messages/sink_capabilities.py`
+
+Sink Capabilities Message
+
+### `t76.drpd.message.messages.sink_capabilities.SinkCapabilitiesMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a Sink Capabilities USB-PD message.
+
+The message body is a sequence of 32-bit Sink PDO/APDO words (little-endian).
+This wrapper decodes each word into a `SinkPDO` subclass and provides a
+UI-friendly `renderable_properties` view.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, pdos: List[SinkPDO]) -> bytes` | Creates a bytes representation of a Sink Capabilities message. |
+| `sink_power_data_objects` | `(self) -> List['SinkPDO']` | Returns the list of Sink Power Data Objects (PDOs/APDOs) contained in the message. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Build a dictionary suitable for UI rendering: |
+
+
+## `t76.drpd.message.messages.sink_capabilities_extended`
+
+**Source:** `python/t76/drpd/message/messages/sink_capabilities_extended.py`
+
+Sink Capabilities Extended (PD 3.x).
+
+### `t76.drpd.message.messages.sink_capabilities_extended.SinkCapabilitiesExtendedMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Decode SKEDB per USB-PD 3.2 Section 6.5.13 / Table 6.65.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SKEDB_LENGTH_BYTES` | — | 24 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `parsed_fields` | `(self) -> Dict[str, Any]` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.source_capabilities`
+
+**Source:** `python/t76/drpd/message/messages/source_capabilities.py`
+
+Source Capabilities Message
+
+### `t76.drpd.message.messages.source_capabilities.SourceCapabilitiesMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a Source Capabilities USB-PD message.
+It inherits from the StandardMessage class and does not add any additional functionality.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, pdos: List[SourcePDO]) -> bytes` | Creates a bytes representation of a Source Capabilities message. |
+| `power_data_objects` | `(self) -> List[SourcePDO]` | Returns the list of Power Data Objects (PDOs) in the Source Capabilities message. |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+| `best_fit_pdo_for_need` | `(self, voltage: float, current: float) -> Optional[SourcePDO]` | Finds the best-fit Power Data Object (PDO) for the specified power needs. |
+
+
+## `t76.drpd.message.messages.source_capabilities_extended`
+
+**Source:** `python/t76/drpd/message/messages/source_capabilities_extended.py`
+
+Source Capabilities Extended (PD 3.x)
+
+### `t76.drpd.message.messages.source_capabilities_extended.SourceCapabilitiesExtendedMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+PD 3.x Extended message providing the 25-byte Source Capabilities Extended
+Data Block (SCEDB) defined in USB PD R3.2 Section 6.5.1.
+
+This implementation decodes every defined field and exposes both a
+human-friendly summary (renderable_properties) and a structured view
+(to_dict).
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SCEDB_LENGTH_BYTES` | — | 25 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `payload_size` | `(self) -> int` | — |
+| `parsed_fields` | `(self) -> Dict[str, Any]` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+| `to_dict` | `(self) -> Dict[str, Any]` | — |
+
+
+## `t76.drpd.message.messages.source_information`
+
+**Source:** `python/t76/drpd/message/messages/source_information.py`
+
+Source Information Message
+
+### `t76.drpd.message.messages.source_information.SourceInformationMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing a Source Information USB-PD message.
+Contains one Source Information Data Object (SIDO) which provides additional
+information about the source's power capabilities and characteristics.
+
+SIDO format (32-bit):
+- Bits 31-25: Reserved, shall be set to 0
+- Bits 24:    Dual-Role Power, 1=yes
+- Bits 23:    USB Suspend Supported, 1=yes
+- Bits 22:    Unconstrained Power, 1=yes
+- Bits 21:    USB Communications Capable, 1=yes
+- Bits 20:    Dual-Role Data, 1=yes
+- Bits 19-16: Highest Source-Vbus Voltage in 4V units (e.g., 0x5=20V)
+- Bits 15-0:  Reserved, shall be set to 0
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `encode` | `(cls, dual_role_power: bool = False, usb_suspend_supported: bool = False, unconstrained_power: bool = False, usb_comms_capable: bool = False, dual_role_data: bool = False, highest_voltage_v: int = 5) -> bytes` | Creates a bytes representation of a Source Information message. |
+| `dual_role_power` | `(self) -> bool` | Returns True if source supports dual-role power |
+| `usb_suspend_supported` | `(self) -> bool` | Returns True if source supports USB Suspend |
+| `unconstrained_power` | `(self) -> bool` | Returns True if source provides unconstrained power |
+| `usb_comms_capable` | `(self) -> bool` | Returns True if source supports USB communications |
+| `dual_role_data` | `(self) -> bool` | Returns True if source supports dual-role data |
+| `highest_voltage_v` | `(self) -> int` | Returns the highest source Vbus voltage in volts |
+| `renderable_properties` | `(self) -> Dict[str, str]` | Returns a dictionary of properties for display |
+
+
+## `t76.drpd.message.messages.status`
+
+**Source:** `python/t76/drpd/message/messages/status.py`
+
+Status (PD 3.x Extended)
+
+### `t76.drpd.message.messages.status.StatusMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+PD 3.x Extended Status message (USB-PD 3.2 Section 6.5.2).
+Decodes:
+- SOP Status Data Block (7 bytes, Table 6.55)
+- SOP'/SOP'' Status Data Block (2 bytes, Table 6.56)
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `decoded_status` | `(self) -> Dict[str, Any]` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.messages.unknown`
+
+**Source:** `python/t76/drpd/message/messages/unknown.py`
+
+Unknown Message
+
+### `t76.drpd.message.messages.unknown.UnknownMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Class representing an unknown or unrecognized USB-PD message.
+It inherits from the StandardMessage class and does not add any additional functionality.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+
+
+## `t76.drpd.message.messages.vendor_defined`
+
+**Source:** `python/t76/drpd/message/messages/vendor_defined.py`
+
+Vendor Defined Message
+
+### `t76.drpd.message.messages.vendor_defined.VendorDefinedMessage`
+
+**Kind:** class
+
+**Bases:** `StandardMessage`
+
+Display-oriented wrapper for a USB-PD Vendor Defined (VDM) message.
+
+Parses the body into 32-bit VDOs (little-endian). VDO[0] is the header:
+  - If VDM Type bit == 1 => Structured VDM (SVDM)
+  - If VDM Type bit == 0 => Unstructured VDM (UVDM)
+
+Payload VDOs are decoded into specific subclasses where the spec layout is standard
+(e.g., Discover Identity, Discover SVIDs, Discover Modes). Otherwise, payload words
+are wrapped as GenericPayloadVDO for display. No validation or vendor-specific decoding.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `data_objects_raw` | `(self) -> List[int]` | Parse the message body into 32-bit words (little-endian). |
+| `vdo_count` | `(self) -> int` | Number of 32-bit VDOs present. |
+| `is_structured` | `(self) -> bool` | True if VDO[0] indicates a Structured VDM (SVDM). False for Unstructured or empty body. |
+| `header` | `(self) -> 'SvdmHeaderVDO \| UvdmHeaderVDO \| None'` | Decode and return the VDM header object, or None if there are no VDOs. |
+| `payload_vdos` | `(self) -> List['VDO']` | Decode payload VDOs into specific subclasses when possible (display-only). |
+| `renderable_properties` | `(self) -> Dict[str, str]` | A dictionary of stringified properties suitable for UI rendering. |
+
+
+## `t76.drpd.message.messages.vendor_defined_extended`
+
+**Source:** `python/t76/drpd/message/messages/vendor_defined_extended.py`
+
+Vendor Defined Extended (PD 3.x).
+
+### `t76.drpd.message.messages.vendor_defined_extended.VendorDefinedExtendedMessage`
+
+**Kind:** class
+
+**Bases:** `ExtendedMessage`
+
+Message wrapper for Vendor_Defined_Extended payloads.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `name` | `(self) -> str` | — |
+| `renderable_properties` | `(self) -> Dict[str, str]` | — |
+
+
+## `t76.drpd.message.sop`
+
+**Source:** `python/t76/drpd/message/sop.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines the SOP (Start of Packet) structure for USB-PD communications.
+
+### `t76.drpd.message.sop.SOPType`
+
+**Kind:** enum
+
+**Bases:** `Enum`
+
+Enum representing the different types of SOP blocks
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SOP` | — | 'SOP' |
+| `SOP_PRIME` | — | "SOP'" |
+| `SOP_DOUBLE_PRIME` | — | "SOP''" |
+| `HARD_RESET` | — | 'Hard Reset' |
+| `CABLE_RESET` | — | 'Cable Reset' |
+| `SOP_PRIME_DEBUG` | — | "SOP' Debug" |
+| `SOP_DOUBLE_PRIME_DEBUG` | — | "SOP'' Debug" |
+| `INVALID` | — | 'Invalid' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `encode` | `(self) -> bytes` | Encode the SOP into bytes for transmission. |
+
+
+### `t76.drpd.message.sop.SOP`
+
+**Kind:** class
+
+Class representing a SOP (Start of Packet) block in USB-PD communication.
+It encapsulates the SOP type, the kcodes that form the SOP, and provides methods
+for validation and instantiation from kcodes.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `is_valid` | `(self) -> bool` | Check if the SOP is valid. |
+| `from_kcodes` | `(cls, kcodes: list[int]) -> 'SOP'` | Create a SOP instance from a list of kcodes. |
+
+

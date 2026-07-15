@@ -1,0 +1,65 @@
+---
+sidebar_position: 10
+---
+
+# Installing from PyPI
+
+The Python package name is `t76`.
+
+:::warning[Package publication status]
+At the time this page was written, `https://pypi.org/project/t76/` did not have a published package. Use the PyPI install command once the package has been published, or use the local editable install during development.
+:::
+
+## Install from PyPI
+
+Use Python 3 and install with `pip`:
+
+```bash
+python -m pip install t76
+```
+
+For a clean project environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install t76
+```
+
+## Local editable install
+
+From the repository root, install the package directly from the `python` directory:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ./python
+```
+
+For development tools:
+
+```bash
+python -m pip install -e "./python[dev]"
+```
+
+## Run the terminal app
+
+After installation, run the Dr. PD terminal app:
+
+```bash
+python -m t76.drpd
+```
+
+You can also list available top-level apps:
+
+```bash
+python -m t76 --apps
+```
+
+## Platform notes
+
+The library talks to Dr. PD over USBTMC through PyUSB. Your operating system must allow the Python process to access the Dr. PD USB interface.
+
+On Linux this may require a udev rule. On macOS and Windows, make sure no other app has exclusive access to the device while the script is running.

@@ -1,0 +1,11 @@
+{
+  "label": "Python API Reference",
+  "position": 30,
+  "collapsible": true,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "title": "Python API Reference",
+    "description": "Generated reference for the Dr. PD Python package."
+  }
+}

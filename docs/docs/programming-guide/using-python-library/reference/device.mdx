@@ -1,0 +1,1587 @@
+---
+sidebar_position: 10
+sidebar_label: Device API
+---
+
+# Device API
+
+:::info[Generated reference]
+This page is generated from the Python source under `python/t76`. Do not edit it by hand; update source docstrings or the generator instead.
+:::
+
+Discovery, device connection, SCPI-backed controllers, events, and device data types.
+
+## `t76.drpd.device`
+
+**Source:** `python/t76/drpd/device/__init__.py`
+
+**Exports:** `AccumulatedMeasurements`, `AnalogMonitorChannels`, `CCBusState`, `CCChannel`, `Device`, `DeviceInfo`, `DeviceStatusFlags`, `DiagnosticCCChannel`, `DiagnosticCCRole`, `MemoryUsage`, `Mode`, `OnOffStatus`, `ResistorStatus`, `SinkRequestOutcome`, `SinkRequestStatus`, `SinkState`, `TriggerMessageTypeFilter`, `TriggerMessageTypeFilterClass`, `TriggerSenderFilter`, `TriggerStatus`, `TriggerSyncMode`, `TriggerType`, `VBusState`, `find_drpd_devices`
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.device.device`
+
+**Source:** `python/t76/drpd/device/device.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device.Device`
+
+**Kind:** class
+
+Represents a DRPD device connected via USB over USBTMC.
+
+:param usb_device: The USB device object representing the DRPD device.
+:type usb_device: usb.core.Device
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `connect` | `(self) -> None` | Connect to the device and set up event handling. |
+| `disconnect` | `(self) -> None` | Disconnect from the device and clean up event handling. |
+| `name` | `(self) -> Optional[str]` | Get the name of the device. |
+| `register_event_observer` | `(self, observer: DeviceEvents.EventObserver) -> None` | Register an observer to be notified of events. |
+| `unregister_event_observer` | `(self, observer: DeviceEvents.EventObserver) -> None` | Unregister an observer from receiving event notifications. |
+| `send_encoder_message` | `(self, header: Header, message: Optional[Message] = None) -> None` | Send an encoded message using the device's encoder. |
+
+
+## `t76.drpd.device.device_analog_monitor`
+
+**Source:** `python/t76/drpd/device/device_analog_monitor.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_analog_monitor.DeviceAnalogMonitor`
+
+**Kind:** class
+
+Represents the analog monitor-related commands for a DRPD device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `VBUS_CALIBRATION_POINT_COUNT` | — | 61 |
+| `VBUS_CURRENT_CALIBRATION_POINT_COUNT` | — | 13 |
+| `VBUS_CURRENT_CALIBRATION_INTERVAL_MA` | — | 500 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `get_status` | `(self) -> AnalogMonitorChannels` | Get the analog monitor voltages from the device. |
+| `get_accumulated_measurements` | `(self) -> AccumulatedMeasurements` | Query accumulated VBUS charge and energy counters. |
+| `reset_accumulated_measurements` | `(self) -> None` | Reset accumulated VBUS charge and energy counters. |
+| `get_vbus_voltage` | `(self) -> float` | — |
+| `get_vbus_current` | `(self) -> float` | — |
+| `get_dut_cc1_voltage` | `(self) -> float` | — |
+| `get_dut_cc2_voltage` | `(self) -> float` | — |
+| `get_usds_cc1_voltage` | `(self) -> float` | — |
+| `get_usds_cc2_voltage` | `(self) -> float` | — |
+| `get_adc_reference_voltage` | `(self) -> float` | — |
+| `get_current_reference_voltage` | `(self) -> float` | — |
+| `get_ground_reference_voltage` | `(self) -> float` | — |
+| `get_vbus_calibration_table` | `(self) -> List[float]` | Return the persisted VBUS calibration correction table. |
+| `calibrate_vbus_bucket` | `(self, bucket: int) -> None` | Capture a calibration point for the specified raw-voltage bucket. |
+| `set_vbus_calibration_table_point` | `(self, bucket: int, correction: float) -> None` | Set one persisted VBUS correction table entry directly. |
+| `set_vbus_calibration_table` | `(self, table: List[float]) -> None` | Replace the persisted VBUS correction table with explicit values. |
+| `reset_vbus_calibration_to_defaults` | `(self) -> None` | Restore the persisted VBUS calibration table to firmware defaults. |
+| `get_raw_vbus_current` | `(self) -> float` | Return the latest raw scaled VBUS current before calibration. |
+| `get_vbus_current_calibration_table` | `(self) -> List[float]` | Return the persisted VBUS current raw calibration table. |
+| `calibrate_vbus_current_bucket` | `(self, target_ma: int) -> None` | Capture a calibration point for the specified raw current. |
+| `set_vbus_current_calibration_table_point` | `(self, target_ma: int, raw_current_a: float) -> None` | Set one persisted VBUS current raw calibration entry directly. |
+| `set_vbus_current_calibration_table` | `(self, table: List[float]) -> None` | Replace the persisted VBUS current raw calibration table. |
+| `reset_vbus_current_calibration_to_defaults` | `(self) -> None` | Restore the persisted VBUS current calibration table to firmware defaults. |
+| `start_recurring_status_updates` | `(self, frequency: float) -> None` | Start a recurring task that periodically fetches analog monitor |
+| `stop_recurring_status_updates` | `(self) -> None` | Stop the recurring status update task. |
+
+
+## `t76.drpd.device.device_capture`
+
+**Source:** `python/t76/drpd/device/device_capture.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_capture.DeviceCapture`
+
+**Kind:** class
+
+Provides methods to control and retrieve data captures from a DRPD device.
+:param internal: The internal device communication handler.
+:type internal: DeviceInternal
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `CapturedRecord` | — | Union[BMCSequence, FirmwareCaptureEvent] |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `start` | `(self) -> None` | Start capturing data on the device. |
+| `stop` | `(self) -> None` | Stop capturing data on the device. |
+| `get_status` | `(self) -> OnOffStatus` | Get the current capture status of the device. |
+| `get_cycle_length` | `(self) -> float` | Get the current capture cycle length of the device. |
+| `reset` | `(self) -> None` | Reset the capture data on the device. |
+| `get_capture_count` | `(self) -> int` | Get the number of available captures on the device. |
+| `fetch_extant_captures` | `(self) -> None` | Fetch all extant captures from the device and notify observers. |
+
+
+## `t76.drpd.device.device_events`
+
+**Source:** `python/t76/drpd/device/device_events.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The DeviceEventManager class manages event observation and dispatching
+for DRPD devices.
+
+### `t76.drpd.device.device_events.DeviceEvents`
+
+**Kind:** class
+
+Manages event observation and dispatching for a DRPD device.
+
+Provides functionality to register/unregister event observers and
+dispatch events to all registered observers. Supports both
+synchronous and asynchronous observer callbacks.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `EventObserver` | — | Union[Callable[[DeviceEvent], None], Callable[[DeviceEvent], Awaitable[None]]] |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `get_observer_count` | `(self) -> int` | Get the number of registered event observers. |
+| `register_event_observer` | `(self, observer: EventObserver) -> None` | Register an observer to be notified of events. |
+| `unregister_event_observer` | `(self, observer: EventObserver) -> None` | Unregister an observer from receiving event notifications. |
+| `dispatch_event` | `(self, event: DeviceEvent) -> None` | Dispatch an event to all registered observers. |
+
+
+## `t76.drpd.device.device_internal`
+
+**Source:** `python/t76/drpd/device/device_internal.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_internal.USBTMCTransportError`
+
+**Kind:** class
+
+**Bases:** `RuntimeError`
+
+Raised when the low-level USBTMC transport fails.
+
+
+
+
+### `t76.drpd.device.device_internal.DeviceInternal`
+
+**Kind:** class
+
+Internal class for handling low-level USB SCPI communication.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `LOCK_TIMEOUT_SECONDS` | — | 2.0 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `parse_scpi_string` | `(cls, scpi_string: str) -> str` | Interpret a SCPI string by removing leading and trailing quotation |
+| `check_for_error` | `(self, command: str) -> None` | Query the instrument for errors and raise when one is reported. |
+| `write_ascii_and_check` | `(self, command: str) -> None` | Write a command to the instrument and check for errors. |
+| `write_binary_and_check` | `(self, command: str, data: Sequence[int \| float], datatype: BINARY_DATATYPE = 'B') -> None` | Write binary data to the instrument and check for errors. |
+| `query_ascii_values_and_check` | `(self, command: str, converter: ASCII_CONVERTER = 'f') -> Sequence[Any]` | Query the instrument for ASCII values. |
+| `query_binary_value_and_check` | `(self, command: str, datatype: BINARY_DATATYPE = 'B', container: type = list) -> Sequence[int \| float]` | Query the instrument for binary values. |
+| `connect` | `(self) -> None` | Connect to the device using the underlying transport. |
+| `disconnect` | `(self) -> None` | Disconnect from the device. |
+| `connected` | `(self) -> bool` | — |
+
+
+## `t76.drpd.device.device_mode`
+
+**Source:** `python/t76/drpd/device/device_mode.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_mode.DeviceMode`
+
+**Kind:** class
+
+Represents the device mode-related commands for a DRPD device.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `get` | `(self) -> Mode` | Get the current mode of the device. |
+| `set` | `(self, mode: Mode) -> None` | Set the mode of the device. |
+| `get_status` | `(self) -> CCBusState` | Get the current status of the device mode. |
+
+
+## `t76.drpd.device.device_sink`
+
+**Source:** `python/t76/drpd/device/device_sink.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_sink.SinkInfo`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents comprehensive information about the sink system of the DRPD device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `status` | SinkState | — |
+| `negotiated_pdo` | Optional[DeviceSinkPDO] | — |
+| `negotiated_voltage` | float | — |
+| `negotiated_current` | float | — |
+| `error_status` | bool | — |
+
+
+
+### `t76.drpd.device.device_sink.DeviceSink`
+
+**Kind:** class
+
+Represents the sink system of the DRPD device.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `load_config` | `(self, config: dict) -> None` | Load the sink configuration from a dictionary. |
+| `save_config` | `(self) -> dict` | Save the current sink configuration to a dictionary. |
+| `get_pdo_count` | `(self) -> int` | Get the number of available PDOs from the source. |
+| `get_pdo_at_index` | `(self, index: int) -> Optional[DeviceSinkPDO]` | Get the PDO at the specified index. |
+| `set_pdo` | `(self, index: int, voltage_mv: int, current_ma: int) -> None` | Request a Fixed Supply PDO at the specified index with a |
+| `set_epr_enabled` | `(self, enabled: bool) -> None` | Set whether Sink policy may enter EPR mode during future negotiation. |
+| `get_epr_enabled` | `(self) -> bool` | Get whether Sink policy may enter EPR mode during negotiation. |
+| `set_pps_status_query_enabled` | `(self, enabled: bool) -> None` | Set whether Sink policy sends Get_PPS_Status after SPR PPS transitions. |
+| `get_pps_status_query_enabled` | `(self) -> bool` | Query whether Sink policy sends Get_PPS_Status after PPS transitions. |
+| `get_request_status` | `(self) -> SinkRequestStatus` | Query the most recent Sink PDO request outcome. |
+| `get_spr_capability_count` | `(self) -> int` | — |
+| `get_spr_capability_pdo` | `(self, index: int) -> int` | — |
+| `set_spr_capability_pdo` | `(self, index: int, raw_pdo: int) -> None` | — |
+| `get_epr_capability_count` | `(self) -> int` | — |
+| `get_epr_capability_pdo` | `(self, index: int) -> int` | — |
+| `set_epr_capability_pdo` | `(self, index: int, raw_pdo: int) -> None` | — |
+| `get_status` | `(self) -> SinkState` | Get the current state of the sink state machine. |
+| `get_negotiated_pdo` | `(self) -> Optional[DeviceSinkPDO]` | Get information about the negotiated PDO. |
+| `get_negotiated_voltage` | `(self) -> int` | Get the negotiated voltage in millivolts. |
+| `get_negotiated_current` | `(self) -> int` | Get the negotiated current in milliamps. |
+| `get_error_status` | `(self) -> bool` | Get the error status of the sink. |
+| `get_sink_info` | `(self) -> SinkInfo` | Get comprehensive information about the sink system. |
+
+
+## `t76.drpd.device.device_sink_pdos`
+
+**Source:** `python/t76/drpd/device/device_sink_pdos.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines classes for representing Power Data Objects (PDOs)
+from SINK:PDO? SCPI command responses. It supports all six PDO types:
+Fixed Supply, Variable Supply, Battery Supply, SPR PPS, SPR AVS, and EPR AVS.
+
+### `t76.drpd.device.device_sink_pdos.DeviceSinkPDO`
+
+**Kind:** dataclass
+
+**Bases:** `ABC`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Base class for all Sink Power Data Objects (PDO) from SCPI
+responses.
+
+This class represents a PDO returned by the SINK:PDO? SCPI query
+command. Subclasses implement specific PDO types, each with
+appropriate voltage, current, or power properties.
+
+The class supports factory construction from SCPI response strings
+with transparent polymorphism—the appropriate subclass is
+automatically instantiated based on the response format.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_response` | `(response: Sequence[str]) -> Optional['DeviceSinkPDO']` | Parse an SCPI SINK:PDO? response and return the appropriate |
+| `to_dict` | `(self) -> dict[str, Any]` | Serialize the PDO to a dictionary representation. |
+
+
+### `t76.drpd.device.device_sink_pdos.FixedPDO`
+
+**Kind:** dataclass
+
+**Bases:** `DeviceSinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents a Fixed Supply PDO from a SINK:PDO? SCPI response.
+
+A Fixed Supply PDO indicates the source can provide a fixed,
+well-regulated voltage at the specified current level.
+
+Attributes:
+    voltage: The fixed supply voltage in volts (float).
+    max_current: The maximum available current in amps (float).
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `voltage` | float | — |
+| `max_current` | float | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> dict[str, Any]` | Serialize the Fixed PDO to a dictionary. |
+
+
+### `t76.drpd.device.device_sink_pdos.VariablePDO`
+
+**Kind:** dataclass
+
+**Bases:** `DeviceSinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents a Variable Supply PDO from a SINK:PDO? SCPI response.
+
+A Variable Supply PDO indicates the source can regulate voltage
+within a specified range at the specified current level.
+
+Attributes:
+    min_voltage: The minimum voltage in volts (float).
+    max_voltage: The maximum voltage in volts (float).
+    max_current: The maximum available current in amps (float).
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `min_voltage` | float | — |
+| `max_voltage` | float | — |
+| `max_current` | float | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> dict[str, Any]` | Serialize the Variable PDO to a dictionary. |
+
+
+### `t76.drpd.device.device_sink_pdos.BatteryPDO`
+
+**Kind:** dataclass
+
+**Bases:** `DeviceSinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents a Battery Supply PDO from a SINK:PDO? SCPI response.
+
+A Battery Supply PDO indicates the source is a battery that can
+regulate voltage within a specified range. Power delivery is
+limited by maximum power rather than current.
+
+Attributes:
+    min_voltage: The minimum voltage in volts (float).
+    max_voltage: The maximum voltage in volts (float).
+    max_power: The maximum available power in watts (float).
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `min_voltage` | float | — |
+| `max_voltage` | float | — |
+| `max_power` | float | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> dict[str, Any]` | Serialize the Battery PDO to a dictionary. |
+
+
+### `t76.drpd.device.device_sink_pdos.SPR_PDOPPS`
+
+**Kind:** dataclass
+
+**Bases:** `DeviceSinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents an SPR PPS (Programmable Power Supply) PDO from a
+SINK:PDO? SCPI response.
+
+An SPR PPS PDO allows the sink to request specific voltage and
+current within the advertised range with finer granularity than
+fixed PDOs.
+
+Attributes:
+    min_voltage: The minimum voltage in volts (float).
+    max_voltage: The maximum voltage in volts (float).
+    max_current: The maximum available current in amps (float).
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `min_voltage` | float | — |
+| `max_voltage` | float | — |
+| `max_current` | float | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> dict[str, Any]` | Serialize the SPR PPS PDO to a dictionary. |
+
+
+### `t76.drpd.device.device_sink_pdos.SPR_PDOAVs`
+
+**Kind:** dataclass
+
+**Bases:** `DeviceSinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents an SPR AVS (Adjustable Voltage Supply) PDO from a
+SINK:PDO? SCPI response.
+
+An SPR AVS PDO indicates the source can regulate voltage within a
+specified range. Power delivery is limited by maximum power rather
+than current.
+
+Attributes:
+    min_voltage: The minimum voltage in volts (float).
+    max_voltage: The maximum voltage in volts (float).
+    max_power: The maximum available power in watts (float).
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `min_voltage` | float | — |
+| `max_voltage` | float | — |
+| `max_power` | float | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> dict[str, Any]` | Serialize the SPR AVS PDO to a dictionary. |
+
+
+### `t76.drpd.device.device_sink_pdos.EPR_PDOAVs`
+
+**Kind:** dataclass
+
+**Bases:** `DeviceSinkPDO`
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents an EPR AVS (Adjustable Voltage Supply) PDO from a
+SINK:PDO? SCPI response.
+
+An EPR AVS PDO indicates the source is an extended power range
+supply that can regulate voltage within a specified range. Power
+delivery is limited by maximum power rather than current.
+
+Attributes:
+    min_voltage: The minimum voltage in volts (float).
+    max_voltage: The maximum voltage in volts (float).
+    max_power: The maximum available power in watts (float).
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `min_voltage` | float | — |
+| `max_voltage` | float | — |
+| `max_power` | float | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `to_dict` | `(self) -> dict[str, Any]` | Serialize the EPR AVS PDO to a dictionary. |
+
+
+## `t76.drpd.device.device_system`
+
+**Source:** `python/t76/drpd/device/device_system.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_system.DeviceSystem`
+
+**Kind:** class
+
+Represents the system-related commands for a DRPD device.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `identify` | `(self) -> DeviceInfo` | Identify the device. |
+| `reset` | `(self) -> None` | Reset the instrument to its power-on state. |
+| `get_hardware_revision` | `(self) -> str` | Query the detected hardware revision. |
+| `enter_firmware_updater` | `(self) -> None` | Reboot into the resident firmware updater bootloader. |
+| `get_memory_usage` | `(self) -> MemoryUsage` | Get the memory usage of the device. |
+| `get_clock_frequency` | `(self) -> int` | Get the clock frequency of the device. |
+| `get_uptime` | `(self) -> int` | Get the uptime of the device in seconds. |
+| `get_timestamp` | `(self) -> str` | Get the current timestamp from the device. |
+
+
+## `t76.drpd.device.device_test`
+
+**Source:** `python/t76/drpd/device/device_test.py`
+
+Protected test SCPI command group for DRPD devices.
+
+### `t76.drpd.device.device_test.DeviceTest`
+
+**Kind:** class
+
+Provides access to firmware TEST:* SCPI commands.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `set_vbus_manager_state` | `(self, state: OnOffStatus) -> None` | — |
+| `get_vbus_manager_state` | `(self) -> OnOffStatus` | — |
+| `set_cc1_role` | `(self, role: DiagnosticCCRole) -> None` | — |
+| `get_cc1_role` | `(self) -> DiagnosticCCRole` | — |
+| `set_cc2_role` | `(self, role: DiagnosticCCRole) -> None` | — |
+| `get_cc2_role` | `(self) -> DiagnosticCCRole` | — |
+| `set_dut_channel` | `(self, channel: DiagnosticCCChannel) -> None` | — |
+| `get_dut_channel` | `(self) -> DiagnosticCCChannel` | — |
+| `set_usds_channel` | `(self, channel: DiagnosticCCChannel) -> None` | — |
+| `get_usds_channel` | `(self) -> DiagnosticCCChannel` | — |
+| `set_cc_mux_state` | `(self, state: OnOffStatus) -> None` | — |
+| `get_cc_mux_state` | `(self) -> OnOffStatus` | — |
+
+
+## `t76.drpd.device.device_trigger`
+
+**Source:** `python/t76/drpd/device/device_trigger.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_trigger.TriggerInfo`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents information about the trigger system of the DRPD device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `status` | TriggerStatus | — |
+| `type` | TriggerType | — |
+| `event_threshold` | int | — |
+| `sender_filter` | TriggerSenderFilter | — |
+| `autorepeat` | OnOffStatus | — |
+| `event_count` | int | — |
+| `sync_mode` | TriggerSyncMode | — |
+| `sync_pulse_length` | int | — |
+| `message_type_filters` | list[TriggerMessageTypeFilter] | — |
+
+
+
+### `t76.drpd.device.device_trigger.DeviceTrigger`
+
+**Kind:** class
+
+Represents the trigger system of the DRPD device.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `reset` | `(self) -> None` | Reset the trigger system of the device. |
+| `get_status` | `(self) -> TriggerStatus` | Get the current trigger status of the device. |
+| `set_type` | `(self, trigger_type: TriggerType) -> None` | Set the trigger type of the device. |
+| `get_type` | `(self) -> TriggerType` | Get the current trigger type of the device. |
+| `set_event_threshold` | `(self, count: int) -> None` | Set the event count threshold for the trigger. |
+| `get_event_threshold` | `(self) -> int` | Get the current event count threshold for the trigger. |
+| `set_sender_filter` | `(self, sender: TriggerSenderFilter) -> None` | Set the trigger sender filter. |
+| `get_sender_filter` | `(self) -> TriggerSenderFilter` | Query the trigger sender filter. |
+| `set_message_type_filters` | `(self, filters: list[TriggerMessageTypeFilter]) -> None` | Replace all trigger message-type filters. |
+| `get_message_type_filters` | `(self) -> list[TriggerMessageTypeFilter]` | Query all configured trigger message-type filters. |
+| `clear_message_type_filters` | `(self) -> None` | Clear all trigger message-type filters. |
+| `set_autorepeat` | `(self, enable: OnOffStatus) -> None` | Enable or disable trigger autorepeat. |
+| `get_autorepeat` | `(self) -> OnOffStatus` | Get the current status of trigger autorepeat. |
+| `get_event_count` | `(self) -> int` | Get the current event count. |
+| `set_sync_mode` | `(self, mode: TriggerSyncMode) -> None` | Set the trigger sync output mode. |
+| `get_sync_mode` | `(self) -> TriggerSyncMode` | Get the current trigger sync output mode. |
+| `set_sync_pulse_length` | `(self, length_us: int) -> None` | Set the trigger output pulse length in microseconds. |
+| `get_sync_pulse_length` | `(self) -> int` | Get the current trigger output pulse length in microseconds. |
+| `get_trigger_info` | `(self) -> TriggerInfo` | Get comprehensive information about the trigger system. |
+
+
+## `t76.drpd.device.device_vbus`
+
+**Source:** `python/t76/drpd/device/device_vbus.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The Device class enables communication with DRPD devices
+over USB using SCPI commands.
+
+### `t76.drpd.device.device_vbus.VBusInfo`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents information about the VBus system of the DRPD device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `state` | VBusState | — |
+| `ovp_threshold` | float | — |
+| `ocp_threshold` | float | — |
+| `ovp_event_timestamp_us` | int \| None | — |
+| `ocp_event_timestamp_us` | int \| None | — |
+
+
+
+### `t76.drpd.device.device_vbus.DeviceVBus`
+
+**Kind:** class
+
+Represents the VBus system of the DRPD device.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `reset` | `(self) -> None` | Reset the device's VBus |
+| `get_state` | `(self) -> VBusState` | Get the current VBus status of the device. |
+| `get_ovp_threshold` | `(self) -> float` | Get the Over Voltage Protection (OVP) threshold. |
+| `set_ovp_threshold` | `(self, threshold: float) -> None` | Set the Over Voltage Protection (OVP) threshold. |
+| `get_ocp_threshold` | `(self) -> float` | Get the Over Current Protection (OCP) threshold. |
+| `set_ocp_threshold` | `(self, threshold: float) -> None` | Set the Over Current Protection (OCP) threshold. |
+| `get_info` | `(self) -> VBusInfo` | Get comprehensive information about the VBus system. |
+
+
+## `t76.drpd.device.discovery`
+
+**Source:** `python/t76/drpd/device/discovery.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The discovery module provides functionality to discover DRPD devices connected via USB.
+
+### `t76.drpd.device.discovery.find_drpd_devices`
+
+**Kind:** function
+
+```python
+find_drpd_devices() -> List[Device]
+```
+
+Discover DRPD devices connected via USB.
+
+Returns:
+    list: A list of discovered DRPD devices.
+
+
+
+
+## `t76.drpd.device.events`
+
+**Source:** `python/t76/drpd/device/events.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Events raised by the DRPD device.
+
+### `t76.drpd.device.events.DeviceEvent`
+
+**Kind:** class
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.InterruptReceived`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.DeviceConnected`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.DeviceDisconnected`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.TriggerStatusChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.CCBusStateChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.RoleChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.VBusManagerStateChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.CaptureStatusChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.SinkPDOListChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.SinkInfoChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.BMCSequenceCaptured`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.FirmwareEventCaptured`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+### `t76.drpd.device.events.AnalogMonitorStatusChanged`
+
+**Kind:** class
+
+**Bases:** `DeviceEvent`
+
+No docstring.
+
+
+
+
+## `t76.drpd.device.types`
+
+**Source:** `python/t76/drpd/device/types.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Types and Enums for DRPD device communication.
+
+### `t76.drpd.device.types.DeviceInfo`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents the basic information of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `manufacturer` | str | — |
+| `model` | str | — |
+| `serial_number` | str | — |
+| `firmware_version` | str | — |
+| `hardware_revision` | str \| None | None |
+
+
+
+### `t76.drpd.device.types.DeviceStatusFlags`
+
+**Kind:** class
+
+**Bases:** `enum.Flag`
+
+Represents the status flags of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `NONE` | — | 0 |
+| `VBUS_STATUS_CHANGED` | — | enum.auto() |
+| `ROLE_CHANGED` | — | enum.auto() |
+| `CAPTURE_STATUS_CHANGED` | — | enum.auto() |
+| `CC_BUS_STATUS_CHANGED` | — | enum.auto() |
+| `TRIGGER_STATUS_CHANGED` | — | enum.auto() |
+| `SINK_PDO_LIST_CHANGED` | — | enum.auto() |
+| `SINK_STATUS_CHANGED` | — | enum.auto() |
+| `MESSAGE_RECEIVED` | — | enum.auto() |
+
+
+
+### `t76.drpd.device.types.AnalogMonitorCCChannelStatus`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the status of the analog monitor CC channels.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UNKNOWN` | — | 'Unknown' |
+| `SINK_TX_NG` | — | 'SinkTxNG' |
+| `SINK_TX_OK` | — | 'SinkTxOK' |
+| `V_CONN` | — | 'VConn' |
+| `DISCONNECTED` | — | 'Disconnected' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `status_from_voltage` | `(voltage: float) -> 'AnalogMonitorCCChannelStatus'` | Determine the status based on the voltage level. |
+
+
+### `t76.drpd.device.types.AccumulatedMeasurements`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents accumulated VBUS charge and energy counters.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `accumulation_elapsed_time_us` | int | — |
+| `accumulated_charge_mah` | int | — |
+| `accumulated_energy_mwh` | int | — |
+
+
+
+### `t76.drpd.device.types.AnalogMonitorChannels`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents the analog monitor channels and their voltages.
+
+The VBUS capture timestamp is in microseconds when provided by the
+device firmware. Accumulation values are reported as elapsed time in
+microseconds plus absolute charge and energy counters.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `vbus_timestamp_us` | int \| None | — |
+| `dut_cc1` | float | — |
+| `dut_cc2` | float | — |
+| `usds_cc1` | float | — |
+| `usds_cc2` | float | — |
+| `vbus` | float | — |
+| `ibus` | float | — |
+| `adc_vref` | float | — |
+| `ground_ref` | float | — |
+| `current_vref` | float | — |
+| `accumulation_elapsed_time_us` | int \| None | — |
+| `accumulated_charge_mah` | int \| None | — |
+| `accumulated_energy_mwh` | int \| None | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `dut_cc1_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
+| `dut_cc2_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
+| `usds_cc1_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
+| `usds_cc2_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
+
+
+### `t76.drpd.device.types.Mode`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the mode of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UNKNOWN` | — | 'UNKNOWN' |
+| `DISABLED` | — | 'DISABLED' |
+| `OBSERVER` | — | 'OBSERVER' |
+| `SINK` | — | 'SINK' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, mode_str: str) -> 'Mode'` | Convert a string to a Mode enum. |
+
+
+### `t76.drpd.device.types.CCBusState`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the status of the CC bus on the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UNATTACHED` | — | 'UNATTACHED' |
+| `SOURCE_FOUND` | — | 'SOURCE_FOUND' |
+| `ATTACHED` | — | 'ATTACHED' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, status_str: str) -> 'CCBusState'` | Convert a string to a Status enum. |
+
+
+### `t76.drpd.device.types.CCChannel`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the ports of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `DUT_CC1` | — | 'DUTCC1' |
+| `DUT_CC2` | — | 'DUTCC2' |
+| `USDS_CC1` | — | 'USDSCC1' |
+| `USDS_CC2` | — | 'USDSCC2' |
+| `NONE` | — | 'NONE' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_int` | `(cls, port_int: int) -> 'CCChannel'` | Convert an integer to a Port enum. |
+| `from_string` | `(cls, port_str: str) -> 'CCChannel'` | Convert a string to a Port enum. |
+
+
+### `t76.drpd.device.types.ResistorStatus`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the resistor status of a port.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `UNKNOWN` | — | 'UNKNOWN' |
+| `OBSERVER` | — | 'OBSERVER' |
+| `CABLE` | — | 'CABLE' |
+| `VCONN_5V` | — | 'VCONN_5V' |
+| `VCONN_3V3` | — | 'VCONN_3V3' |
+| `SINK` | — | 'SINK' |
+| `SOURCE_3A` | — | 'SOURCE_3A' |
+| `SOURCE_1_5A` | — | 'SOURCE_1_5A' |
+| `SOURCE_DEFAULT` | — | 'SOURCE_DEFAULT' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, status_str: str) -> 'ResistorStatus'` | Convert a string to a ResistorStatus enum. |
+
+
+### `t76.drpd.device.types.MemoryUsage`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass`
+
+Represents the memory usage of the device, in bytes.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `total` | int | — |
+| `free` | int | — |
+
+
+
+### `t76.drpd.device.types.OnOffStatus`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the status of the capture.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `ON` | — | True |
+| `OFF` | — | False |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, status_str: str) -> 'OnOffStatus'` | Convert a string to a CaptureStatus enum. |
+| `from_bool` | `(cls, status_bool: bool) -> 'OnOffStatus'` | Convert a boolean to an OnOffStatus enum. |
+
+
+### `t76.drpd.device.types.TriggerStatus`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the trigger status of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `IDLE` | — | 'IDLE' |
+| `ARMED` | — | 'ARMED' |
+| `TRIGGERED` | — | 'TRIGGERED' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, status_str: str) -> 'TriggerStatus'` | Convert a string to a TriggerStatus enum. |
+
+
+### `t76.drpd.device.types.TriggerType`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the trigger types of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `OFF` | — | 'OFF' |
+| `PREAMBLE_START` | — | 'PREAMBLE_START' |
+| `SOP_START` | — | 'SOP_START' |
+| `HEADER_START` | — | 'HEADER_START' |
+| `DATA_START` | — | 'DATA_START' |
+| `MESSAGE_COMPLETE` | — | 'MESSAGE_COMPLETE' |
+| `HARD_RESET_RECEIVED` | — | 'HARD_RESET_RECEIVED' |
+| `INVALID_KCODE` | — | 'INVALID_KCODE' |
+| `CRC_ERROR` | — | 'CRC_ERROR' |
+| `TIMEOUT_ERROR` | — | 'TIMEOUT_ERROR' |
+| `RUNT_PULSE_ERROR` | — | 'RUNT_PULSE_ERROR' |
+| `ANY_ERROR` | — | 'ANY_ERROR' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, type_str: str) -> 'TriggerType'` | Convert a string to a TriggerType enum. |
+
+
+### `t76.drpd.device.types.TriggerSyncMode`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the trigger output modes of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `PULSE_HIGH` | — | 'PULSE_HIGH' |
+| `PULSE_LOW` | — | 'PULSE_LOW' |
+| `TOGGLE` | — | 'TOGGLE' |
+| `PULL_DOWN` | — | 'PULL_DOWN' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, mode_str: str) -> 'TriggerSyncMode'` | Convert a string to a TriggerOutputMode enum. |
+
+
+### `t76.drpd.device.types.TriggerSenderFilter`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the trigger sender filter.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `ANY` | — | 'ANY' |
+| `SOURCE` | — | 'SOURCE' |
+| `SINK` | — | 'SINK' |
+| `CABLE` | — | 'CABLE' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, filter_str: str) -> 'TriggerSenderFilter'` | — |
+
+
+### `t76.drpd.device.types.TriggerMessageTypeFilterClass`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents a trigger message-type filter class.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `CONTROL` | — | 'CONTROL' |
+| `DATA` | — | 'DATA' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, class_str: str) -> 'TriggerMessageTypeFilterClass'` | — |
+
+
+### `t76.drpd.device.types.TriggerMessageTypeFilter`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents one trigger message-type filter slot.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `filter_class` | TriggerMessageTypeFilterClass | — |
+| `message_type_number` | int | — |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, value: str) -> 'TriggerMessageTypeFilter'` | — |
+| `to_scpi` | `(self) -> str` | — |
+
+
+### `t76.drpd.device.types.VBusState`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the VBus state of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `DISABLED` | — | 'DISABLED' |
+| `ENABLED` | — | 'ENABLED' |
+| `OVP` | — | 'OVP' |
+| `OCP` | — | 'OCP' |
+| `UNKNOWN` | — | 'UNKNOWN' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, state_str: str) -> 'VBusState'` | Convert a string to a VBusState enum. |
+
+
+### `t76.drpd.device.types.SinkState`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents the Sink state of the device.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `DISCONNECTED` | — | 'DISCONNECTED' |
+| `PE_SNK_STARTUP` | — | 'PE_SNK_STARTUP' |
+| `PE_SNK_DISCOVERY` | — | 'PE_SNK_DISCOVERY' |
+| `PE_SNK_WAIT_FOR_CAPABILITIES` | — | 'PE_SNK_WAIT_FOR_CAPABILITIES' |
+| `PE_SNK_EVALUATE_CAPABILITY` | — | 'PE_SNK_EVALUATE_CAPABILITY' |
+| `PE_SNK_SELECT_CAPABILITY` | — | 'PE_SNK_SELECT_CAPABILITY' |
+| `PE_SNK_TRANSITION_SINK` | — | 'PE_SNK_TRANSITION_SINK' |
+| `PE_SNK_READY` | — | 'PE_SNK_READY' |
+| `PE_SNK_SEND_EPR_MODE_ENTRY` | — | 'PE_SNK_SEND_EPR_MODE_ENTRY' |
+| `PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE` | — | 'PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE' |
+| `PE_SNK_SEND_EPR_MODE_EXIT` | — | 'PE_SNK_SEND_EPR_MODE_EXIT' |
+| `PE_SNK_GIVE_SINK_CAP` | — | 'PE_SNK_GIVE_SINK_CAP' |
+| `PE_SNK_GET_SOURCE_CAP` | — | 'PE_SNK_GET_SOURCE_CAP' |
+| `PE_SNK_GET_PPS_STATUS` | — | 'PE_SNK_GET_PPS_STATUS' |
+| `PE_SNK_EPR_KEEPALIVE` | — | 'PE_SNK_EPR_KEEPALIVE' |
+| `PE_SNK_HARD_RESET` | — | 'PE_SNK_HARD_RESET' |
+| `PE_SNK_TRANSITION_TO_DEFAULT` | — | 'PE_SNK_TRANSITION_TO_DEFAULT' |
+| `ERROR` | — | 'ERROR' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, state_str: str) -> 'SinkState'` | Convert a string to a SinkState enum. |
+
+
+### `t76.drpd.device.types.SinkRequestOutcome`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents a SINK:REQUEST:STATUS? outcome token.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `NONE` | — | 'NONE' |
+| `PENDING` | — | 'PENDING' |
+| `ACCEPTED` | — | 'ACCEPTED' |
+| `REJECTED` | — | 'REJECTED' |
+| `WAIT` | — | 'WAIT' |
+| `NOT_SUPPORTED` | — | 'NOT_SUPPORTED' |
+| `TIMEOUT` | — | 'TIMEOUT' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, outcome_str: str) -> 'SinkRequestOutcome'` | — |
+
+
+### `t76.drpd.device.types.SinkRequestStatus`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Represents the most recent SINK:PDO request outcome.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `outcome` | SinkRequestOutcome | — |
+| `index` | int \| None | — |
+| `voltage_mv` | int \| None | — |
+| `current_ma` | int \| None | — |
+
+
+
+### `t76.drpd.device.types.DiagnosticCCRole`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents TEST:CCROLE role values.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SOURCE_DEFAULT` | — | 'SOURCE_DEFAULT' |
+| `SOURCE_1_5A` | — | 'SOURCE_1_5A' |
+| `SOURCE_3_0A` | — | 'SOURCE_3_0A' |
+| `SINK` | — | 'SINK' |
+| `EMARKER` | — | 'EMARKER' |
+| `VCONN` | — | 'VCONN' |
+| `OFF` | — | 'OFF' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, role_str: str) -> 'DiagnosticCCRole'` | — |
+
+
+### `t76.drpd.device.types.DiagnosticCCChannel`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents TEST:CCBUS channel selections.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `CC1` | — | 'CC1' |
+| `CC2` | — | 'CC2' |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `from_string` | `(cls, channel_str: str) -> 'DiagnosticCCChannel'` | — |
+
+
+## `t76.drpd.device_reconciliation`
+
+**Source:** `python/t76/drpd/device_reconciliation.py`
+
+Helpers for selecting the active device from discovery results.
+
+### `t76.drpd.device_reconciliation.choose_active_device`
+
+**Kind:** function
+
+```python
+choose_active_device(current_device: Optional[DeviceType], discovered_devices: Sequence[DeviceType], allow_auto_connect_single: bool) -> Optional[DeviceType]
+```
+
+Choose the next active device from the current discovery snapshot.
+
+
+
+

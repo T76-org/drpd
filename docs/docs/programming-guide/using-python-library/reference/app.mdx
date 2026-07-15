@@ -1,0 +1,708 @@
+---
+sidebar_position: 40
+sidebar_label: Terminal App Internals
+---
+
+# Terminal App Internals
+
+:::info[Generated reference]
+This page is generated from the Python source under `python/t76`. Do not edit it by hand; update source docstrings or the generator instead.
+:::
+
+:::warning[Internal UI surface]
+These APIs back the Textual terminal app. Prefer `t76.drpd.device` for automation scripts unless you are extending the terminal UI.
+:::
+
+Textual terminal app entry points and UI classes. Most widget classes are internal UI surface.
+
+## `t76.drpd.app`
+
+**Source:** `python/t76/drpd/app/__init__.py`
+
+**Exports:** `DRPDApp`
+
+Copyright (c) 2025 MTA, Inc.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.app.app`
+
+**Source:** `python/t76/drpd/app/app.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The DRPDApp class is the main application class for the DRPD console app.
+
+### `t76.drpd.app.app.DRPDApp`
+
+**Kind:** class
+
+**Bases:** `App`
+
+The main application class for the DRPD app.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `CSS_PATH` | — | 'app.tcss' |
+| `BINDINGS` | — | [Binding('d', 'toggle_dark', 'Toggle dark mode', show=False), Binding('c', 'enable_capture', 'Enable/disable capture', show=True), Binding('t', 'cycle_connection', 'Cycle connection', show=True), Binding('q', 'quit', 'Quit')] |
+| `SCREENS` | — | &#123;'main': MainScreen, 'device_selection': DeviceSelectionScreen&#125; |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `on_mount` | `(self) -> None` | Called when the app is mounted. |
+| `on_unmount` | `(self) -> None` | Called when the app is shutting down. |
+| `choose_active_device` | `(current_device: Optional[Device], discovered_devices: List[Device], allow_auto_connect_single: bool) -> Optional[Device]` | Return the next active device based on discovery results. |
+| `watch_device` | `(self, old_device: Optional[Device], new_device: Optional[Device]) -> None` | Watch for changes in the connected device. |
+| `action_cycle_connection` | `(self) -> None` | Disconnect and reconnect the DUT and US/DS ports, simulating a cable |
+| `action_enable_capture` | `(self) -> None` | Toggle packet capture on the connected device. |
+| `on_device_selected_message` | `(self, message: DeviceSelectedMessage) -> None` | Handle the DeviceSelectedMessage event. |
+
+
+## `t76.drpd.app.device_selection_screen`
+
+**Source:** `python/t76/drpd/app/device_selection_screen/__init__.py`
+
+**Exports:** `DeviceSelectionScreen`, `DeviceSelectedMessage`
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.app.device_selection_screen.device_selection_screen`
+
+**Source:** `python/t76/drpd/app/device_selection_screen/device_selection_screen.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The MainScreen is the main screen container for the DRPD app.
+
+### `t76.drpd.app.device_selection_screen.device_selection_screen.DeviceSelectedMessage`
+
+**Kind:** class
+
+**Bases:** `Message`
+
+No docstring.
+
+
+
+
+### `t76.drpd.app.device_selection_screen.device_selection_screen.DeviceSelectionScreen`
+
+**Kind:** class
+
+**Bases:** `Screen`
+
+The DeviceSelectionScreen is the screen for selecting a device in the DRPD app.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `discover_devices` | `(self) -> None` | Discover available devices. |
+| `on_mount` | `(self) -> None` | Called when the screen is mounted. |
+| `compose` | `(self) -> ComposeResult` | Compose the layout of the DeviceSelectionScreen. |
+| `on_option_list_option_selected` | `(self, message: OptionList.OptionSelected) -> None` | Called when a device option is selected. |
+
+
+## `t76.drpd.app.divider`
+
+**Source:** `python/t76/drpd/app/divider.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+### `t76.drpd.app.divider.Divider`
+
+**Kind:** class
+
+**Bases:** `Static`
+
+A simple divider widget for use in panels.
+
+
+
+
+## `t76.drpd.app.logging`
+
+**Source:** `python/t76/drpd/app/logging.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Sets up logging for the DRPD application.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.app.main_screen`
+
+**Source:** `python/t76/drpd/app/main_screen/__init__.py`
+
+**Exports:** `MainScreen`
+
+Copyright (c) 2025 MTA, Inc.
+
+No public classes or functions defined directly in this module.
+
+## `t76.drpd.app.main_screen.analog_monitor_panel`
+
+**Source:** `python/t76/drpd/app/main_screen/analog_monitor_panel.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+AnalogMonitorPanel monitors the analog voltages and currents of the connected device.
+
+### `t76.drpd.app.main_screen.analog_monitor_panel.AnalogMonitorPanel`
+
+**Kind:** class
+
+**Bases:** `VerticalGroup`
+
+The AnalogMonitorPanel displays analog monitor information for connected DRPD devices.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `POWER_WINDOW_SIZE` | — | 30 |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `update` | `(self, new_status: Optional[AnalogMonitorChannels]) -> None` | — |
+| `on_mount` | `(self) -> None` | Called when the panel is mounted. |
+| `watch_device` | `(self, old_device: Optional[Device], new_device: Optional[Device]) -> None` | — |
+| `compose` | `(self) -> ComposeResult` | — |
+
+
+## `t76.drpd.app.main_screen.info_panel`
+
+**Source:** `python/t76/drpd/app/main_screen/info_panel.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+InfoPanel displays device information for connected DRPD devices.
+
+### `t76.drpd.app.main_screen.info_panel.InfoPanel`
+
+**Kind:** class
+
+**Bases:** `VerticalGroup`
+
+The InfoPanel displays device information for connected DRPD devices.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `update` | `(self) -> None` | Update the device information displayed in the panel. |
+| `on_mount` | `(self) -> None` | Called when the panel is mounted. |
+| `compose` | `(self) -> ComposeResult` | Compose the layout of the InfoPanel. |
+
+
+## `t76.drpd.app.main_screen.main_container`
+
+**Source:** `python/t76/drpd/app/main_screen/main_container.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+The main container renders the main layout of the DRPD application.
+
+### `t76.drpd.app.main_screen.main_container.MainContainer`
+
+**Kind:** class
+
+**Bases:** `HorizontalGroup`
+
+The main container for the DRPD application.
+This container holds the main layout of the application.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+| `BINDINGS` | — | [Binding('1', 'select_messages', 'Messages Tab', show=False), Binding('2', 'select_sink', 'Sink Tab', show=False)] |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `on_mount` | `(self) -> None` | Called when the container is mounted. |
+| `compose` | `(self) -> ComposeResult` | Compose the main layout of the application. |
+| `action_select_messages` | `(self) -> None` | Switch to the Messages tab. |
+| `action_select_sink` | `(self) -> None` | Switch to the Sink tab. |
+| `watch_device` | `(self, old_device: Optional[Device], new_device: Optional[Device]) -> None` | Watch for changes to the device and update the UI accordingly. |
+
+
+## `t76.drpd.app.main_screen.main_screen`
+
+**Source:** `python/t76/drpd/app/main_screen/main_screen.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+MainScreen is the main screen container for the DRPD app.
+
+### `t76.drpd.app.main_screen.main_screen.MainScreen`
+
+**Kind:** class
+
+**Bases:** `Screen`
+
+MainScreen is the main screen container for the DRPD app.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `BINDINGS` | — | [Binding('m', 'choose_mode', 'Select mode', show=True), Binding('r', 'trigger_reset', 'Reset trigger', show=True), Binding('s', 'trigger_setup', 'Trigger setup', show=True), Binding('o', 'open_ovp_setup', 'OVP/OCP setup', show=True), Binding('p', 'reset_ovp_ocp', 'Reset OVP/OCP', show=True)] |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `compose` | `(self) -> ComposeResult` | Compose the layout of the MainScreen. |
+| `action_choose_mode` | `(self) -> None` | Handle the choose mode action. |
+| `action_trigger_setup` | `(self) -> None` | Handle the trigger setup action. |
+| `action_trigger_reset` | `(self) -> None` | Handle the trigger reset action. |
+| `action_open_ovp_setup` | `(self) -> None` | Handle the open OVP setup action. |
+| `action_reset_ovp_ocp` | `(self) -> None` | Handle the reset OVP/OCP action. |
+
+
+## `t76.drpd.app.main_screen.message_panel`
+
+**Source:** `python/t76/drpd/app/main_screen/message_panel.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+This module defines the MessagePanel class for displaying USB-PD messages in a user interface.
+It includes a table for listing messages and a details section for showing message content.
+
+### `t76.drpd.app.main_screen.message_panel.EventReceivedMessage`
+
+**Kind:** class
+
+**Bases:** `Message`
+
+No docstring.
+
+
+
+
+### `t76.drpd.app.main_screen.message_panel.MessageTable`
+
+**Kind:** class
+
+**Bases:** `DataTable`
+
+No docstring.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `on_mount` | `(self) -> None` | Called when the panel is mounted. |
+| `add_sequence` | `(self, sequence: BMCSequence, delta_t: int, key: int) -> None` | Add a new row to the message table. |
+| `add_firmware_event` | `(self, event: FirmwareCaptureEvent, delta_t: int, key: int) -> None` | Add a firmware-originated capture event to the message table. |
+
+
+### `t76.drpd.app.main_screen.message_panel.MessageDetails`
+
+**Kind:** class
+
+**Bases:** `VerticalScroll`
+
+No docstring.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `message` | reactive[CapturedRecord \| None] | reactive(None, recompose=True) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `compose` | `(self) -> ComposeResult` | — |
+
+
+### `t76.drpd.app.main_screen.message_panel.MessagePanel`
+
+**Kind:** class
+
+**Bases:** `VerticalGroup`
+
+No docstring.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `BINDINGS` | — | [Binding('x', 'clear_table', 'Clear table', show=True)] |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `watch_device` | `(self, old_device: Optional[Device], new_device: Optional[Device]) -> None` | — |
+| `on_event_received_message` | `(self, msg: EventReceivedMessage) -> None` | Handle the event_received message. |
+| `on_data_table_row_selected` | `(self, message: DataTable.RowSelected) -> None` | Handle the row_selected event from the message table. |
+| `on_mount` | `(self) -> None` | Called when the panel is mounted. |
+| `focus` | `(self, scroll_visible: bool = True) -> 'MessagePanel'` | Set focus to the message table. |
+| `blur` | `(self) -> 'MessagePanel'` | Remove focus from the message table. |
+| `compose` | `(self) -> ComposeResult` | — |
+| `action_clear_table` | `(self) -> None` | Clear the message table. |
+
+
+## `t76.drpd.app.main_screen.mode_selection_modal`
+
+**Source:** `python/t76/drpd/app/main_screen/mode_selection_modal.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+ModeSelectionModal displays a modal panel for selecting the device's mode.
+
+### `t76.drpd.app.main_screen.mode_selection_modal.ModeSelectionModal`
+
+**Kind:** class
+
+**Bases:** `ModalScreen`
+
+No docstring.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `BINDINGS` | — | [Binding('escape', 'close', 'Close the modal')] |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `compose` | `(self) -> ComposeResult` | — |
+| `action_close` | `(self) -> None` | Handle the close action. |
+| `on_option_list_option_selected` | `(self, event: OptionList.OptionSelected) -> None` | Handle the option list selection. |
+
+
+## `t76.drpd.app.main_screen.ovp_setup_modal`
+
+**Source:** `python/t76/drpd/app/main_screen/ovp_setup_modal.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+OvpSetupModal displays a modal panel for setting the Over Voltage Protection (OVP)
+and Over Current Protection (OCP) thresholds.
+
+### `t76.drpd.app.main_screen.ovp_setup_modal.OvpSetupModal`
+
+**Kind:** class
+
+**Bases:** `ModalScreen`
+
+Modal screen for configuring OVP (Over-Voltage Protection) and OCP (Over-Current Protection) thresholds.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `BINDINGS` | — | [Binding('escape', 'close', 'Close the modal')] |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `compose` | `(self) -> ComposeResult` | Compose the modal UI components. |
+| `on_mount` | `(self) -> None` | Called when the modal is mounted. |
+| `on_ok_pressed` | `(self) -> None` | Handle OK button press - validate and save both thresholds. |
+| `on_cancel_pressed` | `(self) -> None` | Handle Cancel button press - close without saving. |
+| `action_close` | `(self) -> None` | Handle the close action. |
+
+
+## `t76.drpd.app.main_screen.sink_avs_setup_modal`
+
+**Source:** `python/t76/drpd/app/main_screen/sink_avs_setup_modal.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Modal for configuring AVS (Adjustable Voltage Supply) PDO requests.
+
+### `t76.drpd.app.main_screen.sink_avs_setup_modal.SinkAVSSetupModal`
+
+**Kind:** class
+
+**Bases:** `ModalScreen`
+
+Modal for setting up an AVS PDO request.
+
+Allows the user to specify a voltage and current for the selected AVS PDO.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `BINDINGS` | — | [Binding('escape', 'close', 'Cancel the modal')] |
+| `VOLTAGE_STEP_MV` | — | 25 |
+| `CURRENT_STEP_MA` | — | 50 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `compose` | `(self) -> ComposeResult` | Compose the modal layout. |
+| `on_mount` | `(self) -> None` | Set focus to the voltage input when mounted. |
+| `handle_ok` | `(self) -> None` | Handle OK button press. |
+| `handle_cancel` | `(self) -> None` | Handle Cancel button press. |
+| `on_input_submitted` | `(self, event: Input.Submitted) -> None` | Handle ENTER key in input field. |
+| `action_close` | `(self) -> None` | Handle the close action. |
+
+
+## `t76.drpd.app.main_screen.sink_panel`
+
+**Source:** `python/t76/drpd/app/main_screen/sink_panel.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+SinkPanel displays sink-related information for connected DRPD devices.
+
+### `t76.drpd.app.main_screen.sink_panel.PdoTable`
+
+**Kind:** class
+
+**Bases:** `DataTable`
+
+Table for displaying available Power Data Objects (PDOs).
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `on_mount` | `(self) -> None` | Called when the table is mounted. |
+| `add_pdo` | `(self, pdo: DeviceSinkPDO, index: int, is_active: bool) -> None` | Add a PDO row to the table. |
+| `set_active_pdo` | `(self, active_pdo: DeviceSinkPDO) -> None` | Set the active PDO in the table. |
+| `clear_pdos` | `(self) -> None` | Clear all PDO rows from the table. |
+| `get_pdo_at_index` | `(self, index: int) -> DeviceSinkPDO \| None` | Get the PDO at the specified index. |
+| `on_data_table_row_selected` | `(self, message: DataTable.RowSelected) -> None` | Handle PDO selection from the table. |
+
+
+### `t76.drpd.app.main_screen.sink_panel.SinkPanel`
+
+**Kind:** class
+
+**Bases:** `VerticalGroup`
+
+The SinkPanel displays sink-related information for connected DRPD
+devices.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `update_analog_measurements` | `(self, channels: AnalogMonitorChannels) -> None` | Update VBUS voltage and current from the device. |
+| `on_mount` | `(self) -> None` | Called when the panel is mounted. |
+| `watch_device` | `(self, old_device: Optional[Device], new_device: Optional[Device]) -> None` | Called when the device changes. |
+| `on_pdo_table_pdo_selected` | `(self, message: PdoTable.PdoSelected) -> None` | Handle PDO selection forwarded by the PDO table. |
+| `compose` | `(self) -> ComposeResult` | Compose the layout of the panel. |
+| `focus` | `(self, scroll_visible: bool = True) -> 'SinkPanel'` | Set focus to the PDO table. |
+| `blur` | `(self) -> 'SinkPanel'` | Remove focus from the PDO table. |
+
+
+## `t76.drpd.app.main_screen.sink_pps_setup_modal`
+
+**Source:** `python/t76/drpd/app/main_screen/sink_pps_setup_modal.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Modal for configuring PPS (Programmable Power Supply) PDO requests.
+
+### `t76.drpd.app.main_screen.sink_pps_setup_modal.SinkPPSSetupModal`
+
+**Kind:** class
+
+**Bases:** `ModalScreen`
+
+Modal for setting up a PPS PDO request.
+
+Allows the user to specify a voltage within the PPS PDO's voltage range
+and a current up to the PDO's maximum current.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `BINDINGS` | — | [Binding('escape', 'close', 'Cancel the modal')] |
+| `VOLTAGE_STEP_MV` | — | 20 |
+| `CURRENT_STEP_MA` | — | 50 |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `compose` | `(self) -> ComposeResult` | Compose the modal layout. |
+| `on_mount` | `(self) -> None` | Set focus to the voltage input when mounted. |
+| `handle_ok` | `(self) -> None` | Handle OK button press. |
+| `handle_cancel` | `(self) -> None` | Handle Cancel button press. |
+| `on_input_submitted` | `(self, event: Input.Submitted) -> None` | Handle ENTER key in input field. |
+| `action_close` | `(self) -> None` | Handle the close action. |
+
+
+## `t76.drpd.app.main_screen.status_panel`
+
+**Source:** `python/t76/drpd/app/main_screen/status_panel.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+StatusPanel displays status information for connected DRPD devices.
+
+### `t76.drpd.app.main_screen.status_panel.StatusPanel`
+
+**Kind:** class
+
+**Bases:** `VerticalGroup`
+
+The StatusPanel displays status information for connected DRPD devices.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `update_cc_bus_state` | `(self, new_state: Optional[CCBusState]) -> None` | Update the CC Bus state displayed in the panel. |
+| `update_role` | `(self, new_role: Optional[Mode]) -> None` | Update the device role displayed in the panel. |
+| `update_vbus_info` | `(self, new_info: Optional[VBusInfo]) -> None` | Update the VBus information displayed in the panel. |
+| `update_capture_status` | `(self, new_status: Optional[OnOffStatus]) -> None` | Update the capture status displayed in the panel. |
+| `on_mount` | `(self) -> None` | Called when the panel is mounted. |
+| `compose` | `(self) -> ComposeResult` | Compose the layout of the StatusPanel. |
+| `watch_device` | `(self, old_device: Optional[Device], new_device: Optional[Device]) -> None` | Called when the device changes. |
+
+
+## `t76.drpd.app.main_screen.trigger_panel`
+
+**Source:** `python/t76/drpd/app/main_screen/trigger_panel.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+StatusPanel displays status information for connected DRPD devices.
+
+### `t76.drpd.app.main_screen.trigger_panel.TriggerPanel`
+
+**Kind:** class
+
+**Bases:** `VerticalGroup`
+
+The TriggerPanel displays trigger information for connected DRPD devices.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `update` | `(self, new_status: Optional[TriggerInfo] = None) -> None` | — |
+| `on_mount` | `(self) -> None` | Called when the panel is mounted. |
+| `watch_device` | `(self, old_device: Optional[Device], new_device: Optional[Device]) -> None` | Called when the device changes. |
+| `compose` | `(self) -> ComposeResult` | Compose the layout of the StatusPanel. |
+
+
+## `t76.drpd.app.main_screen.trigger_setup_modal`
+
+**Source:** `python/t76/drpd/app/main_screen/trigger_setup_modal.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+TriggerSetupModal displays a modal panel for setting up the device's trigger
+
+### `t76.drpd.app.main_screen.trigger_setup_modal.TriggerSetupModal`
+
+**Kind:** class
+
+**Bases:** `ModalScreen`
+
+No docstring.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `BINDINGS` | — | [Binding('escape', 'close', 'Close the modal')] |
+| `device` | reactive[Optional[Device]] | reactive(None) |
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `compose` | `(self) -> ComposeResult` | — |
+| `on_mount` | `(self) -> None` | Called when the modal is mounted. |
+| `on_trigger_type_selected` | `(self, event: RadioSet.Changed) -> None` | Handle trigger type selection. |
+| `on_event_threshold_submitted` | `(self, event: Input.Submitted) -> None` | Handle event threshold input submission. |
+| `on_autorepeat_changed` | `(self, event: RadioButton.Changed) -> None` | Handle autorepeat option change. |
+| `on_sync_mode_selected` | `(self, event: RadioSet.Changed) -> None` | Handle sync mode selection. |
+| `on_pulse_length_submitted` | `(self, event: Input.Submitted) -> None` | Handle pulse length input submission. |
+| `action_close` | `(self) -> None` | Handle the close action. |
+
+

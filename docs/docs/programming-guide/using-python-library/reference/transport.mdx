@@ -1,0 +1,129 @@
+---
+sidebar_position: 30
+sidebar_label: Transport API
+---
+
+# Transport API
+
+:::info[Generated reference]
+This page is generated from the Python source under `python/t76`. Do not edit it by hand; update source docstrings or the generator instead.
+:::
+
+Lower-level USB and serial transport helpers used by the Dr. PD client.
+
+## `t76.transport`
+
+**Source:** `python/t76/transport/__init__.py`
+
+**Exports:** `discover_usb_devices`, `get_serial_port_for_device`, `SerialTransport`, `Transport`
+
+Copyright (c) 2025 MTA, Inc.
+
+Transport module for USB device communications.
+
+No public classes or functions defined directly in this module.
+
+## `t76.transport.serial`
+
+**Source:** `python/t76/transport/serial.py`
+
+Copyright (c) 2025 MTA Inc.
+
+An asyncio protocol wrapper for serial communications.
+
+### `t76.transport.serial.SerialTransport`
+
+**Kind:** class
+
+**Bases:** `Transport`
+
+An asyncio protocol wrapper for USB serial.
+
+This class provides a protocol interface for communicating with USB devices
+over a serial connection.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `connect` | `(self)` | Connect to the USB device over the serial port. |
+| `send` | `(self, data: bytes, timeout: float = 0.1)` | Send data to the USB device. |
+| `receive` | `(self, size: int = 1, timeout: float = 0.1) -> bytes` | Receive data from the device. |
+| `receive_line` | `(self, timeout: float = 0.1) -> str` | Receive a line of data from the device. |
+| `disconnect` | `(self) -> None` | Close the serial connection. |
+| `connected` | `(self) -> bool` | Check if the transport is connected. |
+
+
+## `t76.transport.transport`
+
+**Source:** `python/t76/transport/transport.py`
+
+Copyright (c) 2025 MTA, Inc.
+
+Base class for transport implementations.
+
+### `t76.transport.transport.Transport`
+
+**Kind:** class
+
+**Bases:** `ABC`
+
+Base class for transport implementations.
+
+
+
+#### Public methods
+
+| Method | Signature | Summary |
+| --- | --- | --- |
+| `connect` | `(self) -> None` | Connect to the transport. |
+| `send` | `(self, data: bytes, timeout: float = 1.0) -> None` | Send data over the transport. |
+| `send_line` | `(self, line: str, timeout: float = 0.1) -> None` | Send a line of data to the USB device. |
+| `receive` | `(self, size: int, timeout: float = 1.0) -> bytes` | Receive data from the transport. |
+| `receive_line` | `(self, timeout: float = 0.1) -> str` | Receive a line of data from the transport. |
+| `disconnect` | `(self) -> None` | Disconnect from the transport. |
+| `connected` | `(self) -> bool` | Check if the transport is connected. |
+
+
+## `t76.transport.usb_discovery`
+
+**Source:** `python/t76/transport/usb_discovery.py`
+
+Copyright (c) 2025 MTA Inc.
+
+Provides discovery services for usb devices, including serial port mapping.
+
+### `t76.transport.usb_discovery.discover_usb_devices`
+
+**Kind:** function
+
+```python
+discover_usb_devices(vendor_id: int, product_id: int) -> list[usb.core.Device]
+```
+
+Discover USB devices matching the given vendor and product IDs.
+
+
+
+
+### `t76.transport.usb_discovery.get_serial_port_for_device`
+
+**Kind:** function
+
+```python
+get_serial_port_for_device(device: usb.core.Device) -> Optional[str]
+```
+
+Get the serial port for a USB device.
+
+Args:
+    device (usb.core.Device): The USB device to get the serial port for.
+
+Returns:
+    str: The serial port of the device, or None if not found.
+
+
+
+

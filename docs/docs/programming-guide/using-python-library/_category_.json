@@ -1,0 +1,11 @@
+{
+  "label": "Using the Python Library",
+  "position": 20,
+  "collapsible": true,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "title": "Using the Python Library",
+    "description": "Install and automate Dr. PD with the Python package."
+  }
+}
