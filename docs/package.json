@@ -6,7 +6,8 @@
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "generate:scpi": "node scripts/generate-scpi-reference.mjs",
-    "prebuild": "npm run generate:scpi",
+    "generate:python-api": "node scripts/generate-python-api-reference.mjs",
+    "prebuild": "npm run generate:scpi && npm run generate:python-api",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
@@ -17,8 +18,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@docusaurus/core": "3.10.1",
-    "@docusaurus/preset-classic": "3.10.1",
+    "@docusaurus/core": "^3.10.2",
+    "@docusaurus/preset-classic": "^3.10.2",
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
     "js-yaml": "^4.1.0",
@@ -27,9 +28,9 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "3.10.1",
-    "@docusaurus/tsconfig": "3.10.1",
-    "@docusaurus/types": "3.10.1",
+    "@docusaurus/module-type-aliases": "^3.10.2",
+    "@docusaurus/tsconfig": "^3.10.2",
+    "@docusaurus/types": "^3.10.2",
     "@types/react": "^19.0.0",
     "typescript": "~6.0.2"
   },
