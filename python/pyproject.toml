@@ -1,27 +1,27 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "t76"
-version = "0.1.0"
-description = "A simple Python module"
+version = "0.9.19"
+description = "Python API, USB-PD decoding tools, and terminal application for Dr. PD devices"
 readme = "README.md"
-requires-python = ">=3.7"
-license = "MIT"
+requires-python = ">=3.11"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "T76.org", email = "info@t76.org"}
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "async-lru==2.0.5",
@@ -31,14 +31,18 @@ dependencies = [
     "textual>=5.0.1",
 ]
 
+[project.scripts]
+drpd = "t76.drpd.__main__:main"
+
 [project.optional-dependencies]
-# Optional dependencies for different use cases
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",
     "black>=22.0",
     "isort>=5.0",
     "flake8>=3.8",
+    "build>=1.2",
+    "twine>=6.0",
 ]
 docs = [
     "sphinx>=4.0",
@@ -50,5 +54,14 @@ cli = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/t76"
-"Bug Tracker" = "https://github.com/yourusername/t76/issues"
+Homepage = "https://t76.org"
+Repository = "https://github.com/T76-org/drpd"
+Documentation = "https://docs.t76.org"
+"Bug Tracker" = "https://github.com/T76-org/drpd/issues"
+
+[tool.setuptools.packages.find]
+include = ["t76*"]
+exclude = ["t76.drpd.tests*"]
+
+[tool.setuptools.package-data]
+"t76.drpd.app" = ["*.tcss"]

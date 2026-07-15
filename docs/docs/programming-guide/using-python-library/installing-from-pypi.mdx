@@ -4,15 +4,16 @@ sidebar_position: 10
 
 # Installing from PyPI
 
-The Python package name is `t76`.
+The Python package name is `t76`. It requires Python 3.11 or newer.
 
-:::warning[Package publication status]
-At the time this page was written, `https://pypi.org/project/t76/` did not have a published package. Use the PyPI install command once the package has been published, or use the local editable install during development.
+:::warning[PyPI publication in progress]
+The `t76` package is not published on PyPI yet. For now, install it from a
+local clone of the repository using the editable-install instructions below.
 :::
 
 ## Install from PyPI
 
-Use Python 3 and install with `pip`:
+Once publication is complete, install with:
 
 ```bash
 python -m pip install t76
@@ -27,9 +28,11 @@ python -m pip install --upgrade pip
 python -m pip install t76
 ```
 
-## Local editable install
+## Install from the repository
 
-From the repository root, install the package directly from the `python` directory:
+You can also clone the repository and install the package directly from its
+`python` directory. This is the current installation method while PyPI
+publication is in progress:
 
 ```bash
 python -m venv .venv
@@ -49,6 +52,12 @@ python -m pip install -e "./python[dev]"
 After installation, run the Dr. PD terminal app:
 
 ```bash
+drpd
+```
+
+The module entry point remains available:
+
+```bash
 python -m t76.drpd
 ```
 
@@ -63,3 +72,9 @@ python -m t76 --apps
 The library talks to Dr. PD over USBTMC through PyUSB. Your operating system must allow the Python process to access the Dr. PD USB interface.
 
 On Linux this may require a udev rule. On macOS and Windows, make sure no other app has exclusive access to the device while the script is running.
+
+## License and source
+
+The `t76` Python package is licensed under the GNU Affero General Public
+License v3.0 only (`AGPL-3.0-only`). Its source is available in the
+[T76-org/drpd repository](https://github.com/T76-org/drpd/tree/main/python).

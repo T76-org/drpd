@@ -18,6 +18,8 @@ const outputDir = path.join(
   'reference',
 );
 
+const excludedPrefixes = ['t76.drpd.app'];
+
 const groups = [
   {
     key: 'device',
@@ -42,15 +44,6 @@ const groups = [
     position: 30,
     description: 'Lower-level USB and serial transport helpers used by the Dr. PD client.',
     prefixes: ['t76.transport'],
-  },
-  {
-    key: 'app',
-    title: 'Terminal App Internals',
-    slug: 'app',
-    position: 40,
-    description: 'Textual terminal app entry points and UI classes. Most widget classes are internal UI surface.',
-    prefixes: ['t76.drpd.app'],
-    internal: true,
   },
   {
     key: 'root',
@@ -410,12 +403,6 @@ function generatedPage(group, modules) {
   lines.push('This page is generated from the Python source under `python/t76`. Do not edit it by hand; update source docstrings or the generator instead.');
   lines.push(':::');
   lines.push('');
-  if (group.internal) {
-    lines.push(':::warning[Internal UI surface]');
-    lines.push('These APIs back the Textual terminal app. Prefer `t76.drpd.device` for automation scripts unless you are extending the terminal UI.');
-    lines.push(':::');
-    lines.push('');
-  }
   lines.push(group.description);
   lines.push('');
   for (const module of modules) {
@@ -441,7 +428,11 @@ function writeCategoryFile() {
 }
 
 function main() {
-  const modules = loadApiJson();
+  const modules = loadApiJson().filter(
+    (module) => !excludedPrefixes.some(
+      (prefix) => module.module === prefix || module.module.startsWith(`${prefix}.`),
+    ),
+  );
   const grouped = new Map(groups.map((group) => [group.key, []]));
   for (const module of modules) {
     const group = groupForModule(module.module);
