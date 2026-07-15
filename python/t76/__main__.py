@@ -14,7 +14,7 @@ def main():
     """Main entry point for the command-line interface."""
     parser = argparse.ArgumentParser(
         prog="t76",
-        description="A simple Python module with greeting and calculator functionality"
+        description="Python tooling for Dr. PD devices"
     )
 
     parser.add_argument(

@@ -1,4 +1,4 @@
-include README.md
 include LICENSE
-recursive-include t76 *.py
-recursive-include tests *.py
+include README.md
+recursive-include t76/drpd/app *.tcss
+prune t76/drpd/tests

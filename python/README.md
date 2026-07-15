@@ -1,4 +1,4 @@
-# t76 Python Package
+# `t76` Python Package
 
 Python tooling for DRPD devices, including:
 
@@ -6,21 +6,32 @@ Python tooling for DRPD devices, including:
 - USB-PD message decoding helpers
 - A Textual terminal app UI
 
-## Quick Setup (`.venv`)
+Requires Python 3.11 or newer.
 
-From the `python/` directory:
+## Install from PyPI
+
+> **Publication status:** `t76` is not published on PyPI yet. Until the first
+> release is available, use the repository installation below.
+
+```bash
+python -m pip install t76
+```
+
+## Install from the Repository
+
+From a clone of the repository:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e .
+python -m pip install -e ./python
 ```
 
 For development dependencies:
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e "./python[dev]"
 ```
 
 To leave the environment:
@@ -29,9 +40,18 @@ To leave the environment:
 deactivate
 ```
 
+Maintainers publish releases locally using the process in
+[RELEASING.md](RELEASING.md).
+
 ## Run the Textual App
 
-Launch the DRPD Textual app with:
+Launch the Dr. PD terminal app with:
+
+```bash
+drpd
+```
+
+The module entry point remains available:
 
 ```bash
 python3 -m t76.drpd
@@ -99,3 +119,8 @@ Or directly:
 python -m pytest t76/drpd/tests/ -v --tb=short
 ```
 
+## License
+
+The `t76` Python package is licensed under the GNU Affero General Public
+License v3.0 only (`AGPL-3.0-only`). Source is available from the
+[T76-org/drpd repository](https://github.com/T76-org/drpd).
