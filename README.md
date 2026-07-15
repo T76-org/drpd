@@ -30,6 +30,30 @@ You can find out more about its features in the [online datasheet](./media/datas
 - Open-source hardware, firmware, and software with schematics and source code available on in this repo
 - USB-PD stack implemented in firmware (instead of depending on a dedicated external chip) for maximum flexibility and updatability
 
+## Documentation
+
+You can access the full documentation for Dr. PD [on the T76 website](https://t76.org/dr-pd/docs). The documentation includes a user manual, hardware and firmware design files, and software API references.
+
+Hardware schematics are available in the [hardware folder](./hardware) of this repository. The current hardware version is [R2605-A](./hardware/R2605-A), and we provide both an [interactive schematic](https://kicanvas.org/?repo=https%3A%2F%2Fgithub.com%2FT76-org%2Fdrpd%2Ftree%2Fmain%2Fhardware%2FR2605-A%2Fkicad-schematics) viewable right in your browser with KiCanvas.
+
+## Screenshots
+
+Click on the images below to view them in full size.
+<div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start;">
+	<a href="./media/drpd-ui.png" target="_blank" rel="noopener noreferrer">
+		<img src="./media/drpd-ui.png" alt="Dr. PD main UI" height="150" />
+	</a>
+	<a href="./media/drpd-ui-detail.png" target="_blank" rel="noopener noreferrer">
+		<img src="./media/drpd-ui-detail.png" alt="Dr. PD UI detail" height="150" />
+	</a>
+	<a href="./media/drpd-filter-ui.png" target="_blank" rel="noopener noreferrer">
+		<img src="./media/drpd-filter-ui.png" alt="Dr. PD filter UI" height="150" />
+	</a>
+	<a href="./media/drpd-trigger-setup-ui.png" target="_blank" rel="noopener noreferrer">
+		<img src="./media/drpd-trigger-setup-ui.png" alt="Dr. PD trigger setup UI" height="150" />
+	</a>
+</div>
+
 ## Project status
 
 Dr. PD is currently undergoing device validation testing and will be available for crowdfunding soon through Crowd Supply. Visit our [prelaunch page](https://www.crowdsupply.com/t76-org/dr-pd) to sign up and receive updates on the project, including the crowdfunding launch.
