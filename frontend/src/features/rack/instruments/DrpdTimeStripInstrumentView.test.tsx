@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -232,13 +233,31 @@ describe('DrpdTimeStripInstrumentView', () => {
     })
   })
 
-  it('renders zoom as passive header text without button or popover controls', () => {
+  it('renders explicit zoom controls around the level readout', () => {
     renderTimestrip()
 
-    expect(screen.getByLabelText('Zoom 100ms per pixel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /zoom/i })).toBeNull()
+    const readout = screen.getByLabelText('Zoom 100ms per pixel')
+    expect(readout).toHaveTextContent('100ms')
+    expect(readout).not.toHaveTextContent('ZOOM')
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeEnabled()
     expect(screen.queryByRole('slider')).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
+  })
+
+  it('zooms with header buttons and disables controls at bounds', async () => {
+    const user = userEvent.setup()
+    renderTimestrip()
+
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }))
+    expect(screen.getByLabelText('Zoom 50ms per pixel')).toBeInTheDocument()
+    expect(window.localStorage.getItem('drpd:timestrip:zoom-denominator')).toBe('50000000')
+
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '400000000')
+    cleanup()
+    renderTimestrip()
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeEnabled()
   })
 
   it('restores zoom from local storage', () => {
