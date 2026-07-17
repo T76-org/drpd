@@ -592,6 +592,10 @@ export const DrpdTimeStripInstrumentView = ({
     scrollLeftPx,
     zoomDenominator,
     zoomReadout,
+    zoomIn,
+    zoomOut,
+    canZoomIn,
+    canZoomOut,
     timelineWidthPx,
     domTimelineWidthPx,
     scrollToLogicalLeft,
@@ -1692,8 +1696,28 @@ export const DrpdTimeStripInstrumentView = ({
                 ? 'Follow live'
                 : 'Follow live'}
           </button>
-          <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
-            ZOOM {zoomReadout}
+          <span className={styles.zoomControls}>
+            <button
+              type="button"
+              className={styles.zoomButton}
+              aria-label="Zoom out"
+              onClick={zoomOut}
+              disabled={!canZoomOut}
+            >
+              −
+            </button>
+            <span className={styles.zoomReadout} aria-label={`Zoom ${zoomReadout} per pixel`}>
+              {zoomReadout}
+            </span>
+            <button
+              type="button"
+              className={styles.zoomButton}
+              aria-label="Zoom in"
+              onClick={zoomIn}
+              disabled={!canZoomIn}
+            >
+              +
+            </button>
           </span>
         </span>
       }
