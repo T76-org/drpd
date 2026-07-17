@@ -149,7 +149,7 @@
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
-  gap: calc(var(--space-8) * 1.15 * var(--rack-header-scale));
+  gap: calc(var(--space-6) * var(--rack-header-scale));
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -318,7 +318,7 @@
 .headerVbusPrimaryMetrics {
   display: flex;
   align-items: center;
-  gap: calc(var(--space-8) * 1.15 * var(--rack-header-scale));
+  gap: calc(var(--space-6) * var(--rack-header-scale));
   flex: 0 0 auto;
 }
 
@@ -345,7 +345,7 @@
   align-self: stretch;
   width: var(--border-thin);
   min-height: calc(54px * var(--rack-header-scale));
-  margin: 0 calc(var(--space-4) * 1.15 * var(--rack-header-scale));
+  margin: 0 calc(var(--space-2) * var(--rack-header-scale));
   background: color-mix(in srgb, var(--color-border-divider) 58%, transparent);
 }
 
@@ -360,7 +360,7 @@
 .headerVbusPowerGroup {
   flex-direction: row;
   align-items: center;
-  gap: calc(var(--space-10) * var(--rack-header-scale));
+  gap: calc(var(--space-8) * var(--rack-header-scale));
 }
 
 .headerVbusCurrent {
@@ -415,7 +415,7 @@
   align-items: flex-end;
   gap: calc(3px * var(--rack-header-scale));
   color: var(--color-text-primary);
-  font-size: calc(var(--font-size-2xs) * 1.08 * var(--rack-header-scale));
+  font-size: calc(var(--font-size-2xs) * 1.19 * var(--rack-header-scale));
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-tight);
   font-variant-numeric: tabular-nums;
@@ -433,14 +433,14 @@
   display: grid;
   grid-template-columns: repeat(4, max-content);
   align-items: center;
-  column-gap: calc(var(--space-12) * var(--rack-header-scale));
+  column-gap: calc(var(--space-8) * var(--rack-header-scale));
   flex: 0 0 auto;
   min-width: 0;
 }
 
 .headerVbusStatusGrid .headerVbusProtection {
   min-width: 0;
-  padding-left: calc(var(--space-12) * var(--rack-header-scale));
+  padding-left: calc(var(--space-8) * var(--rack-header-scale));
   border-left: var(--border-thin) solid color-mix(in srgb, var(--color-border-divider) 58%, transparent);
 }
 
@@ -567,7 +567,8 @@
 }
 
 .headerVbusUnit {
-  font-size: calc(var(--font-size-xs) * var(--rack-header-scale));
+  font-size: calc(var(--font-size-xs) * 1.25 * var(--rack-header-scale));
+  line-height: 1;
 }
 
 .subtitle {

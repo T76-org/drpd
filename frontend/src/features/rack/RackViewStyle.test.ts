@@ -55,6 +55,41 @@ describe('RackView responsive header CSS', () => {
     )
   })
 
+  it('enlarges metric units and accumulator text without changing header width', () => {
+    expect(rackViewCss).toMatch(
+      /\.headerVbusUnit\s*\{[^}]*font-size:\s*calc\(var\(--font-size-xs\) \* 1\.25 \* var\(--rack-header-scale\)\);[^}]*line-height:\s*1;/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusAccumulatorPanel\s*\{[^}]*font-size:\s*calc\(var\(--font-size-2xs\) \* 1\.19 \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toContain('--rack-header-design-width: 1450px;')
+    expect(rackViewCss).toMatch(/\.header\s*\{[^}]*width:\s*min\(100%,\s*1350px\);/s)
+  })
+
+  it('recovers header width with compact gaps while retaining accumulator alignment', () => {
+    expect(rackViewCss).toMatch(
+      /\.headerVbusMetrics\s*\{[^}]*gap:\s*calc\(var\(--space-6\) \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusPrimaryMetrics\s*\{[^}]*gap:\s*calc\(var\(--space-6\) \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusDivider\s*\{[^}]*margin:\s*0 calc\(var\(--space-2\) \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusPowerGroup\s*\{[^}]*gap:\s*calc\(var\(--space-8\) \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusStatusGrid\s*\{[^}]*column-gap:\s*calc\(var\(--space-8\) \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusStatusGrid \.headerVbusProtection\s*\{[^}]*padding-left:\s*calc\(var\(--space-8\) \* var\(--rack-header-scale\)\);/s,
+    )
+    expect(rackViewCss).toMatch(
+      /\.headerVbusAccumulatorValue\s*\{[^}]*grid-template-columns:\s*8ch 2\.6ch;[^}]*align-items:\s*baseline;/s,
+    )
+  })
+
   it('keeps secondary status groups on one header line', () => {
     expect(rackViewCss).toMatch(/\.headerVbusMetrics\s*\{[^}]*flex-wrap:\s*nowrap;/s)
     expect(rackViewCss).toMatch(/\.headerVbusStatusGrid\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*max-content\);/s)
