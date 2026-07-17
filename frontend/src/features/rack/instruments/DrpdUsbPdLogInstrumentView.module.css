@@ -341,7 +341,7 @@
 
 :global(:root[data-high-contrast='true']) .eventRow {
   color: var(--color-text-primary);
-  border-left: 6px solid var(--event-row-accent, var(--color-text-primary));
+  box-shadow: inset 6px 0 0 var(--event-row-accent, var(--color-text-primary));
   font-weight: var(--font-weight-bold);
 }
 

@@ -48,10 +48,10 @@ describe('high contrast semantic palette', () => {
       /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*color:\s*var\(--color-text-primary\);/s,
     )
     expect(messageLogCss).toMatch(
-      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*border-left:\s*6px solid var\(--event-row-accent/s,
+      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*box-shadow:\s*inset 6px 0 0 var\(--event-row-accent/s,
     )
     expect(messageLogCss).not.toMatch(
-      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*box-shadow:/s,
+      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*border-left:/s,
     )
     expect(messageLogCss.match(/--event-row-accent:/g)).toHaveLength(8)
   })
