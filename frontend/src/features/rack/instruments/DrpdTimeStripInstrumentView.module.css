@@ -41,24 +41,35 @@
 }
 
 .captureMarkerOverlay {
+  --timestrip-overlay-accent: var(--color-accent-primary, var(--color-status-info));
+
   grid-area: 1 / 1;
   position: sticky;
   left: 0;
   width: 1px;
-  background: var(--color-accent-primary);
+  background: var(--timestrip-overlay-accent);
   opacity: 0.92;
   pointer-events: none;
   z-index: 2;
 }
 
 .rangeSelectionOverlay {
+  --timestrip-overlay-accent: var(--color-accent-primary, var(--color-status-info));
+
   grid-area: 1 / 1;
   position: sticky;
   left: 0;
   top: 0;
   height: 100%;
-  border: 1px solid var(--color-accent-primary);
-  background: color-mix(in srgb, var(--color-accent-primary) 24%, transparent);
+  border: 2px solid var(--timestrip-overlay-accent);
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 8px,
+      color-mix(in srgb, var(--timestrip-overlay-accent) 20%, transparent) 8px 12px
+    ),
+    color-mix(in srgb, var(--timestrip-overlay-accent) 24%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 46%, transparent);
   pointer-events: none;
   z-index: 3;
 }
