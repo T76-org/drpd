@@ -2087,6 +2087,11 @@ export const RackView = ({
     window.open('https://t76.org/drpd/docs', '_blank', 'noopener,noreferrer')
   }
 
+  /** Open the user's email client for DRPD feedback. */
+  const handleContactUs = () => {
+    window.open('mailto:hello@t76.org?subject=Dr.%20PD%20feedback', '_self')
+  }
+
   /** Connect a new device using the WebUSB picker. */
   const handleConnectDevice = async () => {
     setDeviceError(null)
@@ -3337,6 +3342,11 @@ export const RackView = ({
                 },
               ]
             : []),
+          {
+            id: 'contact-us',
+            label: 'Contact us...',
+            onSelect: handleContactUs,
+          },
           {
             id: 'user-manual',
             label: 'User manual...',
