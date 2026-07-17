@@ -163,6 +163,7 @@ export type WorkerRpcRequest =
               | 'queryCapturedMessages'
               | 'updateCapturedMessageAnnotations'
               | 'markLog'
+              | 'markLogAt'
               | 'getLogSelectionState'
               | 'setLogSelectionState'
               | 'clearLogSelection'

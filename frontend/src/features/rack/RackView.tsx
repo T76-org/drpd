@@ -1550,14 +1550,14 @@ export const RackView = ({
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
-  const selectedAnnotatableMessage = useMemo(() => {
+  const selectedLogRow = useMemo(() => {
     if (messageLogSelectionKeys.length !== 1) return null
     const selectionKey = messageLogSelectionKeys[0]
-    const row = messageLogFilterRows.find(
+    return messageLogFilterRows.find(
       (candidate) => buildCapturedLogSelectionKey(candidate) === selectionKey,
-    )
-    return row?.entryKind === 'message' ? row : null
+    ) ?? null
   }, [messageLogFilterRows, messageLogSelectionKeys])
+  const selectedAnnotatableMessage = selectedLogRow?.entryKind === 'message' ? selectedLogRow : null
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const isGoodCrcHidden = !isGoodCrcShown
@@ -1746,6 +1746,22 @@ export const RackView = ({
         setIsMessageLogMarking(false)
       })
   }, [activeDriver, isMessageLogMarking])
+
+  const addMessageLogMarkerAtSelection = useCallback(() => {
+    if (!activeDriver || !selectedLogRow || selectedLogRow.wallClockUs === null || isMessageLogMarking) {
+      return
+    }
+    setIsMessageLogMarking(true)
+    setMessageLogError(null)
+    void activeDriver
+      .markLogAt(selectedLogRow)
+      .catch((error) => {
+        setMessageLogError(error instanceof Error ? error.message : String(error))
+      })
+      .finally(() => {
+        setIsMessageLogMarking(false)
+      })
+  }, [activeDriver, isMessageLogMarking, selectedLogRow])
 
   const toggleSelectedMessageFlag = useCallback(async () => {
     console.debug('[message-annotation] flag handler entered', {
@@ -3007,10 +3023,20 @@ export const RackView = ({
       },
       {
         id: 'logging-add-marker',
-        label: isMessageLogMarking ? 'Adding marker...' : 'Add marker',
+        label: isMessageLogMarking ? 'Adding marker...' : 'Add marker at present time',
         meta: 'M',
         disabled: !activeDriver || isMessageLogMarking,
         onSelect: addMessageLogMarker,
+      },
+      {
+        id: 'logging-add-marker-at-selection',
+        label: 'Add marker at current location',
+        disabled:
+          !activeDriver ||
+          isMessageLogMarking ||
+          selectedLogRow === null ||
+          selectedLogRow.wallClockUs === null,
+        onSelect: addMessageLogMarkerAtSelection,
       },
       {
         id: 'logging-separator-import',
@@ -3081,6 +3107,7 @@ export const RackView = ({
     [
       activeDriver,
       addMessageLogMarker,
+      addMessageLogMarkerAtSelection,
       captureMenuItems,
       exportSelectedMessageLog,
       handleRestoreMessageLogTableLayout,
@@ -3090,6 +3117,7 @@ export const RackView = ({
       isMessageLogExporting,
       isMessageLogImporting,
       isMessageLogMarking,
+      selectedLogRow,
       messageLogFilters,
       toggleGoodCrcMessages,
     ],

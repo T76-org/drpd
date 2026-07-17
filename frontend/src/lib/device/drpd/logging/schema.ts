@@ -54,6 +54,7 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
   'CREATE INDEX IF NOT EXISTS idx_analog_samples_wall_clock ON analog_samples(wall_clock_us);',
   'CREATE INDEX IF NOT EXISTS idx_captured_messages_start_ts ON captured_messages(start_timestamp_us);',
   'CREATE INDEX IF NOT EXISTS idx_captured_messages_wall_clock ON captured_messages(wall_clock_us);',
+  'CREATE INDEX IF NOT EXISTS idx_captured_messages_timeline ON captured_messages(wall_clock_us, id);',
   'CREATE INDEX IF NOT EXISTS idx_captured_messages_event_start_ts ON captured_messages(event_type, start_timestamp_us);',
   'CREATE INDEX IF NOT EXISTS idx_captured_messages_kind ON captured_messages(message_kind);',
   'CREATE INDEX IF NOT EXISTS idx_captured_messages_sender_power ON captured_messages(sender_power_role);',
@@ -63,4 +64,4 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
 /**
  * Schema version used by the logging store.
  */
-export const LOG_SCHEMA_VERSION = 7
+export const LOG_SCHEMA_VERSION = 8

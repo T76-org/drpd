@@ -675,6 +675,35 @@ export class DRPDDevice extends EventTarget {
   }
 
   /**
+   * Insert a manual mark one microsecond after an existing persisted log row.
+   *
+   * Uses the row's stored wall-clock mapping so rows captured before a device
+   * reboot are never remapped through the current boot's clock synchronization.
+   */
+  public async markLogAt(row: LoggedCapturedMessage): Promise<void> {
+    if (row.wallClockUs === null) {
+      throw new Error('Selected row has no wall-clock timestamp')
+    }
+    if (!this.logStore) {
+      await this.ensureLogStoreOpen()
+    }
+    if (!this.logStore) {
+      return
+    }
+    await this.logStore.flush?.()
+    await this.logSignificantEvent('mark', 'Mark', {
+      timestampUs: row.startTimestampUs + 1n,
+      wallClockUs: row.wallClockUs + 1n,
+      displayTimestampUs:
+        row.displayTimestampUs === null ? null : row.displayTimestampUs + 1n,
+      updateLastKnownDeviceTimestamp: false,
+      resetDisplayEpoch: false,
+      allowWithoutLoggingStarted: true,
+    })
+    await this.logStore.flush?.()
+  }
+
+  /**
    * Clear logged rows.
    *
    * @param scope - Clear scope.
@@ -2074,6 +2103,9 @@ export class DRPDDevice extends EventTarget {
     eventSummary: string,
     options?: {
       timestampUs?: bigint
+      wallClockUs?: bigint
+      displayTimestampUs?: bigint | null
+      updateLastKnownDeviceTimestamp?: boolean
       resetDisplayEpoch?: boolean
       allowWithoutLoggingStarted?: boolean
     },
@@ -2083,9 +2115,11 @@ export class DRPDDevice extends EventTarget {
     }
     try {
       const explicitTimestampUs = options?.timestampUs ?? null
-      const wallClockUs = explicitTimestampUs === null
-        ? BigInt(Date.now()) * 1000n
-        : this.resolveWallClockUs(explicitTimestampUs)
+      const wallClockUs = options?.wallClockUs ?? (
+        explicitTimestampUs === null
+          ? BigInt(Date.now()) * 1000n
+          : this.resolveWallClockUs(explicitTimestampUs)
+      )
       const eventWallClockMs =
         wallClockUs === null
           ? null
@@ -2099,6 +2133,7 @@ export class DRPDDevice extends EventTarget {
       const eventTimestampUs = explicitTimestampUs ?? this.nextSyntheticStreamTimestampUs()
       if (
         explicitTimestampUs !== null &&
+        options?.updateLastKnownDeviceTimestamp !== false &&
         (this.lastKnownDeviceTimestampUs === null || explicitTimestampUs > this.lastKnownDeviceTimestampUs)
       ) {
         this.lastKnownDeviceTimestampUs = explicitTimestampUs
@@ -2111,8 +2146,9 @@ export class DRPDDevice extends EventTarget {
         wallClockUs,
         startTimestampUs: eventTimestampUs,
         endTimestampUs: eventTimestampUs,
-        displayTimestampUs:
-          this.activeDisplayEpochStartUs === null || options?.resetDisplayEpoch === true
+        displayTimestampUs: options && 'displayTimestampUs' in options
+          ? options.displayTimestampUs ?? null
+          : this.activeDisplayEpochStartUs === null || options?.resetDisplayEpoch === true
             ? null
             : eventTimestampUs - this.activeDisplayEpochStartUs,
         decodeResult: 0,

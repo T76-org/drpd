@@ -11,6 +11,7 @@ import { openPreferredDRPDTransport, type DRPDUSBTransport } from '../../../tran
 import { SQLiteWasmStore } from '../logging/sqliteWasmStore'
 import type { DRPDLogStore } from '../logging/types'
 import { DRPDDevice } from '../device'
+import type { LoggedCapturedMessage } from '../types'
 import type { DRPDFirmwareUpdateRequest, DRPDTransport, DRPDTransportKind } from '../transport'
 import type {
   HostTransportRpcRequest,
@@ -563,6 +564,9 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
             )
           case 'markLog':
             await session.device.markLog()
+            return null
+          case 'markLogAt':
+            await session.device.markLogAt(args[0] as LoggedCapturedMessage)
             return null
           case 'getLogSelectionState':
             return session.device.getLogSelectionState()

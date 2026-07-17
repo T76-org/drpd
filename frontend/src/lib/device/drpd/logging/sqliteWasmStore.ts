@@ -45,6 +45,38 @@ type PendingCapturedMessage = {
   sequence: number
 }
 
+const compareCapturedMessageTimeline = (
+  left: LoggedCapturedMessage,
+  right: LoggedCapturedMessage,
+): number => {
+  if (left.wallClockUs !== null && right.wallClockUs !== null) {
+    if (left.wallClockUs < right.wallClockUs) return -1
+    if (left.wallClockUs > right.wallClockUs) return 1
+  } else if (left.wallClockUs === null && right.wallClockUs !== null) {
+    return -1
+  } else if (left.wallClockUs !== null && right.wallClockUs === null) {
+    return 1
+  }
+  return left.createdAtMs - right.createdAtMs
+}
+
+const insertCapturedMessageInTimelineOrder = (
+  rows: LoggedCapturedMessage[],
+  row: LoggedCapturedMessage,
+): void => {
+  let low = 0
+  let high = rows.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (compareCapturedMessageTimeline(rows[middle], row) <= 0) {
+      low = middle + 1
+    } else {
+      high = middle
+    }
+  }
+  rows.splice(low, 0, row)
+}
+
 /**
  * Build default logging configuration values.
  *
@@ -577,7 +609,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     this.ensureInitialized()
     const normalizedMessage = normalizeCapturedMessageForStorage(message)
     if (this.memoryFallback) {
-      this.memoryFallback.capturedMessages.push(normalizedMessage)
+      insertCapturedMessageInTimelineOrder(this.memoryFallback.capturedMessages, normalizedMessage)
       await this.trimCapturedMessagesIfNeededMemory()
       return
     }
@@ -844,7 +876,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
    * Query captured message rows.
    *
    * @param query - Query criteria.
-   * @returns Matching rows in insertion order.
+   * @returns Matching rows in persisted timeline order.
    */
   public async queryCapturedMessages(
     query: CapturedMessageQuery,
@@ -1130,7 +1162,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
     const sortOrder = query.sortOrder === 'desc' ? 'desc' : 'asc'
     return await this.queryCommittedCapturedMessagesWithOrder(
       query,
-      `id ${sortOrder.toUpperCase()}`,
+      `wall_clock_us ${sortOrder.toUpperCase()}, id ${sortOrder.toUpperCase()}`,
     )
   }
 

@@ -1033,7 +1033,8 @@ describe('RackView', () => {
 
     expect(within(menu).getByRole('menuitem', { name: /Disable Capture/ })).toBeEnabled()
     expect(within(menu).getByRole('menuitem', { name: /Clear Log/ })).toBeEnabled()
-    expect(within(menu).getByRole('menuitem', { name: /Add marker/ })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: /^Add marker at present time/ })).toBeEnabled()
+    expect(within(menu).getByRole('menuitem', { name: 'Add marker at current location' })).toBeDisabled()
     expect(within(menu).getByRole('menuitem', { name: 'Import JSON...' })).toBeEnabled()
     expect(within(menu).getByRole('menuitem', { name: 'Export Selected' })).toBeDisabled()
     expect(within(menu).getByRole('menuitemcheckbox', {
