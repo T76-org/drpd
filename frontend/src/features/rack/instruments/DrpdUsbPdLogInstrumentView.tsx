@@ -207,12 +207,13 @@ const filterRuleMatches = (rule: MessageLogFilterRule | undefined, value: string
   return rule.include.length === 0 || rule.include.includes(value)
 }
 
-const messageMatchesFilters = (
+export const messageMatchesFilters = (
   row: LoggedCapturedMessage,
   filters: MessageLogFilters,
 ): boolean => {
   if (row.entryKind === 'event') {
-    return true
+    return row.eventType !== 'mark' ||
+      filterRuleMatches(filters.flagged, row.flagged === true ? 'Flagged' : 'Unflagged')
   }
   const senderReceiver = resolveSenderReceiver(row)
   return (

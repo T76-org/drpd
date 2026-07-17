@@ -347,13 +347,22 @@ describe('SQLiteWasmStore', () => {
 
     await store.insertCapturedMessage(buildMessage(1))
     await store.insertCapturedMessage(buildEvent(2))
+    const mark = {
+      ...buildEvent(3),
+      eventType: 'mark' as const,
+      eventText: 'Mark',
+      flagged: true,
+      comment: '**Exported checkpoint**',
+      commentCreatedAtMs: 1_700_000_200_000,
+    }
+    await store.insertCapturedMessage(mark)
 
     const rows = await store.queryCapturedMessages({
       startTimestampUs: 0n,
       endTimestampUs: 10_000n,
       sortOrder: 'asc',
     })
-    expect(rows.map((row) => row.entryKind)).toEqual(['message', 'event'])
+    expect(rows.map((row) => row.entryKind)).toEqual(['message', 'event', 'event'])
 
     const exportData = await store.exportData({
       format: 'csv',
@@ -364,6 +373,23 @@ describe('SQLiteWasmStore', () => {
       'entry_kind,event_type,event_text,event_wall_clock_ms,flagged,comment,comment_created_at_ms,wall_clock_us',
     )
     expect(exportData.payload).toContain('event,capture_changed')
+    expect(exportData.payload).toContain(
+      `event,mark,Mark,${mark.eventWallClockMs},1,**Exported checkpoint**,${mark.commentCreatedAtMs}`,
+    )
+
+    const jsonExport = await store.exportData({
+      format: 'json',
+      includeAnalog: false,
+      includeMessages: true,
+    })
+    const jsonMark = (JSON.parse(jsonExport.payload) as {
+      capturedMessages: Array<Record<string, unknown>>
+    }).capturedMessages.find((row) => row.eventType === 'mark')
+    expect(jsonMark).toMatchObject({
+      flagged: true,
+      comment: '**Exported checkpoint**',
+      commentCreatedAtMs: 1_700_000_200_000,
+    })
   })
 
   it('exports deterministic JSON and CSV payloads and clears scoped tables', async () => {

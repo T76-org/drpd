@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DRPDDevice, DRPDDeviceDefinition, type LoggedCapturedMessage } from '../../../lib/device'
+import {
+  buildCapturedLogSelectionKey,
+  DRPDDevice,
+  DRPDDeviceDefinition,
+  type LoggedCapturedMessage,
+} from '../../../lib/device'
 import type { BeforeInstallPromptEvent } from '../../../lib/pwa/usePWAInstallPrompt'
 import { saveRackDocument } from '../../../lib/rack/loadRack'
 import type { RackDocument } from '../../../lib/rack/types'
@@ -475,6 +480,26 @@ const buildLoggedMessage = (index: number, messageType = 3): LoggedCapturedMessa
   rawDecodedData: Uint8Array.from([0xaa, 0xbb]),
   parseError: null,
   createdAtMs: 1_700_000_000_000 + index,
+})
+
+const buildLoggedMark = (index: number): LoggedCapturedMessage => ({
+  ...buildLoggedMessage(index),
+  entryKind: 'event',
+  eventType: 'mark',
+  eventText: 'Mark',
+  eventWallClockMs: 1_700_000_000_000 + index,
+  endTimestampUs: BigInt(1000 + index * 10),
+  displayTimestampUs: null,
+  sopKind: null,
+  messageKind: null,
+  messageType: null,
+  messageId: null,
+  senderPowerRole: null,
+  senderDataRole: null,
+  pulseCount: 0,
+  rawPulseWidths: new Float64Array(),
+  rawSop: new Uint8Array(),
+  rawDecodedData: new Uint8Array(),
 })
 
 const DRPD_DEVICE_LABEL = 'Dr. PD 1.0 #ABC'
@@ -1019,6 +1044,73 @@ describe('RackView', () => {
       .not.toBeInTheDocument()
     expect(within(dialog).getByRole('checkbox', { name: 'Hide GoodCRC messages' }))
       .not.toBeChecked()
+  })
+
+  it('flags and comments a selected Mark event from the Capture menu', async () => {
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    const updateAnnotations = vi
+      .spyOn(DRPDDevice.prototype, 'updateCapturedMessageAnnotations')
+      .mockResolvedValue(true)
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Device' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /pair new device/i }))
+    await waitFor(() => {
+      expect(
+        (window as unknown as {
+          __drpdLogs?: { driver: () => EventTarget }
+        }).__drpdLogs?.driver(),
+      ).toBeTruthy()
+    })
+
+    const driver = (window as unknown as {
+      __drpdLogs: { driver: () => DRPDDevice }
+    }).__drpdLogs.driver()
+    const mark = buildLoggedMark(0)
+    act(() => {
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'event', row: mark },
+        }),
+      )
+    })
+    await act(async () => {
+      await driver.setLogSelectionState({
+        selectedKeys: [buildCapturedLogSelectionKey(mark)],
+        anchorIndex: 0,
+        activeIndex: 0,
+      })
+    })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Capture' }))
+    const captureMenu = screen.getByRole('menu', { name: 'Capture menu' })
+    const flagMark = within(captureMenu).getByRole('menuitem', { name: 'Flag mark' })
+    const addComment = within(captureMenu).getByRole('menuitem', { name: 'Add comment' })
+    expect(flagMark).toBeEnabled()
+    expect(addComment).toBeEnabled()
+    await userEvent.click(flagMark)
+    await waitFor(() => {
+      expect(updateAnnotations).toHaveBeenCalledWith(
+        buildCapturedLogSelectionKey(mark),
+        expect.objectContaining({ flagged: true }),
+      )
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Capture' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Add comment' }))
+    const editor = await screen.findByLabelText('Mark comment Markdown')
+    await userEvent.type(editor, '**Checkpoint**')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => {
+      expect(updateAnnotations).toHaveBeenLastCalledWith(
+        buildCapturedLogSelectionKey(mark),
+        expect.objectContaining({
+          comment: '**Checkpoint**',
+          commentCreatedAtMs: expect.any(Number),
+        }),
+      )
+    })
   })
 
   it('opens the message log context menu from the message log instrument', async () => {

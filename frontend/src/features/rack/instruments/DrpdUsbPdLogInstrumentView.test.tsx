@@ -10,7 +10,10 @@ import {
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
-import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
+import {
+  DrpdUsbPdLogInstrumentView,
+  messageMatchesFilters,
+} from './DrpdUsbPdLogInstrumentView'
 
 class TestLogDriver extends EventTarget {
   public analogRows: LoggedAnalogSample[]
@@ -250,6 +253,24 @@ afterEach(() => {
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
+  it('applies flag filters to Mark events without hiding other events', () => {
+    const flaggedMark = { ...buildEvent(1, 'Flagged mark', 'mark'), flagged: true }
+    const unflaggedMark = buildEvent(2, 'Unflagged mark', 'mark')
+    const captureEvent = buildEvent(3, 'Capture changed', 'capture_changed')
+    const filters = {
+      flagged: { include: ['Flagged'], exclude: [] },
+      messageTypes: { include: [], exclude: [] },
+      senders: { include: [], exclude: [] },
+      receivers: { include: [], exclude: [] },
+      sopTypes: { include: [], exclude: [] },
+      crcValid: { include: [], exclude: [] },
+    }
+
+    expect(messageMatchesFilters(flaggedMark, filters)).toBe(true)
+    expect(messageMatchesFilters(unflaggedMark, filters)).toBe(false)
+    expect(messageMatchesFilters(captureEvent, filters)).toBe(true)
+  })
+
   it('renders the message table', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1)])
     const deviceState: RackDeviceState = {
