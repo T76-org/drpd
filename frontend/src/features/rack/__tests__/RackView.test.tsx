@@ -1487,6 +1487,25 @@ describe('RackView', () => {
     expect(header.querySelector('[data-port="1"]')).toHaveAttribute('data-disabled', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-connected', 'false')
     expect(header.querySelector('[data-port="2"]')).toHaveAttribute('data-disabled', 'true')
+    expect(header.querySelector('[class*="headerBananaJackPair"]')).toHaveAttribute('data-disabled', 'false')
+  })
+
+  it('keeps banana jacks visible but disabled for an unattached sink', async () => {
+    mockTransportState.roleResponse = ['SINK']
+    mockTransportState.roleStatusResponse = ['UNATTACHED']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await pairNewDeviceFromMenu()
+
+    const header = await screen.findByRole('banner')
+    const frontPanel = within(header).getByTestId('header-front-panel')
+    await waitFor(() => expect(frontPanel).toHaveAttribute('data-role-status', 'UNATTACHED'))
+
+    expect(frontPanel).toHaveAttribute('data-port-rail-route', 'banana')
+    expect(frontPanel).toHaveAttribute('data-flow', 'idle')
+    expect(header.querySelector('[class*="headerBananaJackPair"]')).toHaveAttribute('data-disabled', 'true')
+    expect(header.querySelectorAll('[class*="headerBananaJack"][data-polarity]')).toHaveLength(2)
   })
 
   it('clamps negative sink current display without changing active front-panel state', async () => {

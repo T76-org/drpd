@@ -441,6 +441,7 @@ const HeaderProtectionValue = ({
 
 const HeaderFrontPanelVisual = ({
   disabled,
+  bananaDisabled,
   port1Connected,
   port2Connected,
   port1Disabled,
@@ -453,6 +454,7 @@ const HeaderFrontPanelVisual = ({
   roleStatus,
 }: {
   disabled: boolean
+  bananaDisabled: boolean
   port1Connected: boolean
   port2Connected: boolean
   port1Disabled: boolean
@@ -502,7 +504,10 @@ const HeaderFrontPanelVisual = ({
       </div>
       <div className={styles.headerFrontPanelDevice} data-device="vbus">
         <span className={styles.headerFrontPanelLabel}>VBUS</span>
-        <span className={styles.headerBananaJackPair}>
+        <span
+          className={styles.headerBananaJackPair}
+          data-disabled={bananaDisabled ? 'true' : 'false'}
+        >
           <span className={styles.headerBananaJack} data-polarity="positive" />
           <span className={styles.headerBananaJack} data-polarity="negative" />
         </span>
@@ -4144,6 +4149,7 @@ const HeaderVbusMetrics = ({
     <div className={styles.headerVbusMetrics} aria-label="VBUS metrics">
       <HeaderFrontPanelVisual
         disabled={isFrontPanelDisabled}
+        bananaDisabled={!driver || (isSinkMode && !isSinkAttached)}
         port1Connected={isFrontPanelPort1Connected}
         port2Connected={isFrontPanelPort2Connected}
         port1Disabled={isFrontPanelPort1Disabled}
