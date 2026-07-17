@@ -217,42 +217,18 @@ export const resolveLogSelectionKeyIndex = async (
   rowCount: number,
   resolveKeys: (startIndex: number, endIndex: number) => Promise<string[]>,
 ): Promise<number | null> => {
-  const targetTimestampUs = getSelectionKeyTimestampUs(selectionKey)
-  if (targetTimestampUs === null || rowCount <= 0) {
+  if (getSelectionKeyTimestampUs(selectionKey) === null || rowCount <= 0) {
     return null
   }
 
-  let low = 0
-  let high = rowCount
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2)
-    const [middleKey] = await resolveKeys(middle, middle)
-    const middleTimestampUs = middleKey ? getSelectionKeyTimestampUs(middleKey) : null
-    if (middleTimestampUs === null || middleTimestampUs >= targetTimestampUs) {
-      high = middle
-    } else {
-      low = middle + 1
-    }
-  }
-
-  const scanSize = 128
-  for (let start = low; start < rowCount; start += scanSize) {
+  // Timestamps restart across captures and imported sessions, so log order is
+  // not guaranteed to be timestamp-monotonic. Scan exact keys in large chunks.
+  const scanSize = 1024
+  for (let start = 0; start < rowCount; start += scanSize) {
     const keys = await resolveKeys(start, Math.min(rowCount - 1, start + scanSize - 1))
-    for (let offset = 0; offset < keys.length; offset += 1) {
-      const key = keys[offset]
-      if (key === selectionKey) {
-        return start + offset
-      }
-      const timestampUs = getSelectionKeyTimestampUs(key)
-      if (timestampUs !== null && timestampUs > targetTimestampUs) {
-        return null
-      }
-    }
-    const lastTimestampUs = keys.length > 0
-      ? getSelectionKeyTimestampUs(keys[keys.length - 1])
-      : null
-    if (keys.length < scanSize || lastTimestampUs === null || lastTimestampUs > targetTimestampUs) {
-      break
+    const offset = keys.indexOf(selectionKey)
+    if (offset >= 0) {
+      return start + offset
     }
   }
   return null

@@ -29,4 +29,18 @@ describe('resolveLogSelectionKeyIndex', () => {
     await expect(resolveLogSelectionKeyIndex('event:200:99:mark', keys.length, resolveKeys))
       .resolves.toBeNull()
   })
+
+  it('finds a selected key after device timestamps restart', async () => {
+    const keys = [
+      'message:900:910:1',
+      'message:1000:1010:2',
+      'event:25:3:mark',
+      'message:40:50:4',
+    ]
+    const resolveKeys = vi.fn(async (startIndex: number, endIndex: number) =>
+      keys.slice(startIndex, endIndex + 1))
+
+    await expect(resolveLogSelectionKeyIndex(keys[2], keys.length, resolveKeys))
+      .resolves.toBe(2)
+  })
 })
