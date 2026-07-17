@@ -207,12 +207,13 @@ const filterRuleMatches = (rule: MessageLogFilterRule | undefined, value: string
   return rule.include.length === 0 || rule.include.includes(value)
 }
 
-const messageMatchesFilters = (
+export const messageMatchesFilters = (
   row: LoggedCapturedMessage,
   filters: MessageLogFilters,
 ): boolean => {
   if (row.entryKind === 'event') {
-    return true
+    return row.eventType !== 'mark' ||
+      filterRuleMatches(filters.flagged, row.flagged === true ? 'Flagged' : 'Unflagged')
   }
   const senderReceiver = resolveSenderReceiver(row)
   return (
@@ -240,7 +241,7 @@ const toDisplayRows = (
         eventType: row.eventType,
         startTimestampUs: row.startTimestampUs,
         endTimestampUs: row.endTimestampUs,
-        flagged: '',
+        flagged: row.flagged === true ? '⚑' : '',
         timestamp: formatWallClock(row.wallClockUs),
         duration: '',
         delta: '',
@@ -1407,7 +1408,14 @@ export const DrpdUsbPdLogInstrumentView = ({
             {row?.kind === 'event' ? (
               visibleColumns[0]?.id === 'flagged' && visibleColumns[1]?.id === 'timestamp' ? (
                 <>
-                  <td className={styles.center} aria-label="Not flaggable" />
+                  <td
+                    className={styles.center}
+                    aria-label={row.eventType === 'mark'
+                      ? (row.flagged ? 'Flagged' : 'Not flagged')
+                      : 'Not flaggable'}
+                  >
+                    {row.eventType === 'mark' ? row.flagged : ''}
+                  </td>
                   <td className={styles.eventTimestamp}>{row.timestamp}</td>
                   {visibleColumns.length > 2 ? (
                     <td className={styles.eventLabelAfterFlag} colSpan={visibleColumns.length - 2}>

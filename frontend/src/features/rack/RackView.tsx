@@ -1562,7 +1562,13 @@ export const RackView = ({
       (candidate) => buildCapturedLogSelectionKey(candidate) === selectionKey,
     ) ?? null
   }, [messageLogFilterRows, messageLogSelectionKeys])
-  const selectedAnnotatableMessage = selectedLogRow?.entryKind === 'message' ? selectedLogRow : null
+  const selectedAnnotatableMessage =
+    selectedLogRow?.entryKind === 'message' ||
+    (selectedLogRow?.entryKind === 'event' && selectedLogRow.eventType === 'mark')
+      ? selectedLogRow
+      : null
+  const selectedAnnotationTargetLabel =
+    selectedAnnotatableMessage?.entryKind === 'event' ? 'mark' : 'message'
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const isGoodCrcHidden = !isGoodCrcShown
@@ -2862,11 +2868,15 @@ export const RackView = ({
     () => [
       {
         id: 'logging-toggle-message-flag',
-        label: selectedAnnotatableMessage?.flagged === true ? 'Unflag message' : 'Flag message',
+        label: selectedAnnotatableMessage?.flagged === true
+          ? `Unflag ${selectedAnnotationTargetLabel}`
+          : `Flag ${selectedAnnotationTargetLabel}`,
         disabled: !activeDriver || !selectedAnnotatableMessage,
         onSelect: () => {
           console.debug('[message-annotation] Flag/Unflag menu item selected', {
-            label: selectedAnnotatableMessage?.flagged === true ? 'Unflag message' : 'Flag message',
+            label: selectedAnnotatableMessage?.flagged === true
+              ? `Unflag ${selectedAnnotationTargetLabel}`
+              : `Flag ${selectedAnnotationTargetLabel}`,
             selectionKeys: messageLogSelectionKeys,
           })
           void toggleSelectedMessageFlag()
@@ -2893,6 +2903,7 @@ export const RackView = ({
       handleToggleActiveDeviceCapture,
       isCaptureEnabled,
       messageLogSelectionKeys,
+      selectedAnnotationTargetLabel,
       selectedAnnotatableMessage,
       openSelectedMessageComment,
       toggleSelectedMessageFlag,
@@ -3584,7 +3595,7 @@ export const RackView = ({
       >
         <textarea
           className={styles.messageCommentEditor}
-          aria-label="Message comment Markdown"
+          aria-label={`${selectedAnnotationTargetLabel === 'mark' ? 'Mark' : 'Message'} comment Markdown`}
           value={messageCommentDraft}
           autoFocus
           onChange={(event) => setMessageCommentDraft(event.currentTarget.value)}
@@ -3616,7 +3627,7 @@ export const RackView = ({
           </>
         }
       >
-        <p>Delete this message comment? This cannot be undone.</p>
+        <p>Delete this {selectedAnnotationTargetLabel} comment? This cannot be undone.</p>
       </Dialog>
       <Dialog
         open={isStartupPairingDialogOpen}

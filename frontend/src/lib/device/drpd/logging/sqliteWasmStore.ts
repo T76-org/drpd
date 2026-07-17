@@ -313,11 +313,14 @@ const normalizeAnalogSampleForStorage = (sample: LoggedAnalogSample): LoggedAnal
 const normalizeCapturedMessageForStorage = (message: LoggedCapturedMessage): LoggedCapturedMessage => {
   const startTimestampUs = clampSqliteTimestampUs(message.startTimestampUs)
   const endTimestampUs = clampSqliteTimestampUs(message.endTimestampUs)
+  const isAnnotatable =
+    message.entryKind === 'message' ||
+    (message.entryKind === 'event' && message.eventType === 'mark')
   return {
     ...message,
-    flagged: message.entryKind === 'message' && message.flagged === true,
-    comment: message.entryKind === 'message' ? message.comment ?? null : null,
-    commentCreatedAtMs: message.entryKind === 'message' ? message.commentCreatedAtMs ?? null : null,
+    flagged: isAnnotatable && message.flagged === true,
+    comment: isAnnotatable ? message.comment ?? null : null,
+    commentCreatedAtMs: isAnnotatable ? message.commentCreatedAtMs ?? null : null,
     wallClockUs: clampNullableSqliteTimestampUs(message.wallClockUs),
     startTimestampUs,
     endTimestampUs: endTimestampUs < startTimestampUs ? startTimestampUs : endTimestampUs,
@@ -626,16 +629,21 @@ export class SQLiteWasmStore implements DRPDLogStore {
   ): Promise<boolean> {
     this.ensureInitialized()
     await this.flush()
-    const match = /^message:(-?\d+):(-?\d+):(\d+)$/.exec(selectionKey)
-    if (!match) {
+    const messageMatch = /^message:(-?\d+):(-?\d+):(\d+)$/.exec(selectionKey)
+    const markMatch = /^event:(-?\d+):(\d+):mark$/.exec(selectionKey)
+    if (!messageMatch && !markMatch) {
       return false
     }
-    const [, startTimestampUs, endTimestampUs, createdAtMs] = match
+    const startTimestampUs = messageMatch?.[1] ?? markMatch?.[1]
+    const endTimestampUs = messageMatch?.[2] ?? null
+    const createdAtMs = messageMatch?.[3] ?? markMatch?.[2]
+    const entryKind = messageMatch ? 'message' : 'event'
     if (this.memoryFallback) {
       const row = this.memoryFallback.capturedMessages.find((candidate) =>
-        candidate.entryKind === 'message' &&
-        candidate.startTimestampUs === BigInt(startTimestampUs) &&
-        candidate.endTimestampUs === BigInt(endTimestampUs) &&
+        candidate.entryKind === entryKind &&
+        (entryKind === 'message' || candidate.eventType === 'mark') &&
+        candidate.startTimestampUs === BigInt(startTimestampUs!) &&
+        (endTimestampUs === null || candidate.endTimestampUs === BigInt(endTimestampUs)) &&
         candidate.createdAtMs === Number(createdAtMs))
       if (!row) return false
       row.flagged = annotations.flagged
@@ -643,17 +651,25 @@ export class SQLiteWasmStore implements DRPDLogStore {
       row.commentCreatedAtMs = annotations.commentCreatedAtMs
       return true
     }
-    const statement = this.requireDb().prepare(
-      'UPDATE captured_messages SET flagged = ?, comment = ?, comment_created_at_ms = ? WHERE entry_kind = ? AND start_timestamp_us = ? AND end_timestamp_us = ? AND created_at_ms = ?',
-    )
+    const statement = this.requireDb().prepare(messageMatch
+      ? 'UPDATE captured_messages SET flagged = ?, comment = ?, comment_created_at_ms = ? WHERE entry_kind = ? AND start_timestamp_us = ? AND end_timestamp_us = ? AND created_at_ms = ?'
+      : 'UPDATE captured_messages SET flagged = ?, comment = ?, comment_created_at_ms = ? WHERE entry_kind = ? AND event_type = ? AND start_timestamp_us = ? AND created_at_ms = ?')
     try {
-      statement.bind([
+      statement.bind(messageMatch ? [
         annotations.flagged ? 1 : 0,
         annotations.comment,
         annotations.commentCreatedAtMs,
-        'message',
-        BigInt(startTimestampUs),
-        BigInt(endTimestampUs),
+        entryKind,
+        BigInt(startTimestampUs!),
+        BigInt(endTimestampUs!),
+        Number(createdAtMs),
+      ] : [
+        annotations.flagged ? 1 : 0,
+        annotations.comment,
+        annotations.commentCreatedAtMs,
+        entryKind,
+        'mark',
+        BigInt(startTimestampUs!),
         Number(createdAtMs),
       ]).stepReset()
     } finally {

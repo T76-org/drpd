@@ -42,6 +42,33 @@ describe('parseMessageLogImportJson', () => {
     expect(legacyRow.flagged).toBe(false)
     expect(legacyRow.comment).toBeNull()
   })
+
+  it('preserves mark annotations while dropping annotations from other events', () => {
+    const mark = {
+      ...serializeMessageLogRow(buildRow()),
+      entryKind: 'event',
+      eventType: 'mark',
+      eventText: 'Mark',
+      flagged: true,
+      comment: '**Checkpoint**',
+      commentCreatedAtMs: 1_700_000_000_100,
+    }
+    const otherEvent = {
+      ...mark,
+      eventType: 'capture_changed',
+      eventText: 'Capture enabled',
+    }
+
+    const [markRow, otherEventRow] = parseMessageLogImportJson(
+      JSON.stringify([mark, otherEvent]),
+    )
+    expect(markRow.flagged).toBe(true)
+    expect(markRow.comment).toBe('**Checkpoint**')
+    expect(markRow.commentCreatedAtMs).toBe(1_700_000_000_100)
+    expect(otherEventRow.flagged).toBe(false)
+    expect(otherEventRow.comment).toBeNull()
+    expect(otherEventRow.commentCreatedAtMs).toBeNull()
+  })
   it('imports selected-array JSON rows', () => {
     const [row] = parseMessageLogImportJson(JSON.stringify([serializeMessageLogRow(buildRow())]))
 

@@ -68,6 +68,12 @@ type MessageDetailSection = {
 type LoadedSelection =
   | { kind: 'none' }
   | {
+      kind: 'mark'
+      sections: MessageDetailSection[]
+      comment: string | null
+      commentCreatedAtMs: number | null
+    }
+  | {
       kind: 'invalid'
       message?: Message
       sections: MessageDetailSection[]
@@ -175,10 +181,10 @@ const buildMetadataSections = (
   ]
 }
 
-const parseMessageSelectionKey = (
+const parseCapturedSelectionKey = (
   selectionKey: string,
 ): { startTimestampUs: bigint } | null => {
-  const match = /^message:(\d+):(\d+):(\d+)$/.exec(selectionKey)
+  const match = /^(?:message|event):(-?\d+):/.exec(selectionKey)
   if (!match) {
     return null
   }
@@ -188,15 +194,13 @@ const parseMessageSelectionKey = (
   }
 }
 
-const findSelectedMessageRow = (
+const findSelectedCapturedRow = (
   rows: LoggedCapturedMessage[],
   selectionKey: string,
 ): LoggedCapturedMessage | null => {
   return (
     rows.find(
-      (row) =>
-        row.entryKind === 'message' &&
-        buildCapturedLogSelectionKey(row) === selectionKey,
+      (row) => buildCapturedLogSelectionKey(row) === selectionKey,
     ) ?? null
   )
 }
@@ -583,7 +587,7 @@ export const DrpdMessageDetailInstrumentView = ({
       return
     }
 
-    const parsedSelectionKey = parseMessageSelectionKey(activeSelectionKey)
+    const parsedSelectionKey = parseCapturedSelectionKey(activeSelectionKey)
     if (!parsedSelectionKey) {
       return
     }
@@ -603,10 +607,24 @@ export const DrpdMessageDetailInstrumentView = ({
         return
       }
       const orderedRows = [...rows].reverse()
-      const row = findSelectedMessageRow(orderedRows, activeSelectionKey)
+      const row = findSelectedCapturedRow(orderedRows, activeSelectionKey)
       if (!row) {
         setLoadedSelectionKey(activeSelectionKey)
         setLoadedSelection({ kind: 'none' })
+        return
+      }
+      if (row.entryKind === 'event') {
+        setLoadedSelectionKey(activeSelectionKey)
+        setLoadedSelection(
+          row.eventType === 'mark'
+            ? {
+                kind: 'mark',
+                sections: [],
+                comment: row.comment?.trim() || null,
+                commentCreatedAtMs: row.commentCreatedAtMs ?? null,
+              }
+            : { kind: 'none' },
+        )
         return
       }
       const targetIndex = orderedRows.findIndex(
@@ -682,7 +700,10 @@ export const DrpdMessageDetailInstrumentView = ({
     >
       {activeSelectionKey !== null ? (
         <section className={styles.singleSelectionContainer} aria-label="Selected message details">
-          {visibleSelection.kind === 'invalid' || visibleSelection.kind === 'reset' || visibleSelection.kind === 'message' ? (
+          {visibleSelection.kind === 'invalid' ||
+          visibleSelection.kind === 'reset' ||
+          visibleSelection.kind === 'message' ||
+          visibleSelection.kind === 'mark' ? (
             <div className={styles.sectionsContainer}>
               {visibleSelection.comment ? (
                 <section className={styles.section} data-section-id="comment" aria-label="Comment">

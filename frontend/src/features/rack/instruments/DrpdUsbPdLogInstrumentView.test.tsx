@@ -10,7 +10,10 @@ import {
 } from '../../../lib/device'
 import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import type { RackDeviceState } from '../RackRenderer'
-import { DrpdUsbPdLogInstrumentView } from './DrpdUsbPdLogInstrumentView'
+import {
+  DrpdUsbPdLogInstrumentView,
+  messageMatchesFilters,
+} from './DrpdUsbPdLogInstrumentView'
 
 class TestLogDriver extends EventTarget {
   public analogRows: LoggedAnalogSample[]
@@ -250,6 +253,24 @@ afterEach(() => {
 })
 
 describe('DrpdUsbPdLogInstrumentView', () => {
+  it('applies flag filters to Mark events without hiding other events', () => {
+    const flaggedMark = { ...buildEvent(1, 'Flagged mark', 'mark'), flagged: true }
+    const unflaggedMark = buildEvent(2, 'Unflagged mark', 'mark')
+    const captureEvent = buildEvent(3, 'Capture changed', 'capture_changed')
+    const filters = {
+      flagged: { include: ['Flagged'], exclude: [] },
+      messageTypes: { include: [], exclude: [] },
+      senders: { include: [], exclude: [] },
+      receivers: { include: [], exclude: [] },
+      sopTypes: { include: [], exclude: [] },
+      crcValid: { include: [], exclude: [] },
+    }
+
+    expect(messageMatchesFilters(flaggedMark, filters)).toBe(true)
+    expect(messageMatchesFilters(unflaggedMark, filters)).toBe(false)
+    expect(messageMatchesFilters(captureEvent, filters)).toBe(true)
+  })
+
   it('renders the message table', async () => {
     const driver = new TestLogDriver([buildMessage(0, 1)])
     const deviceState: RackDeviceState = {
@@ -593,7 +614,7 @@ describe('DrpdUsbPdLogInstrumentView', () => {
       buildEvent(1, 'Capture turned off at 2026-02-28 10:00:00', 'capture_changed'),
       buildEvent(2, 'CC role changed to OBSERVER at 2026-02-28 10:00:01', 'cc_role_changed'),
       buildEvent(3, 'Device status changed to ATTACHED at 2026-02-28 10:00:02', 'cc_status_changed'),
-      buildEvent(4, 'Mark', 'mark'),
+      { ...buildEvent(4, 'Mark', 'mark'), flagged: true },
       buildEvent(5, 'Sink error: request rejected at 2026-02-28 10:00:03', 'sink_errors'),
       buildEvent(6, 'VBUS OVP event at 2026-02-28 10:00:04', 'vbus_ovp'),
       buildEvent(7, 'VBUS OCP event at 2026-02-28 10:00:05', 'vbus_ocp'),
@@ -627,6 +648,9 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(eventCells[2].className).toContain('eventLabelAfterFlag')
     expect(eventCells[2].textContent).toBe('Capture turned off at 2026-02-28 10:00:00')
     expect(container.querySelector('[class*="eventRowMark"]')).not.toBeNull()
+    const markFlagCell = container.querySelector('[class*="eventRowMark"] td')
+    expect(markFlagCell).toHaveAttribute('aria-label', 'Flagged')
+    expect(markFlagCell?.textContent).toBe('⚑')
     expect(container.querySelector('[class*="eventRowSinkErrors"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOvp"]')).not.toBeNull()
     expect(container.querySelector('[class*="eventRowOcp"]')).not.toBeNull()
