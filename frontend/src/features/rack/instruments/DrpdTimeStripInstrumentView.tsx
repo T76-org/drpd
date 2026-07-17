@@ -49,6 +49,7 @@ const MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS = 16_000_000
 const LIVE_FOLLOW_VIEWPORT_FRACTION = 0.5
 const LIVE_FOLLOW_INTERVAL_MS = 125
 const LIVE_FOLLOW_MAX_STEP_VIEWPORTS = 0.75
+const RANGE_SELECTION_DRAG_THRESHOLD_PX = 4
 const readThemeName = () => {
   if (typeof document === 'undefined') {
     return 'dark:normal'
@@ -77,6 +78,12 @@ type TimelineRangePoint = {
 type LogSelectionKeyParts = {
   startTimestampUs: bigint
   endTimestampUs: bigint
+}
+type TimestripRangeSelection = {
+  pointerId: number
+  startViewportX: number
+  currentViewportX: number
+  shouldUnion: boolean
 }
 
 const compareTimelinePointDeviceTime = (left: TimelineRangePoint, right: TimelineRangePoint): number =>
@@ -451,6 +458,43 @@ const getClosestCapturedRow = (
   return closestRow
 }
 
+/**
+ * Return whether a captured row intersects an inclusive timeline range.
+ */
+export const doesCapturedRowIntersectRange = (
+  row: LoggedCapturedMessage,
+  rangeStartTimestampUs: bigint,
+  rangeEndTimestampUs: bigint,
+  hasWallClockBasis: boolean,
+): boolean => {
+  const rowStartTimestampUs = getCapturedRowBasisTimestampUs(row, hasWallClockBasis)
+  if (rowStartTimestampUs === null) {
+    return false
+  }
+  const rowEndTimestampUs =
+    row.entryKind === 'message'
+      ? rowStartTimestampUs + (row.endTimestampUs - row.startTimestampUs)
+      : rowStartTimestampUs
+  return rowStartTimestampUs <= rangeEndTimestampUs && rowEndTimestampUs >= rangeStartTimestampUs
+}
+
+/**
+ * Build selection keys for captured rows intersecting an inclusive timeline range.
+ */
+export const buildCapturedRangeSelectionKeys = (
+  rows: LoggedCapturedMessage[],
+  rangeStartTimestampUs: bigint,
+  rangeEndTimestampUs: bigint,
+  hasWallClockBasis: boolean,
+): string[] => rows
+  .filter((row) => doesCapturedRowIntersectRange(
+    row,
+    rangeStartTimestampUs,
+    rangeEndTimestampUs,
+    hasWallClockBasis,
+  ))
+  .map(buildCapturedLogSelectionKey)
+
 const mergeAnalogSampleRows = (
   rows: LoggedAnalogSample[],
   hasWallClockBasis: boolean,
@@ -544,6 +588,7 @@ export const DrpdTimeStripInstrumentView = ({
   const analogBreakWorldNsRef = useRef<number[]>([])
   const digitalQueryRangeRef = useRef<DigitalQueryRange | null>(null)
   const analogLoadedRangesRef = useRef<AnalogLoadedRange[]>([])
+  const suppressNextClickRef = useRef(false)
   const [timelineRange, setTimelineRange] = useState<TimestripTimelineRange>(() => ({
     basis: buildTimelineBasis(0n, Date.now() * 1000, false),
     durationNs: PLACEHOLDER_TIMELINE_END_NS,
@@ -561,6 +606,7 @@ export const DrpdTimeStripInstrumentView = ({
   const analogSamplesRef = useRef<TimestripAnalogSample[]>([])
   const [analogDataRevision, setAnalogDataRevision] = useState(0)
   const [selectedLogMessageKey, setSelectedLogMessageKey] = useState<string | null>(null)
+  const [rangeSelection, setRangeSelection] = useState<TimestripRangeSelection | null>(null)
   const [isLiveFollowEnabled, setIsLiveFollowEnabled] = useState(true)
   const [isLiveFollowPausedByUser, setIsLiveFollowPausedByUser] = useState(false)
   const setLiveFollowPausedByUser = useCallback((isPaused: boolean) => {
@@ -721,6 +767,10 @@ export const DrpdTimeStripInstrumentView = ({
     selectedLogMessageKey,
   ])
   const selectClosestLogEntry = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false
+      return
+    }
     const driver = deviceState?.drpdDriver
     const viewport = viewportRef.current
     if (
@@ -786,6 +836,158 @@ export const DrpdTimeStripInstrumentView = ({
     viewportWidthPx,
     zoomDenominator,
   ])
+  const getViewportX = useCallback((clientX: number): number => {
+    const viewport = viewportRef.current
+    if (!viewport || viewportWidthPx <= 0) {
+      return 0
+    }
+    const rect = viewport.getBoundingClientRect()
+    return Math.max(0, Math.min(viewportWidthPx, clientX - rect.left))
+  }, [viewportWidthPx])
+  const getBasisTimestampAtViewportX = useCallback((viewportX: number): bigint => {
+    const worldNs = Math.max(0, Math.floor((scrollLeftPx + viewportX) * zoomDenominator))
+    return getTimestripBasisOriginUs(timelineRange.basis) + BigInt(Math.floor(worldNs / 1000))
+  }, [
+    scrollLeftPx,
+    timelineRange.basis.originTimestampUs,
+    timelineRange.basis.originWallClockUs,
+    timelineRange.basis.kind === 'wallClock',
+    zoomDenominator,
+  ])
+  const commitRangeSelection = useCallback(async (
+    startViewportX: number,
+    endViewportX: number,
+    shouldUnion: boolean,
+  ) => {
+    const driver = deviceState?.drpdDriver
+    if (
+      !driver ||
+      typeof driver.queryCapturedMessages !== 'function' ||
+      typeof driver.setLogSelectionState !== 'function'
+    ) {
+      return
+    }
+    const firstTimestampUs = getBasisTimestampAtViewportX(startViewportX)
+    const secondTimestampUs = getBasisTimestampAtViewportX(endViewportX)
+    const rangeStartTimestampUs = firstTimestampUs < secondTimestampUs
+      ? firstTimestampUs
+      : secondTimestampUs
+    const rangeEndTimestampUs = firstTimestampUs > secondTimestampUs
+      ? firstTimestampUs
+      : secondTimestampUs
+    const timeBasis = timelineRange.basis.kind === 'wallClock' ? 'wallClock' : 'device'
+    try {
+      const [rowsStartingBeforeRange, rowsStartingInRange, currentSelection] = await Promise.all([
+        rangeStartTimestampUs > LOG_START_TIMESTAMP_US
+          ? driver.queryCapturedMessages({
+            startTimestampUs: LOG_START_TIMESTAMP_US,
+            endTimestampUs: rangeStartTimestampUs - 1n,
+            timeBasis,
+            sortOrder: 'asc',
+          })
+          : Promise.resolve([]),
+        driver.queryCapturedMessages({
+          startTimestampUs: rangeStartTimestampUs,
+          endTimestampUs: rangeEndTimestampUs,
+          timeBasis,
+          sortOrder: 'asc',
+        }),
+        shouldUnion && typeof driver.getLogSelectionState === 'function'
+          ? Promise.resolve(driver.getLogSelectionState()).then(normalizeSelectionState)
+          : Promise.resolve<DRPDLogSelectionState>({
+            selectedKeys: [],
+            anchorIndex: null,
+            activeIndex: null,
+          }),
+      ])
+      const rangeKeys = buildCapturedRangeSelectionKeys(
+        [...rowsStartingBeforeRange, ...rowsStartingInRange],
+        rangeStartTimestampUs,
+        rangeEndTimestampUs,
+        timelineRange.basis.kind === 'wallClock',
+      )
+      const selectedKeys = shouldUnion
+        ? Array.from(new Set([...currentSelection.selectedKeys, ...rangeKeys]))
+        : rangeKeys
+      await Promise.resolve(driver.setLogSelectionState({
+        selectedKeys,
+        anchorIndex: null,
+        activeIndex: null,
+      }))
+    } catch {
+      // Keep the current selection if the log store is temporarily unavailable.
+    }
+  }, [
+    deviceState?.drpdDriver,
+    getBasisTimestampAtViewportX,
+    timelineRange.basis.kind === 'wallClock',
+  ])
+  const handleRangePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.button ?? 0) !== 0 || event.isPrimary === false) {
+      return
+    }
+    const viewportX = getViewportX(event.clientX)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setRangeSelection({
+      pointerId: event.pointerId,
+      startViewportX: viewportX,
+      currentViewportX: viewportX,
+      shouldUnion: event.ctrlKey || event.metaKey,
+    })
+  }, [getViewportX])
+  const handleRangePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    setRangeSelection((current) => {
+      if (!current || current.pointerId !== event.pointerId) {
+        return current
+      }
+      return {
+        ...current,
+        currentViewportX: getViewportX(event.clientX),
+      }
+    })
+  }, [getViewportX])
+  const handleRangePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!rangeSelection || rangeSelection.pointerId !== event.pointerId) {
+      return
+    }
+    const endViewportX = getViewportX(event.clientX)
+    const isDrag =
+      Math.abs(endViewportX - rangeSelection.startViewportX) >= RANGE_SELECTION_DRAG_THRESHOLD_PX
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    setRangeSelection(null)
+    if (!isDrag) {
+      return
+    }
+    suppressNextClickRef.current = true
+    void commitRangeSelection(
+      rangeSelection.startViewportX,
+      endViewportX,
+      rangeSelection.shouldUnion,
+    )
+  }, [commitRangeSelection, getViewportX, rangeSelection])
+  const cancelRangeSelection = useCallback((event?: React.PointerEvent<HTMLDivElement>) => {
+    if (event && rangeSelection?.pointerId === event.pointerId) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
+    setRangeSelection(null)
+  }, [rangeSelection?.pointerId])
+  useEffect(() => {
+    if (!rangeSelection) {
+      return undefined
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+      event.preventDefault()
+      suppressNextClickRef.current = true
+      setRangeSelection(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [rangeSelection])
   const commitDigitalEntries = useCallback((nextEntries: TimestripDigitalEntry[]) => {
     setDigitalEntries(nextEntries)
     setDigitalDataRevision((revision) => revision + 1)
@@ -1681,6 +1883,12 @@ export const DrpdTimeStripInstrumentView = ({
     Number.isFinite(captureMarkerX) &&
     captureMarkerX >= 0 &&
     captureMarkerX <= viewportWidthPx
+  const rangeSelectionLeft = rangeSelection
+    ? Math.min(rangeSelection.startViewportX, rangeSelection.currentViewportX)
+    : 0
+  const rangeSelectionWidth = rangeSelection
+    ? Math.abs(rangeSelection.currentViewportX - rangeSelection.startViewportX)
+    : 0
 
   return (
     <InstrumentBase
@@ -1755,9 +1963,15 @@ export const DrpdTimeStripInstrumentView = ({
           className={styles.viewport}
           data-testid="drpd-timestrip-viewport"
           onClick={selectClosestLogEntry}
+          onPointerDown={handleRangePointerDown}
+          onPointerUp={handleRangePointerUp}
+          onPointerCancel={cancelRangeSelection}
           onMouseMove={updateAnalogHover}
           onMouseLeave={clearAnalogHover}
-          onPointerMove={updateAnalogHover}
+          onPointerMove={(event) => {
+            updateAnalogHover(event)
+            handleRangePointerMove(event)
+          }}
           onPointerLeave={clearAnalogHover}
         >
           <div
@@ -1777,6 +1991,18 @@ export const DrpdTimeStripInstrumentView = ({
                 top: `${liveOverlayLayout.digital.y}px`,
                 height: `${liveOverlayLayout.analog.y + liveOverlayLayout.analog.height - liveOverlayLayout.digital.y}px`,
                 transform: `translate3d(${captureMarkerX}px, 0, 0)`,
+              }}
+            />
+          ) : null}
+          {rangeSelection && rangeSelectionWidth >= RANGE_SELECTION_DRAG_THRESHOLD_PX ? (
+            <div
+              className={styles.rangeSelectionOverlay}
+              data-testid="drpd-timestrip-range-selection"
+              role="status"
+              aria-label="Timeline range selection"
+              style={{
+                width: `${rangeSelectionWidth}px`,
+                transform: `translate3d(${rangeSelectionLeft}px, 0, 0)`,
               }}
             />
           ) : null}

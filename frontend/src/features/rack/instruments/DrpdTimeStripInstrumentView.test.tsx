@@ -186,6 +186,7 @@ describe('DrpdTimeStripInstrumentView', () => {
   beforeEach(() => {
     localStorageMock.clear()
     vi.stubGlobal('localStorage', localStorageMock)
+    vi.stubGlobal('PointerEvent', MouseEvent)
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
       buildCanvasContext() as unknown as CanvasRenderingContext2D,
     )
@@ -879,6 +880,147 @@ describe('DrpdTimeStripInstrumentView', () => {
       expect(screen.getByRole('button', { name: 'Following live' })).toBeInTheDocument()
       expect(viewport.scrollLeft).toBe(1750)
     })
+  })
+
+  it('selects an inclusive dragged range in either direction and unions with Ctrl', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const firstRow = buildCapturedMessage({
+      startTimestampUs: 1_000n,
+      endTimestampUs: 1_001n,
+      createdAtMs: 1,
+    })
+    const boundaryMessage = buildCapturedMessage({
+      startTimestampUs: 1_010n,
+      endTimestampUs: 1_020n,
+      createdAtMs: 2,
+    })
+    const rangeEvent = {
+      ...buildCapturedMessage({
+        startTimestampUs: 1_040n,
+        endTimestampUs: 1_040n,
+        createdAtMs: 3,
+      }),
+      entryKind: 'event',
+      eventType: 'mark',
+      eventText: 'Mark',
+    } as LoggedCapturedMessage
+    const lastRow = buildCapturedMessage({
+      startTimestampUs: 2_000n,
+      endTimestampUs: 2_001n,
+      createdAtMs: 4,
+    })
+    const rows = [firstRow, boundaryMessage, rangeEvent, lastRow]
+    const queryCapturedMessages = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      limit?: number
+    }) => {
+      const matches = rows.filter((row) => (
+        row.startTimestampUs >= query.startTimestampUs &&
+        row.startTimestampUs <= query.endTimestampUs
+      ))
+      const sorted = query.sortOrder === 'desc' ? [...matches].reverse() : matches
+      return query.limit ? sorted.slice(0, query.limit) : sorted
+    })
+    const existingKey = buildCapturedLogSelectionKey(lastRow)
+    const setLogSelectionState = vi.fn()
+    const deviceState = {
+      ...buildDeviceState(queryCapturedMessages),
+      drpdDriver: {
+        queryCapturedMessages,
+        getLoggingTimeBounds: vi.fn(async () => ({
+          firstWallClockMessage: null,
+          lastWallClockMessage: null,
+          firstAnalogSample: null,
+          lastAnalogSample: null,
+          firstDeviceMessage: firstRow,
+          lastDeviceMessage: lastRow,
+        })),
+        getLogSelectionState: vi.fn(async () => ({
+          selectedKeys: [existingKey],
+          anchorIndex: 8,
+          activeIndex: 8,
+        })),
+        setLogSelectionState,
+      },
+    } as unknown as RackDeviceState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport, 500, 100)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drpd-timestrip-timeline')).toHaveStyle({ width: '1000px' })
+    })
+
+    fireEvent.pointerDown(viewport, {
+      button: 0,
+      pointerId: 1,
+      clientX: 160,
+      ctrlKey: true,
+    })
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 120 })
+
+    expect(screen.getByTestId('drpd-timestrip-range-selection')).toHaveStyle({
+      width: '40px',
+      transform: 'translate3d(20px, 0, 0)',
+    })
+
+    fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 120 })
+
+    await waitFor(() => {
+      expect(setLogSelectionState).toHaveBeenCalledWith({
+        selectedKeys: [
+          existingKey,
+          buildCapturedLogSelectionKey(boundaryMessage),
+          buildCapturedLogSelectionKey(rangeEvent),
+        ],
+        anchorIndex: null,
+        activeIndex: null,
+      })
+    })
+    expect(screen.queryByTestId('drpd-timestrip-range-selection')).toBeNull()
+  })
+
+  it('keeps click selection below four pixels and cancels an active drag with Escape', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '1000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(100)
+    const row = buildCapturedMessage({
+      startTimestampUs: 1_000n,
+      endTimestampUs: 2_000n,
+      createdAtMs: 1,
+    })
+    const queryCapturedMessages = vi.fn(async () => [row])
+    const { setLogSelectionState } = attachSelectionDriver(buildDeviceState(queryCapturedMessages))
+    const deviceState = buildDeviceState(queryCapturedMessages)
+    ;(deviceState.drpdDriver as unknown as {
+      setLogSelectionState: ReturnType<typeof vi.fn>
+    }).setLogSelectionState = setLogSelectionState
+    renderTimestrip(deviceState)
+    const viewport = screen.getByTestId('drpd-timestrip-viewport')
+    setViewportGeometry(viewport, 500, 100)
+
+    fireEvent.pointerDown(viewport, { button: 0, pointerId: 1, clientX: 120 })
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 123 })
+    fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 123 })
+    fireEvent.click(viewport, { clientX: 123 })
+
+    await waitFor(() => {
+      expect(setLogSelectionState).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.pointerDown(viewport, { button: 0, pointerId: 2, clientX: 120 })
+    fireEvent.pointerMove(viewport, { pointerId: 2, clientX: 160 })
+    expect(screen.getByTestId('drpd-timestrip-range-selection')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByTestId('drpd-timestrip-range-selection')).toBeNull()
+    fireEvent.pointerUp(viewport, { pointerId: 2, clientX: 160 })
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(setLogSelectionState).toHaveBeenCalledTimes(1)
   })
 
   it('disables live follow when zoomed in past 16ms per pixel', async () => {

@@ -51,6 +51,18 @@
   z-index: 2;
 }
 
+.rangeSelectionOverlay {
+  grid-area: 1 / 1;
+  position: sticky;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border: 1px solid var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 24%, transparent);
+  pointer-events: none;
+  z-index: 3;
+}
+
 .timeline {
   grid-area: 1 / 1;
   height: 100%;
