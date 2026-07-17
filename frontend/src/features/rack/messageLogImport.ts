@@ -88,17 +88,20 @@ const normalizeCapturedMessage = (value: unknown, index: number): LoggedCaptured
   if (entryKind !== 'message' && entryKind !== 'event') {
     throw new Error(`${label}.entryKind must be "message" or "event".`)
   }
+  const eventType =
+    readNullableString(value.eventType, `${label}.eventType`) as LoggedCapturedMessage['eventType']
+  const isAnnotatable = entryKind === 'message' || eventType === 'mark'
 
   return {
     entryKind,
-    eventType: readNullableString(value.eventType, `${label}.eventType`) as LoggedCapturedMessage['eventType'],
+    eventType,
     eventText: readNullableString(value.eventText, `${label}.eventText`),
     eventWallClockMs: readNullableNumber(value.eventWallClockMs, `${label}.eventWallClockMs`),
-    flagged: entryKind === 'message' && readOptionalBoolean(value.flagged, `${label}.flagged`),
-    comment: entryKind === 'message'
+    flagged: isAnnotatable && readOptionalBoolean(value.flagged, `${label}.flagged`),
+    comment: isAnnotatable
       ? readNullableString(value.comment, `${label}.comment`)
       : null,
-    commentCreatedAtMs: entryKind === 'message'
+    commentCreatedAtMs: isAnnotatable
       ? readNullableNumber(value.commentCreatedAtMs, `${label}.commentCreatedAtMs`)
       : null,
     wallClockUs: readNullableBigInt(value.wallClockUs, `${label}.wallClockUs`),

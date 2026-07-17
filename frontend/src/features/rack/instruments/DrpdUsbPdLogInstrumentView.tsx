@@ -240,7 +240,7 @@ const toDisplayRows = (
         eventType: row.eventType,
         startTimestampUs: row.startTimestampUs,
         endTimestampUs: row.endTimestampUs,
-        flagged: '',
+        flagged: row.flagged === true ? '⚑' : '',
         timestamp: formatWallClock(row.wallClockUs),
         duration: '',
         delta: '',
@@ -1407,7 +1407,14 @@ export const DrpdUsbPdLogInstrumentView = ({
             {row?.kind === 'event' ? (
               visibleColumns[0]?.id === 'flagged' && visibleColumns[1]?.id === 'timestamp' ? (
                 <>
-                  <td className={styles.center} aria-label="Not flaggable" />
+                  <td
+                    className={styles.center}
+                    aria-label={row.eventType === 'mark'
+                      ? (row.flagged ? 'Flagged' : 'Not flagged')
+                      : 'Not flaggable'}
+                  >
+                    {row.eventType === 'mark' ? row.flagged : ''}
+                  </td>
                   <td className={styles.eventTimestamp}>{row.timestamp}</td>
                   {visibleColumns.length > 2 ? (
                     <td className={styles.eventLabelAfterFlag} colSpan={visibleColumns.length - 2}>

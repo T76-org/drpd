@@ -70,30 +70,48 @@ const buildEvent = (index: number): LoggedCapturedMessage => ({
 })
 
 describe('SQLiteWasmStore', () => {
-  it('updates annotations by stable message key and rejects event keys', async () => {
+  it('updates annotations for messages and marks while rejecting other event keys', async () => {
     const store = new SQLiteWasmStore()
     await store.init()
     const message = buildMessage(0)
+    const mark = { ...buildEvent(0), eventType: 'mark' as const, eventText: 'Mark' }
+    const captureEvent = buildEvent(1)
     await store.insertCapturedMessage(message)
+    await store.insertCapturedMessage(mark)
+    await store.insertCapturedMessage(captureEvent)
     const key = `message:${message.startTimestampUs}:${message.endTimestampUs}:${message.createdAtMs}`
+    const markKey = `event:${mark.startTimestampUs}:${mark.createdAtMs}:mark`
 
     await expect(store.updateCapturedMessageAnnotations(key, {
       flagged: true,
       comment: '**Important**',
       commentCreatedAtMs: 1_700_000_000_000,
     })).resolves.toBe(true)
-    await expect(store.updateCapturedMessageAnnotations('event:1:2:mark', {
+    await expect(store.updateCapturedMessageAnnotations(markKey, {
+      flagged: true,
+      comment: 'Check this point',
+      commentCreatedAtMs: 1_700_000_000_001,
+    })).resolves.toBe(true)
+    await expect(store.updateCapturedMessageAnnotations(
+      `event:${captureEvent.startTimestampUs}:${captureEvent.createdAtMs}:capture_changed`,
+      {
       flagged: true,
       comment: 'No',
       commentCreatedAtMs: 1_700_000_000_000,
-    })).resolves.toBe(false)
+      },
+    )).resolves.toBe(false)
 
-    const [updated] = await store.queryCapturedMessages({
+    const updated = await store.queryCapturedMessages({
       startTimestampUs: 0n,
       endTimestampUs: 10_000n,
     })
-    expect(updated.flagged).toBe(true)
-    expect(updated.comment).toBe('**Important**')
+    expect(updated[0].flagged).toBe(true)
+    expect(updated[0].comment).toBe('**Important**')
+    expect(updated[1].flagged).toBe(true)
+    expect(updated[1].comment).toBe('Check this point')
+    expect(updated[1].commentCreatedAtMs).toBe(1_700_000_000_001)
+    expect(updated[2].flagged).toBe(false)
+    expect(updated[2].comment).toBeNull()
     await store.close()
   })
   it('falls back to an in-memory SQLite database when OPFS open fails', () => {
