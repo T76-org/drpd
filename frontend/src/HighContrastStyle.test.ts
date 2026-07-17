@@ -40,13 +40,16 @@ describe('high contrast semantic palette', () => {
 
   it('gives Message Log events high-contrast text, borders, and non-color category accents', () => {
     expect(messageLogCss).toMatch(
+      /data-high-contrast='true'\]\) \.dataRow\s*\{[^}]*border-bottom:\s*var\(--border-thin\) solid var\(--color-text-primary\);/s,
+    )
+    expect(messageLogCss).toMatch(
       /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*color:\s*var\(--color-text-primary\);/s,
     )
     expect(messageLogCss).toMatch(
       /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*border-left:\s*6px solid var\(--event-row-accent/s,
     )
-    expect(messageLogCss).toMatch(
-      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*box-shadow:[^}]*var\(--color-text-primary\)/s,
+    expect(messageLogCss).not.toMatch(
+      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*box-shadow:/s,
     )
     expect(messageLogCss.match(/--event-row-accent:/g)).toHaveLength(8)
   })
