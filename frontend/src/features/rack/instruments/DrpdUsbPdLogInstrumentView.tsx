@@ -1003,6 +1003,9 @@ export const DrpdUsbPdLogInstrumentView = ({
       totalRowsRef.current = previousTotalRows + 1
 
       setPages((previous) => {
+        if (detail.orderedInsertion === true) {
+          return new Map()
+        }
         if (previous.size === 0 || !addedRow) {
           return previous
         }
