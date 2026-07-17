@@ -414,6 +414,50 @@
   --empty-text: #333333;
 }
 
+:root[data-colorblind='true'] {
+  --color-status-error: #ff8c42;
+  --color-status-success: #56b4e9;
+  --color-status-warning: #f0e442;
+  --color-status-info: #56b4e9;
+  --color-status-ok: #56b4e9;
+  --color-status-highlight: #e69f00;
+  --color-status-charge: #cc79a7;
+  --color-metric-voltage: #56b4e9;
+  --color-metric-current: #e69f00;
+  --color-metric-power: #f0e442;
+  --color-metric-charge: #cc79a7;
+  --color-log-event-capture: #f0e442;
+  --color-log-event-role: #56b4e9;
+  --color-log-event-status: #00c896;
+  --color-log-event-mark: #cc79a7;
+  --color-log-event-sink-errors: #ff8c42;
+  --color-log-event-sync-trigger: #8da0ff;
+  --color-log-event-ovp: #e69f00;
+  --color-log-event-ocp: #f0e442;
+  --color-log-event-capture-bg: color-mix(in srgb, #f0e442 22%, transparent);
+  --color-log-event-role-bg: color-mix(in srgb, #56b4e9 22%, transparent);
+  --color-log-event-status-bg: color-mix(in srgb, #00c896 22%, transparent);
+  --color-log-event-mark-bg: color-mix(in srgb, #cc79a7 24%, transparent);
+  --color-log-event-sink-errors-bg: color-mix(in srgb, #ff8c42 24%, transparent);
+  --color-log-event-sync-trigger-bg: color-mix(in srgb, #8da0ff 22%, transparent);
+  --color-log-event-ovp-bg: color-mix(in srgb, #e69f00 24%, transparent);
+  --color-log-event-ocp-bg: color-mix(in srgb, #f0e442 22%, transparent);
+  --color-timestrip-message-fill: color-mix(in srgb, #56b4e9 22%, transparent);
+  --color-timestrip-message-stroke: #56b4e9;
+  --color-timestrip-selection-bg: rgb(240 228 66 / 0.16);
+  --color-timestrip-selection-fill: #665f00;
+  --color-timestrip-waveform: #ffffff;
+  --color-timestrip-component: #3b3b3b;
+  --color-timestrip-byte: #505050;
+  --color-timestrip-preamble: #505050;
+  --color-timestrip-sop: #007f67;
+  --color-timestrip-header: #356f91;
+  --color-timestrip-data: #8a5d00;
+  --color-timestrip-crc: #8a4f72;
+  --color-timestrip-grid: #777777;
+  --color-timestrip-marker: #ffffff;
+}
+
 :root[data-high-contrast='true'] button:focus-visible,
 :root[data-high-contrast='true'] [tabindex]:focus-visible {
   outline: 3px solid var(--color-status-info);

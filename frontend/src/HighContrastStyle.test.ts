@@ -55,4 +55,12 @@ describe('high contrast semantic palette', () => {
     )
     expect(messageLogCss.match(/--event-row-accent:/g)).toHaveLength(8)
   })
+
+  it('defines a separate colorblind palette for metrics, events, and Timestrip traces', () => {
+    expect(css).toContain(":root[data-colorblind='true']")
+    expect(css).toContain('--color-metric-voltage: #56b4e9;')
+    expect(css).toContain('--color-metric-current: #e69f00;')
+    expect(css).toContain('--color-log-event-mark: #cc79a7;')
+    expect(css).toContain('--color-timestrip-waveform: #ffffff;')
+  })
 })

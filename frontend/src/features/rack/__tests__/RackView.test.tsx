@@ -829,6 +829,7 @@ const resetMockTransportState = (): void => {
 
 beforeEach(() => {
   document.documentElement.removeAttribute('data-high-contrast')
+  document.documentElement.removeAttribute('data-colorblind')
   originalVerifier = DRPDDeviceDefinition.verifyConnectedDevice
   DRPDDeviceDefinition.verifyConnectedDevice = async () => true
   resetMockTransportState()
@@ -918,6 +919,32 @@ describe('RackView', () => {
     expect(document.documentElement).not.toHaveAttribute('data-high-contrast')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
     expect(window.localStorage.getItem('drpd:theme')).toBe('light')
+  })
+
+  it('selects and restores Colorblind as an exclusive dark-base theme', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    const { unmount } = render(<RackView />)
+
+    await chooseThemeFromMenu('Colorblind')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(document.documentElement).toHaveAttribute('data-colorblind', 'true')
+    expect(document.documentElement).not.toHaveAttribute('data-high-contrast')
+    expect(window.localStorage.getItem('drpd:theme')).toBe('colorblind')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Theme' }))
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Light' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Dark' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'System default' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'High contrast' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Colorblind' })).toHaveAttribute('aria-checked', 'true')
+
+    unmount()
+    render(<RackView />)
+    await screen.findByText('Bench Rack A')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(document.documentElement).toHaveAttribute('data-colorblind', 'true')
   })
 
   it('shows a waiting device status in the menu bar when no device is connected', async () => {

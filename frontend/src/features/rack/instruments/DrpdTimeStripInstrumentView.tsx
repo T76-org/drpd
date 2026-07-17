@@ -54,7 +54,12 @@ const readThemeName = () => {
     return 'dark:normal'
   }
   const root = document.documentElement
-  return `${root.dataset.theme ?? 'dark'}:${root.dataset.highContrast === 'true' ? 'high' : 'normal'}`
+  const variant = root.dataset.highContrast === 'true'
+    ? 'high'
+    : root.dataset.colorblind === 'true'
+      ? 'colorblind'
+      : 'normal'
+  return `${root.dataset.theme ?? 'dark'}:${variant}`
 }
 const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
   themeName.split(':')[0],
@@ -825,7 +830,7 @@ export const DrpdTimeStripInstrumentView = ({
     })
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-theme', 'data-high-contrast'],
+      attributeFilter: ['data-theme', 'data-high-contrast', 'data-colorblind'],
     })
     return () => {
       observer.disconnect()

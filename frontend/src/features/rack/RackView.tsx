@@ -130,7 +130,7 @@ import { parseMessageLogImportJson, serializeMessageLogRow } from './messageLogI
 import styles from './RackView.module.css'
 import messageLogStyles from './instruments/DrpdUsbPdLogInstrumentView.module.css'
 
-type ThemeMode = 'system' | 'light' | 'dark' | 'high-contrast'
+type ThemeMode = 'system' | 'light' | 'dark' | 'high-contrast' | 'colorblind'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
 const LEGACY_HIGH_CONTRAST_STORAGE_KEY = 'drpd:theme:high-contrast'
@@ -1026,7 +1026,22 @@ export const RackView = ({
     } else {
       root.removeAttribute('data-high-contrast')
     }
+    if (theme === 'colorblind') {
+      root.setAttribute('data-colorblind', 'true')
+    } else {
+      root.removeAttribute('data-colorblind')
+    }
     if (theme === 'high-contrast') {
+      root.setAttribute('data-theme', 'dark')
+      setResolvedTheme('dark')
+      const storage = getBrowserStorage()
+      if (storage) {
+        storage.setItem(THEME_STORAGE_KEY, theme)
+        storage.removeItem(LEGACY_HIGH_CONTRAST_STORAGE_KEY)
+      }
+      return
+    }
+    if (theme === 'colorblind') {
       root.setAttribute('data-theme', 'dark')
       setResolvedTheme('dark')
       const storage = getBrowserStorage()
@@ -3377,6 +3392,13 @@ export const RackView = ({
                 checked: theme === 'high-contrast',
                 onCheckedChange: () => setTheme('high-contrast'),
               },
+              {
+                id: 'theme-colorblind',
+                type: 'checkbox',
+                label: 'Colorblind',
+                checked: theme === 'colorblind',
+                onCheckedChange: () => setTheme('colorblind'),
+              },
             ],
           },
         ],
@@ -4352,7 +4374,8 @@ const getStoredTheme = (): ThemeMode => {
     storedTheme === 'light' ||
     storedTheme === 'dark' ||
     storedTheme === 'system' ||
-    storedTheme === 'high-contrast'
+    storedTheme === 'high-contrast' ||
+    storedTheme === 'colorblind'
   ) {
     return storedTheme
   }
@@ -4398,7 +4421,7 @@ const getResolvedTheme = (theme: ThemeMode): 'light' | 'dark' => {
   if (theme === 'light' || theme === 'dark') {
     return theme
   }
-  if (theme === 'high-contrast') {
+  if (theme === 'high-contrast' || theme === 'colorblind') {
     return 'dark'
   }
   const mediaQuery = getSystemThemeMediaQuery()
