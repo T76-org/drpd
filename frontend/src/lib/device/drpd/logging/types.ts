@@ -160,7 +160,7 @@ export interface CapturedMessageQuery {
   endTimestampUs: bigint
   ///< Timestamp column used for start/end filtering.
   timeBasis?: 'device' | 'wallClock'
-  ///< Sort order by insertion order.
+  ///< Sort order by persisted wall-clock timeline, with insertion id as tie-breaker.
   sortOrder?: 'asc' | 'desc'
   ///< Optional message kind filter.
   messageKinds?: string[]

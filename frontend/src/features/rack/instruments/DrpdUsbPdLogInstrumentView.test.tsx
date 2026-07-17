@@ -473,6 +473,47 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     })
   })
 
+  it('refetches cached pages when a marker is inserted within the log', async () => {
+    const first = buildMessage(0, 1)
+    const last = buildMessage(2, 4)
+    const driver = new TestLogDriver([first, last])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+
+    const table = await screen.findByRole('table', { name: 'USB-PD message log' })
+    expect(await screen.findByText('Reject')).toBeInTheDocument()
+
+    const marker = buildEvent(1, 'Mark', 'mark')
+    driver.rows = [first, marker, last]
+    await act(async () => {
+      driver.dispatchEvent(
+        new CustomEvent(DRPDDevice.LOG_ENTRY_ADDED_EVENT, {
+          detail: { kind: 'event', row: marker, orderedInsertion: true },
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      const rows = Array.from(table.querySelectorAll('tbody tr'))
+      const markerIndex = rows.findIndex((row) => row.textContent?.includes('Mark'))
+      const rejectIndex = rows.findIndex((row) => row.textContent?.includes('Reject'))
+      expect(markerIndex).toBeGreaterThanOrEqual(0)
+      expect(markerIndex).toBeLessThan(rejectIndex)
+    })
+  })
+
   it('resizes message table columns by dragging header handles', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(596)
     const driver = new TestLogDriver([buildMessage(0, 1)])

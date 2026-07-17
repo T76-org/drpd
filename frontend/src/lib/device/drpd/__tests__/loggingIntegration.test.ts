@@ -1035,6 +1035,59 @@ describe('DRPD logging integration', () => {
     expect(addedKinds).toEqual(['event'])
   })
 
+  it('inserts a marker after a pre-reboot row using its persisted timeline', async () => {
+    const store = new SQLiteWasmStore(buildLoggingConfig({ storageBackend: 'memory' }))
+    const device = new DRPDDevice(new MockTransport(), {
+      createLogStore: () => store,
+    })
+    const beforeReboot = {
+      ...buildImportMessage(1),
+      startTimestampUs: 900_000n,
+      endTimestampUs: 900_010n,
+      displayTimestampUs: 100n,
+      wallClockUs: 1_000_000n,
+      createdAtMs: 1_000,
+    }
+    const afterReboot = {
+      ...buildImportMessage(2),
+      startTimestampUs: 10_000n,
+      endTimestampUs: 10_010n,
+      displayTimestampUs: 0n,
+      wallClockUs: 2_000_000n,
+      createdAtMs: 2_000,
+    }
+    await device.importCapturedMessages([beforeReboot, afterReboot], { clearScope: 'all' })
+    ;(device as unknown as { lastKnownDeviceTimestampUs: bigint }).lastKnownDeviceTimestampUs = 10_000n
+
+    const addedEvents: Array<{ kind: string; orderedInsertion?: boolean }> = []
+    device.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, (event) => {
+      addedEvents.push(
+        (event as CustomEvent<{ kind: string; orderedInsertion?: boolean }>).detail,
+      )
+    })
+
+    await device.markLogAt(beforeReboot)
+    await device.markLog()
+
+    const rows = await device.queryCapturedMessages({
+      startTimestampUs: 0n,
+      endTimestampUs: BigInt('9223372036854775807'),
+      sortOrder: 'asc',
+    })
+    expect(rows.slice(0, 3).map((row) => row.wallClockUs)).toEqual([1_000_000n, 1_000_001n, 2_000_000n])
+    expect(rows[1]).toMatchObject({
+      entryKind: 'event',
+      eventType: 'mark',
+      startTimestampUs: 900_001n,
+      displayTimestampUs: 101n,
+    })
+    expect(rows[3].startTimestampUs).toBe(10_001n)
+    expect(addedEvents).toMatchObject([
+      { kind: 'event', orderedInsertion: true },
+      { kind: 'event', orderedInsertion: false },
+    ])
+  })
+
   it('does not log CC status events from status refresh after capture is toggled off then on', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('BUS:CC:ROLE:STAT?', ['ATTACHED'])
