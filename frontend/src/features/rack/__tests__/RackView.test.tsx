@@ -884,7 +884,7 @@ describe('RackView', () => {
     expect(window.localStorage.getItem('drpd:theme')).toBe('light')
   })
 
-  it('toggles independent high contrast mode after the theme separator', async () => {
+  it('selects high contrast as an exclusive theme after the separator', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -905,8 +905,19 @@ describe('RackView', () => {
     await userEvent.click(highContrastItem)
 
     expect(document.documentElement).toHaveAttribute('data-high-contrast', 'true')
-    expect(window.localStorage.getItem('drpd:theme:high-contrast')).toBe('true')
-    expect(window.localStorage.getItem('drpd:theme')).toBe('system')
+    expect(window.localStorage.getItem('drpd:theme')).toBe('high-contrast')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Theme' }))
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Light' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Dark' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'System default' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'High contrast' })).toHaveAttribute('aria-checked', 'true')
+
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Light' }))
+    expect(document.documentElement).not.toHaveAttribute('data-high-contrast')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(window.localStorage.getItem('drpd:theme')).toBe('light')
   })
 
   it('shows a waiting device status in the menu bar when no device is connected', async () => {
@@ -1222,7 +1233,7 @@ describe('RackView', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
-  it('restores high contrast independently across base theme changes and reloads', async () => {
+  it('restores high contrast as the saved theme and migrates the legacy toggle', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
     window.localStorage.setItem('drpd:theme', 'light')
@@ -1230,12 +1241,10 @@ describe('RackView', () => {
 
     const { unmount } = render(<RackView />)
     await screen.findByText('Bench Rack A')
-    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
-    expect(document.documentElement).toHaveAttribute('data-high-contrast', 'true')
-
-    await chooseThemeFromMenu('Dark')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
     expect(document.documentElement).toHaveAttribute('data-high-contrast', 'true')
+    expect(window.localStorage.getItem('drpd:theme')).toBe('high-contrast')
+    expect(window.localStorage.getItem('drpd:theme:high-contrast')).toBeNull()
 
     unmount()
     render(<RackView />)
