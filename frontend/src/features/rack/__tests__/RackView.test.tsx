@@ -921,12 +921,12 @@ describe('RackView', () => {
     expect(window.localStorage.getItem('drpd:theme')).toBe('light')
   })
 
-  it('selects and restores Colorblind as an exclusive dark-base theme', async () => {
+  it('selects and restores Colourblind as an exclusive dark-base theme', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([createUSBDevice()])
     const { unmount } = render(<RackView />)
 
-    await chooseThemeFromMenu('Colorblind')
+    await chooseThemeFromMenu('Colourblind')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
     expect(document.documentElement).toHaveAttribute('data-colorblind', 'true')
     expect(document.documentElement).not.toHaveAttribute('data-high-contrast')
@@ -938,7 +938,7 @@ describe('RackView', () => {
     expect(screen.getByRole('menuitemcheckbox', { name: 'Dark' })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemcheckbox', { name: 'System default' })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemcheckbox', { name: 'High contrast' })).toHaveAttribute('aria-checked', 'false')
-    expect(screen.getByRole('menuitemcheckbox', { name: 'Colorblind' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Colourblind' })).toHaveAttribute('aria-checked', 'true')
 
     unmount()
     render(<RackView />)

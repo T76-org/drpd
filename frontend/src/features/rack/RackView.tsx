@@ -3395,7 +3395,7 @@ export const RackView = ({
               {
                 id: 'theme-colorblind',
                 type: 'checkbox',
-                label: 'Colorblind',
+                label: 'Colourblind',
                 checked: theme === 'colorblind',
                 onCheckedChange: () => setTheme('colorblind'),
               },
