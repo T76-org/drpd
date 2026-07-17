@@ -178,6 +178,10 @@
   --header-banana-jack-color: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
 }
 
+.headerBananaJackPair[data-disabled='true'] {
+  --header-banana-jack-color: color-mix(in srgb, var(--color-text-muted) 56%, var(--color-border-divider));
+}
+
 .headerFrontPanelDeviceRow {
   display: grid;
   grid-template-columns: calc(30px * var(--rack-header-scale)) calc(30px * var(--rack-header-scale)) calc(42px * var(--rack-header-scale));
