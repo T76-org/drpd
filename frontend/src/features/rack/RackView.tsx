@@ -3591,7 +3591,10 @@ export const RackView = ({
           </>
         }
       >
-        <p>There are no paired devices. Would you like to pair a new device?</p>
+        <p>
+          No Dr. PD is paired yet. Pair your Dr. PD to allow this browser to communicate with it
+          over USB. Would you like to pair it now?
+        </p>
       </Dialog>
       <Dialog
         open={deviceNameDialog != null}
