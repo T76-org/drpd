@@ -220,5 +220,19 @@ describe('timestripViewportDrawing', () => {
       206,
       DEFAULT_TIMESTRIP_THEME.selectedMessageBackgroundColor,
     ])
+    expect(fillRects).toContainEqual([
+      20,
+      34,
+      2,
+      206,
+      DEFAULT_TIMESTRIP_THEME.tickTextColor,
+    ])
+    expect(fillRects).toContainEqual([
+      218,
+      34,
+      2,
+      206,
+      DEFAULT_TIMESTRIP_THEME.tickTextColor,
+    ])
   })
 })

@@ -116,6 +116,31 @@ export const getTimestripThemePalette = (
   const readColor = (name: string, value: string) => computedStyle?.getPropertyValue(name).trim() || value
   return {
     ...fallback,
+    canvasBackground: readColor('--color-timestrip-canvas', fallback.canvasBackground),
+    timeAxisBackground: readColor('--color-timestrip-axis', fallback.timeAxisBackground),
+    digitalBackground: readColor('--color-timestrip-digital', fallback.digitalBackground),
+    analogBackground: readColor('--color-timestrip-analog', fallback.analogBackground),
+    tickColor: readColor('--color-timestrip-tick', fallback.tickColor),
+    tickTextColor: readColor('--color-timestrip-tick-text', fallback.tickTextColor),
+    messageFillColor: readColor('--color-timestrip-message-fill', fallback.messageFillColor),
+    messageStrokeColor: readColor('--color-timestrip-message-stroke', fallback.messageStrokeColor),
+    messageTextColor: readColor('--color-timestrip-message-text', fallback.messageTextColor),
+    selectedMessageBackgroundColor: readColor(
+      '--color-timestrip-selection-bg',
+      fallback.selectedMessageBackgroundColor,
+    ),
+    selectedMessageFillColor: readColor(
+      '--color-timestrip-selection-fill',
+      fallback.selectedMessageFillColor,
+    ),
+    waveformColor: readColor('--color-timestrip-waveform', fallback.waveformColor),
+    componentFillColor: readColor('--color-timestrip-component', fallback.componentFillColor),
+    byteFillColor: readColor('--color-timestrip-byte', fallback.byteFillColor),
+    preambleFillColor: readColor('--color-timestrip-preamble', fallback.preambleFillColor),
+    sopFillColor: readColor('--color-timestrip-sop', fallback.sopFillColor),
+    headerFillColor: readColor('--color-timestrip-header', fallback.headerFillColor),
+    dataFillColor: readColor('--color-timestrip-data', fallback.dataFillColor),
+    crc32FillColor: readColor('--color-timestrip-crc', fallback.crc32FillColor),
     eventCaptureColor: readColor('--color-log-event-capture', fallback.eventCaptureColor),
     eventRoleColor: readColor('--color-log-event-role', fallback.eventRoleColor),
     eventStatusColor: readColor('--color-log-event-status', fallback.eventStatusColor),
@@ -126,7 +151,16 @@ export const getTimestripThemePalette = (
     eventOcpColor: readColor('--color-log-event-ocp', fallback.eventOcpColor),
     voltageTraceColor: readColor('--color-metric-voltage', fallback.voltageTraceColor),
     currentTraceColor: readColor('--color-metric-current', fallback.currentTraceColor),
-    analogGridColor: fallback.analogGridColor,
+    analogGridColor: readColor('--color-timestrip-grid', fallback.analogGridColor),
+    captureMarkerColor: readColor('--color-timestrip-marker', fallback.captureMarkerColor),
+    unavailableOverlayFillColor: readColor(
+      '--color-timestrip-unavailable-fill',
+      fallback.unavailableOverlayFillColor,
+    ),
+    unavailableOverlayStrokeColor: readColor(
+      '--color-timestrip-unavailable-stroke',
+      fallback.unavailableOverlayStrokeColor,
+    ),
   }
 }
 

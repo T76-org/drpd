@@ -130,9 +130,10 @@ import { parseMessageLogImportJson, serializeMessageLogRow } from './messageLogI
 import styles from './RackView.module.css'
 import messageLogStyles from './instruments/DrpdUsbPdLogInstrumentView.module.css'
 
-type ThemeMode = 'system' | 'light' | 'dark'
+type ThemeMode = 'system' | 'light' | 'dark' | 'high-contrast' | 'colorblind'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
+const LEGACY_HIGH_CONTRAST_STORAGE_KEY = 'drpd:theme:high-contrast'
 const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
 const CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY = 'drpd:calibration-warning-suppressed'
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
@@ -1020,6 +1021,36 @@ export const RackView = ({
   useEffect(() => {
     /** Apply the current theme to the document. */
     const root = document.documentElement
+    if (theme === 'high-contrast') {
+      root.setAttribute('data-high-contrast', 'true')
+    } else {
+      root.removeAttribute('data-high-contrast')
+    }
+    if (theme === 'colorblind') {
+      root.setAttribute('data-colorblind', 'true')
+    } else {
+      root.removeAttribute('data-colorblind')
+    }
+    if (theme === 'high-contrast') {
+      root.setAttribute('data-theme', 'dark')
+      setResolvedTheme('dark')
+      const storage = getBrowserStorage()
+      if (storage) {
+        storage.setItem(THEME_STORAGE_KEY, theme)
+        storage.removeItem(LEGACY_HIGH_CONTRAST_STORAGE_KEY)
+      }
+      return
+    }
+    if (theme === 'colorblind') {
+      root.setAttribute('data-theme', 'dark')
+      setResolvedTheme('dark')
+      const storage = getBrowserStorage()
+      if (storage) {
+        storage.setItem(THEME_STORAGE_KEY, theme)
+        storage.removeItem(LEGACY_HIGH_CONTRAST_STORAGE_KEY)
+      }
+      return
+    }
     if (theme !== 'system') {
       root.setAttribute('data-theme', theme)
       setResolvedTheme(theme)
@@ -3361,6 +3392,24 @@ export const RackView = ({
                 checked: theme === 'system',
                 onCheckedChange: () => setTheme('system'),
               },
+              {
+                id: 'theme-high-contrast-separator',
+                type: 'separator',
+              },
+              {
+                id: 'theme-high-contrast',
+                type: 'checkbox',
+                label: 'High contrast',
+                checked: theme === 'high-contrast',
+                onCheckedChange: () => setTheme('high-contrast'),
+              },
+              {
+                id: 'theme-colorblind',
+                type: 'checkbox',
+                label: 'Colourblind',
+                checked: theme === 'colorblind',
+                onCheckedChange: () => setTheme('colorblind'),
+              },
             ],
           },
         ],
@@ -4329,7 +4378,16 @@ const getBrowserStorage = (): Storage | null => {
 const getStoredTheme = (): ThemeMode => {
   const storage = getBrowserStorage()
   const storedTheme = storage?.getItem(THEME_STORAGE_KEY)
-  if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
+  if (storage?.getItem(LEGACY_HIGH_CONTRAST_STORAGE_KEY) === 'true') {
+    return 'high-contrast'
+  }
+  if (
+    storedTheme === 'light' ||
+    storedTheme === 'dark' ||
+    storedTheme === 'system' ||
+    storedTheme === 'high-contrast' ||
+    storedTheme === 'colorblind'
+  ) {
     return storedTheme
   }
   return 'system'
@@ -4373,6 +4431,9 @@ const hideTimestripInstrument = (rack: RackDefinition): RackDefinition => ({
 const getResolvedTheme = (theme: ThemeMode): 'light' | 'dark' => {
   if (theme === 'light' || theme === 'dark') {
     return theme
+  }
+  if (theme === 'high-contrast' || theme === 'colorblind') {
+    return 'dark'
   }
   const mediaQuery = getSystemThemeMediaQuery()
   return mediaQuery?.matches ? 'dark' : 'light'

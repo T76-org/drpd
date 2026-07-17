@@ -288,48 +288,72 @@
 }
 
 .eventRowCapture {
+  --event-row-accent: var(--color-log-event-capture);
   color: var(--color-log-event-capture);
   background: var(--color-log-event-capture-bg);
 }
 
 .eventRowRole {
+  --event-row-accent: var(--color-log-event-role);
   color: var(--color-log-event-role);
   background: var(--color-log-event-role-bg);
 }
 
 .eventRowStatus {
+  --event-row-accent: var(--color-log-event-status);
   color: var(--color-log-event-status);
   background: var(--color-log-event-status-bg);
 }
 
 .eventRowMark {
+  --event-row-accent: var(--color-log-event-mark);
   color: var(--color-log-event-mark);
   background: var(--color-log-event-mark-bg);
 }
 
 .eventRowSinkErrors {
+  --event-row-accent: var(--color-log-event-sink-errors);
   color: var(--color-log-event-sink-errors);
   background: var(--color-log-event-sink-errors-bg);
 }
 
 .eventRowSyncTrigger {
+  --event-row-accent: var(--color-log-event-sync-trigger);
   color: var(--color-log-event-sync-trigger);
   background: var(--color-log-event-sync-trigger-bg);
 }
 
 .eventRowOvp {
+  --event-row-accent: var(--color-log-event-ovp);
   color: var(--color-log-event-ovp);
   background: var(--color-log-event-ovp-bg);
 }
 
 .eventRowOcp {
+  --event-row-accent: var(--color-log-event-ocp);
   color: var(--color-log-event-ocp);
   background: var(--color-log-event-ocp-bg);
+}
+
+:global(:root[data-high-contrast='true']) .dataRow {
+  border-bottom: var(--border-thin) solid var(--color-text-primary);
+}
+
+:global(:root[data-high-contrast='true']) .eventRow {
+  color: var(--color-text-primary);
+  box-shadow: inset 6px 0 0 var(--event-row-accent, var(--color-text-primary));
+  font-weight: var(--font-weight-bold);
 }
 
 .selectedRow {
   background: color-mix(in srgb, var(--color-status-info) 30%, transparent);
   box-shadow: inset 0 0 0 var(--border-thin) color-mix(in srgb, var(--color-status-info) 80%, white 20%);
+}
+
+:global(:root[data-high-contrast='true']) .selectedRow {
+  background: var(--color-log-event-role-bg);
+  box-shadow: inset 6px 0 0 var(--color-status-info), inset 0 0 0 2px var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
 .eventLabel {
