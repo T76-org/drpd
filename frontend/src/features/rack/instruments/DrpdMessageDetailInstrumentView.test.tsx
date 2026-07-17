@@ -155,6 +155,38 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(document.querySelector('script')).toBeNull()
   })
 
+  it('renders a selected Mark comment with the message comment formatting', async () => {
+    const row = buildMessageRow({
+      entryKind: 'event',
+      eventType: 'mark',
+      eventText: 'Mark',
+      startTimestampUs: 1_010n,
+      endTimestampUs: 1_010n,
+      createdAtMs: 1_700_000_000_100,
+      comment: '**Checkpoint** <script>alert(1)</script>',
+      commentCreatedAtMs: 1_700_000_000_200,
+    })
+    const selectionKey = 'event:1010:1700000000100:mark'
+    render(
+      <DrpdMessageDetailInstrumentView
+        instrument={buildInstrument()}
+        displayName="MESSAGE DETAIL"
+        deviceState={buildDeviceState({
+          selectedKeys: [selectionKey],
+          anchorIndex: 0,
+          activeIndex: 0,
+        }, [row])}
+        isEditMode={false}
+      />,
+    )
+
+    const comment = await screen.findByRole('region', { name: 'Comment' })
+    expect(within(comment).getByText('Checkpoint').tagName).toBe('STRONG')
+    expect(within(comment).getByText(/Comment added on/)).toBeInTheDocument()
+    expect(document.querySelector('script')).toBeNull()
+    expect(screen.queryByRole('button', { name: /base information/i })).toBeNull()
+  })
+
   it('refreshes and hides an emptied comment after a log update event', async () => {
     const row = buildMessageRow({ comment: 'Before' })
     const driver = new TestSelectionDriver({ selectedKeys: ['message:1000:1005:1700000000000'], anchorIndex: 0, activeIndex: 0 }, [row])
