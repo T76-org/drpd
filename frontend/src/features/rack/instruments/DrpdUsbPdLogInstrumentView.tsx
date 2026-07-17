@@ -207,6 +207,57 @@ const filterRuleMatches = (rule: MessageLogFilterRule | undefined, value: string
   return rule.include.length === 0 || rule.include.includes(value)
 }
 
+const getSelectionKeyTimestampUs = (selectionKey: string): bigint | null => {
+  const match = /^(?:message|event):(-?\d+):/.exec(selectionKey)
+  return match ? BigInt(match[1]) : null
+}
+
+export const resolveLogSelectionKeyIndex = async (
+  selectionKey: string,
+  rowCount: number,
+  resolveKeys: (startIndex: number, endIndex: number) => Promise<string[]>,
+): Promise<number | null> => {
+  const targetTimestampUs = getSelectionKeyTimestampUs(selectionKey)
+  if (targetTimestampUs === null || rowCount <= 0) {
+    return null
+  }
+
+  let low = 0
+  let high = rowCount
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    const [middleKey] = await resolveKeys(middle, middle)
+    const middleTimestampUs = middleKey ? getSelectionKeyTimestampUs(middleKey) : null
+    if (middleTimestampUs === null || middleTimestampUs >= targetTimestampUs) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+
+  const scanSize = 128
+  for (let start = low; start < rowCount; start += scanSize) {
+    const keys = await resolveKeys(start, Math.min(rowCount - 1, start + scanSize - 1))
+    for (let offset = 0; offset < keys.length; offset += 1) {
+      const key = keys[offset]
+      if (key === selectionKey) {
+        return start + offset
+      }
+      const timestampUs = getSelectionKeyTimestampUs(key)
+      if (timestampUs !== null && timestampUs > targetTimestampUs) {
+        return null
+      }
+    }
+    const lastTimestampUs = keys.length > 0
+      ? getSelectionKeyTimestampUs(keys[keys.length - 1])
+      : null
+    if (keys.length < scanSize || lastTimestampUs === null || lastTimestampUs > targetTimestampUs) {
+      break
+    }
+  }
+  return null
+}
+
 export const messageMatchesFilters = (
   row: LoggedCapturedMessage,
   filters: MessageLogFilters,
@@ -887,6 +938,51 @@ export const DrpdUsbPdLogInstrumentView = ({
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     }
   }, [driver, readSelectionFromDriver])
+
+  useEffect(() => {
+    if (!driver || selection.selectedKeys.length === 0 || displayedTotalRows <= 0) {
+      return
+    }
+
+    let cancelled = false
+    const revealSelection = async () => {
+      let index: number | null = null
+      if (hasActiveFilters) {
+        const selected = new Set(selection.selectedKeys)
+        const visibleIndex = filteredDisplayRows.findIndex((row) => selected.has(row.selectionKey))
+        index = visibleIndex >= 0 ? visibleIndex : null
+      } else {
+        const targetKey = selection.selectedKeys
+          .map((key) => ({ key, timestampUs: getSelectionKeyTimestampUs(key) }))
+          .filter((entry): entry is { key: string; timestampUs: bigint } => entry.timestampUs !== null)
+          .sort((left, right) => (
+            left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+          ))[0]?.key
+        if (targetKey) {
+          index = await resolveLogSelectionKeyIndex(
+            targetKey,
+            displayedTotalRows,
+            (startIndex, endIndex) =>
+              driver.resolveLogSelectionKeysForIndexRange(startIndex, endIndex),
+          )
+        }
+      }
+      if (!cancelled && index !== null) {
+        rowVirtualizer.scrollToIndex(index, { align: 'auto' })
+      }
+    }
+
+    void revealSelection()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    displayedTotalRows,
+    driver,
+    filteredDisplayRows,
+    hasActiveFilters,
+    selection.selectedKeys,
+  ])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
