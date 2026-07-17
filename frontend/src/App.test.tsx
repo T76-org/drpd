@@ -155,7 +155,8 @@ describe('App', () => {
     await user.click(within(notice).getByRole('button', { name: 'OK' }))
 
     const pairingDialog = await screen.findByRole('dialog', { name: 'Pair a device' })
-    expect(within(pairingDialog).getByText(/There are no paired devices/i)).toBeInTheDocument()
+    expect(within(pairingDialog).getByText(/Pair your Dr\. PD/i)).toBeInTheDocument()
+    expect(within(pairingDialog).getByText(/browser.*communicate.*USB/i)).toBeInTheDocument()
   })
 
   it('launches the USB picker when startup pairing is accepted', async () => {
