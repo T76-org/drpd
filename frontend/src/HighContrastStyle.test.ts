@@ -26,6 +26,8 @@ describe('high contrast semantic palette', () => {
     expect(css).toContain(":root[data-high-contrast='true']")
     expect(css).toContain(":root[data-theme='light'][data-high-contrast='true']")
     expect(css).toContain('--color-timestrip-selection-fill:')
+    expect(css).toContain('--color-timestrip-selection-bg: rgb(255 212 59 / 0.18);')
+    expect(css).toContain('--color-timestrip-selection-bg: rgb(112 77 0 / 0.16);')
     expect(css).toContain('--color-log-event-ocp-bg:')
     expect(css).toMatch(/data-high-contrast='true'][^}]*button:focus-visible[\s\S]*outline:\s*3px/)
   })

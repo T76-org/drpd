@@ -309,7 +309,7 @@
   --color-timestrip-message-fill: #00385c;
   --color-timestrip-message-stroke: #74c0fc;
   --color-timestrip-message-text: #ffffff;
-  --color-timestrip-selection-bg: #4d3c00;
+  --color-timestrip-selection-bg: rgb(255 212 59 / 0.18);
   --color-timestrip-selection-fill: #6b5400;
   --color-timestrip-waveform: #63e6be;
   --color-timestrip-component: #303030;
@@ -391,7 +391,7 @@
   --color-timestrip-message-fill: #d9ecff;
   --color-timestrip-message-stroke: #0047ab;
   --color-timestrip-message-text: #000000;
-  --color-timestrip-selection-bg: #fff1b8;
+  --color-timestrip-selection-bg: rgb(112 77 0 / 0.16);
   --color-timestrip-selection-fill: #ffe066;
   --color-timestrip-waveform: #006b3c;
   --color-timestrip-component: #dddddd;

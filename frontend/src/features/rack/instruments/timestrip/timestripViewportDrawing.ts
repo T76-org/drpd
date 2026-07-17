@@ -108,6 +108,12 @@ const drawSelectedMessageViewportBackground = (
   const height = Math.max(1, layout.analog.y + layout.analog.height - y)
   context.fillStyle = theme.selectedMessageBackgroundColor
   context.fillRect(x, y, selectedWidthPx, height)
+  const boundaryWidth = Math.min(2, selectedWidthPx)
+  context.fillStyle = theme.tickTextColor
+  context.fillRect(x, y, boundaryWidth, height)
+  if (selectedWidthPx > boundaryWidth) {
+    context.fillRect(x + selectedWidthPx - boundaryWidth, y, boundaryWidth, height)
+  }
 }
 
 const drawUnavailableRegions = (
