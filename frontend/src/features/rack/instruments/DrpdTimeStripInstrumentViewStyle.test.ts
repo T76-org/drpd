@@ -13,7 +13,7 @@ describe('Timestrip range-selection styling', () => {
       /\.rangeSelectionOverlay\s*\{[^}]*--timestrip-overlay-accent:\s*var\(--color-accent-primary,\s*var\(--color-status-info\)\);/s,
     )
     expect(css).toMatch(
-      /\.rangeSelectionOverlay\s*\{[^}]*border:\s*2px solid var\(--timestrip-overlay-accent\);/s,
+      /\.rangeSelectionOverlay\s*\{[^}]*border:\s*1px solid color-mix\(in srgb,\s*var\(--timestrip-overlay-accent\) 72%,\s*transparent\);/s,
     )
     expect(css).toMatch(
       /\.rangeSelectionOverlay\s*\{[^}]*repeating-linear-gradient\(/s,
