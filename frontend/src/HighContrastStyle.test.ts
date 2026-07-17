@@ -3,6 +3,10 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8')
+const messageLogCss = readFileSync(
+  join(process.cwd(), 'src/features/rack/instruments/DrpdUsbPdLogInstrumentView.module.css'),
+  'utf8',
+)
 
 const luminance = (hex: string): number => {
   const channels = hex.match(/[0-9a-f]{2}/gi)?.map((value) => Number.parseInt(value, 16) / 255) ?? []
@@ -32,5 +36,18 @@ describe('high contrast semantic palette', () => {
     expect(contrast('#333333', '#ffffff')).toBeGreaterThanOrEqual(4.5)
     expect(contrast('#9c0006', '#ffffff')).toBeGreaterThanOrEqual(4.5)
     expect(contrast('#0047ab', '#ffffff')).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('gives Message Log events high-contrast text, borders, and non-color category accents', () => {
+    expect(messageLogCss).toMatch(
+      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*color:\s*var\(--color-text-primary\);/s,
+    )
+    expect(messageLogCss).toMatch(
+      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*border-left:\s*6px solid var\(--event-row-accent/s,
+    )
+    expect(messageLogCss).toMatch(
+      /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*box-shadow:[^}]*var\(--color-text-primary\)/s,
+    )
+    expect(messageLogCss.match(/--event-row-accent:/g)).toHaveLength(8)
   })
 })
