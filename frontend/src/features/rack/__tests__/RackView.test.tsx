@@ -2750,6 +2750,21 @@ describe('RackView', () => {
     expect(page).toHaveAttribute('data-layout-mode', 'full')
   })
 
+  it('opens the contact email from the Help menu', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    saveRackDocument(buildRackDocument())
+    mockUSB([])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Help' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Contact us...' }))
+
+    expect(openSpy).toHaveBeenCalledWith(
+      'mailto:hello@t76.org?subject=Dr.%20PD%20feedback',
+      '_self',
+    )
+  })
+
   it('prompts PWA installation from the Help menu when available', async () => {
     saveRackDocument(buildRackDocument())
     mockUSB([])
