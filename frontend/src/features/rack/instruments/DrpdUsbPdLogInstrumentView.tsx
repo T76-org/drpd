@@ -207,6 +207,33 @@ const filterRuleMatches = (rule: MessageLogFilterRule | undefined, value: string
   return rule.include.length === 0 || rule.include.includes(value)
 }
 
+const getSelectionKeyTimestampUs = (selectionKey: string): bigint | null => {
+  const match = /^(?:message|event):(-?\d+):/.exec(selectionKey)
+  return match ? BigInt(match[1]) : null
+}
+
+export const resolveLogSelectionKeyIndex = async (
+  selectionKey: string,
+  rowCount: number,
+  resolveKeys: (startIndex: number, endIndex: number) => Promise<string[]>,
+): Promise<number | null> => {
+  if (getSelectionKeyTimestampUs(selectionKey) === null || rowCount <= 0) {
+    return null
+  }
+
+  // Timestamps restart across captures and imported sessions, so log order is
+  // not guaranteed to be timestamp-monotonic. Scan exact keys in large chunks.
+  const scanSize = 1024
+  for (let start = 0; start < rowCount; start += scanSize) {
+    const keys = await resolveKeys(start, Math.min(rowCount - 1, start + scanSize - 1))
+    const offset = keys.indexOf(selectionKey)
+    if (offset >= 0) {
+      return start + offset
+    }
+  }
+  return null
+}
+
 export const messageMatchesFilters = (
   row: LoggedCapturedMessage,
   filters: MessageLogFilters,
@@ -887,6 +914,51 @@ export const DrpdUsbPdLogInstrumentView = ({
       driver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
     }
   }, [driver, readSelectionFromDriver])
+
+  useEffect(() => {
+    if (!driver || selection.selectedKeys.length === 0 || displayedTotalRows <= 0) {
+      return
+    }
+
+    let cancelled = false
+    const revealSelection = async () => {
+      let index: number | null = null
+      if (hasActiveFilters) {
+        const selected = new Set(selection.selectedKeys)
+        const visibleIndex = filteredDisplayRows.findIndex((row) => selected.has(row.selectionKey))
+        index = visibleIndex >= 0 ? visibleIndex : null
+      } else {
+        const targetKey = selection.selectedKeys
+          .map((key) => ({ key, timestampUs: getSelectionKeyTimestampUs(key) }))
+          .filter((entry): entry is { key: string; timestampUs: bigint } => entry.timestampUs !== null)
+          .sort((left, right) => (
+            left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+          ))[0]?.key
+        if (targetKey) {
+          index = await resolveLogSelectionKeyIndex(
+            targetKey,
+            displayedTotalRows,
+            (startIndex, endIndex) =>
+              driver.resolveLogSelectionKeysForIndexRange(startIndex, endIndex),
+          )
+        }
+      }
+      if (!cancelled && index !== null) {
+        rowVirtualizer.scrollToIndex(index, { align: 'auto' })
+      }
+    }
+
+    void revealSelection()
+    return () => {
+      cancelled = true
+    }
+  }, [
+    displayedTotalRows,
+    driver,
+    filteredDisplayRows,
+    hasActiveFilters,
+    selection.selectedKeys,
+  ])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
