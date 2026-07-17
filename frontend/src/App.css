@@ -46,9 +46,9 @@
   position: relative;
   margin: var(--space-12) 0;
   padding: var(--space-12) var(--space-12) var(--space-12) 42px;
-  border: var(--border-thin) solid color-mix(in srgb, #f5c542 55%, transparent);
+  border: var(--border-thin) solid var(--color-status-warning);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, #f5c542 18%, transparent);
+  background: color-mix(in srgb, var(--color-status-warning) 18%, var(--color-surface-panel));
 }
 
 .initialNoticeContent blockquote::before {
@@ -56,7 +56,7 @@
   top: var(--space-12);
   left: var(--space-12);
   content: '⚠';
-  color: #f5c542;
+  color: var(--color-status-warning);
   font-size: 20px;
   line-height: 1;
 }

@@ -110,7 +110,7 @@
 .progressBar {
   height: 100%;
   width: var(--upload-progress, 0%);
-  background: linear-gradient(90deg, #78d68f, #d8f08a);
+  background: linear-gradient(90deg, var(--color-status-success), var(--color-status-warning));
   transition: width var(--transition-standard);
 }
 

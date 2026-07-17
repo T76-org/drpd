@@ -250,6 +250,181 @@
   /* Softer instrument border and elevation shadow already set in :root defaults. */
 }
 
+:root[data-high-contrast='true'] {
+  --border-thin: 2px;
+  --opacity-disabled: 0.68;
+  --color-page-bg: #000000;
+  --color-text-primary: #ffffff;
+  --color-text-muted: #d6d6d6;
+  --color-surface-panel: #000000;
+  --color-surface-panel-elevated: #111111;
+  --color-surface-panel-accent: #303030;
+  --color-surface-control: #111111;
+  --color-surface-instrument: #000000;
+  --color-surface-chip: #262626;
+  --color-surface-rack: #000000;
+  --color-surface-header: #000000;
+  --color-border-panel: #ffffff;
+  --color-border-instrument: #ffffff;
+  --color-border-divider: #ffffff;
+  --color-overlay: rgb(0 0 0 / 0.98);
+  --color-accent: #00e5ff;
+  --color-accent-primary: #00e5ff;
+  --color-edit-glow: #00e5ff;
+  --color-edit-glow-strong: #ffffff;
+  --color-status-error: #ff6b6b;
+  --color-status-success: #63e6be;
+  --color-status-warning: #ffd43b;
+  --color-status-info: #74c0fc;
+  --color-status-ok: #63e6be;
+  --color-status-muted: #d6d6d6;
+  --color-status-highlight: #ffe066;
+  --color-status-charge: #e599f7;
+  --color-metric-voltage: #74c0fc;
+  --color-metric-current: #63e6be;
+  --color-metric-power: #ffd43b;
+  --color-metric-charge: #e599f7;
+  --color-log-event-capture: #ffd43b;
+  --color-log-event-role: #74c0fc;
+  --color-log-event-status: #63e6be;
+  --color-log-event-mark: #e599f7;
+  --color-log-event-sink-errors: #ff8787;
+  --color-log-event-sync-trigger: #91a7ff;
+  --color-log-event-ovp: #ffa94d;
+  --color-log-event-ocp: #ffe066;
+  --color-log-event-capture-bg: #4d3c00;
+  --color-log-event-role-bg: #00385c;
+  --color-log-event-status-bg: #004c3f;
+  --color-log-event-mark-bg: #4a2457;
+  --color-log-event-sink-errors-bg: #5c0017;
+  --color-log-event-sync-trigger-bg: #252b63;
+  --color-log-event-ovp-bg: #572800;
+  --color-log-event-ocp-bg: #4a3e00;
+  --color-timestrip-canvas: #000000;
+  --color-timestrip-axis: #111111;
+  --color-timestrip-digital: #000000;
+  --color-timestrip-analog: #000000;
+  --color-timestrip-tick: #ffffff;
+  --color-timestrip-tick-text: #ffffff;
+  --color-timestrip-message-fill: #00385c;
+  --color-timestrip-message-stroke: #74c0fc;
+  --color-timestrip-message-text: #ffffff;
+  --color-timestrip-selection-bg: #4d3c00;
+  --color-timestrip-selection-fill: #6b5400;
+  --color-timestrip-waveform: #63e6be;
+  --color-timestrip-component: #303030;
+  --color-timestrip-byte: #454545;
+  --color-timestrip-preamble: #454545;
+  --color-timestrip-sop: #005c4b;
+  --color-timestrip-header: #264d99;
+  --color-timestrip-data: #6b3d00;
+  --color-timestrip-crc: #6b1738;
+  --color-timestrip-grid: #666666;
+  --color-timestrip-marker: #ffffff;
+  --color-timestrip-unavailable-fill: #202020;
+  --color-timestrip-unavailable-stroke: #ffffff;
+  --texture-instrument-header: none;
+  --shadow-strong: 0 0 0 2px #ffffff;
+  --shadow-elevated: 0 0 0 2px #ffffff;
+  --shadow-instrument: 0 0 0 1px #ffffff;
+  --shadow-rack-canvas: 0 0 0 1px #ffffff;
+  --shadow-edit-soft: 0 0 0 2px #00e5ff;
+  --shadow-edit-strong: 0 0 0 3px #ffffff;
+  --empty-text: #d6d6d6;
+}
+
+:root[data-theme='light'][data-high-contrast='true'] {
+  color-scheme: light;
+  --color-page-bg: #ffffff;
+  --color-text-primary: #000000;
+  --color-text-muted: #333333;
+  --color-surface-panel: #ffffff;
+  --color-surface-panel-elevated: #ffffff;
+  --color-surface-panel-accent: #d9ecff;
+  --color-surface-control: #ffffff;
+  --color-surface-instrument: #ffffff;
+  --color-surface-chip: #e6e6e6;
+  --color-surface-rack: #ffffff;
+  --color-surface-header: #ffffff;
+  --color-border-panel: #000000;
+  --color-border-instrument: #000000;
+  --color-border-divider: #000000;
+  --color-overlay: rgb(255 255 255 / 0.98);
+  --color-accent: #0047ab;
+  --color-accent-primary: #0047ab;
+  --color-edit-glow: #0047ab;
+  --color-edit-glow-strong: #000000;
+  --color-status-error: #9c0006;
+  --color-status-success: #006b3c;
+  --color-status-warning: #704d00;
+  --color-status-info: #0047ab;
+  --color-status-ok: #006b3c;
+  --color-status-muted: #333333;
+  --color-status-highlight: #614600;
+  --color-status-charge: #7a1f8a;
+  --color-metric-voltage: #0047ab;
+  --color-metric-current: #006b3c;
+  --color-metric-power: #704d00;
+  --color-metric-charge: #7a1f8a;
+  --color-log-event-capture: #704d00;
+  --color-log-event-role: #0047ab;
+  --color-log-event-status: #006b3c;
+  --color-log-event-mark: #7a1f8a;
+  --color-log-event-sink-errors: #9c0006;
+  --color-log-event-sync-trigger: #273c99;
+  --color-log-event-ovp: #8a3700;
+  --color-log-event-ocp: #614600;
+  --color-log-event-capture-bg: #fff1b8;
+  --color-log-event-role-bg: #d9ecff;
+  --color-log-event-status-bg: #d9f2e6;
+  --color-log-event-mark-bg: #f3dcf7;
+  --color-log-event-sink-errors-bg: #ffe0e0;
+  --color-log-event-sync-trigger-bg: #e2e7ff;
+  --color-log-event-ovp-bg: #ffe5cc;
+  --color-log-event-ocp-bg: #fff1b8;
+  --color-timestrip-canvas: #ffffff;
+  --color-timestrip-axis: #eeeeee;
+  --color-timestrip-digital: #ffffff;
+  --color-timestrip-analog: #ffffff;
+  --color-timestrip-tick: #000000;
+  --color-timestrip-tick-text: #000000;
+  --color-timestrip-message-fill: #d9ecff;
+  --color-timestrip-message-stroke: #0047ab;
+  --color-timestrip-message-text: #000000;
+  --color-timestrip-selection-bg: #fff1b8;
+  --color-timestrip-selection-fill: #ffe066;
+  --color-timestrip-waveform: #006b3c;
+  --color-timestrip-component: #dddddd;
+  --color-timestrip-byte: #cccccc;
+  --color-timestrip-preamble: #cccccc;
+  --color-timestrip-sop: #a6e3d0;
+  --color-timestrip-header: #b8ccf2;
+  --color-timestrip-data: #f2d0a7;
+  --color-timestrip-crc: #f2bfd0;
+  --color-timestrip-grid: #666666;
+  --color-timestrip-marker: #000000;
+  --color-timestrip-unavailable-fill: #e0e0e0;
+  --color-timestrip-unavailable-stroke: #000000;
+  --shadow-strong: 0 0 0 2px #000000;
+  --shadow-elevated: 0 0 0 2px #000000;
+  --shadow-instrument: 0 0 0 1px #000000;
+  --shadow-rack-canvas: 0 0 0 1px #000000;
+  --shadow-edit-soft: 0 0 0 2px #0047ab;
+  --shadow-edit-strong: 0 0 0 3px #000000;
+  --empty-text: #333333;
+}
+
+:root[data-high-contrast='true'] button:focus-visible,
+:root[data-high-contrast='true'] [tabindex]:focus-visible {
+  outline: 3px solid var(--color-status-info);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--color-page-bg);
+}
+
+:root[data-high-contrast='true'] * {
+  scrollbar-color: var(--color-text-primary) var(--color-page-bg);
+}
+
 * {
   box-sizing: border-box;
 }

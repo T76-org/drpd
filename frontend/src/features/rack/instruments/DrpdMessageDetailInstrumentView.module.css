@@ -86,6 +86,21 @@
   --detail-section-border: color-mix(in srgb, #6b5b95 42%, var(--color-border-panel));
 }
 
+:global(:root[data-high-contrast='true']) .section {
+  --detail-section-surface: var(--color-surface-panel);
+  --detail-section-border: var(--color-text-primary);
+  --detail-label-surface: var(--color-surface-panel-accent);
+  --detail-label-surface-alt: var(--color-surface-chip);
+  --detail-value-surface: var(--color-surface-panel);
+  --detail-value-surface-alt: var(--color-surface-panel-elevated);
+  --message-bytes-sop-background: var(--color-surface-chip);
+  --message-bytes-header-background: var(--color-log-event-role-bg);
+  --message-bytes-extended-header-background: var(--color-log-event-mark-bg);
+  --message-bytes-body-background: var(--color-log-event-capture-bg);
+  --message-bytes-crc32-background: var(--color-log-event-sink-errors-bg);
+  --message-bytes-invalid-background: var(--color-log-event-sink-errors-bg);
+}
+
 .commentContent {
   min-width: 0;
   overflow-wrap: anywhere;

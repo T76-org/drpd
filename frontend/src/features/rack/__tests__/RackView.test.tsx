@@ -828,6 +828,7 @@ const resetMockTransportState = (): void => {
 }
 
 beforeEach(() => {
+  document.documentElement.removeAttribute('data-high-contrast')
   originalVerifier = DRPDDeviceDefinition.verifyConnectedDevice
   DRPDDeviceDefinition.verifyConnectedDevice = async () => true
   resetMockTransportState()
@@ -881,6 +882,31 @@ describe('RackView', () => {
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
     expect(window.localStorage.getItem('drpd:theme')).toBe('light')
+  })
+
+  it('toggles independent high contrast mode after the theme separator', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Theme' }))
+
+    const highContrastItem = await screen.findByRole('menuitemcheckbox', {
+      name: 'High contrast',
+    })
+    const themeMenu = highContrastItem.closest('[role="menu"]')
+    const items = Array.from(themeMenu?.children ?? [])
+    const separatorIndex = items.findIndex((item) => item.getAttribute('role') === 'separator')
+    const highContrastIndex = items.findIndex((item) => item.contains(highContrastItem))
+    expect(separatorIndex).toBeGreaterThanOrEqual(0)
+    expect(highContrastIndex).toBeGreaterThan(separatorIndex)
+
+    await userEvent.click(highContrastItem)
+
+    expect(document.documentElement).toHaveAttribute('data-high-contrast', 'true')
+    expect(window.localStorage.getItem('drpd:theme:high-contrast')).toBe('true')
+    expect(window.localStorage.getItem('drpd:theme')).toBe('system')
   })
 
   it('shows a waiting device status in the menu bar when no device is connected', async () => {
@@ -1194,6 +1220,28 @@ describe('RackView', () => {
     render(<RackView />)
     await screen.findByText('Bench Rack A')
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+  })
+
+  it('restores high contrast independently across base theme changes and reloads', async () => {
+    saveRackDocument(buildRackDocument())
+    mockUSB([createUSBDevice()])
+    window.localStorage.setItem('drpd:theme', 'light')
+    window.localStorage.setItem('drpd:theme:high-contrast', 'true')
+
+    const { unmount } = render(<RackView />)
+    await screen.findByText('Bench Rack A')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(document.documentElement).toHaveAttribute('data-high-contrast', 'true')
+
+    await chooseThemeFromMenu('Dark')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(document.documentElement).toHaveAttribute('data-high-contrast', 'true')
+
+    unmount()
+    render(<RackView />)
+    await screen.findByText('Bench Rack A')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(document.documentElement).toHaveAttribute('data-high-contrast', 'true')
   })
 
   it('shows production as the default firmware update channel', async () => {

@@ -133,6 +133,7 @@ import messageLogStyles from './instruments/DrpdUsbPdLogInstrumentView.module.cs
 type ThemeMode = 'system' | 'light' | 'dark'
 
 const THEME_STORAGE_KEY = 'drpd:theme'
+const HIGH_CONTRAST_STORAGE_KEY = 'drpd:theme:high-contrast'
 const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
 const CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY = 'drpd:calibration-warning-suppressed'
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
@@ -883,6 +884,7 @@ export const RackView = ({
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme())
+  const [highContrast, setHighContrast] = useState<boolean>(() => getStoredHighContrast())
   const [firmwareUpdateChannel, setFirmwareUpdateChannel] = useState<FirmwareUpdateChannel>(() =>
     loadFirmwareUpdateChannel(),
   )
@@ -1048,6 +1050,19 @@ export const RackView = ({
       storage.setItem(THEME_STORAGE_KEY, theme)
     }
   }, [theme])
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (highContrast) {
+      root.setAttribute('data-high-contrast', 'true')
+    } else {
+      root.removeAttribute('data-high-contrast')
+    }
+    const storage = getBrowserStorage()
+    if (storage) {
+      storage.setItem(HIGH_CONTRAST_STORAGE_KEY, highContrast ? 'true' : 'false')
+    }
+  }, [highContrast])
 
   useEffect(() => {
     const storage = getBrowserStorage()
@@ -3350,6 +3365,17 @@ export const RackView = ({
                 checked: theme === 'system',
                 onCheckedChange: () => setTheme('system'),
               },
+              {
+                id: 'theme-high-contrast-separator',
+                type: 'separator',
+              },
+              {
+                id: 'theme-high-contrast',
+                type: 'checkbox',
+                label: 'High contrast',
+                checked: highContrast,
+                onCheckedChange: () => setHighContrast((current) => !current),
+              },
             ],
           },
         ],
@@ -4322,6 +4348,12 @@ const getStoredTheme = (): ThemeMode => {
     return storedTheme
   }
   return 'system'
+}
+
+/** Read the independent high-contrast preference, defaulting to disabled. */
+const getStoredHighContrast = (): boolean => {
+  const storage = getBrowserStorage()
+  return storage?.getItem(HIGH_CONTRAST_STORAGE_KEY) === 'true'
 }
 
 /** Read the saved timestrip visibility preference, defaulting to shown. */

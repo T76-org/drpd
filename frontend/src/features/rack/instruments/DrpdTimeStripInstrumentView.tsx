@@ -49,11 +49,15 @@ const MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS = 16_000_000
 const LIVE_FOLLOW_VIEWPORT_FRACTION = 0.5
 const LIVE_FOLLOW_INTERVAL_MS = 125
 const LIVE_FOLLOW_MAX_STEP_VIEWPORTS = 0.75
-const readThemeName = () => (
-  typeof document === 'undefined' ? 'dark' : document.documentElement.dataset.theme ?? 'dark'
-)
+const readThemeName = () => {
+  if (typeof document === 'undefined') {
+    return 'dark:normal'
+  }
+  const root = document.documentElement
+  return `${root.dataset.theme ?? 'dark'}:${root.dataset.highContrast === 'true' ? 'high' : 'normal'}`
+}
 const readTimestripTheme = (themeName: string) => getTimestripThemePalette(
-  themeName,
+  themeName.split(':')[0],
   typeof window === 'undefined' ? undefined : window.getComputedStyle(document.documentElement),
 )
 const formatAnalogHoverValue = (value: number, unit: 'V' | 'A'): string =>
@@ -821,7 +825,7 @@ export const DrpdTimeStripInstrumentView = ({
     })
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-theme'],
+      attributeFilter: ['data-theme', 'data-high-contrast'],
     })
     return () => {
       observer.disconnect()
