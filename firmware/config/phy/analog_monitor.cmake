@@ -2,6 +2,9 @@
 #
 # Compile-time definitions for the Analog Manager component
 
+set(PHY_ANALOG_MONITOR_VBUS_ZERO_THRESHOLD_VOLTS "1.0f" CACHE STRING
+    "Calibrated VBUS readings below this voltage are treated as zero")
+
 target_compile_definitions(drpd-firmware PUBLIC
     PHY_ANALOG_MONITOR_VBUS_SENSE_PIN=${PIN_VBUS_VSENSE}                        # VBUS Voltage Sense Pin
     PHY_ANALOG_MONITOR_VBUS_SENSE_ADC_CHANNEL=${PIN_VBUS_VSENSE_ADC_CHANNEL}    # VBUS Voltage Sense ADC Channel
@@ -16,6 +19,8 @@ target_compile_definitions(drpd-firmware PUBLIC
 
     PHY_ANALOG_MONITOR_VBUS_SENSE_SCALE_FACTOR=18.405f                          # VBUS Sense Scale Factor (V per ADC unit)
     PHY_ANALOG_MONITOR_VBUS_ISENSE_SCALE_FACTOR=4.0f                            # VBUS Current Sense Scale Factor (A per ADC unit)
+    # Calibrated VBUS readings below this threshold are zero
+    PHY_ANALOG_MONITOR_VBUS_ZERO_THRESHOLD_VOLTS=${PHY_ANALOG_MONITOR_VBUS_ZERO_THRESHOLD_VOLTS}
     PHY_ANALOG_MONITOR_CC_SENSE_SCALE_FACTOR=1.51f                              # CC Sense Scale Factor (V per ADC unit)
 
     PHY_ANALOG_MONITOR_ADC_SETTLING_TIME_US=10                                  # ADC Settling Time in microseconds

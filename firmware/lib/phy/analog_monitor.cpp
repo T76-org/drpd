@@ -5,6 +5,7 @@
  */
 
 #include "analog_monitor.hpp"
+#include "vbus_voltage_filter.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -70,7 +71,8 @@ void AnalogMonitor::readVBusValues() {
         _readVoltageFromADCChannel(PHY_ANALOG_MONITOR_VBUS_SENSE_ADC_CHANNEL) - groundReference) * 
         PHY_ANALOG_MONITOR_VBUS_SENSE_SCALE_FACTOR;
     float vbusVoltage = _applyVBusVoltageCalibration(rawScaledVBusVoltage);
-    int32_t truncatedVBusVoltageCentiV = static_cast<int32_t>(std::trunc(vbusVoltage * 100.0f));
+    int32_t truncatedVBusVoltageCentiV = truncateVBusVoltageCentiV(
+        vbusVoltage, PHY_ANALOG_MONITOR_VBUS_ZERO_THRESHOLD_VOLTS);
     float truncatedVBusVoltage = static_cast<float>(truncatedVBusVoltageCentiV) / 100.0f;
 
     _readings.vBusVoltageAverager.addSample(truncatedVBusVoltage);
