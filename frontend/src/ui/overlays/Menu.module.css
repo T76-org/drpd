@@ -12,13 +12,18 @@
   color: var(--color-text-primary);
   background: var(--color-surface-panel);
   border: var(--border-thin) solid var(--color-border-panel);
-  border-radius: 0;
+  border-radius: var(--menu-panel-radius);
   box-shadow: 0 3px 10px rgb(0 0 0 / 0.24);
   font-size: var(--font-size-menu);
   line-height: var(--menu-line-height);
   z-index: 10000;
   transform: scale(var(--global-app-scale, 1));
   transform-origin: top left;
+}
+
+:global([data-context-menu-target]:hover) {
+  outline: var(--border-thin) solid color-mix(in srgb, var(--color-status-info) 100%, transparent);
+  outline-offset: 0;
 }
 
 .menuItem {

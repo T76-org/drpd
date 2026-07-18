@@ -40,6 +40,15 @@
   padding-inline: var(--rack-layout-padding-x);
 }
 
+.menuBarStripes {
+  display: block;
+  flex-shrink: 0;
+  height: var(--menu-bar-height);
+  width: calc(var(--menu-bar-height) * 98 / 28);
+  object-fit: cover;
+  object-position: center;
+}
+
 .menuBarDeviceStatus {
   margin-left: auto;
   padding: 0 var(--menu-bar-padding-x);
@@ -57,19 +66,13 @@
   height: var(--menu-bar-height);
 }
 
-.menuBarDeviceStatusContextTarget:hover,
-.menuBarDeviceStatusContextTarget:focus-visible,
-.menuBarDeviceStatusContextTarget[aria-expanded='true'] {
-  outline: none;
-}
-
 .menuBarButton {
   border: none;
   border-radius: 2px;
   background: transparent;
   color: var(--color-text-primary);
   font-size: var(--font-size-menu);
-  font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-semibold);
   line-height: 1;
   height: var(--menu-bar-height);
   min-height: 0;
@@ -599,16 +602,31 @@
 }
 
 .notice {
-  padding: var(--space-16);
+  padding: 10px 20px;
+  margin: 10px 30px;
+  border: 2px solid #fff;
   border-radius: var(--radius-sm);
-  background: var(--color-surface-panel);
-  border: var(--border-thin) solid var(--color-border-panel);
-  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
 }
 
 .noticeError {
-  color: var(--color-status-error);
-  border-color: var(--color-status-error);
+  background: var(--color-brand-red);
+  color: #fff;
+}
+
+.noticeSuccess {
+  background: var(--color-brand-green);
+  color: #fff;
+}
+
+.noticeWarning {
+  background: var(--color-brand-yellow);
+  color: #000;
+}
+
+.noticeInfo {
+  background: var(--color-brand-cyan);
+  color: #fff;
 }
 .firmwareUpdateText {
   margin: var(--space-0) var(--space-0) var(--space-12);

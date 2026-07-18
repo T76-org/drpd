@@ -741,13 +741,13 @@ const unpairCurrentDeviceFromMenu = async (): Promise<void> => {
 }
 
 const chooseThemeFromMenu = async (name: string | RegExp): Promise<void> => {
-  await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+  await openApplicationSubmenu('Display')
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Theme' }))
   await userEvent.click(await screen.findByRole('menuitemcheckbox', { name }))
 }
 
 const toggleTimestripFromMenu = async (): Promise<void> => {
-  await userEvent.click(await screen.findByRole('button', { name: 'Display' }))
+  await openApplicationSubmenu('Display')
   await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Show Timestrip' }))
 }
 

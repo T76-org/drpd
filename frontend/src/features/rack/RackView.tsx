@@ -54,6 +54,7 @@ import WinUSBTransport from '../../lib/transport/winusb'
 import { DRPDWorkerServiceClient } from '../../lib/device/drpd/worker'
 import drpdLogoDark from '../../assets/drpd-logo-dark.svg'
 import drpdLogoLight from '../../assets/drpd-logo-light.svg'
+import t76Stripes from '../../assets/t76-stripes.svg'
 import type {
   RackDefinition,
   RackDeviceRecord,
@@ -85,6 +86,7 @@ import {
   DialogFormRow,
   DialogInput,
   Menu,
+  MenuBar,
   type MenuItem,
 } from '../../ui/overlays'
 import { FirmwareUpdateDialog } from './overlays/firmware/FirmwareUpdateDialog'
@@ -3477,36 +3479,39 @@ export const RackView = ({
       <div className={styles.menuBarViewport}>
         <div className={styles.menuBarScroll}>
           <div className={styles.menuBar}>
-            {menuBarMenus.map((menu) => (
-              <Menu
-                key={menu.id}
-                label={`${menu.label} menu`}
-                align="start"
-                items={menu.items}
-                trigger={(props) => {
-                  const handleClick: typeof props.onClick = (event) => {
-                    if (menu.id !== 'mode') {
-                      props.onClick?.(event)
-                      return
+            <MenuBar>
+              {menuBarMenus.map((menu) => (
+                <Menu
+                  key={menu.id}
+                  id={menu.id}
+                  label={`${menu.label} menu`}
+                  align="start"
+                  items={menu.items}
+                  trigger={(props) => {
+                    const handleClick: typeof props.onClick = (event) => {
+                      if (menu.id !== 'mode') {
+                        props.onClick?.(event)
+                        return
+                      }
+                      void handleRefreshActiveDeviceState().finally(() => {
+                        props.onClick?.(event)
+                      })
                     }
-                    void handleRefreshActiveDeviceState().finally(() => {
-                      props.onClick?.(event)
-                    })
-                  }
 
-                  return (
-                    <button
-                      {...props}
-                      type="button"
-                      className={styles.menuBarButton}
-                      onClick={handleClick}
-                    >
-                      {menu.label}
-                    </button>
-                  )
-                }}
-              />
-            ))}
+                    return (
+                      <button
+                        {...props}
+                        type="button"
+                        className={styles.menuBarButton}
+                        onClick={handleClick}
+                      >
+                        {menu.label}
+                      </button>
+                    )
+                  }}
+                />
+              ))}
+            </MenuBar>
             {activeConnectedDeviceState ? (
               <ContextMenu
                 label="Device name menu"
@@ -3535,6 +3540,12 @@ export const RackView = ({
                 Waiting for device...
               </div>
             )}
+            <img
+              className={styles.menuBarStripes}
+              src={t76Stripes}
+              alt=""
+              aria-hidden="true"
+            />
           </div>
         </div>
       </div>
@@ -3564,7 +3575,7 @@ export const RackView = ({
       ) : null}
       <main className={styles.content}>
         {isLoading ? (
-          <div className={styles.notice}>Loading rack...</div>
+          <div className={`${styles.notice} ${styles.noticeInfo}`}>Loading rack...</div>
         ) : null}
         {!isLoading && deviceError ? (
           <div className={`${styles.notice} ${styles.noticeError}`}>
@@ -3572,7 +3583,7 @@ export const RackView = ({
           </div>
         ) : null}
         {!isLoading && error ? (
-          <div className={styles.notice}>Error: {error}</div>
+          <div className={`${styles.notice} ${styles.noticeError}`}>Error: {error}</div>
         ) : null}
         {!isLoading && !error && renderedRack ? (
           <RackRenderer
@@ -3592,7 +3603,7 @@ export const RackView = ({
           />
         ) : null}
         {!isLoading && !error && rackDocument && !activeRack ? (
-          <div className={styles.notice}>No racks available.</div>
+          <div className={`${styles.notice} ${styles.noticeInfo}`}>No racks available.</div>
         ) : null}
       </main>
       <FirmwareUpdateDialog
