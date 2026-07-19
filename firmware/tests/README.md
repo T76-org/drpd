@@ -18,13 +18,3 @@ clang++ -std=c++20 -Wall -Wextra -Werror \
   -o /tmp/drpd-source-capabilities-decoder-test
 /tmp/drpd-source-capabilities-decoder-test
 ```
-
-Run the calibrated VBUS zero-clamping regression with:
-
-```sh
-clang++ -std=c++20 -Wall -Wextra -Werror \
-  -Ifirmware/lib/phy \
-  firmware/tests/vbus_voltage_filter_test.cpp \
-  -o /tmp/drpd-vbus-voltage-filter-test
-/tmp/drpd-vbus-voltage-filter-test
-```
