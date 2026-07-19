@@ -16,6 +16,7 @@ target_compile_definitions(drpd-firmware PUBLIC
 
     PHY_ANALOG_MONITOR_VBUS_SENSE_SCALE_FACTOR=18.405f                          # VBUS Sense Scale Factor (V per ADC unit)
     PHY_ANALOG_MONITOR_VBUS_ISENSE_SCALE_FACTOR=4.0f                            # VBUS Current Sense Scale Factor (A per ADC unit)
+    PHY_ANALOG_MONITOR_VBUS_ZERO_THRESHOLD_VOLTS=1.5f                           # Calibrated VBUS readings below this voltage are zero
     PHY_ANALOG_MONITOR_CC_SENSE_SCALE_FACTOR=1.51f                              # CC Sense Scale Factor (V per ADC unit)
 
     PHY_ANALOG_MONITOR_ADC_SETTLING_TIME_US=10                                  # ADC Settling Time in microseconds
