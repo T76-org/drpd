@@ -12,7 +12,7 @@ export const MESSAGE_LOG_COLUMNS = [
     id: 'timestamp',
     label: 'Wall time',
     widthVar: '--column-width-timestamp',
-    defaultWidthPx: 116,
+    defaultWidthPx: 144,
     minWidthPx: 80,
     align: 'right',
     field: 'timestamp',
@@ -30,7 +30,7 @@ export const MESSAGE_LOG_COLUMNS = [
     id: 'delta',
     label: 'Δt',
     widthVar: '--column-width-delta',
-    defaultWidthPx: 72,
+    defaultWidthPx: 88,
     minWidthPx: 52,
     align: 'right',
     field: 'delta',
@@ -97,6 +97,10 @@ export type MessageLogColumnWidths = Record<MessageLogColumnId, number>
 
 const MESSAGE_LOG_COLUMNS_STORAGE_KEY = 'drpd:message-log:columns'
 const MESSAGE_LOG_COLUMN_WIDTHS_STORAGE_KEY = 'drpd:message-log:column-widths'
+const LEGACY_MESSAGE_LOG_COLUMN_WIDTHS: Partial<MessageLogColumnWidths> = {
+  timestamp: 116,
+  delta: 72,
+}
 
 export const DEFAULT_MESSAGE_LOG_COLUMN_VISIBILITY: MessageLogColumnVisibility =
   Object.fromEntries(MESSAGE_LOG_COLUMNS.map((column) => [column.id, true])) as MessageLogColumnVisibility
@@ -157,8 +161,11 @@ export const normalizeMessageLogColumnWidths = (
   return Object.fromEntries(
     MESSAGE_LOG_COLUMNS.map((column) => {
       const width = source[column.id]
-      const normalizedWidth = typeof width === 'number' && Number.isFinite(width)
-        ? Math.max(column.minWidthPx, Math.round(width))
+      const migratedWidth = width === LEGACY_MESSAGE_LOG_COLUMN_WIDTHS[column.id]
+        ? column.defaultWidthPx
+        : width
+      const normalizedWidth = typeof migratedWidth === 'number' && Number.isFinite(migratedWidth)
+        ? Math.max(column.minWidthPx, Math.round(migratedWidth))
         : column.defaultWidthPx
       return [column.id, normalizedWidth]
     }),
