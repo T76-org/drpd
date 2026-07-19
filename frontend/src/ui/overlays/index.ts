@@ -8,7 +8,7 @@ export {
   DialogHeader,
   DialogInput,
 } from './Dialog'
-export { ContextMenu, Menu } from './Menu'
+export { ContextMenu, Menu, MenuBar } from './Menu'
 export {
   Popover,
   PopoverButton,
@@ -29,6 +29,7 @@ export type {
   ContextMenuProps,
   ContextMenuTriggerProps,
   MenuActionItem,
+  MenuBarProps,
   MenuCheckboxItem,
   MenuItem,
   MenuLeafItem,

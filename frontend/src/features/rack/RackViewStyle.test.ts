@@ -113,8 +113,9 @@ describe('RackView responsive header CSS', () => {
   })
 
   it('keeps the front-panel visual compact while states change through data hooks', () => {
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*transform:\s*scale\(1\.5\);/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*--header-front-panel-width:\s*calc\(126px \* var\(--rack-header-scale\)\);/s)
-    expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*flex:\s*0 0 var\(--header-front-panel-width\);/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*flex:\s*0 0 calc\(var\(--header-front-panel-width\) \* 1\.5\);/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\s*\{[^}]*height:\s*var\(--header-front-panel-height\);/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-disabled='true'\]\s*\{/s)
     expect(rackViewCss).toMatch(/\.headerUsbCPort\s*\{[^}]*background:\s*color-mix\(in srgb, #fff 94%, var\(--color-surface-header\)\);/s)

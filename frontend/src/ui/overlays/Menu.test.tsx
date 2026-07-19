@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { ContextMenu, Menu, type MenuItem } from './Menu'
+import { ContextMenu, Menu, MenuBar, type MenuItem } from './Menu'
 
 const renderMenu = (items: MenuItem[]) => {
   render(
@@ -230,7 +230,10 @@ describe('ContextMenu', () => {
       },
     ])
 
-    fireEvent.contextMenu(screen.getByLabelText('Context target'), {
+    const target = screen.getByLabelText('Context target')
+    expect(target).toHaveAttribute('data-context-menu-target')
+
+    fireEvent.contextMenu(target, {
       clientX: 48,
       clientY: 56,
     })
@@ -275,5 +278,127 @@ describe('ContextMenu', () => {
     fireEvent.contextMenu(screen.getByLabelText('Context target'))
     await user.click(document.body)
     expect(screen.queryByRole('menu', { name: 'Context actions' })).not.toBeInTheDocument()
+  })
+})
+
+describe('MenuBar', () => {
+  const renderMenuBar = () => {
+    render(
+      <MenuBar>
+        <Menu
+          id="file"
+          label="File menu"
+          items={[
+            {
+              id: 'new',
+              label: 'New',
+              onSelect: vi.fn(),
+            },
+          ]}
+          trigger={(props) => (
+            <button type="button" {...props}>
+              File
+            </button>
+          )}
+        />
+        <Menu
+          id="edit"
+          label="Edit menu"
+          items={[
+            {
+              id: 'copy',
+              label: 'Copy',
+              onSelect: vi.fn(),
+            },
+          ]}
+          trigger={(props) => (
+            <button type="button" {...props}>
+              Edit
+            </button>
+          )}
+        />
+      </MenuBar>,
+    )
+  }
+
+  it('opens another menu on hover after one menu was opened by click', async () => {
+    const user = userEvent.setup()
+    renderMenuBar()
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    expect(screen.getByRole('menu', { name: 'File menu' })).toBeInTheDocument()
+
+    await user.hover(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('menu', { name: 'Edit menu' })).toBeInTheDocument()
+    expect(screen.queryByRole('menu', { name: 'File menu' })).not.toBeInTheDocument()
+  })
+
+  it('does not open on hover after clicking outside', async () => {
+    const user = userEvent.setup()
+    renderMenuBar()
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    expect(screen.getByRole('menu', { name: 'File menu' })).toBeInTheDocument()
+
+    await user.click(document.body)
+    expect(screen.queryByRole('menu', { name: 'File menu' })).not.toBeInTheDocument()
+
+    await user.hover(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.queryByRole('menu', { name: 'Edit menu' })).not.toBeInTheDocument()
+  })
+
+  it('does not open on hover after Escape', async () => {
+    const user = userEvent.setup()
+    renderMenuBar()
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    expect(screen.getByRole('menu', { name: 'File menu' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu', { name: 'File menu' })).not.toBeInTheDocument()
+
+    await user.hover(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.queryByRole('menu', { name: 'Edit menu' })).not.toBeInTheDocument()
+  })
+
+  it('stays open when the pointer leaves the menu panel', async () => {
+    const user = userEvent.setup()
+    renderMenuBar()
+
+    const fileTrigger = screen.getByRole('button', { name: 'File' })
+    await user.click(fileTrigger)
+    expect(screen.getByRole('menu', { name: 'File menu' })).toBeInTheDocument()
+
+    await user.unhover(fileTrigger)
+    await user.unhover(screen.getByRole('menu', { name: 'File menu' }))
+    expect(screen.getByRole('menu', { name: 'File menu' })).toBeInTheDocument()
+  })
+
+  it('stays open after hover-switching then leaving the panel', async () => {
+    const user = userEvent.setup()
+    renderMenuBar()
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    const editTrigger = screen.getByRole('button', { name: 'Edit' })
+    await user.hover(editTrigger)
+    expect(screen.getByRole('menu', { name: 'Edit menu' })).toBeInTheDocument()
+
+    await user.unhover(editTrigger)
+    await user.unhover(screen.getByRole('menu', { name: 'Edit menu' }))
+    expect(screen.getByRole('menu', { name: 'Edit menu' })).toBeInTheDocument()
+  })
+
+  it('disarms on right-click outside', async () => {
+    const user = userEvent.setup()
+    renderMenuBar()
+
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    expect(screen.getByRole('menu', { name: 'File menu' })).toBeInTheDocument()
+
+    await user.pointer({ keys: '[MouseRight]', target: document.body })
+    expect(screen.queryByRole('menu', { name: 'File menu' })).not.toBeInTheDocument()
+
+    await user.hover(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.queryByRole('menu', { name: 'Edit menu' })).not.toBeInTheDocument()
   })
 })

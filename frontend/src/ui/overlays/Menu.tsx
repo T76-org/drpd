@@ -8,11 +8,14 @@ import {
   useClick,
   useDismiss,
   useFloating,
+  useHover,
   useInteractions,
   type Placement,
 } from '@floating-ui/react'
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -80,6 +83,8 @@ export type MenuTriggerProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 export type MenuProps = {
+  ///< Stable id used by MenuBar to coordinate which menu is open.
+  id?: string
   ///< Accessible name for the menu.
   label: string
   ///< Render a trigger button. Spread the provided props onto the button.
@@ -105,6 +110,30 @@ export type ContextMenuProps = {
   children: (props: ContextMenuTriggerProps) => ReactElement
   ///< Called whenever menu open state changes.
   onOpenChange?: (open: boolean) => void
+}
+
+export type MenuBarProps = {
+  children: ReactNode
+}
+
+type MenuBarContextValue = {
+  ///< Id of the currently open menu, or null when the bar is idle.
+  activeMenuId: string | null
+  ///< Open a menu by id, or pass null to disarm the menu bar.
+  setActiveMenuId: (id: string | null | ((current: string | null) => string | null)) => void
+}
+
+const MenuBarContext = createContext<MenuBarContextValue | null>(null)
+
+/**
+ * Coordinates Mac-style menu-bar behavior: after one menu is opened, hovering
+ * other menu titles switches menus until the bar is dismissed.
+ */
+export const MenuBar = ({ children }: MenuBarProps) => {
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+  const value: MenuBarContextValue = { activeMenuId, setActiveMenuId }
+
+  return <MenuBarContext.Provider value={value}>{children}</MenuBarContext.Provider>
 }
 
 const MENU_OFFSET_PX = 0
@@ -217,13 +246,17 @@ const makeSizeMiddleware = () =>
  * checkbox items, and keyboard navigation.
  */
 export const Menu = ({
+  id,
   label,
   trigger,
   items,
   align = 'start',
   onOpenChange,
 }: MenuProps) => {
-  const [open, setOpen] = useState(false)
+  const menuBar = useContext(MenuBarContext)
+  const isMenuBarMenu = menuBar != null && id != null
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = isMenuBarMenu ? menuBar.activeMenuId === id : uncontrolledOpen
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null)
   const [focusFirstSubmenuId, setFocusFirstSubmenuId] = useState<string | null>(null)
   const [forceOpenFirstNestedSubmenuId, setForceOpenFirstNestedSubmenuId] = useState<string | null>(
@@ -232,18 +265,64 @@ export const Menu = ({
   const [activeRootIndex, setActiveRootIndex] = useState(-1)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const rootItemRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const wasOpenRef = useRef(open)
+
+  const resetTransientState = useCallback(() => {
+    setOpenSubmenuId(null)
+    setFocusFirstSubmenuId(null)
+    setForceOpenFirstNestedSubmenuId(null)
+    setActiveRootIndex(-1)
+  }, [])
+
+  const setOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (isMenuBarMenu) {
+        if (nextOpen) {
+          if (menuBar.activeMenuId !== id) {
+            menuBar.setActiveMenuId(id)
+            onOpenChange?.(true)
+          }
+          return
+        }
+        if (menuBar.activeMenuId === id) {
+          menuBar.setActiveMenuId(null)
+          onOpenChange?.(false)
+        }
+        return
+      }
+      setUncontrolledOpen(nextOpen)
+      onOpenChange?.(nextOpen)
+    },
+    [id, isMenuBarMenu, menuBar, onOpenChange],
+  )
+
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      resetTransientState()
+    }
+    wasOpenRef.current = open
+  }, [open, resetTransientState])
 
   const placement: Placement = align === 'end' ? 'bottom-end' : 'bottom-start'
   const { refs, floatingStyles, context } = useFloating<HTMLButtonElement>({
     open,
-    onOpenChange(nextOpen) {
+    onOpenChange(nextOpen, _event, reason) {
+      // Menu bar stays armed until an explicit click dismisses it. Ignore closes
+      // caused by pointer leave / focus (Floating UI still emits these after a
+      // hover-switched open even when handleClose is null).
+      if (
+        isMenuBarMenu &&
+        !nextOpen &&
+        (reason === 'hover' ||
+          reason === 'safe-polygon' ||
+          reason === 'focus' ||
+          reason === 'focus-out')
+      ) {
+        return
+      }
       setOpen(nextOpen)
-      onOpenChange?.(nextOpen)
       if (!nextOpen) {
-        setOpenSubmenuId(null)
-        setFocusFirstSubmenuId(null)
-        setForceOpenFirstNestedSubmenuId(null)
-        setActiveRootIndex(-1)
+        resetTransientState()
       }
     },
     placement,
@@ -256,19 +335,27 @@ export const Menu = ({
     ],
   })
 
+  const hover = useHover(context, {
+    // While armed, hover opens other titles only — closes are filtered above.
+    enabled: isMenuBarMenu && menuBar?.activeMenuId != null,
+    handleClose: null,
+  })
   const click = useClick(context)
-  const dismiss = useDismiss(context, { escapeKey: true })
-  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss])
+  const dismiss = useDismiss(context, {
+    escapeKey: true,
+    outsidePress: true,
+    // pointerdown covers left and right mouse buttons.
+    outsidePressEvent: 'pointerdown',
+  })
+  const { getReferenceProps, getFloatingProps } = useInteractions(
+    isMenuBarMenu ? [hover, click, dismiss] : [click, dismiss],
+  )
 
   const closeMenu = useCallback(() => {
     setOpen(false)
-    setOpenSubmenuId(null)
-    setFocusFirstSubmenuId(null)
-    setForceOpenFirstNestedSubmenuId(null)
-    setActiveRootIndex(-1)
+    resetTransientState()
     triggerRef.current?.blur()
-    onOpenChange?.(false)
-  }, [onOpenChange])
+  }, [resetTransientState, setOpen])
 
   const focusRootItem = useCallback((index: number) => {
     if (index < 0) {
@@ -582,6 +669,7 @@ export const ContextMenu = ({
     },
     'aria-haspopup': 'menu',
     'aria-expanded': open,
+    'data-context-menu-target': '',
     onContextMenu(event) {
       event.preventDefault()
       refs.setPositionReference({

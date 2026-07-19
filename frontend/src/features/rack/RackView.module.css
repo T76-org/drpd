@@ -40,6 +40,15 @@
   padding-inline: var(--rack-layout-padding-x);
 }
 
+.menuBarStripes {
+  display: block;
+  flex-shrink: 0;
+  height: var(--menu-bar-height);
+  width: calc(var(--menu-bar-height) * 98 / 28);
+  object-fit: cover;
+  object-position: center;
+}
+
 .menuBarDeviceStatus {
   margin-left: auto;
   padding: 0 var(--menu-bar-padding-x);
@@ -57,19 +66,13 @@
   height: var(--menu-bar-height);
 }
 
-.menuBarDeviceStatusContextTarget:hover,
-.menuBarDeviceStatusContextTarget:focus-visible,
-.menuBarDeviceStatusContextTarget[aria-expanded='true'] {
-  outline: none;
-}
-
 .menuBarButton {
   border: none;
   border-radius: 2px;
   background: transparent;
   color: var(--color-text-primary);
   font-size: var(--font-size-menu);
-  font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-semibold);
   line-height: 1;
   height: var(--menu-bar-height);
   min-height: 0;
@@ -159,15 +162,18 @@
   --header-front-panel-height: calc(48px * var(--rack-header-scale));
   --header-banana-jack-color: color-mix(in srgb, #fff 94%, var(--color-surface-header));
 
-  flex: 0 0 var(--header-front-panel-width);
+  /* Reserve layout space for the scaled visual size, then scale the drawing. */
+  flex: 0 0 calc(var(--header-front-panel-width) * 1.5);
   width: var(--header-front-panel-width);
   height: var(--header-front-panel-height);
+  margin-block: calc(var(--header-front-panel-height) * 0.25);
   box-sizing: border-box;
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) calc(16px * var(--rack-header-scale));
   align-items: end;
   padding: var(--space-0);
+  transform: scale(1.5);
 }
 
 .headerFrontPanel[data-disabled='true'] {
@@ -263,7 +269,7 @@
 .headerFrontPanelPortRail {
   justify-self: center;
   width: var(--header-front-panel-width);
-  height: calc(16px * var(--rack-header-scale));
+  height: calc(20px * var(--rack-header-scale));
   overflow: visible;
 }
 
@@ -543,8 +549,8 @@
   }
 
   50% {
-    border-color: color-mix(in srgb, var(--color-metric-voltage) 76%, var(--color-border-divider));
-    box-shadow: 0 0 calc(7px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 30%, transparent);
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 95%, var(--color-border-divider));
+    box-shadow: 0 0 calc(7px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 38%, transparent);
   }
 }
 
@@ -557,8 +563,8 @@
 @media (prefers-reduced-motion: reduce) {
   .headerFrontPanel[data-usb-ports-enabled='true'] .headerUsbCPort[data-connected='false'] {
     animation: none;
-    border-color: color-mix(in srgb, var(--color-metric-voltage) 62%, var(--color-border-divider));
-    box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 18%, transparent);
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 78%, var(--color-border-divider));
+    box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 23%, transparent);
   }
 
   .headerFrontPanelPortRailLine {
@@ -599,16 +605,31 @@
 }
 
 .notice {
-  padding: var(--space-16);
+  padding: 10px 20px;
+  margin: 10px 30px;
+  border: 2px solid #fff;
   border-radius: var(--radius-sm);
-  background: var(--color-surface-panel);
-  border: var(--border-thin) solid var(--color-border-panel);
-  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
 }
 
 .noticeError {
-  color: var(--color-status-error);
-  border-color: var(--color-status-error);
+  background: var(--color-brand-red);
+  color: #fff;
+}
+
+.noticeSuccess {
+  background: var(--color-brand-green);
+  color: #fff;
+}
+
+.noticeWarning {
+  background: var(--color-brand-yellow);
+  color: #000;
+}
+
+.noticeInfo {
+  background: var(--color-brand-cyan);
+  color: #fff;
 }
 .firmwareUpdateText {
   margin: var(--space-0) var(--space-0) var(--space-12);
