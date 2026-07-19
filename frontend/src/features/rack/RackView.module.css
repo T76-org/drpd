@@ -162,15 +162,18 @@
   --header-front-panel-height: calc(48px * var(--rack-header-scale));
   --header-banana-jack-color: color-mix(in srgb, #fff 94%, var(--color-surface-header));
 
-  flex: 0 0 var(--header-front-panel-width);
+  /* Reserve layout space for the scaled visual size, then scale the drawing. */
+  flex: 0 0 calc(var(--header-front-panel-width) * 1.5);
   width: var(--header-front-panel-width);
   height: var(--header-front-panel-height);
+  margin-block: calc(var(--header-front-panel-height) * 0.25);
   box-sizing: border-box;
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) calc(16px * var(--rack-header-scale));
   align-items: end;
   padding: var(--space-0);
+  transform: scale(1.5);
 }
 
 .headerFrontPanel[data-disabled='true'] {
@@ -266,7 +269,7 @@
 .headerFrontPanelPortRail {
   justify-self: center;
   width: var(--header-front-panel-width);
-  height: calc(16px * var(--rack-header-scale));
+  height: calc(20px * var(--rack-header-scale));
   overflow: visible;
 }
 
@@ -546,8 +549,8 @@
   }
 
   50% {
-    border-color: color-mix(in srgb, var(--color-metric-voltage) 76%, var(--color-border-divider));
-    box-shadow: 0 0 calc(7px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 30%, transparent);
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 95%, var(--color-border-divider));
+    box-shadow: 0 0 calc(7px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 38%, transparent);
   }
 }
 
@@ -560,8 +563,8 @@
 @media (prefers-reduced-motion: reduce) {
   .headerFrontPanel[data-usb-ports-enabled='true'] .headerUsbCPort[data-connected='false'] {
     animation: none;
-    border-color: color-mix(in srgb, var(--color-metric-voltage) 62%, var(--color-border-divider));
-    box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 18%, transparent);
+    border-color: color-mix(in srgb, var(--color-metric-voltage) 78%, var(--color-border-divider));
+    box-shadow: 0 0 calc(4px * var(--rack-header-scale)) color-mix(in srgb, var(--color-metric-voltage) 23%, transparent);
   }
 
   .headerFrontPanelPortRailLine {
