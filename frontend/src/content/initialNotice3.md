@@ -1,4 +1,4 @@
-## Getting started
+## Start using Dr. PD
 
 That's it! If this is your first time using Dr. PD, the application will prompt you to pair your device as soon as you close this message.
 
