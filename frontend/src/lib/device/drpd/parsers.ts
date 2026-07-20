@@ -392,6 +392,8 @@ export const parseSinkState = (value: string): SinkState => {
       return SinkState.PE_SNK_SELECT_CAPABILITY
     case SinkState.PE_SNK_TRANSITION_SINK:
       return SinkState.PE_SNK_TRANSITION_SINK
+    case SinkState.PE_SNK_SEND_RESPONSE:
+      return SinkState.PE_SNK_SEND_RESPONSE
     case SinkState.PE_SNK_READY:
       return SinkState.PE_SNK_READY
     case SinkState.PE_SNK_SEND_EPR_MODE_ENTRY:

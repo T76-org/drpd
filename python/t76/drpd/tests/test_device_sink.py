@@ -397,6 +397,17 @@ class TestDeviceSinkStatusQueries(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(status, SinkState.PE_SNK_TRANSITION_SINK)
 
+    async def test_get_status_pe_snk_send_response(self) -> None:
+        """Test getting PE_SNK_SEND_RESPONSE status."""
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["SINK"],  # Mode validation
+            ["PE_SNK_SEND_RESPONSE"],  # Status query
+        ]
+
+        status = await self.device_sink.get_status()
+
+        self.assertEqual(status, SinkState.PE_SNK_SEND_RESPONSE)
+
     async def test_get_status_error(self) -> None:
         """Test getting ERROR status."""
         self.mock_internal.query_ascii_values_and_check.side_effect = [

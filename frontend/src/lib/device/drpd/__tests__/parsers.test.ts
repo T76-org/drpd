@@ -180,6 +180,9 @@ describe('drpd parsers', () => {
     expect(parseSinkStateResponse(['PE_SNK_TRANSITION_SINK'])).toBe(
       SinkState.PE_SNK_TRANSITION_SINK,
     )
+    expect(parseSinkStateResponse(['PE_SNK_SEND_RESPONSE'])).toBe(
+      SinkState.PE_SNK_SEND_RESPONSE,
+    )
   })
 
   it('parses trigger message type filter responses', () => {
