@@ -469,13 +469,15 @@ BUS:VBUS:OVPThreshold
 | Long form | `BUS:VBUS:OVPThreshold` |
 | Short form | `BUS:VBUS:OVPT` |
 
-Set the VBUS overvoltage protection threshold in millivolts.
+Set the VBUS overvoltage protection threshold in volts.
+For example, BUS:VBUS:OVPThreshold 12.5 configures a
+12.5 V threshold.
 
 ### Parameters
 
 | Name | Type | Values/default | Description |
 | --- | --- | --- | --- |
-| `threshold_mv` | number | — | The desired OVP threshold in millivolts. |
+| `threshold_v` | number | — | The desired OVP threshold in volts, from 0 V through 60 V. |
 
 ### Response
 
@@ -509,7 +511,8 @@ BUS:VBUS:OVPThreshold?
 | Long form | `BUS:VBUS:OVPThreshold?` |
 | Short form | `BUS:VBUS:OVPT?` |
 
-Query the VBUS overvoltage protection threshold in millivolts
+Query the VBUS overvoltage protection threshold.
+Returns the configured threshold in volts.
 
 ### Parameters
 
@@ -517,7 +520,7 @@ No parameters.
 
 ### Response
 
-Returns query-specific data described above.
+- Returns the configured threshold in volts.
 
 ### Command-specific errors
 
@@ -545,13 +548,15 @@ BUS:VBUS:OCPThreshold
 | Long form | `BUS:VBUS:OCPThreshold` |
 | Short form | `BUS:VBUS:OCPT` |
 
-Set the VBUS overcurrent protection threshold in milliamps.
+Set the VBUS overcurrent protection threshold in amps.
+For example, BUS:VBUS:OCPThreshold 3 configures a
+3 A threshold.
 
 ### Parameters
 
 | Name | Type | Values/default | Description |
 | --- | --- | --- | --- |
-| `threshold_ma` | number | — | The desired OCP threshold in milliamps. |
+| `threshold_a` | number | — | The desired OCP threshold in amps, from 0 A through 6 A. |
 
 ### Response
 
@@ -585,7 +590,8 @@ BUS:VBUS:OCPThreshold?
 | Long form | `BUS:VBUS:OCPThreshold?` |
 | Short form | `BUS:VBUS:OCPT?` |
 
-Query the VBUS overcurrent protection threshold in milliamps
+Query the VBUS overcurrent protection threshold.
+Returns the configured threshold in amps.
 
 ### Parameters
 
@@ -593,7 +599,7 @@ No parameters.
 
 ### Response
 
-Returns query-specific data described above.
+- Returns the configured threshold in amps.
 
 ### Command-specific errors
 

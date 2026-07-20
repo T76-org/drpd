@@ -266,11 +266,14 @@ commands:
     handler:      _resetVBus
 
   - syntax:       "BUS:VBUS:OVPThreshold"
-    description:  "Set the VBUS overvoltage protection threshold in millivolts."
+    description:  |
+                    Set the VBUS overvoltage protection threshold in volts.
+                    For example, BUS:VBUS:OVPThreshold 12.5 configures a
+                    12.5 V threshold.
     parameters:
-      - name:        threshold_mv
+      - name:        threshold_v
         type:        number
-        description: "The desired OVP threshold in millivolts."
+        description: "The desired OVP threshold in volts, from 0 V through 60 V."
     errors:
       -222:
         message:     "Data out of range"
@@ -278,15 +281,20 @@ commands:
     handler:      _setVBusOVPThreshold
 
   - syntax:       "BUS:VBUS:OVPThreshold?"
-    description:  "Query the VBUS overvoltage protection threshold in millivolts"
+    description:  |
+                    Query the VBUS overvoltage protection threshold.
+                    Returns the configured threshold in volts.
     handler:      _queryVBusOVPThreshold
 
   - syntax:       "BUS:VBUS:OCPThreshold"
-    description:  "Set the VBUS overcurrent protection threshold in milliamps."
+    description:  |
+                    Set the VBUS overcurrent protection threshold in amps.
+                    For example, BUS:VBUS:OCPThreshold 3 configures a
+                    3 A threshold.
     parameters:
-      - name:        threshold_ma
+      - name:        threshold_a
         type:        number
-        description: "The desired OCP threshold in milliamps."
+        description: "The desired OCP threshold in amps, from 0 A through 6 A."
     errors:
       -222:
         message:     "Data out of range"
@@ -294,7 +302,9 @@ commands:
     handler:      _setVBusOCPThreshold
 
   - syntax:       "BUS:VBUS:OCPThreshold?"
-    description:  "Query the VBUS overcurrent protection threshold in milliamps"
+    description:  |
+                    Query the VBUS overcurrent protection threshold.
+                    Returns the configured threshold in amps.
     handler:      _queryVBusOCPThreshold
 
   - syntax:       "BUS:VBUS:CALibrate?"
