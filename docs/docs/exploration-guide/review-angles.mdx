@@ -19,8 +19,9 @@ Things to try:
 - Capture and decode USB-PD messages while a device attaches, negotiates, and
   changes state. The [message capture guide](../how-to/capturing-messages.mdx)
   explains the decoded fields, timing information, and export flow.
-- Export selected captures as CSV or JSON, then inspect the decoded message
-  fields outside the UI.
+- Export selected captures as CSV for fixed summary columns, or as JSON for
+  stored raw capture rows and annotations that can be imported and decoded
+  again.
 - Compare repeated attach or **Mode → Cycle USB Connection** runs to see
   whether the same source capabilities and contracts appear each time.
 - Use Python, JavaScript, SCPI, or USBTMC for small repeatable checks, such as
