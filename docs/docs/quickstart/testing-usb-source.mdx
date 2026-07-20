@@ -10,13 +10,21 @@ This section will guide you through the steps required to get your first capture
 
 ## Connecting the source
 
-To test a USB-PD source, you will need to connect it to Port 1 (the left port) on the front of Dr. PD using a USB-C cable. For this initial test, any USB-PD source and cable should work. Since our goal is to ensure that your Dr. PD unit is working well, we recommend using a charger and cable that you are confident work correctly. If you have a USB-C laptop charger, that is a great choice for this test.
+To test a USB-PD source, you will need to connect it to Port 1 (the left port) on the front of Dr. PD using a USB-C cable. For this initial test, any USB-PD source and cable should work. Since our goal is to ensure that your Dr. PD unit is working well, we recommend using a charger and cable that you are confident work correctly. If you have a USB-C laptop charger, that is a great choice for this test. Leave the source disconnected until capture is enabled below so the initial attach and negotiation are recorded.
 
-## Placing Dr. PD in sink mode
+## Enabling capture
+
+Before connecting the source or entering Sink mode, select **Capture → Enable
+Capture** from the menu, or press `C`. Dr. PD will record analog VBUS
+measurements and USB-PD messages from the beginning of the connection.
+
+## Placing Dr. PD in sink mode and connecting the source
 
 Dr. PD can behave like a USB-PD sink device, simulating the behaviour of a laptop, phone, or other device that draws power from a USB-PD source. This allows you to capture and analyze the USB-PD messages sent by the source without the need for a physical sink device connected to the other port of Dr. PD.
 
-In order to capture USB-PD messages from the source, therefore, we need to first place Dr. PD in sink mode. This is accomplished by selecting **Mode → Sink** from the menu, or pressing the `S` key on your keyboard. You should see the MODE indicator in the control app's header change to "Sink" and, if a source is connected to Port 1, the STATUS indicator should change to “Attached.”
+Select **Mode → Sink** from the menu, or press `S`, then connect the source to
+Port 1. You should see the MODE indicator change to “Sink” and the STATUS
+indicator change to “Attached.”
 
 At the same time, the VBUS voltage indicator should show 5V, and the PROFILE indicator should read “Fixed 5V @ 3A” or similar. This indicates that the source and Dr. PD have successfully established a USB-PD contract for the default 5V power profile, and that Dr. PD is now ready to capture and decode USB-PD messages from the source.
 
@@ -24,11 +32,17 @@ At the same time, the VBUS voltage indicator should show 5V, and the PROFILE ind
 When Dr. PD's VBUS input is floating, the VBUS voltage indicator will show a small, arbitrary voltage level that can fluctuate randomly. This is normal and does not indicate any issue with your Dr. PD unit. Once you connect a source to Port 1, the VBUS voltage should stabilize at the level corresponding to the power profile offered by the source (usually 5V for the default profile).
 :::
 
-## Capturing USB-PD messages
+## Capturing another negotiation
 
-Before you can capture USB-PD messages, you need to start a capture session. This is done by selecting **Capture → Enable Capture** from the menu, or pressing the `C` key. This causes Dr. PD to record both analog measurements (VBUS voltage and current) and digital protocol messages (USB-PD messages) in real time, and send this data to the control software for display and analysis.
+If the source was already connected before you enabled capture, select
+**Mode → Cycle USB Connection**, or press `T`, now to record a fresh attach and
+negotiation.
 
-With capture enabled, you can now interact with the source to trigger USB-PD messages. For example, click on **Mode → Choose power contract...** (or press the `P` key) to cause Dr. PD to negotiate a new power contract with the source. For example, if the source supports, say, a 15V profile, you can select it from the list and click on the Set PDO button to cause Dr. PD to request that profile from the source. This will trigger a USB-PD negotiation sequence, which should display messages similar to the following in the capture log:
+With capture enabled, you can interact with the source to trigger more USB-PD
+messages. For example, select **Mode → Choose power contract...**, or press
+`P`, to negotiate a new contract. If the source supports a 15 V profile, select
+it and click **Set PDO**. This should display messages similar to the following
+in the capture log:
 
 | Length | Message type | Sender | Receiver | Message Summary |
 |---:|---|---|---|---|
