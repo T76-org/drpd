@@ -99,6 +99,7 @@ export type MenuProps = {
 
 export type ContextMenuTriggerProps = HTMLAttributes<HTMLElement> & {
   ref: (node: HTMLElement | null) => void
+  'data-context-menu-target': string
 }
 
 export type ContextMenuProps = {
@@ -663,7 +664,7 @@ export const ContextMenu = ({
     }
   }
 
-  const targetProps = getReferenceProps({
+  const contextMenuTargetProps: ContextMenuTriggerProps = {
     ref(node: HTMLElement | null) {
       refs.setReference(node)
     },
@@ -689,7 +690,8 @@ export const ContextMenu = ({
       setOpen(true)
       onOpenChange?.(true)
     },
-  }) as unknown as ContextMenuTriggerProps
+  }
+  const targetProps = getReferenceProps(contextMenuTargetProps) as unknown as ContextMenuTriggerProps
 
   return (
     <>
