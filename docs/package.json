@@ -13,6 +13,7 @@
     "generate:python-api": "node scripts/generate-python-api-reference.mjs",
     "audit:component-refs": "node scripts/audit-component-refs.mjs",
     "test:simple-python-demo": "node --test scripts/simple-python-demo.test.mjs",
+    "test:python-api-generator": "node --test scripts/generate-python-api-reference.test.mjs",
     "prebuild": "npm run generate:scpi && npm run generate:python-api && npm run generate:ibom && npm run generate:kicanvas && npm run audit:component-refs",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
