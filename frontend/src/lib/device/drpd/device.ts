@@ -539,6 +539,7 @@ export class DRPDDevice extends EventTarget {
       selectedKeys: [...this.state.logSelection.selectedKeys],
       anchorIndex: this.state.logSelection.anchorIndex,
       activeIndex: this.state.logSelection.activeIndex,
+      revealRevision: this.state.logSelection.revealRevision,
     }
   }
 
@@ -2339,17 +2340,22 @@ export class DRPDDevice extends EventTarget {
    * @param next - Candidate selection state.
    */
   protected updateLogSelectionState(next: DRPDLogSelectionState): void {
+    const current = this.state.logSelection
     const normalized: DRPDLogSelectionState = {
       selectedKeys: Array.from(new Set(next.selectedKeys)),
       anchorIndex:
         next.anchorIndex === null ? null : Math.max(0, Math.floor(next.anchorIndex)),
       activeIndex:
         next.activeIndex === null ? null : Math.max(0, Math.floor(next.activeIndex)),
+      revealRevision:
+        typeof next.revealRevision === 'number' && Number.isFinite(next.revealRevision)
+          ? Math.max(0, Math.floor(next.revealRevision))
+          : current.revealRevision,
     }
-    const current = this.state.logSelection
     const isSame =
       current.anchorIndex === normalized.anchorIndex &&
       current.activeIndex === normalized.activeIndex &&
+      current.revealRevision === normalized.revealRevision &&
       current.selectedKeys.length === normalized.selectedKeys.length &&
       current.selectedKeys.every((value, index) => value === normalized.selectedKeys[index])
     if (isSame) {

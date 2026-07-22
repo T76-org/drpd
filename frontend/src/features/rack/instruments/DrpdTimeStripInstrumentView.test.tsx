@@ -979,6 +979,7 @@ describe('DrpdTimeStripInstrumentView', () => {
         ],
         anchorIndex: null,
         activeIndex: null,
+        revealRevision: 1,
       })
     })
     expect(screen.queryByTestId('drpd-timestrip-range-selection')).toBeNull()
@@ -1623,6 +1624,7 @@ describe('DrpdTimeStripInstrumentView', () => {
         selectedKeys: [buildCapturedLogSelectionKey(rows[1])],
         anchorIndex: null,
         activeIndex: null,
+        revealRevision: 1,
       })
     })
     expect(queryCapturedMessages).toHaveBeenCalledWith(expect.objectContaining({

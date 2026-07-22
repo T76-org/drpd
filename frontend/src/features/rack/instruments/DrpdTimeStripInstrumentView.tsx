@@ -556,6 +556,10 @@ const normalizeSelectionState = (value: unknown): DRPDLogSelectionState => {
       : [],
     anchorIndex: typeof probe?.anchorIndex === 'number' ? probe.anchorIndex : null,
     activeIndex: typeof probe?.activeIndex === 'number' ? probe.activeIndex : null,
+    revealRevision:
+      typeof probe?.revealRevision === 'number' && Number.isFinite(probe.revealRevision)
+        ? Math.max(0, Math.floor(probe.revealRevision))
+        : 0,
   }
 }
 
@@ -792,7 +796,7 @@ export const DrpdTimeStripInstrumentView = ({
 
     void (async () => {
       try {
-        const [previousRows, nextRows] = await Promise.all([
+        const [previousRows, nextRows, currentSelection] = await Promise.all([
           driver.queryCapturedMessages({
             startTimestampUs: LOG_START_TIMESTAMP_US,
             endTimestampUs: targetTimestampUs,
@@ -809,6 +813,14 @@ export const DrpdTimeStripInstrumentView = ({
               limit: 1,
             })
             : Promise.resolve([]),
+          typeof driver.getLogSelectionState === 'function'
+            ? Promise.resolve(driver.getLogSelectionState()).then(normalizeSelectionState)
+            : Promise.resolve<DRPDLogSelectionState>({
+              selectedKeys: [],
+              anchorIndex: null,
+              activeIndex: null,
+              revealRevision: 0,
+            }),
         ])
         const closestRow = getClosestCapturedRow(
           [...previousRows, ...nextRows],
@@ -822,6 +834,7 @@ export const DrpdTimeStripInstrumentView = ({
           selectedKeys: [buildCapturedLogSelectionKey(closestRow)],
           anchorIndex: null,
           activeIndex: null,
+          revealRevision: (currentSelection.revealRevision ?? 0) + 1,
         }))
       } catch {
         // Keep the current selection if the log store is temporarily unavailable.
@@ -892,7 +905,7 @@ export const DrpdTimeStripInstrumentView = ({
           timeBasis,
           sortOrder: 'asc',
         }),
-        shouldUnion && typeof driver.getLogSelectionState === 'function'
+        typeof driver.getLogSelectionState === 'function'
           ? Promise.resolve(driver.getLogSelectionState()).then(normalizeSelectionState)
           : Promise.resolve<DRPDLogSelectionState>({
             selectedKeys: [],
@@ -913,6 +926,7 @@ export const DrpdTimeStripInstrumentView = ({
         selectedKeys,
         anchorIndex: null,
         activeIndex: null,
+        revealRevision: (currentSelection.revealRevision ?? 0) + 1,
       }))
     } catch {
       // Keep the current selection if the log store is temporarily unavailable.
