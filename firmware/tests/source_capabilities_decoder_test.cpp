@@ -72,6 +72,8 @@ void testCapturedSPRAVSAndSPRPPSPayload() {
     expect(sprAvs.raw() == 0xEC04B0CA, "PDO 5 raw value should match captured SPR AVS APDO");
     expect(sprAvs.minVoltageMillivolts() == 9000, "SPR AVS minimum voltage should be 9000 mV");
     expect(sprAvs.maxVoltageMillivolts() == 20000, "SPR AVS maximum voltage should be 20000 mV");
+    expect(sprAvs.maxCurrent15VMilliamps() == 3000, "SPR AVS 9-15 V current should be 3000 mA");
+    expect(sprAvs.maxCurrent20VMilliamps() == 2020, "SPR AVS 15-20 V current should be 2020 mA");
     expect(sprAvs.maxPowerMilliwatts() == 45000, "SPR AVS maximum power should be 45000 mW");
 
     const auto& sprPps = expectPDOType<SPRPPSAPDO>(capabilities.pdo(5), "PDO 6");

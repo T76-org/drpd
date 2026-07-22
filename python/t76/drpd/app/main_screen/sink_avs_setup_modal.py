@@ -132,7 +132,7 @@ class SinkAVSSetupModal(ModalScreen):
             return
 
         voltage_v = self.default_voltage_mv / 1000.0
-        max_current_ma = self._max_current_for_voltage_ma(self.pdo.max_power, voltage_v)
+        max_current_ma = self._max_current_for_pdo_voltage_ma(self.pdo, voltage_v)
         current_ma = max_current_ma
         try:
             current_ma = await self.device.sink.get_negotiated_current()
@@ -153,6 +153,22 @@ class SinkAVSSetupModal(ModalScreen):
         if voltage_v <= 0:
             return 0
         return int((max_power_w * 1000) / voltage_v)
+
+    @classmethod
+    def _max_current_for_pdo_voltage_ma(
+        cls,
+        pdo: SPR_PDOAVs | EPR_PDOAVs,
+        voltage_v: float,
+    ) -> int:
+        """Return advertised current limit for selected AVS voltage."""
+        if isinstance(pdo, SPR_PDOAVs):
+            current_a = (
+                pdo.max_current_15v
+                if voltage_v <= 15.0
+                else pdo.max_current_20v
+            )
+            return int(round(current_a * 1000))
+        return cls._max_current_for_voltage_ma(pdo.max_power, voltage_v)
 
     @staticmethod
     def _quantize_value(value: int, step: int) -> int:
@@ -226,13 +242,13 @@ class SinkAVSSetupModal(ModalScreen):
             return
 
         voltage_v = voltage_mv / 1000.0
-        max_current_ma = self._max_current_for_voltage_ma(
-            self.pdo.max_power,
+        max_current_ma = self._max_current_for_pdo_voltage_ma(
+            self.pdo,
             voltage_v,
         )
         if max_current_ma > 0 and current_ma > max_current_ma:
             error_label.update(
-                "Current exceeds AVS max power at this voltage "
+                "Current exceeds AVS limit at this voltage "
                 f"({max_current_ma / 1000:.3f}A max)"
             )
             error_label.add_class("error")

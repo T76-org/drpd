@@ -676,7 +676,22 @@ export const parseSinkPdo = (values: string[]): SinkPdo => {
       maxCurrentA: parseNumber(parts[3], 'PDO max current'),
     }
   }
-  if (type === SinkPdoType.SPR_AVS || type === SinkPdoType.EPR_AVS) {
+  if (type === SinkPdoType.SPR_AVS) {
+    if (parts.length === 4) {
+      throw new Error('Legacy SPR_AVS PDO response lacks current-band limits; update device firmware')
+    }
+    if (parts.length !== 5) {
+      throw new Error(`Invalid ${type} PDO response: ${parts.join(',')}`)
+    }
+    return {
+      type,
+      minVoltageV: parseNumber(parts[1], 'PDO min voltage'),
+      maxVoltageV: parseNumber(parts[2], 'PDO max voltage'),
+      maxCurrent15VA: parseNumber(parts[3], 'PDO 9-15 V max current'),
+      maxCurrent20VA: parseNumber(parts[4], 'PDO 15-20 V max current'),
+    }
+  }
+  if (type === SinkPdoType.EPR_AVS) {
     if (parts.length !== 4) {
       throw new Error(`Invalid ${type} PDO response: ${parts.join(',')}`)
     }

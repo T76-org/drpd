@@ -110,11 +110,12 @@ void App::_querySinkRequestedPDOAtIndex(const std::vector<T76::SCPI::ParameterVa
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f) + ",";
             _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::SPRAVSAPDO>) {
-            // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
+            // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_CURRENT_15V,MAX_CURRENT_20V
             std::string response = "SPR_AVS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
-            response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f) + ",";
+            response += std::to_string(pdo.maxCurrent15VMilliamps() / 1000.0f) + ",";
+            response += std::to_string(pdo.maxCurrent20VMilliamps() / 1000.0f) + ",";
             _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::EPRAVSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
@@ -513,11 +514,12 @@ void App::_querySinkNegotiatedPDO(const std::vector<T76::SCPI::ParameterValue> &
             response += std::to_string(pdo.maxCurrentMilliamps() / 1000.0f);
             _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::SPRAVSAPDO>) {
-            // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER
+            // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_CURRENT_15V,MAX_CURRENT_20V
             std::string response = "SPR_AVS,";
             response += std::to_string(pdo.minVoltageMillivolts() / 1000.0f) + ",";
             response += std::to_string(pdo.maxVoltageMillivolts() / 1000.0f) + ",";
-            response += std::to_string(pdo.maxPowerMilliwatts() / 1000.0f);
+            response += std::to_string(pdo.maxCurrent15VMilliamps() / 1000.0f) + ",";
+            response += std::to_string(pdo.maxCurrent20VMilliamps() / 1000.0f);
             _sendTransportTextResponse(response, true);
         } else if constexpr (std::is_same_v<T, Proto::EPRAVSAPDO>) {
             // Format: TYPE,MIN_VOLTAGE,MAX_VOLTAGE,MAX_POWER

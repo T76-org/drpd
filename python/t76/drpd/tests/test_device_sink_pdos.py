@@ -272,42 +272,47 @@ class TestSPRAVSPDOParsing(unittest.TestCase):
 
     def test_parse_spr_avs_pdo(self) -> None:
         """Test parsing a valid SPR AVS PDO response."""
-        response = "SPR_AVS,5.0,20.0,140.0".split(",")
+        response = "SPR_AVS,9.0,20.0,2.66,2.0".split(",")
         pdo = DeviceSinkPDO.from_response(response)
 
         self.assertIsInstance(pdo, SPR_PDOAVs)
         assert isinstance(pdo, SPR_PDOAVs)
-        self.assertEqual(pdo.min_voltage, 5.0)
+        self.assertEqual(pdo.min_voltage, 9.0)
         self.assertEqual(pdo.max_voltage, 20.0)
-        self.assertEqual(pdo.max_power, 140.0)
+        self.assertEqual(pdo.max_current_15v, 2.66)
+        self.assertEqual(pdo.max_current_20v, 2.0)
 
     def test_spr_avs_pdo_to_dict(self) -> None:
         """Test SPR AVS PDO serialization."""
         pdo = SPR_PDOAVs(
-            min_voltage=5.0,
+            min_voltage=9.0,
             max_voltage=20.0,
-            max_power=140.0,
+            max_current_15v=2.66,
+            max_current_20v=2.0,
         )
         result = pdo.to_dict()
 
         self.assertEqual(result["type"], "SPR_AVS")
-        self.assertEqual(result["min_voltage_v"], 5.0)
+        self.assertEqual(result["min_voltage_v"], 9.0)
         self.assertEqual(result["max_voltage_v"], 20.0)
-        self.assertEqual(result["max_power_w"], 140.0)
+        self.assertEqual(result["max_current_15v_a"], 2.66)
+        self.assertEqual(result["max_current_20v_a"], 2.0)
 
     def test_spr_avs_pdo_string_representation(self) -> None:
         """Test SPR AVS PDO string representation."""
         pdo = SPR_PDOAVs(
-            min_voltage=5.0,
+            min_voltage=9.0,
             max_voltage=20.0,
-            max_power=140.0,
+            max_current_15v=2.66,
+            max_current_20v=2.0,
         )
         result = str(pdo)
 
         self.assertIn("SPR_PDOAVs", result)
-        self.assertIn("5.00V", result)
+        self.assertIn("9.00V", result)
         self.assertIn("20.00V", result)
-        self.assertIn("140.00W", result)
+        self.assertIn("2.660A", result)
+        self.assertIn("2.000A", result)
 
     def test_spr_avs_pdo_wrong_value_count(self) -> None:
         """Test error on wrong number of values."""
@@ -316,7 +321,14 @@ class TestSPRAVSPDOParsing(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             DeviceSinkPDO.from_response(response)
 
-        self.assertIn("SPR_AVS PDO requires 4 values", str(ctx.exception))
+        self.assertIn("SPR_AVS PDO requires 5 values", str(ctx.exception))
+
+    def test_spr_avs_legacy_response_requires_firmware_update(self) -> None:
+        """Legacy power-only response must not infer unsafe current limits."""
+        with self.assertRaises(ValueError) as ctx:
+            DeviceSinkPDO.from_response("SPR_AVS,9.0,20.0,40.0".split(","))
+
+        self.assertIn("update device firmware", str(ctx.exception))
 
 
 class TestEPRAVSPDOParsing(unittest.TestCase):

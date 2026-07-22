@@ -71,8 +71,9 @@ class TestSinkPanelPDOSelection(unittest.IsolatedAsyncioTestCase):
             index=3,
             pdo=SPR_PDOAVs(
                 min_voltage=9.0,
-                max_voltage=21.0,
-                max_power=140.0,
+                max_voltage=20.0,
+                max_current_15v=2.66,
+                max_current_20v=2.0,
             ),
         )
         mock_app = MagicMock()

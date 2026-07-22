@@ -53,8 +53,9 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
             self._build_modal(
                 SPR_PDOAVs(
                     min_voltage=9.0,
-                    max_voltage=21.0,
-                    max_power=140.0,
+                    max_voltage=20.0,
+                    max_current_15v=2.66,
+                    max_current_20v=2.0,
                 )
             )
         )
@@ -72,8 +73,9 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
             self._build_modal(
                 SPR_PDOAVs(
                     min_voltage=9.0,
-                    max_voltage=21.0,
-                    max_power=140.0,
+                    max_voltage=20.0,
+                    max_current_15v=2.66,
+                    max_current_20v=2.0,
                 ),
                 pdo_index=3,
             )
@@ -146,8 +148,30 @@ class TestSinkAVSSetupModal(unittest.IsolatedAsyncioTestCase):
 
         device.sink.set_pdo.assert_not_awaited()
         self.assertIn(
-            "Current exceeds AVS max power",
+            "Current exceeds AVS limit",
             error_label.update.call_args.args[0],
+        )
+
+    def test_spr_avs_current_limit_uses_voltage_band(self) -> None:
+        """SPR AVS current limit should switch above exactly 15V."""
+        pdo = SPR_PDOAVs(
+            min_voltage=9.0,
+            max_voltage=20.0,
+            max_current_15v=2.66,
+            max_current_20v=2.0,
+        )
+
+        self.assertEqual(
+            SinkAVSSetupModal._max_current_for_pdo_voltage_ma(pdo, 9.0),
+            2660,
+        )
+        self.assertEqual(
+            SinkAVSSetupModal._max_current_for_pdo_voltage_ma(pdo, 15.0),
+            2660,
+        )
+        self.assertEqual(
+            SinkAVSSetupModal._max_current_for_pdo_voltage_ma(pdo, 15.1),
+            2000,
         )
 
     async def test_valid_voltage_and_current_submits_request(self) -> None:

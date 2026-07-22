@@ -515,13 +515,13 @@ Represents an SPR AVS (Adjustable Voltage Supply) PDO from a
 SINK:PDO? SCPI response.
 
 An SPR AVS PDO indicates the source can regulate voltage within a
-specified range. Power delivery is limited by maximum power rather
-than current.
+specified range with separate current limits for its two voltage bands.
 
 Attributes:
     min_voltage: The minimum voltage in volts (float).
     max_voltage: The maximum voltage in volts (float).
-    max_power: The maximum available power in watts (float).
+    max_current_15v: Maximum current for 9V through 15V, in amps.
+    max_current_20v: Maximum current above 15V through 20V, in amps.
 
 
 #### Fields
@@ -530,7 +530,8 @@ Attributes:
 | --- | --- | --- |
 | `min_voltage` | float | — |
 | `max_voltage` | float | — |
-| `max_power` | float | — |
+| `max_current_15v` | float | — |
+| `max_current_20v` | float | — |
 
 
 #### Public methods

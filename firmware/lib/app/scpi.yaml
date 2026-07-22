@@ -467,10 +467,11 @@ commands:
                       - max_voltage: Maximum voltage in volts (float)
                       - max_current: Maximum current in amps (float)
 
-                    - SPR AVS APDO: "SPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
+                    - SPR AVS APDO: "SPR_AVS,<min_voltage>,<max_voltage>,<max_current_15v>,<max_current_20v>"
                       - min_voltage: Minimum voltage in volts (float)
                       - max_voltage: Maximum voltage in volts (float)
-                      - max_power: Maximum power in watts (float)
+                      - max_current_15v: Maximum current in amps for 9 V through 15 V (float)
+                      - max_current_20v: Maximum current in amps above 15 V through 20 V (float; zero when unsupported)
 
                     - EPR AVS APDO: "EPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
                       - min_voltage: Minimum voltage in volts (float)
@@ -717,10 +718,11 @@ commands:
                       - max_voltage: Maximum voltage in volts (float)
                       - max_current: Maximum current in amps (float)
 
-                    - SPR AVS APDO: "SPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
+                    - SPR AVS APDO: "SPR_AVS,<min_voltage>,<max_voltage>,<max_current_15v>,<max_current_20v>"
                       - min_voltage: Minimum voltage in volts (float)
                       - max_voltage: Maximum voltage in volts (float)
-                      - max_power: Maximum power in watts (float)
+                      - max_current_15v: Maximum current in amps for 9 V through 15 V (float)
+                      - max_current_20v: Maximum current in amps above 15 V through 20 V (float; zero when unsupported)
 
                     - EPR AVS APDO: "EPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
                       - min_voltage: Minimum voltage in volts (float)
