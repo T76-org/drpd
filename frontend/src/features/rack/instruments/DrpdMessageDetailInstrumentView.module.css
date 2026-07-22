@@ -55,11 +55,11 @@
   --detail-label-surface-alt: color-mix(in srgb, #2d6f9f 22%, var(--color-surface-panel-accent));
   --detail-value-surface: color-mix(in srgb, #2d6f9f 16%, var(--color-surface-panel));
   --detail-value-surface-alt: color-mix(in srgb, #2d6f9f 10%, var(--color-surface-panel));
-  --message-bytes-sop-background: color-mix(in srgb, #0f766e 30%, var(--color-surface-panel));
-  --message-bytes-header-background: color-mix(in srgb, #1d4ed8 28%, var(--color-surface-panel));
+  --message-bytes-sop-background: color-mix(in srgb, #3f7a52 30%, var(--color-surface-panel));
+  --message-bytes-header-background: color-mix(in srgb, #8b6a2b 28%, var(--color-surface-panel));
   --message-bytes-extended-header-background: color-mix(in srgb, #7c3aed 26%, var(--color-surface-panel));
-  --message-bytes-body-background: color-mix(in srgb, #b45309 24%, var(--color-surface-panel));
-  --message-bytes-crc32-background: color-mix(in srgb, #be185d 24%, var(--color-surface-panel));
+  --message-bytes-body-background: color-mix(in srgb, #8a4f67 24%, var(--color-surface-panel));
+  --message-bytes-crc32-background: color-mix(in srgb, #2d6f9f 24%, var(--color-surface-panel));
   --message-bytes-invalid-background: color-mix(in srgb, #b91c1c 38%, var(--color-surface-panel));
 }
 
