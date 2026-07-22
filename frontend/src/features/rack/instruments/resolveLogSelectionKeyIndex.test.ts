@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { resolveLogSelectionKeyIndex } from './DrpdUsbPdLogInstrumentView'
+import {
+  resolveFirstLogSelectionIndex,
+  resolveLogSelectionKeyIndex,
+} from './DrpdUsbPdLogInstrumentView'
 
 describe('resolveLogSelectionKeyIndex', () => {
   it('finds a selected key without loading the full log', async () => {
@@ -42,5 +45,22 @@ describe('resolveLogSelectionKeyIndex', () => {
 
     await expect(resolveLogSelectionKeyIndex(keys[2], keys.length, resolveKeys))
       .resolves.toBe(2)
+  })
+
+  it('reveals the first selected row in displayed log order', async () => {
+    const keys = [
+      'message:900:910:1',
+      'event:25:2:mark',
+      'message:40:50:3',
+      'message:1000:1010:4',
+    ]
+    const resolveKeys = vi.fn(async (startIndex: number, endIndex: number) =>
+      keys.slice(startIndex, endIndex + 1))
+
+    await expect(resolveFirstLogSelectionIndex(
+      [keys[3], keys[1]],
+      keys.length,
+      resolveKeys,
+    )).resolves.toBe(1)
   })
 })

@@ -212,12 +212,13 @@ const getSelectionKeyTimestampUs = (selectionKey: string): bigint | null => {
   return match ? BigInt(match[1]) : null
 }
 
-export const resolveLogSelectionKeyIndex = async (
-  selectionKey: string,
+export const resolveFirstLogSelectionIndex = async (
+  selectionKeys: readonly string[],
   rowCount: number,
   resolveKeys: (startIndex: number, endIndex: number) => Promise<string[]>,
 ): Promise<number | null> => {
-  if (getSelectionKeyTimestampUs(selectionKey) === null || rowCount <= 0) {
+  const selected = new Set(selectionKeys.filter((key) => getSelectionKeyTimestampUs(key) !== null))
+  if (selected.size === 0 || rowCount <= 0) {
     return null
   }
 
@@ -226,13 +227,19 @@ export const resolveLogSelectionKeyIndex = async (
   const scanSize = 1024
   for (let start = 0; start < rowCount; start += scanSize) {
     const keys = await resolveKeys(start, Math.min(rowCount - 1, start + scanSize - 1))
-    const offset = keys.indexOf(selectionKey)
+    const offset = keys.findIndex((key) => selected.has(key))
     if (offset >= 0) {
       return start + offset
     }
   }
   return null
 }
+
+export const resolveLogSelectionKeyIndex = async (
+  selectionKey: string,
+  rowCount: number,
+  resolveKeys: (startIndex: number, endIndex: number) => Promise<string[]>,
+): Promise<number | null> => resolveFirstLogSelectionIndex([selectionKey], rowCount, resolveKeys)
 
 export const messageMatchesFilters = (
   row: LoggedCapturedMessage,
@@ -343,6 +350,10 @@ export const DrpdUsbPdLogInstrumentView = ({
         typeof probe.anchorIndex === 'number' && Number.isFinite(probe.anchorIndex)
           ? Math.max(0, Math.floor(probe.anchorIndex))
           : null,
+      revealRevision:
+        typeof probe.revealRevision === 'number' && Number.isFinite(probe.revealRevision)
+          ? Math.max(0, Math.floor(probe.revealRevision))
+          : 0,
       activeIndex:
         typeof probe.activeIndex === 'number' && Number.isFinite(probe.activeIndex)
           ? Math.max(0, Math.floor(probe.activeIndex))
@@ -356,6 +367,8 @@ export const DrpdUsbPdLogInstrumentView = ({
   const totalRowsRef = useRef(0)
   const loadingPagesRef = useRef(new Set<number>())
   const selectionTaskRef = useRef<Promise<void>>(Promise.resolve())
+  const revealRequestKeyRef = useRef('')
+  const revealTokenRef = useRef(0)
   const columnResizeDragRef = useRef<ColumnResizeDrag | null>(null)
   const [totalRows, setTotalRows] = useState(0)
   const [viewportWidth, setViewportWidth] = useState(0)
@@ -381,6 +394,10 @@ export const DrpdUsbPdLogInstrumentView = ({
   const driver = deviceState?.drpdDriver
   const selectedKeySet = useMemo(
     () => new Set(selection.selectedKeys),
+    [selection.selectedKeys],
+  )
+  const selectionKeySignature = useMemo(
+    () => selection.selectedKeys.join('\u0000'),
     [selection.selectedKeys],
   )
   const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
@@ -920,7 +937,34 @@ export const DrpdUsbPdLogInstrumentView = ({
       return
     }
 
-    let cancelled = false
+    const requestKey = [
+      selection.revealRevision ?? 0,
+      selectionKeySignature,
+      activeFilterCount,
+      hasActiveFilters ? filteredDisplayRows.length : 'unfiltered',
+    ].join(':')
+    if (revealRequestKeyRef.current === requestKey) {
+      return
+    }
+    revealRequestKeyRef.current = requestKey
+    const revealToken = revealTokenRef.current + 1
+    revealTokenRef.current = revealToken
+
+    const waitForAnimationFrame = async (): Promise<void> => {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve())
+      })
+    }
+    const isTargetFullyVisible = (index: number): boolean => {
+      const viewport = viewportRef.current
+      const row = viewport?.querySelector<HTMLElement>(`[aria-rowindex="${index + 2}"]`)
+      if (!viewport || !row) {
+        return false
+      }
+      const viewportRect = viewport.getBoundingClientRect()
+      const rowRect = row.getBoundingClientRect()
+      return rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom
+    }
     const revealSelection = async () => {
       let index: number | null = null
       if (hasActiveFilters) {
@@ -928,37 +972,43 @@ export const DrpdUsbPdLogInstrumentView = ({
         const visibleIndex = filteredDisplayRows.findIndex((row) => selected.has(row.selectionKey))
         index = visibleIndex >= 0 ? visibleIndex : null
       } else {
-        const targetKey = selection.selectedKeys
-          .map((key) => ({ key, timestampUs: getSelectionKeyTimestampUs(key) }))
-          .filter((entry): entry is { key: string; timestampUs: bigint } => entry.timestampUs !== null)
-          .sort((left, right) => (
-            left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
-          ))[0]?.key
-        if (targetKey) {
-          index = await resolveLogSelectionKeyIndex(
-            targetKey,
-            displayedTotalRows,
-            (startIndex, endIndex) =>
-              driver.resolveLogSelectionKeysForIndexRange(startIndex, endIndex),
-          )
-        }
+        index = await resolveFirstLogSelectionIndex(
+          selection.selectedKeys,
+          displayedTotalRows,
+          (startIndex, endIndex) =>
+            driver.resolveLogSelectionKeysForIndexRange(startIndex, endIndex),
+        )
       }
-      if (!cancelled && index !== null) {
-        rowVirtualizer.scrollToIndex(index, { align: 'auto' })
+      if (revealTokenRef.current !== revealToken || index === null) {
+        return
+      }
+      if (isTargetFullyVisible(index)) {
+        return
+      }
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        rowVirtualizer.scrollToIndex(index, { align: 'start' })
+        await waitForAnimationFrame()
+        if (revealTokenRef.current !== revealToken || isTargetFullyVisible(index)) {
+          return
+        }
+        rowVirtualizer.measure()
       }
     }
 
     void revealSelection()
-    return () => {
-      cancelled = true
-    }
   }, [
+    activeFilterCount,
     displayedTotalRows,
     driver,
     filteredDisplayRows,
     hasActiveFilters,
-    selection.selectedKeys,
+    selection.revealRevision,
+    selectionKeySignature,
   ])
+
+  useEffect(() => () => {
+    revealTokenRef.current += 1
+  }, [])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current

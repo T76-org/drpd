@@ -678,6 +678,8 @@ export interface DRPDLogSelectionState {
   anchorIndex: number | null
   ///< Active row index used for keyboard navigation.
   activeIndex: number | null
+  ///< Monotonic transient request to reveal selection in Message Log.
+  revealRevision?: number
 }
 
 /**
