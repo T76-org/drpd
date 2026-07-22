@@ -76,6 +76,7 @@ import { applyRecordConfigToRuntime } from './applyRecordConfigToRuntime'
 import {
   buildSinkRequestArgs,
   computeEprAvsMaxCurrentMa,
+  getSprAvsMaxCurrentA,
   parseSinkRequestField,
 } from './sinkRequest'
 import {
@@ -798,7 +799,6 @@ const notifyMessageLogFiltersChanged = (filters: MessageLogFilters): void => {
 
 const isPowerLimitedSinkPdo = (pdo: SinkPdo | null | undefined): boolean => (
   pdo?.type === SinkPdoType.BATTERY ||
-  pdo?.type === SinkPdoType.SPR_AVS ||
   pdo?.type === SinkPdoType.EPR_AVS
 )
 
@@ -816,8 +816,9 @@ const buildDefaultSinkForm = (
     case SinkPdoType.SPR_PPS:
       return { voltageV: pdo.minVoltageV.toFixed(2), currentA: pdo.maxCurrentA.toFixed(2) }
     case SinkPdoType.BATTERY:
-    case SinkPdoType.SPR_AVS:
       return { voltageV: pdo.minVoltageV.toFixed(2), currentA: (pdo.maxPowerW / pdo.minVoltageV).toFixed(2) }
+    case SinkPdoType.SPR_AVS:
+      return { voltageV: pdo.minVoltageV.toFixed(2), currentA: pdo.maxCurrent15VA.toFixed(2) }
     case SinkPdoType.EPR_AVS:
       return { voltageV: pdo.minVoltageV.toFixed(2), currentA: (pdo.maxPowerW / pdo.maxVoltageV).toFixed(2) }
     default:
@@ -841,6 +842,12 @@ const getSinkCurrentConstraints = (
     pdo.type === SinkPdoType.SPR_PPS
   ) {
     return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+  if (pdo.type === SinkPdoType.SPR_AVS) {
+    if (requestedVoltageV == null || !Number.isFinite(requestedVoltageV)) {
+      return { minA: 0, error: 'Enter a valid voltage to compute the current range.' }
+    }
+    return { minA: 0, maxA: getSprAvsMaxCurrentA(pdo, requestedVoltageV) }
   }
   if (isPowerLimitedSinkPdo(pdo)) {
     if (requestedVoltageV == null || !Number.isFinite(requestedVoltageV)) {

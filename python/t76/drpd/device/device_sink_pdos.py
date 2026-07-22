@@ -39,7 +39,7 @@ class DeviceSinkPDO(ABC):
           - "VARIABLE,<min_voltage>,<max_voltage>,<max_current>"
           - "BATTERY,<min_voltage>,<max_voltage>,<max_power>"
           - "SPR_PPS,<min_voltage>,<max_voltage>,<max_current>"
-          - "SPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
+          - "SPR_AVS,<min_voltage>,<max_voltage>,<max_current_15v>,<max_current_20v>"
           - "EPR_AVS,<min_voltage>,<max_voltage>,<max_power>"
 
         Args:
@@ -111,15 +111,21 @@ class DeviceSinkPDO(ABC):
             )
 
         if pdo_type == "SPR_AVS":
-            if len(parts) != 4:
+            if len(parts) == 4:
                 raise ValueError(
-                    f"SPR_AVS PDO requires 4 values, "
+                    "Legacy SPR_AVS PDO response lacks current-band limits; "
+                    "update device firmware"
+                )
+            if len(parts) != 5:
+                raise ValueError(
+                    f"SPR_AVS PDO requires 5 values, "
                     f"got {len(parts)}"
                 )
             return SPR_PDOAVs(
                 min_voltage=float(parts[1]),
                 max_voltage=float(parts[2]),
-                max_power=float(parts[3]),
+                max_current_15v=float(parts[3]),
+                max_current_20v=float(parts[4]),
             )
 
         if pdo_type == "EPR_AVS":
@@ -324,18 +330,19 @@ class SPR_PDOAVs(DeviceSinkPDO):
     SINK:PDO? SCPI response.
 
     An SPR AVS PDO indicates the source can regulate voltage within a
-    specified range. Power delivery is limited by maximum power rather
-    than current.
+    specified range with separate current limits for its two voltage bands.
 
     Attributes:
         min_voltage: The minimum voltage in volts (float).
         max_voltage: The maximum voltage in volts (float).
-        max_power: The maximum available power in watts (float).
+        max_current_15v: Maximum current for 9V through 15V, in amps.
+        max_current_20v: Maximum current above 15V through 20V, in amps.
     """
 
     min_voltage: float
     max_voltage: float
-    max_power: float
+    max_current_15v: float
+    max_current_20v: float
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -343,13 +350,14 @@ class SPR_PDOAVs(DeviceSinkPDO):
 
         Returns:
             A dictionary with keys: 'type', 'min_voltage_v',
-            'max_voltage_v', 'max_power_w'
+            'max_voltage_v', 'max_current_15v_a', 'max_current_20v_a'
         """
         return {
             "type": "SPR_AVS",
             "min_voltage_v": self.min_voltage,
             "max_voltage_v": self.max_voltage,
-            "max_power_w": self.max_power,
+            "max_current_15v_a": self.max_current_15v,
+            "max_current_20v_a": self.max_current_20v,
         }
 
     def __str__(self) -> str:
@@ -357,7 +365,8 @@ class SPR_PDOAVs(DeviceSinkPDO):
         return (
             f"SPR_PDOAVs(voltage={self.min_voltage:.2f}V–"
             f"{self.max_voltage:.2f}V, "
-            f"max_power={self.max_power:.2f}W)"
+            f"max_current_15v={self.max_current_15v:.3f}A, "
+            f"max_current_20v={self.max_current_20v:.3f}A)"
         )
 
 

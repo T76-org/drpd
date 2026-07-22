@@ -151,6 +151,15 @@ describe('drpd parsers', () => {
       maxCurrentA: 2.5,
     })
 
+    const sprAvs = parseSinkPdo(['SPR_AVS,9.0,20.0,2.66,2.0'])
+    expect(sprAvs).toEqual({
+      type: 'SPR_AVS',
+      minVoltageV: 9.0,
+      maxVoltageV: 20.0,
+      maxCurrent15VA: 2.66,
+      maxCurrent20VA: 2.0,
+    })
+
     const eprAvs = parseSinkPdo(['EPR_AVS,15.0,28.0,140.0'])
     expect(eprAvs).toEqual({
       type: 'EPR_AVS',
@@ -158,6 +167,12 @@ describe('drpd parsers', () => {
       maxVoltageV: 28.0,
       maxPowerW: 140.0,
     })
+  })
+
+  it('rejects legacy SPR AVS responses without current-band limits', () => {
+    expect(() => parseSinkPdo(['SPR_AVS,9.0,20.0,40.0'])).toThrow(
+      'update device firmware',
+    )
   })
 
   it('parses sink request status responses', () => {

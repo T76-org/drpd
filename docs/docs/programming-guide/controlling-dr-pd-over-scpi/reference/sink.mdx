@@ -105,10 +105,11 @@ Returns comma-separated values with format depending on PDO type:
   - max_voltage: Maximum voltage in volts (float)
   - max_current: Maximum current in amps (float)
 
-- SPR AVS APDO: "SPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+- SPR AVS APDO: "SPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_current_15v&gt;,&lt;max_current_20v&gt;"
   - min_voltage: Minimum voltage in volts (float)
   - max_voltage: Maximum voltage in volts (float)
-  - max_power: Maximum power in watts (float)
+  - max_current_15v: Maximum current in amps for 9 V through 15 V (float)
+  - max_current_20v: Maximum current in amps above 15 V through 20 V (float; zero when unsupported)
 
 - EPR AVS APDO: "EPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
   - min_voltage: Minimum voltage in volts (float)
@@ -751,10 +752,11 @@ Returns comma-separated values with format depending on PDO type:
   - max_voltage: Maximum voltage in volts (float)
   - max_current: Maximum current in amps (float)
 
-- SPR AVS APDO: "SPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
+- SPR AVS APDO: "SPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_current_15v&gt;,&lt;max_current_20v&gt;"
   - min_voltage: Minimum voltage in volts (float)
   - max_voltage: Maximum voltage in volts (float)
-  - max_power: Maximum power in watts (float)
+  - max_current_15v: Maximum current in amps for 9 V through 15 V (float)
+  - max_current_20v: Maximum current in amps above 15 V through 20 V (float; zero when unsupported)
 
 - EPR AVS APDO: "EPR_AVS,&lt;min_voltage&gt;,&lt;max_voltage&gt;,&lt;max_power&gt;"
   - min_voltage: Minimum voltage in volts (float)

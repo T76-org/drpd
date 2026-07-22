@@ -533,16 +533,32 @@ export interface SprPpsSinkPdo {
 }
 
 /**
- * SPR AVS or EPR AVS sink PDO.
+ * SPR AVS sink PDO.
  */
-export interface AvsSinkPdo {
+export interface SprAvsSinkPdo {
   ///< PDO type tag.
-  type: typeof SinkPdoType.SPR_AVS | typeof SinkPdoType.EPR_AVS
+  type: typeof SinkPdoType.SPR_AVS
   ///< Minimum voltage in volts.
   minVoltageV: number
   ///< Maximum voltage in volts.
   maxVoltageV: number
-  ///< Maximum power in watts.
+  ///< Maximum current for the 9 V through 15 V band, in amps.
+  maxCurrent15VA: number
+  ///< Maximum current above 15 V through 20 V, in amps.
+  maxCurrent20VA: number
+}
+
+/**
+ * EPR AVS sink PDO.
+ */
+export interface EprAvsSinkPdo {
+  ///< PDO type tag.
+  type: typeof SinkPdoType.EPR_AVS
+  ///< Minimum voltage in volts.
+  minVoltageV: number
+  ///< Maximum voltage in volts.
+  maxVoltageV: number
+  ///< Advertised PDP in watts.
   maxPowerW: number
 }
 
@@ -555,7 +571,8 @@ export type SinkPdo =
   | BatterySinkPdo
   | AugmentedSinkPdo
   | SprPpsSinkPdo
-  | AvsSinkPdo
+  | SprAvsSinkPdo
+  | EprAvsSinkPdo
   | null
 
 /**

@@ -179,6 +179,48 @@ describe('DrpdSinkControlInstrumentView', () => {
     expect(batteryOption).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('displays and validates SPR AVS current bands', async () => {
+    const user = userEvent.setup()
+    const transport = new TestTransport()
+    const driver = new TestDRPDDevice(transport)
+    driver.setSinkSnapshot(
+      CCBusRole.SINK,
+      null,
+      [{
+        type: 'SPR_AVS',
+        minVoltageV: 9,
+        maxVoltageV: 20,
+        maxCurrent15VA: 2.66,
+        maxCurrent20VA: 2,
+      }],
+    )
+
+    render(
+      <DrpdSinkControlInstrumentView
+        instrument={buildInstrument()}
+        displayName="Sink Control"
+        deviceState={buildDeviceState(driver)}
+        isEditMode={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /^set pdo$/i }))
+    expect(screen.getByRole('option', {
+      name: /9\.00-15\.00 v \/ 2\.66 a; >15\.00-20\.00 v \/ 2\.00 a/i,
+    })).toBeInTheDocument()
+    expect(screen.getByText('0.00-2.66 A')).toBeInTheDocument()
+
+    const voltageInput = screen.getByLabelText(/^voltage$/i)
+    const currentInput = screen.getByLabelText(/^current$/i)
+    await user.clear(voltageInput)
+    await user.type(voltageInput, '18')
+    expect(screen.getByText('0.00-2.00 A')).toBeInTheDocument()
+
+    await user.clear(currentInput)
+    await user.type(currentInput, '2.1')
+    expect(screen.getByText('Current must be between 0.00 and 2.00 A.')).toBeInTheDocument()
+  })
+
   it('converts battery voltage/current request into SCPI arguments and auto-closes', async () => {
     const user = userEvent.setup()
     const transport = new TestTransport()

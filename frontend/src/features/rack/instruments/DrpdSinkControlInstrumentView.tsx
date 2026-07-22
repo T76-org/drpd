@@ -12,6 +12,7 @@ import type { RackDeviceRecord, RackInstrument } from '../../../lib/rack/types'
 import {
   buildSinkRequestArgs,
   computeEprAvsMaxCurrentMa,
+  getSprAvsMaxCurrentA,
   parseSinkRequestField,
 } from '../sinkRequest'
 import { InstrumentBase, type InstrumentHeaderControl } from '../InstrumentBase'
@@ -43,7 +44,6 @@ const formatNumber = (value: number | null | undefined, digits = 2): string => {
  */
 const isPowerLimitedPdo = (pdo: SinkPdo | null | undefined): boolean => (
   pdo?.type === SinkPdoType.BATTERY ||
-  pdo?.type === SinkPdoType.SPR_AVS ||
   pdo?.type === SinkPdoType.EPR_AVS
 )
 
@@ -97,6 +97,13 @@ const getCurrentConstraints = (
     pdo.type === SinkPdoType.SPR_PPS
   ) {
     return { minA: 0, maxA: pdo.maxCurrentA }
+  }
+
+  if (pdo.type === SinkPdoType.SPR_AVS) {
+    if (requestedVoltageV == null || !Number.isFinite(requestedVoltageV)) {
+      return { minA: 0, error: 'Enter a valid voltage to compute the current range.' }
+    }
+    return { minA: 0, maxA: getSprAvsMaxCurrentA(pdo, requestedVoltageV) }
   }
 
   if (isPowerLimitedPdo(pdo)) {
@@ -190,9 +197,13 @@ const areSinkPdosEqual = (
         left.maxVoltageV === right.maxVoltageV &&
         left.maxCurrentA === right.maxCurrentA
     case SinkPdoType.SPR_AVS:
+      return right.type === SinkPdoType.SPR_AVS &&
+        left.minVoltageV === right.minVoltageV &&
+        left.maxVoltageV === right.maxVoltageV &&
+        left.maxCurrent15VA === right.maxCurrent15VA &&
+        left.maxCurrent20VA === right.maxCurrent20VA
     case SinkPdoType.EPR_AVS:
-      return (right.type === SinkPdoType.SPR_AVS || right.type === SinkPdoType.EPR_AVS) &&
-        left.type === right.type &&
+      return right.type === SinkPdoType.EPR_AVS &&
         left.minVoltageV === right.minVoltageV &&
         left.maxVoltageV === right.maxVoltageV &&
         left.maxPowerW === right.maxPowerW
@@ -269,15 +280,11 @@ const getSelectedPdoDetails = (
         }
       }
     case SinkPdoType.SPR_AVS:
-        {
-          const lowCurrentA = pdo.maxPowerW / pdo.maxVoltageV
-          const highCurrentA = pdo.maxPowerW / pdo.minVoltageV
-          return {
-            title: 'SPR AVS',
-            voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
-            currentRange: `${lowCurrentA.toFixed(2)}-${highCurrentA.toFixed(2)} A`,
-          }
-        }
+      return {
+        title: 'SPR AVS',
+        voltageRange: `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V`,
+        currentRange: `${pdo.maxCurrent15VA.toFixed(2)} A / ${pdo.maxCurrent20VA.toFixed(2)} A`,
+      }
     case SinkPdoType.EPR_AVS:
       {
         const lowCurrentA = pdo.maxPowerW / pdo.maxVoltageV
@@ -323,10 +330,14 @@ const buildDefaultForm = (
         currentA: pdo.maxCurrentA.toFixed(2),
       }
     case SinkPdoType.BATTERY:
-    case SinkPdoType.SPR_AVS:
       return {
         voltageV: pdo.minVoltageV.toFixed(2),
         currentA: (pdo.maxPowerW / pdo.minVoltageV).toFixed(2),
+      }
+    case SinkPdoType.SPR_AVS:
+      return {
+        voltageV: pdo.minVoltageV.toFixed(2),
+        currentA: pdo.maxCurrent15VA.toFixed(2),
       }
     case SinkPdoType.EPR_AVS:
       return {

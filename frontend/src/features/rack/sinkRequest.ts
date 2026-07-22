@@ -38,6 +38,12 @@ export const computeEprAvsMaxCurrentMa = (
   return Math.min(powerLimitedCurrentMa, advertisedCurrentMa)
 }
 
+/** Return SPR AVS current limit for requested voltage band. */
+export const getSprAvsMaxCurrentA = (
+  pdo: { maxCurrent15VA: number; maxCurrent20VA: number },
+  requestedVoltageV: number,
+): number => requestedVoltageV <= 15 ? pdo.maxCurrent15VA : pdo.maxCurrent20VA
+
 const isEprAvsSinkPdo = (pdo: NonNullSinkPdo): pdo is EprAvsSinkRequestPdo => (
   pdo.type === SinkPdoType.EPR_AVS
 )
@@ -109,7 +115,9 @@ export const buildSinkRequestArgs = ({
         error: `Voltage must be between ${pdo.minVoltageV.toFixed(2)} and ${pdo.maxVoltageV.toFixed(2)} V.`,
       }
     }
-    const maxCurrentA = pdo.maxPowerW / parsedVoltage
+    const maxCurrentA = pdo.type === SinkPdoType.SPR_AVS
+      ? getSprAvsMaxCurrentA(pdo, parsedVoltage)
+      : pdo.maxPowerW / parsedVoltage
     if (parsedCurrent < 0 || parsedCurrent > maxCurrentA) {
       return {
         error: `Current must be between 0.00 and ${maxCurrentA.toFixed(2)} A.`,

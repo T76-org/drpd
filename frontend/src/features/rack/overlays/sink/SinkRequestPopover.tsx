@@ -43,9 +43,10 @@ const getPdoListSecondaryLine = (pdo: NonNullSinkPdo): string => {
     case SinkPdoType.SPR_PPS:
       return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrentA.toFixed(2)} A`
     case SinkPdoType.BATTERY:
-    case SinkPdoType.SPR_AVS:
     case SinkPdoType.EPR_AVS:
       return `${pdo.minVoltageV.toFixed(2)}-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxPowerW.toFixed(2)} W max`
+    case SinkPdoType.SPR_AVS:
+      return `${pdo.minVoltageV.toFixed(2)}-15.00 V / ${pdo.maxCurrent15VA.toFixed(2)} A; >15.00-${pdo.maxVoltageV.toFixed(2)} V / ${pdo.maxCurrent20VA.toFixed(2)} A`
     default:
       return '--'
   }

@@ -110,8 +110,11 @@ class PdoTable(DataTable):
             voltage_str = (
                 f"{pdo.min_voltage:.1f}–{pdo.max_voltage:.1f}V"
             )
-            max_current_str = "N/A"
-            max_power_str = f"{pdo.max_power:.1f}W"
+            max_current_str = (
+                f"{pdo.max_current_15v:.3f}A / "
+                f"{pdo.max_current_20v:.3f}A"
+            )
+            max_power_str = "N/A"
             pdo_type = "SPR_AVS"
         elif isinstance(pdo, EPR_PDOAVs):
             voltage_str = (
