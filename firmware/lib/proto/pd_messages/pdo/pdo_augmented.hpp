@@ -205,6 +205,16 @@ namespace T76::DRPD::Proto {
          */
         [[nodiscard]] uint32_t maxPowerMilliwatts() const;
 
+        /**
+         * @brief Get maximum current allowed by PDP at a requested voltage
+         *
+         * @param voltageMillivolts Requested output voltage in millivolts
+         * @return Maximum current in milliamps, or zero when voltage is zero
+         */
+        [[nodiscard]] uint32_t maxCurrentMilliampsAtVoltage(
+            uint32_t voltageMillivolts
+        ) const;
+
         [[nodiscard]] std::string toString() const override;
     };
 
