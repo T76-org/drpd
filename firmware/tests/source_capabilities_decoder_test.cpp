@@ -85,7 +85,19 @@ void testCapturedSPRAVSAndSPRPPSPayload() {
 
 void testAPDOSubtypeDispatchTable() {
     expectPDOType<SPRPPSAPDO>(decodeSinglePDO(0xC990322D), "APDO subtype 00");
-    expectPDOType<EPRAVSAPDO>(decodeSinglePDO(0xD230968C), "APDO subtype 01");
+    const auto& eprAvs = expectPDOType<EPRAVSAPDO>(
+        decodeSinglePDO(0xD3C096F0),
+        "captured APDO subtype 01"
+    );
+    expect(eprAvs.maxPowerMilliwatts() == 240000, "EPR AVS PDP should be 240000 mW");
+    expect(
+        eprAvs.maxCurrentMilliampsAtVoltage(28000) == 8571,
+        "EPR AVS 240 W at 28 V should allow 8571 mA"
+    );
+    expect(
+        eprAvs.maxCurrentMilliampsAtVoltage(0) == 0,
+        "EPR AVS zero voltage should report zero available current"
+    );
     expectPDOType<SPRAVSAPDO>(decodeSinglePDO(0xEC04B0CA), "APDO subtype 10");
 }
 

@@ -241,6 +241,16 @@ uint32_t EPRAVSAPDO::maxPowerMilliwatts() const {
     return power_units * 1000;  // Each unit is 1W
 }
 
+uint32_t EPRAVSAPDO::maxCurrentMilliampsAtVoltage(uint32_t voltageMillivolts) const {
+    if (voltageMillivolts == 0) {
+        return 0;
+    }
+
+    return static_cast<uint32_t>(
+        (static_cast<uint64_t>(maxPowerMilliwatts()) * 1000) / voltageMillivolts
+    );
+}
+
 std::string EPRAVSAPDO::toString() const {
     char buffer[192];
     int written = std::snprintf(
