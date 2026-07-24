@@ -1,10 +1,32 @@
 import { DataMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
-import { buildRDOMetadata, parseRDO, readDataObjects, type ParsedRDO } from '../DataObjects'
+import {
+  buildRDOMetadata,
+  inferRequestTypeHintFromRaw,
+  parseRDO,
+  readDataObjects,
+  type ParsedRDO,
+} from '../DataObjects'
 
 const formatScaledValue = (value: number): string => Number(value.toFixed(2)).toString()
 
 const formatCurrentMa = (valueMa: number): string => `${formatScaledValue(valueMa / 1000)}A`
+
+const formatVoltageMv = (valueMv: number): string => `${formatScaledValue(valueMv / 1000)}V`
+
+const formatRequestLevels = (rdo: ParsedRDO): string[] => {
+  if (rdo.requestTypeHint === 'pps') {
+    return [
+      `- Output voltage: ${formatVoltageMv(rdo.pps.outputVoltage20mV * 20)}`,
+      `- Operating current: ${formatCurrentMa(rdo.pps.operatingCurrent50mA * 50)}`,
+    ]
+  }
+
+  return [
+    `- Operating current: ${formatCurrentMa(rdo.fixedVariable.operatingCurrent10mA * 10)}`,
+    `- Maximum operating current: ${formatCurrentMa(rdo.fixedVariable.maximumOperatingCurrent10mA * 10)}`,
+  ]
+}
 
 /**
  * Request data message.
@@ -44,7 +66,10 @@ export class RequestMessage extends DataMessage {
       return
     }
     this.rawRDO = readDataObjects(payload, this.payloadOffset, 1)[0]
-    this.rdo = parseRDO(this.rawRDO)
+    this.rdo = {
+      ...parseRDO(this.rawRDO),
+      requestTypeHint: inferRequestTypeHintFromRaw(this.rawRDO),
+    }
   }
 
   /**
@@ -62,8 +87,7 @@ export class RequestMessage extends DataMessage {
       '**Power request:**',
       '',
       `- Selected source object position: ${this.rdo.objectPosition}`,
-      `- Operating current: ${formatCurrentMa(this.rdo.fixedVariable.operatingCurrent10mA * 10)}`,
-      `- Maximum operating current: ${formatCurrentMa(this.rdo.fixedVariable.maximumOperatingCurrent10mA * 10)}`,
+      ...formatRequestLevels(this.rdo),
     ]
 
     const flags: string[] = []
@@ -122,15 +146,12 @@ export class RequestMessage extends DataMessage {
       HumanReadableField.string(
         this.describe(),
         'Message Summary',
-        'Concise description of the specific fixed or variable power request carried by this Request message.',
+        'Concise description of the power request carried by this Request message.',
       ),
     )
 
     if (this.rdo) {
-      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata({
-        ...this.rdo,
-        requestTypeHint: 'fixed_variable',
-      }))
+      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata(this.rdo))
     }
     return metadata
   }

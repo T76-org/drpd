@@ -355,6 +355,62 @@ describe('USB-PD data message decoding', () => {
     expect(requestMetadata?.getEntry('avs')).toBeUndefined()
   })
 
+  it('decodes captured PPS Request voltage and current', () => {
+    const header = makeMessageHeader({
+      extended: false,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x02,
+    })
+    const message = parseUSBPDMessage(buildMessage(SOP, header, toBytes32(0x61022618)))
+    expect(message).toBeInstanceOf(RequestMessage)
+    const decoded = message as RequestMessage
+    expect(decoded.rdo).not.toBeNull()
+    const rdo = decoded.rdo as NonNullable<typeof decoded.rdo>
+    expect(rdo.objectPosition).toBe(6)
+    expect(rdo.requestTypeHint).toBe('pps')
+    expect(rdo.pps.outputVoltage20mV * 20).toBe(5500)
+    expect(rdo.pps.operatingCurrent50mA * 50).toBe(1200)
+
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('- Output voltage: 5.5V')
+    expect(summary?.value).toContain('- Operating current: 1.2A')
+    expect(summary?.value).not.toContain('Maximum operating current')
+
+    const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
+    expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('pps')
+    expect(requestMetadata?.getEntry('pps')?.getEntry('outputVoltage20mV')?.value).toBe('5500 mV')
+    expect(requestMetadata?.getEntry('pps')?.getEntry('operatingCurrent50mA')?.value).toBe('1200 mA')
+    expect(requestMetadata?.getEntry('fixedVariable')).toBeUndefined()
+  })
+
+  it('decodes captured fixed 5V Request current', () => {
+    const header = makeMessageHeader({
+      extended: false,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x02,
+    })
+    const message = parseUSBPDMessage(buildMessage(SOP, header, toBytes32(0x11019064)))
+    expect(message).toBeInstanceOf(RequestMessage)
+    const decoded = message as RequestMessage
+    expect(decoded.rdo).not.toBeNull()
+    const rdo = decoded.rdo as NonNullable<typeof decoded.rdo>
+    expect(rdo.objectPosition).toBe(1)
+    expect(rdo.requestTypeHint).toBe('fixed_variable')
+    expect(rdo.fixedVariable.operatingCurrent10mA * 10).toBe(1000)
+    expect(rdo.fixedVariable.maximumOperatingCurrent10mA * 10).toBe(1000)
+
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('- Operating current: 1A')
+    expect(summary?.value).toContain('- Maximum operating current: 1A')
+    expect(summary?.value).not.toContain('Output voltage')
+
+    const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
+    expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
+    expect(requestMetadata?.getEntry('fixedVariable')?.getEntry('operatingCurrent10mA')?.value).toBe('1000 mA')
+    expect(requestMetadata?.getEntry('fixedVariable')?.getEntry('maximumOperatingCurrent10mA')?.value).toBe('1000 mA')
+    expect(requestMetadata?.getEntry('pps')).toBeUndefined()
+  })
+
   it('decodes BIST', () => {
     const bist = 0b0101 << 28
     const header = makeMessageHeader({
