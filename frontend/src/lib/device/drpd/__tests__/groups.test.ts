@@ -5,6 +5,7 @@ import { DRPDCapture } from '../capture'
 import { DRPDSink } from '../sink'
 import { DRPDTest } from '../test'
 import { DRPDTrigger } from '../trigger'
+import { DRPDSystem } from '../system'
 import { DRPDVBus } from '../vbus'
 import type { DRPDTransport, DRPDSCPIParam } from '../transport'
 import {
@@ -74,6 +75,28 @@ class MockTransport implements DRPDTransport {
 }
 
 describe('DRPD command groups', () => {
+  it('queries, updates, and resets BMC decoder configuration', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SYST:CONF:PHY:BMCD:CC:VREF:VOLT?', ['0.4'])
+    transport.textResponses.set('SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ?', ['100000'])
+    const configuration = new DRPDSystem(transport).configuration.bmcDecoder
+
+    await expect(configuration.getCCVrefVoltage()).resolves.toBe(0.4)
+    await expect(configuration.getCCVrefPwmFrequencyHz()).resolves.toBe(100000)
+    await configuration.setCCVrefVoltage(0.45)
+    await configuration.setCCVrefPwmFrequencyHz(101000)
+    await configuration.resetCCVrefVoltage()
+    await configuration.resetCCVrefPwmFrequencyHz()
+
+    expect(transport.commands).toEqual([
+      { command: 'SYST:CONF:PHY:BMCD:CC:VREF:VOLT', params: [0.45] },
+      { command: 'SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ', params: [101000] },
+      { command: 'SYST:CONF:PHY:BMCD:CC:VREF:VOLT:RES', params: [] },
+      { command: 'SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ:RES', params: [] },
+    ])
+    await expect(configuration.setCCVrefVoltage(0.23)).rejects.toThrow(RangeError)
+    await expect(configuration.setCCVrefPwmFrequencyHz(10500)).rejects.toThrow(RangeError)
+  })
   it('formats analog monitor queries', async () => {
     const transport = new MockTransport()
     transport.textResponses.set('MEAS:ALL?', [

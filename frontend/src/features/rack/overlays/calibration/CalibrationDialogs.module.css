@@ -26,6 +26,17 @@
   font-size: var(--font-size-header-popup-hint);
 }
 
+.configurationTabs { display: flex; border-bottom: 1px solid var(--border-color, #666); margin-bottom: 1rem; }
+.configurationTab { border: 0; border-bottom: 2px solid currentColor; background: transparent; padding: 0.5rem 0.75rem; font: inherit; }
+.configurationPanel { display: grid; gap: 1rem; min-width: 0; }
+.configurationFormRow { grid-template-columns: 12rem max-content; justify-content: start; }
+.configurationControl { display: grid; grid-template-columns: 7rem auto; align-items: center; justify-content: start; gap: 0.5rem; }
+
+@media (max-width: 460px) {
+  .configurationFormRow { grid-template-columns: minmax(0, 1fr); }
+}
+.error { color: var(--danger-color, #b91c1c); margin: 0; }
+
 .status {
   margin: var(--space-0);
   color: var(--color-text-muted);

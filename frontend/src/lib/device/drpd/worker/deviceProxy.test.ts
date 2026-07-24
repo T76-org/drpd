@@ -50,6 +50,38 @@ class TestDRPDWorkerDeviceProxy extends DRPDWorkerDeviceProxy {
   }
 }
 
+describe('DRPDWorkerDeviceProxy system configuration group', () => {
+  it('forwards BMC decoder configuration calls', async () => {
+    const callWorker = vi.fn(async (_method: string, request?: { method?: string }) => {
+      if (request?.method === 'getBMCDecoderCCVrefVoltage') return 0.4
+      if (request?.method === 'getBMCDecoderCCVrefPwmFrequencyHz') return 100000
+      return null
+    })
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const configuration = new TestDRPDWorkerDeviceProxy(client).system.configuration.bmcDecoder
+
+    await configuration.getCCVrefVoltage()
+    await configuration.setCCVrefVoltage(0.45)
+    await configuration.resetCCVrefVoltage()
+    await configuration.getCCVrefPwmFrequencyHz()
+    await configuration.setCCVrefPwmFrequencyHz(101000)
+    await configuration.resetCCVrefPwmFrequencyHz()
+
+    expect(callWorker.mock.calls.map((call) => call[1])).toEqual([
+      { sessionId: 'session-1', target: 'system', method: 'getBMCDecoderCCVrefVoltage', args: [] },
+      { sessionId: 'session-1', target: 'system', method: 'setBMCDecoderCCVrefVoltage', args: [0.45] },
+      { sessionId: 'session-1', target: 'system', method: 'resetBMCDecoderCCVrefVoltage', args: [] },
+      { sessionId: 'session-1', target: 'system', method: 'getBMCDecoderCCVrefPwmFrequencyHz', args: [] },
+      { sessionId: 'session-1', target: 'system', method: 'setBMCDecoderCCVrefPwmFrequencyHz', args: [101000] },
+      { sessionId: 'session-1', target: 'system', method: 'resetBMCDecoderCCVrefPwmFrequencyHz', args: [] },
+    ])
+  })
+})
+
 describe('DRPDWorkerDeviceProxy trigger group', () => {
   it('forwards trigger commands to the worker session RPC', async () => {
     const callWorker = vi.fn(async () => null)

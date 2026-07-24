@@ -29,18 +29,23 @@ def main() -> None:
         "CCBusPersistentConfig must default role to Observer",
     )
     require("struct PersistentConfigDataV4" in header, "schema v4 payload must exist")
+    require("struct PersistentConfigDataV5" in header, "schema v5 payload must exist")
     require(
-        "using PersistentConfigDataCurrent = PersistentConfigDataV4;" in header,
-        "current payload must alias schema v4",
+        "using PersistentConfigDataCurrent = PersistentConfigDataV5;" in header,
+        "current payload must alias schema v5",
     )
     require(
-        "CurrentSchemaVersion = 4" in header,
-        "current schema version must be 4",
+        "CurrentSchemaVersion = 5" in header,
+        "current schema version must be 5",
     )
 
     require(
         "static_assert(std::is_trivially_copyable_v<PersistentConfigDataV4>);" in implementation,
         "schema v4 must stay trivially copyable",
+    )
+    require(
+        "static_assert(std::is_trivially_copyable_v<PersistentConfigDataV5>);" in implementation,
+        "schema v5 must stay trivially copyable",
     )
     require(
         len(re.findall(r"\.ccBus\s*=\s*CCBusPersistentConfig\s*{\s*\.role\s*=\s*1", implementation))
@@ -55,6 +60,14 @@ def main() -> None:
         re.search(r"case\s+4:\s*return\s+_decodeVersion4", implementation) is not None,
         "stored schema v4 must decode",
     )
+    require(
+        re.search(r"case\s+5:\s*return\s+_decodeVersion5", implementation) is not None,
+        "stored schema v5 must decode",
+    )
+    require(
+        implementation.count(".bmcDecoder = BMCDecoderPersistentConfig{}") >= 5,
+        "defaults and v1-v4 migrations must choose BMC decoder build defaults",
+    )
 
     apply_index = app.index("_ccBusController.applyPersistentConfig")
     init_index = app.index("_ccBusController.init();")
@@ -65,6 +78,11 @@ def main() -> None:
     require(
         "data.ccBus = _ccBusController.exportPersistentConfig();" in app,
         "saved config must include CC bus role",
+    )
+    require(
+        "_bmcDecoder.applyPersistentConfig" in app and
+        "data.bmcDecoder = _bmcDecoder.exportPersistentConfig();" in app,
+        "BMC decoder config must load before startup and save with other slices",
     )
     require(
         "_savePersistentConfig();" in scpi_bus,

@@ -83,6 +83,11 @@ The frontend should use the definition runtime factory and avoid manual transpor
 
 The driver provides grouped APIs for each SCPI command family:
 
+Advanced persisted physical-layer settings are available through
+`device.system.configuration.bmcDecoder`. It queries, validates, sets, and resets CC reference
+voltage and PWM frequency values. Setters apply immediately after firmware confirms flash
+persistence; reset methods restore firmware build-time defaults.
+
 - `driver.system`: identification, reset, system status
 - `driver.status`: `STAT:DEV?` status register parsing
 - `driver.analogMonitor`: analog measurements (`MEAS:*`)

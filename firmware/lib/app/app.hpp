@@ -151,6 +151,14 @@ namespace T76::DRPD {
          */
         void _querySystemHardwareRevision(const std::vector<T76::SCPI::ParameterValue> &params);
         void _enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &params);
+        void _queryBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &params);
+        void _setBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &params);
+        void _resetBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &params);
+        void _queryBMCDecoderCCVrefPwmFrequency(
+            const std::vector<T76::SCPI::ParameterValue> &params);
+        void _setBMCDecoderCCVrefPwmFrequency(const std::vector<T76::SCPI::ParameterValue> &params);
+        void _resetBMCDecoderCCVrefPwmFrequency(
+            const std::vector<T76::SCPI::ParameterValue> &params);
 
         void _measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureVBusVoltage(const std::vector<T76::SCPI::ParameterValue> &);
@@ -560,6 +568,13 @@ namespace T76::DRPD {
          * so the flash store tracks the latest owner-managed settings.
          */
         void _savePersistentConfig();
+
+        /**
+         * @brief Persist and then apply one complete BMC decoder configuration.
+         * @param config Validated decoder configuration to save and apply.
+         * @return true when persistence succeeded and runtime state was updated.
+         */
+        bool _persistBMCDecoderConfig(const BMCDecoderPersistentConfig &config);
 
     }; // class App
 

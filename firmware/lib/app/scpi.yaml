@@ -67,6 +67,60 @@ commands:
     description:  "Reboot into the resident firmware updater bootloader."
     handler:      _enterFirmwareUpdater
 
+  - syntax:       "SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?"
+    description:  "Query the persisted BMC decoder CC reference voltage in volts. The build-time default is 0.70 V. Changing this setting can make Dr. PD unable to decode USB-PD traffic."
+    handler:      _queryBMCDecoderCCVrefVoltage
+
+  - syntax:       "SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage"
+    description:  "Set and persist the BMC decoder CC reference voltage, applying it immediately. Allowed values are 0.20 V through 2.50 V in 0.05 V increments; the build-time default is 0.70 V. Unsupported values are rejected because changing this setting can make Dr. PD unable to decode USB-PD traffic."
+    parameters:
+      - name:        voltage
+        type:        number
+        description: "CC reference voltage in volts; minimum 0.20 V, maximum 2.50 V, allowed increment 0.05 V."
+    errors:
+      -222:
+        message:     "Data out of range"
+        description: "Voltage was non-finite, outside 0.20 V through 2.50 V, or not on the 0.05 V grid."
+      -200:
+        message:     "Execution error"
+        description: "The setting could not be persisted to flash; runtime configuration was not changed."
+    handler:      _setBMCDecoderCCVrefVoltage
+
+  - syntax:       "SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet"
+    description:  "Restore the BMC decoder CC reference voltage to its build-time default, persist it to flash, and apply it immediately."
+    errors:
+      -200:
+        message:     "Execution error"
+        description: "The default could not be persisted to flash; runtime configuration was not changed."
+    handler:      _resetBMCDecoderCCVrefVoltage
+
+  - syntax:       "SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?"
+    description:  "Query the persisted BMC decoder CC reference PWM frequency in hertz. The build-time default is 100000 Hz."
+    handler:      _queryBMCDecoderCCVrefPwmFrequency
+
+  - syntax:       "SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency"
+    description:  "Set and persist the BMC decoder CC reference PWM frequency, applying it immediately. Allowed integer values are 10000 Hz through 500000 Hz in 1000 Hz increments; the build-time default is 100000 Hz. Unsupported values are rejected because changing this setting can make Dr. PD unable to decode USB-PD traffic."
+    parameters:
+      - name:        frequency
+        type:        number
+        description: "PWM frequency in hertz; minimum 10000 Hz, maximum 500000 Hz, allowed increment 1000 Hz, integer values only."
+    errors:
+      -222:
+        message:     "Data out of range"
+        description: "Frequency was non-finite, non-integral, outside 10000 Hz through 500000 Hz, or not on the 1000 Hz grid."
+      -200:
+        message:     "Execution error"
+        description: "The setting could not be persisted to flash; runtime configuration was not changed."
+    handler:      _setBMCDecoderCCVrefPwmFrequency
+
+  - syntax:       "SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet"
+    description:  "Restore the BMC decoder CC reference PWM frequency to its build-time default, persist it to flash, and apply it immediately."
+    errors:
+      -200:
+        message:     "Execution error"
+        description: "The default could not be persisted to flash; runtime configuration was not changed."
+    handler:      _resetBMCDecoderCCVrefPwmFrequency
+
   ############################
   # Device status register
   ############################

@@ -274,3 +274,233 @@ No command-specific errors documented. Common SCPI parser errors may still apply
 - Catalog handler: `_enterFirmwareUpdater`
 - Handler source: `firmware/lib/app/app_scpi_system.cpp`
 
+## `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?` |
+| Short form | `SYST:CONF:PHY:BMCD:CC:VREF:VOLT?` |
+
+Query the persisted BMC decoder CC reference voltage in volts. The build-time default is 0.70 V. Changing this setting can make Dr. PD unable to decode USB-PD traffic.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryBMCDecoderCCVrefVoltage`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage` |
+| Short form | `SYST:CONF:PHY:BMCD:CC:VREF:VOLT` |
+
+Set and persist the BMC decoder CC reference voltage, applying it immediately. Allowed values are 0.20 V through 2.50 V in 0.05 V increments; the build-time default is 0.70 V. Unsupported values are rejected because changing this setting can make Dr. PD unable to decode USB-PD traffic.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `voltage` | number | — | CC reference voltage in volts; minimum 0.20 V, maximum 2.50 V, allowed increment 0.05 V. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-222` | Data out of range | Voltage was non-finite, outside 0.20 V through 2.50 V, or not on the 0.05 V grid. |
+| `-200` | Execution error | The setting could not be persisted to flash; runtime configuration was not changed. |
+
+### Source
+
+- Catalog handler: `_setBMCDecoderCCVrefVoltage`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet` |
+| Short form | `SYST:CONF:PHY:BMCD:CC:VREF:VOLT:RES` |
+
+Restore the BMC decoder CC reference voltage to its build-time default, persist it to flash, and apply it immediately.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-200` | Execution error | The default could not be persisted to flash; runtime configuration was not changed. |
+
+### Source
+
+- Catalog handler: `_resetBMCDecoderCCVrefVoltage`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?` |
+| Short form | `SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ?` |
+
+Query the persisted BMC decoder CC reference PWM frequency in hertz. The build-time default is 100000 Hz.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryBMCDecoderCCVrefPwmFrequency`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency` |
+| Short form | `SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ` |
+
+Set and persist the BMC decoder CC reference PWM frequency, applying it immediately. Allowed integer values are 10000 Hz through 500000 Hz in 1000 Hz increments; the build-time default is 100000 Hz. Unsupported values are rejected because changing this setting can make Dr. PD unable to decode USB-PD traffic.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `frequency` | number | — | PWM frequency in hertz; minimum 10000 Hz, maximum 500000 Hz, allowed increment 1000 Hz, integer values only. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-222` | Data out of range | Frequency was non-finite, non-integral, outside 10000 Hz through 500000 Hz, or not on the 1000 Hz grid. |
+| `-200` | Execution error | The setting could not be persisted to flash; runtime configuration was not changed. |
+
+### Source
+
+- Catalog handler: `_setBMCDecoderCCVrefPwmFrequency`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+
+## `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet` |
+| Short form | `SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ:RES` |
+
+Restore the BMC decoder CC reference PWM frequency to its build-time default, persist it to flash, and apply it immediately.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-200` | Execution error | The default could not be persisted to flash; runtime configuration was not changed. |
+
+### Source
+
+- Catalog handler: `_resetBMCDecoderCCVrefPwmFrequency`
+- Handler source: `firmware/lib/app/app_scpi_system.cpp`
+

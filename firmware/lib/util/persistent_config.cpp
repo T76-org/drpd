@@ -21,6 +21,7 @@ static_assert(std::is_trivially_copyable_v<PersistentConfigDataV1>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV2>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV3>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV4>);
+static_assert(std::is_trivially_copyable_v<PersistentConfigDataV5>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataCurrent>);
 
 PersistentConfig &PersistentConfig::instance() {
@@ -103,6 +104,7 @@ PersistentConfigDataCurrent PersistentConfig::_defaultConfig() const {
         .ccBus = CCBusPersistentConfig{
             .role = 1,
         },
+        .bmcDecoder = BMCDecoderPersistentConfig{},
     };
 }
 
@@ -186,6 +188,7 @@ bool PersistentConfig::_decodeVersion1(const uint8_t *payload,
         .ccBus = CCBusPersistentConfig{
             .role = 1,
         },
+        .bmcDecoder = BMCDecoderPersistentConfig{},
     };
     return true;
 }
@@ -211,6 +214,7 @@ bool PersistentConfig::_decodeVersion2(const uint8_t *payload,
         .ccBus = CCBusPersistentConfig{
             .role = 1,
         },
+        .bmcDecoder = BMCDecoderPersistentConfig{},
     };
     return true;
 }
@@ -233,6 +237,7 @@ bool PersistentConfig::_decodeVersion3(const uint8_t *payload,
         .ccBus = CCBusPersistentConfig{
             .role = 1,
         },
+        .bmcDecoder = BMCDecoderPersistentConfig{},
     };
     return true;
 }
@@ -246,7 +251,25 @@ bool PersistentConfig::_decodeVersion4(const uint8_t *payload,
 
     PersistentConfigDataV4 version4{};
     std::memcpy(&version4, payload, sizeof(version4));
-    decoded = version4;
+    decoded = PersistentConfigDataCurrent{
+        .vbus = version4.vbus,
+        .analogMonitor = version4.analogMonitor,
+        .trigger = version4.trigger,
+        .sync = version4.sync,
+        .sink = version4.sink,
+        .ccBus = version4.ccBus,
+        .bmcDecoder = BMCDecoderPersistentConfig{},
+    };
+    return true;
+}
+
+bool PersistentConfig::_decodeVersion5(const uint8_t *payload,
+                                       uint32_t payloadSize,
+                                       PersistentConfigDataCurrent &decoded) const {
+    if (payloadSize != sizeof(PersistentConfigDataV5)) {
+        return false;
+    }
+    std::memcpy(&decoded, payload, sizeof(decoded));
     return true;
 }
 
@@ -263,6 +286,8 @@ bool PersistentConfig::_decodeStoredConfig(uint32_t schemaVersion,
             return _decodeVersion3(payload, payloadSize, decoded);
         case 4:
             return _decodeVersion4(payload, payloadSize, decoded);
+        case 5:
+            return _decodeVersion5(payload, payloadSize, decoded);
         default:
             return false;
     }

@@ -22,6 +22,12 @@ namespace T76::DRPD {
         void _querySystemTimestamp(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySystemHardwareRevision(const std::vector<T76::SCPI::ParameterValue> &);
         void _enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &);
+        void _resetBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryBMCDecoderCCVrefPwmFrequency(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setBMCDecoderCCVrefPwmFrequency(const std::vector<T76::SCPI::ParameterValue> &);
+        void _resetBMCDecoderCCVrefPwmFrequency(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryDeviceStatus(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureAllAnalogValues(const std::vector<T76::SCPI::ParameterValue> &);
         void _measureAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &);
@@ -117,47 +123,47 @@ namespace T76::SCPI {
  * Memory Usage Estimate:
  * 
  * Trie Structure:
- *   - Total nodes: 1397
- *   - Children arrays: 1175
+ *   - Total nodes: 1939
+ *   - Children arrays: 1653
  *   - Node size: 8 bytes each
- *   - Trie memory: 11176 bytes
+ *   - Trie memory: 15512 bytes
  * 
  * Command System:
- *   - Commands: 95 (1140 bytes)
- *   - Parameter descriptors: 576 bytes
+ *   - Commands: 101 (1212 bytes)
+ *   - Parameter descriptors: 608 bytes
  *   - String literals: 420 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 13312 bytes (0.32% of 2MB)
+ *   - Code/Data (Flash): 17752 bytes (0.42% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
- *   - Average lookup depth: ~19.1 character comparisons
+ *   - Average lookup depth: ~27.0 character comparisons
  *   - Memory access pattern: Sequential (cache-friendly)
  *   - Space complexity: O(total_command_chars)
  */    // Parameter descriptors for each command
-    const char* const command_24_param_0_choices[] = {
+    const char* const command_30_param_0_choices[] = {
         "DISABLED",
         "OBSERVER",
         "SINK",
     };
 
-    const char* const command_29_param_0_choices[] = {
+    const char* const command_35_param_0_choices[] = {
         "ON",
         "OFF",
     };
 
-    const char* const command_56_param_0_choices[] = {
+    const char* const command_62_param_0_choices[] = {
         "ON",
         "OFF",
     };
 
-    const char* const command_58_param_0_choices[] = {
+    const char* const command_64_param_0_choices[] = {
         "ON",
         "OFF",
     };
 
-    const char* const command_67_param_0_choices[] = {
+    const char* const command_73_param_0_choices[] = {
         "OFF",
         "PREAMBLE_START",
         "SOP_START",
@@ -172,107 +178,98 @@ namespace T76::SCPI {
         "ANY_ERROR",
     };
 
-    const char* const command_71_param_0_choices[] = {
+    const char* const command_77_param_0_choices[] = {
         "ANY",
         "SOURCE",
         "SINK",
         "CABLE",
     };
 
-    const char* const command_76_param_0_choices[] = {
+    const char* const command_82_param_0_choices[] = {
         "ON",
         "OFF",
     };
 
-    const char* const command_79_param_0_choices[] = {
+    const char* const command_85_param_0_choices[] = {
         "PULSE_HIGH",
         "PULSE_LOW",
         "TOGGLE",
         "PULL_DOWN",
     };
 
-    const char* const command_83_param_0_choices[] = {
+    const char* const command_89_param_0_choices[] = {
         "ON",
         "OFF",
-    };
-
-    const char* const command_85_param_0_choices[] = {
-        "SOURCE_DEFAULT",
-        "SOURCE_1_5A",
-        "SOURCE_3_0A",
-        "SINK",
-        "EMARKER",
-        "VCONN",
-        "OFF",
-    };
-
-    const char* const command_87_param_0_choices[] = {
-        "SOURCE_DEFAULT",
-        "SOURCE_1_5A",
-        "SOURCE_3_0A",
-        "SINK",
-        "EMARKER",
-        "VCONN",
-        "OFF",
-    };
-
-    const char* const command_89_param_0_choices[] = {
-        "CC1",
-        "CC2",
     };
 
     const char* const command_91_param_0_choices[] = {
+        "SOURCE_DEFAULT",
+        "SOURCE_1_5A",
+        "SOURCE_3_0A",
+        "SINK",
+        "EMARKER",
+        "VCONN",
+        "OFF",
+    };
+
+    const char* const command_93_param_0_choices[] = {
+        "SOURCE_DEFAULT",
+        "SOURCE_1_5A",
+        "SOURCE_3_0A",
+        "SINK",
+        "EMARKER",
+        "VCONN",
+        "OFF",
+    };
+
+    const char* const command_95_param_0_choices[] = {
         "CC1",
         "CC2",
     };
 
-    const char* const command_93_param_0_choices[] = {
+    const char* const command_97_param_0_choices[] = {
+        "CC1",
+        "CC2",
+    };
+
+    const char* const command_99_param_0_choices[] = {
         "ON",
         "OFF",
     };
 
-    const ParameterDescriptor command_24_params[] = {
+    const ParameterDescriptor command_10_params[] = {
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_13_params[] = {
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_30_params[] = {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 3,
-            .choices = command_24_param_0_choices
+            .choices = command_30_param_0_choices
         },
     };
 
-    const ParameterDescriptor command_29_params[] = {
+    const ParameterDescriptor command_35_params[] = {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 2,
-            .choices = command_29_param_0_choices
-        },
-    };
-
-    const ParameterDescriptor command_34_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
-    };
-
-    const ParameterDescriptor command_36_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
-    };
-
-    const ParameterDescriptor command_39_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
+            .choices = command_35_param_0_choices
         },
     };
 
@@ -283,6 +280,9 @@ namespace T76::SCPI {
             .choiceCount = 0,
             .choices = nullptr
         },
+    };
+
+    const ParameterDescriptor command_42_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -291,7 +291,7 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_43_params[] = {
+    const ParameterDescriptor command_45_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -300,37 +300,7 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_44_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
-    };
-
-    const ParameterDescriptor command_47_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
-    };
-
-    const ParameterDescriptor command_48_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
+    const ParameterDescriptor command_46_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -345,7 +315,7 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_51_params[] = {
+    const ParameterDescriptor command_49_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -354,13 +324,22 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_52_params[] = {
+    const ParameterDescriptor command_50_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 0,
             .choices = nullptr
         },
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_53_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -376,9 +355,6 @@ namespace T76::SCPI {
             .choiceCount = 0,
             .choices = nullptr
         },
-    };
-
-    const ParameterDescriptor command_55_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -393,34 +369,22 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_56_params[] = {
+    const ParameterDescriptor command_57_params[] = {
         {
-            .type = ParameterType::Enum,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 2,
-            .choices = command_56_param_0_choices
+            .choiceCount = 0,
+            .choices = nullptr
         },
     };
 
     const ParameterDescriptor command_58_params[] = {
         {
-            .type = ParameterType::Enum,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 2,
-            .choices = command_58_param_0_choices
+            .choiceCount = 0,
+            .choices = nullptr
         },
-    };
-
-    const ParameterDescriptor command_67_params[] = {
-        {
-            .type = ParameterType::Enum,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 12,
-            .choices = command_67_param_0_choices
-        },
-    };
-
-    const ParameterDescriptor command_69_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -429,16 +393,76 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_71_params[] = {
+    const ParameterDescriptor command_60_params[] = {
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_61_params[] = {
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_62_params[] = {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 4,
-            .choices = command_71_param_0_choices
+            .choiceCount = 2,
+            .choices = command_62_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_64_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 2,
+            .choices = command_64_param_0_choices
         },
     };
 
     const ParameterDescriptor command_73_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 12,
+            .choices = command_73_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_75_params[] = {
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_77_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 4,
+            .choices = command_77_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_79_params[] = {
         {
             .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
@@ -453,39 +477,12 @@ namespace T76::SCPI {
         },
     };
 
-    const ParameterDescriptor command_76_params[] = {
+    const ParameterDescriptor command_82_params[] = {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 2,
-            .choices = command_76_param_0_choices
-        },
-    };
-
-    const ParameterDescriptor command_79_params[] = {
-        {
-            .type = ParameterType::Enum,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 4,
-            .choices = command_79_param_0_choices
-        },
-    };
-
-    const ParameterDescriptor command_81_params[] = {
-        {
-            .type = ParameterType::Number,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 0,
-            .choices = nullptr
-        },
-    };
-
-    const ParameterDescriptor command_83_params[] = {
-        {
-            .type = ParameterType::Enum,
-            .defaultValue = {.numberValue = 0},
-            .choiceCount = 2,
-            .choices = command_83_param_0_choices
+            .choices = command_82_param_0_choices
         },
     };
 
@@ -493,17 +490,17 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 7,
+            .choiceCount = 4,
             .choices = command_85_param_0_choices
         },
     };
 
     const ParameterDescriptor command_87_params[] = {
         {
-            .type = ParameterType::Enum,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 7,
-            .choices = command_87_param_0_choices
+            .choiceCount = 0,
+            .choices = nullptr
         },
     };
 
@@ -520,7 +517,7 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 2,
+            .choiceCount = 7,
             .choices = command_91_param_0_choices
         },
     };
@@ -529,8 +526,35 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 2,
+            .choiceCount = 7,
             .choices = command_93_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_95_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 2,
+            .choices = command_95_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_97_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 2,
+            .choices = command_97_param_0_choices
+        },
+    };
+
+    const ParameterDescriptor command_99_params[] = {
+        {
+            .type = ParameterType::Enum,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 2,
+            .choices = command_99_param_0_choices
         },
     };
 
@@ -555,7 +579,7 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node__starR_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 31 } // Terminal: BUS:CC:CAPture:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 37 } // Terminal: BUS:CC:CAPture:CLEAR
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonCLE_children[] = {
         { 'A', 0, 1, _node_BUS_colonCC_colonCAP_colonCLEA_children, 0 }
@@ -564,7 +588,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_BUS_colonCC_colonCAP_colonCLE_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 } // Terminal: BUS:CC:CAPture:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 33 } // Terminal: BUS:CC:CAPture:COUNT?
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonCOUN_children[] = {
         { 'T', 0, 1, _node_BUS_colonCC_colonCAP_colonCOUNT_children, 0 }
@@ -576,7 +600,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_BUS_colonCC_colonCAP_colonCOU_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonCYCLETIME_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 26 } // Terminal: BUS:CC:CAPture:CYCLETIME?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 32 } // Terminal: BUS:CC:CAPture:CYCLETIME?
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonCYCLETIM_children[] = {
         { 'E', 0, 1, _node_BUS_colonCC_colonCAP_colonCYCLETIME_children, 0 }
@@ -605,7 +629,7 @@ namespace T76::SCPI {
         { 'Y', 0, 1, _node_BUS_colonCC_colonCAP_colonCY_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonDATA_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 28 } // Terminal: BUS:CC:CAPture:DATA?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 34 } // Terminal: BUS:CC:CAPture:DATA?
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonDAT_children[] = {
         { 'A', 0, 1, _node_BUS_colonCC_colonCAP_colonDATA_children, 0 }
@@ -617,10 +641,10 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonCC_colonCAP_colonDA_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonEN_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 30 } // Terminal: BUS:CC:CAPture:EN?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 36 } // Terminal: BUS:CC:CAPture:EN?
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colonE_children[] = {
-        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonCC_colonCAP_colonEN_children, 29 } // Terminal: BUS:CC:CAPture:EN
+        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonCC_colonCAP_colonEN_children, 35 } // Terminal: BUS:CC:CAPture:EN
     };
     const TrieNode _node_BUS_colonCC_colonCAP_colon_children[] = {
         { 'C', 0, 3, _node_BUS_colonCC_colonCAP_colonC_children, 0 },
@@ -628,7 +652,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_BUS_colonCC_colonCAP_colonE_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 31 } // Terminal: BUS:CC:CAPture:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 37 } // Terminal: BUS:CC:CAPture:CLEAR
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonCLE_children[] = {
         { 'A', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonCLEA_children, 0 }
@@ -637,7 +661,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonCLE_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 } // Terminal: BUS:CC:CAPture:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 33 } // Terminal: BUS:CC:CAPture:COUNT?
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonCOUN_children[] = {
         { 'T', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonCOUNT_children, 0 }
@@ -649,7 +673,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonCOU_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonCYCLETIME_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 26 } // Terminal: BUS:CC:CAPture:CYCLETIME?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 32 } // Terminal: BUS:CC:CAPture:CYCLETIME?
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonCYCLETIM_children[] = {
         { 'E', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonCYCLETIME_children, 0 }
@@ -678,7 +702,7 @@ namespace T76::SCPI {
         { 'Y', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonCY_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonDATA_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 28 } // Terminal: BUS:CC:CAPture:DATA?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 34 } // Terminal: BUS:CC:CAPture:DATA?
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonDAT_children[] = {
         { 'A', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonDATA_children, 0 }
@@ -690,10 +714,10 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonCC_colonCAPTURE_colonDA_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonEN_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 30 } // Terminal: BUS:CC:CAPture:EN?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 36 } // Terminal: BUS:CC:CAPture:EN?
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colonE_children[] = {
-        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonCC_colonCAPTURE_colonEN_children, 29 } // Terminal: BUS:CC:CAPture:EN
+        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonCC_colonCAPTURE_colonEN_children, 35 } // Terminal: BUS:CC:CAPture:EN
     };
     const TrieNode _node_BUS_colonCC_colonCAPTURE_colon_children[] = {
         { 'C', 0, 3, _node_BUS_colonCC_colonCAPTURE_colonC_children, 0 },
@@ -723,13 +747,13 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonCC_colonCA_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonROLE_colonSTATUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 25 } // Terminal: BUS:CC:ROLE:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 31 } // Terminal: BUS:CC:ROLE:STATus?
     };
     const TrieNode _node_BUS_colonCC_colonROLE_colonSTATU_children[] = {
         { 'S', 0, 1, _node_BUS_colonCC_colonROLE_colonSTATUS_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonROLE_colonSTAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 25 }, // Terminal: BUS:CC:ROLE:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 31 }, // Terminal: BUS:CC:ROLE:STATus?
         { 'U', 0, 1, _node_BUS_colonCC_colonROLE_colonSTATU_children, 0 }
     };
     const TrieNode _node_BUS_colonCC_colonROLE_colonSTA_children[] = {
@@ -746,10 +770,10 @@ namespace T76::SCPI {
     };
     const TrieNode _node_BUS_colonCC_colonROLE_children[] = {
         { ':', 0, 1, _node_BUS_colonCC_colonROLE_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 23 } // Terminal: BUS:CC:ROLE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 29 } // Terminal: BUS:CC:ROLE?
     };
     const TrieNode _node_BUS_colonCC_colonROL_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonCC_colonROLE_children, 24 } // Terminal: BUS:CC:ROLE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonCC_colonROLE_children, 30 } // Terminal: BUS:CC:ROLE
     };
     const TrieNode _node_BUS_colonCC_colonRO_children[] = {
         { 'L', 0, 1, _node_BUS_colonCC_colonROL_children, 0 }
@@ -768,7 +792,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_BUS_colonCC_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonDEFAUL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonDEFAU_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonDEFAUL_children, 0 }
@@ -780,19 +804,19 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonDEFA_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonDE_children[] = {
-        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonDEF_children, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonDEF_children, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonD_children[] = {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonDE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonTABL_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonTAB_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonTABL_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonTA_children[] = {
-        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonTAB_children, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonTAB_children, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_colonT_children[] = {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonTA_children, 0 }
@@ -802,7 +826,7 @@ namespace T76::SCPI {
         { 'T', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURR_colonT_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDEFAUL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDEFAU_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDEFAUL_children, 0 }
@@ -814,19 +838,19 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDEFA_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDE_children[] = {
-        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDEF_children, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDEF_children, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonD_children[] = {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonDE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonTABL_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonTAB_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonTABL_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonTA_children[] = {
-        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonTAB_children, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonTAB_children, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonT_children[] = {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colonTA_children, 0 }
@@ -837,21 +861,21 @@ namespace T76::SCPI {
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRENT_children[] = {
         { ':', 0, 2, _node_BUS_colonVBUS_colonCAL_colonCURRENT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 42 } // Terminal: BUS:VBUS:CALibrate:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: BUS:VBUS:CALibrate:CURRent?
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURREN_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonCAL_colonCURRENT_children, 43 } // Terminal: BUS:VBUS:CALibrate:CURRent
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonCAL_colonCURRENT_children, 49 } // Terminal: BUS:VBUS:CALibrate:CURRent
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURRE_children[] = {
         { 'N', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURREN_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCURR_children[] = {
         { ':', 0, 2, _node_BUS_colonVBUS_colonCAL_colonCURR_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 42 }, // Terminal: BUS:VBUS:CALibrate:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 }, // Terminal: BUS:VBUS:CALibrate:CURRent?
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCURRE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCUR_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 3, _node_BUS_colonVBUS_colonCAL_colonCURR_children, 43 } // Terminal: BUS:VBUS:CALibrate:CURRent
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 3, _node_BUS_colonVBUS_colonCAL_colonCURR_children, 49 } // Terminal: BUS:VBUS:CALibrate:CURRent
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonCU_children[] = {
         { 'R', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCUR_children, 0 }
@@ -860,7 +884,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_BUS_colonVBUS_colonCAL_colonCU_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonDEFAUL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 41 } // Terminal: BUS:VBUS:CALibrate:DEFault
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 47 } // Terminal: BUS:VBUS:CALibrate:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonDEFAU_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCAL_colonDEFAUL_children, 0 }
@@ -872,19 +896,19 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCAL_colonDEFA_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonDE_children[] = {
-        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonDEF_children, 41 } // Terminal: BUS:VBUS:CALibrate:DEFault
+        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonDEF_children, 47 } // Terminal: BUS:VBUS:CALibrate:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonD_children[] = {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCAL_colonDE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonTABL_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 40 } // Terminal: BUS:VBUS:CALibrate:TABle
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: BUS:VBUS:CALibrate:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonTAB_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCAL_colonTABL_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonTA_children[] = {
-        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonTAB_children, 40 } // Terminal: BUS:VBUS:CALibrate:TABle
+        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCAL_colonTAB_children, 46 } // Terminal: BUS:VBUS:CALibrate:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_colonT_children[] = {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCAL_colonTA_children, 0 }
@@ -895,7 +919,7 @@ namespace T76::SCPI {
         { 'T', 0, 1, _node_BUS_colonVBUS_colonCAL_colonT_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDEFAUL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDEFAU_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDEFAUL_children, 0 }
@@ -907,19 +931,19 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDEFA_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDE_children[] = {
-        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDEF_children, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDEF_children, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonD_children[] = {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonDE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonTABL_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonTAB_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonTABL_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonTA_children[] = {
-        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonTAB_children, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonTAB_children, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonT_children[] = {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonTA_children, 0 }
@@ -929,7 +953,7 @@ namespace T76::SCPI {
         { 'T', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colonT_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDEFAUL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDEFAU_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDEFAUL_children, 0 }
@@ -941,19 +965,19 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDEFA_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDE_children[] = {
-        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDEF_children, 45 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
+        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDEF_children, 51 } // Terminal: BUS:VBUS:CALibrate:CURRent:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonD_children[] = {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonDE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonTABL_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonTAB_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonTABL_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonTA_children[] = {
-        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonTAB_children, 44 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
+        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonTAB_children, 50 } // Terminal: BUS:VBUS:CALibrate:CURRent:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonT_children[] = {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colonTA_children, 0 }
@@ -964,21 +988,21 @@ namespace T76::SCPI {
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_children[] = {
         { ':', 0, 2, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 42 } // Terminal: BUS:VBUS:CALibrate:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 } // Terminal: BUS:VBUS:CALibrate:CURRent?
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURREN_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_children, 43 } // Terminal: BUS:VBUS:CALibrate:CURRent
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRENT_children, 49 } // Terminal: BUS:VBUS:CALibrate:CURRent
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURRE_children[] = {
         { 'N', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURREN_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_children[] = {
         { ':', 0, 2, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 42 }, // Terminal: BUS:VBUS:CALibrate:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 48 }, // Terminal: BUS:VBUS:CALibrate:CURRent?
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCURRE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCUR_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 3, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_children, 43 } // Terminal: BUS:VBUS:CALibrate:CURRent
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 3, _node_BUS_colonVBUS_colonCALIBRATE_colonCURR_children, 49 } // Terminal: BUS:VBUS:CALibrate:CURRent
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonCU_children[] = {
         { 'R', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCUR_children, 0 }
@@ -987,7 +1011,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonCU_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonDEFAUL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 41 } // Terminal: BUS:VBUS:CALibrate:DEFault
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 47 } // Terminal: BUS:VBUS:CALibrate:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonDEFAU_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonDEFAUL_children, 0 }
@@ -999,19 +1023,19 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonDEFA_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonDE_children[] = {
-        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonDEF_children, 41 } // Terminal: BUS:VBUS:CALibrate:DEFault
+        { 'F', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonDEF_children, 47 } // Terminal: BUS:VBUS:CALibrate:DEFault
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonD_children[] = {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonDE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonTABL_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 40 } // Terminal: BUS:VBUS:CALibrate:TABle
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: BUS:VBUS:CALibrate:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonTAB_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonTABL_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonTA_children[] = {
-        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonTAB_children, 40 } // Terminal: BUS:VBUS:CALibrate:TABle
+        { 'B', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonCALIBRATE_colonTAB_children, 46 } // Terminal: BUS:VBUS:CALibrate:TABle
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_colonT_children[] = {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCALIBRATE_colonTA_children, 0 }
@@ -1023,10 +1047,10 @@ namespace T76::SCPI {
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRATE_children[] = {
         { ':', 0, 3, _node_BUS_colonVBUS_colonCALIBRATE_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 38 } // Terminal: BUS:VBUS:CALibrate?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 } // Terminal: BUS:VBUS:CALibrate?
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRAT_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonCALIBRATE_children, 39 } // Terminal: BUS:VBUS:CALibrate
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonCALIBRATE_children, 45 } // Terminal: BUS:VBUS:CALibrate
     };
     const TrieNode _node_BUS_colonVBUS_colonCALIBRA_children[] = {
         { 'T', 0, 1, _node_BUS_colonVBUS_colonCALIBRAT_children, 0 }
@@ -1042,20 +1066,20 @@ namespace T76::SCPI {
     };
     const TrieNode _node_BUS_colonVBUS_colonCAL_children[] = {
         { ':', 0, 3, _node_BUS_colonVBUS_colonCAL_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 38 }, // Terminal: BUS:VBUS:CALibrate?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 44 }, // Terminal: BUS:VBUS:CALibrate?
         { 'I', 0, 1, _node_BUS_colonVBUS_colonCALI_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonCA_children[] = {
-        { 'L', uint8_t(TrieNodeFlags::Terminal), 3, _node_BUS_colonVBUS_colonCAL_children, 39 } // Terminal: BUS:VBUS:CALibrate
+        { 'L', uint8_t(TrieNodeFlags::Terminal), 3, _node_BUS_colonVBUS_colonCAL_children, 45 } // Terminal: BUS:VBUS:CALibrate
     };
     const TrieNode _node_BUS_colonVBUS_colonC_children[] = {
         { 'A', 0, 1, _node_BUS_colonVBUS_colonCA_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonOCPTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 37 } // Terminal: BUS:VBUS:OCPThreshold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 43 } // Terminal: BUS:VBUS:OCPThreshold?
     };
     const TrieNode _node_BUS_colonVBUS_colonOCPTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonOCPTHRESHOLD_children, 36 } // Terminal: BUS:VBUS:OCPThreshold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonOCPTHRESHOLD_children, 42 } // Terminal: BUS:VBUS:OCPThreshold
     };
     const TrieNode _node_BUS_colonVBUS_colonOCPTHRESHO_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonOCPTHRESHOL_children, 0 }
@@ -1076,20 +1100,20 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_BUS_colonVBUS_colonOCPTHR_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonOCPT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 37 }, // Terminal: BUS:VBUS:OCPThreshold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 43 }, // Terminal: BUS:VBUS:OCPThreshold?
         { 'H', 0, 1, _node_BUS_colonVBUS_colonOCPTH_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonOCP_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonOCPT_children, 36 } // Terminal: BUS:VBUS:OCPThreshold
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonOCPT_children, 42 } // Terminal: BUS:VBUS:OCPThreshold
     };
     const TrieNode _node_BUS_colonVBUS_colonOC_children[] = {
         { 'P', 0, 1, _node_BUS_colonVBUS_colonOCP_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonOVPTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 35 } // Terminal: BUS:VBUS:OVPThreshold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 41 } // Terminal: BUS:VBUS:OVPThreshold?
     };
     const TrieNode _node_BUS_colonVBUS_colonOVPTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonOVPTHRESHOLD_children, 34 } // Terminal: BUS:VBUS:OVPThreshold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_BUS_colonVBUS_colonOVPTHRESHOLD_children, 40 } // Terminal: BUS:VBUS:OVPThreshold
     };
     const TrieNode _node_BUS_colonVBUS_colonOVPTHRESHO_children[] = {
         { 'L', 0, 1, _node_BUS_colonVBUS_colonOVPTHRESHOL_children, 0 }
@@ -1110,11 +1134,11 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_BUS_colonVBUS_colonOVPTHR_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonOVPT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 35 }, // Terminal: BUS:VBUS:OVPThreshold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 41 }, // Terminal: BUS:VBUS:OVPThreshold?
         { 'H', 0, 1, _node_BUS_colonVBUS_colonOVPTH_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonOVP_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonOVPT_children, 34 } // Terminal: BUS:VBUS:OVPThreshold
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_BUS_colonVBUS_colonOVPT_children, 40 } // Terminal: BUS:VBUS:OVPThreshold
     };
     const TrieNode _node_BUS_colonVBUS_colonOV_children[] = {
         { 'P', 0, 1, _node_BUS_colonVBUS_colonOVP_children, 0 }
@@ -1124,7 +1148,7 @@ namespace T76::SCPI {
         { 'V', 0, 1, _node_BUS_colonVBUS_colonOV_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 33 } // Terminal: BUS:VBUS:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 39 } // Terminal: BUS:VBUS:RESET
     };
     const TrieNode _node_BUS_colonVBUS_colonRES_children[] = {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonRESE_children, 0 }
@@ -1136,13 +1160,13 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_BUS_colonVBUS_colonRE_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonSTATUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 32 } // Terminal: BUS:VBUS:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 38 } // Terminal: BUS:VBUS:STATus?
     };
     const TrieNode _node_BUS_colonVBUS_colonSTATU_children[] = {
         { 'S', 0, 1, _node_BUS_colonVBUS_colonSTATUS_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonSTAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 32 }, // Terminal: BUS:VBUS:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 38 }, // Terminal: BUS:VBUS:STATus?
         { 'U', 0, 1, _node_BUS_colonVBUS_colonSTATU_children, 0 }
     };
     const TrieNode _node_BUS_colonVBUS_colonSTA_children[] = {
@@ -1186,7 +1210,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_BU_children, 0 }
     };
     const TrieNode _node_MEAS_colonACC_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: MEASure:ACCumulated:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:ACCumulated:RESET
     };
     const TrieNode _node_MEAS_colonACC_colonRES_children[] = {
         { 'E', 0, 1, _node_MEAS_colonACC_colonRESE_children, 0 }
@@ -1201,7 +1225,7 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_MEAS_colonACC_colonR_children, 0 }
     };
     const TrieNode _node_MEAS_colonACCUMULATED_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: MEASure:ACCumulated:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:ACCumulated:RESET
     };
     const TrieNode _node_MEAS_colonACCUMULATED_colonRES_children[] = {
         { 'E', 0, 1, _node_MEAS_colonACCUMULATED_colonRESE_children, 0 }
@@ -1217,7 +1241,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEAS_colonACCUMULATED_children[] = {
         { ':', 0, 1, _node_MEAS_colonACCUMULATED_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: MEASure:ACCumulated?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 } // Terminal: MEASure:ACCumulated?
     };
     const TrieNode _node_MEAS_colonACCUMULATE_children[] = {
         { 'D', 0, 2, _node_MEAS_colonACCUMULATED_children, 0 }
@@ -1242,14 +1266,14 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEAS_colonACC_children[] = {
         { ':', 0, 1, _node_MEAS_colonACC_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 }, // Terminal: MEASure:ACCumulated?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 }, // Terminal: MEASure:ACCumulated?
         { 'U', 0, 1, _node_MEAS_colonACCU_children, 0 }
     };
     const TrieNode _node_MEAS_colonAC_children[] = {
         { 'C', 0, 3, _node_MEAS_colonACC_children, 0 }
     };
     const TrieNode _node_MEAS_colonALL_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 10 } // Terminal: MEASure:ALL?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 16 } // Terminal: MEASure:ALL?
     };
     const TrieNode _node_MEAS_colonAL_children[] = {
         { 'L', 0, 1, _node_MEAS_colonALL_children, 0 }
@@ -1259,7 +1283,7 @@ namespace T76::SCPI {
         { 'L', 0, 1, _node_MEAS_colonAL_children, 0 }
     };
     const TrieNode _node_MEAS_colonCURR_colonVBUS_colonRAW_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 } // Terminal: MEASure:CURRent:VBUS:RAW?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:CURRent:VBUS:RAW?
     };
     const TrieNode _node_MEAS_colonCURR_colonVBUS_colonRA_children[] = {
         { 'W', 0, 1, _node_MEAS_colonCURR_colonVBUS_colonRAW_children, 0 }
@@ -1272,7 +1296,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEAS_colonCURR_colonVBUS_children[] = {
         { ':', 0, 1, _node_MEAS_colonCURR_colonVBUS_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: MEASure:CURRent:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:CURRent:VBUS?
     };
     const TrieNode _node_MEAS_colonCURR_colonVBU_children[] = {
         { 'S', 0, 2, _node_MEAS_colonCURR_colonVBUS_children, 0 }
@@ -1287,7 +1311,7 @@ namespace T76::SCPI {
         { 'V', 0, 1, _node_MEAS_colonCURR_colonV_children, 0 }
     };
     const TrieNode _node_MEAS_colonCURRENT_colonVBUS_colonRAW_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 } // Terminal: MEASure:CURRent:VBUS:RAW?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:CURRent:VBUS:RAW?
     };
     const TrieNode _node_MEAS_colonCURRENT_colonVBUS_colonRA_children[] = {
         { 'W', 0, 1, _node_MEAS_colonCURRENT_colonVBUS_colonRAW_children, 0 }
@@ -1300,7 +1324,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEAS_colonCURRENT_colonVBUS_children[] = {
         { ':', 0, 1, _node_MEAS_colonCURRENT_colonVBUS_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: MEASure:CURRent:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:CURRent:VBUS?
     };
     const TrieNode _node_MEAS_colonCURRENT_colonVBU_children[] = {
         { 'S', 0, 2, _node_MEAS_colonCURRENT_colonVBUS_children, 0 }
@@ -1337,10 +1361,10 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEAS_colonCU_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonCC_colonDUT1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 16 } // Terminal: MEASure:VOLTage:CC:DUT1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:CC:DUT1?
     };
     const TrieNode _node_MEAS_colonVOLT_colonCC_colonDUT2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 } // Terminal: MEASure:VOLTage:CC:DUT2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 23 } // Terminal: MEASure:VOLTage:CC:DUT2?
     };
     const TrieNode _node_MEAS_colonVOLT_colonCC_colonDUT_children[] = {
         { '1', 0, 1, _node_MEAS_colonVOLT_colonCC_colonDUT1_children, 0 },
@@ -1353,10 +1377,10 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEAS_colonVOLT_colonCC_colonDU_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonCC_colonUSDS1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:VOLTage:CC:USDS1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 24 } // Terminal: MEASure:VOLTage:CC:USDS1?
     };
     const TrieNode _node_MEAS_colonVOLT_colonCC_colonUSDS2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:CC:USDS2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 25 } // Terminal: MEASure:VOLTage:CC:USDS2?
     };
     const TrieNode _node_MEAS_colonVOLT_colonCC_colonUSDS_children[] = {
         { '1', 0, 1, _node_MEAS_colonVOLT_colonCC_colonUSDS1_children, 0 },
@@ -1382,7 +1406,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_MEAS_colonVOLT_colonCC_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonADC_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:VOLTage:REF:ADC?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 26 } // Terminal: MEASure:VOLTage:REF:ADC?
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonAD_children[] = {
         { 'C', 0, 1, _node_MEAS_colonVOLT_colonREF_colonADC_children, 0 }
@@ -1391,7 +1415,7 @@ namespace T76::SCPI {
         { 'D', 0, 1, _node_MEAS_colonVOLT_colonREF_colonAD_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonCURRENT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 } // Terminal: MEASure:VOLTage:REF:CURRent?
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonCURREN_children[] = {
         { 'T', 0, 1, _node_MEAS_colonVOLT_colonREF_colonCURRENT_children, 0 }
@@ -1400,7 +1424,7 @@ namespace T76::SCPI {
         { 'N', 0, 1, _node_MEAS_colonVOLT_colonREF_colonCURREN_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonCURR_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 }, // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 }, // Terminal: MEASure:VOLTage:REF:CURRent?
         { 'E', 0, 1, _node_MEAS_colonVOLT_colonREF_colonCURRE_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonCUR_children[] = {
@@ -1413,7 +1437,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEAS_colonVOLT_colonREF_colonCU_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonGND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:REF:GND?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 28 } // Terminal: MEASure:VOLTage:REF:GND?
     };
     const TrieNode _node_MEAS_colonVOLT_colonREF_colonGN_children[] = {
         { 'D', 0, 1, _node_MEAS_colonVOLT_colonREF_colonGND_children, 0 }
@@ -1436,7 +1460,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_MEAS_colonVOLT_colonRE_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLT_colonVBUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 13 } // Terminal: MEASure:VOLTage:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:VBUS?
     };
     const TrieNode _node_MEAS_colonVOLT_colonVBU_children[] = {
         { 'S', 0, 1, _node_MEAS_colonVOLT_colonVBUS_children, 0 }
@@ -1453,10 +1477,10 @@ namespace T76::SCPI {
         { 'V', 0, 1, _node_MEAS_colonVOLT_colonV_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonCC_colonDUT1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 16 } // Terminal: MEASure:VOLTage:CC:DUT1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:CC:DUT1?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonCC_colonDUT2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 } // Terminal: MEASure:VOLTage:CC:DUT2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 23 } // Terminal: MEASure:VOLTage:CC:DUT2?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonCC_colonDUT_children[] = {
         { '1', 0, 1, _node_MEAS_colonVOLTAGE_colonCC_colonDUT1_children, 0 },
@@ -1469,10 +1493,10 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEAS_colonVOLTAGE_colonCC_colonDU_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonCC_colonUSDS1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:VOLTage:CC:USDS1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 24 } // Terminal: MEASure:VOLTage:CC:USDS1?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonCC_colonUSDS2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:CC:USDS2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 25 } // Terminal: MEASure:VOLTage:CC:USDS2?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonCC_colonUSDS_children[] = {
         { '1', 0, 1, _node_MEAS_colonVOLTAGE_colonCC_colonUSDS1_children, 0 },
@@ -1498,7 +1522,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_MEAS_colonVOLTAGE_colonCC_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonADC_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:VOLTage:REF:ADC?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 26 } // Terminal: MEASure:VOLTage:REF:ADC?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonAD_children[] = {
         { 'C', 0, 1, _node_MEAS_colonVOLTAGE_colonREF_colonADC_children, 0 }
@@ -1507,7 +1531,7 @@ namespace T76::SCPI {
         { 'D', 0, 1, _node_MEAS_colonVOLTAGE_colonREF_colonAD_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonCURRENT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 } // Terminal: MEASure:VOLTage:REF:CURRent?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonCURREN_children[] = {
         { 'T', 0, 1, _node_MEAS_colonVOLTAGE_colonREF_colonCURRENT_children, 0 }
@@ -1516,7 +1540,7 @@ namespace T76::SCPI {
         { 'N', 0, 1, _node_MEAS_colonVOLTAGE_colonREF_colonCURREN_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonCURR_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 }, // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 }, // Terminal: MEASure:VOLTage:REF:CURRent?
         { 'E', 0, 1, _node_MEAS_colonVOLTAGE_colonREF_colonCURRE_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonCUR_children[] = {
@@ -1529,7 +1553,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEAS_colonVOLTAGE_colonREF_colonCU_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonGND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:REF:GND?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 28 } // Terminal: MEASure:VOLTage:REF:GND?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonREF_colonGN_children[] = {
         { 'D', 0, 1, _node_MEAS_colonVOLTAGE_colonREF_colonGND_children, 0 }
@@ -1552,7 +1576,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_MEAS_colonVOLTAGE_colonRE_children, 0 }
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonVBUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 13 } // Terminal: MEASure:VOLTage:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:VBUS?
     };
     const TrieNode _node_MEAS_colonVOLTAGE_colonVBU_children[] = {
         { 'S', 0, 1, _node_MEAS_colonVOLTAGE_colonVBUS_children, 0 }
@@ -1596,7 +1620,7 @@ namespace T76::SCPI {
         { 'V', 0, 1, _node_MEAS_colonV_children, 0 }
     };
     const TrieNode _node_MEASURE_colonACC_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: MEASure:ACCumulated:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:ACCumulated:RESET
     };
     const TrieNode _node_MEASURE_colonACC_colonRES_children[] = {
         { 'E', 0, 1, _node_MEASURE_colonACC_colonRESE_children, 0 }
@@ -1611,7 +1635,7 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_MEASURE_colonACC_colonR_children, 0 }
     };
     const TrieNode _node_MEASURE_colonACCUMULATED_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: MEASure:ACCumulated:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:ACCumulated:RESET
     };
     const TrieNode _node_MEASURE_colonACCUMULATED_colonRES_children[] = {
         { 'E', 0, 1, _node_MEASURE_colonACCUMULATED_colonRESE_children, 0 }
@@ -1627,7 +1651,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEASURE_colonACCUMULATED_children[] = {
         { ':', 0, 1, _node_MEASURE_colonACCUMULATED_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: MEASure:ACCumulated?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 } // Terminal: MEASure:ACCumulated?
     };
     const TrieNode _node_MEASURE_colonACCUMULATE_children[] = {
         { 'D', 0, 2, _node_MEASURE_colonACCUMULATED_children, 0 }
@@ -1652,14 +1676,14 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEASURE_colonACC_children[] = {
         { ':', 0, 1, _node_MEASURE_colonACC_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 }, // Terminal: MEASure:ACCumulated?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 }, // Terminal: MEASure:ACCumulated?
         { 'U', 0, 1, _node_MEASURE_colonACCU_children, 0 }
     };
     const TrieNode _node_MEASURE_colonAC_children[] = {
         { 'C', 0, 3, _node_MEASURE_colonACC_children, 0 }
     };
     const TrieNode _node_MEASURE_colonALL_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 10 } // Terminal: MEASure:ALL?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 16 } // Terminal: MEASure:ALL?
     };
     const TrieNode _node_MEASURE_colonAL_children[] = {
         { 'L', 0, 1, _node_MEASURE_colonALL_children, 0 }
@@ -1669,7 +1693,7 @@ namespace T76::SCPI {
         { 'L', 0, 1, _node_MEASURE_colonAL_children, 0 }
     };
     const TrieNode _node_MEASURE_colonCURR_colonVBUS_colonRAW_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 } // Terminal: MEASure:CURRent:VBUS:RAW?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:CURRent:VBUS:RAW?
     };
     const TrieNode _node_MEASURE_colonCURR_colonVBUS_colonRA_children[] = {
         { 'W', 0, 1, _node_MEASURE_colonCURR_colonVBUS_colonRAW_children, 0 }
@@ -1682,7 +1706,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEASURE_colonCURR_colonVBUS_children[] = {
         { ':', 0, 1, _node_MEASURE_colonCURR_colonVBUS_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: MEASure:CURRent:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:CURRent:VBUS?
     };
     const TrieNode _node_MEASURE_colonCURR_colonVBU_children[] = {
         { 'S', 0, 2, _node_MEASURE_colonCURR_colonVBUS_children, 0 }
@@ -1697,7 +1721,7 @@ namespace T76::SCPI {
         { 'V', 0, 1, _node_MEASURE_colonCURR_colonV_children, 0 }
     };
     const TrieNode _node_MEASURE_colonCURRENT_colonVBUS_colonRAW_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 } // Terminal: MEASure:CURRent:VBUS:RAW?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:CURRent:VBUS:RAW?
     };
     const TrieNode _node_MEASURE_colonCURRENT_colonVBUS_colonRA_children[] = {
         { 'W', 0, 1, _node_MEASURE_colonCURRENT_colonVBUS_colonRAW_children, 0 }
@@ -1710,7 +1734,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_MEASURE_colonCURRENT_colonVBUS_children[] = {
         { ':', 0, 1, _node_MEASURE_colonCURRENT_colonVBUS_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: MEASure:CURRent:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:CURRent:VBUS?
     };
     const TrieNode _node_MEASURE_colonCURRENT_colonVBU_children[] = {
         { 'S', 0, 2, _node_MEASURE_colonCURRENT_colonVBUS_children, 0 }
@@ -1747,10 +1771,10 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEASURE_colonCU_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonCC_colonDUT1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 16 } // Terminal: MEASure:VOLTage:CC:DUT1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:CC:DUT1?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonCC_colonDUT2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 } // Terminal: MEASure:VOLTage:CC:DUT2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 23 } // Terminal: MEASure:VOLTage:CC:DUT2?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonCC_colonDUT_children[] = {
         { '1', 0, 1, _node_MEASURE_colonVOLT_colonCC_colonDUT1_children, 0 },
@@ -1763,10 +1787,10 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEASURE_colonVOLT_colonCC_colonDU_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonCC_colonUSDS1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:VOLTage:CC:USDS1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 24 } // Terminal: MEASure:VOLTage:CC:USDS1?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonCC_colonUSDS2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:CC:USDS2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 25 } // Terminal: MEASure:VOLTage:CC:USDS2?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonCC_colonUSDS_children[] = {
         { '1', 0, 1, _node_MEASURE_colonVOLT_colonCC_colonUSDS1_children, 0 },
@@ -1792,7 +1816,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_MEASURE_colonVOLT_colonCC_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonADC_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:VOLTage:REF:ADC?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 26 } // Terminal: MEASure:VOLTage:REF:ADC?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonAD_children[] = {
         { 'C', 0, 1, _node_MEASURE_colonVOLT_colonREF_colonADC_children, 0 }
@@ -1801,7 +1825,7 @@ namespace T76::SCPI {
         { 'D', 0, 1, _node_MEASURE_colonVOLT_colonREF_colonAD_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonCURRENT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 } // Terminal: MEASure:VOLTage:REF:CURRent?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonCURREN_children[] = {
         { 'T', 0, 1, _node_MEASURE_colonVOLT_colonREF_colonCURRENT_children, 0 }
@@ -1810,7 +1834,7 @@ namespace T76::SCPI {
         { 'N', 0, 1, _node_MEASURE_colonVOLT_colonREF_colonCURREN_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonCURR_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 }, // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 }, // Terminal: MEASure:VOLTage:REF:CURRent?
         { 'E', 0, 1, _node_MEASURE_colonVOLT_colonREF_colonCURRE_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonCUR_children[] = {
@@ -1823,7 +1847,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEASURE_colonVOLT_colonREF_colonCU_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonGND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:REF:GND?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 28 } // Terminal: MEASure:VOLTage:REF:GND?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonREF_colonGN_children[] = {
         { 'D', 0, 1, _node_MEASURE_colonVOLT_colonREF_colonGND_children, 0 }
@@ -1846,7 +1870,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_MEASURE_colonVOLT_colonRE_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLT_colonVBUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 13 } // Terminal: MEASure:VOLTage:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:VBUS?
     };
     const TrieNode _node_MEASURE_colonVOLT_colonVBU_children[] = {
         { 'S', 0, 1, _node_MEASURE_colonVOLT_colonVBUS_children, 0 }
@@ -1863,10 +1887,10 @@ namespace T76::SCPI {
         { 'V', 0, 1, _node_MEASURE_colonVOLT_colonV_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonCC_colonDUT1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 16 } // Terminal: MEASure:VOLTage:CC:DUT1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:CC:DUT1?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonCC_colonDUT2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 17 } // Terminal: MEASure:VOLTage:CC:DUT2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 23 } // Terminal: MEASure:VOLTage:CC:DUT2?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonCC_colonDUT_children[] = {
         { '1', 0, 1, _node_MEASURE_colonVOLTAGE_colonCC_colonDUT1_children, 0 },
@@ -1879,10 +1903,10 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEASURE_colonVOLTAGE_colonCC_colonDU_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonCC_colonUSDS1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 18 } // Terminal: MEASure:VOLTage:CC:USDS1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 24 } // Terminal: MEASure:VOLTage:CC:USDS1?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonCC_colonUSDS2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:CC:USDS2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 25 } // Terminal: MEASure:VOLTage:CC:USDS2?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonCC_colonUSDS_children[] = {
         { '1', 0, 1, _node_MEASURE_colonVOLTAGE_colonCC_colonUSDS1_children, 0 },
@@ -1908,7 +1932,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_MEASURE_colonVOLTAGE_colonCC_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonADC_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 20 } // Terminal: MEASure:VOLTage:REF:ADC?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 26 } // Terminal: MEASure:VOLTage:REF:ADC?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonAD_children[] = {
         { 'C', 0, 1, _node_MEASURE_colonVOLTAGE_colonREF_colonADC_children, 0 }
@@ -1917,7 +1941,7 @@ namespace T76::SCPI {
         { 'D', 0, 1, _node_MEASURE_colonVOLTAGE_colonREF_colonAD_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonCURRENT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 } // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 } // Terminal: MEASure:VOLTage:REF:CURRent?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonCURREN_children[] = {
         { 'T', 0, 1, _node_MEASURE_colonVOLTAGE_colonREF_colonCURRENT_children, 0 }
@@ -1926,7 +1950,7 @@ namespace T76::SCPI {
         { 'N', 0, 1, _node_MEASURE_colonVOLTAGE_colonREF_colonCURREN_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonCURR_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 21 }, // Terminal: MEASure:VOLTage:REF:CURRent?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 27 }, // Terminal: MEASure:VOLTage:REF:CURRent?
         { 'E', 0, 1, _node_MEASURE_colonVOLTAGE_colonREF_colonCURRE_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonCUR_children[] = {
@@ -1939,7 +1963,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_MEASURE_colonVOLTAGE_colonREF_colonCU_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonGND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 22 } // Terminal: MEASure:VOLTage:REF:GND?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 28 } // Terminal: MEASure:VOLTage:REF:GND?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonREF_colonGN_children[] = {
         { 'D', 0, 1, _node_MEASURE_colonVOLTAGE_colonREF_colonGND_children, 0 }
@@ -1962,7 +1986,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_MEASURE_colonVOLTAGE_colonRE_children, 0 }
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonVBUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 13 } // Terminal: MEASure:VOLTage:VBUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 19 } // Terminal: MEASure:VOLTage:VBUS?
     };
     const TrieNode _node_MEASURE_colonVOLTAGE_colonVBU_children[] = {
         { 'S', 0, 1, _node_MEASURE_colonVOLTAGE_colonVBUS_children, 0 }
@@ -2028,7 +2052,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_ME_children, 0 }
     };
     const TrieNode _node_SINK_colonCAP_colonEPR_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: SINK:CAPability:EPR:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 59 } // Terminal: SINK:CAPability:EPR:COUNT?
     };
     const TrieNode _node_SINK_colonCAP_colonEPR_colonCOUN_children[] = {
         { 'T', 0, 1, _node_SINK_colonCAP_colonEPR_colonCOUNT_children, 0 }
@@ -2047,16 +2071,16 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonCAP_colonEPR_children[] = {
         { ':', 0, 1, _node_SINK_colonCAP_colonEPR_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: SINK:CAPability:EPR?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 } // Terminal: SINK:CAPability:EPR?
     };
     const TrieNode _node_SINK_colonCAP_colonEP_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAP_colonEPR_children, 55 } // Terminal: SINK:CAPability:EPR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAP_colonEPR_children, 61 } // Terminal: SINK:CAPability:EPR
     };
     const TrieNode _node_SINK_colonCAP_colonE_children[] = {
         { 'P', 0, 1, _node_SINK_colonCAP_colonEP_children, 0 }
     };
     const TrieNode _node_SINK_colonCAP_colonSPR_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: SINK:CAPability:SPR:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 56 } // Terminal: SINK:CAPability:SPR:COUNT?
     };
     const TrieNode _node_SINK_colonCAP_colonSPR_colonCOUN_children[] = {
         { 'T', 0, 1, _node_SINK_colonCAP_colonSPR_colonCOUNT_children, 0 }
@@ -2075,10 +2099,10 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonCAP_colonSPR_children[] = {
         { ':', 0, 1, _node_SINK_colonCAP_colonSPR_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 51 } // Terminal: SINK:CAPability:SPR?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 57 } // Terminal: SINK:CAPability:SPR?
     };
     const TrieNode _node_SINK_colonCAP_colonSP_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAP_colonSPR_children, 52 } // Terminal: SINK:CAPability:SPR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAP_colonSPR_children, 58 } // Terminal: SINK:CAPability:SPR
     };
     const TrieNode _node_SINK_colonCAP_colonS_children[] = {
         { 'P', 0, 1, _node_SINK_colonCAP_colonSP_children, 0 }
@@ -2088,7 +2112,7 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_SINK_colonCAP_colonS_children, 0 }
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonEPR_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: SINK:CAPability:EPR:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 59 } // Terminal: SINK:CAPability:EPR:COUNT?
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonEPR_colonCOUN_children[] = {
         { 'T', 0, 1, _node_SINK_colonCAPABILITY_colonEPR_colonCOUNT_children, 0 }
@@ -2107,16 +2131,16 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonEPR_children[] = {
         { ':', 0, 1, _node_SINK_colonCAPABILITY_colonEPR_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 54 } // Terminal: SINK:CAPability:EPR?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 } // Terminal: SINK:CAPability:EPR?
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonEP_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAPABILITY_colonEPR_children, 55 } // Terminal: SINK:CAPability:EPR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAPABILITY_colonEPR_children, 61 } // Terminal: SINK:CAPability:EPR
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonE_children[] = {
         { 'P', 0, 1, _node_SINK_colonCAPABILITY_colonEP_children, 0 }
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonSPR_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 50 } // Terminal: SINK:CAPability:SPR:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 56 } // Terminal: SINK:CAPability:SPR:COUNT?
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonSPR_colonCOUN_children[] = {
         { 'T', 0, 1, _node_SINK_colonCAPABILITY_colonSPR_colonCOUNT_children, 0 }
@@ -2135,10 +2159,10 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonSPR_children[] = {
         { ':', 0, 1, _node_SINK_colonCAPABILITY_colonSPR_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 51 } // Terminal: SINK:CAPability:SPR?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 57 } // Terminal: SINK:CAPability:SPR?
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonSP_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAPABILITY_colonSPR_children, 52 } // Terminal: SINK:CAPability:SPR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonCAPABILITY_colonSPR_children, 58 } // Terminal: SINK:CAPability:SPR
     };
     const TrieNode _node_SINK_colonCAPABILITY_colonS_children[] = {
         { 'P', 0, 1, _node_SINK_colonCAPABILITY_colonSP_children, 0 }
@@ -2179,10 +2203,10 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_SINK_colonCA_children, 0 }
     };
     const TrieNode _node_SINK_colonEPR_colonEN_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 57 } // Terminal: SINK:EPR:EN?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 63 } // Terminal: SINK:EPR:EN?
     };
     const TrieNode _node_SINK_colonEPR_colonE_children[] = {
-        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_SINK_colonEPR_colonEN_children, 56 } // Terminal: SINK:EPR:EN
+        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_SINK_colonEPR_colonEN_children, 62 } // Terminal: SINK:EPR:EN
     };
     const TrieNode _node_SINK_colonEPR_colon_children[] = {
         { 'E', 0, 1, _node_SINK_colonEPR_colonE_children, 0 }
@@ -2197,7 +2221,7 @@ namespace T76::SCPI {
         { 'P', 0, 1, _node_SINK_colonEP_children, 0 }
     };
     const TrieNode _node_SINK_colonPDO_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 46 } // Terminal: SINK:PDO:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 52 } // Terminal: SINK:PDO:COUNT?
     };
     const TrieNode _node_SINK_colonPDO_colonCOUN_children[] = {
         { 'T', 0, 1, _node_SINK_colonPDO_colonCOUNT_children, 0 }
@@ -2216,16 +2240,16 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonPDO_children[] = {
         { ':', 0, 1, _node_SINK_colonPDO_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 47 } // Terminal: SINK:PDO?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 53 } // Terminal: SINK:PDO?
     };
     const TrieNode _node_SINK_colonPD_children[] = {
-        { 'O', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonPDO_children, 48 } // Terminal: SINK:PDO
+        { 'O', uint8_t(TrieNodeFlags::Terminal), 2, _node_SINK_colonPDO_children, 54 } // Terminal: SINK:PDO
     };
     const TrieNode _node_SINK_colonPPS_colonSTATUS_colonEN_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 59 } // Terminal: SINK:PPS:STATUS:EN?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 65 } // Terminal: SINK:PPS:STATUS:EN?
     };
     const TrieNode _node_SINK_colonPPS_colonSTATUS_colonE_children[] = {
-        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_SINK_colonPPS_colonSTATUS_colonEN_children, 58 } // Terminal: SINK:PPS:STATUS:EN
+        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_SINK_colonPPS_colonSTATUS_colonEN_children, 64 } // Terminal: SINK:PPS:STATUS:EN
     };
     const TrieNode _node_SINK_colonPPS_colonSTATUS_colon_children[] = {
         { 'E', 0, 1, _node_SINK_colonPPS_colonSTATUS_colonE_children, 0 }
@@ -2262,7 +2286,7 @@ namespace T76::SCPI {
         { 'P', 0, 1, _node_SINK_colonPP_children, 0 }
     };
     const TrieNode _node_SINK_colonREQUEST_colonSTATUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 49 } // Terminal: SINK:REQUEST:STATUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 55 } // Terminal: SINK:REQUEST:STATUS?
     };
     const TrieNode _node_SINK_colonREQUEST_colonSTATU_children[] = {
         { 'S', 0, 1, _node_SINK_colonREQUEST_colonSTATUS_children, 0 }
@@ -2304,7 +2328,7 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_SINK_colonRE_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonCURRENT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 63 } // Terminal: SINK:STATUS:CURRENT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 69 } // Terminal: SINK:STATUS:CURRENT?
     };
     const TrieNode _node_SINK_colonSTATUS_colonCURREN_children[] = {
         { 'T', 0, 1, _node_SINK_colonSTATUS_colonCURRENT_children, 0 }
@@ -2325,7 +2349,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_SINK_colonSTATUS_colonCU_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonERROR_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 64 } // Terminal: SINK:STATUS:ERROR?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 } // Terminal: SINK:STATUS:ERROR?
     };
     const TrieNode _node_SINK_colonSTATUS_colonERRO_children[] = {
         { 'R', 0, 1, _node_SINK_colonSTATUS_colonERROR_children, 0 }
@@ -2340,7 +2364,7 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_SINK_colonSTATUS_colonER_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonPDO_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 61 } // Terminal: SINK:STATUS:PDO?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 67 } // Terminal: SINK:STATUS:PDO?
     };
     const TrieNode _node_SINK_colonSTATUS_colonPD_children[] = {
         { 'O', 0, 1, _node_SINK_colonSTATUS_colonPDO_children, 0 }
@@ -2349,7 +2373,7 @@ namespace T76::SCPI {
         { 'D', 0, 1, _node_SINK_colonSTATUS_colonPD_children, 0 }
     };
     const TrieNode _node_SINK_colonSTATUS_colonVOLTAGE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 62 } // Terminal: SINK:STATUS:VOLTAGE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 68 } // Terminal: SINK:STATUS:VOLTAGE?
     };
     const TrieNode _node_SINK_colonSTATUS_colonVOLTAG_children[] = {
         { 'E', 0, 1, _node_SINK_colonSTATUS_colonVOLTAGE_children, 0 }
@@ -2377,7 +2401,7 @@ namespace T76::SCPI {
     };
     const TrieNode _node_SINK_colonSTATUS_children[] = {
         { ':', 0, 4, _node_SINK_colonSTATUS_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 60 } // Terminal: SINK:STATUS?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 66 } // Terminal: SINK:STATUS?
     };
     const TrieNode _node_SINK_colonSTATU_children[] = {
         { 'S', 0, 2, _node_SINK_colonSTATUS_children, 0 }
@@ -2411,7 +2435,7 @@ namespace T76::SCPI {
         { 'N', 0, 1, _node_SIN_children, 0 }
     };
     const TrieNode _node_STAT_colonDEVICE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: STATus:DEVice?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 } // Terminal: STATus:DEVice?
     };
     const TrieNode _node_STAT_colonDEVIC_children[] = {
         { 'E', 0, 1, _node_STAT_colonDEVICE_children, 0 }
@@ -2420,7 +2444,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_STAT_colonDEVIC_children, 0 }
     };
     const TrieNode _node_STAT_colonDEV_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: STATus:DEVice?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 }, // Terminal: STATus:DEVice?
         { 'I', 0, 1, _node_STAT_colonDEVI_children, 0 }
     };
     const TrieNode _node_STAT_colonDE_children[] = {
@@ -2433,7 +2457,7 @@ namespace T76::SCPI {
         { 'D', 0, 1, _node_STAT_colonD_children, 0 }
     };
     const TrieNode _node_STATUS_colonDEVICE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: STATus:DEVice?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 } // Terminal: STATus:DEVice?
     };
     const TrieNode _node_STATUS_colonDEVIC_children[] = {
         { 'E', 0, 1, _node_STATUS_colonDEVICE_children, 0 }
@@ -2442,7 +2466,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_STATUS_colonDEVIC_children, 0 }
     };
     const TrieNode _node_STATUS_colonDEV_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: STATus:DEVice?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 15 }, // Terminal: STATus:DEVice?
         { 'I', 0, 1, _node_STATUS_colonDEVI_children, 0 }
     };
     const TrieNode _node_STATUS_colonDE_children[] = {
@@ -2469,6 +2493,754 @@ namespace T76::SCPI {
     };
     const TrieNode _node_ST_children[] = {
         { 'A', 0, 1, _node_STA_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colonC_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_colon_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colonC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonC_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colon_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colonC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODER_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECODE_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODER_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECOD_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECODE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDECO_children[] = {
+        { 'D', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECOD_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDEC_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDECO_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCDE_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDEC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMCD_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCD_colon_children, 0 },
+        { 'E', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMCDE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBMC_children[] = {
+        { 'D', 0, 2, _node_SYST_colonCONF_colonPHY_colonBMCD_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonBM_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONF_colonPHY_colonBMC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colonB_children[] = {
+        { 'M', 0, 1, _node_SYST_colonCONF_colonPHY_colonBM_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_colon_children[] = {
+        { 'B', 0, 1, _node_SYST_colonCONF_colonPHY_colonB_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPHY_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colonPHY_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonPH_children[] = {
+        { 'Y', 0, 1, _node_SYST_colonCONF_colonPHY_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colonP_children[] = {
+        { 'H', 0, 1, _node_SYST_colonCONF_colonPH_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_colon_children[] = {
+        { 'P', 0, 1, _node_SYST_colonCONF_colonP_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonC_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colon_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colonC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonC_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colon_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODE_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODER_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECOD_children[] = {
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECODE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECO_children[] = {
+        { 'D', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECOD_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDEC_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDECO_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDE_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDEC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_colon_children, 0 },
+        { 'E', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCDE_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBMC_children[] = {
+        { 'D', 0, 2, _node_SYST_colonCONFIGURATION_colonPHY_colonBMCD_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonBM_children[] = {
+        { 'C', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBMC_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colonB_children[] = {
+        { 'M', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonBM_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_colon_children[] = {
+        { 'B', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colonB_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPHY_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonPH_children[] = {
+        { 'Y', 0, 1, _node_SYST_colonCONFIGURATION_colonPHY_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colonP_children[] = {
+        { 'H', 0, 1, _node_SYST_colonCONFIGURATION_colonPH_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_colon_children[] = {
+        { 'P', 0, 1, _node_SYST_colonCONFIGURATION_colonP_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATION_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONFIGURATION_colon_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATIO_children[] = {
+        { 'N', 0, 1, _node_SYST_colonCONFIGURATION_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURATI_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCONFIGURATIO_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURAT_children[] = {
+        { 'I', 0, 1, _node_SYST_colonCONFIGURATI_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGURA_children[] = {
+        { 'T', 0, 1, _node_SYST_colonCONFIGURAT_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGUR_children[] = {
+        { 'A', 0, 1, _node_SYST_colonCONFIGURA_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIGU_children[] = {
+        { 'R', 0, 1, _node_SYST_colonCONFIGUR_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFIG_children[] = {
+        { 'U', 0, 1, _node_SYST_colonCONFIGU_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONFI_children[] = {
+        { 'G', 0, 1, _node_SYST_colonCONFIG_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCONF_children[] = {
+        { ':', 0, 1, _node_SYST_colonCONF_colon_children, 0 },
+        { 'I', 0, 1, _node_SYST_colonCONFI_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCON_children[] = {
+        { 'F', 0, 2, _node_SYST_colonCONF_children, 0 }
+    };
+    const TrieNode _node_SYST_colonCO_children[] = {
+        { 'N', 0, 1, _node_SYST_colonCON_children, 0 }
+    };
+    const TrieNode _node_SYST_colonC_children[] = {
+        { 'O', 0, 1, _node_SYST_colonCO_children, 0 }
     };
     const TrieNode _node_SYST_colonERROR_children[] = {
         { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 2 } // Terminal: SYSTem:ERRor?
@@ -2670,6 +3442,7 @@ namespace T76::SCPI {
         { 'P', 0, 1, _node_SYST_colonUP_children, 0 }
     };
     const TrieNode _node_SYST_colon_children[] = {
+        { 'C', 0, 1, _node_SYST_colonC_children, 0 },
         { 'E', 0, 1, _node_SYST_colonE_children, 0 },
         { 'F', 0, 1, _node_SYST_colonF_children, 0 },
         { 'H', 0, 1, _node_SYST_colonH_children, 0 },
@@ -2677,6 +3450,754 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_SYST_colonS_children, 0 },
         { 'T', 0, 1, _node_SYST_colonT_children, 0 },
         { 'U', 0, 1, _node_SYST_colonU_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonC_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colon_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colonC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonC_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colon_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colonC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODE_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODER_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECOD_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECODE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDECO_children[] = {
+        { 'D', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECOD_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDEC_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDECO_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCDE_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDEC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMCD_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_colon_children, 0 },
+        { 'E', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMCDE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBMC_children[] = {
+        { 'D', 0, 2, _node_SYSTEM_colonCONF_colonPHY_colonBMCD_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonBM_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBMC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colonB_children[] = {
+        { 'M', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonBM_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_colon_children[] = {
+        { 'B', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colonB_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPHY_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colonPHY_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonPH_children[] = {
+        { 'Y', 0, 1, _node_SYSTEM_colonCONF_colonPHY_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colonP_children[] = {
+        { 'H', 0, 1, _node_SYSTEM_colonCONF_colonPH_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_colon_children[] = {
+        { 'P', 0, 1, _node_SYSTEM_colonCONF_colonP_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonC_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colon_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colonC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRES_children, 14 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children[] = {
+        { 'Y', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENCY_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUENC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children[] = {
+        { 'N', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUEN_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQUE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 12 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { 'U', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQU_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children[] = {
+        { 'Q', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFREQ_children, 13 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonFR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colonF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children[] = {
+        { 'M', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPWM_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children[] = {
+        { 'W', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonPW_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRESE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children[] = {
+        { 'S', uint8_t(TrieNodeFlags::Terminal), 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRES_children, 11 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colonR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children[] = {
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAGE_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children[] = {
+        { 'G', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTAG_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_colon_children, 0 },
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 }, // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { 'A', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLTA_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOLT_children, 10 } // Terminal: SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children[] = {
+        { 'L', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonVO_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children[] = {
+        { 'P', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonP_children, 0 },
+        { 'V', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_children[] = {
+        { ':', 0, 2, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVRE_children[] = {
+        { 'F', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVREF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVR_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVRE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonV_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonVR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colon_children[] = {
+        { 'V', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colonV_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonC_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonCC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colon_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colonC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODE_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODER_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECOD_children[] = {
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECODE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECO_children[] = {
+        { 'D', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECOD_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDEC_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDECO_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDE_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDEC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_colon_children, 0 },
+        { 'E', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCDE_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMC_children[] = {
+        { 'D', 0, 2, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMCD_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBM_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBMC_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colonB_children[] = {
+        { 'M', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonBM_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_colon_children[] = {
+        { 'B', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colonB_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPHY_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonPH_children[] = {
+        { 'Y', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPHY_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colonP_children[] = {
+        { 'H', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonPH_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_colon_children[] = {
+        { 'P', 0, 1, _node_SYSTEM_colonCONFIGURATION_colonP_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATION_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONFIGURATION_colon_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATIO_children[] = {
+        { 'N', 0, 1, _node_SYSTEM_colonCONFIGURATION_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURATI_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCONFIGURATIO_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURAT_children[] = {
+        { 'I', 0, 1, _node_SYSTEM_colonCONFIGURATI_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGURA_children[] = {
+        { 'T', 0, 1, _node_SYSTEM_colonCONFIGURAT_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGUR_children[] = {
+        { 'A', 0, 1, _node_SYSTEM_colonCONFIGURA_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIGU_children[] = {
+        { 'R', 0, 1, _node_SYSTEM_colonCONFIGUR_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFIG_children[] = {
+        { 'U', 0, 1, _node_SYSTEM_colonCONFIGU_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONFI_children[] = {
+        { 'G', 0, 1, _node_SYSTEM_colonCONFIG_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCONF_children[] = {
+        { ':', 0, 1, _node_SYSTEM_colonCONF_colon_children, 0 },
+        { 'I', 0, 1, _node_SYSTEM_colonCONFI_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCON_children[] = {
+        { 'F', 0, 2, _node_SYSTEM_colonCONF_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonCO_children[] = {
+        { 'N', 0, 1, _node_SYSTEM_colonCON_children, 0 }
+    };
+    const TrieNode _node_SYSTEM_colonC_children[] = {
+        { 'O', 0, 1, _node_SYSTEM_colonCO_children, 0 }
     };
     const TrieNode _node_SYSTEM_colonERROR_children[] = {
         { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 2 } // Terminal: SYSTem:ERRor?
@@ -2878,6 +4399,7 @@ namespace T76::SCPI {
         { 'P', 0, 1, _node_SYSTEM_colonUP_children, 0 }
     };
     const TrieNode _node_SYSTEM_colon_children[] = {
+        { 'C', 0, 1, _node_SYSTEM_colonC_children, 0 },
         { 'E', 0, 1, _node_SYSTEM_colonE_children, 0 },
         { 'F', 0, 1, _node_SYSTEM_colonF_children, 0 },
         { 'H', 0, 1, _node_SYSTEM_colonH_children, 0 },
@@ -2887,13 +4409,13 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_SYSTEM_colonU_children, 0 }
     };
     const TrieNode _node_SYSTEM_children[] = {
-        { ':', 0, 7, _node_SYSTEM_colon_children, 0 }
+        { ':', 0, 8, _node_SYSTEM_colon_children, 0 }
     };
     const TrieNode _node_SYSTE_children[] = {
         { 'M', 0, 1, _node_SYSTEM_children, 0 }
     };
     const TrieNode _node_SYST_children[] = {
-        { ':', 0, 7, _node_SYST_colon_children, 0 },
+        { ':', 0, 8, _node_SYST_colon_children, 0 },
         { 'E', 0, 1, _node_SYSTE_children, 0 }
     };
     const TrieNode _node_SYS_children[] = {
@@ -2908,10 +4430,10 @@ namespace T76::SCPI {
         { 'Y', 0, 1, _node_SY_children, 0 }
     };
     const TrieNode _node_TEST_colonCCBUS_colonDUT_colonCHANNEL_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 90 } // Terminal: TEST:CCBUS:DUT:CHANNEL?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 96 } // Terminal: TEST:CCBUS:DUT:CHANNEL?
     };
     const TrieNode _node_TEST_colonCCBUS_colonDUT_colonCHANNE_children[] = {
-        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonDUT_colonCHANNEL_children, 89 } // Terminal: TEST:CCBUS:DUT:CHANNEL
+        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonDUT_colonCHANNEL_children, 95 } // Terminal: TEST:CCBUS:DUT:CHANNEL
     };
     const TrieNode _node_TEST_colonCCBUS_colonDUT_colonCHANN_children[] = {
         { 'E', 0, 1, _node_TEST_colonCCBUS_colonDUT_colonCHANNE_children, 0 }
@@ -2941,19 +4463,19 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TEST_colonCCBUS_colonDU_children, 0 }
     };
     const TrieNode _node_TEST_colonCCBUS_colonMUX_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 94 } // Terminal: TEST:CCBUS:MUX?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 100 } // Terminal: TEST:CCBUS:MUX?
     };
     const TrieNode _node_TEST_colonCCBUS_colonMU_children[] = {
-        { 'X', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonMUX_children, 93 } // Terminal: TEST:CCBUS:MUX
+        { 'X', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonMUX_children, 99 } // Terminal: TEST:CCBUS:MUX
     };
     const TrieNode _node_TEST_colonCCBUS_colonM_children[] = {
         { 'U', 0, 1, _node_TEST_colonCCBUS_colonMU_children, 0 }
     };
     const TrieNode _node_TEST_colonCCBUS_colonUSDS_colonCHANNEL_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 92 } // Terminal: TEST:CCBUS:USDS:CHANNEL?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 98 } // Terminal: TEST:CCBUS:USDS:CHANNEL?
     };
     const TrieNode _node_TEST_colonCCBUS_colonUSDS_colonCHANNE_children[] = {
-        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonUSDS_colonCHANNEL_children, 91 } // Terminal: TEST:CCBUS:USDS:CHANNEL
+        { 'L', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCBUS_colonUSDS_colonCHANNEL_children, 97 } // Terminal: TEST:CCBUS:USDS:CHANNEL
     };
     const TrieNode _node_TEST_colonCCBUS_colonUSDS_colonCHANN_children[] = {
         { 'E', 0, 1, _node_TEST_colonCCBUS_colonUSDS_colonCHANNE_children, 0 }
@@ -3000,14 +4522,14 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TEST_colonCCBU_children, 0 }
     };
     const TrieNode _node_TEST_colonCCROLE_colonCC1_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 86 } // Terminal: TEST:CCROLE:CC1?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 92 } // Terminal: TEST:CCROLE:CC1?
     };
     const TrieNode _node_TEST_colonCCROLE_colonCC2_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 88 } // Terminal: TEST:CCROLE:CC2?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 94 } // Terminal: TEST:CCROLE:CC2?
     };
     const TrieNode _node_TEST_colonCCROLE_colonCC_children[] = {
-        { '1', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC1_children, 85 }, // Terminal: TEST:CCROLE:CC1
-        { '2', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC2_children, 87 } // Terminal: TEST:CCROLE:CC2
+        { '1', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC1_children, 91 }, // Terminal: TEST:CCROLE:CC1
+        { '2', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonCCROLE_colonCC2_children, 93 } // Terminal: TEST:CCROLE:CC2
     };
     const TrieNode _node_TEST_colonCCROLE_colonC_children[] = {
         { 'C', 0, 2, _node_TEST_colonCCROLE_colonCC_children, 0 }
@@ -3035,10 +4557,10 @@ namespace T76::SCPI {
         { 'C', 0, 2, _node_TEST_colonCC_children, 0 }
     };
     const TrieNode _node_TEST_colonVBUSMAN_colonEN_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 84 } // Terminal: TEST:VBUSMAN:EN?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 90 } // Terminal: TEST:VBUSMAN:EN?
     };
     const TrieNode _node_TEST_colonVBUSMAN_colonE_children[] = {
-        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonVBUSMAN_colonEN_children, 83 } // Terminal: TEST:VBUSMAN:EN
+        { 'N', uint8_t(TrieNodeFlags::Terminal), 1, _node_TEST_colonVBUSMAN_colonEN_children, 89 } // Terminal: TEST:VBUSMAN:EN
     };
     const TrieNode _node_TEST_colonVBUSMAN_colon_children[] = {
         { 'E', 0, 1, _node_TEST_colonVBUSMAN_colonE_children, 0 }
@@ -3078,10 +4600,10 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TES_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 77 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 83 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIG_colonEV_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonAUTOREPEAT_children, 76 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonAUTOREPEAT_children, 82 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIG_colonEV_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonAUTOREPEA_children, 0 }
@@ -3108,7 +4630,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIG_colonEV_colonAU_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 84 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIG_colonEV_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIG_colonEV_colonCOUNT_children, 0 }
@@ -3123,7 +4645,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIG_colonEV_colonCO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -3138,7 +4660,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -3154,18 +4676,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGT_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGT_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGT_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGT_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEV_colonMSGT_colonFIL_children, 0 }
@@ -3177,7 +4699,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIG_colonEV_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -3192,7 +4714,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -3208,18 +4730,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonMSGTYPE_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEV_colonMSGTYPE_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEV_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEV_colonMSGTYPE_colonFIL_children, 0 }
@@ -3253,17 +4775,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIG_colonEV_colonMS_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIG_colonEV_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonSENDER_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonSENDER_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEV_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIG_colonEV_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonSEND_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonSEND_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEV_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIG_colonEV_colonSEN_children, 0 }
@@ -3272,20 +4794,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIG_colonEV_colonSE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTHRESHOLD_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTHRESHOLD_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEV_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIG_colonEV_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonTHRESH_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEV_colonTHRESH_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEV_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIG_colonEV_colonTHRES_children, 0 }
@@ -3297,10 +4819,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIG_colonEV_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIG_colonEV_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 68 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIG_colonEV_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTYPE_children, 67 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEV_colonTYPE_children, 73 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIG_colonEV_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIG_colonEV_colonTYP_children, 0 }
@@ -3317,10 +4839,10 @@ namespace T76::SCPI {
         { 'T', 0, 2, _node_TRIG_colonEV_colonT_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 77 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 83 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIG_colonEVENT_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonAUTOREPEAT_children, 76 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonAUTOREPEAT_children, 82 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIG_colonEVENT_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonAUTOREPEA_children, 0 }
@@ -3347,7 +4869,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIG_colonEVENT_colonAU_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 84 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIG_colonEVENT_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIG_colonEVENT_colonCOUNT_children, 0 }
@@ -3362,7 +4884,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIG_colonEVENT_colonCO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -3377,7 +4899,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -3393,18 +4915,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGT_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGT_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGT_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonFIL_children, 0 }
@@ -3416,7 +4938,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIG_colonEVENT_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -3431,7 +4953,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -3447,18 +4969,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIG_colonEVENT_colonMSGTYPE_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIG_colonEVENT_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEVENT_colonMSGTYPE_colonFIL_children, 0 }
@@ -3492,17 +5014,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIG_colonEVENT_colonMS_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIG_colonEVENT_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonSENDER_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonSENDER_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEVENT_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonSEND_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonSEND_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIG_colonEVENT_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIG_colonEVENT_colonSEN_children, 0 }
@@ -3511,20 +5033,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIG_colonEVENT_colonSE_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTHRESHOLD_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTHRESHOLD_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIG_colonEVENT_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIG_colonEVENT_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonTHRESH_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonEVENT_colonTHRESH_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIG_colonEVENT_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIG_colonEVENT_colonTHRES_children, 0 }
@@ -3536,10 +5058,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIG_colonEVENT_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIG_colonEVENT_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 68 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIG_colonEVENT_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTYPE_children, 67 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonEVENT_colonTYPE_children, 73 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIG_colonEVENT_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIG_colonEVENT_colonTYP_children, 0 }
@@ -3572,7 +5094,7 @@ namespace T76::SCPI {
         { 'V', 0, 2, _node_TRIG_colonEV_children, 0 }
     };
     const TrieNode _node_TRIG_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 65 } // Terminal: TRIGger:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 71 } // Terminal: TRIGger:RESET
     };
     const TrieNode _node_TRIG_colonRES_children[] = {
         { 'E', 0, 1, _node_TRIG_colonRESE_children, 0 }
@@ -3584,13 +5106,13 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIG_colonRE_children, 0 }
     };
     const TrieNode _node_TRIG_colonSTATUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 66 } // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TRIGger:STATus?
     };
     const TrieNode _node_TRIG_colonSTATU_children[] = {
         { 'S', 0, 1, _node_TRIG_colonSTATUS_children, 0 }
     };
     const TrieNode _node_TRIG_colonSTAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 66 }, // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 }, // Terminal: TRIGger:STATus?
         { 'U', 0, 1, _node_TRIG_colonSTATU_children, 0 }
     };
     const TrieNode _node_TRIG_colonSTA_children[] = {
@@ -3600,10 +5122,10 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_TRIG_colonSTA_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonMODE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:SYNC:MODE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 86 } // Terminal: TRIGger:SYNC:MODE?
     };
     const TrieNode _node_TRIG_colonSYNC_colonMOD_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonMODE_children, 79 } // Terminal: TRIGger:SYNC:MODE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonMODE_children, 85 } // Terminal: TRIGger:SYNC:MODE
     };
     const TrieNode _node_TRIG_colonSYNC_colonMO_children[] = {
         { 'D', 0, 1, _node_TRIG_colonSYNC_colonMOD_children, 0 }
@@ -3612,10 +5134,10 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIG_colonSYNC_colonMO_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSEWIDTH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 82 } // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 88 } // Terminal: TRIGger:SYNC:PULSEwidth?
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSEWIDT_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonPULSEWIDTH_children, 81 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIG_colonSYNC_colonPULSEWIDTH_children, 87 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSEWID_children[] = {
         { 'T', 0, 1, _node_TRIG_colonSYNC_colonPULSEWIDT_children, 0 }
@@ -3627,11 +5149,11 @@ namespace T76::SCPI {
         { 'I', 0, 1, _node_TRIG_colonSYNC_colonPULSEWI_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULSE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 82 }, // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 88 }, // Terminal: TRIGger:SYNC:PULSEwidth?
         { 'W', 0, 1, _node_TRIG_colonSYNC_colonPULSEW_children, 0 }
     };
     const TrieNode _node_TRIG_colonSYNC_colonPULS_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonSYNC_colonPULSE_children, 81 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIG_colonSYNC_colonPULSE_children, 87 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIG_colonSYNC_colonPUL_children[] = {
         { 'S', 0, 1, _node_TRIG_colonSYNC_colonPULS_children, 0 }
@@ -3665,10 +5187,10 @@ namespace T76::SCPI {
         { 'S', 0, 2, _node_TRIG_colonS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 77 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 83 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIGGER_colonEV_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonAUTOREPEAT_children, 76 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonAUTOREPEAT_children, 82 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIGGER_colonEV_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonAUTOREPEA_children, 0 }
@@ -3695,7 +5217,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIGGER_colonEV_colonAU_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 84 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIGGER_colonEV_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIGGER_colonEV_colonCOUNT_children, 0 }
@@ -3710,7 +5232,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIGGER_colonEV_colonCO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -3725,7 +5247,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -3741,18 +5263,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGT_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGT_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGT_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonFIL_children, 0 }
@@ -3764,7 +5286,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIGGER_colonEV_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -3779,7 +5301,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -3795,18 +5317,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEV_colonMSGTYPE_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEV_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEV_colonMSGTYPE_colonFIL_children, 0 }
@@ -3840,17 +5362,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIGGER_colonEV_colonMS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIGGER_colonEV_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonSENDER_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonSENDER_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEV_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonSEND_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonSEND_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEV_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIGGER_colonEV_colonSEN_children, 0 }
@@ -3859,20 +5381,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIGGER_colonEV_colonSE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTHRESHOLD_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTHRESHOLD_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEV_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIGGER_colonEV_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonTHRESH_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEV_colonTHRESH_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEV_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonEV_colonTHRES_children, 0 }
@@ -3884,10 +5406,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIGGER_colonEV_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEV_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 68 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIGGER_colonEV_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTYPE_children, 67 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEV_colonTYPE_children, 73 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIGGER_colonEV_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIGGER_colonEV_colonTYP_children, 0 }
@@ -3904,10 +5426,10 @@ namespace T76::SCPI {
         { 'T', 0, 2, _node_TRIGGER_colonEV_colonT_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonAUTOREPEAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 77 } // Terminal: TRIGger:EVent:AUTOREPEAT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 83 } // Terminal: TRIGger:EVent:AUTOREPEAT?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonAUTOREPEA_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonAUTOREPEAT_children, 76 } // Terminal: TRIGger:EVent:AUTOREPEAT
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonAUTOREPEAT_children, 82 } // Terminal: TRIGger:EVent:AUTOREPEAT
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonAUTOREPE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonAUTOREPEA_children, 0 }
@@ -3934,7 +5456,7 @@ namespace T76::SCPI {
         { 'U', 0, 1, _node_TRIGGER_colonEVENT_colonAU_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonCOUNT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:COUNT?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 84 } // Terminal: TRIGger:EVent:COUNT?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonCOUN_children[] = {
         { 'T', 0, 1, _node_TRIGGER_colonEVENT_colonCOUNT_children, 0 }
@@ -3949,7 +5471,7 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIGGER_colonEVENT_colonCO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonCLEA_children, 0 }
@@ -3964,7 +5486,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colonCLEA_children, 0 }
@@ -3980,18 +5502,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGT_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGT_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonFIL_children, 0 }
@@ -4003,7 +5525,7 @@ namespace T76::SCPI {
         { 'F', 0, 1, _node_TRIGGER_colonEVENT_colonMSGT_colonF_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonCLEA_children, 0 }
@@ -4018,7 +5540,7 @@ namespace T76::SCPI {
         { 'C', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colonC_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 75 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 81 } // Terminal: TRIGger:EVent:MSGType:FILTer:CLEAR
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colonCLE_children[] = {
         { 'A', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colonCLEA_children, 0 }
@@ -4034,18 +5556,18 @@ namespace T76::SCPI {
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:EVent:MSGType:FILTer?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTER_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_children[] = {
         { ':', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_colon_children, 0 },
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 }, // Terminal: TRIGger:EVent:MSGType:FILTer?
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILTE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFIL_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_children, 73 } // Terminal: TRIGger:EVent:MSGType:FILTer
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 3, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFILT_children, 79 } // Terminal: TRIGger:EVent:MSGType:FILTer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFI_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEVENT_colonMSGTYPE_colonFIL_children, 0 }
@@ -4079,17 +5601,17 @@ namespace T76::SCPI {
         { 'S', 0, 1, _node_TRIGGER_colonEVENT_colonMS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSENDER_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 } // Terminal: TRIGger:EVent:SENDer?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSENDE_children[] = {
-        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonSENDER_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'R', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonSENDER_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSEND_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 }, // Terminal: TRIGger:EVent:SENDer?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 78 }, // Terminal: TRIGger:EVent:SENDer?
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonSENDE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSEN_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonSEND_children, 71 } // Terminal: TRIGger:EVent:SENDer
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonSEND_children, 77 } // Terminal: TRIGger:EVent:SENDer
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonSE_children[] = {
         { 'N', 0, 1, _node_TRIGGER_colonEVENT_colonSEN_children, 0 }
@@ -4098,20 +5620,20 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIGGER_colonEVENT_colonSE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESHOLD_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 } // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 } // Terminal: TRIGger:EVent:THRESHold?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESHOL_children[] = {
-        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTHRESHOLD_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTHRESHOLD_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESHO_children[] = {
         { 'L', 0, 1, _node_TRIGGER_colonEVENT_colonTHRESHOL_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRESH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 70 }, // Terminal: TRIGger:EVent:THRESHold?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 76 }, // Terminal: TRIGger:EVent:THRESHold?
         { 'O', 0, 1, _node_TRIGGER_colonEVENT_colonTHRESHO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRES_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonTHRESH_children, 69 } // Terminal: TRIGger:EVent:THRESHold
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonEVENT_colonTHRESH_children, 75 } // Terminal: TRIGger:EVent:THRESHold
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTHRE_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonEVENT_colonTHRES_children, 0 }
@@ -4123,10 +5645,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node_TRIGGER_colonEVENT_colonTHR_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTYPE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 68 } // Terminal: TRIGger:EVent:TYPE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 74 } // Terminal: TRIGger:EVent:TYPE?
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTYP_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTYPE_children, 67 } // Terminal: TRIGger:EVent:TYPE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonEVENT_colonTYPE_children, 73 } // Terminal: TRIGger:EVent:TYPE
     };
     const TrieNode _node_TRIGGER_colonEVENT_colonTY_children[] = {
         { 'P', 0, 1, _node_TRIGGER_colonEVENT_colonTYP_children, 0 }
@@ -4159,7 +5681,7 @@ namespace T76::SCPI {
         { 'V', 0, 2, _node_TRIGGER_colonEV_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonRESE_children[] = {
-        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 65 } // Terminal: TRIGger:RESET
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 71 } // Terminal: TRIGger:RESET
     };
     const TrieNode _node_TRIGGER_colonRES_children[] = {
         { 'E', 0, 1, _node_TRIGGER_colonRESE_children, 0 }
@@ -4171,13 +5693,13 @@ namespace T76::SCPI {
         { 'E', 0, 1, _node_TRIGGER_colonRE_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSTATUS_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 66 } // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 } // Terminal: TRIGger:STATus?
     };
     const TrieNode _node_TRIGGER_colonSTATU_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonSTATUS_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSTAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 66 }, // Terminal: TRIGger:STATus?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 72 }, // Terminal: TRIGger:STATus?
         { 'U', 0, 1, _node_TRIGGER_colonSTATU_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSTA_children[] = {
@@ -4187,10 +5709,10 @@ namespace T76::SCPI {
         { 'A', 0, 1, _node_TRIGGER_colonSTA_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonMODE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 80 } // Terminal: TRIGger:SYNC:MODE?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 86 } // Terminal: TRIGger:SYNC:MODE?
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonMOD_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonMODE_children, 79 } // Terminal: TRIGger:SYNC:MODE
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonMODE_children, 85 } // Terminal: TRIGger:SYNC:MODE
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonMO_children[] = {
         { 'D', 0, 1, _node_TRIGGER_colonSYNC_colonMOD_children, 0 }
@@ -4199,10 +5721,10 @@ namespace T76::SCPI {
         { 'O', 0, 1, _node_TRIGGER_colonSYNC_colonMO_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSEWIDTH_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 82 } // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 88 } // Terminal: TRIGger:SYNC:PULSEwidth?
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSEWIDT_children[] = {
-        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonPULSEWIDTH_children, 81 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 1, _node_TRIGGER_colonSYNC_colonPULSEWIDTH_children, 87 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSEWID_children[] = {
         { 'T', 0, 1, _node_TRIGGER_colonSYNC_colonPULSEWIDT_children, 0 }
@@ -4214,11 +5736,11 @@ namespace T76::SCPI {
         { 'I', 0, 1, _node_TRIGGER_colonSYNC_colonPULSEWI_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULSE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 82 }, // Terminal: TRIGger:SYNC:PULSEwidth?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 88 }, // Terminal: TRIGger:SYNC:PULSEwidth?
         { 'W', 0, 1, _node_TRIGGER_colonSYNC_colonPULSEW_children, 0 }
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPULS_children[] = {
-        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonSYNC_colonPULSE_children, 81 } // Terminal: TRIGger:SYNC:PULSEwidth
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 2, _node_TRIGGER_colonSYNC_colonPULSE_children, 87 } // Terminal: TRIGger:SYNC:PULSEwidth
     };
     const TrieNode _node_TRIGGER_colonSYNC_colonPUL_children[] = {
         { 'S', 0, 1, _node_TRIGGER_colonSYNC_colonPULS_children, 0 }
@@ -4296,6 +5818,12 @@ namespace T76::SCPI {
         { &T76::DRPD::App::_querySystemTimestamp, 0, nullptr }, // SYSTem:TIMEstamp?
         { &T76::DRPD::App::_querySystemHardwareRevision, 0, nullptr }, // SYSTem:HW:REVision?
         { &T76::DRPD::App::_enterFirmwareUpdater, 0, nullptr }, // SYSTem:FIRMware:UPDater
+        { &T76::DRPD::App::_queryBMCDecoderCCVrefVoltage, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { &T76::DRPD::App::_setBMCDecoderCCVrefVoltage, 1, command_10_params }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+        { &T76::DRPD::App::_resetBMCDecoderCCVrefVoltage, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+        { &T76::DRPD::App::_queryBMCDecoderCCVrefPwmFrequency, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { &T76::DRPD::App::_setBMCDecoderCCVrefPwmFrequency, 1, command_13_params }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+        { &T76::DRPD::App::_resetBMCDecoderCCVrefPwmFrequency, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
         { &T76::DRPD::App::_queryDeviceStatus, 0, nullptr }, // STATus:DEVice?
         { &T76::DRPD::App::_measureAllAnalogValues, 0, nullptr }, // MEASure:ALL?
         { &T76::DRPD::App::_measureAccumulatedValues, 0, nullptr }, // MEASure:ACCumulated?
@@ -4311,41 +5839,41 @@ namespace T76::SCPI {
         { &T76::DRPD::App::_measureCurrentRefVoltage, 0, nullptr }, // MEASure:VOLTage:REF:CURRent?
         { &T76::DRPD::App::_measureGroundRefVoltage, 0, nullptr }, // MEASure:VOLTage:REF:GND?
         { &T76::DRPD::App::_queryCCBusControllerRole, 0, nullptr }, // BUS:CC:ROLE?
-        { &T76::DRPD::App::_setCCBusControllerRole, 1, command_24_params }, // BUS:CC:ROLE
+        { &T76::DRPD::App::_setCCBusControllerRole, 1, command_30_params }, // BUS:CC:ROLE
         { &T76::DRPD::App::_queryCCBusControllerRoleStatus, 0, nullptr }, // BUS:CC:ROLE:STATus?
         { &T76::DRPD::App::_queryCCBusCaptureCycleTime, 0, nullptr }, // BUS:CC:CAPture:CYCLETIME?
         { &T76::DRPD::App::_queryCCBusCapturedMessageCount, 0, nullptr }, // BUS:CC:CAPture:COUNT?
         { &T76::DRPD::App::_queryCCBusNextCapturedMessage, 0, nullptr }, // BUS:CC:CAPture:DATA?
-        { &T76::DRPD::App::_setCCBusMessageCaptureState, 1, command_29_params }, // BUS:CC:CAPture:EN
+        { &T76::DRPD::App::_setCCBusMessageCaptureState, 1, command_35_params }, // BUS:CC:CAPture:EN
         { &T76::DRPD::App::_queryCCBusMessageCaptureState, 0, nullptr }, // BUS:CC:CAPture:EN?
         { &T76::DRPD::App::_clearCCBusCapturedMessages, 0, nullptr }, // BUS:CC:CAPture:CLEAR
         { &T76::DRPD::App::_queryVBusStatus, 0, nullptr }, // BUS:VBUS:STATus?
         { &T76::DRPD::App::_resetVBus, 0, nullptr }, // BUS:VBUS:RESET
-        { &T76::DRPD::App::_setVBusOVPThreshold, 1, command_34_params }, // BUS:VBUS:OVPThreshold
+        { &T76::DRPD::App::_setVBusOVPThreshold, 1, command_40_params }, // BUS:VBUS:OVPThreshold
         { &T76::DRPD::App::_queryVBusOVPThreshold, 0, nullptr }, // BUS:VBUS:OVPThreshold?
-        { &T76::DRPD::App::_setVBusOCPThreshold, 1, command_36_params }, // BUS:VBUS:OCPThreshold
+        { &T76::DRPD::App::_setVBusOCPThreshold, 1, command_42_params }, // BUS:VBUS:OCPThreshold
         { &T76::DRPD::App::_queryVBusOCPThreshold, 0, nullptr }, // BUS:VBUS:OCPThreshold?
         { &T76::DRPD::App::_queryVBusCalibration, 0, nullptr }, // BUS:VBUS:CALibrate?
-        { &T76::DRPD::App::_setVBusCalibrationPoint, 1, command_39_params }, // BUS:VBUS:CALibrate
-        { &T76::DRPD::App::_setVBusCalibrationTablePoint, 2, command_40_params }, // BUS:VBUS:CALibrate:TABle
+        { &T76::DRPD::App::_setVBusCalibrationPoint, 1, command_45_params }, // BUS:VBUS:CALibrate
+        { &T76::DRPD::App::_setVBusCalibrationTablePoint, 2, command_46_params }, // BUS:VBUS:CALibrate:TABle
         { &T76::DRPD::App::_resetVBusCalibration, 0, nullptr }, // BUS:VBUS:CALibrate:DEFault
         { &T76::DRPD::App::_queryVBusCurrentCalibration, 0, nullptr }, // BUS:VBUS:CALibrate:CURRent?
-        { &T76::DRPD::App::_setVBusCurrentCalibrationPoint, 1, command_43_params }, // BUS:VBUS:CALibrate:CURRent
-        { &T76::DRPD::App::_setVBusCurrentCalibrationTablePoint, 2, command_44_params }, // BUS:VBUS:CALibrate:CURRent:TABle
+        { &T76::DRPD::App::_setVBusCurrentCalibrationPoint, 1, command_49_params }, // BUS:VBUS:CALibrate:CURRent
+        { &T76::DRPD::App::_setVBusCurrentCalibrationTablePoint, 2, command_50_params }, // BUS:VBUS:CALibrate:CURRent:TABle
         { &T76::DRPD::App::_resetVBusCurrentCalibration, 0, nullptr }, // BUS:VBUS:CALibrate:CURRent:DEFault
         { &T76::DRPD::App::_querySinkAvailablePDOCount, 0, nullptr }, // SINK:PDO:COUNT?
-        { &T76::DRPD::App::_querySinkRequestedPDOAtIndex, 1, command_47_params }, // SINK:PDO?
-        { &T76::DRPD::App::_setSinkPDO, 3, command_48_params }, // SINK:PDO
+        { &T76::DRPD::App::_querySinkRequestedPDOAtIndex, 1, command_53_params }, // SINK:PDO?
+        { &T76::DRPD::App::_setSinkPDO, 3, command_54_params }, // SINK:PDO
         { &T76::DRPD::App::_querySinkRequestStatus, 0, nullptr }, // SINK:REQUEST:STATUS?
         { &T76::DRPD::App::_querySinkCapabilityCount, 0, nullptr }, // SINK:CAPability:SPR:COUNT?
-        { &T76::DRPD::App::_querySinkCapabilityPDO, 1, command_51_params }, // SINK:CAPability:SPR?
-        { &T76::DRPD::App::_setSinkCapabilityPDO, 2, command_52_params }, // SINK:CAPability:SPR
+        { &T76::DRPD::App::_querySinkCapabilityPDO, 1, command_57_params }, // SINK:CAPability:SPR?
+        { &T76::DRPD::App::_setSinkCapabilityPDO, 2, command_58_params }, // SINK:CAPability:SPR
         { &T76::DRPD::App::_querySinkEPRCapabilityCount, 0, nullptr }, // SINK:CAPability:EPR:COUNT?
-        { &T76::DRPD::App::_querySinkEPRCapabilityPDO, 1, command_54_params }, // SINK:CAPability:EPR?
-        { &T76::DRPD::App::_setSinkEPRCapabilityPDO, 2, command_55_params }, // SINK:CAPability:EPR
-        { &T76::DRPD::App::_setSinkEPREntryState, 1, command_56_params }, // SINK:EPR:EN
+        { &T76::DRPD::App::_querySinkEPRCapabilityPDO, 1, command_60_params }, // SINK:CAPability:EPR?
+        { &T76::DRPD::App::_setSinkEPRCapabilityPDO, 2, command_61_params }, // SINK:CAPability:EPR
+        { &T76::DRPD::App::_setSinkEPREntryState, 1, command_62_params }, // SINK:EPR:EN
         { &T76::DRPD::App::_querySinkEPREntryState, 0, nullptr }, // SINK:EPR:EN?
-        { &T76::DRPD::App::_setSinkPPSStatusQueryState, 1, command_58_params }, // SINK:PPS:STATUS:EN
+        { &T76::DRPD::App::_setSinkPPSStatusQueryState, 1, command_64_params }, // SINK:PPS:STATUS:EN
         { &T76::DRPD::App::_querySinkPPSStatusQueryState, 0, nullptr }, // SINK:PPS:STATUS:EN?
         { &T76::DRPD::App::_querySinkStatus, 0, nullptr }, // SINK:STATUS?
         { &T76::DRPD::App::_querySinkNegotiatedPDO, 0, nullptr }, // SINK:STATUS:PDO?
@@ -4354,38 +5882,38 @@ namespace T76::SCPI {
         { &T76::DRPD::App::_querySinkErrorStatus, 0, nullptr }, // SINK:STATUS:ERROR?
         { &T76::DRPD::App::_resetTriggerController, 0, nullptr }, // TRIGger:RESET
         { &T76::DRPD::App::_queryTriggerControllerStatus, 0, nullptr }, // TRIGger:STATus?
-        { &T76::DRPD::App::_setTriggerEventType, 1, command_67_params }, // TRIGger:EVent:TYPE
+        { &T76::DRPD::App::_setTriggerEventType, 1, command_73_params }, // TRIGger:EVent:TYPE
         { &T76::DRPD::App::_queryTriggerEventType, 0, nullptr }, // TRIGger:EVent:TYPE?
-        { &T76::DRPD::App::_setTriggerEventThreshold, 1, command_69_params }, // TRIGger:EVent:THRESHold
+        { &T76::DRPD::App::_setTriggerEventThreshold, 1, command_75_params }, // TRIGger:EVent:THRESHold
         { &T76::DRPD::App::_queryTriggerEventThreshold, 0, nullptr }, // TRIGger:EVent:THRESHold?
-        { &T76::DRPD::App::_setTriggerEventSenderFilter, 1, command_71_params }, // TRIGger:EVent:SENDer
+        { &T76::DRPD::App::_setTriggerEventSenderFilter, 1, command_77_params }, // TRIGger:EVent:SENDer
         { &T76::DRPD::App::_queryTriggerEventSenderFilter, 0, nullptr }, // TRIGger:EVent:SENDer?
-        { &T76::DRPD::App::_setTriggerEventMessageTypeFilter, 2, command_73_params }, // TRIGger:EVent:MSGType:FILTer
+        { &T76::DRPD::App::_setTriggerEventMessageTypeFilter, 2, command_79_params }, // TRIGger:EVent:MSGType:FILTer
         { &T76::DRPD::App::_queryTriggerEventMessageTypeFilter, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer?
         { &T76::DRPD::App::_clearTriggerEventMessageTypeFilter, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer:CLEAR
-        { &T76::DRPD::App::_setTriggerAutoRepeatState, 1, command_76_params }, // TRIGger:EVent:AUTOREPEAT
+        { &T76::DRPD::App::_setTriggerAutoRepeatState, 1, command_82_params }, // TRIGger:EVent:AUTOREPEAT
         { &T76::DRPD::App::_queryTriggerAutoRepeatState, 0, nullptr }, // TRIGger:EVent:AUTOREPEAT?
         { &T76::DRPD::App::_queryTriggerEventCount, 0, nullptr }, // TRIGger:EVent:COUNT?
-        { &T76::DRPD::App::_setSyncOutputMode, 1, command_79_params }, // TRIGger:SYNC:MODE
+        { &T76::DRPD::App::_setSyncOutputMode, 1, command_85_params }, // TRIGger:SYNC:MODE
         { &T76::DRPD::App::_querySyncOutputMode, 0, nullptr }, // TRIGger:SYNC:MODE?
-        { &T76::DRPD::App::_setSyncPulseWidth, 1, command_81_params }, // TRIGger:SYNC:PULSEwidth
+        { &T76::DRPD::App::_setSyncPulseWidth, 1, command_87_params }, // TRIGger:SYNC:PULSEwidth
         { &T76::DRPD::App::_querySyncPulseWidth, 0, nullptr }, // TRIGger:SYNC:PULSEwidth?
-        { &T76::DRPD::App::_setVBusManagerState, 1, command_83_params }, // TEST:VBUSMAN:EN
+        { &T76::DRPD::App::_setVBusManagerState, 1, command_89_params }, // TEST:VBUSMAN:EN
         { &T76::DRPD::App::_queryVBusManagerState, 0, nullptr }, // TEST:VBUSMAN:EN?
-        { &T76::DRPD::App::_setCC1Role, 1, command_85_params }, // TEST:CCROLE:CC1
+        { &T76::DRPD::App::_setCC1Role, 1, command_91_params }, // TEST:CCROLE:CC1
         { &T76::DRPD::App::_queryCC1Role, 0, nullptr }, // TEST:CCROLE:CC1?
-        { &T76::DRPD::App::_setCC2Role, 1, command_87_params }, // TEST:CCROLE:CC2
+        { &T76::DRPD::App::_setCC2Role, 1, command_93_params }, // TEST:CCROLE:CC2
         { &T76::DRPD::App::_queryCC2Role, 0, nullptr }, // TEST:CCROLE:CC2?
-        { &T76::DRPD::App::_setDUTChannel, 1, command_89_params }, // TEST:CCBUS:DUT:CHANNEL
+        { &T76::DRPD::App::_setDUTChannel, 1, command_95_params }, // TEST:CCBUS:DUT:CHANNEL
         { &T76::DRPD::App::_queryDUTChannel, 0, nullptr }, // TEST:CCBUS:DUT:CHANNEL?
-        { &T76::DRPD::App::_setUSDSChannel, 1, command_91_params }, // TEST:CCBUS:USDS:CHANNEL
+        { &T76::DRPD::App::_setUSDSChannel, 1, command_97_params }, // TEST:CCBUS:USDS:CHANNEL
         { &T76::DRPD::App::_queryUSDSChannel, 0, nullptr }, // TEST:CCBUS:USDS:CHANNEL?
-        { &T76::DRPD::App::_setCCMuxState, 1, command_93_params }, // TEST:CCBUS:MUX
+        { &T76::DRPD::App::_setCCMuxState, 1, command_99_params }, // TEST:CCBUS:MUX
         { &T76::DRPD::App::_queryCCMuxState, 0, nullptr }, // TEST:CCBUS:MUX?
     };
 
     template<>
-    const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_commandCount = 95;
+    const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_commandCount = 101;
 
     template<>
     const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_maxParameterCount = 3;

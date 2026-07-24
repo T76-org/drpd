@@ -723,7 +723,7 @@ const openPairedDeviceSubmenu = async (name: string | RegExp): Promise<void> => 
 
 const openCalibrationMenuItem = async (
   deviceName: string | RegExp,
-  kind: 'Voltage...' | 'Current...',
+  kind: 'Voltage...' | 'Current...' | 'Internal settings...',
 ): Promise<void> => {
   await openPairedDeviceSubmenu(deviceName)
   await userEvent.click(await screen.findByRole('menuitem', { name: 'Calibrate' }))
@@ -2549,6 +2549,7 @@ describe('RackView', () => {
   })
 
   it('opens calibration menu items under connected paired devices', async () => {
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.24']
     saveRackDocument(buildHydratedRackDocument())
     mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -2559,6 +2560,40 @@ describe('RackView', () => {
 
     expect(await screen.findByRole('menuitem', { name: 'Voltage...' })).toBeInTheDocument()
     expect(await screen.findByRole('menuitem', { name: 'Current...' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Internal settings...' })).toBeInTheDocument()
+  })
+
+  it('hides BMC decoder configuration before firmware 0.9.24', async () => {
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.23']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openPairedDeviceSubmenu('Dr. PD #DRPD-TEST-001')
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Calibrate' }))
+
+    expect(screen.queryByRole('menuitem', { name: 'Internal settings...' })).not.toBeInTheDocument()
+  })
+
+  it('warns before opening BMC decoder configuration', async () => {
+    mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.24']
+    saveRackDocument(buildHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await pairNewDeviceFromMenu()
+    await openCalibrationMenuItem('Dr. PD #DRPD-TEST-001', 'Internal settings...')
+    const warning = await screen.findByRole('dialog', { name: 'Warning' })
+    expect(within(warning).queryByText(/Dr\. PD #DRPD-TEST-001/)).not.toBeInTheDocument()
+    expect(within(warning).getByText(/changing internal settings/i)).toBeInTheDocument()
+    expect(within(warning).getByText(/render it inoperable/i)).toBeInTheDocument()
+    await userEvent.click(within(warning).getByLabelText(/do not show this again/i))
+    await userEvent.click(within(warning).getByRole('button', { name: 'Cancel' }))
+
+    expect(
+      window.localStorage.getItem('drpd:bmc-decoder-configuration-warning-suppressed'),
+    ).toBeNull()
   })
 
   it('cancels the calibration safety warning without sending calibration commands', async () => {

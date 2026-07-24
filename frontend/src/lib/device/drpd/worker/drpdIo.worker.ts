@@ -704,6 +704,28 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
           await session.device.system.enterFirmwareUpdate()
           return null
         }
+        if (method === 'getBMCDecoderCCVrefVoltage') {
+          return await session.device.system.configuration.bmcDecoder.getCCVrefVoltage()
+        }
+        if (method === 'setBMCDecoderCCVrefVoltage') {
+          await session.device.system.configuration.bmcDecoder.setCCVrefVoltage(args[0] as number)
+          return null
+        }
+        if (method === 'resetBMCDecoderCCVrefVoltage') {
+          await session.device.system.configuration.bmcDecoder.resetCCVrefVoltage()
+          return null
+        }
+        if (method === 'getBMCDecoderCCVrefPwmFrequencyHz') {
+          return await session.device.system.configuration.bmcDecoder.getCCVrefPwmFrequencyHz()
+        }
+        if (method === 'setBMCDecoderCCVrefPwmFrequencyHz') {
+          await session.device.system.configuration.bmcDecoder.setCCVrefPwmFrequencyHz(args[0] as number)
+          return null
+        }
+        if (method === 'resetBMCDecoderCCVrefPwmFrequencyHz') {
+          await session.device.system.configuration.bmcDecoder.resetCCVrefPwmFrequencyHz()
+          return null
+        }
         throw new Error(`Unsupported system method: ${method}`)
       }
       if (target === 'trigger') {
