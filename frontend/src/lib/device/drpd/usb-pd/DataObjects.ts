@@ -217,7 +217,13 @@ export interface ParsedRDO extends ParsedDataObject {
 }
 
 export const inferRequestTypeHintFromRaw = (raw: number): ParsedRDO['requestTypeHint'] => {
-  if (getBits(raw, 8, 7) === 0 && (getBits(raw, 20, 9) !== 0 || getBits(raw, 6, 0) !== 0)) {
+  // Source PDO 1 is always the vSafe5V Fixed Supply PDO.
+  if (getBits(raw, 31, 28) === 1) {
+    return 'fixed_variable'
+  }
+  const ppsVoltageMv = getBits(raw, 20, 9) * 20
+  const ppsCurrent50mA = getBits(raw, 6, 0)
+  if (getBits(raw, 8, 7) === 0 && ppsVoltageMv >= 3300 && ppsVoltageMv <= 21000 && ppsCurrent50mA !== 0) {
     return 'pps'
   }
   return 'fixed_variable'

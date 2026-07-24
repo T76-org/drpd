@@ -18,3 +18,14 @@ clang++ -std=c++20 -Wall -Wextra -Werror \
   -o /tmp/drpd-source-capabilities-decoder-test
 /tmp/drpd-source-capabilities-decoder-test
 ```
+
+Run the PPS Request encoding regression with:
+
+```sh
+clang++ -std=c++20 -Wall -Wextra -Werror \
+  -Ifirmware/lib/proto/pd_messages \
+  firmware/tests/pps_request_encoding_test.cpp \
+  firmware/lib/proto/pd_messages/request.cpp \
+  -o /tmp/drpd-pps-request-encoding-test
+/tmp/drpd-pps-request-encoding-test
+```
