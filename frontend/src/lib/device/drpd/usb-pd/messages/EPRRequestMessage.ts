@@ -3,11 +3,10 @@ import { HumanReadableField } from '../humanReadableField'
 import {
   buildPDOMetadata,
   buildRDOMetadata,
-  inferRequestTypeHintFromPDO,
-  inferRequestTypeHintFromRaw,
   parsePDO,
   parseRDO,
   readDataObjects,
+  resolveRequestTypeFromPDO,
   type ParsedPDO,
   type ParsedRDO,
 } from '../DataObjects'
@@ -121,6 +120,11 @@ export class EPRRequestMessage extends DataMessage {
     this.rdo = parseRDO(objects[0])
     this.rawPDOCopy = objects[1]
     this.requestedPDOCopy = parsePDO(objects[1], 'source')
+    const resolution = resolveRequestTypeFromPDO(this.requestedPDOCopy, 'copied_pdo')
+    if (resolution) {
+      this.rdo.requestTypeResolution = resolution
+      this.rdo.requestTypeHint = resolution.type
+    }
   }
 
   /**
@@ -134,11 +138,7 @@ export class EPRRequestMessage extends DataMessage {
       return `Could not decode the Extended Power Range Request Data Object.${parseErrorText}`.trim()
     }
 
-    const requestTypeHint = this.requestedPDOCopy
-      ? inferRequestTypeHintFromPDO(this.requestedPDOCopy)
-      : this.rawRDO !== null
-        ? inferRequestTypeHintFromRaw(this.rawRDO)
-        : this.rdo.requestTypeHint
+    const requestTypeHint = this.rdo.requestTypeResolution.type
     const lines = [
       '**Extended Power Range request:**',
       '',
@@ -200,15 +200,7 @@ export class EPRRequestMessage extends DataMessage {
     )
 
     if (this.rdo) {
-      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata({
-        ...this.rdo,
-        requestTypeHint:
-          this.requestedPDOCopy
-            ? inferRequestTypeHintFromPDO(this.requestedPDOCopy)
-            : this.rawRDO !== null
-              ? inferRequestTypeHintFromRaw(this.rawRDO)
-              : this.rdo.requestTypeHint,
-      }))
+      metadata.messageSpecificData.setEntry('requestDataObject', buildRDOMetadata(this.rdo))
     }
     if (this.requestedPDOCopy) {
       metadata.messageSpecificData.setEntry('requestedPowerDataObject', buildPDOMetadata(this.requestedPDOCopy))
