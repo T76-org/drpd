@@ -71,6 +71,8 @@ export const getTimestripEventColor = (
       return theme.eventMarkColor
     case 'sink_errors':
       return theme.eventSinkErrorsColor
+    case 'sink_warning':
+      return theme.eventSinkWarningColor
     case 'sync_trigger':
       return theme.eventSyncTriggerColor
     case 'vbus_ovp':

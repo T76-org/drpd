@@ -9,7 +9,13 @@ import type { LoggedCapturedMessage } from './logging'
 import { Header } from './usb-pd/header'
 import { HumanReadableField, type HumanReadableMetadataRoot } from './usb-pd/humanReadableField'
 import { parseUSBPDMessage } from './usb-pd/parser'
-import type { Message } from './usb-pd/message'
+import {
+  EPRSourceCapabilitiesMessage,
+  RequestMessage,
+  SourceCapabilitiesMessage,
+  type Message,
+} from './usb-pd/message'
+import { resolveRequestTypeFromPDO, type ParsedPDO, type RequestTypeResolution } from './usb-pd/DataObjects'
 import { SOP } from './usb-pd/sop'
 import type { SOPKind } from './usb-pd/types'
 import { CaptureDecodeResult } from './types'
@@ -549,10 +555,44 @@ export const decodeLoggedCapturedMessageWithContext = (
   }
   const targetPayload = buildRowPayload(row)
   const reassemblyStates = new Map<string, ChunkReassemblyState>()
+  let sourcePdos: ParsedPDO[] | null = null
+  let sourcePdoResolutionSource: RequestTypeResolution['source'] = 'source_capabilities'
+  const updateRequestContext = (decoded: DecodedLoggedCapturedMessage): void => {
+    if (decoded.kind !== 'message') return
+    if (decoded.message instanceof SourceCapabilitiesMessage) {
+      sourcePdos = decoded.message.decodedPDOs
+      sourcePdoResolutionSource = 'source_capabilities'
+      return
+    }
+    if (decoded.message instanceof EPRSourceCapabilitiesMessage) {
+      sourcePdos = [...decoded.message.sprPDOs, ...decoded.message.eprPDOs]
+      sourcePdoResolutionSource = 'epr_source_capabilities'
+      return
+    }
+    if (decoded.message instanceof RequestMessage && sourcePdos) {
+      const objectPosition = decoded.message.rdo?.objectPosition ?? 0
+      const requestedPdo = objectPosition > 0 ? sourcePdos[objectPosition - 1] : undefined
+      if (requestedPdo) {
+        const resolution = resolveRequestTypeFromPDO(requestedPdo, sourcePdoResolutionSource)
+        if (resolution) decoded.message.setReferencedPDO(requestedPdo, resolution)
+      }
+    }
+  }
   for (const candidate of orderedRows) {
     if (candidate.entryKind !== 'message') {
+      if (candidate.eventType === 'cc_status_changed' || candidate.eventType === 'cc_role_changed') {
+        sourcePdos = null
+      }
       if (candidate === row) {
         return { kind: 'event', row: candidate }
+      }
+      continue
+    }
+    const candidateResetKind = getRowResetSignalKind(candidate)
+    if (candidateResetKind) {
+      if (candidateResetKind === 'SOP_HARD_RESET') sourcePdos = null
+      if (candidate === row) {
+        return { kind: 'reset', row: candidate, resetKind: candidateResetKind, metadata: buildResetSignalMetadata(candidate, candidateResetKind) }
       }
       continue
     }
@@ -589,8 +629,11 @@ export const decodeLoggedCapturedMessageWithContext = (
         reassemblyStates.delete(buildExtendedChunkKey(packet))
       }
       if (candidate === row) {
-        return decodeParsedPacket(candidate, packet.payload)
+        const decoded = decodeParsedPacket(candidate, packet.payload)
+        updateRequestContext(decoded)
+        return decoded
       }
+      updateRequestContext(decodeParsedPacket(candidate, packet.payload))
       continue
     }
 
@@ -644,8 +687,10 @@ export const decodeLoggedCapturedMessageWithContext = (
     if (isComplete) {
       const reassembledPayload = buildReassembledPayload(currentState)
       reassemblyStates.delete(fragmentKey)
+      const decoded = decodeParsedPacket(candidate, reassembledPayload, candidate === row ? targetPayload : undefined)
+      updateRequestContext(decoded)
       if (candidate === row) {
-        return decodeParsedPacket(candidate, reassembledPayload, targetPayload)
+        return decoded
       }
       continue
     }

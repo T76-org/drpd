@@ -198,13 +198,15 @@ describe('SQLiteWasmStore', () => {
       startTimestampUs: 1_000n,
       endTimestampUs: 2_000n,
       messageKinds: ['CONTROL'],
+      messageTypes: [2],
       senderPowerRoles: ['SOURCE'],
       senderDataRoles: ['DFP'],
       sopKinds: ['SOP'],
     })
 
-    expect(filtered.length).toBe(3)
+    expect(filtered.length).toBe(1)
     expect(filtered.every((row) => row.messageKind === 'CONTROL')).toBe(true)
+    expect(filtered.every((row) => row.messageType === 2)).toBe(true)
     expect(filtered.every((row) => row.senderPowerRole === 'SOURCE')).toBe(true)
     expect(filtered.every((row) => row.senderDataRole === 'DFP')).toBe(true)
     expect(filtered.every((row) => row.sopKind === 'SOP')).toBe(true)

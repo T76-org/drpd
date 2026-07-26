@@ -912,6 +912,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       isWallClockQuery ? row.wallClockUs : row.startTimestampUs
     if (this.memoryFallback) {
       const hasMessageKinds = Boolean(query.messageKinds?.length)
+      const hasMessageTypes = Boolean(query.messageTypes?.length)
       const hasSenderPowerRoles = Boolean(query.senderPowerRoles?.length)
       const hasSenderDataRoles = Boolean(query.senderDataRoles?.length)
       const hasSopKinds = Boolean(query.sopKinds?.length)
@@ -927,6 +928,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
             return false
           }
           if (hasMessageKinds && (!row.messageKind || !query.messageKinds?.includes(row.messageKind))) {
+            return false
+          }
+          if (hasMessageTypes && (row.messageType === null || !query.messageTypes?.includes(row.messageType))) {
             return false
           }
           if (
@@ -966,6 +970,7 @@ export class SQLiteWasmStore implements DRPDLogStore {
       query.endTimestampUs === SQLITE_MAX_TIMESTAMP_US &&
       !isWallClockQuery &&
       !query.messageKinds?.length &&
+      !query.messageTypes?.length &&
       !query.senderPowerRoles?.length &&
       !query.senderDataRoles?.length &&
       !query.sopKinds?.length &&
@@ -1228,6 +1233,10 @@ export class SQLiteWasmStore implements DRPDLogStore {
       clauses.push(`message_kind IN (${query.messageKinds.map(() => '?').join(', ')})`)
       bind.push(...query.messageKinds)
     }
+    if (query.messageTypes?.length) {
+      clauses.push(`message_type IN (${query.messageTypes.map(() => '?').join(', ')})`)
+      bind.push(...query.messageTypes)
+    }
     if (query.senderPowerRoles?.length) {
       clauses.push(`sender_power_role IN (${query.senderPowerRoles.map(() => '?').join(', ')})`)
       bind.push(...query.senderPowerRoles)
@@ -1332,6 +1341,9 @@ export class SQLiteWasmStore implements DRPDLogStore {
           return false
         }
         if (query.messageKinds?.length && (!row.messageKind || !query.messageKinds.includes(row.messageKind))) {
+          return false
+        }
+        if (query.messageTypes?.length && (row.messageType === null || !query.messageTypes.includes(row.messageType))) {
           return false
         }
         if (

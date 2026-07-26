@@ -76,6 +76,7 @@ export type LoggedCapturedEventType =
   | 'firmware_event'
   | 'mark'
   | 'sink_errors'
+  | 'sink_warning'
   | 'sync_trigger'
   | 'vbus_ovp'
   | 'vbus_ocp'
@@ -164,6 +165,8 @@ export interface CapturedMessageQuery {
   sortOrder?: 'asc' | 'desc'
   ///< Optional message kind filter.
   messageKinds?: string[]
+  ///< Optional numeric USB-PD message type filter.
+  messageTypes?: number[]
   ///< Optional sender power role filter.
   senderPowerRoles?: string[]
   ///< Optional sender data role filter.

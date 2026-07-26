@@ -67,6 +67,7 @@ const FIRMWARE_EVENT_CC_BUS_ROLE_OBSERVER = 7
 const FIRMWARE_EVENT_CC_BUS_ROLE_SINK = 8
 const FIRMWARE_EVENT_SINK_ERRORS = 9
 const FIRMWARE_EVENT_SYNC_TRIGGER = 10
+const FIRMWARE_EVENT_SINK_WARNING = 11
 
 /**
  * Optional DRPD device constructor overrides.
@@ -2235,6 +2236,10 @@ export class DRPDDevice extends EventTarget {
 
     if (event.eventType === FIRMWARE_EVENT_SYNC_TRIGGER) {
       return { eventType: 'sync_trigger', eventText: event.eventText }
+    }
+
+    if (event.eventType === FIRMWARE_EVENT_SINK_WARNING) {
+      return { eventType: 'sink_warning', eventText: event.eventText }
     }
 
     return {

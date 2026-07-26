@@ -190,6 +190,17 @@ void SinkContext::reportError(const char *reason, std::optional<SinkResetType> r
     _notifySinkError(reason, resetType);
 }
 
+void SinkContext::reportWarning(const char *reason) {
+    if (_sinkErrorCallback) {
+        _sinkErrorCallback(SinkErrorEvent{
+            .reason = reason,
+            .state = _runtimeState._state,
+            .resetType = std::nullopt,
+            .severity = SinkDiagnosticSeverity::Warning,
+        });
+    }
+}
+
 void SinkContext::handleReceivedSoftReset() {
     _messageSender.reset();
     _runtimeState.resetStoredReceivedMessageId();

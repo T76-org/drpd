@@ -17,6 +17,7 @@ import { DrpdMessageDetailInstrumentView } from './DrpdMessageDetailInstrumentVi
 class TestSelectionDriver extends EventTarget {
   public logSelection: DRPDLogSelectionState
   public rows: LoggedCapturedMessage[]
+  public queries: Array<{ startTimestampUs: bigint; endTimestampUs: bigint; sortOrder?: 'asc' | 'desc'; limit?: number }> = []
   public lastQuery:
     | {
         startTimestampUs: bigint
@@ -43,6 +44,7 @@ class TestSelectionDriver extends EventTarget {
     limit?: number
   }): Promise<LoggedCapturedMessage[]> {
     this.lastQuery = query
+    this.queries.push(query)
     const filtered = this.rows.filter(
       (row) =>
         row.startTimestampUs >= query.startTimestampUs &&
@@ -961,12 +963,18 @@ describe('DrpdMessageDetailInstrumentView', () => {
       expect.stringContaining('Message body'),
     )
     expect(await screen.findByText('Power Data Objects')).toBeInTheDocument()
-    expect(driver.lastQuery).toMatchObject({
+    expect(driver.queries).toContainEqual(expect.objectContaining({
       startTimestampUs: 0n,
       endTimestampUs: 1010n,
       sortOrder: 'desc',
       limit: 64,
-    })
+    }))
+    expect(driver.queries).toContainEqual(expect.objectContaining({
+      messageKinds: ['DATA', 'EXTENDED'],
+      messageTypes: [0x01, 0x11],
+      senderPowerRoles: ['SOURCE'],
+      limit: 16,
+    }))
   })
 
   it('shows an explanatory message for incomplete chunked extended-message selections', async () => {
