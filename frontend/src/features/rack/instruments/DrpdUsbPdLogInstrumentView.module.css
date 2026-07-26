@@ -308,6 +308,12 @@
   background: var(--color-log-event-sink-errors-bg);
 }
 
+.eventRowSinkWarning {
+  --event-row-accent: var(--color-log-event-sink-warning);
+  color: var(--color-log-event-sink-warning);
+  background: var(--color-log-event-sink-warning-bg);
+}
+
 .eventRowSyncTrigger {
   --event-row-accent: var(--color-log-event-sync-trigger);
   color: var(--color-log-event-sync-trigger);

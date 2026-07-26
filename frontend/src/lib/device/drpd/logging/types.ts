@@ -76,6 +76,7 @@ export type LoggedCapturedEventType =
   | 'firmware_event'
   | 'mark'
   | 'sink_errors'
+  | 'sink_warning'
   | 'sync_trigger'
   | 'vbus_ovp'
   | 'vbus_ocp'

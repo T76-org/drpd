@@ -101,6 +101,7 @@ namespace T76::DRPD {
         Logic::SinkState state = Logic::SinkState::Unknown; ///< Sink state when reported.
         bool hasResetType = false;          ///< True when resetType is meaningful.
         Logic::SinkResetType resetType = Logic::SinkResetType::Internal; ///< Associated reset type.
+        Logic::SinkDiagnosticSeverity severity = Logic::SinkDiagnosticSeverity::Error; ///< Diagnostic severity.
     };
 
     struct PendingSyncTriggerEvent {
@@ -459,6 +460,7 @@ namespace T76::DRPD {
         static constexpr uint32_t _captureEventCCBusRoleSink = 8; ///< Firmware event ID for CC bus sink role.
         static constexpr uint32_t _captureEventSinkError = 9; ///< Firmware event ID for Sink errors.
         static constexpr uint32_t _captureEventSyncTrigger = 10; ///< Firmware event ID for sync trigger events.
+        static constexpr uint32_t _captureEventSinkWarning = 11; ///< Firmware event ID for recoverable Sink warnings.
 
         std::atomic<uint32_t> _deviceStatusRegister{0};
         std::atomic<bool> _interruptPending{false};

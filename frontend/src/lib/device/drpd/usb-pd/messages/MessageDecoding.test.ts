@@ -1155,6 +1155,46 @@ describe('USB-PD extended message decoding', () => {
     expect(block?.getEntry('outputCurrent50mA')?.value).toBe('Not supported')
   })
 
+  it.each([
+    {
+      frame: [
+        0x18, 0x18, 0x18, 0x11, 0xac, 0xab, 0x01, 0x80,
+        0x4d, 0x01, 0x00, 0x00, 0x00, 0x00, 0x76, 0x44, 0x05, 0xfc,
+      ],
+      voltage20mV: 0x014d,
+      voltageText: '6.66V',
+    },
+    {
+      frame: [
+        0x18, 0x18, 0x18, 0x11, 0xac, 0xad, 0x01, 0x80,
+        0x1f, 0x02, 0x00, 0x00, 0x00, 0x00, 0xd0, 0xee, 0xf9, 0x89,
+      ],
+      voltage20mV: 0x021f,
+      voltageText: '10.86V',
+    },
+  ])('recovers a PPS_Status whose Data Size incorrectly counts 32-bit blocks', ({ frame, voltage20mV, voltageText }) => {
+    const message = parseUSBPDMessage(Uint8Array.from(frame))
+    expect(message).toBeInstanceOf(PPSStatusMessage)
+    const decoded = message as PPSStatusMessage
+    expect(decoded.ppsStatusDataBlock?.outputVoltage20mV).toBe(voltage20mV)
+    expect(decoded.parseErrors).toEqual([
+      'Malformed extended header: PPS_Status declared Data Size 1; decoded the 4-byte PPSSDB from the packet payload.',
+    ])
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain(`- Output voltage: ${voltageText}`)
+    expect(summary?.value).toContain('> Warning: Malformed extended header')
+  })
+
+  it('does not recover the malformed PPS_Status Data Size quirk with non-zero padding', () => {
+    const rawFrame = Uint8Array.from([
+      0x18, 0x18, 0x18, 0x11, 0xac, 0xab, 0x01, 0x80,
+      0x4d, 0x01, 0x00, 0x00, 0x01, 0x00, 0x76, 0x44, 0x05, 0xfc,
+    ])
+    const message = parseUSBPDMessage(rawFrame) as PPSStatusMessage
+    expect(message.ppsStatusDataBlock).toBeNull()
+    expect(message.describe()).toContain('Could not decode the PPS Status Data Block')
+  })
+
   it('decodes Country_Info and Country_Codes', () => {
     const cidb = [0x55, 0x53, 0x00, 0x00, 0x41, 0x42, 0x43]
     const headerInfo = makeMessageHeader({

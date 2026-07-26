@@ -2,6 +2,11 @@ import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
 import { buildPPSStatusDataBlockMetadata, parsePPSStatusDataBlock, type ParsedPPSStatusDataBlock } from '../DataObjects'
 
+const CRC_LENGTH = 4
+const PPS_STATUS_DATA_LENGTH = 4
+const CHUNKED_PPS_STATUS_PADDING_LENGTH = 2
+const MALFORMED_DATA_SIZE_WARNING = 'Malformed extended header: PPS_Status declared Data Size 1; decoded the 4-byte PPSSDB from the packet payload.'
+
 const formatScaledValue = (value: number): string => Number(value.toFixed(2)).toString()
 
 const formatVoltageMv = (valueMv: number): string => `${formatScaledValue(valueMv / 1000)}V`
@@ -74,13 +79,31 @@ export class PPSStatusMessage extends ExtendedMessage {
     this.requestChunk = extended?.requestChunk ?? false
     this.rawPayload = payload.subarray(this.payloadOffset)
     const dataEnd = this.payloadOffset + this.dataSize
+    const recoveredMalformedDataSize =
+      this.chunked &&
+      this.chunkNumber === 0 &&
+      !this.requestChunk &&
+      this.dataSize === 1 &&
+      header.messageHeader.numberOfDataObjects === 2 &&
+      payload.length === this.payloadOffset + PPS_STATUS_DATA_LENGTH + CHUNKED_PPS_STATUS_PADDING_LENGTH + CRC_LENGTH &&
+      payload[this.payloadOffset + 4] === 0 &&
+      payload[this.payloadOffset + 5] === 0
+
+    if (recoveredMalformedDataSize) {
+      this.parseErrors.push(MALFORMED_DATA_SIZE_WARNING)
+      this.ppsStatusDataBlock = parsePPSStatusDataBlock(
+        payload.subarray(this.payloadOffset, this.payloadOffset + PPS_STATUS_DATA_LENGTH),
+      )
+      return
+    }
+
     if (payload.length < dataEnd) {
       this.parseErrors.push(
         `PPS_Status expected ${this.dataSize} bytes but only ${payload.length - this.payloadOffset} available`,
       )
     }
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
-    this.ppsStatusDataBlock = dataBlock.length >= 4 ? parsePPSStatusDataBlock(dataBlock) : null
+    this.ppsStatusDataBlock = dataBlock.length >= PPS_STATUS_DATA_LENGTH ? parsePPSStatusDataBlock(dataBlock) : null
   }
 
   /**
@@ -97,7 +120,7 @@ export class PPSStatusMessage extends ExtendedMessage {
       return `Could not decode the PPS Status Data Block.${parseErrorText}`.trim()
     }
 
-    return [
+    const summary = [
       '**Programmable Power Supply status:**',
       '',
       `- Output voltage: ${formatOutputVoltage(this.ppsStatusDataBlock)}`,
@@ -105,6 +128,10 @@ export class PPSStatusMessage extends ExtendedMessage {
       `- Temperature flag: ${describeTemperatureFlag(this.ppsStatusDataBlock.realTimeFlags)}`,
       `- Operating mode: ${describeOperatingMode(this.ppsStatusDataBlock.realTimeFlags)}`,
     ].join('\n')
+
+    return this.parseErrors.length > 0
+      ? `${summary}\n\n> Warning: ${this.parseErrors.join(' ')}`
+      : summary
   }
 
   /**
