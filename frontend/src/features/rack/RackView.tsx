@@ -103,6 +103,11 @@ import {
   type CalibrationKind,
 } from './overlays/calibration/CalibrationDialogs'
 import {
+  BMCDecoderConfigurationDialog,
+  BMCDecoderConfigurationSafetyDialog,
+  type BMCDecoderConfigurationTarget,
+} from './overlays/calibration/BMCDecoderConfigurationDialogs'
+import {
   MessageLogClearPopover,
   MessageLogImportConfirmPopover,
   MessageLogImportPopover,
@@ -139,6 +144,8 @@ const THEME_STORAGE_KEY = 'drpd:theme'
 const LEGACY_HIGH_CONTRAST_STORAGE_KEY = 'drpd:theme:high-contrast'
 const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
 const CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY = 'drpd:calibration-warning-suppressed'
+const BMC_DECODER_CONFIGURATION_WARNING_SUPPRESSED_STORAGE_KEY =
+  'drpd:bmc-decoder-configuration-warning-suppressed'
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
@@ -300,6 +307,7 @@ const mergeRackDeviceIdentity = (
 }
 
 const MIN_SINK_BEHAVIOUR_FIRMWARE_VERSION = parseFirmwareVersion('0.9.13')
+const MIN_BMC_DECODER_CONFIGURATION_FIRMWARE_VERSION = parseFirmwareVersion('0.9.24')
 
 const supportsSinkBehaviourSettings = (firmwareVersion: string | undefined): boolean => {
   if (!firmwareVersion) {
@@ -309,6 +317,20 @@ const supportsSinkBehaviourSettings = (firmwareVersion: string | undefined): boo
     return compareFirmwareVersions(
       parseFirmwareVersion(firmwareVersion),
       MIN_SINK_BEHAVIOUR_FIRMWARE_VERSION,
+    ) >= 0
+  } catch {
+    return false
+  }
+}
+
+const supportsBMCDecoderConfiguration = (firmwareVersion: string | undefined): boolean => {
+  if (!firmwareVersion) {
+    return false
+  }
+  try {
+    return compareFirmwareVersions(
+      parseFirmwareVersion(firmwareVersion),
+      MIN_BMC_DECODER_CONFIGURATION_FIRMWARE_VERSION,
     ) >= 0
   } catch {
     return false
@@ -904,6 +926,12 @@ export const RackView = ({
   const [calibrationDialogTarget, setCalibrationDialogTarget] =
     useState<CalibrationDialogTarget | null>(null)
   const [calibrationStartError, setCalibrationStartError] = useState<string | null>(null)
+  const [bmcDecoderConfigurationWarningTarget, setBMCDecoderConfigurationWarningTarget] =
+    useState<BMCDecoderConfigurationTarget | null>(null)
+  const [bmcDecoderConfigurationWarningSuppressInput, setBMCDecoderConfigurationWarningSuppressInput] =
+    useState(false)
+  const [bmcDecoderConfigurationTarget, setBMCDecoderConfigurationTarget] =
+    useState<BMCDecoderConfigurationTarget | null>(null)
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() =>
     getResolvedTheme(getStoredTheme()),
   )
@@ -2407,6 +2435,30 @@ export const RackView = ({
     setCalibrationWarningTarget(target)
   }, [openCalibrationManagementDialog])
 
+  const handleOpenBMCDecoderConfiguration = useCallback((recordId: string) => {
+    const state = deviceStatesRef.current.find((entry) => entry.record.id === recordId)
+    if (!state || state.status !== 'connected' || !state.drpdDriver) {
+      setCalibrationStartError('Connect the device before opening BMC decoder configuration.')
+      return
+    }
+    const target = { recordId, deviceName: state.record.displayName }
+    if (isBMCDecoderConfigurationWarningSuppressed()) {
+      setBMCDecoderConfigurationTarget(target)
+      return
+    }
+    setBMCDecoderConfigurationWarningSuppressInput(false)
+    setBMCDecoderConfigurationWarningTarget(target)
+  }, [])
+
+  const handleConfirmBMCDecoderConfigurationWarning = useCallback(() => {
+    if (!bmcDecoderConfigurationWarningTarget) return
+    if (bmcDecoderConfigurationWarningSuppressInput) {
+      setBMCDecoderConfigurationWarningSuppressed(true)
+    }
+    setBMCDecoderConfigurationTarget(bmcDecoderConfigurationWarningTarget)
+    setBMCDecoderConfigurationWarningTarget(null)
+  }, [bmcDecoderConfigurationWarningSuppressInput, bmcDecoderConfigurationWarningTarget])
+
   const handleConfirmCalibrationWarning = useCallback(() => {
     const target = calibrationWarningTarget
     if (!target) {
@@ -2825,6 +2877,9 @@ export const RackView = ({
   const activeTriggerInfo = activeDriverState?.triggerInfo ?? null
   const calibrationDriver = calibrationDialogTarget
     ? deviceStates.find((state) => state.record.id === calibrationDialogTarget.recordId)?.drpdDriver
+    : undefined
+  const bmcDecoderConfigurationDriver = bmcDecoderConfigurationTarget
+    ? deviceStates.find((state) => state.record.id === bmcDecoderConfigurationTarget.recordId)?.drpdDriver
     : undefined
   const globalSelectedSinkPdo = globalSinkPdoList[globalSinkSelectedIndex] ?? null
   const globalSinkParsedVoltage = parseSinkRequestField(
@@ -3287,6 +3342,16 @@ export const RackView = ({
                   handleOpenCalibrationDialog(record.id, 'current')
                 },
               },
+              ...(supportsBMCDecoderConfiguration(record.firmwareVersion)
+                ? [{
+                    id: `paired-device-${record.id}-configure-bmc-decoder`,
+                    label: 'Internal settings...',
+                    disabled: !isConnected,
+                    onSelect: () => {
+                      handleOpenBMCDecoderConfiguration(record.id)
+                    },
+                  }]
+                : []),
             ],
           },
           {
@@ -3465,6 +3530,7 @@ export const RackView = ({
     handleConnectPairedDevice,
     handleDisconnectDevice,
     handleOpenCalibrationDialog,
+    handleOpenBMCDecoderConfiguration,
     handleOpenDeviceNameDialog,
     handleOpenDocumentation,
     handleRemoveDevice,
@@ -3768,6 +3834,23 @@ export const RackView = ({
       <CalibrationStartErrorDialog
         message={calibrationStartError}
         onClose={() => setCalibrationStartError(null)}
+      />
+      <BMCDecoderConfigurationSafetyDialog
+        target={bmcDecoderConfigurationWarningTarget}
+        suppressWarning={bmcDecoderConfigurationWarningSuppressInput}
+        onSuppressWarningChange={setBMCDecoderConfigurationWarningSuppressInput}
+        onCancel={() => {
+          setBMCDecoderConfigurationWarningTarget(null)
+          setBMCDecoderConfigurationWarningSuppressInput(false)
+        }}
+        onConfirm={handleConfirmBMCDecoderConfigurationWarning}
+      />
+      <BMCDecoderConfigurationDialog
+        target={bmcDecoderConfigurationTarget}
+        driver={bmcDecoderConfigurationDriver}
+        onOpenChange={(open) => {
+          if (!open) setBMCDecoderConfigurationTarget(null)
+        }}
       />
       <CalibrationManagementDialog
         target={calibrationDialogTarget}
@@ -4429,6 +4512,23 @@ const setCalibrationWarningSuppressed = (suppressed: boolean): void => {
   const storage = getBrowserStorage()
   if (storage) {
     storage.setItem(CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY, suppressed ? 'true' : 'false')
+  }
+}
+
+/** Read whether the BMC decoder configuration warning is suppressed. */
+const isBMCDecoderConfigurationWarningSuppressed = (): boolean => {
+  const storage = getBrowserStorage()
+  return storage?.getItem(BMC_DECODER_CONFIGURATION_WARNING_SUPPRESSED_STORAGE_KEY) === 'true'
+}
+
+/** Save BMC decoder configuration warning suppression in this browser. */
+const setBMCDecoderConfigurationWarningSuppressed = (suppressed: boolean): void => {
+  const storage = getBrowserStorage()
+  if (storage) {
+    storage.setItem(
+      BMC_DECODER_CONFIGURATION_WARNING_SUPPRESSED_STORAGE_KEY,
+      suppressed ? 'true' : 'false',
+    )
   }
 }
 

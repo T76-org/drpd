@@ -145,6 +145,16 @@ namespace T76::DRPD {
     };
 
     /**
+     * @brief Persisted BMC decoder threshold-generator settings.
+     */
+    struct BMCDecoderPersistentConfig {
+        float ccVrefVolts =
+            PHY_BMC_DECODER_CC_VREF_DEFAULT; ///< CC comparator reference voltage in volts.
+        uint32_t ccVrefPwmFrequencyHz =
+            PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_HZ; ///< PWM frequency in hertz.
+    };
+
+    /**
      * @brief Historical analog-monitor calibration settings for schema versions 1 and 2.
      */
     struct AnalogMonitorPersistentConfigV1 {
@@ -212,6 +222,19 @@ namespace T76::DRPD {
     };
 
     /**
+     * @brief Version 5 persistent payload layout.
+     */
+    struct PersistentConfigDataV5 {
+        VBusPersistentConfig vbus{};
+        AnalogMonitorPersistentConfig analogMonitor{};
+        TriggerPersistentConfig trigger{};
+        SyncPersistentConfig sync{};
+        SinkPersistentConfig sink{};
+        CCBusPersistentConfig ccBus{};
+        BMCDecoderPersistentConfig bmcDecoder{};
+    };
+
+    /**
      * @brief Fixed header stored ahead of the persistent payload in flash.
      */
     struct PersistentConfigHeader {
@@ -254,8 +277,13 @@ namespace T76::DRPD {
         PersistentConfigDataV4 payload{};  ///< On-flash payload.
     };
 
-    using PersistentConfigDataCurrent = PersistentConfigDataV4;
-    using PersistentConfigImageCurrent = PersistentConfigImageV4;
+    struct PersistentConfigImageV5 {
+        PersistentConfigHeader header{};
+        PersistentConfigDataV5 payload{};
+    };
+
+    using PersistentConfigDataCurrent = PersistentConfigDataV5;
+    using PersistentConfigImageCurrent = PersistentConfigImageV5;
 
     /**
      * @brief Persistent configuration store backed by a dedicated flash sector.
@@ -266,7 +294,7 @@ namespace T76::DRPD {
      */
     class PersistentConfig {
     public:
-        static constexpr uint32_t CurrentSchemaVersion = 4;   ///< Latest supported schema version.
+        static constexpr uint32_t CurrentSchemaVersion = 5;   ///< Latest supported schema version.
         static constexpr uint32_t Magic = 0x44525044u;        ///< Flash image identification marker.
         static constexpr uint32_t FlashSize = FLASH_SECTOR_SIZE;  ///< Reserved flash region size in bytes.
         static constexpr uint32_t FlashOffset = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;   ///< Offset of the reserved sector from flash base.
@@ -388,6 +416,11 @@ namespace T76::DRPD {
          * @brief Decode a version 4 payload into the current config representation.
          */
         bool _decodeVersion4(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+
+        /**
+         * @brief Decode a version 5 payload into the current config representation.
+         */
+        bool _decodeVersion5(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
 
         /**
          * @brief Decode any supported stored schema into the current representation.

@@ -1,5 +1,7 @@
 #include "app.hpp"
 
+#include <cmath>
+
 #include <hardware/clocks.h>
 #include <hardware/structs/watchdog.h>
 #include <hardware/watchdog.h>
@@ -68,4 +70,73 @@ void App::_enterFirmwareUpdater(const std::vector<T76::SCPI::ParameterValue> &pa
     }
     sleep_ms(150);
     watchdog_reboot(0, 0, 10);
+}
+
+void App::_queryBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
+    _sendTransportTextResponse(std::to_string(_bmcDecoder.ccThresholdVoltage()));
+}
+
+void App::_setBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &params) {
+    const double voltage = params[0].numberValue;
+    const double steps = (voltage - PHY_BMC_DECODER_CC_VREF_MIN) /
+        PHY_BMC_DECODER_CC_VREF_STEP;
+    if (!std::isfinite(voltage) || voltage < PHY_BMC_DECODER_CC_VREF_MIN ||
+        voltage > PHY_BMC_DECODER_CC_VREF_MAX ||
+        std::fabs(steps - std::round(steps)) > 0.000001) {
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
+        return;
+    }
+
+    BMCDecoderPersistentConfig config = _bmcDecoder.exportPersistentConfig();
+    config.ccVrefVolts = static_cast<float>(voltage);
+    (void)_persistBMCDecoderConfig(config);
+}
+
+void App::_resetBMCDecoderCCVrefVoltage(const std::vector<T76::SCPI::ParameterValue> &) {
+    BMCDecoderPersistentConfig config = _bmcDecoder.exportPersistentConfig();
+    config.ccVrefVolts = PHY_BMC_DECODER_CC_VREF_DEFAULT;
+    (void)_persistBMCDecoderConfig(config);
+}
+
+void App::_queryBMCDecoderCCVrefPwmFrequency(const std::vector<T76::SCPI::ParameterValue> &) {
+    _sendTransportTextResponse(std::to_string(_bmcDecoder.ccVrefPwmFrequencyHz()));
+}
+
+void App::_setBMCDecoderCCVrefPwmFrequency(const std::vector<T76::SCPI::ParameterValue> &params) {
+    const double frequency = params[0].numberValue;
+    if (!std::isfinite(frequency) || std::trunc(frequency) != frequency ||
+        frequency < PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_MIN_HZ ||
+        frequency > PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_MAX_HZ ||
+        static_cast<uint32_t>(frequency) % PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_STEP_HZ != 0) {
+        _interpreter.addError(_scpiErrorDataOutOfRange, "Data out of range");
+        return;
+    }
+
+    BMCDecoderPersistentConfig config = _bmcDecoder.exportPersistentConfig();
+    config.ccVrefPwmFrequencyHz = static_cast<uint32_t>(frequency);
+    (void)_persistBMCDecoderConfig(config);
+}
+
+void App::_resetBMCDecoderCCVrefPwmFrequency(const std::vector<T76::SCPI::ParameterValue> &) {
+    BMCDecoderPersistentConfig config = _bmcDecoder.exportPersistentConfig();
+    config.ccVrefPwmFrequencyHz = PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_HZ;
+    (void)_persistBMCDecoderConfig(config);
+}
+
+bool App::_persistBMCDecoderConfig(const BMCDecoderPersistentConfig &decoderConfig) {
+    auto &persistentConfig = PersistentConfig::instance();
+    const PersistentConfigDataCurrent previous = persistentConfig.current();
+    persistentConfig.update([&decoderConfig](PersistentConfigDataCurrent &data) {
+        data.bmcDecoder = decoderConfig;
+    });
+    if (!persistentConfig.save()) {
+        persistentConfig.update([&previous](PersistentConfigDataCurrent &data) {
+            data = previous;
+        });
+        _interpreter.addError(_scpiErrorExecutionError, "Unable to persist configuration");
+        return false;
+    }
+
+    _bmcDecoder.applyPersistentConfig(decoderConfig);
+    return true;
 }

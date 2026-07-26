@@ -371,6 +371,7 @@ void App::_initCore0() {
     );
     _analogMonitor.init();
     _analogMonitor.applyPersistentConfig(PersistentConfig::instance().current().analogMonitor);
+    _bmcDecoder.applyPersistentConfig(PersistentConfig::instance().current().bmcDecoder);
     _vbusManager.applyPersistentConfig(PersistentConfig::instance().current().vbus);
     _syncManager.applyPersistentConfig(PersistentConfig::instance().current().sync);
     _triggerController.applyPersistentConfig(PersistentConfig::instance().current().trigger);
@@ -735,6 +736,7 @@ void App::_savePersistentConfig() {
         data.sync = _syncManager.exportPersistentConfig();
         data.sink = _ccBusController.exportSinkPersistentConfig();
         data.ccBus = _ccBusController.exportPersistentConfig();
+        data.bmcDecoder = _bmcDecoder.exportPersistentConfig();
     });
     (void)config.save();
 }

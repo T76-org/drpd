@@ -78,13 +78,8 @@ void BMCDecoder::initCore1() {
 
     gpio_set_function(PHY_BMC_DECODER_CC_VREF_PWM_PIN, GPIO_FUNC_PWM);
     
-    uint slice = pwm_gpio_to_slice_num(PHY_BMC_DECODER_CC_VREF_PWM_PIN);
-    _pwmWrapValue = (SYS_CLK_MHZ * 1'000'000.0f / PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_HZ) - 1;
-    
-    pwm_config pwmConfig = pwm_get_default_config();
-    pwm_config_set_wrap(&pwmConfig, _pwmWrapValue);
-    pwm_init(slice, &pwmConfig, true);
-    pwm_set_gpio_level(PHY_BMC_DECODER_CC_VREF_PWM_PIN, (uint16_t)(PHY_BMC_DECODER_CC_VREF_DEFAULT / 3.3f * (_pwmWrapValue + 1)));
+    _pwmInitialized = true;
+    _applyCCVrefPwmConfiguration();
 
     // Initialize the PIO and load the BMC decoder program
     gpio_set_function(PHY_BMC_DECODER_INPUT_PIN, GPIO_FUNC_SIO);
@@ -240,11 +235,55 @@ void BMCDecoder::ccThresholdVoltage(float voltage) {
 
     _ccThresholdVoltage = voltage;
 
-    pwm_set_gpio_level(PHY_BMC_DECODER_CC_VREF_PWM_PIN, (uint16_t)(voltage / 3.3f * (_pwmWrapValue + 1)));
+    if (_pwmInitialized) {
+        _applyCCVrefPwmConfiguration();
+    }
 }
 
 float BMCDecoder::ccThresholdVoltage() const {
     return _ccThresholdVoltage;
+}
+
+void BMCDecoder::ccVrefPwmFrequencyHz(uint32_t frequencyHz) {
+    _ccVrefPwmFrequencyHz = frequencyHz;
+    if (_pwmInitialized) {
+        _applyCCVrefPwmConfiguration();
+    }
+}
+
+uint32_t BMCDecoder::ccVrefPwmFrequencyHz() const {
+    return _ccVrefPwmFrequencyHz;
+}
+
+void BMCDecoder::applyPersistentConfig(const T76::DRPD::BMCDecoderPersistentConfig &config) {
+    _ccThresholdVoltage = config.ccVrefVolts;
+    _ccVrefPwmFrequencyHz = config.ccVrefPwmFrequencyHz;
+    if (_pwmInitialized) {
+        _applyCCVrefPwmConfiguration();
+    }
+}
+
+T76::DRPD::BMCDecoderPersistentConfig BMCDecoder::exportPersistentConfig() const {
+    return T76::DRPD::BMCDecoderPersistentConfig{
+        .ccVrefVolts = _ccThresholdVoltage,
+        .ccVrefPwmFrequencyHz = _ccVrefPwmFrequencyHz,
+    };
+}
+
+void BMCDecoder::_applyCCVrefPwmConfiguration() {
+    const uint slice = pwm_gpio_to_slice_num(PHY_BMC_DECODER_CC_VREF_PWM_PIN);
+    _pwmWrapValue = static_cast<uint16_t>(
+        (SYS_CLK_MHZ * 1'000'000.0f / static_cast<float>(_ccVrefPwmFrequencyHz)) - 1.0f
+    );
+    const uint16_t level = static_cast<uint16_t>(
+        _ccThresholdVoltage / 3.3f * static_cast<float>(_pwmWrapValue + 1)
+    );
+
+    pwm_set_enabled(slice, false);
+    pwm_set_wrap(slice, _pwmWrapValue);
+    pwm_set_gpio_level(PHY_BMC_DECODER_CC_VREF_PWM_PIN, level);
+    pwm_set_counter(slice, 0);
+    pwm_set_enabled(slice, true);
 }
 
 BMCDecoder::IngressTimestampDiagnostics BMCDecoder::ingressTimestampDiagnostics() const {

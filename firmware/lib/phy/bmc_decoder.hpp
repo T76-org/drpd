@@ -47,6 +47,8 @@
 #include <pico/time.h>
 #include <pico/util/queue.h>
 
+#include "../util/persistent_config.hpp"
+
 #include "bmc_decoded_message.hpp"
 
 
@@ -188,6 +190,30 @@ namespace T76::DRPD::PHY {
         float ccThresholdVoltage() const;
 
         /**
+         * @brief Set the CC reference PWM frequency.
+         * @param frequencyHz PWM frequency in hertz.
+         */
+        void ccVrefPwmFrequencyHz(uint32_t frequencyHz);
+
+        /**
+         * @brief Return the CC reference PWM frequency.
+         * @return PWM frequency in hertz.
+         */
+        uint32_t ccVrefPwmFrequencyHz() const;
+
+        /**
+         * @brief Apply persisted BMC decoder settings.
+         * @param config Persisted decoder configuration.
+         */
+        void applyPersistentConfig(const T76::DRPD::BMCDecoderPersistentConfig &config);
+
+        /**
+         * @brief Export persisted BMC decoder settings.
+         * @return Current decoder configuration.
+         */
+        T76::DRPD::BMCDecoderPersistentConfig exportPersistentConfig() const;
+
+        /**
          * @brief Return current ingress timestamp diagnostics counters.
          *
          * @return IngressTimestampDiagnostics Snapshot of decoder counters.
@@ -207,7 +233,15 @@ namespace T76::DRPD::PHY {
         static constexpr uint8_t IngressTimestampQueueLength = 16;
 
         float _ccThresholdVoltage = PHY_BMC_DECODER_CC_VREF_DEFAULT; ///< Carrier CC threshold voltage
+        uint32_t _ccVrefPwmFrequencyHz =
+            PHY_BMC_DECODER_CC_VREF_PWM_FREQUENCY_HZ; ///< CC reference PWM frequency.
         uint16_t _pwmWrapValue; ///< Wrap value for the PWM channel; used to update the CC threshold voltage
+        bool _pwmInitialized = false; ///< True after the CC reference PWM hardware has been initialized.
+
+        /**
+         * @brief Apply current reference voltage and frequency to PWM hardware.
+         */
+        void _applyCCVrefPwmConfiguration();
 
         int _dataDMAChannel; ///< DMA channel for data transfer
 

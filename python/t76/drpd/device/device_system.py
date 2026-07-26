@@ -5,6 +5,8 @@ The Device class enables communication with DRPD devices
 over USB using SCPI commands.
 """
 
+import math
+
 from async_lru import alru_cache
 
 from .device_internal import DeviceInternal
@@ -13,6 +15,93 @@ from .types import (
     MemoryUsage,
     DeviceInfo
 )
+
+
+class DeviceBMCDecoderConfiguration:
+    """Manage persisted BMC decoder physical-layer settings."""
+
+    VREF_MIN_VOLTS = 0.20
+    VREF_MAX_VOLTS = 2.50
+    VREF_STEP_VOLTS = 0.05
+    VREF_DEFAULT_VOLTS = 0.70
+    PWM_MIN_HZ = 10_000
+    PWM_MAX_HZ = 500_000
+    PWM_STEP_HZ = 1_000
+    PWM_DEFAULT_HZ = 100_000
+
+    def __init__(self, internal: DeviceInternal):
+        """Initialize configuration access with device transport."""
+        self._internal = internal
+
+    async def get_cc_vref_voltage(self) -> float:
+        """Return persisted CC reference voltage in volts."""
+        values = await self._internal.query_ascii_values_and_check(
+            "SYST:CONF:PHY:BMCD:CC:VREF:VOLT?"
+        )
+        if len(values) != 1:
+            raise ValueError("Expected one CC reference voltage value.")
+        return float(values[0])
+
+    async def set_cc_vref_voltage(self, voltage: float) -> None:
+        """Validate, persist, and immediately apply CC reference voltage."""
+        steps = (voltage - self.VREF_MIN_VOLTS) / self.VREF_STEP_VOLTS
+        if (
+            not isinstance(voltage, (int, float))
+            or not math.isfinite(voltage)
+            or voltage < self.VREF_MIN_VOLTS
+            or voltage > self.VREF_MAX_VOLTS
+            or abs(steps - round(steps)) > 1e-9
+        ):
+            raise ValueError("CC reference voltage must be 0.20–2.50 V in 0.05 V increments.")
+        await self._internal.write_ascii_and_check(
+            f"SYST:CONF:PHY:BMCD:CC:VREF:VOLT {voltage:.2f}"
+        )
+
+    async def reset_cc_vref_voltage(self) -> None:
+        """Restore and persist build-time CC reference voltage default."""
+        await self._internal.write_ascii_and_check(
+            "SYST:CONF:PHY:BMCD:CC:VREF:VOLT:RES"
+        )
+
+    async def get_cc_vref_pwm_frequency_hz(self) -> int:
+        """Return persisted CC reference PWM frequency in hertz."""
+        values = await self._internal.query_ascii_values_and_check(
+            "SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ?"
+        )
+        if len(values) != 1:
+            raise ValueError("Expected one CC reference PWM frequency value.")
+        return int(values[0])
+
+    async def set_cc_vref_pwm_frequency_hz(self, frequency_hz: int) -> None:
+        """Validate, persist, and immediately apply PWM frequency."""
+        if (
+            not isinstance(frequency_hz, int)
+            or isinstance(frequency_hz, bool)
+            or frequency_hz < self.PWM_MIN_HZ
+            or frequency_hz > self.PWM_MAX_HZ
+            or frequency_hz % self.PWM_STEP_HZ != 0
+        ):
+            raise ValueError(
+                "CC reference PWM frequency must be 10000–500000 Hz "
+                "in 1000 Hz increments."
+            )
+        await self._internal.write_ascii_and_check(
+            f"SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ {frequency_hz}"
+        )
+
+    async def reset_cc_vref_pwm_frequency_hz(self) -> None:
+        """Restore and persist build-time PWM frequency default."""
+        await self._internal.write_ascii_and_check(
+            "SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ:RES"
+        )
+
+
+class DeviceSystemConfiguration:
+    """System configuration namespace."""
+
+    def __init__(self, internal: DeviceInternal):
+        """Initialize nested system configuration groups."""
+        self.bmc_decoder = DeviceBMCDecoderConfiguration(internal)
 
 
 class DeviceSystem:
@@ -26,6 +115,7 @@ class DeviceSystem:
         :type internal: DeviceInternal
         """
         self._internal = internal
+        self.configuration = DeviceSystemConfiguration(internal)
 
     @alru_cache
     async def identify(self) -> DeviceInfo:

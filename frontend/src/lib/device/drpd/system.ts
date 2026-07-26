@@ -6,13 +6,14 @@
  */
 
 import type { DRPDTransport } from './transport'
-import { parseDeviceIdentity, parseErrorResponse, parseSingleBigInt, parseSingleInt } from './parsers'
+import { parseDeviceIdentity, parseErrorResponse, parseSingleBigInt, parseSingleInt, parseSingleNumber } from './parsers'
 import type { DeviceIdentity, MemoryUsage } from './types'
 
 /**
  * System command group for DRPD devices.
  */
 export class DRPDSystem {
+  public readonly configuration: DRPDSystemConfiguration ///< Persisted system configuration.
   protected readonly transport: DRPDTransport ///< Transport instance.
 
   /**
@@ -22,6 +23,7 @@ export class DRPDSystem {
    */
   public constructor(transport: DRPDTransport) {
     this.transport = transport
+    this.configuration = new DRPDSystemConfiguration(transport)
   }
 
   /**
@@ -122,5 +124,71 @@ export class DRPDSystem {
   public async getTimestampUs(): Promise<bigint> {
     const response = await this.transport.queryText('SYST:TIME?')
     return parseSingleBigInt(response, 'timestamp')
+  }
+}
+
+export class DRPDBMCDecoderConfiguration {
+  public static readonly VREF_MIN_VOLTS = 0.2
+  public static readonly VREF_MAX_VOLTS = 2.5
+  public static readonly VREF_STEP_VOLTS = 0.05
+  public static readonly VREF_DEFAULT_VOLTS = 0.7
+  public static readonly PWM_MIN_HZ = 10_000
+  public static readonly PWM_MAX_HZ = 500_000
+  public static readonly PWM_STEP_HZ = 1_000
+  public static readonly PWM_DEFAULT_HZ = 100_000
+
+  protected readonly transport: DRPDTransport
+
+  public constructor(transport: DRPDTransport) {
+    this.transport = transport
+  }
+
+  public async getCCVrefVoltage(): Promise<number> {
+    return parseSingleNumber(
+      await this.transport.queryText('SYST:CONF:PHY:BMCD:CC:VREF:VOLT?'),
+      'CC reference voltage',
+    )
+  }
+
+  public async setCCVrefVoltage(voltage: number): Promise<void> {
+    const steps = (voltage - DRPDBMCDecoderConfiguration.VREF_MIN_VOLTS) /
+      DRPDBMCDecoderConfiguration.VREF_STEP_VOLTS
+    if (!Number.isFinite(voltage) || voltage < DRPDBMCDecoderConfiguration.VREF_MIN_VOLTS ||
+      voltage > DRPDBMCDecoderConfiguration.VREF_MAX_VOLTS || Math.abs(steps - Math.round(steps)) > 1e-9) {
+      throw new RangeError('CC reference voltage must be 0.20–2.50 V in 0.05 V increments')
+    }
+    await this.transport.sendCommand('SYST:CONF:PHY:BMCD:CC:VREF:VOLT', voltage)
+  }
+
+  public async resetCCVrefVoltage(): Promise<void> {
+    await this.transport.sendCommand('SYST:CONF:PHY:BMCD:CC:VREF:VOLT:RES')
+  }
+
+  public async getCCVrefPwmFrequencyHz(): Promise<number> {
+    return parseSingleInt(
+      await this.transport.queryText('SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ?'),
+      'CC reference PWM frequency',
+    )
+  }
+
+  public async setCCVrefPwmFrequencyHz(frequencyHz: number): Promise<void> {
+    if (!Number.isInteger(frequencyHz) || frequencyHz < DRPDBMCDecoderConfiguration.PWM_MIN_HZ ||
+      frequencyHz > DRPDBMCDecoderConfiguration.PWM_MAX_HZ ||
+      frequencyHz % DRPDBMCDecoderConfiguration.PWM_STEP_HZ !== 0) {
+      throw new RangeError('CC reference PWM frequency must be 10000–500000 Hz in 1000 Hz increments')
+    }
+    await this.transport.sendCommand('SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ', frequencyHz)
+  }
+
+  public async resetCCVrefPwmFrequencyHz(): Promise<void> {
+    await this.transport.sendCommand('SYST:CONF:PHY:BMCD:CC:VREF:PWM:FREQ:RES')
+  }
+}
+
+export class DRPDSystemConfiguration {
+  public readonly bmcDecoder: DRPDBMCDecoderConfiguration
+
+  public constructor(transport: DRPDTransport) {
+    this.bmcDecoder = new DRPDBMCDecoderConfiguration(transport)
   }
 }

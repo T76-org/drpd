@@ -95,6 +95,16 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
   public readonly system: {
     identify: () => Promise<DeviceIdentity>
     enterFirmwareUpdate: () => Promise<void>
+    configuration: {
+      bmcDecoder: {
+        getCCVrefVoltage: () => Promise<number>
+        setCCVrefVoltage: (voltage: number) => Promise<void>
+        resetCCVrefVoltage: () => Promise<void>
+        getCCVrefPwmFrequencyHz: () => Promise<number>
+        setCCVrefPwmFrequencyHz: (frequencyHz: number) => Promise<void>
+        resetCCVrefPwmFrequencyHz: () => Promise<void>
+      }
+    }
   } ///< System command-group proxy.
   public readonly sink: {
     getAvailablePdoCount: () => Promise<number>
@@ -280,6 +290,26 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       identify: async () => (await this.callGroup('system', 'identify')) as DeviceIdentity,
       enterFirmwareUpdate: async () => {
         await this.callGroup('system', 'enterFirmwareUpdate')
+      },
+      configuration: {
+        bmcDecoder: {
+          getCCVrefVoltage: async () =>
+            (await this.callGroup('system', 'getBMCDecoderCCVrefVoltage')) as number,
+          setCCVrefVoltage: async (voltage) => {
+            await this.callGroup('system', 'setBMCDecoderCCVrefVoltage', voltage)
+          },
+          resetCCVrefVoltage: async () => {
+            await this.callGroup('system', 'resetBMCDecoderCCVrefVoltage')
+          },
+          getCCVrefPwmFrequencyHz: async () =>
+            (await this.callGroup('system', 'getBMCDecoderCCVrefPwmFrequencyHz')) as number,
+          setCCVrefPwmFrequencyHz: async (frequencyHz) => {
+            await this.callGroup('system', 'setBMCDecoderCCVrefPwmFrequencyHz', frequencyHz)
+          },
+          resetCCVrefPwmFrequencyHz: async () => {
+            await this.callGroup('system', 'resetBMCDecoderCCVrefPwmFrequencyHz')
+          },
+        },
       },
     }
     this.sink = {
