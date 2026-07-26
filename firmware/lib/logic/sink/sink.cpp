@@ -90,6 +90,12 @@ void Sink::loopCore1() {
             Proto::ExtendedMessageType completedType = maybeType.value();
             const auto result = _handleExtendedMessageFragment(messagePtr, completedType);
 
+            if (result == ExtendedFragmentResult::RecoveredMalformed) {
+                _context.reportWarning(
+                    "malformed PPS_Status declared Data Size 1; decoded 4-byte PPSSDB from packet payload"
+                );
+            }
+
             if (result == ExtendedFragmentResult::Malformed) {
                 reset(SinkResetType::SoftReset);
                 continue;

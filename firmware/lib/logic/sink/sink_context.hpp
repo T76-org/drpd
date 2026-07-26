@@ -141,6 +141,7 @@ namespace T76::DRPD::Logic {
          * @param resetType Reset associated with this error, if any.
          */
         void reportError(const char *reason, std::optional<SinkResetType> resetType = std::nullopt);
+        void reportWarning(const char *reason);
 
         /**
          * @brief Complete receiver-side Soft_Reset handling after the PHY GoodCRC.

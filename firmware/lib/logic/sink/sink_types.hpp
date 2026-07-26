@@ -98,6 +98,11 @@ namespace T76::DRPD::Logic {
         SoftReset   ///< Protocol soft reset message.
     };
 
+    enum class SinkDiagnosticSeverity : uint8_t {
+        Error,
+        Warning
+    };
+
     /**
      * @brief Sink-originated error notification for higher-level event publishers.
      */
@@ -105,6 +110,7 @@ namespace T76::DRPD::Logic {
         const char *reason = nullptr;                       ///< Static diagnostic reason.
         SinkState state = SinkState::Unknown;               ///< State when the error was observed.
         std::optional<SinkResetType> resetType = std::nullopt; ///< Reset caused by the error, if any.
+        SinkDiagnosticSeverity severity = SinkDiagnosticSeverity::Error; ///< Diagnostic severity.
     };
 
     /**

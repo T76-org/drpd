@@ -110,6 +110,29 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     const auto typeIndex = SinkRuntimeState::trackedTypeIndex(extendedType);
     const size_t declaredPayloadBytes = decodedHeader.numDataObjects() * 4;
 
+    const bool malformedPPSStatusDataSize =
+        extendedType == Proto::ExtendedMessageType::PPS_Status &&
+        extHeader.chunked() &&
+        extHeader.chunkNumber() == 0 &&
+        !extHeader.requestChunk() &&
+        extHeader.dataSizeBytes() == 1 &&
+        decodedHeader.numDataObjects() == 2 &&
+        rawBody.size() == 8 &&
+        allZero(rawBody.subspan(6, 2));
+
+    if (malformedPPSStatusDataSize && typeIndex.has_value()) {
+        SinkRuntimeState::ExtendedPayloadBuffer payload;
+        payload.length = 4;
+        for (size_t i = 0; i < payload.length; ++i) {
+            payload.bytes[i] = rawBody[2 + i];
+        }
+        _runtimeState._completedExtendedPayloads[typeIndex.value()] = payload;
+        _runtimeState._extendedReassemblyStates[typeIndex.value()] =
+            SinkRuntimeState::ExtendedReassemblyState{};
+        completedType = extendedType;
+        return ExtendedFragmentResult::RecoveredMalformed;
+    }
+
     if (extHeader.chunked() && extHeader.chunkNumber() > kMaxExtendedChunkNumber) {
         return ExtendedFragmentResult::Malformed;
     }

@@ -1507,6 +1507,7 @@ export const DrpdUsbPdLogInstrumentView = ({
               row?.eventType === 'cc_status_changed' ? styles.eventRowStatus : '',
               row?.eventType === 'mark' ? styles.eventRowMark : '',
               row?.eventType === 'sink_errors' ? styles.eventRowSinkErrors : '',
+              row?.eventType === 'sink_warning' ? styles.eventRowSinkWarning : '',
               row?.eventType === 'sync_trigger' ? styles.eventRowSyncTrigger : '',
               row?.eventType === 'vbus_ovp' ? styles.eventRowOvp : '',
               row?.eventType === 'vbus_ocp' ? styles.eventRowOcp : '',

@@ -627,10 +627,43 @@ export const DrpdMessageDetailInstrumentView = ({
         )
         return
       }
-      const targetIndex = orderedRows.findIndex(
+      const useWallClock = row.wallClockUs !== null
+      const contextEndTimestampUs = useWallClock ? row.wallClockUs as bigint : row.startTimestampUs
+      const contextQueryBase = {
+        startTimestampUs: 0n,
+        endTimestampUs: contextEndTimestampUs,
+        timeBasis: useWallClock ? 'wallClock' as const : 'device' as const,
+        sortOrder: 'desc' as const,
+      }
+      const [capabilityRows, resetRows, connectionRows] = await Promise.all([
+        driver.queryCapturedMessages({
+          ...contextQueryBase,
+          messageKinds: ['DATA', 'EXTENDED'],
+          messageTypes: [0x01, 0x11],
+          senderPowerRoles: ['SOURCE'],
+          sopKinds: ['SOP'],
+          limit: 16,
+        }),
+        driver.queryCapturedMessages({ ...contextQueryBase, sopKinds: ['SOP_HARD_RESET'], limit: 1 }),
+        driver.queryCapturedMessages({ ...contextQueryBase, eventTypes: ['cc_status_changed', 'cc_role_changed'], limit: 1 }),
+      ])
+      if (cancelled) return
+      const contextRows = [...orderedRows, ...capabilityRows, ...resetRows, ...connectionRows]
+      const uniqueContextRows = Array.from(new Map(contextRows.map((candidate) => [
+        `${candidate.entryKind}:${candidate.createdAtMs}:${candidate.startTimestampUs}:${candidate.endTimestampUs}`,
+        candidate,
+      ])).values()).sort((left, right) => {
+        const leftTime = useWallClock ? left.wallClockUs : left.startTimestampUs
+        const rightTime = useWallClock ? right.wallClockUs : right.startTimestampUs
+        if (leftTime === null) return -1
+        if (rightTime === null) return 1
+        if (leftTime !== rightTime) return leftTime < rightTime ? -1 : 1
+        return left.createdAtMs - right.createdAtMs
+      })
+      const targetIndex = uniqueContextRows.findIndex(
         (candidate) => buildCapturedLogSelectionKey(candidate) === activeSelectionKey,
       )
-      const decodeContext = targetIndex >= 0 ? orderedRows.slice(0, targetIndex + 1) : [row]
+      const decodeContext = targetIndex >= 0 ? uniqueContextRows.slice(0, targetIndex + 1) : [row]
       const decoded = decodeLoggedCapturedMessageWithContext(row, decodeContext)
       if (decoded.kind !== 'message') {
         const nextSections = decoded.kind === 'invalid' || decoded.kind === 'reset'

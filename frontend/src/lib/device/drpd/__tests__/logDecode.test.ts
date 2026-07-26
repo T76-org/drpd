@@ -31,6 +31,76 @@ const buildMessageRow = (
 })
 
 describe('decodeLoggedCapturedMessage', () => {
+  it('resolves a non-compliant PDO 1 SPR AVS Request from captured Source_Capabilities', () => {
+    const sop = [0x18, 0x18, 0x18, 0x11]
+    const sourceHeader = makeMessageHeader({
+      extended: false,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x01,
+      roleBit: 1,
+      dataRoleBit: 1,
+    })
+    const requestHeader = makeMessageHeader({
+      extended: false,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x02,
+      roleBit: 0,
+      dataRoleBit: 0,
+    })
+    const sourcePacket = buildMessage(sop, sourceHeader, toBytes32(0xec04b0ca))
+    const requestPacket = buildMessage(sop, requestHeader, toBytes32(0x1104b028))
+    const sourceRow = buildMessageRow({
+      startTimestampUs: 900n,
+      endTimestampUs: 905n,
+      rawSop: sourcePacket.subarray(0, 4),
+      rawDecodedData: sourcePacket.subarray(4),
+      messageKind: 'DATA',
+      messageType: 0x01,
+      senderPowerRole: 'SOURCE',
+    })
+    const requestRow = buildMessageRow({
+      startTimestampUs: 1000n,
+      endTimestampUs: 1005n,
+      rawSop: requestPacket.subarray(0, 4),
+      rawDecodedData: requestPacket.subarray(4),
+      messageKind: 'DATA',
+      messageType: 0x02,
+      senderPowerRole: 'SINK',
+    })
+
+    const decoded = decodeLoggedCapturedMessageWithContext(requestRow, [sourceRow, requestRow])
+    expect(decoded.kind).toBe('message')
+    if (decoded.kind !== 'message') return
+    const request = decoded.message.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
+    expect(request?.getEntry('requestTypeHint')?.value).toBe('avs')
+    expect(request?.getEntry('decodeConfidence')?.value).toBe('resolved')
+    expect(request?.getEntry('decodeSource')?.value).toBe('source_capabilities')
+    expect(request?.getEntry('avs')?.getEntry('outputVoltage25mV')?.value).toBe('15000 mV')
+    expect(request?.getEntry('avs')?.getEntry('operatingCurrent50mA')?.value).toBe('2000 mA')
+    expect(request?.getEntry('pps')).toBeUndefined()
+    const referencedPdo = decoded.message.humanReadableMetadata.messageSpecificData.getEntry('referencedPowerDataObject')
+    expect(referencedPdo?.Label).toBe('Referenced Power Data Object')
+    expect(referencedPdo?.getEntry('raw')?.value).toBe('0xEC04B0CA')
+    const summary = decoded.message.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain('**Referenced source PDO:**')
+    expect(summary?.value).toContain('SPR AVS: 15V @ 3A, 20V @ 2.02A')
+  })
+
+  it('does not reuse Source_Capabilities across SOP Hard Reset', () => {
+    const sop = [0x18, 0x18, 0x18, 0x11]
+    const sourcePacket = buildMessage(sop, makeMessageHeader({ extended: false, numberOfDataObjects: 1, messageTypeNumber: 0x01, roleBit: 1 }), toBytes32(0xec04b0ca))
+    const requestPacket = buildMessage(sop, makeMessageHeader({ extended: false, numberOfDataObjects: 1, messageTypeNumber: 0x02 }), toBytes32(0x1104b028))
+    const sourceRow = buildMessageRow({ startTimestampUs: 800n, rawSop: sourcePacket.subarray(0, 4), rawDecodedData: sourcePacket.subarray(4), messageKind: 'DATA', messageType: 1, senderPowerRole: 'SOURCE' })
+    const resetRow = buildMessageRow({ startTimestampUs: 900n, rawSop: Uint8Array.from([0x07, 0x07, 0x07, 0x19]), rawDecodedData: new Uint8Array(), messageKind: null, messageType: null })
+    const requestRow = buildMessageRow({ startTimestampUs: 1000n, rawSop: requestPacket.subarray(0, 4), rawDecodedData: requestPacket.subarray(4), messageKind: 'DATA', messageType: 2, senderPowerRole: 'SINK' })
+    const decoded = decodeLoggedCapturedMessageWithContext(requestRow, [sourceRow, resetRow, requestRow])
+    expect(decoded.kind).toBe('message')
+    if (decoded.kind !== 'message') return
+    const request = decoded.message.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
+    expect(request?.getEntry('decodeConfidence')?.value).toBe('guessed')
+    expect(request?.getEntry('decodeWarning')?.value).toContain('Source_Capabilities unavailable')
+  })
+
   it('decodes Hard Reset signaling without requiring a message header', () => {
     const row = buildMessageRow({
       rawSop: Uint8Array.from([0x07, 0x07, 0x07, 0x19]),

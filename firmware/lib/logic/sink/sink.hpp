@@ -298,6 +298,7 @@ namespace T76::DRPD::Logic {
             Complete,           ///< Full payload reassembled.
             UnsupportedType,    ///< Message type not supported.
             UnsupportedChunk,   ///< Unsupported message chunk needs delayed Not_Supported.
+            RecoveredMalformed, ///< Known malformed encoding was safely recovered.
             Malformed           ///< Fragment/header invalid.
         };
 

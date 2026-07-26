@@ -348,11 +348,10 @@ describe('USB-PD data message decoding', () => {
     expect(summary?.value).toContain('**Asserted request flags:**')
     expect(summary?.value).toContain('Capability mismatch')
     const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
-    expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
+    expect(requestMetadata?.getEntry('decodeConfidence')?.value).toBe('guessed')
+    expect(requestMetadata?.getEntry('decodeWarning')?.value).toContain('Source_Capabilities unavailable')
     expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
-    expect(requestMetadata?.getEntry('battery')).toBeUndefined()
-    expect(requestMetadata?.getEntry('pps')).toBeUndefined()
-    expect(requestMetadata?.getEntry('avs')).toBeUndefined()
+    expect(requestMetadata?.getEntry('battery')).not.toBeUndefined()
   })
 
   it('decodes captured PPS Request voltage and current', () => {
@@ -374,13 +373,14 @@ describe('USB-PD data message decoding', () => {
     const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
     expect(summary?.value).toContain('- Output voltage: 5.5V')
     expect(summary?.value).toContain('- Operating current: 1.2A')
-    expect(summary?.value).not.toContain('Maximum operating current')
+    expect(summary?.value).toContain('Request type guessed')
+    expect(summary?.value).toContain('Fixed/Variable interpretation')
 
     const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
-    expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('pps')
+    expect(requestMetadata?.getEntry('decodeConfidence')?.value).toBe('guessed')
     expect(requestMetadata?.getEntry('pps')?.getEntry('outputVoltage20mV')?.value).toBe('5500 mV')
     expect(requestMetadata?.getEntry('pps')?.getEntry('operatingCurrent50mA')?.value).toBe('1200 mA')
-    expect(requestMetadata?.getEntry('fixedVariable')).toBeUndefined()
+    expect(requestMetadata?.getEntry('fixedVariable')).not.toBeUndefined()
   })
 
   it('decodes captured fixed 5V Request current', () => {
@@ -395,20 +395,21 @@ describe('USB-PD data message decoding', () => {
     expect(decoded.rdo).not.toBeNull()
     const rdo = decoded.rdo as NonNullable<typeof decoded.rdo>
     expect(rdo.objectPosition).toBe(1)
-    expect(rdo.requestTypeHint).toBe('fixed_variable')
+    expect(rdo.requestTypeResolution.confidence).toBe('guessed')
     expect(rdo.fixedVariable.operatingCurrent10mA * 10).toBe(1000)
     expect(rdo.fixedVariable.maximumOperatingCurrent10mA * 10).toBe(1000)
 
     const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
     expect(summary?.value).toContain('- Operating current: 1A')
     expect(summary?.value).toContain('- Maximum operating current: 1A')
-    expect(summary?.value).not.toContain('Output voltage')
+    expect(summary?.value).toContain('Request type guessed')
+    expect(summary?.value).toContain('SPR AVS interpretation')
 
     const requestMetadata = decoded.humanReadableMetadata.messageSpecificData.getEntry('requestDataObject')
-    expect(requestMetadata?.getEntry('requestTypeHint')?.value).toBe('fixed_variable')
+    expect(requestMetadata?.getEntry('decodeConfidence')?.value).toBe('guessed')
     expect(requestMetadata?.getEntry('fixedVariable')?.getEntry('operatingCurrent10mA')?.value).toBe('1000 mA')
     expect(requestMetadata?.getEntry('fixedVariable')?.getEntry('maximumOperatingCurrent10mA')?.value).toBe('1000 mA')
-    expect(requestMetadata?.getEntry('pps')).toBeUndefined()
+    expect(requestMetadata?.getEntry('pps')).not.toBeUndefined()
   })
 
   it('decodes BIST', () => {
@@ -1152,6 +1153,46 @@ describe('USB-PD extended message decoding', () => {
     const block = decoded.humanReadableMetadata.messageSpecificData.getEntry('ppsStatusDataBlock')
     expect(block?.getEntry('outputVoltage20mV')?.value).toBe('Not supported')
     expect(block?.getEntry('outputCurrent50mA')?.value).toBe('Not supported')
+  })
+
+  it.each([
+    {
+      frame: [
+        0x18, 0x18, 0x18, 0x11, 0xac, 0xab, 0x01, 0x80,
+        0x4d, 0x01, 0x00, 0x00, 0x00, 0x00, 0x76, 0x44, 0x05, 0xfc,
+      ],
+      voltage20mV: 0x014d,
+      voltageText: '6.66V',
+    },
+    {
+      frame: [
+        0x18, 0x18, 0x18, 0x11, 0xac, 0xad, 0x01, 0x80,
+        0x1f, 0x02, 0x00, 0x00, 0x00, 0x00, 0xd0, 0xee, 0xf9, 0x89,
+      ],
+      voltage20mV: 0x021f,
+      voltageText: '10.86V',
+    },
+  ])('recovers a PPS_Status whose Data Size incorrectly counts 32-bit blocks', ({ frame, voltage20mV, voltageText }) => {
+    const message = parseUSBPDMessage(Uint8Array.from(frame))
+    expect(message).toBeInstanceOf(PPSStatusMessage)
+    const decoded = message as PPSStatusMessage
+    expect(decoded.ppsStatusDataBlock?.outputVoltage20mV).toBe(voltage20mV)
+    expect(decoded.parseErrors).toEqual([
+      'Malformed extended header: PPS_Status declared Data Size 1; decoded the 4-byte PPSSDB from the packet payload.',
+    ])
+    const summary = decoded.humanReadableMetadata.baseInformation.getEntry('messageSummary')
+    expect(summary?.value).toContain(`- Output voltage: ${voltageText}`)
+    expect(summary?.value).toContain('> Warning: Malformed extended header')
+  })
+
+  it('does not recover the malformed PPS_Status Data Size quirk with non-zero padding', () => {
+    const rawFrame = Uint8Array.from([
+      0x18, 0x18, 0x18, 0x11, 0xac, 0xab, 0x01, 0x80,
+      0x4d, 0x01, 0x00, 0x00, 0x01, 0x00, 0x76, 0x44, 0x05, 0xfc,
+    ])
+    const message = parseUSBPDMessage(rawFrame) as PPSStatusMessage
+    expect(message.ppsStatusDataBlock).toBeNull()
+    expect(message.describe()).toContain('Could not decode the PPS Status Data Block')
   })
 
   it('decodes Country_Info and Country_Codes', () => {

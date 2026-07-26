@@ -23,6 +23,7 @@ export interface TimestripThemePalette {
   eventStatusColor: string
   eventMarkColor: string
   eventSinkErrorsColor: string
+  eventSinkWarningColor: string
   eventSyncTriggerColor: string
   eventOvpColor: string
   eventOcpColor: string
@@ -59,6 +60,7 @@ export const DEFAULT_TIMESTRIP_THEME: TimestripThemePalette = {
   eventStatusColor: '#01A804',
   eventMarkColor: '#d67bff',
   eventSinkErrorsColor: '#ff4d83',
+  eventSinkWarningColor: '#F6941F',
   eventSyncTriggerColor: '#4f7cff',
   eventOvpColor: '#ff7c5c',
   eventOcpColor: '#f0c04d',
@@ -95,6 +97,7 @@ const LIGHT_TIMESTRIP_THEME: TimestripThemePalette = {
   eventStatusColor: '#01A804',
   eventMarkColor: '#d67bff',
   eventSinkErrorsColor: '#ff4d83',
+  eventSinkWarningColor: '#F6941F',
   eventSyncTriggerColor: '#4f7cff',
   eventOvpColor: '#ff7c5c',
   eventOcpColor: '#f0c04d',
@@ -146,6 +149,7 @@ export const getTimestripThemePalette = (
     eventStatusColor: readColor('--color-log-event-status', fallback.eventStatusColor),
     eventMarkColor: readColor('--color-log-event-mark', fallback.eventMarkColor),
     eventSinkErrorsColor: readColor('--color-log-event-sink-errors', fallback.eventSinkErrorsColor),
+    eventSinkWarningColor: readColor('--color-log-event-sink-warning', fallback.eventSinkWarningColor),
     eventSyncTriggerColor: readColor('--color-log-event-sync-trigger', fallback.eventSyncTriggerColor),
     eventOvpColor: readColor('--color-log-event-ovp', fallback.eventOvpColor),
     eventOcpColor: readColor('--color-log-event-ocp', fallback.eventOcpColor),
@@ -189,6 +193,7 @@ export const getTimestripThemeCacheKey = (palette: TimestripThemePalette): strin
     palette.eventRoleColor,
     palette.eventStatusColor,
     palette.eventMarkColor,
+    palette.eventSinkWarningColor,
     palette.eventSyncTriggerColor,
     palette.eventOvpColor,
     palette.eventOcpColor,

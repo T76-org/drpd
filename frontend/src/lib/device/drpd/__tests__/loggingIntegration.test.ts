@@ -532,6 +532,7 @@ describe('DRPD logging integration', () => {
       buildCaptureEventPayload(8, 'CC role changed to SINK', 15_000n),
       buildCaptureEventPayload(9, 'Sink error flags changed: 0x00000001', 16_000n),
       buildCaptureEventPayload(10, 'Sync trigger', 17_000n),
+      buildCaptureEventPayload(11, 'Sink warning: malformed PPS_Status', 18_000n),
     ])
 
     const store = new SQLiteWasmStore({
@@ -555,7 +556,7 @@ describe('DRPD logging integration', () => {
       sortOrder: 'asc',
     })
 
-    expect(rows).toHaveLength(12)
+    expect(rows).toHaveLength(13)
     expect(rows[0].entryKind).toBe('message')
     expect(rows[1].entryKind).toBe('event')
     expect(rows[1].eventType).toBe('firmware_event')
@@ -601,6 +602,10 @@ describe('DRPD logging integration', () => {
     expect(rows[11].eventType).toBe('sync_trigger')
     expect(rows[11].eventText).toBe('Sync trigger')
     expect(rows[11].startTimestampUs).toBe(17_000n)
+    expect(rows[12].entryKind).toBe('event')
+    expect(rows[12].eventType).toBe('sink_warning')
+    expect(rows[12].eventText).toBe('Sink warning: malformed PPS_Status')
+    expect(rows[12].startTimestampUs).toBe(18_000n)
   })
 
   it('records SOP prime cable/port origin metadata for sender/receiver resolution', async () => {

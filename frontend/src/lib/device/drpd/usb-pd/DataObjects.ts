@@ -186,6 +186,8 @@ export interface ParsedRDO extends ParsedDataObject {
   eprCapable: boolean
   ///< Request type hint (unknown by default).
   requestTypeHint: 'unknown' | 'fixed_variable' | 'battery' | 'pps' | 'avs'
+  ///< How the Request Data Object interpretation was selected.
+  requestTypeResolution: RequestTypeResolution
   ///< Fixed/Variable interpretation.
   fixedVariable: {
     ///< Operating current in 10mA units.
@@ -216,17 +218,13 @@ export interface ParsedRDO extends ParsedDataObject {
   }
 }
 
-export const inferRequestTypeHintFromRaw = (raw: number): ParsedRDO['requestTypeHint'] => {
-  // Source PDO 1 is always the vSafe5V Fixed Supply PDO.
-  if (getBits(raw, 31, 28) === 1) {
-    return 'fixed_variable'
-  }
-  const ppsVoltageMv = getBits(raw, 20, 9) * 20
-  const ppsCurrent50mA = getBits(raw, 6, 0)
-  if (getBits(raw, 8, 7) === 0 && ppsVoltageMv >= 3300 && ppsVoltageMv <= 21000 && ppsCurrent50mA !== 0) {
-    return 'pps'
-  }
-  return 'fixed_variable'
+export type RequestType = Exclude<ParsedRDO['requestTypeHint'], 'unknown'>
+
+export type RequestTypeResolution = {
+  type: RequestType
+  confidence: 'resolved' | 'guessed'
+  source: 'source_capabilities' | 'epr_source_capabilities' | 'copied_pdo' | 'raw_rdo'
+  candidates: RequestType[]
 }
 
 export const inferRequestTypeHintFromPDO = (pdo: ParsedPDO): ParsedRDO['requestTypeHint'] => {
@@ -243,6 +241,33 @@ export const inferRequestTypeHintFromPDO = (pdo: ParsedPDO): ParsedRDO['requestT
     return 'avs'
   }
   return 'unknown'
+}
+
+export const guessRequestTypeResolution = (raw: number): RequestTypeResolution => {
+  const augmentedLayout = getBits(raw, 8, 7) === 0 && getBits(raw, 6, 0) !== 0
+  const avsAligned = getBits(raw, 10, 9) === 0
+  const candidates: RequestType[] = augmentedLayout
+    ? avsAligned
+      ? ['avs', 'pps', 'fixed_variable', 'battery']
+      : ['pps', 'fixed_variable', 'battery']
+    : ['fixed_variable', 'battery']
+  return {
+    type: candidates[0],
+    confidence: 'guessed',
+    source: 'raw_rdo',
+    candidates,
+  }
+}
+
+export const resolveRequestTypeFromPDO = (
+  pdo: ParsedPDO,
+  source: RequestTypeResolution['source'],
+): RequestTypeResolution | null => {
+  const type = inferRequestTypeHintFromPDO(pdo)
+  if (type === 'unknown') {
+    return null
+  }
+  return { type, confidence: 'resolved', source, candidates: [type] }
 }
 
 /**
@@ -792,6 +817,7 @@ export const parsePDO = (raw: number, context: 'source' | 'sink'): ParsedPDO => 
  * @returns Parsed RDO.
  */
 export const parseRDO = (raw: number): ParsedRDO => {
+  const requestTypeResolution = guessRequestTypeResolution(raw)
   return {
     raw,
     objectPosition: getBits(raw, 31, 28),
@@ -801,7 +827,8 @@ export const parseRDO = (raw: number): ParsedRDO => {
     noUsbSuspend: getBits(raw, 24, 24) === 1,
     unchunkedExtendedMessagesSupported: getBits(raw, 23, 23) === 1,
     eprCapable: getBits(raw, 22, 22) === 1,
-    requestTypeHint: 'unknown',
+    requestTypeHint: requestTypeResolution.type,
+    requestTypeResolution,
     fixedVariable: {
       operatingCurrent10mA: getBits(raw, 19, 10),
       maximumOperatingCurrent10mA: getBits(raw, 9, 0),
@@ -2630,36 +2657,38 @@ export const buildRDOMetadata = (rdo: ParsedRDO): HumanReadableField<'OrderedDic
   addBooleanMetadataField(container, 'noUsbSuspend', 'No USB Suspend', rdo.noUsbSuspend, 'Requests that the source not place USB into suspend while this contract is active.')
   addBooleanMetadataField(container, 'unchunkedExtendedMessagesSupported', 'Unchunked Extended Messages Supported', rdo.unchunkedExtendedMessagesSupported, 'Indicates sink support for unchunked Extended Messages.')
   addBooleanMetadataField(container, 'eprCapable', 'EPR Capable', rdo.eprCapable, 'Indicates sink support for Extended Power Range operation.')
-  addStringMetadataField(container, 'requestTypeHint', 'Request Type', rdo.requestTypeHint, 'Best-effort interpretation of the Request Data Object based on the referenced or copied PDO when available.')
-
-  if (rdo.requestTypeHint === 'battery') {
-    const battery = createMetadataContainer('Battery Request', 'Battery RDO interpretation fields.')
-    addNumberMetadataField(battery, 'operatingPower250mW', 'Operating Power', rdo.battery.operatingPower250mW * 250, 'Requested operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
-    addNumberMetadataField(battery, 'maximumOperatingPower250mW', 'Maximum Operating Power', rdo.battery.maximumOperatingPower250mW * 250, 'Requested maximum operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
-    container.setEntry('battery', battery)
-    return container
+  const resolution = rdo.requestTypeResolution
+  addStringMetadataField(container, 'requestTypeHint', 'Request Type', resolution.confidence === 'guessed' ? `${resolution.type} (guessed)` : resolution.type, 'Interpretation selected from captured source capabilities when available, otherwise from raw Request Data Object fields.')
+  addStringMetadataField(container, 'decodeConfidence', 'Decode Confidence', resolution.confidence, 'Whether the Request type was resolved from a captured PDO or guessed from overlapping raw fields.')
+  addStringMetadataField(container, 'decodeSource', 'Decode Source', resolution.source, 'Source of the Request type interpretation.')
+  if (resolution.confidence === 'guessed') {
+    addStringMetadataField(container, 'decodeWarning', 'Decode Warning', 'Request type guessed — matching Source_Capabilities unavailable.', 'Warns that overlapping Request Data Object layouts prevent an authoritative interpretation.')
+    addStringMetadataField(container, 'candidateTypes', 'Candidate Request Types', resolution.candidates.join(', '), 'All plausible Request Data Object interpretations retained by the decoder.')
   }
 
-  if (rdo.requestTypeHint === 'pps') {
-    const pps = createMetadataContainer('PPS Request', 'Programmable Power Supply RDO interpretation fields.')
-    addNumberMetadataField(pps, 'outputVoltage20mV', 'Output Voltage', rdo.pps.outputVoltage20mV * 20, 'Requested PPS output voltage, expressed in millivolts.', 'mV')
-    addNumberMetadataField(pps, 'operatingCurrent50mA', 'Operating Current', rdo.pps.operatingCurrent50mA * 50, 'Requested PPS operating current, expressed in milliamps.', 'mA')
-    container.setEntry('pps', pps)
-    return container
+  for (const candidate of resolution.candidates) {
+    if (candidate === 'battery') {
+      const battery = createMetadataContainer('Battery Request Interpretation', 'Battery RDO interpretation fields.')
+      addNumberMetadataField(battery, 'operatingPower250mW', 'Operating Power', rdo.battery.operatingPower250mW * 250, 'Requested operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
+      addNumberMetadataField(battery, 'maximumOperatingPower250mW', 'Maximum Operating Power', rdo.battery.maximumOperatingPower250mW * 250, 'Requested maximum operating power using the Battery RDO interpretation, expressed in milliwatts.', 'mW')
+      container.setEntry('battery', battery)
+    } else if (candidate === 'pps') {
+      const pps = createMetadataContainer('PPS Request Interpretation', 'Programmable Power Supply RDO interpretation fields.')
+      addNumberMetadataField(pps, 'outputVoltage20mV', 'Output Voltage', rdo.pps.outputVoltage20mV * 20, 'Requested PPS output voltage, expressed in millivolts.', 'mV')
+      addNumberMetadataField(pps, 'operatingCurrent50mA', 'Operating Current', rdo.pps.operatingCurrent50mA * 50, 'Requested PPS operating current, expressed in milliamps.', 'mA')
+      container.setEntry('pps', pps)
+    } else if (candidate === 'avs') {
+      const avs = createMetadataContainer('SPR AVS Request Interpretation', 'Adjustable Voltage Supply RDO interpretation fields.')
+      addNumberMetadataField(avs, 'outputVoltage25mV', 'Output Voltage', rdo.avs.outputVoltage25mV * 25, 'Requested AVS output voltage, expressed in millivolts.', 'mV')
+      addNumberMetadataField(avs, 'operatingCurrent50mA', 'Operating Current', rdo.avs.operatingCurrent50mA * 50, 'Requested AVS operating current, expressed in milliamps.', 'mA')
+      container.setEntry('avs', avs)
+    } else {
+      const fixedVariable = createMetadataContainer('Fixed/Variable Request Interpretation', 'Fixed/Variable RDO interpretation fields.')
+      addNumberMetadataField(fixedVariable, 'operatingCurrent10mA', 'Operating Current', rdo.fixedVariable.operatingCurrent10mA * 10, 'Requested operating current using the Fixed/Variable RDO interpretation, expressed in milliamps.', 'mA')
+      addNumberMetadataField(fixedVariable, 'maximumOperatingCurrent10mA', 'Maximum Operating Current', rdo.fixedVariable.maximumOperatingCurrent10mA * 10, 'Requested maximum operating current using the Fixed/Variable RDO interpretation, expressed in milliamps.', 'mA')
+      container.setEntry('fixedVariable', fixedVariable)
+    }
   }
-
-  if (rdo.requestTypeHint === 'avs') {
-    const avs = createMetadataContainer('AVS Request', 'Adjustable Voltage Supply RDO interpretation fields.')
-    addNumberMetadataField(avs, 'outputVoltage25mV', 'Output Voltage', rdo.avs.outputVoltage25mV * 25, 'Requested AVS output voltage, expressed in millivolts.', 'mV')
-    addNumberMetadataField(avs, 'operatingCurrent50mA', 'Operating Current', rdo.avs.operatingCurrent50mA * 50, 'Requested AVS operating current, expressed in milliamps.', 'mA')
-    container.setEntry('avs', avs)
-    return container
-  }
-
-  const fixedVariable = createMetadataContainer('Fixed/Variable Request', 'Fixed/Variable RDO interpretation fields.')
-  addNumberMetadataField(fixedVariable, 'operatingCurrent10mA', 'Operating Current', rdo.fixedVariable.operatingCurrent10mA * 10, 'Requested operating current using the Fixed/Variable RDO interpretation, expressed in milliamps.', 'mA')
-  addNumberMetadataField(fixedVariable, 'maximumOperatingCurrent10mA', 'Maximum Operating Current', rdo.fixedVariable.maximumOperatingCurrent10mA * 10, 'Requested maximum operating current using the Fixed/Variable RDO interpretation, expressed in milliamps.', 'mA')
-  container.setEntry('fixedVariable', fixedVariable)
 
   return container
 }

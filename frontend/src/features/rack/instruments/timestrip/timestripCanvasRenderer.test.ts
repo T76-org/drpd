@@ -169,6 +169,7 @@ describe('TimestripCanvasRenderer', () => {
         eventStatusColor: '#00f',
         eventMarkColor: '#ff0',
         eventSinkErrorsColor: '#f08',
+        eventSinkWarningColor: '#f80',
         eventSyncTriggerColor: '#08f',
         eventOvpColor: '#f0f',
         eventOcpColor: '#0ff',

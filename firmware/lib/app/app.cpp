@@ -583,10 +583,13 @@ std::string_view App::_ccBusRoleCaptureEventText(Logic::CCBusRole role) const {
 void App::_processSinkErrorEvents() {
     PendingSinkErrorEvent event{};
     while (queue_try_remove(&_sinkErrorEventQueue, &event)) {
-        std::string text = "Sink error: ";
+        const bool warning = event.severity == Logic::SinkDiagnosticSeverity::Warning;
+        std::string text = warning ? "Sink warning: " : "Sink error: ";
         text += event.reason != nullptr ? event.reason : "Unknown error";
-        _publishCaptureEvent(_captureEventSinkError, text);
-        deviceStatus(DeviceStatusFlag::SinkStatusChanged);
+        _publishCaptureEvent(warning ? _captureEventSinkWarning : _captureEventSinkError, text);
+        if (!warning) {
+            deviceStatus(DeviceStatusFlag::SinkStatusChanged);
+        }
     }
 }
 
@@ -719,6 +722,7 @@ void App::_sinkErrorCallback(const Logic::SinkErrorEvent& event) {
         .state = event.state,
         .hasResetType = event.resetType.has_value(),
         .resetType = event.resetType.value_or(Logic::SinkResetType::Internal),
+        .severity = event.severity,
     };
     (void)queue_try_add(&_sinkErrorEventQueue, &pendingEvent);
 }
