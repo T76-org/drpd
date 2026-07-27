@@ -1,0 +1,49 @@
+---
+sidebar_position: 6
+title: Diagnostics and support
+---
+
+# Collecting diagnostics and requesting support
+
+A useful problem report describes both the symptom and the complete setup that produced it. If possible, try to collect the information below before resetting settings or clearing browser data.
+
+## Record the environment
+
+Include:
+
+- Dr. PD hardware and firmware versions. You can obtain these from the Device menu.
+- Operating system, browser name, and browser version.
+- Whether the control software runs in a browser tab or as an installed app.
+- Whether Dr. PD is connected directly or through a hub, dock, monitor, or adapter.
+
+## Record the test setup
+
+List every device in order from source to sink, including Dr. PD's port assignments. Include source and sink model numbers, cable types and ratings, adapters, external loads, and relevant power supplies.
+
+For observer-mode problems, state which device is connected to Port 1 and Port 2 and whether either cable is e-marked. For sink-mode problems, include the source's advertised contracts, selected contract, external load, and protection limits.
+
+## Record what happened
+
+Provide:
+
+1. Exact steps starting from Dr. PD disconnected.
+2. Expected result.
+3. Actual result.
+4. MODE and each STATUS value shown during the test.
+5. VBUS and PROFILE values, if present.
+6. Any warning or error exactly as displayed.
+7. Whether the problem occurs every time or intermittently.
+
+Screenshots are useful for frontend state, but include the written steps and values as well so the problem can be searched and reproduced.
+
+## Preserve captures and comparisons
+
+Start capture before attaching the devices and preserve the original capture. If possible, also provide a comparison capture from one controlled change, such as another cable or a direct source-to-sink connection.
+
+:::tip
+You can export captures from the Message Log using **Capture → Export Selected → CSV...** or **Capture → Export Selected → JSON...**. We prefer JSON for support because it preserves the full message structure and timing.
+:::
+
+## Send this information to us
+
+Email your problem report and any supporting captures or screenshots to [hello@t76.org](mailto:hello@t76.org). We will use the information above to help diagnose the problem.

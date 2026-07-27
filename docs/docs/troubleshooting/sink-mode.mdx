@@ -1,0 +1,51 @@
+---
+sidebar_position: 4
+title: Sink mode
+---
+
+# Troubleshooting sink mode
+
+Use this page when Dr. PD does not detect a source, does not negotiate the expected power contract, or disconnects while operating as a sink.
+
+## Source remains Unattached
+
+Confirm that MODE reads **Sink** and connect the source to Port 1, the left USB-C port. Port 2 is disconnected from the USB-PD bus and VBUS while Dr. PD is in sink mode.
+
+Then check the source, cable, and power path:
+
+- Confirm that the source is powered and can charge another known-good device.
+- Try a known-good USB-C cable.
+- Remove adapters and captive-cable extensions.
+- Disconnect any external load from the banana connectors while establishing the first contract.
+
+If the source attaches with no external load, add the load only after a stable contract is visible.
+
+## Only the default contract is available
+
+The source decides which power data objects it advertises. Open **Mode → Choose power contract...** and check the offered contracts. If the voltage or current you want is absent, verify the source specification, source input power, and cable rating.
+
+PPS and AVS choices appear only when the source advertises compatible contracts. EPR also requires compatible source and cable support, and Dr. PD's EPR support must be enabled using **Mode → Sink behaviour → Support EPR mode**.
+
+Do not assume that a charger's label guarantees every advertised mode under every input or cable condition. For example, a charger may advertise PPS or AVS but not support those modes at the same time as EPR, or it may require a specific cable rating to support the advertised current. If you are unsure, check the source's datasheet or test with a different cable.
+
+## A requested contract fails or returns to 5 V
+
+Remove the external load and request the contract again. If negotiation then succeeds, the source, cable, or protection settings may be reacting to the load transient or requested power.
+
+Check the Message Log around the request and note whether the source accepts, rejects, waits, resets, or detaches. Compare the requested voltage and current with the exact offer shown in **Choose power contract...**.
+
+For PPS or AVS, confirm that the requested value lies within the advertised range and step size. For EPR, use a cable and source rated for the intended EPR operation.
+
+## Output disconnects under load
+
+Reduce or remove the load first. Then check:
+
+- Whether Dr. PD reported an overvoltage or overcurrent protection event.
+- Whether the source reset or removed VBUS.
+- Whether the selected contract permits the applied current.
+- Whether the cable is rated for the requested current and power.
+- Whether connectors, cables, or the source show abnormal heating.
+
+Review [Dr. PD's protection mechanisms](../how-to/protection-mechanisms) and set limits appropriate for the device under test. Dr. PD's hardcoded hardware-protection limits are not substitutes for test-specific limits.
+
+For setup and safety guidance, see [Operating Dr. PD as a sink](../how-to/operating-as-sink).
