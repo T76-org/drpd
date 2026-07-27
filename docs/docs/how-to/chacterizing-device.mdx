@@ -26,10 +26,10 @@ Dr. PD implements its own set of [safety mechanisms](./protection-mechanisms) to
 
 USB-PD compliance requires that sources implement certain safety mechanisms to protect against overvoltage, overcurrent, and other abnormal conditions. Dr. PD can be used alongside an electronic load to test these safety mechanisms by simulating different scenarios and observing how the source responds:
 
-1. Select **Mode -> Sink**, and connect the source you want to test to Port 1 (the left port).
+1. Select **Mode → Sink**, and connect the source you want to test to Port 1 (the left port).
 2. Connect an electronic load to the banana jacks.
-3. Select **Mode -> Choose power contract...** to [negotiate a power contract](./operating-as-sink) with the source, and select a power profile that matches your requirements.
-4. Select **Capture -> Enable Capture** to start monitoring the analog VBUS information and the USB-PD messages exchanged between the source and Dr. PD.
+3. Select **Mode → Choose power contract...** to [negotiate a power contract](./operating-as-sink) with the source, and select a power profile that matches your requirements.
+4. Select **Capture → Enable Capture** to start monitoring the analog VBUS information and the USB-PD messages exchanged between the source and Dr. PD.
 5. Gradually increase the load on the electronic load, and observe how the source responds to the increasing power demand. Once the load exceeds the power contract, the source should respond by either limiting the current or (more commonly) by shutting down the power delivery to protect itself and the connected devices. You can use the analog trace to see exactly when the protection mechanism kicks in, as well as the current level at which it happens.
 
 :::tip
@@ -42,10 +42,10 @@ If this behaviour is not acceptable for your application, and the source support
 
 The batteries in a power bank degrade over time, and their capacity decreases as they are used. Dr. PD can be used to test the capacity of a power bank by measuring the amount of energy it can deliver before it is depleted:
 
-1. Select **Mode -> Sink**, and connect the fully-charged power bank you want to test to Port 1 (the left port).
+1. Select **Mode → Sink**, and connect the fully-charged power bank you want to test to Port 1 (the left port).
 2. Connect an electronic load to the banana jacks, and set it to draw a constant current that is within the power bank's specifications.
-3. Select **Power/Charge Meter -> Reset** to start measuring the energy delivered by the power bank from the moment you start the test.
-4. Select **Capture -> Enable Capture** to start monitoring the analog VBUS information and the USB-PD messages exchanged between the power bank and Dr. PD.
+3. Select **Power/Charge Meter → Reset** to start measuring the energy delivered by the power bank from the moment you start the test.
+4. Select **Capture → Enable Capture** to start monitoring the analog VBUS information and the USB-PD messages exchanged between the power bank and Dr. PD.
 5. Start the electronic load, and let it draw power from the power bank until it is depleted. You can use the energy accumulator in Dr. PD to measure the total amount of energy delivered by the power bank before it is depleted. This will give you an estimate of the power bank's capacity, and you can compare it to the manufacturer's specifications to see how much the capacity has degraded over time.
 
 You can repeat this process with different power contracts and current levels to see how the power bank performs under different conditions, and to identify any issues with its energy delivery capabilities. For example, you may find that the power bank delivers less energy at higher current levels, which could indicate that the batteries are degrading or that there are issues with the power delivery circuitry.

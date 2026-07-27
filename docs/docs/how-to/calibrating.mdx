@@ -16,11 +16,11 @@ Therefore, in order to change the calibration coefficients, all you need to is p
 
 1. In order to calibrate Dr. PD's voltage measurement, you will need to first disconnect any devices and cables from both USB-C ports. 
 2. Then, connect a known voltage source to the banana jacks, respecting the correct polarity. This voltage source will act as your reference standard for the calibration, and should therefore be accurate and stable. The voltage source should be able to provide a voltage within the range of Dr. PD's measurement capabilities (up to 60V).
-3. Next, you should max out Dr. PD's overvoltage and overcurrent protection thresholds to prevent them from interfering with the calibration process. Select **Protection -> Set thresholds...** to open **OVP/OCP settings**, then set OVP and OCP high enough that they do not interfere with calibration.
+3. Next, you should max out Dr. PD's overvoltage and overcurrent protection thresholds to prevent them from interfering with the calibration process. Select **Protection → Set thresholds...** to open **OVP/OCP settings**, then set OVP and OCP high enough that they do not interfere with calibration.
 
 ## Performing voltage calibration
 
-Select **Device -> [paired device] -> Calibrate -> Voltage...** for the connected Dr. PD. This will open the voltage calibration dialog, which displays a list of all the reference intervals (1V, 2V, 3V, etc.) that are stored in Dr. PD's flash memory, alongside their corresponding correction factors.
+Select **Device → [paired device] → Calibrate → Voltage...** for the connected Dr. PD. This will open the voltage calibration dialog, which displays a list of all the reference intervals (1V, 2V, 3V, etc.) that are stored in Dr. PD's flash memory, alongside their corresponding correction factors.
 
 In order to update a particular correction factor, apply the appropriate voltage to the banana jacks, and then click on the "Calibrate" button next to the reference interval that corresponds to the voltage you applied. Dr. PD will then measure the voltage, calculate the correction factor, and update it in flash memory. You can repeat this process for as many reference intervals as you like (or, indeed, for all of them).
 
@@ -29,12 +29,12 @@ In order to update a particular correction factor, apply the appropriate voltage
 Current calibration follows a slightly different procedure:
 
 1. Connect a known-good USB-C source capable of providing 5V / 5A to Port 1.
-2. Select **Mode -> Sink**, then use **Mode -> Choose power contract...** to request a 5V / 5A contract from the source.
+2. Select **Mode → Sink**, then use **Mode → Choose power contract...** to request a 5V / 5A contract from the source.
 3. Connect a known current sink (such as a programmable electronic load) to the banana jacks
 
 ## Performing current calibration
 
-Select **Device -> [paired device] -> Calibrate -> Current...** for the connected Dr. PD. This will open the current calibration dialog, which displays a list of all the reference intervals (500mA, 1A, 1.5A, etc.) that are stored in Dr. PD's flash memory, alongside their corresponding correction factors.
+Select **Device → [paired device] → Calibrate → Current...** for the connected Dr. PD. This will open the current calibration dialog, which displays a list of all the reference intervals (500mA, 1A, 1.5A, etc.) that are stored in Dr. PD's flash memory, alongside their corresponding correction factors.
 
 In order to update a particular correction factor, set the current sink to draw the appropriate current, and then click on the "Calibrate" button next to the reference interval that corresponds to the current you set. Dr. PD will then measure the current, calculate the correction factor, and update it in flash memory. You can repeat this process for as many reference intervals as you like (or, indeed, for all of them).
 

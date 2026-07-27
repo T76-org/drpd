@@ -26,9 +26,9 @@ VBUS measurements, and timing.
 
 You can try this with a known-good USB-PD source connected to Port 1:
 
-1. Select **Mode -> Sink**.
-2. Select **Capture -> Enable Capture** or press `C`.
-3. Use **Mode -> Cycle USB Connection** or press `T` to start a fresh attach
+1. Select **Mode → Sink**.
+2. Select **Capture → Enable Capture** or press `C`.
+3. Use **Mode → Cycle USB Connection** or press `T` to start a fresh attach
    sequence.
 4. Open the Message Log and look for Source Capabilities, Request, Accept,
    PS RDY, and GoodCRC messages.
@@ -46,7 +46,7 @@ Observer mode is useful when you want to see what two real USB-C devices
 negotiate with each other.
 
 You can put Dr. PD inline between a source and sink with two USB-C cables, set
-**Mode -> Observer**, select **Capture -> Enable Capture**, and then complete the
+**Mode → Observer**, select **Capture → Enable Capture**, and then complete the
 connection. When possible, use one passive, non-e-marked cable in the chain; two
 e-marked cables can confuse some connections.
 
@@ -68,10 +68,10 @@ power requests.
 
 Starting points:
 
-- Connect the source to Port 1 and select **Mode -> Sink**.
+- Connect the source to Port 1 and select **Mode → Sink**.
 - Confirm the header reports `Attached` and shows the current VBUS voltage and
   power profile.
-- Open **Mode -> Choose power contract...** to see the advertised contracts.
+- Open **Mode → Choose power contract...** to see the advertised contracts.
 - Select a relevant contract and watch the Request, Accept, PS RDY, and VBUS
   behavior in the Message Log.
 - Add manual markers before changing contracts, cables, or load settings.
@@ -108,7 +108,7 @@ rail with an external electronic load.
 
 Useful things to explore:
 
-- Use **Protection -> Set thresholds...** to open **OVP/OCP settings**, then set
+- Use **Protection → Set thresholds...** to open **OVP/OCP settings**, then set
   conservative OVP and OCP thresholds before connecting the load.
 - Start with the electronic load disabled or at zero current.
 - Increase load current gradually while watching VBUS voltage, source messages,
@@ -156,7 +156,7 @@ The sync output can correlate USB-PD events with an oscilloscope capture of CC
 activity, VBUS movement, or external load behavior.
 
 You can connect one scope channel to the sync output and another to the signal
-you want to compare, then select **Trigger -> Configure...** and choose an event
+you want to compare, then select **Trigger → Configure...** and choose an event
 such as SOP start, Message Complete, Hard Reset, CRC Error, or Any Error.
 
 The sync port is limited to 3.3 V and 5 mA. In pull-down mode, do not connect
@@ -171,9 +171,9 @@ trigger configuration details.
 
 Exports are useful when you want to compare runs outside the UI.
 
-- Use **Capture -> Export Selected -> CSV...** for spreadsheet-friendly
+- Use **Capture → Export Selected → CSV...** for spreadsheet-friendly
   tables.
-- Use **Capture -> Export Selected -> JSON...** when you want raw message
+- Use **Capture → Export Selected → JSON...** when you want raw message
   data, decoded fields, warnings, and errors in a structured format.
 - Add manual markers before changing cables, contracts, or load settings so the
   exported data is easier to interpret later.
