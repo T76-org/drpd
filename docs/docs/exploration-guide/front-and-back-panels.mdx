@@ -38,34 +38,49 @@ Before testing high-power or unfamiliar devices, read the
 Port 2 is the other side of the USB-C pass-through path. In **Observer** mode,
 connect Dr. PD inline between a source and a sink using Ports 1 and 2. Dr. PD
 then observes their USB-PD communication and measures the power flowing through
-the connection. Both ports are bidirectional in Observer mode, so the source
+the connection.
+
+:::tip
+In Observer mode, both ports are bidirectional, so the source
 and sink can be connected to either port. They can also swap power roles while
-remaining connected; Port 1 and Port 2 do not permanently identify which device
-is the source or sink.
+remaining connected (as required by the USB-PD spec).
+
+The power diagram in the control software will show the direction in which
+power is flowing, and the Message Log will show which device is currently
+acting as the source and which is acting as the sink.
+:::
 
 In **Sink** mode, Port 2 is disconnected from the USB-PD bus and VBUS line. Even
-with that lockout, disconnecting unused devices keeps a bench setup easier to
-understand.
+with that lockout, it's a good idea to avoid connecting a USB-PD source to Port 2
+to prevent accidental power delivery to it.
 
 ### VBUS banana jacks
 
 The positive and negative banana jacks provide access to VBUS. In Sink mode,
 use them to connect an external electronic load, a meter, or other suitably
-rated bench equipment to the negotiated supply.
+rated bench equipment to the negotiated supply. In Observer mode, use them to
+measure the voltage and current flowing through the USB-C connection.
 
-Observe the polarity and the limits printed on the panel: **60 V maximum and
+:::important
+Always observe the polarity and the limits printed on the panel: **60 V maximum and
 6 A maximum** at the connectors. Dr. PD's specified VBUS measurement range is
 0–60 V and ±6 A; the supported USB-PD sink request is also limited by
 the source, cable, negotiated contract, and applicable power rating. Configure
 OVP and OCP before connecting an unfamiliar source or load.
+:::
 
 ### CC OUT
 
 CC OUT is a dedicated monitoring tap for the active USB-C Configuration Channel
 signal. Connect it to suitably rated oscilloscope or logic-analyzer equipment
 when you want to compare the physical CC waveform with decoded messages or the
-SYNC output. Dr. PD automatically accounts for cable orientation and exposes
-the correct CC connection on both ports.
+SYNC output.
+
+:::tip
+Dr. PD automatically accounts for cable orientation and exposes the correct CC
+connection on both ports. Therefore, the CC OUT signal always corresponds to the
+active CC line on the USB-C connection under test.
+:::
 
 ## Back panel
 
