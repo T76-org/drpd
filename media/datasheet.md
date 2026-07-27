@@ -41,7 +41,7 @@ Date: 2026-03-27
 | Power requirements | Powered from host USB, 100 mA @ 5 V typical |
 | External ports | Separate DUT and pass-through USB-C ports, banana jacks for external power and measurement access, dedicated CC tap for monitoring USB-PD communication, hardware sync, USB-C receptacle for host connection |
 | VBUS voltage range | 0 - 60 V bidirectional, 10 mV resolution, ±1% full-scale accuracy (factory calibrated) * |
-| VBUS current range | -5 - +5 A bidirectional, 10 mA resolution, ±2% full-scale accuracy (burden voltage 5mV/V, factory calibrated) * |
+| VBUS current range | ±6 A bidirectional, 10 mA resolution, ±2% full-scale accuracy (burden voltage 5mV/V, factory calibrated) * |
 | Timestamp resolution | 1 µs |
 | Sampling frequency | 200 MHz edge timing, 10 s/S for voltage/current |
 | Triggering | Preamble start, message start, header start, message complete, message type, sender, protocol errors |
