@@ -1,0 +1,115 @@
+---
+sidebar_position: 2
+---
+
+# Front and back panels
+
+Dr. PD separates the USB-PD connection under test from its host connection and
+bench interfaces. The front panel carries the two USB-C test ports, VBUS access,
+and the CC monitoring output. The back panel carries the host USB connection and
+the configurable sync output.
+
+## Front panel
+
+<img
+  src="/img/drpd-front-panel.png"
+  srcSet="/img/drpd-front-panel.png 1x, /img/drpd-front-panel@2x.png 2x"
+  alt="Front panel of Dr. PD showing USB-C Ports 1 and 2, positive and negative VBUS banana jacks, and the CC OUT connector"
+  style={{width: '100%', height: 'auto'}}
+  loading="lazy"
+/>
+
+### Port 1 — Sink Mode DUT
+
+Port 1 is the primary USB-C port for the device under test. Connect a USB-PD
+source here when using Dr. PD in **Sink** mode. Dr. PD can then discover the
+source's capabilities, request a supported power contract, capture the USB-PD
+exchange, and measure VBUS voltage and current.
+
+Port 1 is also one side of the pass-through connection in **Observer** mode.
+
+:::warning
+Before testing high-power or unfamiliar devices, read the
+[important warnings and safety precautions](../important-warnings.mdx).
+:::
+
+### Port 2 — USB-C pass-through
+
+Port 2 is the other side of the USB-C pass-through path. In **Observer** mode,
+connect Dr. PD inline between a source and a sink using Ports 1 and 2. Dr. PD
+then observes their USB-PD communication and measures the power flowing through
+the connection.
+
+:::tip
+In Observer mode, both ports are bidirectional, so the source
+and sink can be connected to either port. They can also swap power roles while
+remaining connected (as required by the USB-PD spec).
+
+The power diagram in the control software will show the direction in which
+power is flowing, and the Message Log will show which device is currently
+acting as the source and which is acting as the sink.
+:::
+
+In **Sink** mode, Port 2 is disconnected from the USB-PD bus and VBUS line. Even
+with that lockout, it's a good idea to avoid connecting a USB-PD source to Port 2
+to prevent accidental power delivery to it.
+
+### VBUS banana jacks
+
+The positive and negative banana jacks provide access to VBUS. In Sink mode,
+use them to connect an external electronic load, a meter, or other suitably
+rated bench equipment to the negotiated supply. In Observer mode, use them to
+measure the voltage and current flowing through the USB-C connection.
+
+:::important
+Always observe the polarity and the limits printed on the panel: **60 V maximum and
+6 A maximum** at the connectors. Dr. PD's specified VBUS measurement range is
+0–60 V and ±6 A; the supported USB-PD sink request is also limited by
+the source, cable, negotiated contract, and applicable power rating. Configure
+OVP and OCP before connecting an unfamiliar source or load.
+:::
+
+### CC OUT
+
+CC OUT is a dedicated monitoring tap for the active USB-C Configuration Channel
+signal. Connect it to suitably rated oscilloscope or logic-analyzer equipment
+when you want to compare the physical CC waveform with decoded messages or the
+SYNC output.
+
+:::tip
+Dr. PD automatically accounts for cable orientation and exposes the correct CC
+connection on both ports. Therefore, the CC OUT signal always corresponds to the
+active CC line on the USB-C connection under test.
+:::
+
+## Back panel
+
+<img
+  src="/img/drpd-back-panel.png"
+  srcSet="/img/drpd-back-panel.png 1x, /img/drpd-back-panel@2x.png 2x"
+  alt="Back panel of Dr. PD showing the SYNC connector and HOST USB-C port"
+  style={{width: '100%', height: 'auto'}}
+  loading="lazy"
+/>
+
+### SYNC
+
+SYNC is the configurable hardware trigger output. Connect it to an oscilloscope,
+logic analyzer, or other compatible instrument to correlate an external capture
+with events such as packet starts, message completion, hard resets, or protocol
+errors.
+
+The SYNC connector is limited to **3.3 V and 5 mA**. Its pulse behavior, event,
+threshold, and repeat settings are configured in the control software. See
+[Using triggers and the sync output](../how-to/using-triggers.mdx) for setup and
+timing considerations.
+
+### HOST
+
+The HOST USB-C port powers Dr. PD and connects it to the control computer. Use a
+USB-C cable that supports USB 2.0 data, not a charge-only cable. Open the Dr. PD
+control software in Chrome or Edge before connecting the instrument, then pair
+it when prompted.
+
+The host connection is separate from Ports 1 and 2: attach the computer here,
+and reserve the front USB-C ports for the USB-PD connection under test.
