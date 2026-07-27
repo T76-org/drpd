@@ -20,7 +20,7 @@ A typical first connection looks like this:
 
 1. Open the Dr. PD control software in Chrome or Edge.
 2. Connect Dr. PD over the control port and wait for the browser to detect it.
-3. Select **Device -> Pair new device...**.
+3. Select **Device → Pair new device...**.
 4. Choose the Dr. PD USB device in the browser permission prompt and approve
    the connection.
 5. Confirm that the app shows the paired device and live instrument status.
@@ -32,7 +32,7 @@ can reconnect to the same instrument from the Device menu.
 
 Chrome and Edge can offer Dr. PD as an installable web app when the current
 browser, URL, and app state meet their installability requirements. When that is
-available, choose **Help -> Install Dr. PD as app...** and follow the browser
+available, choose **Help → Install Dr. PD as app...** and follow the browser
 prompt.
 
 Installing the app does not add a driver or change the USB permission model. It
@@ -49,18 +49,18 @@ step-by-step notes.
 With a known-good USB-PD source and cable, you can explore the main app surfaces
 quickly:
 
-1. Select **Mode -> Sink**.
-2. Select **Capture -> Enable Capture** before attaching the source if you
+1. Select **Mode → Sink**.
+2. Select **Capture → Enable Capture** before attaching the source if you
    want the full attach and negotiation sequence.
 3. Connect the USB-PD source to Port 1.
 4. Watch the Message Log populate with decoded USB-PD messages, event rows, and
    correlated VBUS voltage/current samples.
 5. Select a negotiation message to inspect decoded fields, raw data, warnings,
    and timing details in the message detail view.
-6. Open **Mode -> Choose power contract...** to explore **Sink power contract
+6. Open **Mode → Choose power contract...** to explore **Sink power contract
    selection** and request one of the source's advertised contracts.
-7. Select relevant rows and use **Capture -> Export Selected -> CSV...** or
-   **Capture -> Export Selected -> JSON...** when you want output.
+7. Select relevant rows and use **Capture → Export Selected → CSV...** or
+   **Capture → Export Selected → JSON...** when you want output.
 
 The **Sink power contract selection** dialog lists available PDOs and exposes
 voltage/current inputs where the selected PDO type allows a user-selected value.
@@ -71,20 +71,20 @@ entries expose the relevant editable request fields.
 
 The Message Log is the main surface for protocol evidence.
 
-- **Capture -> Enable Capture** starts recording decoded USB-PD traffic,
+- **Capture → Enable Capture** starts recording decoded USB-PD traffic,
   analog VBUS samples, and app-injected events.
 - Click the **Configure** button in the Message Log panel header to control
   visible table columns and capture buffer depth. Column widths and layout
   choices are remembered by the app.
-- **Capture -> Filter...** narrows the view by message properties, while
+- **Capture → Filter...** narrows the view by message properties, while
   the search field helps find text in decoded fields.
-- **Capture -> Hide GoodCRC Messages** keeps acknowledgements out of the
+- **Capture → Hide GoodCRC Messages** keeps acknowledgements out of the
   working view without changing the underlying capture.
-- **Capture -> Add marker** inserts a manual event row when the physical
+- **Capture → Add marker** inserts a manual event row when the physical
   setup changes, such as swapping a cable or adding load.
-- **Capture -> Export Selected -> JSON...** exports structured raw and
+- **Capture → Export Selected → JSON...** exports structured raw and
   decoded message data.
-- **Capture -> Export Selected -> CSV...** exports a spreadsheet-friendly
+- **Capture → Export Selected → CSV...** exports a spreadsheet-friendly
   table.
 
 JSON is useful when another tool needs raw fields, decoded fields, warnings, and
@@ -94,29 +94,29 @@ errors. CSV is useful for compact tables and quick comparisons between runs.
 
 Sink mode makes Dr. PD the USB-PD sink. It is useful for exploring how a
 charger, laptop port, power bank, or cable responds to specific contracts. The
-app path is **Mode -> Sink**, followed by **Mode -> Choose power
+app path is **Mode → Sink**, followed by **Mode → Choose power
 contract...** when the source has advertised PDOs.
 
 Observer mode puts Dr. PD inline between an existing source and sink so you can
-capture a real device negotiation. Use **Mode -> Observer**, select
-**Capture -> Enable Capture**, connect one side, and then connect the other
+capture a real device negotiation. Use **Mode → Observer**, select
+**Capture → Enable Capture**, connect one side, and then connect the other
 side to record the attach sequence.
 
-In either Sink or Observer mode, **Mode -> Cycle USB Connection** simulates a
+In either Sink or Observer mode, **Mode → Cycle USB Connection** simulates a
 USB detach and reconnect from the app. This is useful when you want another
 negotiation capture without rewiring the bench.
 
 ## Protection and calibration
 
 Set protection limits before high-voltage or high-current tests. Select
-**Protection -> Set thresholds...** to open **OVP/OCP settings**, then enter
+**Protection → Set thresholds...** to open **OVP/OCP settings**, then enter
 overvoltage and overcurrent thresholds within the ranges shown by the dialog.
 Treat those values as setup parameters, not as operating targets.
 
 Calibration is exposed per paired device through the Device menu:
 
-- **Device -> [paired device] -> Calibrate -> Voltage...**
-- **Device -> [paired device] -> Calibrate -> Current...**
+- **Device → [paired device] → Calibrate → Voltage...**
+- **Device → [paired device] → Calibrate → Current...**
 
 Use the calibration workflow when agreement with a reference DMM, load, or power
 analyzer matters. For a general workflow tour, it is enough to know where
@@ -125,9 +125,9 @@ calibration lives and avoid relying on absolute accuracy without a cross-check.
 ## Triggers and sync output
 
 The Trigger menu controls the external sync output and protocol-event triggers.
-Select **Trigger -> Configure...** to choose the trigger stage, sender filter,
+Select **Trigger → Configure...** to choose the trigger stage, sender filter,
 optional message-type filters, auto-repeat behavior, sync output mode, and pulse
-width. Select **Trigger -> Reset** after a one-shot trigger fires.
+width. Select **Trigger → Reset** after a one-shot trigger fires.
 
 One useful path is to connect the sync output to an oscilloscope or logic
 analyzer and compare three things in the same run: the physical trace, the
@@ -160,8 +160,8 @@ PDO, read status or measurements, then export or retrieve captured data.
 
 ## Evidence exports
 
-For manual exploration, select rows in the Message Log and use **Capture ->
-Export Selected -> JSON...** or **Capture -> Export Selected -> CSV...**. JSON
+For manual exploration, select rows in the Message Log and use **Capture →
+Export Selected → JSON...** or **Capture → Export Selected → CSV...**. JSON
 preserves structure and decoded details; CSV gives a compact table for notes,
 plotting, or comparisons.
 
