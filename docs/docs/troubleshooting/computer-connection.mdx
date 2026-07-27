@@ -1,0 +1,63 @@
+---
+sidebar_position: 2
+title: Computer connection
+---
+
+# Troubleshooting the computer connection
+
+Use this page when Dr. PD is not available to the control software, does not appear in the browser's device picker, or repeatedly disconnects.
+
+## Dr. PD does not power on
+
+Confirm that the cable is connected to Dr. PD's control port and to a powered USB port on the computer or tablet. Try another USB port and a known-good USB data cable. A hub, dock, or adapter can introduce a separate power or data problem, so connect Dr. PD directly to the computer while troubleshooting.
+
+## Where is the Dr. PD software?
+
+When you connect Dr. PD, your browser should display a connection notification. Click the notification to open the Dr. PD control software.
+
+If the notification does not appear, open the [Dr. PD control software](https://t76.org/drpd/app) directly in Chrome or Edge.
+
+:::tip[No drivers or installation required]
+
+Dr. PD does not require any drivers or local software installation. If you prefer to run the control software as a local app in its own window, see [Installing Dr. PD as an app](../how-to/installing-as-app).
+
+:::
+
+## Dr. PD does not appear when pairing
+
+Dr. PD requires Chrome or Edge and a USB cable that supports USB 2.0 communication. A cable that charges another device is not necessarily a data cable.
+
+Before troubleshooting the browser, check whether the operating system detects Dr. PD. Disconnect Dr. PD, open the operating system's USB device list, and reconnect it while watching for a new device. On Windows, use Device Manager; on macOS, open System Information and select USB; on Linux, use the system's hardware information tool or run `lsusb`. The exact name may vary, so the important test is whether a USB device appears when Dr. PD is connected and disappears when it is disconnected.
+
+If the operating system does not detect any new USB device, the problem is below the browser level. Replace the control cable with a known-good cable that you have verified can transfer data, connect Dr. PD directly instead of through a hub or dock, and try another USB port. Inspect both USB-C connectors for debris or damage and make sure they are fully seated. A damaged cable, a charge-only cable, or a faulty port may still supply enough power for Dr. PD to turn on while providing no data connection.
+
+If possible, repeat the test with another computer. If Dr. PD appears there, return to the original computer and investigate its USB port, hub, adapter, or operating-system configuration. If Dr. PD is not detected on either computer with multiple known-good data cables, collect the combinations you tested before requesting support.
+
+Once the operating system sees Dr. PD, continue with browser pairing:
+
+1. Connect Dr. PD directly to the computer.
+2. Open the [Dr. PD control software](https://t76.org/drpd/app).
+3. Choose **Device → Pair new device...**.
+4. Select Dr. PD in the browser's device picker and click **Connect**.
+
+If no Dr. PD entry appears, close other browser tabs or applications that might already be using the device. Disconnect Dr. PD, reconnect it, and open the picker again. Then try another known-good data cable and USB port.
+
+For the normal connection procedure, see [Connecting Dr. PD to your computer or tablet](../quickstart/connecting-dr-pd) and [Pairing Dr. PD](../quickstart/pairing-device).
+
+## Pairing succeeds, but Dr. PD does not connect
+
+Reopen the control software and reconnect Dr. PD. If it still does not connect, pair it again using **Device → Pair new device...**. Make sure you select the currently connected Dr. PD rather than another remembered USB device.
+
+Installing the control software as an app does not change pairing or USB access. If the installed app fails to connect, test the same device in a regular Chrome or Edge window. See [Installing Dr. PD as an app](../how-to/installing-as-app).
+
+## Connection drops or reconnects repeatedly
+
+Intermittent connections are commonly isolated by simplifying the USB path:
+
+- Replace the control cable with a short, known-good data cable.
+- Connect directly instead of through a hub, dock, monitor, or adapter.
+- Try another USB port.
+- Check that the connector is fully seated and is not under mechanical strain.
+- Disconnect the test setup from Port 1 and Port 2. If the control connection becomes stable, reconnect the test setup one part at a time.
+
+If the problem follows Dr. PD across multiple computers, ports, and cables, collect the details listed in [Diagnostics and support](./diagnostics-and-support).

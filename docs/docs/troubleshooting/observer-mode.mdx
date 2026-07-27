@@ -1,0 +1,48 @@
+---
+sidebar_position: 5
+title: Observer mode
+---
+
+# Troubleshooting observer mode
+
+Use this page when the two devices do not connect through Dr. PD, STATUS does not reach **Attached**, or captured USB-PD traffic is missing or malformed.
+
+## STATUS remains Unattached
+
+Confirm that MODE reads **Observer**. Dr. PD must be connected inline between two devices using Port 1 and Port 2. A sink-only device connected by itself may still show **Unattached** because no source is present.
+
+Test each device and cable in a simpler setup first. Confirm that the source and sink connect directly without Dr. PD, then insert Dr. PD and the second cable.
+
+## STATUS stops at Source Found
+
+**Source Found** means Dr. PD detects a source at one end but has not detected a completed source-to-sink attachment. Check the sink-side cable and device. Swap the two USB-C cables, reseat both connections, and confirm that the sink works when connected directly to the source.
+
+## Devices work directly but not through Dr. PD
+
+Observer mode requires two cables, while a normal USB-C connection uses one. If both cables contain e-markers, both e-markers may respond and confuse the attached devices.
+
+Replace one cable with a simple passive USB-C cable without an e-marker. The other cable can remain e-marked. Also remove adapters and extension cables while troubleshooting.
+
+See [Observing a USB connection](../how-to/observing-connection) for cable-selection details and the normal setup.
+
+## Devices attach, but messages are missing
+
+Start capture before attachment. Then disconnect and reconnect the source or sink to generate a complete negotiation. If capture starts after the devices are already attached, the initial capability exchange and contract negotiation will not be present.
+
+:::tip[Cycling the connection without unplugging anything]
+
+Choose **Mode → Cycle USB Connection** or press the `T` key to simulate a physical disconnection and reconnection. Dr. PD will restore the previous mode automatically, allowing you to capture a fresh negotiation without disturbing the cables.
+
+:::
+
+If only some traffic is missing, record which direction and message types are absent. Swap Port 1 and Port 2 or reverse one cable orientation, then repeat the capture. This helps identify a CC orientation, cable, or device-specific problem without changing several variables at once.
+
+## Messages are malformed or decode poorly
+
+First capture the same setup again after reseating the cables. Then:
+
+- Try another passive cable in one half of the observer connection.
+- Record which port and CC line carry the affected traffic.
+- Preserve the original capture for comparison and support.
+
+For a support report, include the physical topology, cable types, device models, STATUS sequence, and original capture as described in [Diagnostics and support](./diagnostics-and-support).

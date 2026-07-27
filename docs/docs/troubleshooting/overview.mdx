@@ -1,0 +1,32 @@
+---
+sidebar_position: 1
+title: Troubleshooting Dr. PD
+---
+
+# Troubleshooting Dr. PD
+
+Start with the symptom that best matches what you see:
+
+- If Dr. PD does not appear in the browser's device picker, disconnects from the control software, or cannot be paired, see [Computer connection](./computer-connection).
+- If the control software opens but does not update or behave as expected, see [Control software](./control-software).
+- If Dr. PD cannot attach to a source or negotiate the power contract you expect, see [Sink mode](./sink-mode).
+- If the devices on either side of Dr. PD do not connect, or the capture is missing messages, see [Observer mode](./observer-mode).
+- If you need to report a problem, see [Diagnostics and support](./diagnostics-and-support) for the information to collect.
+
+## Basic checks
+
+Before investigating a specific symptom:
+
+1. Confirm that the control cable is connected to Dr. PD's control port, not Port 1 or Port 2.
+2. Use a control cable that supports USB 2.0 data. A charge-only cable can power Dr. PD without making it available to the computer.
+3. Disconnect and reconnect Dr. PD, then reopen the control software.
+4. Confirm that Chrome or Edge is up to date.
+5. Remove other USB-C devices and test with the simplest possible setup.
+
+Change one cable, port, device, or setting at a time. This makes it much easier to identify which part of the setup caused the problem.
+
+## Use the status indicators
+
+The control software's MODE and STATUS indicators are useful starting points. First confirm that MODE shows the intended operating mode. Then note the exact STATUS value, such as **Unattached**, **Source Found**, or **Attached**, before changing the setup.
+
+Also note whether VBUS, PROFILE, and the Message Log change when you attach a device. These observations help distinguish an electrical attachment problem from a power-negotiation or capture problem.

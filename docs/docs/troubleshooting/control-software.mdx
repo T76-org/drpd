@@ -1,0 +1,35 @@
+---
+sidebar_position: 3
+title: Control software
+---
+
+# Troubleshooting the control software
+
+Use this page when Dr. PD connects but the frontend is blank, stale, unresponsive, or missing expected measurements or messages.
+
+## The page is blank or does not finish loading
+
+Reload the page and confirm that Chrome or Edge is up to date. If you installed Dr. PD as an app, close the app completely and reopen it. You can also test the control software in a regular browser window to determine whether the problem is limited to the installed app.
+
+If the page still fails, record the browser name and version and whether the same URL works in a private browsing window or another supported browser. Do not clear browser data until you have recorded the problem and any settings you may need to restore.
+
+## Dr. PD is connected, but values do not update
+
+Confirm that the MODE and STATUS indicators respond when you change mode or attach a device. If none of the indicators update, reconnect Dr. PD using the steps in [Computer connection](./computer-connection).
+
+If STATUS changes but a particular measurement does not, verify that the test setup should produce that measurement. In observer mode, for example, a sink-only device by itself may leave STATUS at **Unattached**. In sink mode, the source must be connected to Port 1.
+
+## The Message Log is empty
+
+An empty Message Log does not always indicate a frontend problem. USB-PD messages only appear when communication occurs after capture is active.
+
+1. Confirm that Dr. PD is in the intended mode.
+2. Start capture before connecting or renegotiating the devices.
+3. Disconnect and reconnect the device under test to generate a fresh attachment and negotiation.
+4. In observer mode, confirm that the devices reach **Attached**.
+
+See [Capturing USB-PD messages](../how-to/capturing-messages) for the normal capture workflow. If devices attach but messages remain missing or malformed, continue with [Observer mode](./observer-mode).
+
+## Settings or layout do not behave as expected
+
+First reload the control software and reproduce the problem with the same sequence of actions. Record the affected setting, its expected value, and what happened instead. If possible, capture a screenshot before resetting settings or clearing browser data.
