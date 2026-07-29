@@ -1,0 +1,30 @@
+---
+title: USB Ports
+sidebar_position: 2
+---
+
+# USB Ports
+
+The USB Ports section of Dr. PD is responsible for defining the front-panel USB-C connectors and the associated power switching and sensing circuitry. 
+
+In addition to the USB ports, it includes two analog switches that are used to isolate either USB-C port from the rest of the system when it is not in use, and to implement Dr. PD's programmable overvoltage and overcurrent protection.
+
+The section also pulls out the CC lines from the USB-C connectors and routes them to the Bus Connector and Digital IO section, where they are used to detect the orientation of the USB-C cables in both front-panel ports, capture CC line edges, and actively drive the CC output in Sink mode.
+
+## Analog switches
+
+Q202 and Q205 form a bidirectional switch that is used to block VBUS from reaching the VBUS banana connector. The firmware acts on the gate of Q201 to turn this switch on during normal operation and turns it off when the device is in Disabled mode or when the overvoltage or overcurrent protection is triggered. 
+
+The zener diode D201 limits the voltage on the gate of Q205 to around 12V, preventing damage to the MOSFET when the voltage on VBUS exceeds the maximum gate voltage of 20V, with extra headroom for safety. When Q201 is on, R204 and R205 limit the current flowing from D201 to ground.
+
+R203 ensures that, absent any gate drive from the microcontroller, the gate of Q201 is always at the same potential as its source, keeping the MOSFET turned off and preventing any current from flowing through it. Finally, C202 slows the gates of Q202 and Q205 during turn-on and turn-off, reducing inrush current ever so slightly and preventing ringing on the VBUS line.
+
+A similar bidirectional switch is formed by Q204 and Q206. Its purpose is to isolate Port 2 when the device is in Disabled or Sink mode so that a USB-C sink inadvertently left connected to Port 2 does not receive an unexpected voltage on its VBUS line. Like the other switch, it is controlled by the microcontroller and also serves as protection when an overvoltage or overcurrent event is detected.
+
+These switches are bidirectional because, in a USB-PD connection, current can flow in both directions: Not only can source and sink be connected to either port in Observer mode, but they can also swap their roles at any time if they support dual-role power. This is less of a concern in Sink mode, but the [PD Role Resistors](./pd-role-resistors) section is designed to support a future Source mode, and so the switches must be able to handle current flowing in either direction anyway.
+
+## CC line routing
+
+The individual CC lines for both USB-C ports are routed to the Bus Connector and Digital IO section, where they are used to detect the orientation of the USB-C cables, capture CC line edges, and actively drive the CC output in Sink mode.
+
+R206, R207, R208, and R209 are used to pull the CC lines to ground to limit the amount of noise without interfering with the CC line detection. 

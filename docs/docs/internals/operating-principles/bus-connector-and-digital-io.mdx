@@ -1,0 +1,56 @@
+---
+title: Bus Connector and Digital IO
+sidebar_position: 5
+---
+
+# Bus Connector and Digital IO
+
+This section of the schematic is responsible for handling the interconnection between the two CC lines on the USB-C ports, as well as all digital USB-PD communications.
+
+# Cable orientation detection
+
+Even though USB-C cables feature two CC lines, only one of them is used for communication at a time; the other is either left floating or used to power the cable's e-marker. 
+
+Thus, when a cable is connected to Port 1 and the device is in Sink mode, it needs to figure out which CC line is actually usable for communication. In Observer mode, the device needs to figure out which CC line is being used _by either port,_ and then connect them accordingly so that the attached devices can communicate with each other.
+
+To accomplish this dance, Dr. PD uses three small 2:1 multiplexers, U503, U504, and U505. Each of these multiplexers has two inputs and one output, and can be configured to connect either input to the output:
+
+- U503 is capable of redirecting either CC line from Port 1 on to one of the inputs of U504.
+- U505 is likewise capable of redirecting either CC line from Port 2 on to the other input of U504.
+- U504 is then responsible for either connecting the two selected CC lines together, or leave them isolated from each other.
+
+The cable orientation mechanism works in slightly different ways depending on whether the device is in Sink mode or Observer mode.
+
+### Sink mode
+
+In Sink mode, U504 is always configured to isolate the two CC lines from each other, since only Port 1 is used for communication. This prevents a device or cable connected to Port 2 from interfering with the signaling between Port 1 Dr. PD's own internal transmitter.
+
+When Dr. PD enters sink mode, it uses the Analog Monitor multiplexer to check for a voltage on the CC lines of Port 1. If a source is connected, one of the CC lines will be pulled up to 3.3V (or 5V for older sources), thus indicating which CC line is being used for communication. The multiplexer then configures U503 to connect the correct CC line to U504, and uses the PD Role Resistors multiplexer to place the appropriate pull-down resistor on it. If the source is working correctly, this causes it to start sending PD messages that can then be processed by the firmware.
+
+## Source mode
+
+In Source mode, U504 is initially configured to isolate the two ports. The firmware activates a state machine that begins by cycling through all four CC lines, looking for one that that presents 3.3V. It then locks that as the port choice for the source, and cycles through the two CC lines of the other port, connecting them through U504 to the selected CC line of the source port in turn until it finds one that pulls down the line to a voltage consistent with the presence of a sink device's 5.1kΩ pull-down resistor. Once it finds a valid CC line on the sink port, it locks that as the port choice for the sink, and leaves U504 configured to connect the two selected CC lines together.
+
+The process has several failure modes, which the firmware handles by backing the state machine off of its port assignments as needed. This may be necessary, for example, if one or both of the devices attached to the USB-C ports are dual-role devices, in which case they alternate their connectivity between source and sink mode, and several attach cycles may be required until both devices align in a compatible way.
+
+:::info
+Note that this is a non-standard process that is not part of the USB-PD specification, since the specification assumes that the two devices are connected directly to each other, and thus can communicate with each other directly. 
+
+Dr. PD defeats this assumption by interposing itself between the two devices and requiring two cables, which may be of different lengths and orientations, and thus may not be able to communicate with each other directly.
+:::
+
+## CC edge detector
+
+The comparator U502A is used to detect transitions of the CC line, which are fed into the firmware for decoding. The comparator is configured to trigger on a rising edge, and compares the line voltage against a programmable reference created by feeding a PWM signal from the firmware into R508, R509, R510, C503, C504, and C506, which, together with U501A form a second-order active low-pass filter.
+
+By default, the reference voltage is set to 0.7V, which is a reasonable threshold that has proven to work with the vast majority of the USB-C devices that we have tested. If you are dealing with an unusual or misbehaving device, you can change it by issuing the appropriate SCPI command to the firmware, or by using the calibration functionality of the frontend software.
+
+## CC transmission circuit
+
+The last bit of functionality contained in this section of the schematic is used by the firmware when it needs to transmit data on the CC lines. R501, R502, and R503 form a simple voltage divider that generates a reference voltage of about 1.1V. This, in turn, is buffered by U501B, providing a stiff voltage source that represents the “high” state of the CC line, as required by the USB-PD specification.
+
+When the firmware wishes to transmit, it pulls `CC_OUT` high and low; this, in turn, activates a pair of current mirrors formed by Q502, Q503, Q504, and Q505. When `CC_OUT` is high, Q504 is turned on and Q503 mirrors its current discharge on the line. Similarly, when `CC_OUT` is low, Q502 is turned on and Q505 mirrors its current charge on the line. This mechanism slows down the edges of the signal to a rate that is compatible with the USB-PD specification, reducing interference on the cable and EMI emissions.
+
+There is one more wrinkle to deal with: The CC lines are normally held at a voltage between approximately 0.9V and 1.5V by the combination of the source's pull-up resistor and the sink's pull-down resistor. Because the transmission current mirrors are fairly low impedance, this means that they would normally tend to pull down the line voltage below the normal range, which might inhibit communication on the line or even be interpreted as a disconection event.
+
+For this reason, Q501 is used to prevent current to flow back into the mirror from the CC lines. When the firmware is not transmitting, it holds `CC_OUT` low, which prevents any current to flow into Q501. When it is transmitting, it pulls the gate of Q501 to ground, thus turning it on and allowing current to flow in both directions.

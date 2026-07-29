@@ -1,0 +1,20 @@
+---
+title: PD Role Resistors
+sidebar_position: 4
+---
+
+# PD Role Resistors
+
+This section of the Dr. PD schematic allows the firmware to present one of several configurations on the CC lines of both USB-C ports, depending on the role that the device is currently playing in a USB-PD connection. 
+
+By manipulating the `CC_ROLE_SEL_x` lines, the firmware can control the state of two identical multiplexers (U401 and U402) that select the appropriate resistors to present on the CC lines. The resistors present cover both sink and source roles in one of several configurations, as explained in the table that accompanies the schematic.
+
+Resistors R401, R402, R405, R408, R409, and R410 pull down the multiplexer selection lines to ground, ensuring that default input channel is Y0, which is floating.
+
+In addition, Q401 and Q402 allow the firmware to inject a 5V signal onto either CC line to provide a VCONN supply to a USB-C device that requires it. The firmware controls the gates of these MOSFETs using the `CC_VCONN_EN_x` lines. In order not to place too high a burden on the host power supply, VCONN is only powerful enough to power a USB-C cable's e-marker, or a similar device that does not require more than about 5mA of current.
+
+:::note
+The capabilities of the multiplexer far exceed what is required for Dr. PD's current functionality, which only really uses R404 and R404 to present a 5.1kΩ resistor on the CC lines in Sink mode. 
+
+The other resistors are included to support future functionality, such as a Source mode, and to allow for testing of uncommon sink configurations. If you wish to expand the firmware's capabilities to support these additional configurations, we provide a [`CCRoleManager`](https://github.com/T76-org/drpd/blob/main/firmware/lib/phy/cc_role_manager.hpp) class that already implements the logic to select the appropriate configuration based on the current role of the device in a USB-PD connection.
+:::

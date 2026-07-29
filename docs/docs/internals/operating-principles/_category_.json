@@ -1,0 +1,9 @@
+{
+  "label": "Operating principles",
+  "position": 3,
+  "collapsible": true,
+  "link": {
+    "type": "doc",
+    "id": "internals/operating-principles/index"
+  }
+}

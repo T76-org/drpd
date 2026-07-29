@@ -1,0 +1,42 @@
+---
+title: Operating principles
+sidebar_position: 1
+---
+
+# Operating principles
+
+In this section, we describe how Dr. PD's hardware is designed, with a focus on the principles that guide its development and operation.
+
+## Basic philosophy
+
+We wanted Dr. PD to be easy to use and reliable, but also open to experimentatin and modification. To achieve this, we adopted a few key principles:
+
+- **No black boxes**: We used widely-available components, without any custom circuitry or proprietary hardware that would make it difficult to understand or modify the system without specialized knowledge. For example, the entire USB-PD stack is implemented in firmware, rather than relying on a dedicated USB-PD controller chip. This makes it easy to expand its functionality or adapt it to new use cases, without being limited by the capabilities of a specific chip.
+- **Jellybean components**: We've used common components that are easy to source and replace from multiple vendors. Dr. PD is built almost entirely from standard parts, and the only single-course component is the microcontroller, which is widely available, features open-source tooling, and is supported by a large community of developers.
+- **Ease of repair**: Where possible, we've used the largest possible SMD components, and avoided using components that are difficult to solder or replace. To make troubleshooting easier, we also placed all components on a widely-spaced grid and added plenty of test points for all the critical signals.
+
+## Basic architecture
+
+If you look at the [schematic](../interactive-diagram), you'll see that Dr. PD is built around 5 main functional blocks:
+
+- **[USB Ports](./usb-ports)** (2xx-series components) defines the front-panel USB-C connectors, as well as the associated power switching and sensing circuitry.
+- The **[Analog Monitor](./analog-monitor)** (3xx-series components) is responsible for measuring critical voltages and currents on VBUS and various signal lines.
+- The **[PD Role Resistors](./pd-role-resistors)** (4xx-series components) contain two multiplexed sets of resistors that are used to configure the USB-PD role of the device in Sink mode (as well as a possible future Source mode). These resistors are switched in and out of the circuit by a pair of analog switches, which are controlled by the microcontroller.
+- The **[Bus Connector and Digital IO](./bus-connector-and-digital-io)** (5xx-series components) is responsible for detecting the orientation of the USB-C cables in both front-panel ports, capturing CC line edges, and actively driving the CC output in Sink mode. It also provides a digital interface to the microcontroller for controlling the analog switches and reading the analog monitor.
+- Finally, the **[Digital Control](./digital-control)** (6xx-series components) section contains the microcontroller and its associated circuitry, including internal power rails and voltage references.
+
+To make it a bit easier to follow the logical layout of the system, 1xx-series components are all located in the main schematic sheet, while 2xx-6xx-series components are located in a separate sub-sheet for each functional block.
+
+## Protection mechanisms
+
+Dr. PD implements ESD protection on all exposed lines, including the front- and back-panel USB-C connectors, the CC OUTPUT port, and the SYNC port.
+
+D101 and D102 are TVS diodes that protect the CC OUT and SYNC ports. The CC lines on ports 1 and 2 are similarly protected by D501, while D601 protects the USB 2.0 data and VBUS lines on the Host USB-C port.
+
+D301 clamps the VBUS line on the front-panel USB-C ports to 60V, serving both to protect the device from overvoltage and to provide a path for ESD events to discharge safely.
+
+In addition to ESD protection, Dr. PD also implements reverse-polarity protection on the VBUS line; the P-channel MOSFET Q101 is used to block current flow if the VBUS line is connected with the wrong polarity. Zener diode D103 limits the gate-to-source voltage of Q101 to around 12V, preventing damage to the MOSFET when the voltage on VBUS exceeds the maximum gate voltage of 20V, with extra headroom for safety. Finally, R103 keeps the gate of Q101 pulled low when VBUS is disconnected, ensuring that the MOSFET remains off and does not conduct any current in this state.
+
+Finally, R101 and R102 are used to limit current on the SYNC port. At a total of 20Ω, these resistors offer only limited protection, but this compromise is necessary because the port can be used to both drive a load and sink current from a pull-up resistor on the other end, and so it would be undesirable to increase their value further.
+
+Additional protection is provided by bidirectional switches on both Port 1 and Port 2; these are controlled by the microcontroller and are used to disconnect ports when they are not in use and to implement Dr. PD's programmable [overvoltage and overcurrent protection](../../how-to/protection-mechanisms).
