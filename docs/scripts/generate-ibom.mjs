@@ -11,8 +11,28 @@ const adapter = `
 <script data-drpd-ibom-adapter="v1">
 // ${ADAPTER_MARKER}
 (() => {
+  const NARROW_LAYOUT_WIDTH = 1100;
+  let responsiveLayout = null;
+  let resizeFrame = null;
+
   const sendStatus = (status, ref) => {
     window.parent.postMessage({type: 'drpd:ibom-deep-link', status, ref}, window.location.origin);
+  };
+
+  const applyResponsiveLayout = () => {
+    if (typeof window.changeBomLayout !== 'function') return;
+    const nextLayout = window.innerWidth < NARROW_LAYOUT_WIDTH ? 'top-bottom' : 'left-right';
+    if (nextLayout === responsiveLayout) return;
+    responsiveLayout = nextLayout;
+    window.changeBomLayout(nextLayout);
+  };
+
+  const scheduleResponsiveLayout = () => {
+    if (resizeFrame !== null) window.cancelAnimationFrame(resizeFrame);
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = null;
+      applyResponsiveLayout();
+    });
   };
 
   const applyDeepLink = () => {
@@ -43,7 +63,11 @@ const adapter = `
     sendStatus('selected', ref);
   };
 
-  window.addEventListener('load', () => window.setTimeout(applyDeepLink, 0));
+  window.addEventListener('load', () => window.setTimeout(() => {
+    applyResponsiveLayout();
+    applyDeepLink();
+  }, 0));
+  window.addEventListener('resize', scheduleResponsiveLayout);
 })();
 </script>
 `;

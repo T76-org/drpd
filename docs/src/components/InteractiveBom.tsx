@@ -1,8 +1,9 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {useHistory, useLocation} from '@docusaurus/router';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
 import manifest from '../../ibom-manifest.json';
+import styles from './InteractiveBom.module.css';
 
 type DeepLinkStatus = 'idle' | 'selected' | 'not-found' | 'error';
 
@@ -15,6 +16,7 @@ export default function InteractiveBom(): React.ReactNode {
   const requestedRef = params.get('ref')?.trim() || '';
   const revision = manifest.revisions.find((item) => item.id === requestedRevision);
   const [status, setStatus] = useState<DeepLinkStatus>('idle');
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     setSearch(window.location.search);
@@ -57,7 +59,7 @@ export default function InteractiveBom(): React.ReactNode {
     iframe.src = url;
     iframe.title = 'Dr. PD ' + revision.label + ' interactive BOM';
     link.href = url;
-    link.textContent = 'Open the ' + revision.label + ' interactive BOM in a new tab';
+    link.textContent = 'Open full-page ' + revision.label + ' BOM';
 
     select.addEventListener('change', () => {
       const next = new URLSearchParams(window.location.search);
@@ -99,6 +101,10 @@ export default function InteractiveBom(): React.ReactNode {
     history.push({...location, search: `?${next.toString()}`});
   };
 
+  const enterFullscreen = async () => {
+    await iframeRef.current?.requestFullscreen();
+  };
+
   if (!revision) {
     return (
       <div className="alert alert--danger" role="alert">
@@ -108,15 +114,25 @@ export default function InteractiveBom(): React.ReactNode {
   }
 
   return (
-    <div data-drpd-ibom-root="v1">
+    <div className={styles.viewer} data-drpd-ibom-root="v1">
       <div className="alert alert--danger" role="alert" data-drpd-ibom-bootstrap-error hidden />
       <div className="alert alert--warning" role="alert" data-drpd-ibom-bootstrap-warning hidden />
-      <label>
-        Board revision:{' '}
-        <select value={revision.id} onChange={selectRevision} aria-label="Board revision">
-          {manifest.revisions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </select>
-      </label>
+      <div className={styles.toolbar}>
+        <label>
+          Board revision:{' '}
+          <select value={revision.id} onChange={selectRevision} aria-label="Board revision">
+            {manifest.revisions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        </label>
+        <div className={styles.actions}>
+          <button className="button button--primary" type="button" onClick={enterFullscreen}>
+            Expand BOM
+          </button>
+          <a className="button button--secondary" href={iframeUrl} target="_blank" rel="noreferrer" data-drpd-ibom-open>
+            Open full-page {revision.label} BOM
+          </a>
+        </div>
+      </div>
 
       {requestedRef && status === 'not-found' && (
         <div className="alert alert--warning" role="alert">
@@ -130,15 +146,14 @@ export default function InteractiveBom(): React.ReactNode {
       )}
 
       <iframe
+        ref={iframeRef}
         key={iframeUrl}
+        className={styles.frame}
         src={iframeUrl}
         title={`Dr. PD ${revision.label} interactive BOM`}
-        style={{width: '100%', height: '75vh', minHeight: '36rem', border: '1px solid var(--ifm-color-emphasis-300)', borderRadius: 'var(--ifm-global-radius)', marginTop: '1rem'}}
         loading="lazy"
         allowFullScreen
       />
-
-      <p><a href={iframeUrl} target="_blank" rel="noreferrer" data-drpd-ibom-open>Open the {revision.label} interactive BOM in a new tab</a></p>
       <script dangerouslySetInnerHTML={{__html: bootstrapScript}} />
     </div>
   );

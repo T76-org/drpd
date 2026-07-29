@@ -27,6 +27,8 @@ test('copies source content and injects adapter exactly once', () => {
   const generated = fs.readFileSync(path.join(data.outputRoot, 'R1', 'bom.html'), 'utf8');
   assert.ok(generated.startsWith('<html><body><p>fixture</p>'));
   assert.equal(generated.match(new RegExp(ADAPTER_MARKER, 'g')).length, 1);
+  assert.match(generated, /NARROW_LAYOUT_WIDTH = 1100/);
+  assert.match(generated, /changeBomLayout\(nextLayout\)/);
   assert.ok(generated.endsWith('</body></html>'));
 });
 
