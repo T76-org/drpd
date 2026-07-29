@@ -109,23 +109,16 @@ index feaf906..1f06118 100644
      public async download(name: string) {
          if (this.#pages_by_path.has(name)) {
              name = this.#pages_by_path.get(name)!.filename;
-diff --git a/src/viewers/base/painter.ts b/src/viewers/base/painter.ts
-index 8f4ea32..eb78835 100644
---- a/src/viewers/base/painter.ts
-+++ b/src/viewers/base/painter.ts
-@@ -107,7 +107,14 @@ export class DocumentPainter {
-         for (const item of layer.items) {
-             this.gfx.start_bbox();
+diff --git a/src/base/math/arc.ts b/src/base/math/arc.ts
+index 8145c3a..0080902 100644
+--- a/src/base/math/arc.ts
++++ b/src/base/math/arc.ts
+@@ -281,7 +281,7 @@ function arc_center_from_three_points(start: Vec2, mid: Vec2, end: Vec2): Vec2 {
  
--            this.paint_item(layer, item);
-+            try {
-+                this.paint_item(layer, item);
-+            } catch (error) {
-+                log.warn(
-+                    `Unable to paint ${item?.constructor?.name ?? "item"} on ${layer.name}`,
-+                    error,
-+                );
-+            }
- 
-             const bbox = this.gfx.end_bbox(item);
-             bboxes.set(item, bbox);
+     if (slope_a == slope_b) {
+-        if (start == end) {
++        if (start.equals(end)) {
+             // This is a special case for a 360 degrees arc.  In this case, the center is halfway between
+             // the midpoint and either end point
+             center.x = (start.x + mid.x) / 2.0;
+             center.y = (start.y + mid.y) / 2.0;
