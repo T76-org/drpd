@@ -1,0 +1,11 @@
+{
+  "defaultRevision": "R2605-A",
+  "revisions": [
+    {
+      "id": "R2605-A",
+      "label": "R2605-A",
+      "source": "hardware/R2605-A/virtual-bom/bom.html",
+      "destination": "R2605-A/index.html"
+    }
+  ]
+}

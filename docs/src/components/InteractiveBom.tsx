@@ -1,0 +1,145 @@
+import React, {useEffect, useMemo, useState} from 'react';
+import {useHistory, useLocation} from '@docusaurus/router';
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+import manifest from '../../ibom-manifest.json';
+
+type DeepLinkStatus = 'idle' | 'selected' | 'not-found' | 'error';
+
+export default function InteractiveBom(): React.ReactNode {
+  const location = useLocation();
+  const history = useHistory();
+  const [search, setSearch] = useState(location.search);
+  const params = useMemo(() => new URLSearchParams(search), [search]);
+  const requestedRevision = params.get('revision') || manifest.defaultRevision;
+  const requestedRef = params.get('ref')?.trim() || '';
+  const revision = manifest.revisions.find((item) => item.id === requestedRevision);
+  const [status, setStatus] = useState<DeepLinkStatus>('idle');
+
+  useEffect(() => {
+    setSearch(window.location.search);
+  }, [location.search]);
+
+  const assetPath = revision
+    ? `/internals/ibom/${revision.destination.replace(/index\.html$/, '')}`
+    : '/internals/ibom/invalid/';
+  const assetUrl = useBaseUrl(assetPath);
+  const iframeUrl = requestedRef
+    ? `${assetUrl}?ref=${encodeURIComponent(requestedRef)}`
+    : assetUrl;
+  const generatedRoot = useBaseUrl('/internals/ibom/');
+  const bootstrapScript = `(() => {
+    const root = document.querySelector('[data-drpd-ibom-root]');
+    if (!root) return;
+    const params = new URLSearchParams(window.location.search);
+    const revisionId = params.get('revision') || ${JSON.stringify(manifest.defaultRevision)};
+    const ref = (params.get('ref') || '').trim();
+    const revisions = ${JSON.stringify(manifest.revisions)};
+    const revision = revisions.find((item) => item.id === revisionId);
+    const iframe = root.querySelector('iframe');
+    const link = root.querySelector('[data-drpd-ibom-open]');
+    const select = root.querySelector('select');
+    const error = root.querySelector('[data-drpd-ibom-bootstrap-error]');
+    const warning = root.querySelector('[data-drpd-ibom-bootstrap-warning]');
+
+    if (!revision) {
+      error.textContent = 'Interactive BOM revision ' + revisionId + ' is not published.';
+      error.hidden = false;
+      iframe.hidden = true;
+      link.hidden = true;
+      select.disabled = true;
+      return;
+    }
+
+    select.value = revision.id;
+    const destination = revision.destination.replace(/index\\.html$/, '');
+    const url = ${JSON.stringify(generatedRoot)} + destination + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+    iframe.src = url;
+    iframe.title = 'Dr. PD ' + revision.label + ' interactive BOM';
+    link.href = url;
+    link.textContent = 'Open the ' + revision.label + ' interactive BOM in a new tab';
+
+    select.addEventListener('change', () => {
+      const next = new URLSearchParams(window.location.search);
+      next.set('revision', select.value);
+      window.location.search = next.toString();
+    });
+
+    window.addEventListener('message', (event) => {
+      if (event.origin !== window.location.origin || event.data?.type !== 'drpd:ibom-deep-link' || event.data.ref !== ref) return;
+      if (event.data.status === 'not-found') {
+        warning.textContent = 'Component ' + ref + ' was not found in ' + revision.label + '.';
+        warning.hidden = false;
+      } else if (event.data.status === 'error') {
+        error.textContent = 'Could not select component ' + ref + ' in ' + revision.label + '.';
+        error.hidden = false;
+      }
+    });
+  })();`;
+
+  useEffect(() => {
+    setStatus('idle');
+  }, [requestedRevision, requestedRef]);
+
+  useEffect(() => {
+    const receiveStatus = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== 'drpd:ibom-deep-link') return;
+      if (event.data.ref !== requestedRef) return;
+      if (['selected', 'not-found', 'error'].includes(event.data.status)) {
+        setStatus(event.data.status);
+      }
+    };
+    window.addEventListener('message', receiveStatus);
+    return () => window.removeEventListener('message', receiveStatus);
+  }, [requestedRef]);
+
+  const selectRevision = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = new URLSearchParams(location.search);
+    next.set('revision', event.target.value);
+    history.push({...location, search: `?${next.toString()}`});
+  };
+
+  if (!revision) {
+    return (
+      <div className="alert alert--danger" role="alert">
+        Interactive BOM revision <code>{requestedRevision}</code> is not published.
+      </div>
+    );
+  }
+
+  return (
+    <div data-drpd-ibom-root="v1">
+      <div className="alert alert--danger" role="alert" data-drpd-ibom-bootstrap-error hidden />
+      <div className="alert alert--warning" role="alert" data-drpd-ibom-bootstrap-warning hidden />
+      <label>
+        Board revision:{' '}
+        <select value={revision.id} onChange={selectRevision} aria-label="Board revision">
+          {manifest.revisions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+      </label>
+
+      {requestedRef && status === 'not-found' && (
+        <div className="alert alert--warning" role="alert">
+          Component <code>{requestedRef}</code> was not found in {revision.label}.
+        </div>
+      )}
+      {requestedRef && status === 'error' && (
+        <div className="alert alert--danger" role="alert">
+          Could not select component <code>{requestedRef}</code> in {revision.label}.
+        </div>
+      )}
+
+      <iframe
+        key={iframeUrl}
+        src={iframeUrl}
+        title={`Dr. PD ${revision.label} interactive BOM`}
+        style={{width: '100%', height: '75vh', minHeight: '36rem', border: '1px solid var(--ifm-color-emphasis-300)', borderRadius: 'var(--ifm-global-radius)', marginTop: '1rem'}}
+        loading="lazy"
+        allowFullScreen
+      />
+
+      <p><a href={iframeUrl} target="_blank" rel="noreferrer" data-drpd-ibom-open>Open the {revision.label} interactive BOM in a new tab</a></p>
+      <script dangerouslySetInnerHTML={{__html: bootstrapScript}} />
+    </div>
+  );
+}

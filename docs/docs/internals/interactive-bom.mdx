@@ -1,19 +1,14 @@
 ---
 sidebar_position: 2
+slug: /internals/interactive-bom/
 title: Interactive BOM
 description: Explore the Dr. PD R2605-A bill of materials and board placement.
 ---
+
+import InteractiveBom from '@site/src/components/InteractiveBom';
 
 # Interactive BOM
 
 Use the component table and board view together to inspect the R2605-A bill of materials and locate parts on the PCB.
 
-<iframe
-  src="./R2605-A/bom.html"
-  title="Dr. PD R2605-A interactive BOM"
-  style={{width: '100%', height: '75vh', minHeight: '36rem', border: '1px solid var(--ifm-color-emphasis-300)', borderRadius: 'var(--ifm-global-radius)'}}
-  loading="lazy"
-  allowFullScreen
-/>
-
-<a href="./R2605-A/bom.html" target="_blank" rel="noreferrer">Open the R2605-A interactive BOM in a new tab</a>
+<InteractiveBom />
