@@ -7,7 +7,7 @@ import styles from './InteractiveHardwareViewer.module.css';
 
 type DeepLinkStatus = 'idle' | 'selected' | 'not-found' | 'error';
 
-export default function InteractiveBom(): React.ReactNode {
+export default function InteractiveDiagram(): React.ReactNode {
   const location = useLocation();
   const history = useHistory();
   const [search, setSearch] = useState(location.search);
@@ -18,20 +18,16 @@ export default function InteractiveBom(): React.ReactNode {
   const [status, setStatus] = useState<DeepLinkStatus>('idle');
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    setSearch(window.location.search);
-  }, [location.search]);
+  useEffect(() => setSearch(window.location.search), [location.search]);
 
   const assetPath = revision
-    ? `/internals/ibom/${revision.ibom.destination.replace(/index\.html$/, '')}`
-    : '/internals/ibom/invalid/';
+    ? `/internals/kicanvas/${revision.diagram.destination}/`
+    : '/internals/kicanvas/invalid/';
   const assetUrl = useBaseUrl(assetPath);
-  const iframeUrl = requestedRef
-    ? `${assetUrl}?ref=${encodeURIComponent(requestedRef)}`
-    : assetUrl;
-  const generatedRoot = useBaseUrl('/internals/ibom/');
+  const iframeUrl = requestedRef ? `${assetUrl}?ref=${encodeURIComponent(requestedRef)}` : assetUrl;
+  const generatedRoot = useBaseUrl('/internals/kicanvas/');
   const bootstrapScript = `(() => {
-    const root = document.querySelector('[data-drpd-ibom-root]');
+    const root = document.querySelector('[data-drpd-kicanvas-root]');
     if (!root) return;
     const params = new URLSearchParams(window.location.search);
     const revisionId = params.get('revision') || ${JSON.stringify(manifest.defaultRevision)};
@@ -39,13 +35,13 @@ export default function InteractiveBom(): React.ReactNode {
     const revisions = ${JSON.stringify(manifest.revisions)};
     const revision = revisions.find((item) => item.id === revisionId);
     const iframe = root.querySelector('iframe');
-    const link = root.querySelector('[data-drpd-ibom-open]');
+    const link = root.querySelector('[data-drpd-kicanvas-open]');
     const select = root.querySelector('select');
-    const error = root.querySelector('[data-drpd-ibom-bootstrap-error]');
-    const warning = root.querySelector('[data-drpd-ibom-bootstrap-warning]');
+    const error = root.querySelector('[data-drpd-kicanvas-bootstrap-error]');
+    const warning = root.querySelector('[data-drpd-kicanvas-bootstrap-warning]');
 
     if (!revision) {
-      error.textContent = 'Interactive BOM revision ' + revisionId + ' is not published.';
+      error.textContent = 'Interactive diagram revision ' + revisionId + ' is not published.';
       error.hidden = false;
       iframe.hidden = true;
       link.hidden = true;
@@ -54,12 +50,12 @@ export default function InteractiveBom(): React.ReactNode {
     }
 
     select.value = revision.id;
-    const destination = revision.ibom.destination.replace(/index\\.html$/, '');
-    const url = ${JSON.stringify(generatedRoot)} + destination + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+    const url = ${JSON.stringify(generatedRoot)} + revision.diagram.destination + '/' +
+      (ref ? '?ref=' + encodeURIComponent(ref) : '');
     iframe.src = url;
-    iframe.title = 'Dr. PD ' + revision.label + ' interactive BOM';
+    iframe.title = 'Dr. PD ' + revision.label + ' interactive diagram';
     link.href = url;
-    link.textContent = 'Open full-page ' + revision.label + ' BOM';
+    link.textContent = 'Open full-page ' + revision.label + ' diagram';
 
     select.addEventListener('change', () => {
       const next = new URLSearchParams(window.location.search);
@@ -68,7 +64,7 @@ export default function InteractiveBom(): React.ReactNode {
     });
 
     window.addEventListener('message', (event) => {
-      if (event.origin !== window.location.origin || event.data?.type !== 'drpd:ibom-deep-link' || event.data.ref !== ref) return;
+      if (event.origin !== window.location.origin || event.data?.type !== 'drpd:kicanvas-deep-link' || event.data.ref !== ref) return;
       if (event.data.status === 'not-found') {
         warning.textContent = 'Component ' + ref + ' was not found in ' + revision.label + '.';
         warning.hidden = false;
@@ -79,17 +75,12 @@ export default function InteractiveBom(): React.ReactNode {
     });
   })();`;
 
-  useEffect(() => {
-    setStatus('idle');
-  }, [requestedRevision, requestedRef]);
-
+  useEffect(() => setStatus('idle'), [requestedRevision, requestedRef]);
   useEffect(() => {
     const receiveStatus = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.type !== 'drpd:ibom-deep-link') return;
+      if (event.origin !== window.location.origin || event.data?.type !== 'drpd:kicanvas-deep-link') return;
       if (event.data.ref !== requestedRef) return;
-      if (['selected', 'not-found', 'error'].includes(event.data.status)) {
-        setStatus(event.data.status);
-      }
+      if (['selected', 'not-found', 'error'].includes(event.data.status)) setStatus(event.data.status);
     };
     window.addEventListener('message', receiveStatus);
     return () => window.removeEventListener('message', receiveStatus);
@@ -101,22 +92,14 @@ export default function InteractiveBom(): React.ReactNode {
     history.push({...location, search: `?${next.toString()}`});
   };
 
-  const enterFullscreen = async () => {
-    await iframeRef.current?.requestFullscreen();
-  };
-
   if (!revision) {
-    return (
-      <div className="alert alert--danger" role="alert">
-        Interactive BOM revision <code>{requestedRevision}</code> is not published.
-      </div>
-    );
+    return <div className="alert alert--danger" role="alert">Interactive diagram revision <code>{requestedRevision}</code> is not published.</div>;
   }
 
   return (
-    <div className={styles.viewer} data-drpd-ibom-root="v1">
-      <div className="alert alert--danger" role="alert" data-drpd-ibom-bootstrap-error hidden />
-      <div className="alert alert--warning" role="alert" data-drpd-ibom-bootstrap-warning hidden />
+    <div className={styles.viewer} data-drpd-kicanvas-root="v1">
+      <div className="alert alert--danger" role="alert" data-drpd-kicanvas-bootstrap-error hidden />
+      <div className="alert alert--warning" role="alert" data-drpd-kicanvas-bootstrap-warning hidden />
       <div className={styles.toolbar}>
         <label>
           Board revision:{' '}
@@ -125,35 +108,24 @@ export default function InteractiveBom(): React.ReactNode {
           </select>
         </label>
         <div className={styles.actions}>
-          <button className="button button--primary" type="button" onClick={enterFullscreen}>
-            Expand BOM
+          <button className="button button--primary" type="button" onClick={() => iframeRef.current?.requestFullscreen()}>
+            Expand diagram
           </button>
-          <a className="button button--secondary" href={iframeUrl} target="_blank" rel="noreferrer" data-drpd-ibom-open>
-            Open full-page {revision.label} BOM
+          <a className="button button--secondary" href={iframeUrl} target="_blank" rel="noreferrer" data-drpd-kicanvas-open>
+            Open full-page {revision.label} diagram
           </a>
         </div>
       </div>
 
       {requestedRef && status === 'not-found' && (
-        <div className="alert alert--warning" role="alert">
-          Component <code>{requestedRef}</code> was not found in {revision.label}.
-        </div>
+        <div className="alert alert--warning" role="alert">Component <code>{requestedRef}</code> was not found in {revision.label}.</div>
       )}
       {requestedRef && status === 'error' && (
-        <div className="alert alert--danger" role="alert">
-          Could not select component <code>{requestedRef}</code> in {revision.label}.
-        </div>
+        <div className="alert alert--danger" role="alert">Could not select component <code>{requestedRef}</code> in {revision.label}.</div>
       )}
 
-      <iframe
-        ref={iframeRef}
-        key={iframeUrl}
-        className={styles.frame}
-        src={iframeUrl}
-        title={`Dr. PD ${revision.label} interactive BOM`}
-        loading="lazy"
-        allowFullScreen
-      />
+      <iframe ref={iframeRef} key={iframeUrl} className={styles.frame} src={iframeUrl}
+        title={`Dr. PD ${revision.label} interactive diagram`} loading="lazy" allowFullScreen />
       <script dangerouslySetInnerHTML={{__html: bootstrapScript}} />
     </div>
   );
