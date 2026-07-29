@@ -1,0 +1,32 @@
+---
+title: Digital Control
+sidebar_position: 6
+---
+
+# Digital Control
+
+This section of the schematic contains the digital control logic for the system. It is based on the RP2354, a member of the same RP2350 microcontroller family as the RP2350A used in the Raspberry Pi Pico 2. Unlike the Pico 2's RP2350A and external flash arrangement, the RP2354 uses a different package and integrates flash memory.
+
+With some minor differences, the circuitry here is essentially the same as that found in the Pico 2 reference design. We have replaced the Pico 2's buck converter with a linear regulator to reduce noise, since this is more important than power conversion efficiency in our design.
+
+## Hardware revision detection
+
+GPIO24 is strapped to ground on R2605-A. During startup, the firmware configures this input with an internal pull-up: a low level identifies R2605-A, while an unstrapped high level identifies the earlier R2603-A revision. The detected revision determines whether the firmware uses R2605-A's single-output-plus-enable BMC transmitter or the earlier dual-pin transmitter, and whether it enables the R2605-A status LED. The detected board revision can be queried with `SYSTem:HW:REVision?`.
+
+## Reset and debug circuits
+
+The SW601 and SW602 switches can be used to enter the RP2354's ROM USB boot mode and reset it, respectively. In the event of a firmware fault that “bricks” the device, hold SW601, then press and release SW602 to reset the RP2354 into BOOTSEL mode. You can then reflash the firmware using the Raspberry Pi Imager or other tools.
+
+J601 exposes the RP2354's SWD interface for debugging and programming. You can use a Raspberry Pi Pico or other SWD programmer to connect to this header and flash firmware or debug the device.
+
+## Status LED
+
+LED601 can be used to debug the device. While it is not exposed on the front panel, it flashes a series of blinks to indicate the device's current status. The blink patterns are described in the [firmware's source code](https://github.com/T76-org/drpd/blob/main/firmware/lib/app/status_led.hpp).
+
+## Voltage references
+
+U605 is a TL432B adjustable shunt regulator configured with a resistor divider to generate a nominal 3.3 V reference voltage for the RP2354's ADC. 
+
+## ADC channels
+
+As discussed in the [Analog Monitor section](./analog-monitor), two separate ADC channels are dedicated to VBUS voltage and current sense measurements, while a third one is used for all other analog measurements. We did this because VBUS measurements are the most critical for the device's operation, and we wanted to ensure that they would have the most direct and accurate paths to the ADC. The other analog measurements are less critical, and can tolerate a bit more noise and inaccuracy. 

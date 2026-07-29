@@ -1,0 +1,10 @@
+{
+  "label": "Internals",
+  "position": 45,
+  "collapsible": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Internals",
+    "description": "Explore the Dr. PD hardware design and operating principles."
+  }
+}
