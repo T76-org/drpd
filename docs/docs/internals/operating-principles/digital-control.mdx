@@ -9,6 +9,10 @@ This section of the schematic contains the digital control logic for the system.
 
 With some minor differences, the circuitry here is essentially the same as that found in the Pico 2 reference design. We have replaced the Pico 2's buck converter with a linear regulator to reduce noise, since this is more important than power conversion efficiency in our design.
 
+## Hardware revision detection
+
+GPIO24 is strapped to ground on R2605-A. During startup, the firmware configures this input with an internal pull-up: a low level identifies R2605-A, while an unstrapped high level identifies the earlier R2603-A revision. The detected revision determines whether the firmware uses R2605-A's single-output-plus-enable BMC transmitter or the earlier dual-pin transmitter, and whether it enables the R2605-A status LED. The detected board revision can be queried with `SYSTem:HW:REVision?`.
+
 ## Reset and debug circuits
 
 The SW601 and SW602 switches can be used to enter the RP2354's ROM USB boot mode and reset it, respectively. In the event of a firmware fault that “bricks” the device, hold SW601, then press and release SW602 to reset the RP2354 into BOOTSEL mode. You can then reflash the firmware using the Raspberry Pi Imager or other tools.
