@@ -1,3 +1,16 @@
+diff --git a/src/base/math/arc.ts b/src/base/math/arc.ts
+index c4cfe78..9854001 100644
+--- a/src/base/math/arc.ts
++++ b/src/base/math/arc.ts
+@@ -277,7 +277,7 @@ function arc_center_from_three_points(start: Vec2, mid: Vec2, end: Vec2): Vec2 {
+         slope_b * new Vec2(0.5 / y_delta_32, 0.5 / x_delta_32).magnitude;
+ 
+     if (slope_a == slope_b) {
+-        if (start == end) {
++        if (start.equals(end)) {
+             // This is a special case for a 360 degrees arc.  In this case, the center is halfway between
+             // the midpoint and either end point
+             center.x = (start.x + mid.x) / 2.0;
 diff --git a/src/kicanvas/elements/kc-schematic/symbols-panel.ts b/src/kicanvas/elements/kc-schematic/symbols-panel.ts
 index c1b5f80..493f27c 100644
 --- a/src/kicanvas/elements/kc-schematic/symbols-panel.ts
@@ -15,20 +28,20 @@ index c1b5f80..493f27c 100644
              }),
          );
 diff --git a/src/kicanvas/elements/kicanvas-embed.ts b/src/kicanvas/elements/kicanvas-embed.ts
-index c21bc7c..fac47d5 100644
+index c21bc7c..9ac10ff 100644
 --- a/src/kicanvas/elements/kicanvas-embed.ts
 +++ b/src/kicanvas/elements/kicanvas-embed.ts
 @@ -24,6 +24,9 @@ import {
  } from "../services/vfs";
  import type { KCBoardAppElement } from "./kc-board/app";
  import type { KCSchematicAppElement } from "./kc-schematic/app";
-+import { KiCanvasLoadEvent } from "../../viewers/base/events";
 +import type { SchematicViewer } from "../../viewers/schematic/viewer";
 +import { BBox } from "../../base/math/bbox";
++import { KiCanvasLoadEvent } from "../../viewers/base/events";
  
  const log = new Logger("kicanvas:embedtag");
  
-@@ -176,6 +179,57 @@ class KiCanvasEmbedElement extends KCUIElement {
+@@ -176,6 +179,88 @@ class KiCanvasEmbedElement extends KCUIElement {
          }
      }
  
@@ -37,24 +50,55 @@ index c21bc7c..fac47d5 100644
 +            throw new Error("KiCanvas project is not loaded");
 +        }
 +
++        const deadline = Date.now() + 15000;
++        while ((this.loading || !this.#schematic_app) && Date.now() < deadline) {
++            await new Promise<void>((resolve) =>
++                requestAnimationFrame(() => resolve()),
++            );
++        }
++        if (this.loading || !this.#schematic_app) {
++            throw new Error("KiCanvas schematic viewer did not initialize");
++        }
++        await this.#schematic_app.viewerReady;
++
 +        const page = this.#project.page_by_name(filename);
 +        if (!page || page.type !== "schematic") {
 +            throw new Error(`Unable to find schematic ${filename}`);
 +        }
 +
 +        const viewer = this.#schematic_app.viewer as SchematicViewer;
-+        if (this.#project.active_page !== page) {
-+            const loaded = new Promise<void>((resolve) => {
-+                viewer.addEventListener(
-+                    KiCanvasLoadEvent.type,
-+                    () => resolve(),
-+                    { once: true },
-+                );
++        await viewer.loaded;
++        const waitForPage = (target: typeof page) =>
++            new Promise<void>((resolve, reject) => {
++                const timeout = window.setTimeout(() => {
++                    viewer.removeEventListener(
++                        KiCanvasLoadEvent.type,
++                        loaded,
++                    );
++                    reject(
++                        new Error(`Schematic ${target.filename} did not load`),
++                    );
++                }, 15000);
++                const loaded = () => {
++                    if (viewer.document !== target.document) {
++                        return;
++                    }
++                    window.clearTimeout(timeout);
++                    viewer.removeEventListener(KiCanvasLoadEvent.type, loaded);
++                    resolve();
++                };
++                viewer.addEventListener(KiCanvasLoadEvent.type, loaded);
 +            });
++
++        if (this.#project.active_page !== page) {
++            const loaded = waitForPage(page);
 +            this.#project.set_active_page(page);
 +            await loaded;
++        } else if (viewer.document !== page.document) {
++            await waitForPage(page);
 +        }
 +
++        viewer.select(null);
 +        const symbol = viewer.schematic.find_symbol(reference);
 +        if (!symbol) {
 +            throw new Error(
@@ -109,16 +153,3 @@ index feaf906..1f06118 100644
      public async download(name: string) {
          if (this.#pages_by_path.has(name)) {
              name = this.#pages_by_path.get(name)!.filename;
-diff --git a/src/base/math/arc.ts b/src/base/math/arc.ts
-index 8145c3a..0080902 100644
---- a/src/base/math/arc.ts
-+++ b/src/base/math/arc.ts
-@@ -281,7 +281,7 @@ function arc_center_from_three_points(start: Vec2, mid: Vec2, end: Vec2): Vec2 {
- 
-     if (slope_a == slope_b) {
--        if (start == end) {
-+        if (start.equals(end)) {
-             // This is a special case for a 360 degrees arc.  In this case, the center is halfway between
-             // the midpoint and either end point
-             center.x = (start.x + mid.x) / 2.0;
-             center.y = (start.y + mid.y) / 2.0;

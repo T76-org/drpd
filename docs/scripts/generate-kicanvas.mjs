@@ -119,6 +119,8 @@ ${sources}
     const referenceIndex = ${indexJson};
     const diagram = document.getElementById('diagram');
     const notify = (status, ref, file = null) => {
+      document.body.dataset.deepLinkStatus = status;
+      document.body.dataset.deepLinkRef = ref;
       const message = {type: 'drpd:kicanvas-deep-link', status, ref, file};
       for (const delay of [0, 250, 1000]) {
         setTimeout(() => window.parent.postMessage(message, window.location.origin), delay);
