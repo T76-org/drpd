@@ -1,0 +1,43 @@
+.viewer {
+  width: 100%;
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  justify-content: space-between;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.frame {
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  height: 75vh;
+  margin-top: 1rem;
+  min-height: 36rem;
+  width: 100%;
+}
+
+.frame:fullscreen {
+  background: white;
+  border: 0;
+  border-radius: 0;
+  height: 100vh;
+  margin: 0;
+  min-height: 0;
+  width: 100vw;
+}
+
+@media (max-width: 600px) {
+  .actions,
+  .actions > * {
+    width: 100%;
+  }
+}

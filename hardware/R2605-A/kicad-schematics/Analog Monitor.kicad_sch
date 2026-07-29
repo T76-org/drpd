@@ -6,8 +6,8 @@
 	(paper "A")
 	(title_block
 		(title "Analog Monitor")
-		(date "2026-03-17")
-		(rev "2603-A")
+		(date "2026-05-24")
+		(rev "2605-A")
 		(company "MTA, Inc.")
 		(comment 1 "© 2025-26")
 	)

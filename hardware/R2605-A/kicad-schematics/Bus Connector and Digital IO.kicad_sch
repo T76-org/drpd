@@ -6,8 +6,8 @@
 	(paper "A")
 	(title_block
 		(title "Bus Connector & Digital I/O")
-		(date "2026-03-17")
-		(rev "2603-A")
+		(date "2026-05-24")
+		(rev "2605-A")
 		(company "MTA, Inc.")
 		(comment 1 "© 2025-26")
 	)
@@ -4630,284 +4630,6 @@
 		)
 		(uuid "ffbb0bbd-34fa-46b4-b305-15009804d6fb")
 	)
-	(table
-		(column_count 3)
-		(border
-			(external yes)
-			(header yes)
-			(stroke
-				(width 0)
-				(type solid)
-			)
-		)
-		(separators
-			(rows yes)
-			(cols yes)
-			(stroke
-				(width 0)
-				(type solid)
-			)
-		)
-		(column_widths 15.24 15.24 17.78)
-		(row_heights 2.54 2.54 2.54 2.54 2.54)
-		(cells
-			(table_cell "CC_OUT_HIGH"
-				(exclude_from_sim no)
-				(at 102.87 180.34 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "674aafde-523d-4ba6-b105-38debd74fd04")
-			)
-			(table_cell "CC_OUT_LOW"
-				(exclude_from_sim no)
-				(at 118.11 180.34 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "60c5dfc9-98ca-4660-985b-02332a45a00e")
-			)
-			(table_cell "CC Line State"
-				(exclude_from_sim no)
-				(at 133.35 180.34 0)
-				(size 17.78 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "8796a1fb-514d-428e-b970-41e38a75c77a")
-			)
-			(table_cell "0"
-				(exclude_from_sim no)
-				(at 102.87 182.88 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "3f6d9e9f-8b39-49ed-950d-bc2fdae2eeda")
-			)
-			(table_cell "0"
-				(exclude_from_sim no)
-				(at 118.11 182.88 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "10b8040a-dd88-4478-a5cd-adb41bc92a6a")
-			)
-			(table_cell "High Z"
-				(exclude_from_sim no)
-				(at 133.35 182.88 0)
-				(size 17.78 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify left top)
-				)
-				(uuid "80ff2f12-90e8-4aba-85a1-477d89351d3c")
-			)
-			(table_cell "1"
-				(exclude_from_sim no)
-				(at 102.87 185.42 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "5702f714-2184-4006-9c2a-ad821c753649")
-			)
-			(table_cell "0"
-				(exclude_from_sim no)
-				(at 118.11 185.42 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "97fe7fe7-4168-40a1-a435-c58546f8cb67")
-			)
-			(table_cell "High"
-				(exclude_from_sim no)
-				(at 133.35 185.42 0)
-				(size 17.78 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify left top)
-				)
-				(uuid "1937683f-6904-46d7-a4f5-af563936205e")
-			)
-			(table_cell "0"
-				(exclude_from_sim no)
-				(at 102.87 187.96 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "21e62af0-d5f7-4511-8514-9be69f62cfb6")
-			)
-			(table_cell "1"
-				(exclude_from_sim no)
-				(at 118.11 187.96 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "2c0cf971-e80e-4073-802d-58cf60047d41")
-			)
-			(table_cell "Low"
-				(exclude_from_sim no)
-				(at 133.35 187.96 0)
-				(size 17.78 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify left top)
-				)
-				(uuid "25583428-d20f-4193-a5b5-e64620e3accb")
-			)
-			(table_cell "1"
-				(exclude_from_sim no)
-				(at 102.87 190.5 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "da016b67-31e6-4d88-b361-2f9c3a71ac54")
-			)
-			(table_cell "1"
-				(exclude_from_sim no)
-				(at 118.11 190.5 0)
-				(size 15.24 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify top)
-				)
-				(uuid "78cda418-b0cb-471d-8fca-be9937e8e325")
-			)
-			(table_cell "Invalid, avoid"
-				(exclude_from_sim no)
-				(at 133.35 190.5 0)
-				(size 17.78 2.54)
-				(margins 0.9525 0.9525 0.9525 0.9525)
-				(span 1 1)
-				(fill
-					(type none)
-				)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(justify left top)
-				)
-				(uuid "025eeb53-3634-49ea-82c0-84fcfcb2025b")
-			)
-		)
-	)
 	(label "USDS_CC1"
 		(at 204.47 115.57 180)
 		(effects
@@ -5450,7 +5172,7 @@
 				(justify right)
 			)
 		)
-		(property "Value" "470R"
+		(property "Value" "100R"
 			(at 104.14 97.7899 0)
 			(effects
 				(font
@@ -5486,7 +5208,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "C2930375"
+		(property "MPN" "C17901"
 			(at 101.6 96.52 0)
 			(effects
 				(font
@@ -8757,7 +8479,7 @@
 				(justify right)
 			)
 		)
-		(property "Value" "4k7"
+		(property "Value" "1k"
 			(at 104.14 110.4899 0)
 			(effects
 				(font
@@ -8793,7 +8515,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "C17936"
+		(property "MPN" "C4410"
 			(at 101.6 109.22 0)
 			(effects
 				(font
