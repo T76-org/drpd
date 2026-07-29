@@ -31,11 +31,10 @@ test('builds encoded viewer links under local and production base paths', () => 
   );
 });
 
-test('builds accessible links that safely open in a new tab', () => {
+test('builds accessible links that reuse one named viewer tab', () => {
   assert.deepEqual(buildHardwareViewerLink('/', 'diagram', 'R2605-A', 'U603'), {
     href: '/internals/interactive-diagram/?revision=R2605-A&ref=U603',
-    target: '_blank',
-    rel: 'noopener noreferrer',
+    target: 'drpd-hardware-viewer',
     ariaLabel: 'Open U603 in the R2605-A interactive schematic',
   });
 });

@@ -1,7 +1,6 @@
 .componentRef {
   display: inline-flex;
   align-items: baseline;
-  gap: 0.35rem;
   max-width: 100%;
   margin-inline: 0.08rem;
   padding: 0.08rem 0.35rem;
@@ -14,6 +13,17 @@
   vertical-align: 0.08em;
 }
 
+.referenceLink {
+  color: var(--ifm-font-color-base);
+  text-decoration: none;
+}
+
+.referenceLink:hover,
+.referenceLink:focus-visible {
+  color: var(--ifm-link-color);
+  text-decoration: underline;
+}
+
 .reference {
   padding: 0;
   border: 0;
@@ -21,6 +31,24 @@
   color: var(--ifm-font-color-base);
   font-size: 1em;
   font-weight: 650;
+}
+
+.choices {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width 160ms ease, margin-left 160ms ease, opacity 120ms ease;
+}
+
+.componentRef:hover .choices,
+.componentRef:focus-within .choices {
+  max-width: 10rem;
+  margin-left: 0.35rem;
+  opacity: 1;
 }
 
 .link {
@@ -35,8 +63,16 @@
 
 @media (max-width: 576px) {
   .componentRef {
-    gap: 0.28rem;
     padding-inline: 0.28rem;
+  }
+
+  .choices {
+    gap: 0.28rem;
+  }
+
+  .componentRef:hover .choices,
+  .componentRef:focus-within .choices {
+    margin-left: 0.28rem;
   }
 
   .link + .link {

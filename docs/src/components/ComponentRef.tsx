@@ -27,25 +27,32 @@ export default function ComponentRef({revision, reference, label}: Props): React
 
   return (
     <span className={styles.componentRef} data-component-reference={normalizedReference}>
-      <code className={styles.reference}>{label || normalizedReference}</code>
       <a
-        className={styles.link}
-        href={bom.href}
-        target={bom.target}
-        rel={bom.rel}
-        aria-label={bom.ariaLabel}
-      >
-        BOM
-      </a>
-      <a
-        className={styles.link}
+        className={styles.referenceLink}
         href={diagram.href}
         target={diagram.target}
-        rel={diagram.rel}
         aria-label={diagram.ariaLabel}
       >
-        Schematic
+        <code className={styles.reference}>{label || normalizedReference}</code>
       </a>
+      <span className={styles.choices}>
+        <a
+          className={styles.link}
+          href={bom.href}
+          target={bom.target}
+          aria-label={bom.ariaLabel}
+        >
+          BOM
+        </a>
+        <a
+          className={styles.link}
+          href={diagram.href}
+          target={diagram.target}
+          aria-label={diagram.ariaLabel}
+        >
+          Schematic
+        </a>
+      </span>
     </span>
   );
 }

@@ -18,8 +18,7 @@ export function buildHardwareViewerLink(baseUrl, viewer, revision, reference) {
   const label = viewer === 'bom' ? 'interactive BOM' : 'interactive schematic';
   return {
     href: buildHardwareViewerUrl(baseUrl, viewer, revision, reference),
-    target: '_blank',
-    rel: 'noopener noreferrer',
+    target: 'drpd-hardware-viewer',
     ariaLabel: `Open ${reference} in the ${revision} ${label}`,
   };
 }

@@ -14,7 +14,6 @@ export function buildHardwareViewerLink(
   reference: string,
 ): {
   href: string;
-  target: '_blank';
-  rel: 'noopener noreferrer';
+  target: 'drpd-hardware-viewer';
   ariaLabel: string;
 };
