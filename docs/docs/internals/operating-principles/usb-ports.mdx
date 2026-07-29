@@ -3,6 +3,8 @@ title: USB Ports
 sidebar_position: 2
 ---
 
+import ComponentRef from '@site/src/components/ComponentRef';
+
 # USB Ports
 
 The USB Ports section of Dr. PD is responsible for defining the front-panel USB-C connectors and the associated power switching and sensing circuitry. 
@@ -13,13 +15,13 @@ The section also pulls out the CC lines from the USB-C connectors and routes the
 
 ## VBUS power switches
 
-Q202 and Q205 form a bidirectional switch that is used to block VBUS from reaching the VBUS banana connector. The firmware acts on the gate of Q201 to turn this switch on during normal operation and turns it off when the device is in Disabled mode or when the overvoltage or overcurrent protection is triggered. 
+<ComponentRef revision="R2605-A" reference="Q202" /> and <ComponentRef revision="R2605-A" reference="Q205" /> form a bidirectional switch that is used to block VBUS from reaching the VBUS banana connector. The firmware acts on the gate of <ComponentRef revision="R2605-A" reference="Q201" /> to turn this switch on during normal operation and turns it off when the device is in Disabled mode or when the overvoltage or overcurrent protection is triggered. 
 
-D201 limits the magnitude of the gate-to-source voltage across Q202 and Q205 to approximately 12 V, protecting both MOSFETs from exceeding their maximum gate-to-source voltage rating of 20 V. When Q201 is on, R204 and R205 limit the current flowing through D201 and Q201 to ground.
+<ComponentRef revision="R2605-A" reference="D201" /> limits the magnitude of the gate-to-source voltage across <ComponentRef revision="R2605-A" reference="Q202" /> and <ComponentRef revision="R2605-A" reference="Q205" /> to approximately 12 V, protecting both MOSFETs from exceeding their maximum gate-to-source voltage rating of 20 V. When <ComponentRef revision="R2605-A" reference="Q201" /> is on, <ComponentRef revision="R2605-A" reference="R204" /> and <ComponentRef revision="R2605-A" reference="R205" /> limit the current flowing through <ComponentRef revision="R2605-A" reference="D201" /> and <ComponentRef revision="R2605-A" reference="Q201" /> to ground.
 
-R203 pulls the shared gates of Q202 and Q205 toward their shared source node. When Q201 is off, this keeps their gate-to-source voltage near zero and holds both MOSFETs off. C202 adds capacitance between the shared gate and source nodes of Q202 and Q205, slowing changes in their gate-to-source voltage and moderating the VBUS switching transition.
+<ComponentRef revision="R2605-A" reference="R203" /> pulls the shared gates of <ComponentRef revision="R2605-A" reference="Q202" /> and <ComponentRef revision="R2605-A" reference="Q205" /> toward their shared source node. When <ComponentRef revision="R2605-A" reference="Q201" /> is off, this keeps their gate-to-source voltage near zero and holds both MOSFETs off. <ComponentRef revision="R2605-A" reference="C202" /> adds capacitance between the shared gate and source nodes of <ComponentRef revision="R2605-A" reference="Q202" /> and <ComponentRef revision="R2605-A" reference="Q205" />, slowing changes in their gate-to-source voltage and moderating the VBUS switching transition.
 
-A similar bidirectional switch is formed by Q204 and Q206. Its purpose is to isolate Port 2 when the device is in Disabled or Sink mode so that a USB-C sink inadvertently left connected to Port 2 does not receive an unexpected voltage on its VBUS line. Like the other switch, it is controlled by the microcontroller and also serves as protection when an overvoltage or overcurrent event is detected.
+A similar bidirectional switch is formed by <ComponentRef revision="R2605-A" reference="Q204" /> and <ComponentRef revision="R2605-A" reference="Q206" />. Its purpose is to isolate Port 2 when the device is in Disabled or Sink mode so that a USB-C sink inadvertently left connected to Port 2 does not receive an unexpected voltage on its VBUS line. Like the other switch, it is controlled by the microcontroller and also serves as protection when an overvoltage or overcurrent event is detected.
 
 These switches are bidirectional because, in a USB-PD connection, current can flow in both directions: Not only can source and sink be connected to either port in Observer mode, but they can also swap their roles at any time if they support dual-role power. This is less of a concern in Sink mode, but the [PD Role Resistors](./pd-role-resistors) section is designed to support a future Source mode, and so the switches must be able to handle current flowing in either direction anyway.
 
@@ -27,4 +29,4 @@ These switches are bidirectional because, in a USB-PD connection, current can fl
 
 The individual CC lines for both USB-C ports are routed to the Bus Connector and Digital IO section, where they are used to detect the orientation of the USB-C cables, capture CC line edges, and actively drive the CC output in Sink mode.
 
-R206, R207, R208, and R209 provide weak pull-down paths for the CC lines, preventing them from floating when no stronger termination or active drive is present. Their 1 MΩ resistance is high enough to avoid materially affecting normal CC detection.
+<ComponentRef revision="R2605-A" reference="R206" />, <ComponentRef revision="R2605-A" reference="R207" />, <ComponentRef revision="R2605-A" reference="R208" />, and <ComponentRef revision="R2605-A" reference="R209" /> provide weak pull-down paths for the CC lines, preventing them from floating when no stronger termination or active drive is present. Their 1 MΩ resistance is high enough to avoid materially affecting normal CC detection.

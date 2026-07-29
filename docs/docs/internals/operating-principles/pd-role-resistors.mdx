@@ -3,18 +3,20 @@ title: PD Role Resistors
 sidebar_position: 4
 ---
 
+import ComponentRef from '@site/src/components/ComponentRef';
+
 # PD Role Resistors
 
 This section of the Dr. PD schematic allows the firmware to present one of several configurations on the CC lines of both USB-C ports, depending on the role that the device is currently playing in a USB-PD connection. 
 
-By manipulating the `CC_ROLE_SEL_x` lines, the firmware can control the state of two identical multiplexers (U401 and U402) that select the appropriate resistors to present on the CC lines. The resistors present cover both sink and source roles in one of several configurations, as explained in the table that accompanies the schematic.
+By manipulating the `CC_ROLE_SEL_x` lines, the firmware can control the state of two identical multiplexers (<ComponentRef revision="R2605-A" reference="U401" /> and <ComponentRef revision="R2605-A" reference="U402" />) that select the appropriate resistors to present on the CC lines. The resistors present cover both sink and source roles in one of several configurations, as explained in the table that accompanies the schematic.
 
-Resistors R401, R402, R405, R408, R409, and R410 pull down the multiplexer selection lines to ground, ensuring that the default input channel is Y0, which is floating.
+Resistors <ComponentRef revision="R2605-A" reference="R401" />, <ComponentRef revision="R2605-A" reference="R402" />, <ComponentRef revision="R2605-A" reference="R405" />, <ComponentRef revision="R2605-A" reference="R408" />, <ComponentRef revision="R2605-A" reference="R409" />, and <ComponentRef revision="R2605-A" reference="R410" /> pull down the multiplexer selection lines to ground, ensuring that the default input channel is Y0, which is floating.
 
-Q401 and Q402 are gate drivers controlled by the `CC_VCONN_EN_x` signals. When enabled, they pull down the gates of the P-channel MOSFETs U403 and U404, which connect the 5 V supply to the corresponding CC lines to provide VCONN. In order not to place too high a burden on the host power supply, VCONN is only powerful enough to power a USB-C cable's e-marker, or a similar device that does not require more than about 5mA of current.
+<ComponentRef revision="R2605-A" reference="Q401" /> and <ComponentRef revision="R2605-A" reference="Q402" /> are gate drivers controlled by the `CC_VCONN_EN_x` signals. When enabled, they pull down the gates of the P-channel MOSFETs <ComponentRef revision="R2605-A" reference="U403" /> and <ComponentRef revision="R2605-A" reference="U404" />, which connect the 5 V supply to the corresponding CC lines to provide VCONN. In order not to place too high a burden on the host power supply, VCONN is only powerful enough to power a USB-C cable's e-marker, or a similar device that does not require more than about 5mA of current.
 
 :::note
-The capabilities of the multiplexer far exceed what is required for Dr. PD's current functionality, which only really uses R403 and R404 to present a 5.1kΩ resistor on the CC lines in Sink mode. 
+The capabilities of the multiplexer far exceed what is required for Dr. PD's current functionality, which only really uses <ComponentRef revision="R2605-A" reference="R403" /> and <ComponentRef revision="R2605-A" reference="R404" /> to present a 5.1kΩ resistor on the CC lines in Sink mode. 
 
 The firmware's [`CCRoleManager`](https://github.com/T76-org/drpd/blob/main/firmware/lib/phy/cc_role_manager.hpp) already supports selecting the Off, Sink, E-marker, Source Default, Source 1.5 A, Source 3 A, and VCONN configurations on either CC line. These configurations can be exercised directly using test commands in test-enabled firmware. Dr. PD does not yet provide a complete product-level Source mode, which would also require the corresponding attachment, power-control, protocol, and policy behavior.
 :::
