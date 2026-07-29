@@ -9,11 +9,11 @@ In this section, we describe how Dr. PD's hardware is designed, with a focus on 
 
 ## Basic philosophy
 
-We wanted Dr. PD to be easy to use and reliable, but also open to experimentatin and modification. To achieve this, we adopted a few key principles:
+We wanted Dr. PD to be easy to use and reliable, but also open to experimentation and modification. To achieve this, we adopted a few key principles:
 
-- **No black boxes**: We used widely-available components, without any custom circuitry or proprietary hardware that would make it difficult to understand or modify the system without specialized knowledge. For example, the entire USB-PD stack is implemented in firmware, rather than relying on a dedicated USB-PD controller chip. This makes it easy to expand its functionality or adapt it to new use cases, without being limited by the capabilities of a specific chip.
-- **Jellybean components**: We've used common components that are easy to source and replace from multiple vendors. Dr. PD is built almost entirely from standard parts, and the only single-course component is the microcontroller, which is widely available, features open-source tooling, and is supported by a large community of developers.
-- **Ease of repair**: Where possible, we've used the largest possible SMD components, and avoided using components that are difficult to solder or replace. To make troubleshooting easier, we also placed all components on a widely-spaced grid and added plenty of test points for all the critical signals.
+- **No protocol black boxes**: We implemented the USB-PD stack in firmware rather than relying on a dedicated USB-PD controller chip. The supporting CC, measurement, and power-control circuits use discrete or general-purpose components whose behavior can be understood from the schematic and their datasheets. This makes it easier to inspect, modify, and extend Dr. PD without being limited by the fixed capabilities of a dedicated controller.
+- **Jellybean components**: We've used common components that are easy to source and replace from multiple vendors. Dr. PD is built almost entirely from standard parts. Where a function depends on a single-source part—most notably the RP2354 microcontroller—we favor devices that are widely available, feature open-source tooling, and are supported by a large community of developers.
+- **Ease of repair**: Where practical, we've used large SMD packages—typically 1206 for passive components—and avoided packages that are difficult to solder or replace when suitable alternatives are available. To make troubleshooting easier, we also placed components on a widely-spaced grid and added plenty of test points for critical signals.
 
 ## Basic architecture
 
@@ -33,9 +33,9 @@ Dr. PD implements ESD protection on all exposed lines, including the front- and 
 
 D101 and D102 are TVS diodes that protect the CC OUT and SYNC ports. The CC lines on ports 1 and 2 are similarly protected by D501, while D601 protects the USB 2.0 data and VBUS lines on the Host USB-C port.
 
-D301 clamps the VBUS line on the front-panel USB-C ports to 60V, serving both to protect the device from overvoltage and to provide a path for ESD events to discharge safely.
+D301 is a 60 V stand-off TVS diode that provides a discharge path for transient overvoltage events on the VBUS line.
 
-In addition to ESD protection, Dr. PD also implements reverse-polarity protection on the VBUS line; the P-channel MOSFET Q101 is used to block current flow if the VBUS line is connected with the wrong polarity. Zener diode D103 limits the gate-to-source voltage of Q101 to around 12V, preventing damage to the MOSFET when the voltage on VBUS exceeds the maximum gate voltage of 20V, with extra headroom for safety. Finally, R103 keeps the gate of Q101 pulled low when VBUS is disconnected, ensuring that the MOSFET remains off and does not conduct any current in this state.
+In addition to ESD protection, Dr. PD also implements reverse-polarity protection on the VBUS line; the P-channel MOSFET Q101 is used to block current flow if the VBUS line is connected with the wrong polarity. Zener diode D103 limits the gate-to-source voltage of Q101 to around 12V, preventing damage to the MOSFET when the voltage on VBUS exceeds the maximum gate-to-source voltage of 20V, with extra headroom for safety. R103 pulls Q101's gate toward ground. With correctly polarized VBUS, this produces a negative gate-to-source voltage that turns Q101 on. If the banana connectors are reverse-polarized, Q101 remains off and blocks current through the VBUS path.
 
 Finally, R101 and R102 are used to limit current on the SYNC port. At a total of 20Ω, these resistors offer only limited protection, but this compromise is necessary because the port can be used to both drive a load and sink current from a pull-up resistor on the other end, and so it would be undesirable to increase their value further.
 
