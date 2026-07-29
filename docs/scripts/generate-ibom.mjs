@@ -80,24 +80,28 @@ export function validateManifest(manifest, repoRoot) {
   const ids = new Set();
   const destinations = new Set();
   for (const revision of manifest.revisions) {
-    for (const field of ['id', 'label', 'source', 'destination']) {
+    for (const field of ['id', 'label']) {
       if (typeof revision[field] !== 'string' || revision[field].trim() === '') {
         throw new Error(`iBOM revision is missing ${field}.`);
       }
     }
     if (ids.has(revision.id)) throw new Error(`Duplicate iBOM revision id: ${revision.id}`);
-    if (destinations.has(revision.destination)) {
-      throw new Error(`Duplicate iBOM destination: ${revision.destination}`);
+    const ibom = revision.ibom;
+    if (!ibom || typeof ibom.source !== 'string' || typeof ibom.destination !== 'string') {
+      throw new Error(`iBOM revision is missing source or destination: ${revision.id}`);
     }
-    if (path.isAbsolute(revision.source) || path.isAbsolute(revision.destination)) {
+    if (destinations.has(ibom.destination)) {
+      throw new Error(`Duplicate iBOM destination: ${ibom.destination}`);
+    }
+    if (path.isAbsolute(ibom.source) || path.isAbsolute(ibom.destination)) {
       throw new Error(`iBOM paths must be relative: ${revision.id}`);
     }
-    const sourcePath = path.resolve(repoRoot, revision.source);
+    const sourcePath = path.resolve(repoRoot, ibom.source);
     if (!sourcePath.startsWith(`${repoRoot}${path.sep}`) || !fs.existsSync(sourcePath)) {
-      throw new Error(`Missing iBOM source for ${revision.id}: ${revision.source}`);
+      throw new Error(`Missing iBOM source for ${revision.id}: ${ibom.source}`);
     }
     ids.add(revision.id);
-    destinations.add(revision.destination);
+    destinations.add(ibom.destination);
   }
   if (!ids.has(manifest.defaultRevision)) {
     throw new Error(`Default iBOM revision is not published: ${manifest.defaultRevision}`);
@@ -121,10 +125,10 @@ export function generateIboms({manifest, repoRoot, outputRoot}) {
   fs.mkdirSync(outputRoot, {recursive: true});
 
   for (const revision of manifest.revisions) {
-    const sourcePath = path.resolve(repoRoot, revision.source);
-    const destinationPath = path.resolve(outputRoot, revision.destination);
+    const sourcePath = path.resolve(repoRoot, revision.ibom.source);
+    const destinationPath = path.resolve(outputRoot, revision.ibom.destination);
     if (!destinationPath.startsWith(`${outputRoot}${path.sep}`)) {
-      throw new Error(`iBOM destination escapes generated directory: ${revision.destination}`);
+      throw new Error(`iBOM destination escapes generated directory: ${revision.ibom.destination}`);
     }
     const source = fs.readFileSync(sourcePath, 'utf8');
     const generated = injectAdapter(source);
@@ -137,7 +141,7 @@ const scriptPath = fileURLToPath(import.meta.url);
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const docsRoot = path.resolve(path.dirname(scriptPath), '..');
   const repoRoot = path.resolve(docsRoot, '..');
-  const manifest = JSON.parse(fs.readFileSync(path.join(docsRoot, 'ibom-manifest.json'), 'utf8'));
+  const manifest = JSON.parse(fs.readFileSync(path.join(docsRoot, 'hardware-viewers.json'), 'utf8'));
   generateIboms({
     manifest,
     repoRoot,

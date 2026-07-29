@@ -15,7 +15,7 @@ function fixture() {
     defaultRevision: 'R1',
     revisions: [{
       id: 'R1', label: 'Revision 1',
-      source: 'hardware/R1/virtual-bom/bom.html', destination: 'R1/bom.html',
+      ibom: {source: 'hardware/R1/virtual-bom/bom.html', destination: 'R1/bom.html'},
     }],
   };
   return {root, repoRoot: root, source, manifest, outputRoot: path.join(root, 'output')};
@@ -49,7 +49,7 @@ test('publishes another revision through a manifest entry only', () => {
   );
   data.manifest.revisions.push({
     id: 'R2', label: 'Revision 2',
-    source: 'hardware/R2/virtual-bom/ibom.html', destination: 'R2/index.html',
+    ibom: {source: 'hardware/R2/virtual-bom/ibom.html', destination: 'R2/index.html'},
   });
   generateIboms(data);
   const generated = fs.readFileSync(path.join(data.outputRoot, 'R2', 'index.html'), 'utf8');
@@ -66,7 +66,7 @@ test('rejects duplicate revisions, missing sources, and unknown defaults', () =>
   }, data.root), /Duplicate/);
   assert.throws(() => validateManifest({
     ...data.manifest,
-    revisions: [{...data.manifest.revisions[0], source: 'hardware/missing.html'}],
+    revisions: [{...data.manifest.revisions[0], ibom: {source: 'hardware/missing.html', destination: 'R1/bom.html'}}],
   }, data.root), /Missing/);
 });
 

@@ -1,0 +1,18 @@
+{
+  "defaultRevision": "R2605-A",
+  "revisions": [
+    {
+      "id": "R2605-A",
+      "label": "R2605-A",
+      "ibom": {
+        "source": "hardware/R2605-A/virtual-bom/bom.html",
+        "destination": "R2605-A/index.html"
+      },
+      "diagram": {
+        "sourceDirectory": "hardware/R2605-A/kicad-schematics",
+        "rootSchematic": "Dr.PD.kicad_sch",
+        "destination": "R2605-A"
+      }
+    }
+  ]
+}
