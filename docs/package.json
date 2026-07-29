@@ -5,13 +5,14 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
-    "prestart": "npm run generate:ibom && npm run generate:kicanvas",
+    "prestart": "npm run generate:ibom && npm run generate:kicanvas && npm run audit:component-refs",
     "generate:ibom": "node scripts/generate-ibom.mjs",
     "generate:kicanvas": "node scripts/generate-kicanvas.mjs",
     "refresh:kicanvas": "node scripts/refresh-kicanvas.mjs",
     "generate:scpi": "node scripts/generate-scpi-reference.mjs",
     "generate:python-api": "node scripts/generate-python-api-reference.mjs",
-    "prebuild": "npm run generate:scpi && npm run generate:python-api && npm run generate:ibom && npm run generate:kicanvas",
+    "audit:component-refs": "node scripts/audit-component-refs.mjs",
+    "prebuild": "npm run generate:scpi && npm run generate:python-api && npm run generate:ibom && npm run generate:kicanvas && npm run audit:component-refs",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
@@ -21,7 +22,8 @@
     "write-heading-ids": "docusaurus write-heading-ids",
     "typecheck": "tsc",
     "test:ibom": "node --test scripts/generate-ibom.test.mjs",
-    "test:kicanvas": "node --test scripts/generate-kicanvas.test.mjs"
+    "test:kicanvas": "node --test scripts/generate-kicanvas.test.mjs",
+    "test:component-refs": "node --test scripts/audit-component-refs.test.mjs"
   },
   "dependencies": {
     "@docusaurus/core": "^3.10.2",
