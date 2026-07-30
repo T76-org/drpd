@@ -2,6 +2,11 @@
 sidebar_position: 2
 ---
 
+import frontPanel from '@site/static/img/drpd-front-panel.png';
+import frontPanel2x from '@site/static/img/drpd-front-panel@2x.png';
+import backPanel from '@site/static/img/drpd-back-panel.png';
+import backPanel2x from '@site/static/img/drpd-back-panel@2x.png';
+
 # Front and back panels
 
 Dr. PD separates the USB-PD connection under test from its host connection and
@@ -12,8 +17,8 @@ the configurable sync output.
 ## Front panel
 
 <img
-  src="/img/drpd-front-panel.png"
-  srcSet="/img/drpd-front-panel.png 1x, /img/drpd-front-panel@2x.png 2x"
+  src={frontPanel}
+  srcSet={`${frontPanel} 1x, ${frontPanel2x} 2x`}
   alt="Front panel of Dr. PD showing USB-C Ports 1 and 2, positive and negative VBUS banana jacks, and the CC OUT connector"
   style={{width: '100%', height: 'auto'}}
   loading="lazy"
@@ -87,8 +92,8 @@ active CC line on the USB-C connection under test.
 ## Back panel
 
 <img
-  src="/img/drpd-back-panel.png"
-  srcSet="/img/drpd-back-panel.png 1x, /img/drpd-back-panel@2x.png 2x"
+  src={backPanel}
+  srcSet={`${backPanel} 1x, ${backPanel2x} 2x`}
   alt="Back panel of Dr. PD showing the SYNC connector and HOST USB-C port"
   style={{width: '100%', height: 'auto'}}
   loading="lazy"
