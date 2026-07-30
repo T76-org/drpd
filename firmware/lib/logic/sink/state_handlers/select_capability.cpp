@@ -149,7 +149,7 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
 
         requestMessage.header().portDataRole(Proto::PDHeader::PortDataRole::UFP);
         requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-        requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+        requestMessage.header().specRevision(context.specRevision());
 
         if (!_currentRequestCollisionAvoidanceExempt &&
             !context.sendSinkInitiatedMessageAndAwaitGoodCRC(requestMessage)) {
@@ -168,7 +168,7 @@ SinkRequestResult SelectCapabilityStateHandler::_requestPDO(size_t pdoIndex,
 
     requestMessage.header().portDataRole(Proto::PDHeader::PortDataRole::UFP);
     requestMessage.header().portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    requestMessage.header().specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    requestMessage.header().specRevision(context.specRevision());
 
     if (!_currentRequestCollisionAvoidanceExempt &&
         !context.sendSinkInitiatedMessageAndAwaitGoodCRC(requestMessage)) {
@@ -374,7 +374,8 @@ void SelectCapabilityStateHandler::handleMessage(SinkContext& context, const T76
         if (dataMessageType.has_value() &&
             dataMessageType.value() == Proto::DataMessageType::Source_Capabilities) {
             context.setSourceCapabilities(
-                Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()));
+                Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()),
+                decodedHeader.specRevision());
 
             if (context.runtimeState()._pendingRequestedPDO.has_value()) {
                 (void)_requestPendingPDO(context);

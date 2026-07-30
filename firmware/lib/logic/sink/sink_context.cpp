@@ -24,6 +24,8 @@
 #include "state_handlers/transition_sink.hpp"
 #include "state_handlers/transition_to_default.hpp"
 #include "state_handlers/wait_for_capabilities.hpp"
+#include "../../proto/pd_messages/structured_vdm.hpp"
+#include "../../proto/pd_revision.hpp"
 
 namespace T76::DRPD::Logic {
 
@@ -176,6 +178,7 @@ void SinkContext::transitionTo(SinkState state) {
 }
 
 void SinkContext::performReset(SinkResetType resetType) {
+    const auto negotiatedRevision = _runtimeState._specRevision;
     if (resetType == SinkResetType::SoftReset) {
         reportError("Sink protocol error; initiating Soft Reset", resetType);
     } else if (resetType == SinkResetType::HardReset) {
@@ -214,6 +217,10 @@ void SinkContext::performReset(SinkResetType resetType) {
         _runtimeState._currentStateHandler->reset(*this);
     }
     _runtimeState.reset();
+
+    if (resetType == SinkResetType::SoftReset) {
+        _runtimeState._specRevision = negotiatedRevision;
+    }
 
     if (_ccBusController.state() == CCBusState::Attached) {
         if (resetType == SinkResetType::SoftReset) {
@@ -257,7 +264,7 @@ void SinkContext::resetHardResetCounter() {
     _hardResetCounter = 0;
 }
 
-void SinkContext::handleReceivedSoftReset() {
+void SinkContext::handleReceivedSoftReset(Proto::PDHeader::SpecRevision receivedRevision) {
     _messageSender.reset();
     _runtimeState.resetStoredReceivedMessageId();
 
@@ -266,6 +273,7 @@ void SinkContext::handleReceivedSoftReset() {
     }
 
     _runtimeState.reset();
+    _runtimeState._specRevision = Proto::negotiatedSpecRevision(receivedRevision);
 
     if (_ccBusController.state() != CCBusState::Attached) {
         transitionTo(SinkState::Disconnected);
@@ -275,17 +283,25 @@ void SinkContext::handleReceivedSoftReset() {
     _messageSender.sendMessageAndAwaitGoodCRC(
         PHY::BMCEncodedMessage::acceptMessage(
             Proto::PDHeader::PortDataRole::UFP,
-            Proto::PDHeader::PortPowerRole::Sink
+            Proto::PDHeader::PortPowerRole::Sink,
+            specRevision()
         )
     );
     transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
 }
 
-void SinkContext::setSourceCapabilities(const Proto::SourceCapabilities& sourceCapabilities) {
+void SinkContext::setSourceCapabilities(
+    const Proto::SourceCapabilities& sourceCapabilities,
+    Proto::PDHeader::SpecRevision sourceRevision) {
+    _runtimeState._specRevision = Proto::negotiatedSpecRevision(sourceRevision);
     _runtimeState._sourceCapabilities = sourceCapabilities;
     _runtimeState._sourceSupportsEpr = _sourceEPRCapable();
     _runtimeState._eprCapabilities.reset();
     _notifySinkInfoChanged(SinkInfoChange::PDOListUpdated);
+}
+
+Proto::PDHeader::SpecRevision SinkContext::specRevision() const {
+    return _runtimeState._specRevision;
 }
 
 void SinkContext::setEPRSourceCapabilities(const Proto::EPRSourceCapabilities& sourceCapabilities) {
@@ -492,7 +508,8 @@ void SinkContext::sendNotSupportedMessage() {
     _messageSender.sendMessageAndAwaitGoodCRC(
         PHY::BMCEncodedMessage::notAcceptedMessage(
             Proto::PDHeader::PortDataRole::UFP,
-            Proto::PDHeader::PortPowerRole::Sink
+            Proto::PDHeader::PortPowerRole::Sink,
+            specRevision()
         )
     );
 }
@@ -501,9 +518,30 @@ void SinkContext::sendNotSupportedResponse() {
     _sendResponseStateHandler.prepareResponse(
         PHY::BMCEncodedMessage::notAcceptedMessage(
             Proto::PDHeader::PortDataRole::UFP,
-            Proto::PDHeader::PortPowerRole::Sink
+            Proto::PDHeader::PortPowerRole::Sink,
+            specRevision()
         )
     );
+    transitionTo(SinkState::PE_SNK_Send_Response);
+}
+
+void SinkContext::sendDiscoverIdentityNak(const PHY::BMCDecodedMessage& request) {
+    const auto structuredVDM = Proto::StructuredVDM::decode(request.rawBody());
+    if (!structuredVDM.has_value() ||
+        request.decodedSOP().type() != Proto::SOP::SOPType::SOP ||
+        request.decodedHeader().numDataObjects() != 1 ||
+        !structuredVDM->isDiscoverIdentityRequest()) {
+        sendNotSupportedResponse();
+        return;
+    }
+
+    const auto nak = Proto::StructuredVDM::discoverIdentityNak(structuredVDM.value());
+    PHY::BMCEncodedMessage response(Proto::SOP::SOPType::SOP, nak);
+    auto& header = response.header();
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(specRevision());
+    _sendResponseStateHandler.prepareResponse(response);
     transitionTo(SinkState::PE_SNK_Send_Response);
 }
 
@@ -521,7 +559,7 @@ void SinkContext::sendSinkCapabilities() {
     auto &header = message.header();
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
@@ -540,7 +578,7 @@ void SinkContext::sendSinkCapabilitiesResponse() {
     auto &header = message.header();
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _sendResponseStateHandler.prepareResponse(message);
     transitionTo(SinkState::PE_SNK_Send_Response);
@@ -565,7 +603,7 @@ void SinkContext::sendSinkCapabilitiesExtended() {
     header.extendedMessageType(Proto::ExtendedMessageType::Sink_Capabilities_Extended);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
@@ -589,7 +627,7 @@ void SinkContext::sendSinkCapabilitiesExtendedResponse() {
     header.extendedMessageType(Proto::ExtendedMessageType::Sink_Capabilities_Extended);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _sendResponseStateHandler.prepareResponse(message);
     transitionTo(SinkState::PE_SNK_Send_Response);
@@ -647,7 +685,7 @@ bool SinkContext::sendEPRSinkCapabilitiesResponse(uint8_t chunkNumber, bool trac
     header.extendedMessageType(Proto::ExtendedMessageType::EPR_Sink_Capabilities);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     if (trackAsReadyResponse) {
         _sendResponseStateHandler.prepareResponse(message);
@@ -669,7 +707,7 @@ void SinkContext::sendRevision() {
     auto &header = message.header();
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
@@ -684,7 +722,7 @@ void SinkContext::sendRevisionResponse() {
     auto &header = message.header();
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _sendResponseStateHandler.prepareResponse(message);
     transitionTo(SinkState::PE_SNK_Send_Response);
@@ -702,7 +740,7 @@ bool SinkContext::sendGetPPSStatus() {
     header.numDataObjects(0);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     return sendSinkInitiatedMessageAndAwaitGoodCRC(message);
 }
@@ -731,7 +769,7 @@ void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) 
     header.extendedMessageType(Proto::ExtendedMessageType::Manufacturer_Info);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }
@@ -760,7 +798,7 @@ void SinkContext::sendManufacturerInfoResponse(std::span<const uint8_t> requestP
     header.extendedMessageType(Proto::ExtendedMessageType::Manufacturer_Info);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     _sendResponseStateHandler.prepareResponse(message);
     transitionTo(SinkState::PE_SNK_Send_Response);
@@ -776,7 +814,7 @@ bool SinkContext::sendEPRMode(Proto::EPRMode::Action action, uint8_t data) {
     auto &header = message.header();
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     return sendSinkInitiatedMessageAndAwaitGoodCRC(message);
 }
@@ -814,7 +852,7 @@ bool SinkContext::sendExtendedControlMessage(uint8_t controlType, bool awaitGood
     header.extendedMessageType(Proto::ExtendedMessageType::Extended_Control);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(specRevision());
 
     if (!sinkMayInitiateAMS()) {
         _scheduleSinkTxOKRetry();

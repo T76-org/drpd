@@ -30,6 +30,7 @@
 #include "../../proto/pd_messages/pps_status.hpp"
 #include "../../proto/pd_messages/source_capabilities.hpp"
 #include "../../proto/pd_message_types.hpp"
+#include "../../proto/pd_header.hpp"
 
 
 namespace T76::DRPD::Logic {
@@ -112,6 +113,7 @@ namespace T76::DRPD::Logic {
 
         std::optional<Proto::SourceCapabilities> _sourceCapabilities;      ///< Cached SPR capabilities.
         std::optional<Proto::EPRSourceCapabilities> _eprCapabilities;      ///< Cached EPR capabilities.
+        Proto::PDHeader::SpecRevision _specRevision = Proto::PDHeader::SpecRevision::Rev3_x; ///< Negotiated SOP revision.
 
         std::optional<Proto::PDOVariant> _pendingRequestedPDO;    ///< Pending request PDO.
         size_t _pendingPDOIndex = 0;                              ///< Pending request active-view PDO index.

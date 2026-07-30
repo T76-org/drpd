@@ -9,6 +9,7 @@
 #include <algorithm>
 
 #include "../proto/pd_messages/control.hpp"
+#include "../proto/pd_revision.hpp"
 
 #include "4b5b.hpp"
 #include "bitpacker.hpp"
@@ -73,7 +74,7 @@ BMCEncodedMessage BMCEncodedMessage::goodCRCMessageForMessage(const BMCDecodedMe
     return encodedMessage;
 }
 
-BMCEncodedMessage BMCEncodedMessage::acceptMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole) {
+BMCEncodedMessage BMCEncodedMessage::acceptMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole, Proto::PDHeader::SpecRevision specRevision) {
     auto controlMessage = Proto::ControlMessage();
     BMCEncodedMessage encodedMessage(
       Proto::SOP::SOPType::SOP,
@@ -85,14 +86,14 @@ BMCEncodedMessage BMCEncodedMessage::acceptMessage(Proto::PDHeader::PortDataRole
     header.messageId(0); // Message ID is set by the sender
     header.rawMessageType(static_cast<uint32_t>(Proto::ControlMessageType::Accept));
     header.numDataObjects(0);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x); // PD 3.0
+    header.specRevision(specRevision);
     header.portDataRole(portDataRole);
     header.portPowerRole(portPowerRole);
 
     return encodedMessage;
 }
 
-BMCEncodedMessage BMCEncodedMessage::notAcceptedMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole) {
+BMCEncodedMessage BMCEncodedMessage::notAcceptedMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole, Proto::PDHeader::SpecRevision specRevision) {
     auto controlMessage = Proto::ControlMessage();
     BMCEncodedMessage encodedMessage(
       Proto::SOP::SOPType::SOP,
@@ -104,16 +105,16 @@ BMCEncodedMessage BMCEncodedMessage::notAcceptedMessage(Proto::PDHeader::PortDat
     Proto::PDHeader &header = encodedMessage.header();
     
     header.messageId(0); // Message ID is set by the sender
-    header.rawMessageType(static_cast<uint32_t>(Proto::ControlMessageType::Not_Supported));
+    header.rawMessageType(static_cast<uint32_t>(Proto::unsupportedControlResponse(specRevision)));
     header.numDataObjects(0);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x); // PD 3.0
+    header.specRevision(specRevision);
     header.portDataRole(portDataRole);
     header.portPowerRole(portPowerRole);
     
     return encodedMessage;
 }
 
-BMCEncodedMessage BMCEncodedMessage::softResetMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole) {
+BMCEncodedMessage BMCEncodedMessage::softResetMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole, Proto::PDHeader::SpecRevision specRevision) {
     auto controlMessage = Proto::ControlMessage();
     BMCEncodedMessage encodedMessage(
       Proto::SOP::SOPType::SOP,
@@ -127,7 +128,7 @@ BMCEncodedMessage BMCEncodedMessage::softResetMessage(Proto::PDHeader::PortDataR
     header.messageId(0); // Message ID is set by the sender
     header.rawMessageType(static_cast<uint32_t>(Proto::ControlMessageType::Soft_Reset));
     header.numDataObjects(0);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x); // PD 3.0
+    header.specRevision(specRevision);
     header.portDataRole(portDataRole);
     header.portPowerRole(portPowerRole);
     

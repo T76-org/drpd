@@ -67,7 +67,8 @@ void WaitForCapabilitiesStateHandler::handleMessage(
             context.resetHardResetCounter();
 
             context.setSourceCapabilities(Proto::SourceCapabilities(
-                message->rawBody(), decodedHeader.numDataObjects()));
+                message->rawBody(), decodedHeader.numDataObjects()),
+                decodedHeader.specRevision());
                             
             context.requestPDO(0, 0.0f, 0.0f, true);  // Request first PDO with max current
 

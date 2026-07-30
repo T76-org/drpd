@@ -161,13 +161,18 @@ namespace T76::DRPD::Logic {
         /**
          * @brief Complete receiver-side Soft_Reset handling after the PHY GoodCRC.
          */
-        void handleReceivedSoftReset();
+        void handleReceivedSoftReset(Proto::PDHeader::SpecRevision receivedRevision);
 
         /**
          * @brief Cache latest SPR Source_Capabilities and notify listeners.
          * @param sourceCapabilities Decoded SPR source capabilities to cache.
          */
-        void setSourceCapabilities(const Proto::SourceCapabilities& sourceCapabilities);
+        void setSourceCapabilities(
+            const Proto::SourceCapabilities& sourceCapabilities,
+            Proto::PDHeader::SpecRevision sourceRevision);
+
+        /** @brief Negotiated SOP specification revision. */
+        [[nodiscard]] Proto::PDHeader::SpecRevision specRevision() const;
 
         /**
          * @brief Cache latest EPR Source Capabilities and notify listeners.
@@ -299,14 +304,17 @@ namespace T76::DRPD::Logic {
             Proto::ExtendedMessageType type);
 
         /**
-         * @brief Send a Not_Supported control response.
+         * @brief Send the revision-appropriate unsupported control response.
          */
         void sendNotSupportedMessage();
 
         /**
-         * @brief Send a Not_Supported response and remain out of Ready until GoodCRC.
+         * @brief Send the revision-appropriate unsupported response and await GoodCRC.
          */
         void sendNotSupportedResponse();
+
+        /** @brief Respond to a supported Discover Identity request with NAK. */
+        void sendDiscoverIdentityNak(const PHY::BMCDecodedMessage& request);
 
         /**
          * @brief Send minimal SPR Sink_Capabilities for Get_Sink_Cap.

@@ -74,7 +74,8 @@ void SendSoftResetStateHandler::enter(SinkContext& context) {
     context.sendMessageAndAwaitGoodCRC(
         PHY::BMCEncodedMessage::softResetMessage(
             Proto::PDHeader::PortDataRole::UFP,
-            Proto::PDHeader::PortPowerRole::Sink
+            Proto::PDHeader::PortPowerRole::Sink,
+            context.specRevision()
         )
     );
 }

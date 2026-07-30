@@ -28,6 +28,7 @@ void SinkRuntimeState::reset() {
 
     _sourceCapabilities.reset();
     _eprCapabilities.reset();
+    _specRevision = Proto::PDHeader::SpecRevision::Rev3_x;
     _ppsStatus.reset();
     _sourceSupportsEpr = false;
 
