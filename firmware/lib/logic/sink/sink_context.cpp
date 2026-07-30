@@ -11,6 +11,7 @@
 
 #include "../cc_bus_controller.hpp"
 #include "state_handlers/disconnected.hpp"
+#include "state_handlers/discovery.hpp"
 #include "state_handlers/epr_keepalive.hpp"
 #include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
@@ -19,7 +20,9 @@
 #include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
+#include "state_handlers/startup.hpp"
 #include "state_handlers/transition_sink.hpp"
+#include "state_handlers/transition_to_default.hpp"
 #include "state_handlers/wait_for_capabilities.hpp"
 
 namespace T76::DRPD::Logic {
@@ -39,6 +42,7 @@ SinkContext::SinkContext(
     SinkMessageSender& messageSender,
     CCBusController& ccBusController,
     DisconnectedStateHandler& disconnectedStateHandler,
+    DiscoveryStateHandler& discoveryStateHandler,
     EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
     EPRModeExitStateHandler& eprModeExitStateHandler,
     EPRModeEntryStateHandler& eprModeEntryStateHandler,
@@ -47,7 +51,9 @@ SinkContext::SinkContext(
     SendResponseStateHandler& sendResponseStateHandler,
     SendSoftResetStateHandler& sendSoftResetStateHandler,
     SelectCapabilityStateHandler& selectCapabilityStateHandler,
+    StartupStateHandler& startupStateHandler,
     TransitionSinkStateHandler& transitionSinkStateHandler,
+    TransitionToDefaultStateHandler& transitionToDefaultStateHandler,
     WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
     std::function<void(SinkInfoChange)>& sinkInfoChangedCallback,
     SinkErrorCallback& sinkErrorCallback,
@@ -59,6 +65,7 @@ SinkContext::SinkContext(
     _localSinkCapabilityPDOs({_defaultFixedSinkPDO()}),
     _localEPRSinkCapabilityPDOs({}),
     _disconnectedStateHandler(disconnectedStateHandler),
+    _discoveryStateHandler(discoveryStateHandler),
     _eprKeepaliveStateHandler(eprKeepaliveStateHandler),
     _eprModeExitStateHandler(eprModeExitStateHandler),
     _eprModeEntryStateHandler(eprModeEntryStateHandler),
@@ -67,7 +74,9 @@ SinkContext::SinkContext(
     _sendResponseStateHandler(sendResponseStateHandler),
     _sendSoftResetStateHandler(sendSoftResetStateHandler),
     _selectCapabilityStateHandler(selectCapabilityStateHandler),
+    _startupStateHandler(startupStateHandler),
     _transitionSinkStateHandler(transitionSinkStateHandler),
+    _transitionToDefaultStateHandler(transitionToDefaultStateHandler),
     _waitForCapabilitiesStateHandler(waitForCapabilitiesStateHandler),
     _sinkInfoChangedCallback(sinkInfoChangedCallback),
     _sinkErrorCallback(sinkErrorCallback),
@@ -95,6 +104,18 @@ void SinkContext::transitionTo(SinkState state) {
     switch (state) {
         case SinkState::Disconnected:
             _runtimeState._currentStateHandler = &_disconnectedStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Startup:
+            _runtimeState._currentStateHandler = &_startupStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Discovery:
+            _runtimeState._currentStateHandler = &_discoveryStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Transition_To_Default:
+            _runtimeState._currentStateHandler = &_transitionToDefaultStateHandler;
             break;
 
         case SinkState::PE_SNK_Wait_for_Capabilities:
@@ -158,7 +179,24 @@ void SinkContext::performReset(SinkResetType resetType) {
     if (resetType == SinkResetType::SoftReset) {
         reportError("Sink protocol error; initiating Soft Reset", resetType);
     } else if (resetType == SinkResetType::HardReset) {
-        reportError("Sink protocol error; initiating Hard Reset", resetType);
+        if (_hardResetCounter >= LOGIC_SINK_MAX_HARD_RESETS) {
+            reportError("Source non-responsive after 3 Hard Resets; no Source_Capabilities received");
+            if (_runtimeState._currentStateHandler) {
+                _runtimeState._currentStateHandler->reset(*this);
+            }
+            _runtimeState._state = SinkState::Error;
+            _runtimeState._currentStateHandler = nullptr;
+            _notifySinkInfoChanged(SinkInfoChange::OtherInfoChanged);
+            return;
+        }
+        if (_runtimeState._state == SinkState::PE_SNK_Wait_for_Capabilities) {
+            reportError(
+                "Timed out after 620 ms waiting for Source_Capabilities after VBUS reached vSafe5V; initiating Hard Reset",
+                resetType
+            );
+        } else {
+            reportError("Sink protocol error; initiating Hard Reset", resetType);
+        }
     }
 
     _messageSender.reset();
@@ -166,6 +204,8 @@ void SinkContext::performReset(SinkResetType resetType) {
 
     if (resetType == SinkResetType::HardReset &&
         _ccBusController.state() == CCBusState::Attached) {
+        ++_hardResetCounter;
+        _runtimeState._state = SinkState::PE_SNK_Hard_Reset;
         _messageSender.resetMessageIdCounter();
         _messageSender.sendHardResetSignaling();
     }
@@ -178,10 +218,14 @@ void SinkContext::performReset(SinkResetType resetType) {
     if (_ccBusController.state() == CCBusState::Attached) {
         if (resetType == SinkResetType::SoftReset) {
             transitionTo(SinkState::PE_SNK_Send_Soft_Reset);
+        } else if (resetType == SinkResetType::HardReset) {
+            transitionTo(SinkState::PE_SNK_Transition_To_Default);
         } else {
-            transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+            resetHardResetCounter();
+            transitionTo(SinkState::PE_SNK_Startup);
         }
     } else {
+        resetHardResetCounter();
         transitionTo(SinkState::Disconnected);
     }
 }
@@ -199,6 +243,18 @@ void SinkContext::reportWarning(const char *reason) {
             .severity = SinkDiagnosticSeverity::Warning,
         });
     }
+}
+
+float SinkContext::protocolVBusVoltage() const {
+    return _ccBusController.protocolVBusVoltage();
+}
+
+uint64_t SinkContext::protocolVBusCaptureTimestampUs() const {
+    return _ccBusController.protocolVBusCaptureTimestampUs();
+}
+
+void SinkContext::resetHardResetCounter() {
+    _hardResetCounter = 0;
 }
 
 void SinkContext::handleReceivedSoftReset() {

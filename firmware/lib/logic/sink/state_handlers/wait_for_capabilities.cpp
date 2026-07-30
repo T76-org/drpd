@@ -62,6 +62,10 @@ void WaitForCapabilitiesStateHandler::handleMessage(
                 _capabilitiesTimeoutAlarmId = -1;
             }
 
+            // Successful communication ends Hard Reset retry accounting for
+            // this recovery sequence.
+            context.resetHardResetCounter();
+
             context.setSourceCapabilities(Proto::SourceCapabilities(
                 message->rawBody(), decodedHeader.numDataObjects()));
                             

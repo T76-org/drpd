@@ -65,6 +65,7 @@
 #include "../../proto/pd_messages/source_capabilities.hpp"
 
 #include "state_handlers/disconnected.hpp"
+#include "state_handlers/discovery.hpp"
 #include "state_handlers/epr_keepalive.hpp"
 #include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
@@ -73,7 +74,9 @@
 #include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
 #include "state_handlers/select_capability.hpp"
+#include "state_handlers/startup.hpp"
 #include "state_handlers/transition_sink.hpp"
+#include "state_handlers/transition_to_default.hpp"
 #include "state_handlers/wait_for_capabilities.hpp"
 
 
@@ -322,6 +325,7 @@ namespace T76::DRPD::Logic {
         uint32_t _stateChangedCallbackId = 0;                   ///< Registered CC-bus callback id.
 
         DisconnectedStateHandler _disconnectedStateHandler;      ///< Disconnected state handler.
+        DiscoveryStateHandler _discoveryStateHandler;            ///< Discovery state handler.
         EPRKeepaliveStateHandler _eprKeepaliveStateHandler;      ///< EPR keepalive state handler.
         EPRModeExitStateHandler _eprModeExitStateHandler;        ///< EPR mode exit state handler.
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
@@ -330,7 +334,9 @@ namespace T76::DRPD::Logic {
         SendResponseStateHandler _sendResponseStateHandler;      ///< Ready response state handler.
         SendSoftResetStateHandler _sendSoftResetStateHandler;    ///< Send Soft Reset state handler.
         SelectCapabilityStateHandler _selectCapabilityStateHandler; ///< Select capability handler.
+        StartupStateHandler _startupStateHandler;                ///< Startup state handler.
         TransitionSinkStateHandler _transitionSinkStateHandler;  ///< Transition sink handler.
+        TransitionToDefaultStateHandler _transitionToDefaultStateHandler; ///< Transition-to-default handler.
         WaitForCapabilitiesStateHandler _waitForCapabilitiesStateHandler; ///< Wait-for-capabilities handler.
 
         SinkAlarmService _alarmService;                        ///< Core-1 owned Sink alarm pool wrapper.

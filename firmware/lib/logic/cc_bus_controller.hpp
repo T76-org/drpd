@@ -213,6 +213,16 @@ namespace T76::DRPD::Logic {
          */
         [[nodiscard]] SinkTransmitPermission sinkTransmitPermission() const;
 
+        /** @brief Latest calibrated VBUS sample before display clamping. */
+        [[nodiscard]] float protocolVBusVoltage() const {
+            return _analogMonitor.protocolVBusVoltage();
+        }
+
+        /** @brief Timestamp of latest protocol VBUS sample. */
+        [[nodiscard]] uint64_t protocolVBusCaptureTimestampUs() const {
+            return _analogMonitor.protocolVBusCaptureTimestampUs();
+        }
+
         /**
          * @brief Apply persisted CC bus role settings.
          * @param config Persisted CC bus settings.

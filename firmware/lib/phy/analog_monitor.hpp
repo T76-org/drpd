@@ -41,6 +41,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 
 #include <FreeRTOS.h>
@@ -202,6 +203,12 @@ namespace T76::DRPD::PHY {
          */
         float vBusVoltage() const;
 
+        /** @brief Get latest calibrated VBUS sample before display zero clamping. */
+        float protocolVBusVoltage() const;
+
+        /** @brief Timestamp of latest calibrated protocol VBUS sample. */
+        uint64_t protocolVBusCaptureTimestampUs() const;
+
         /**
          * @brief Get the VBUS current reading
          * 
@@ -328,6 +335,8 @@ namespace T76::DRPD::PHY {
         };
 
         AnalogMonitorReadings _readings; ///< Struct holding all current readings
+        std::atomic<float> _protocolVBusVoltage = 0.0f; ///< Latest calibrated, unclamped VBUS sample.
+        std::atomic<uint64_t> _protocolVBusCaptureTimestampUs = 0; ///< Timestamp of latest protocol VBUS sample.
         uint64_t _chargeAccumulationResidue = 0; ///< Sub-mAh charge numerator residue in centiamp-microseconds
         uint64_t _energyAccumulationResidue = 0; ///< Sub-mWh energy numerator residue in centivolt-centiamp-microseconds
         std::array<float, VBusCorrectionPointCount> _vBusVoltageCorrectionByRawVolt = defaultVBusVoltageCorrection(); ///< Additive correction in volts for each raw integer-voltage bucket from 0V through 60V; bucket 0 is retained for persistence symmetry but runtime interpolation begins at 1V.

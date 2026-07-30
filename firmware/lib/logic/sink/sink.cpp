@@ -18,6 +18,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _bmcDecoder(bmcDecoder),
     _bmcEncoder(bmcEncoder),
     _disconnectedStateHandler(),
+    _discoveryStateHandler(),
     _eprKeepaliveStateHandler(),
     _eprModeExitStateHandler(),
     _eprModeEntryStateHandler(),
@@ -26,7 +27,9 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _sendResponseStateHandler(),
     _sendSoftResetStateHandler(),
     _selectCapabilityStateHandler(),
+    _startupStateHandler(),
     _transitionSinkStateHandler(),
+    _transitionToDefaultStateHandler(),
     _waitForCapabilitiesStateHandler(),
     _alarmService(),
     _messageSender(
@@ -40,6 +43,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _messageSender,
         _ccBusController,
         _disconnectedStateHandler,
+        _discoveryStateHandler,
         _eprKeepaliveStateHandler,
         _eprModeExitStateHandler,
         _eprModeEntryStateHandler,
@@ -48,7 +52,9 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _sendResponseStateHandler,
         _sendSoftResetStateHandler,
         _selectCapabilityStateHandler,
+        _startupStateHandler,
         _transitionSinkStateHandler,
+        _transitionToDefaultStateHandler,
         _waitForCapabilitiesStateHandler,
         _sinkInfoChangedCallback,
         _sinkErrorCallback,
@@ -124,11 +130,28 @@ void Sink::loopCore1() {
             }
         }
 
+        if ((_runtimeState._state == SinkState::PE_SNK_Startup ||
+             _runtimeState._state == SinkState::PE_SNK_Discovery ||
+             _runtimeState._state == SinkState::PE_SNK_Transition_To_Default) &&
+            decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Data) {
+            const auto dataType = decodedHeader.dataMessageType();
+            if (dataType.has_value() &&
+                dataType.value() == Proto::DataMessageType::Source_Capabilities) {
+                // A valid Source_Capabilities packet proves VBUS recovery may
+                // have completed ahead of the filtered local measurement.
+                _context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
+            }
+        }
+
         if (_runtimeState._currentStateHandler) {
             _runtimeState._currentStateHandler->handleMessage(_context, messagePtr);
         }
 
         _processTimeoutEvents();
+    }
+
+    if (_runtimeState._currentStateHandler) {
+        _runtimeState._currentStateHandler->run(_context);
     }
 }
 

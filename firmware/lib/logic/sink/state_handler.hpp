@@ -66,6 +66,9 @@ namespace T76::DRPD::Logic {
             (void)eventType;
         }
 
+        /** @brief Run state-local polling work from the Core-1 policy loop. */
+        virtual void run(SinkContext& context) { (void)context; }
+
         /**
          * @brief Enter this policy state.
          * @param context Shared sink context.

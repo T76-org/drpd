@@ -49,6 +49,7 @@ namespace T76::DRPD::Logic {
     enum class CCBusState : uint32_t;
 
     class DisconnectedStateHandler;
+    class DiscoveryStateHandler;
     class EPRKeepaliveStateHandler;
     class EPRModeExitStateHandler;
     class EPRModeEntryStateHandler;
@@ -57,7 +58,9 @@ namespace T76::DRPD::Logic {
     class SendResponseStateHandler;
     class SendSoftResetStateHandler;
     class SelectCapabilityStateHandler;
+    class StartupStateHandler;
     class TransitionSinkStateHandler;
+    class TransitionToDefaultStateHandler;
     class WaitForCapabilitiesStateHandler;
 
     /**
@@ -97,6 +100,7 @@ namespace T76::DRPD::Logic {
             SinkMessageSender& messageSender,
             CCBusController& ccBusController,
             DisconnectedStateHandler& disconnectedStateHandler,
+            DiscoveryStateHandler& discoveryStateHandler,
             EPRKeepaliveStateHandler& eprKeepaliveStateHandler,
             EPRModeExitStateHandler& eprModeExitStateHandler,
             EPRModeEntryStateHandler& eprModeEntryStateHandler,
@@ -105,7 +109,9 @@ namespace T76::DRPD::Logic {
             SendResponseStateHandler& sendResponseStateHandler,
             SendSoftResetStateHandler& sendSoftResetStateHandler,
             SelectCapabilityStateHandler& selectCapabilityStateHandler,
+            StartupStateHandler& startupStateHandler,
             TransitionSinkStateHandler& transitionSinkStateHandler,
+            TransitionToDefaultStateHandler& transitionToDefaultStateHandler,
             WaitForCapabilitiesStateHandler& waitForCapabilitiesStateHandler,
             std::function<void(SinkInfoChange)>& sinkInfoChangedCallback,
             SinkErrorCallback& sinkErrorCallback,
@@ -142,6 +148,15 @@ namespace T76::DRPD::Logic {
          */
         void reportError(const char *reason, std::optional<SinkResetType> resetType = std::nullopt);
         void reportWarning(const char *reason);
+
+        /** @brief Latest calibrated VBUS voltage before display clamping. */
+        [[nodiscard]] float protocolVBusVoltage() const;
+
+        /** @brief Timestamp of latest calibrated VBUS sample. */
+        [[nodiscard]] uint64_t protocolVBusCaptureTimestampUs() const;
+
+        /** @brief Clear Hard Reset retry accounting for a new attachment. */
+        void resetHardResetCounter();
 
         /**
          * @brief Complete receiver-side Soft_Reset handling after the PHY GoodCRC.
@@ -455,6 +470,7 @@ namespace T76::DRPD::Logic {
         std::array<uint32_t, MaxLocalEPRSinkPDOs> _localEPRSinkCapabilityPDOs; ///< Configured local EPR-only Sink PDOs.
 
         DisconnectedStateHandler& _disconnectedStateHandler;             ///< Handler for Disconnected.
+        DiscoveryStateHandler& _discoveryStateHandler;                   ///< Handler for Discovery.
         EPRKeepaliveStateHandler& _eprKeepaliveStateHandler;             ///< Handler for EPR Keepalive.
         EPRModeExitStateHandler& _eprModeExitStateHandler;               ///< Handler for EPR Mode Exit.
         EPRModeEntryStateHandler& _eprModeEntryStateHandler;             ///< Handler for EPR Mode Entry.
@@ -463,12 +479,15 @@ namespace T76::DRPD::Logic {
         SendResponseStateHandler& _sendResponseStateHandler;             ///< Handler for Ready responses.
         SendSoftResetStateHandler& _sendSoftResetStateHandler;           ///< Handler for Send Soft Reset.
         SelectCapabilityStateHandler& _selectCapabilityStateHandler;     ///< Handler for Select Capability.
+        StartupStateHandler& _startupStateHandler;                       ///< Handler for Startup.
         TransitionSinkStateHandler& _transitionSinkStateHandler;         ///< Handler for Transition Sink.
+        TransitionToDefaultStateHandler& _transitionToDefaultStateHandler; ///< Handler for transition to default.
         WaitForCapabilitiesStateHandler& _waitForCapabilitiesStateHandler; ///< Handler for Wait for Capabilities.
 
         std::function<void(SinkInfoChange)>& _sinkInfoChangedCallback;   ///< Host callback repeater.
         SinkErrorCallback& _sinkErrorCallback;                           ///< Host error callback repeater.
         std::function<void(SinkTimeoutEvent)>& _enqueueTimeoutEventCallback; ///< Timeout event callback.
+        uint8_t _hardResetCounter = 0;                              ///< Hard Resets sent during current attachment.
 
         /**
          * @brief Determine if cached SPR source capabilities advertise EPR support.
