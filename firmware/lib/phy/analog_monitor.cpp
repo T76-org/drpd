@@ -69,6 +69,8 @@ void AnalogMonitor::readVBusValues() {
         _readVoltageFromADCChannel(PHY_ANALOG_MONITOR_VBUS_SENSE_ADC_CHANNEL) - groundReference) * 
         PHY_ANALOG_MONITOR_VBUS_SENSE_SCALE_FACTOR;
     float vbusVoltage = _applyVBusVoltageCalibration(rawScaledVBusVoltage);
+    _protocolVBusVoltage.store(vbusVoltage, std::memory_order_release);
+    _protocolVBusCaptureTimestampUs.store(time_us_64(), std::memory_order_release);
     if (vbusVoltage < PHY_ANALOG_MONITOR_VBUS_ZERO_THRESHOLD_VOLTS) {
         vbusVoltage = 0.0f;
     }
@@ -222,6 +224,14 @@ void AnalogMonitor::vBusCurrentRawByCalibratedHalfAmp(size_t bucket, float rawCu
 
 float AnalogMonitor::vBusVoltage() const {
     return std::trunc(_readings.vBusVoltageAverager.average() * 100.0f) / 100.0f;
+}
+
+float AnalogMonitor::protocolVBusVoltage() const {
+    return _protocolVBusVoltage.load(std::memory_order_acquire);
+}
+
+uint64_t AnalogMonitor::protocolVBusCaptureTimestampUs() const {
+    return _protocolVBusCaptureTimestampUs.load(std::memory_order_acquire);
 }
 
 float AnalogMonitor::vBusCurrent() const {
