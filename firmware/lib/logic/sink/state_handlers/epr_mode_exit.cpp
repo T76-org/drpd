@@ -27,7 +27,8 @@ void EPRModeExitStateHandler::_completeExitWithSourceCapabilities(
     context.setEPRModeActive(false);
     context.clearEPRSourceCapabilities();
     context.setSourceCapabilities(Proto::SourceCapabilities(
-        message->rawBody(), decodedHeader.numDataObjects()));
+        message->rawBody(), decodedHeader.numDataObjects()),
+        decodedHeader.specRevision());
     // Enter Wait_for_Capabilities so SPR renegotiation uses the same timer/cancel path as a delayed response.
     context.transitionTo(SinkState::PE_SNK_Wait_for_Capabilities);
     (void)context.requestPDO(0, 0, 0, true);

@@ -204,7 +204,7 @@ void Sink::_sendExtendedChunkRequest(
     header.extendedMessageType(type);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
-    header.specRevision(Proto::PDHeader::SpecRevision::Rev3_x);
+    header.specRevision(_context.specRevision());
 
     _messageSender.sendMessageAndAwaitGoodCRC(message);
 }

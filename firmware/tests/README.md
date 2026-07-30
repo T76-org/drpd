@@ -29,3 +29,15 @@ clang++ -std=c++20 -Wall -Wextra -Werror \
   -o /tmp/drpd-pps-request-encoding-test
 /tmp/drpd-pps-request-encoding-test
 ```
+
+Run the Structured VDM and specification-revision regression with:
+
+```sh
+clang++ -std=c++20 -Wall -Wextra -Werror \
+  -Ifirmware/lib/proto \
+  -Ifirmware/lib/proto/pd_messages \
+  firmware/tests/structured_vdm_test.cpp \
+  firmware/lib/proto/pd_messages/structured_vdm.cpp \
+  -o /tmp/drpd-structured-vdm-test
+/tmp/drpd-structured-vdm-test
+```

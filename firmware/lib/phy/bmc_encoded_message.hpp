@@ -81,7 +81,7 @@ namespace T76::DRPD::PHY {
          * @param portPowerRole The port power role to set in the header.
          * @return BMCEncodedMessage The Accept response message.
          */
-        static BMCEncodedMessage acceptMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole);
+        static BMCEncodedMessage acceptMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole, Proto::PDHeader::SpecRevision specRevision = Proto::PDHeader::SpecRevision::Rev3_x);
 
         /** 
          * @brief Create a BMCEncodedMessage representing a Not_Accepted response.
@@ -90,7 +90,7 @@ namespace T76::DRPD::PHY {
          * @param portPowerRole The port power role to set in the header.
          * @return BMCEncodedMessage The Not_Accepted response message.
          */
-        static BMCEncodedMessage notAcceptedMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole);
+        static BMCEncodedMessage notAcceptedMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole, Proto::PDHeader::SpecRevision specRevision = Proto::PDHeader::SpecRevision::Rev3_x);
 
         /** 
          * @brief Create a BMCEncodedMessage representing a Soft_Reset message.
@@ -100,7 +100,7 @@ namespace T76::DRPD::PHY {
          * @param portPowerRole The port power role to set in the header.
          * @return BMCEncodedMessage The Soft_Reset message.
          */
-        static BMCEncodedMessage softResetMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole);
+        static BMCEncodedMessage softResetMessage(Proto::PDHeader::PortDataRole portDataRole, Proto::PDHeader::PortPowerRole portPowerRole, Proto::PDHeader::SpecRevision specRevision = Proto::PDHeader::SpecRevision::Rev3_x);
 
         /** 
          * @brief Create a BMCEncodedMessage representing a Hard_Reset message.

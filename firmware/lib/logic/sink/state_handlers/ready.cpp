@@ -241,9 +241,16 @@ void ReadySinkStateHandler::handleMessage(
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Data) {
         const auto dataMessageType = decodedHeader.dataMessageType();
 
+        if (dataMessageType.has_value() &&
+            dataMessageType.value() == Proto::DataMessageType::Vendor_Defined) {
+            context.sendDiscoverIdentityNak(*message);
+            return;
+        }
+
         if (dataMessageType.has_value() && dataMessageType.value() == Proto::DataMessageType::Source_Capabilities) {
             context.setSourceCapabilities(
-                Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()));
+                Proto::SourceCapabilities(message->rawBody(), decodedHeader.numDataObjects()),
+                decodedHeader.specRevision());
 
             (void)context.requestPDO(0, 0, 0, true);
             return;
