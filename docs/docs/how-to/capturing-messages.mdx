@@ -43,12 +43,21 @@ Clicking the **Configure** button in the Message Log panel header will open a di
 You can quickly restore the table to its default configuration by clicking on the **Capture → Restore Table Layout** menu item.
 
 :::note[Adjusting capture duration]
-The configuration dialog can also be used to adjust the memory depth of the capture buffer.By default, the control software will capture up to 1,000,000 data points, which corresponds to approximately 2.5 days of continuous capture time. You can adjust this setting to increase or decrease the capture duration, depending on your needs and the available memory on your computer. Keep in mind that increasing the capture duration will require more memory, and may affect the performance of the software if you are capturing a large amount of data.
+The configuration dialog controls how many captured message and event rows the
+Message Log retains, up to 1,000,000. This count does not control the separate
+analog-sample retention limit. Because USB-PD traffic rates vary, a retained
+message count does not correspond to a fixed capture duration. Larger limits
+use more storage and may affect performance.
 :::
 
 ## Filtering messages
 
-Some captures can be very long and contain a lot of messages, which can make it difficult to find the specific messages you are interested in. Dr. PD provides several filtering options to help you narrow down the log to the messages that are relevant to your analysis. You can filter messages by clicking on **Capture → Filter...** in the menu, or pressing the `F` key. This will open a dialog where you can specify various criteria to filter the messages, such as the message type, sender, receiver, SOP type, and more. You can also use the search bar at the top of the Message Log panel to quickly find messages that contain specific text in their decoded fields.
+Some captures can be very long and contain a lot of messages, which can make it
+difficult to find the specific messages you are interested in. Select
+**Capture → Filter...**, or press `F`, to filter by message type, sender,
+receiver, SOP type, CRC validity, or flagged state. The filter dialog also
+contains the **Hide GoodCRC Messages** control. Filtering changes the working
+view without deleting captured rows.
 
 :::note[Hiding GoodCRC messages]
 GoodCRC messages are control messages that are sent by the receiver to acknowledge the receipt of a message. They are very common in USB-PD communication, and can clutter the log if you are not interested in them. You can choose to hide GoodCRC messages from the log by clicking on **Capture → Hide GoodCRC Messages**, or by pressing the `G` key. This will make it easier to focus on the more relevant messages in the capture.
@@ -72,5 +81,11 @@ You can export any selected messages from the log to either CSV or JSON files by
 
 The two export formats serve different purposes:
 
-- The CSV format is a simple, tabular representation of the message log; it includes the same columns as the log view table, as well as a human-readable representation of the decoded message fields. This format is useful for quick analysis in spreadsheet software, or for sharing with others who may not be familiar with the raw message data.
-- The JSON format is a more structured representation of the captured messages, which includes all the raw message data, as well as the decoded fields and any associated errors or warnings. This format is useful for more in-depth analysis, or for importing the captured messages into other tools that can parse JSON data.
+- CSV uses a fixed export schema: Type, Wall time, Length, Δt, ID, Message type,
+  Sender, Receiver, SOP, CRC32, Valid, and Message Summary. It does not change
+  when you configure which columns are visible in the Message Log. Use it for
+  spreadsheet analysis and compact sharing.
+- JSON preserves the selected stored capture rows, including raw capture data,
+  parse errors, flags, comments, and timestamps. The app can re-import this
+  format and decode the raw messages again. It does not contain the complete
+  expanded field tree or every warning shown by Message Detail.

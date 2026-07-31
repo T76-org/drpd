@@ -77,18 +77,20 @@ The Message Log is the main surface for protocol evidence.
   visible table columns and capture buffer depth. Column widths and layout
   choices are remembered by the app.
 - **Capture → Filter...** narrows the view by message properties, while
-  the search field helps find text in decoded fields.
+  the filter dialog also provides a **Hide GoodCRC Messages** control.
 - **Capture → Hide GoodCRC Messages** keeps acknowledgements out of the
   working view without changing the underlying capture.
 - **Capture → Add marker** inserts a manual event row when the physical
   setup changes, such as swapping a cable or adding load.
-- **Capture → Export Selected → JSON...** exports structured raw and
-  decoded message data.
-- **Capture → Export Selected → CSV...** exports a spreadsheet-friendly
-  table.
+- **Capture → Export Selected → JSON...** exports stored capture rows,
+  including raw data and annotations, for later re-import and decoding.
+- **Capture → Export Selected → CSV...** exports a fixed,
+  spreadsheet-friendly summary table.
 
-JSON is useful when another tool needs raw fields, decoded fields, warnings, and
-errors. CSV is useful for compact tables and quick comparisons between runs.
+JSON is useful for reopening a capture in the app or processing stored raw
+records and annotations. It does not include the complete expanded Message
+Detail field tree. CSV is useful for compact summaries and quick comparisons
+between runs; its columns do not depend on the current Message Log layout.
 
 ## Sink and Observer paths
 
