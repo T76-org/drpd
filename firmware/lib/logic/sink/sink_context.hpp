@@ -54,6 +54,7 @@ namespace T76::DRPD::Logic {
     class EPRModeExitStateHandler;
     class EPRModeEntryStateHandler;
     class GetPPSStatusStateHandler;
+    class InquiryStateHandler;
     class ReadySinkStateHandler;
     class SendResponseStateHandler;
     class SendSoftResetStateHandler;
@@ -105,6 +106,7 @@ namespace T76::DRPD::Logic {
             EPRModeExitStateHandler& eprModeExitStateHandler,
             EPRModeEntryStateHandler& eprModeEntryStateHandler,
             GetPPSStatusStateHandler& getPPSStatusStateHandler,
+            InquiryStateHandler& inquiryStateHandler,
             ReadySinkStateHandler& readySinkStateHandler,
             SendResponseStateHandler& sendResponseStateHandler,
             SendSoftResetStateHandler& sendSoftResetStateHandler,
@@ -359,6 +361,7 @@ namespace T76::DRPD::Logic {
          * @return True if sent; false if deferred by collision avoidance.
          */
         bool sendGetPPSStatus();
+        bool sendInquiryRequest(SinkInquiryType type);
 
         /**
          * @brief Send local Manufacturer_Info for a Get_Manufacturer_Info request payload.
@@ -483,6 +486,7 @@ namespace T76::DRPD::Logic {
         EPRModeExitStateHandler& _eprModeExitStateHandler;               ///< Handler for EPR Mode Exit.
         EPRModeEntryStateHandler& _eprModeEntryStateHandler;             ///< Handler for EPR Mode Entry.
         GetPPSStatusStateHandler& _getPPSStatusStateHandler;             ///< Handler for PPS status query.
+        InquiryStateHandler& _inquiryStateHandler;                       ///< Handler for host inquiries.
         ReadySinkStateHandler& _readySinkStateHandler;                   ///< Handler for Ready.
         SendResponseStateHandler& _sendResponseStateHandler;             ///< Handler for Ready responses.
         SendSoftResetStateHandler& _sendSoftResetStateHandler;           ///< Handler for Send Soft Reset.

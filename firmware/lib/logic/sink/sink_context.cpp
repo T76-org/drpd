@@ -16,6 +16,7 @@
 #include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
+#include "state_handlers/inquiry.hpp"
 #include "state_handlers/ready.hpp"
 #include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
@@ -49,6 +50,7 @@ SinkContext::SinkContext(
     EPRModeExitStateHandler& eprModeExitStateHandler,
     EPRModeEntryStateHandler& eprModeEntryStateHandler,
     GetPPSStatusStateHandler& getPPSStatusStateHandler,
+    InquiryStateHandler& inquiryStateHandler,
     ReadySinkStateHandler& readySinkStateHandler,
     SendResponseStateHandler& sendResponseStateHandler,
     SendSoftResetStateHandler& sendSoftResetStateHandler,
@@ -72,6 +74,7 @@ SinkContext::SinkContext(
     _eprModeExitStateHandler(eprModeExitStateHandler),
     _eprModeEntryStateHandler(eprModeEntryStateHandler),
     _getPPSStatusStateHandler(getPPSStatusStateHandler),
+    _inquiryStateHandler(inquiryStateHandler),
     _readySinkStateHandler(readySinkStateHandler),
     _sendResponseStateHandler(sendResponseStateHandler),
     _sendSoftResetStateHandler(sendSoftResetStateHandler),
@@ -159,6 +162,10 @@ void SinkContext::transitionTo(SinkState state) {
 
         case SinkState::PE_SNK_Get_PPS_Status:
             _runtimeState._currentStateHandler = &_getPPSStatusStateHandler;
+            break;
+
+        case SinkState::PE_SNK_Inquiry:
+            _runtimeState._currentStateHandler = &_inquiryStateHandler;
             break;
 
         case SinkState::PE_SNK_EPR_Keepalive:
@@ -743,6 +750,22 @@ bool SinkContext::sendGetPPSStatus() {
     header.specRevision(specRevision());
 
     return sendSinkInitiatedMessageAndAwaitGoodCRC(message);
+}
+
+bool SinkContext::sendInquiryRequest(SinkInquiryType type) {
+    if (type != SinkInquiryType::GetRevision) {
+        return false;
+    }
+    const Proto::ControlMessage request;
+    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, request);
+    auto &header = message.header();
+    header.rawMessageType(static_cast<uint32_t>(Proto::ControlMessageType::Get_Revision));
+    header.numDataObjects(0);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(specRevision());
+    sendMessageAndAwaitGoodCRC(message);
+    return true;
 }
 
 void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) {

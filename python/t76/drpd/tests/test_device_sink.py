@@ -13,7 +13,12 @@ from t76.drpd.device.device_sink_pdos import (
     FixedPDO,
     VariablePDO,
 )
-from t76.drpd.device.types import SinkRequestOutcome, SinkState
+from t76.drpd.device.types import (
+    SinkInquiryOutcome,
+    SinkInquiryType,
+    SinkRequestOutcome,
+    SinkState,
+)
 
 
 class TestDeviceSinkModeValidation(unittest.IsolatedAsyncioTestCase):
@@ -225,6 +230,71 @@ class TestDeviceSinkPDORequest(unittest.IsolatedAsyncioTestCase):
             await self.device_sink.set_pdo(index=0, voltage_mv=5000, current_ma=3000)
 
 
+class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
+    """Tests for Sink-to-Source inquiry methods."""
+
+    async def asyncSetUp(self) -> None:
+        self.mock_internal = AsyncMock()
+        self.device_sink = DeviceSink(self.mock_internal)
+
+    async def test_send_inquiry(self) -> None:
+        await self.device_sink.send_inquiry(SinkInquiryType.GET_REVISION)
+        self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+            "SINK:INQ GET_REVISION"
+        )
+
+    async def test_get_inquiry_status(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "RESPONSE,17,GET_REVISION,1,12,6"
+        ]
+        status = await self.device_sink.get_inquiry_status()
+        self.assertEqual(status.outcome, SinkInquiryOutcome.RESPONSE)
+        self.assertEqual(status.request_id, 17)
+        self.assertEqual(status.type, SinkInquiryType.GET_REVISION)
+        self.assertEqual(status.response_class, 1)
+        self.assertEqual(status.response_type, 12)
+        self.assertEqual(status.response_length, 6)
+
+    async def test_get_inquiry_status_rejects_malformed_response(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "RESPONSE,17,GET_REVISION"
+        ]
+        with self.assertRaisesRegex(ValueError, "must contain 6 fields"):
+            await self.device_sink.get_inquiry_status()
+
+    async def test_get_inquiry_status_rejects_unknown_tokens(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "MADE_UP,17,GET_REVISION,1,12,6"
+        ]
+        with self.assertRaisesRegex(ValueError, "Unknown sink inquiry outcome"):
+            await self.device_sink.get_inquiry_status()
+
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "RESPONSE,17,UNKNOWN,1,12,6"
+        ]
+        with self.assertRaisesRegex(ValueError, "Unknown sink inquiry type"):
+            await self.device_sink.get_inquiry_status()
+
+    async def test_get_inquiry_status_parses_every_outcome(self) -> None:
+        for outcome in SinkInquiryOutcome:
+            with self.subTest(outcome=outcome):
+                self.mock_internal.query_ascii_values_and_check.return_value = [
+                    f"{outcome.value},17,GET_REVISION,0,0,0"
+                ]
+                status = await self.device_sink.get_inquiry_status()
+                self.assertEqual(status.outcome, outcome)
+
+    async def test_get_inquiry_response_normalizes_bytes(self) -> None:
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            0x12, 0x34, 0xAB
+        ]
+        response = await self.device_sink.get_inquiry_response()
+        self.assertEqual(response, b"\x12\x34\xab")
+        self.mock_internal.query_binary_value_and_check.assert_awaited_once_with(
+            "SINK:INQ:RESP?"
+        )
+
+
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):
     """Tests for newer sink SCPI parity methods."""
 
@@ -396,6 +466,17 @@ class TestDeviceSinkStatusQueries(unittest.IsolatedAsyncioTestCase):
         status = await self.device_sink.get_status()
 
         self.assertEqual(status, SinkState.PE_SNK_TRANSITION_SINK)
+
+    async def test_get_status_pe_snk_inquiry(self) -> None:
+        """Test getting PE_SNK_INQUIRY status."""
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["SINK"],
+            ["PE_SNK_INQUIRY"],
+        ]
+
+        status = await self.device_sink.get_status()
+
+        self.assertEqual(status, SinkState.PE_SNK_INQUIRY)
 
     async def test_get_status_error(self) -> None:
         """Test getting ERROR status."""

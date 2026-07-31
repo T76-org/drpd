@@ -505,6 +505,7 @@ class SinkState(enum.Enum):
     PE_SNK_GIVE_SINK_CAP = "PE_SNK_GIVE_SINK_CAP"
     PE_SNK_GET_SOURCE_CAP = "PE_SNK_GET_SOURCE_CAP"
     PE_SNK_GET_PPS_STATUS = "PE_SNK_GET_PPS_STATUS"
+    PE_SNK_INQUIRY = "PE_SNK_INQUIRY"
     PE_SNK_EPR_KEEPALIVE = "PE_SNK_EPR_KEEPALIVE"
     PE_SNK_HARD_RESET = "PE_SNK_HARD_RESET"
     PE_SNK_TRANSITION_TO_DEFAULT = "PE_SNK_TRANSITION_TO_DEFAULT"
@@ -559,6 +560,48 @@ class SinkRequestStatus:
     index: int | None
     voltage_mv: int | None
     current_ma: int | None
+
+
+class SinkInquiryType(enum.Enum):
+    """Supported Sink-to-Source inquiry message types."""
+
+    GET_REVISION = "GET_REVISION"
+
+
+class SinkInquiryOutcome(enum.Enum):
+    """Represents a SINK:INQuiry:STATus? outcome token."""
+
+    NONE = "NONE"
+    PENDING = "PENDING"
+    RESPONSE = "RESPONSE"
+    NOT_SUPPORTED = "NOT_SUPPORTED"
+    REJECTED = "REJECTED"
+    WAIT = "WAIT"
+    GOODCRC_TIMEOUT = "GOODCRC_TIMEOUT"
+    RESPONSE_TIMEOUT = "RESPONSE_TIMEOUT"
+    PROTOCOL_ERROR = "PROTOCOL_ERROR"
+    ABORTED = "ABORTED"
+
+    @classmethod
+    def from_string(cls, outcome_str: str) -> "SinkInquiryOutcome":
+        try:
+            return cls(outcome_str.upper())
+        except ValueError as exc:
+            raise ValueError(
+                f"Unknown sink inquiry outcome: {outcome_str}"
+            ) from exc
+
+
+@dataclass(frozen=True)
+class SinkInquiryStatus:
+    """Most recent Sink-to-Source inquiry status."""
+
+    outcome: SinkInquiryOutcome
+    request_id: int
+    type: SinkInquiryType
+    response_class: int
+    response_type: int
+    response_length: int
 
 
 class DiagnosticCCRole(enum.Enum):

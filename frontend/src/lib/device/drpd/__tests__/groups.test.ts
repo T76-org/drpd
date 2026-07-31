@@ -11,6 +11,8 @@ import type { DRPDTransport, DRPDSCPIParam } from '../transport'
 import {
   CCBusRole,
   OnOffState,
+  SinkInquiryOutcome,
+  SinkInquiryType,
   SinkRequestOutcome,
   TestCcRole,
   TriggerEventType,
@@ -320,6 +322,58 @@ describe('DRPD command groups', () => {
       currentMa: 3000,
     })
   })
+
+  it('sends a typed sink inquiry and reads its response', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SINK:INQ:STAT?', [
+      'RESPONSE,17,GET_REVISION,1,12,6',
+    ])
+    transport.binaryResponses.set('SINK:INQ:RESP?', new Uint8Array([1, 2, 3]))
+    const group = new DRPDSink(transport)
+
+    await group.sendInquiry(SinkInquiryType.GET_REVISION)
+    await expect(group.getInquiryStatus()).resolves.toEqual({
+      outcome: SinkInquiryOutcome.RESPONSE,
+      requestId: 17,
+      type: SinkInquiryType.GET_REVISION,
+      responseClass: 1,
+      responseType: 12,
+      responseLength: 6,
+    })
+    await expect(group.getInquiryResponse()).resolves.toEqual(new Uint8Array([1, 2, 3]))
+    expect(transport.commands[0]).toEqual({
+      command: 'SINK:INQ',
+      params: [{ raw: 'GET_REVISION' }],
+    })
+  })
+
+  it('rejects malformed sink inquiry status responses', async () => {
+    const transport = new MockTransport()
+    const group = new DRPDSink(transport)
+    transport.textResponses.set('SINK:INQ:STAT?', ['RESPONSE,17,GET_REVISION'])
+    await expect(group.getInquiryStatus()).rejects.toThrow('expected 6 fields')
+
+    transport.textResponses.set('SINK:INQ:STAT?', [
+      'MADE_UP,17,GET_REVISION,1,12,6',
+    ])
+    await expect(group.getInquiryStatus()).rejects.toThrow('Invalid sink inquiry outcome')
+
+    transport.textResponses.set('SINK:INQ:STAT?', [
+      'RESPONSE,17,UNKNOWN,1,12,6',
+    ])
+    await expect(group.getInquiryStatus()).rejects.toThrow('Invalid sink inquiry type')
+  })
+
+  it.each(Object.values(SinkInquiryOutcome))(
+    'parses the %s sink inquiry outcome',
+    async (outcome) => {
+      const transport = new MockTransport()
+      transport.textResponses.set('SINK:INQ:STAT?', [
+        `${outcome},17,GET_REVISION,0,0,0`,
+      ])
+      await expect(new DRPDSink(transport).getInquiryStatus()).resolves.toMatchObject({ outcome })
+    },
+  )
 
   it('queries and sets local sink capability PDOs', async () => {
     const transport = new MockTransport()

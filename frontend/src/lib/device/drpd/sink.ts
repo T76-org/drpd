@@ -13,11 +13,19 @@ import {
   parseSingleInt,
   parseSingleScaledMilliInt,
   parseSinkRequestStatus,
+  parseSinkInquiryStatus,
   parseSinkPdo,
   parseSinkStateResponse,
 } from './parsers'
 import { OnOffState } from './types'
-import type { SinkInfo, SinkPdo, SinkRequestStatus, SinkState } from './types'
+import type {
+  SinkInfo,
+  SinkInquiryStatus,
+  SinkInquiryType,
+  SinkPdo,
+  SinkRequestStatus,
+  SinkState,
+} from './types'
 
 /**
  * Sink command group for DRPD devices.
@@ -74,6 +82,22 @@ export class DRPDSink {
   public async getRequestStatus(): Promise<SinkRequestStatus> {
     const response = await this.transport.queryText('SINK:REQUEST:STATUS?')
     return parseSinkRequestStatus(response)
+  }
+
+  /** Start a supported Sink-to-Source inquiry. */
+  public async sendInquiry(type: SinkInquiryType): Promise<void> {
+    await this.transport.sendCommand('SINK:INQ', scpiEnum(type))
+  }
+
+  /** Query the most recent Sink-to-Source inquiry status. */
+  public async getInquiryStatus(): Promise<SinkInquiryStatus> {
+    const response = await this.transport.queryText('SINK:INQ:STAT?')
+    return parseSinkInquiryStatus(response)
+  }
+
+  /** Fetch the raw response bytes for the most recent inquiry. */
+  public async getInquiryResponse(): Promise<Uint8Array> {
+    return await this.transport.queryBinary('SINK:INQ:RESP?')
   }
 
   /**

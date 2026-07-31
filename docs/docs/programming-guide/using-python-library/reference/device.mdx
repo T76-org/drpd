@@ -15,7 +15,7 @@ Discovery, device connection, SCPI-backed controllers, events, and device data t
 
 **Source:** `python/t76/drpd/device/__init__.py`
 
-**Exports:** `AccumulatedMeasurements`, `AnalogMonitorChannels`, `CCBusState`, `CCChannel`, `Device`, `DeviceInfo`, `DeviceStatusFlags`, `DiagnosticCCChannel`, `DiagnosticCCRole`, `MemoryUsage`, `Mode`, `OnOffStatus`, `ResistorStatus`, `SinkRequestOutcome`, `SinkRequestStatus`, `SinkState`, `TriggerMessageTypeFilter`, `TriggerMessageTypeFilterClass`, `TriggerSenderFilter`, `TriggerStatus`, `TriggerSyncMode`, `TriggerType`, `VBusState`, `find_drpd_devices`
+**Exports:** `AccumulatedMeasurements`, `AnalogMonitorChannels`, `CCBusState`, `CCChannel`, `Device`, `DeviceInfo`, `DeviceStatusFlags`, `DiagnosticCCChannel`, `DiagnosticCCRole`, `MemoryUsage`, `Mode`, `OnOffStatus`, `ResistorStatus`, `SinkInquiryOutcome`, `SinkInquiryStatus`, `SinkInquiryType`, `SinkRequestOutcome`, `SinkRequestStatus`, `SinkState`, `TriggerMessageTypeFilter`, `TriggerMessageTypeFilterClass`, `TriggerSenderFilter`, `TriggerStatus`, `TriggerSyncMode`, `TriggerType`, `VBusState`, `find_drpd_devices`
 
 No public classes or functions defined directly in this module.
 
@@ -328,6 +328,9 @@ Represents the sink system of the DRPD device.
 | `set_pps_status_query_enabled` | `async def set_pps_status_query_enabled(self, enabled: bool) -> None` | Set whether Sink policy sends Get_PPS_Status after SPR PPS transitions. |
 | `get_pps_status_query_enabled` | `async def get_pps_status_query_enabled(self) -> bool` | Query whether Sink policy sends Get_PPS_Status after PPS transitions. |
 | `get_request_status` | `async def get_request_status(self) -> SinkRequestStatus` | Query the most recent Sink PDO request outcome. |
+| `send_inquiry` | `async def send_inquiry(self, inquiry_type: SinkInquiryType) -> None` | Start a supported Sink-to-Source inquiry. |
+| `get_inquiry_status` | `async def get_inquiry_status(self) -> SinkInquiryStatus` | Query the most recent Sink-to-Source inquiry status. |
+| `get_inquiry_response` | `async def get_inquiry_response(self) -> bytes` | Fetch the raw response bytes for the most recent inquiry. |
 | `get_spr_capability_count` | `async def get_spr_capability_count(self) -> int` | — |
 | `get_spr_capability_pdo` | `async def get_spr_capability_pdo(self, index: int) -> int` | — |
 | `set_spr_capability_pdo` | `async def set_spr_capability_pdo(self, index: int, raw_pdo: int) -> None` | — |
@@ -1561,6 +1564,7 @@ Represents the Sink state of the device.
 | `PE_SNK_GIVE_SINK_CAP` | — | 'PE_SNK_GIVE_SINK_CAP' |
 | `PE_SNK_GET_SOURCE_CAP` | — | 'PE_SNK_GET_SOURCE_CAP' |
 | `PE_SNK_GET_PPS_STATUS` | — | 'PE_SNK_GET_PPS_STATUS' |
+| `PE_SNK_INQUIRY` | — | 'PE_SNK_INQUIRY' |
 | `PE_SNK_EPR_KEEPALIVE` | — | 'PE_SNK_EPR_KEEPALIVE' |
 | `PE_SNK_HARD_RESET` | — | 'PE_SNK_HARD_RESET' |
 | `PE_SNK_TRANSITION_TO_DEFAULT` | — | 'PE_SNK_TRANSITION_TO_DEFAULT' |
@@ -1622,6 +1626,80 @@ Represents the most recent SINK:PDO request outcome.
 | `index` | int \| None | — |
 | `voltage_mv` | int \| None | — |
 | `current_ma` | int \| None | — |
+
+
+
+
+### `t76.drpd.device.types.SinkInquiryType`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Supported Sink-to-Source inquiry message types.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `GET_REVISION` | — | 'GET_REVISION' |
+
+
+
+
+### `t76.drpd.device.types.SinkInquiryOutcome`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Represents a SINK:INQuiry:STATus? outcome token.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `NONE` | — | 'NONE' |
+| `PENDING` | — | 'PENDING' |
+| `RESPONSE` | — | 'RESPONSE' |
+| `NOT_SUPPORTED` | — | 'NOT_SUPPORTED' |
+| `REJECTED` | — | 'REJECTED' |
+| `WAIT` | — | 'WAIT' |
+| `GOODCRC_TIMEOUT` | — | 'GOODCRC_TIMEOUT' |
+| `RESPONSE_TIMEOUT` | — | 'RESPONSE_TIMEOUT' |
+| `PROTOCOL_ERROR` | — | 'PROTOCOL_ERROR' |
+| `ABORTED` | — | 'ABORTED' |
+
+
+
+#### Public methods
+
+| Method | Declaration | Summary |
+| --- | --- | --- |
+| `from_string` | `def from_string(cls, outcome_str: str) -> 'SinkInquiryOutcome'` | — |
+
+
+### `t76.drpd.device.types.SinkInquiryStatus`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Most recent Sink-to-Source inquiry status.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `outcome` | SinkInquiryOutcome | — |
+| `request_id` | int | — |
+| `type` | SinkInquiryType | — |
+| `response_class` | int | — |
+| `response_type` | int | — |
+| `response_length` | int | — |
 
 
 

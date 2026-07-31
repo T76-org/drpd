@@ -250,6 +250,36 @@ describe('DRPDWorkerDeviceProxy analog monitor group', () => {
 })
 
 describe('DRPDWorkerDeviceProxy sink group', () => {
+  it('forwards Sink inquiry calls to the worker session RPC', async () => {
+    const response = new Uint8Array([1, 2, 3, 4])
+    const status = {
+      outcome: 'RESPONSE',
+      requestId: 7,
+      type: 'GET_REVISION',
+      responseClass: 2,
+      responseType: 12,
+      responseLength: 4,
+    }
+    const callWorker = vi.fn(async (_method: string, request?: { method?: string }) => {
+      if (request?.method === 'getInquiryStatus') return status
+      if (request?.method === 'getInquiryResponse') return response
+      return null
+    })
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const proxy = new TestDRPDWorkerDeviceProxy(client)
+
+    await proxy.sink.sendInquiry('GET_REVISION')
+    expect(await proxy.sink.getInquiryStatus()).toBe(status)
+    expect(await proxy.sink.getInquiryResponse()).toBe(response)
+    expect(callWorker).toHaveBeenNthCalledWith(1, 'drpdSession.call', {
+      sessionId: 'session-1', target: 'sink', method: 'sendInquiry', args: ['GET_REVISION'],
+    })
+  })
+
   it('forwards sink EPR policy calls to the worker session RPC', async () => {
     const callWorker = vi.fn(async (_method: string, request?: { method?: string }) => {
       if (request?.method === 'getEprEnabled') {

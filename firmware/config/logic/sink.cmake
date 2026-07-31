@@ -19,6 +19,7 @@ target_compile_definitions(drpd-firmware PUBLIC
     LOGIC_SINK_TRANSITION_SINK_TIMEOUT_SPR_US=550000             # Timeout for Transition_Sink state (tPSTransition - SPR Mode 550ms)
     LOGIC_SINK_TRANSITION_SINK_TIMEOUT_EPR_US=1020000            # Timeout for Transition_Sink state (tPSTransition - EPR Mode 1020ms)
     LOGIC_SINK_GET_PPS_STATUS_RESPONSE_TIMEOUT_US=33000          # Timeout for PPS status response (tSenderResponse 33ms)
+    LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US=33000                 # Timeout for host inquiry response (tSenderResponse 33ms)
     LOGIC_SINK_EPR_MODE_ENTRY_SENDER_RESPONSE_TIMEOUT_US=33000   # Timeout waiting for EPR_Mode entry response (tSenderResponse 33ms)
     LOGIC_SINK_EPR_MODE_ENTRY_TIMEOUT_US=500000                  # Timeout for complete EPR mode entry sequence
     LOGIC_SINK_EPR_OPERATIONAL_PDP_W=100                         # EPR Sink Operational PDP advertised in EPR_Mode(Enter), in 1 W units
