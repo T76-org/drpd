@@ -59,10 +59,10 @@
  * 2. Define a new payload type, for example `PersistentConfigDataV2`.
  * 3. Update `PersistentConfigDataCurrent` to alias the new type.
  * 4. Bump `CurrentSchemaVersion`.
- * 5. Add a decoder or migration path from each supported older version into the
- *    new current representation.
- * 6. Keep `_defaultConfig()` returning a fully initialized current payload.
- * 7. After boot, the store will rewrite any older valid image in the current
+ * 5. Add exactly one adjacent migration from the previous schema to the new one.
+ * 6. Add serialized-image tests for the new schema and every multi-hop path.
+ * 7. Keep `_defaultConfig()` returning a fully initialized current payload.
+ * 8. After boot, the store will rewrite any older valid image in the current
  *    schema automatically.
  *
  * Important maintenance rules:
@@ -80,6 +80,7 @@
 #include <cstdint>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 #include <hardware/flash.h>
 #include <pico/critical_section.h>
@@ -94,6 +95,12 @@ namespace T76::DRPD {
     struct VBusPersistentConfig {
         float ovpThresholdVolts = 48.0f;   ///< Over-voltage threshold in volts.
         float ocpThresholdAmps = 5.0f;     ///< Over-current threshold in amps.
+    };
+
+    /** @brief Frozen VBUS slice shipped in persistent schemas 1 through 4. */
+    struct VBusPersistentConfigV1 {
+        float ovpThresholdVolts = 48.0f; ///< Historical over-voltage threshold.
+        float ocpThresholdAmps = 5.0f;   ///< Historical over-current threshold.
     };
 
     /**
@@ -120,12 +127,39 @@ namespace T76::DRPD {
         std::array<TriggerMessageTypeFilterPersistentConfig, MessageTypeFilterCapacity> messageTypeFilters{};   ///< Persisted message-type filter slots.
     };
 
+    /** @brief Frozen trigger filter slot shipped in persistent schemas 1 through 4. */
+    struct TriggerMessageTypeFilterPersistentConfigV1 {
+        uint32_t rawMessageType = 0; ///< Historical raw PD message type.
+        bool hasDataObjects = false; ///< Historical data-object selector.
+        bool enabled = false;        ///< Historical slot-enable state.
+        std::array<uint8_t, 2> reserved = {0, 0}; ///< Historical reserved bytes.
+    };
+
+    /** @brief Frozen trigger slice shipped in persistent schemas 1 through 4. */
+    struct TriggerPersistentConfigV1 {
+        static constexpr size_t MessageTypeFilterCapacity = 8; ///< Historical slot count.
+
+        uint32_t mode = 0;           ///< Historical trigger mode.
+        uint32_t eventThreshold = 1; ///< Historical event threshold.
+        bool autoRepeat = false;     ///< Historical auto-repeat state.
+        uint8_t reserved0[3] = {0, 0, 0}; ///< Historical reserved bytes.
+        uint32_t senderFilter = 0;   ///< Historical sender filter.
+        std::array<TriggerMessageTypeFilterPersistentConfigV1,
+                   MessageTypeFilterCapacity> messageTypeFilters{}; ///< Historical filters.
+    };
+
     /**
      * @brief Persisted SYNC output settings.
      */
     struct SyncPersistentConfig {
         uint32_t mode = 0;             ///< Stored SyncManagerMode value.
         uint32_t pulseWidthUs = 1000;  ///< Pulse width in microseconds.
+    };
+
+    /** @brief Frozen SYNC slice shipped in persistent schemas 1 through 4. */
+    struct SyncPersistentConfigV1 {
+        uint32_t mode = 0;            ///< Historical SYNC mode.
+        uint32_t pulseWidthUs = 1000; ///< Historical pulse width.
     };
 
     /**
@@ -137,11 +171,23 @@ namespace T76::DRPD {
         std::array<uint8_t, 2> reserved = {0, 0}; ///< Reserved padding for future schema growth.
     };
 
+    /** @brief Frozen Sink slice shipped in persistent schemas 2 through 4. */
+    struct SinkPersistentConfigV1 {
+        bool eprEntryEnabled = true;        ///< Historical EPR-entry policy.
+        bool ppsStatusQueryEnabled = false; ///< Historical PPS-status policy.
+        std::array<uint8_t, 2> reserved = {0, 0}; ///< Historical reserved bytes.
+    };
+
     /**
      * @brief Persisted CC bus role settings owned by CCBusController.
      */
     struct CCBusPersistentConfig {
         uint32_t role = 1; ///< Stored CCBusRole value; 1 is Observer.
+    };
+
+    /** @brief Frozen CC-bus slice shipped in persistent schema 4. */
+    struct CCBusPersistentConfigV1 {
+        uint32_t role = 1; ///< Historical CC-bus role.
     };
 
     /**
@@ -174,6 +220,17 @@ namespace T76::DRPD {
         std::array<float, VBusCurrentCorrectionPointCount> vbusCurrentRawByCalibratedHalfAmp{}; ///< Raw measured VBUS current in amps for each true-current point from 0A through 6A.
     };
 
+    /** @brief Frozen analog-monitor slice shipped in persistent schemas 3 and 4. */
+    struct AnalogMonitorPersistentConfigV2 {
+        static constexpr size_t VBusCorrectionPointCount = 61; ///< Historical voltage points.
+        static constexpr size_t VBusCurrentCorrectionPointCount = 13; ///< Historical current points.
+
+        std::array<float, VBusCorrectionPointCount>
+            vbusVoltageCorrectionByRawVolt{}; ///< Historical voltage corrections.
+        std::array<float, VBusCurrentCorrectionPointCount>
+            vbusCurrentRawByCalibratedHalfAmp{}; ///< Historical current calibration.
+    };
+
     /**
      * @brief Version 1 persistent payload layout.
      *
@@ -181,44 +238,44 @@ namespace T76::DRPD {
      * payload type for any future format additions.
      */
     struct PersistentConfigDataV1 {
-        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
+        VBusPersistentConfigV1 vbus{};       ///< Persisted VBUS protection settings.
         AnalogMonitorPersistentConfigV1 analogMonitor{}; ///< Persisted analog monitor settings.
-        TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
-        SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
+        TriggerPersistentConfigV1 trigger{}; ///< Persisted trigger settings.
+        SyncPersistentConfigV1 sync{};       ///< Persisted SYNC settings.
     };
 
     /**
      * @brief Version 2 persistent payload layout.
      */
     struct PersistentConfigDataV2 {
-        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
+        VBusPersistentConfigV1 vbus{};       ///< Persisted VBUS protection settings.
         AnalogMonitorPersistentConfigV1 analogMonitor{}; ///< Persisted analog monitor settings.
-        TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
-        SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
-        SinkPersistentConfig sink{};       ///< Persisted Sink policy settings.
+        TriggerPersistentConfigV1 trigger{}; ///< Persisted trigger settings.
+        SyncPersistentConfigV1 sync{};       ///< Persisted SYNC settings.
+        SinkPersistentConfigV1 sink{};       ///< Persisted Sink policy settings.
     };
 
     /**
      * @brief Version 3 persistent payload layout.
      */
     struct PersistentConfigDataV3 {
-        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
-        AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
-        TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
-        SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
-        SinkPersistentConfig sink{};       ///< Persisted Sink policy settings.
+        VBusPersistentConfigV1 vbus{};       ///< Persisted VBUS protection settings.
+        AnalogMonitorPersistentConfigV2 analogMonitor{}; ///< Persisted analog monitor settings.
+        TriggerPersistentConfigV1 trigger{}; ///< Persisted trigger settings.
+        SyncPersistentConfigV1 sync{};       ///< Persisted SYNC settings.
+        SinkPersistentConfigV1 sink{};       ///< Persisted Sink policy settings.
     };
 
     /**
      * @brief Version 4 persistent payload layout.
      */
     struct PersistentConfigDataV4 {
-        VBusPersistentConfig vbus{};       ///< Persisted VBUS protection settings.
-        AnalogMonitorPersistentConfig analogMonitor{}; ///< Persisted analog monitor settings.
-        TriggerPersistentConfig trigger{}; ///< Persisted trigger settings.
-        SyncPersistentConfig sync{};       ///< Persisted SYNC settings.
-        SinkPersistentConfig sink{};       ///< Persisted Sink policy settings.
-        CCBusPersistentConfig ccBus{};     ///< Persisted CC bus role settings.
+        VBusPersistentConfigV1 vbus{};       ///< Persisted VBUS protection settings.
+        AnalogMonitorPersistentConfigV2 analogMonitor{}; ///< Persisted analog monitor settings.
+        TriggerPersistentConfigV1 trigger{}; ///< Persisted trigger settings.
+        SyncPersistentConfigV1 sync{};       ///< Persisted SYNC settings.
+        SinkPersistentConfigV1 sink{};       ///< Persisted Sink policy settings.
+        CCBusPersistentConfigV1 ccBus{};     ///< Persisted CC bus role settings.
     };
 
     /**
@@ -361,6 +418,13 @@ namespace T76::DRPD {
         void serviceCore1FlashWriteHandshake();
 
     private:
+        /** @brief Outcomes that distinguish absent data from failed migration. */
+        enum class LoadResult {
+            Loaded,          ///< Valid config loaded and, if needed, migrated.
+            InvalidImage,    ///< Header or CRC invalid; defaults may be persisted.
+            MigrationFailed, ///< Valid stored image could not migrate; preserve flash.
+        };
+
         static constexpr size_t FlashImageSize = sizeof(PersistentConfigHeader) + sizeof(PersistentConfigDataCurrent);  ///< Size of the current serialized image header plus payload.
         static_assert(FlashImageSize <= FlashSize);
 
@@ -385,7 +449,7 @@ namespace T76::DRPD {
         /**
          * @brief Load, validate, decode, and migrate config from flash.
          */
-        bool _loadFromFlash();
+        LoadResult _loadFromFlash();
 
         /**
          * @brief Read the raw flash header and validate its CRC.
@@ -398,29 +462,32 @@ namespace T76::DRPD {
         bool _headerLooksValid(const PersistentConfigHeader &header) const;
 
         /**
-         * @brief Decode a version 1 payload into the current config representation.
+         * @brief Migrate schema 1 to schema 2, adding Sink defaults.
+         * @param source Valid schema-1 payload.
+         * @return Schema-2 payload.
          */
-        bool _decodeVersion1(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+        PersistentConfigDataV2 _migrateV1ToV2(const PersistentConfigDataV1 &source) const;
 
         /**
-         * @brief Decode a version 2 payload into the current config representation.
+         * @brief Migrate schema 2 to schema 3, adding current calibration defaults.
+         * @param source Valid schema-2 payload.
+         * @return Schema-3 payload.
          */
-        bool _decodeVersion2(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+        PersistentConfigDataV3 _migrateV2ToV3(const PersistentConfigDataV2 &source) const;
 
         /**
-         * @brief Decode a version 3 payload into the current config representation.
+         * @brief Migrate schema 3 to schema 4, adding CC-bus defaults.
+         * @param source Valid schema-3 payload.
+         * @return Schema-4 payload.
          */
-        bool _decodeVersion3(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+        PersistentConfigDataV4 _migrateV3ToV4(const PersistentConfigDataV3 &source) const;
 
         /**
-         * @brief Decode a version 4 payload into the current config representation.
+         * @brief Migrate schema 4 to schema 5, adding BMC-decoder defaults.
+         * @param source Valid schema-4 payload.
+         * @return Schema-5 payload.
          */
-        bool _decodeVersion4(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
-
-        /**
-         * @brief Decode a version 5 payload into the current config representation.
-         */
-        bool _decodeVersion5(const uint8_t *payload, uint32_t payloadSize, PersistentConfigDataCurrent &decoded) const;
+        PersistentConfigDataV5 _migrateV4ToV5(const PersistentConfigDataV4 &source) const;
 
         /**
          * @brief Decode any supported stored schema into the current representation.
