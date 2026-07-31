@@ -44,16 +44,22 @@ over a serial connection.
 
 
 
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `connected` | bool | read-only | Check if the transport is connected. |
+
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `connect` | `(self)` | Connect to the USB device over the serial port. |
-| `send` | `(self, data: bytes, timeout: float = 0.1)` | Send data to the USB device. |
-| `receive` | `(self, size: int = 1, timeout: float = 0.1) -> bytes` | Receive data from the device. |
-| `receive_line` | `(self, timeout: float = 0.1) -> str` | Receive a line of data from the device. |
-| `disconnect` | `(self) -> None` | Close the serial connection. |
-| `connected` | `(self) -> bool` | Check if the transport is connected. |
+| `connect` | `async def connect(self)` | Connect to the USB device over the serial port. |
+| `send` | `async def send(self, data: bytes, timeout: float = 0.1)` | Send data to the USB device. |
+| `receive` | `async def receive(self, size: int = 1, timeout: float = 0.1) -> bytes` | Receive data from the device. |
+| `receive_line` | `async def receive_line(self, timeout: float = 0.1) -> str` | Receive a line of data from the device. |
+| `disconnect` | `async def disconnect(self) -> None` | Close the serial connection. |
 
 
 ## `t76.transport.transport`
@@ -74,17 +80,23 @@ Base class for transport implementations.
 
 
 
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `connected` | bool | read-only | Check if the transport is connected. |
+
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `connect` | `(self) -> None` | Connect to the transport. |
-| `send` | `(self, data: bytes, timeout: float = 1.0) -> None` | Send data over the transport. |
-| `send_line` | `(self, line: str, timeout: float = 0.1) -> None` | Send a line of data to the USB device. |
-| `receive` | `(self, size: int, timeout: float = 1.0) -> bytes` | Receive data from the transport. |
-| `receive_line` | `(self, timeout: float = 0.1) -> str` | Receive a line of data from the transport. |
-| `disconnect` | `(self) -> None` | Disconnect from the transport. |
-| `connected` | `(self) -> bool` | Check if the transport is connected. |
+| `connect` | `async def connect(self) -> None` | Connect to the transport. |
+| `send` | `async def send(self, data: bytes, timeout: float = 1.0) -> None` | Send data over the transport. |
+| `send_line` | `async def send_line(self, line: str, timeout: float = 0.1) -> None` | Send a line of data to the USB device. |
+| `receive` | `async def receive(self, size: int, timeout: float = 1.0) -> bytes` | Receive data from the transport. |
+| `receive_line` | `async def receive_line(self, timeout: float = 0.1) -> str` | Receive a line of data from the transport. |
+| `disconnect` | `async def disconnect(self) -> None` | Disconnect from the transport. |
 
 
 ## `t76.transport.usb_discovery`
@@ -100,10 +112,11 @@ Provides discovery services for usb devices, including serial port mapping.
 **Kind:** function
 
 ```python
-discover_usb_devices(vendor_id: int, product_id: int) -> list[usb.core.Device]
+def discover_usb_devices(vendor_id: int, product_id: int) -> list[usb.core.Device]
 ```
 
 Discover USB devices matching the given vendor and product IDs.
+
 
 
 
@@ -113,7 +126,7 @@ Discover USB devices matching the given vendor and product IDs.
 **Kind:** function
 
 ```python
-get_serial_port_for_device(device: usb.core.Device) -> Optional[str]
+def get_serial_port_for_device(device: usb.core.Device) -> Optional[str]
 ```
 
 Get the serial port for a USB device.
@@ -123,7 +136,3 @@ Args:
 
 Returns:
     str: The serial port of the device, or None if not found.
-
-
-
-

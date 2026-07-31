@@ -217,24 +217,50 @@ def class_fields(node):
                     fields.append({"name": name, "annotation": "", "default": unparse(child.value)})
     return fields
 
-def public_methods(node):
+def public_members(node):
     methods = []
+    properties = {}
     for child in node.body:
         if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and not child.name.startswith("_"):
+            child_decorators = decorators(child)
+            is_property = "property" in child_decorators
+            is_setter = any(decorator.endswith(".setter") for decorator in child_decorators)
+            if is_property or is_setter:
+                current = properties.setdefault(child.name, {
+                    "name": child.name,
+                    "annotation": "",
+                    "docstring": "",
+                    "readable": False,
+                    "writable": False,
+                })
+                if is_property:
+                    current["annotation"] = annotation(child.returns)
+                    current["docstring"] = ast.get_docstring(child) or ""
+                    current["readable"] = True
+                if is_setter:
+                    value_args = [
+                        arg for arg in list(child.args.posonlyargs) + list(child.args.args)
+                        if arg.arg not in ("self", "cls")
+                    ]
+                    if not current["annotation"] and value_args:
+                        current["annotation"] = annotation(value_args[0].annotation)
+                    current["writable"] = True
+                continue
             methods.append({
                 "name": child.name,
                 "kind": "async method" if isinstance(child, ast.AsyncFunctionDef) else "method",
                 "signature": signature(child),
                 "docstring": ast.get_docstring(child) or "",
-                "decorators": decorators(child),
+                "decorators": child_decorators,
             })
-    return methods
+    return methods, list(properties.values())
 
 def public_symbols(tree):
     symbols = []
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
             kind = "enum" if is_enum(node) else "dataclass" if is_dataclass(node) else "class"
+            methods, properties = public_members(node)
             symbols.append({
                 "name": node.name,
                 "kind": kind,
@@ -242,7 +268,8 @@ def public_symbols(tree):
                 "bases": bases(node),
                 "decorators": decorators(node),
                 "fields": class_fields(node),
-                "methods": public_methods(node),
+                "methods": methods,
+                "properties": properties,
             })
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_"):
             symbols.append({
@@ -323,22 +350,43 @@ function fieldsTable(fields = []) {
   return `\n#### Fields\n\n${rows.join('\n')}\n`;
 }
 
-function methodsTable(methods = []) {
+export function methodsTable(methods = []) {
   if (!methods.length) {
     return '';
   }
   const rows = [
-    '| Method | Signature | Summary |',
+    '| Method | Declaration | Summary |',
     '| --- | --- | --- |',
     ...methods.map((method) => {
       const summary = String(method.docstring ?? '').trim().split('\n')[0] || '—';
-      return `| \`${escapeCodeSpan(method.name)}\` | \`${escapeCodeSpan(method.signature)}\` | ${escapeMdx(summary)} |`;
+      const declaration = `${method.kind === 'async method' ? 'async ' : ''}def ${method.name}${method.signature}`;
+      return `| \`${escapeCodeSpan(method.name)}\` | \`${escapeCodeSpan(declaration)}\` | ${escapeMdx(summary)} |`;
     }),
   ];
   return `\n#### Public methods\n\n${rows.join('\n')}\n`;
 }
 
-function symbolSection(moduleName, symbol) {
+export function propertiesTable(properties = []) {
+  if (!properties.length) {
+    return '';
+  }
+  const rows = [
+    '| Property | Type | Access | Summary |',
+    '| --- | --- | --- | --- |',
+    ...properties.map((property) => {
+      const summary = String(property.docstring ?? '').trim().split('\n')[0] || '—';
+      const access = property.readable && property.writable
+        ? 'read/write'
+        : property.writable
+          ? 'write-only'
+          : 'read-only';
+      return `| \`${escapeCodeSpan(property.name)}\` | ${escapeMdx(property.annotation) || '—'} | ${access} | ${escapeMdx(summary)} |`;
+    }),
+  ];
+  return `\n#### Public properties\n\n${rows.join('\n')}\n`;
+}
+
+export function symbolSection(moduleName, symbol) {
   const fqName = `${moduleName}.${symbol.name}`;
   const lines = [];
   lines.push(`### \`${fqName}\``);
@@ -347,7 +395,8 @@ function symbolSection(moduleName, symbol) {
   if (symbol.signature) {
     lines.push('');
     lines.push('```python');
-    lines.push(`${symbol.name}${symbol.signature}`);
+    const prefix = symbol.kind === 'async function' ? 'async def ' : 'def ';
+    lines.push(`${prefix}${symbol.name}${symbol.signature}`);
     lines.push('```');
   }
   if (symbol.bases?.length) {
@@ -361,6 +410,7 @@ function symbolSection(moduleName, symbol) {
   lines.push('');
   lines.push(docLines(symbol.docstring));
   lines.push(fieldsTable(symbol.fields));
+  lines.push(propertiesTable(symbol.properties));
   lines.push(methodsTable(symbol.methods));
   return lines.join('\n');
 }
@@ -408,7 +458,7 @@ function generatedPage(group, modules) {
   for (const module of modules) {
     lines.push(moduleSection(module));
   }
-  return `${lines.join('\n')}\n`;
+  return `${lines.join('\n').trimEnd()}\n`;
 }
 
 function writeCategoryFile() {
@@ -458,4 +508,9 @@ function main() {
   console.log(`Generated Python API reference for ${moduleCount} modules and ${symbolCount} public symbols.`);
 }
 
-main();
+if (
+  process.argv[1]
+  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  main();
+}

@@ -39,16 +39,22 @@ Represents a DRPD device connected via USB over USBTMC.
 
 
 
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `name` | Optional[str] | read-only | Get the name of the device. |
+
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `connect` | `(self) -> None` | Connect to the device and set up event handling. |
-| `disconnect` | `(self) -> None` | Disconnect from the device and clean up event handling. |
-| `name` | `(self) -> Optional[str]` | Get the name of the device. |
-| `register_event_observer` | `(self, observer: DeviceEvents.EventObserver) -> None` | Register an observer to be notified of events. |
-| `unregister_event_observer` | `(self, observer: DeviceEvents.EventObserver) -> None` | Unregister an observer from receiving event notifications. |
-| `send_encoder_message` | `(self, header: Header, message: Optional[Message] = None) -> None` | Send an encoded message using the device's encoder. |
+| `connect` | `async def connect(self) -> None` | Connect to the device and set up event handling. |
+| `disconnect` | `async def disconnect(self) -> None` | Disconnect from the device and clean up event handling. |
+| `register_event_observer` | `def register_event_observer(self, observer: DeviceEvents.EventObserver) -> None` | Register an observer to be notified of events. |
+| `unregister_event_observer` | `def unregister_event_observer(self, observer: DeviceEvents.EventObserver) -> None` | Unregister an observer from receiving event notifications. |
+| `send_encoder_message` | `async def send_encoder_message(self, header: Header, message: Optional[Message] = None) -> None` | Send an encoded message using the device's encoder. |
 
 
 ## `t76.drpd.device.device_analog_monitor`
@@ -76,35 +82,36 @@ Represents the analog monitor-related commands for a DRPD device.
 | `VBUS_CURRENT_CALIBRATION_INTERVAL_MA` | — | 500 |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `get_status` | `(self) -> AnalogMonitorChannels` | Get the analog monitor voltages from the device. |
-| `get_accumulated_measurements` | `(self) -> AccumulatedMeasurements` | Query accumulated VBUS charge and energy counters. |
-| `reset_accumulated_measurements` | `(self) -> None` | Reset accumulated VBUS charge and energy counters. |
-| `get_vbus_voltage` | `(self) -> float` | — |
-| `get_vbus_current` | `(self) -> float` | — |
-| `get_dut_cc1_voltage` | `(self) -> float` | — |
-| `get_dut_cc2_voltage` | `(self) -> float` | — |
-| `get_usds_cc1_voltage` | `(self) -> float` | — |
-| `get_usds_cc2_voltage` | `(self) -> float` | — |
-| `get_adc_reference_voltage` | `(self) -> float` | — |
-| `get_current_reference_voltage` | `(self) -> float` | — |
-| `get_ground_reference_voltage` | `(self) -> float` | — |
-| `get_vbus_calibration_table` | `(self) -> List[float]` | Return the persisted VBUS calibration correction table. |
-| `calibrate_vbus_bucket` | `(self, bucket: int) -> None` | Capture a calibration point for the specified raw-voltage bucket. |
-| `set_vbus_calibration_table_point` | `(self, bucket: int, correction: float) -> None` | Set one persisted VBUS correction table entry directly. |
-| `set_vbus_calibration_table` | `(self, table: List[float]) -> None` | Replace the persisted VBUS correction table with explicit values. |
-| `reset_vbus_calibration_to_defaults` | `(self) -> None` | Restore the persisted VBUS calibration table to firmware defaults. |
-| `get_raw_vbus_current` | `(self) -> float` | Return the latest raw scaled VBUS current before calibration. |
-| `get_vbus_current_calibration_table` | `(self) -> List[float]` | Return the persisted VBUS current raw calibration table. |
-| `calibrate_vbus_current_bucket` | `(self, target_ma: int) -> None` | Capture a calibration point for the specified raw current. |
-| `set_vbus_current_calibration_table_point` | `(self, target_ma: int, raw_current_a: float) -> None` | Set one persisted VBUS current raw calibration entry directly. |
-| `set_vbus_current_calibration_table` | `(self, table: List[float]) -> None` | Replace the persisted VBUS current raw calibration table. |
-| `reset_vbus_current_calibration_to_defaults` | `(self) -> None` | Restore the persisted VBUS current calibration table to firmware defaults. |
-| `start_recurring_status_updates` | `(self, frequency: float) -> None` | Start a recurring task that periodically fetches analog monitor |
-| `stop_recurring_status_updates` | `(self) -> None` | Stop the recurring status update task. |
+| `get_status` | `async def get_status(self) -> AnalogMonitorChannels` | Get the analog monitor voltages from the device. |
+| `get_accumulated_measurements` | `async def get_accumulated_measurements(self) -> AccumulatedMeasurements` | Query accumulated VBUS charge and energy counters. |
+| `reset_accumulated_measurements` | `async def reset_accumulated_measurements(self) -> None` | Reset accumulated VBUS charge and energy counters. |
+| `get_vbus_voltage` | `async def get_vbus_voltage(self) -> float` | — |
+| `get_vbus_current` | `async def get_vbus_current(self) -> float` | — |
+| `get_dut_cc1_voltage` | `async def get_dut_cc1_voltage(self) -> float` | — |
+| `get_dut_cc2_voltage` | `async def get_dut_cc2_voltage(self) -> float` | — |
+| `get_usds_cc1_voltage` | `async def get_usds_cc1_voltage(self) -> float` | — |
+| `get_usds_cc2_voltage` | `async def get_usds_cc2_voltage(self) -> float` | — |
+| `get_adc_reference_voltage` | `async def get_adc_reference_voltage(self) -> float` | — |
+| `get_current_reference_voltage` | `async def get_current_reference_voltage(self) -> float` | — |
+| `get_ground_reference_voltage` | `async def get_ground_reference_voltage(self) -> float` | — |
+| `get_vbus_calibration_table` | `async def get_vbus_calibration_table(self) -> List[float]` | Return the persisted VBUS calibration correction table. |
+| `calibrate_vbus_bucket` | `async def calibrate_vbus_bucket(self, bucket: int) -> None` | Capture a calibration point for the specified raw-voltage bucket. |
+| `set_vbus_calibration_table_point` | `async def set_vbus_calibration_table_point(self, bucket: int, correction: float) -> None` | Set one persisted VBUS correction table entry directly. |
+| `set_vbus_calibration_table` | `async def set_vbus_calibration_table(self, table: List[float]) -> None` | Replace the persisted VBUS correction table with explicit values. |
+| `reset_vbus_calibration_to_defaults` | `async def reset_vbus_calibration_to_defaults(self) -> None` | Restore the persisted VBUS calibration table to firmware defaults. |
+| `get_raw_vbus_current` | `async def get_raw_vbus_current(self) -> float` | Return the latest raw scaled VBUS current before calibration. |
+| `get_vbus_current_calibration_table` | `async def get_vbus_current_calibration_table(self) -> List[float]` | Return the persisted VBUS current raw calibration table. |
+| `calibrate_vbus_current_bucket` | `async def calibrate_vbus_current_bucket(self, target_ma: int) -> None` | Capture a calibration point for the specified raw current. |
+| `set_vbus_current_calibration_table_point` | `async def set_vbus_current_calibration_table_point(self, target_ma: int, raw_current_a: float) -> None` | Set one persisted VBUS current raw calibration entry directly. |
+| `set_vbus_current_calibration_table` | `async def set_vbus_current_calibration_table(self, table: List[float]) -> None` | Replace the persisted VBUS current raw calibration table. |
+| `reset_vbus_current_calibration_to_defaults` | `async def reset_vbus_current_calibration_to_defaults(self) -> None` | Restore the persisted VBUS current calibration table to firmware defaults. |
+| `start_recurring_status_updates` | `async def start_recurring_status_updates(self, frequency: float) -> None` | Start a recurring task that periodically fetches analog monitor |
+| `stop_recurring_status_updates` | `async def stop_recurring_status_updates(self) -> None` | Stop the recurring status update task. |
 
 
 ## `t76.drpd.device.device_capture`
@@ -132,17 +139,18 @@ Provides methods to control and retrieve data captures from a DRPD device.
 | `CapturedRecord` | — | Union[BMCSequence, FirmwareCaptureEvent] |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `start` | `(self) -> None` | Start capturing data on the device. |
-| `stop` | `(self) -> None` | Stop capturing data on the device. |
-| `get_status` | `(self) -> OnOffStatus` | Get the current capture status of the device. |
-| `get_cycle_length` | `(self) -> float` | Get the current capture cycle length of the device. |
-| `reset` | `(self) -> None` | Reset the capture data on the device. |
-| `get_capture_count` | `(self) -> int` | Get the number of available captures on the device. |
-| `fetch_extant_captures` | `(self) -> None` | Fetch all extant captures from the device and notify observers. |
+| `start` | `async def start(self) -> None` | Start capturing data on the device. |
+| `stop` | `async def stop(self) -> None` | Stop capturing data on the device. |
+| `get_status` | `async def get_status(self) -> OnOffStatus` | Get the current capture status of the device. |
+| `get_cycle_length` | `async def get_cycle_length(self) -> float` | Get the current capture cycle length of the device. |
+| `reset` | `async def reset(self) -> None` | Reset the capture data on the device. |
+| `get_capture_count` | `async def get_capture_count(self) -> int` | Get the number of available captures on the device. |
+| `fetch_extant_captures` | `async def fetch_extant_captures(self) -> None` | Fetch all extant captures from the device and notify observers. |
 
 
 ## `t76.drpd.device.device_events`
@@ -172,14 +180,15 @@ synchronous and asynchronous observer callbacks.
 | `EventObserver` | — | Union[Callable[[DeviceEvent], None], Callable[[DeviceEvent], Awaitable[None]]] |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `get_observer_count` | `(self) -> int` | Get the number of registered event observers. |
-| `register_event_observer` | `(self, observer: EventObserver) -> None` | Register an observer to be notified of events. |
-| `unregister_event_observer` | `(self, observer: EventObserver) -> None` | Unregister an observer from receiving event notifications. |
-| `dispatch_event` | `(self, event: DeviceEvent) -> None` | Dispatch an event to all registered observers. |
+| `get_observer_count` | `def get_observer_count(self) -> int` | Get the number of registered event observers. |
+| `register_event_observer` | `def register_event_observer(self, observer: EventObserver) -> None` | Register an observer to be notified of events. |
+| `unregister_event_observer` | `def unregister_event_observer(self, observer: EventObserver) -> None` | Unregister an observer from receiving event notifications. |
+| `dispatch_event` | `async def dispatch_event(self, event: DeviceEvent) -> None` | Dispatch an event to all registered observers. |
 
 
 ## `t76.drpd.device.device_internal`
@@ -202,6 +211,7 @@ Raised when the low-level USBTMC transport fails.
 
 
 
+
 ### `t76.drpd.device.device_internal.DeviceInternal`
 
 **Kind:** class
@@ -216,19 +226,25 @@ Internal class for handling low-level USB SCPI communication.
 | `LOCK_TIMEOUT_SECONDS` | — | 2.0 |
 
 
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `connected` | bool | read-only | — |
+
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `parse_scpi_string` | `(cls, scpi_string: str) -> str` | Interpret a SCPI string by removing leading and trailing quotation |
-| `check_for_error` | `(self, command: str) -> None` | Query the instrument for errors and raise when one is reported. |
-| `write_ascii_and_check` | `(self, command: str) -> None` | Write a command to the instrument and check for errors. |
-| `write_binary_and_check` | `(self, command: str, data: Sequence[int \| float], datatype: BINARY_DATATYPE = 'B') -> None` | Write binary data to the instrument and check for errors. |
-| `query_ascii_values_and_check` | `(self, command: str, converter: ASCII_CONVERTER = 'f') -> Sequence[Any]` | Query the instrument for ASCII values. |
-| `query_binary_value_and_check` | `(self, command: str, datatype: BINARY_DATATYPE = 'B', container: type = list) -> Sequence[int \| float]` | Query the instrument for binary values. |
-| `connect` | `(self) -> None` | Connect to the device using the underlying transport. |
-| `disconnect` | `(self) -> None` | Disconnect from the device. |
-| `connected` | `(self) -> bool` | — |
+| `parse_scpi_string` | `def parse_scpi_string(cls, scpi_string: str) -> str` | Interpret a SCPI string by removing leading and trailing quotation |
+| `check_for_error` | `def check_for_error(self, command: str) -> None` | Query the instrument for errors and raise when one is reported. |
+| `write_ascii_and_check` | `async def write_ascii_and_check(self, command: str) -> None` | Write a command to the instrument and check for errors. |
+| `write_binary_and_check` | `async def write_binary_and_check(self, command: str, data: Sequence[int \| float], datatype: BINARY_DATATYPE = 'B') -> None` | Write binary data to the instrument and check for errors. |
+| `query_ascii_values_and_check` | `async def query_ascii_values_and_check(self, command: str, converter: ASCII_CONVERTER = 'f') -> Sequence[Any]` | Query the instrument for ASCII values. |
+| `query_binary_value_and_check` | `async def query_binary_value_and_check(self, command: str, datatype: BINARY_DATATYPE = 'B', container: type = list) -> Sequence[int \| float]` | Query the instrument for binary values. |
+| `connect` | `async def connect(self) -> None` | Connect to the device using the underlying transport. |
+| `disconnect` | `async def disconnect(self) -> None` | Disconnect from the device. |
 
 
 ## `t76.drpd.device.device_mode`
@@ -248,13 +264,14 @@ Represents the device mode-related commands for a DRPD device.
 
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `get` | `(self) -> Mode` | Get the current mode of the device. |
-| `set` | `(self, mode: Mode) -> None` | Set the mode of the device. |
-| `get_status` | `(self) -> CCBusState` | Get the current status of the device mode. |
+| `get` | `async def get(self) -> Mode` | Get the current mode of the device. |
+| `set` | `async def set(self, mode: Mode) -> None` | Set the mode of the device. |
+| `get_status` | `async def get_status(self) -> CCBusState` | Get the current status of the device mode. |
 
 
 ## `t76.drpd.device.device_sink`
@@ -287,6 +304,7 @@ Represents comprehensive information about the sink system of the DRPD device.
 
 
 
+
 ### `t76.drpd.device.device_sink.DeviceSink`
 
 **Kind:** class
@@ -295,32 +313,33 @@ Represents the sink system of the DRPD device.
 
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `load_config` | `(self, config: dict) -> None` | Load the sink configuration from a dictionary. |
-| `save_config` | `(self) -> dict` | Save the current sink configuration to a dictionary. |
-| `get_pdo_count` | `(self) -> int` | Get the number of available PDOs from the source. |
-| `get_pdo_at_index` | `(self, index: int) -> Optional[DeviceSinkPDO]` | Get the PDO at the specified index. |
-| `set_pdo` | `(self, index: int, voltage_mv: int, current_ma: int) -> None` | Request a Fixed Supply PDO at the specified index with a |
-| `set_epr_enabled` | `(self, enabled: bool) -> None` | Set whether Sink policy may enter EPR mode during future negotiation. |
-| `get_epr_enabled` | `(self) -> bool` | Get whether Sink policy may enter EPR mode during negotiation. |
-| `set_pps_status_query_enabled` | `(self, enabled: bool) -> None` | Set whether Sink policy sends Get_PPS_Status after SPR PPS transitions. |
-| `get_pps_status_query_enabled` | `(self) -> bool` | Query whether Sink policy sends Get_PPS_Status after PPS transitions. |
-| `get_request_status` | `(self) -> SinkRequestStatus` | Query the most recent Sink PDO request outcome. |
-| `get_spr_capability_count` | `(self) -> int` | — |
-| `get_spr_capability_pdo` | `(self, index: int) -> int` | — |
-| `set_spr_capability_pdo` | `(self, index: int, raw_pdo: int) -> None` | — |
-| `get_epr_capability_count` | `(self) -> int` | — |
-| `get_epr_capability_pdo` | `(self, index: int) -> int` | — |
-| `set_epr_capability_pdo` | `(self, index: int, raw_pdo: int) -> None` | — |
-| `get_status` | `(self) -> SinkState` | Get the current state of the sink state machine. |
-| `get_negotiated_pdo` | `(self) -> Optional[DeviceSinkPDO]` | Get information about the negotiated PDO. |
-| `get_negotiated_voltage` | `(self) -> int` | Get the negotiated voltage in millivolts. |
-| `get_negotiated_current` | `(self) -> int` | Get the negotiated current in milliamps. |
-| `get_error_status` | `(self) -> bool` | Get the error status of the sink. |
-| `get_sink_info` | `(self) -> SinkInfo` | Get comprehensive information about the sink system. |
+| `load_config` | `async def load_config(self, config: dict) -> None` | Load the sink configuration from a dictionary. |
+| `save_config` | `async def save_config(self) -> dict` | Save the current sink configuration to a dictionary. |
+| `get_pdo_count` | `async def get_pdo_count(self) -> int` | Get the number of available PDOs from the source. |
+| `get_pdo_at_index` | `async def get_pdo_at_index(self, index: int) -> Optional[DeviceSinkPDO]` | Get the PDO at the specified index. |
+| `set_pdo` | `async def set_pdo(self, index: int, voltage_mv: int, current_ma: int) -> None` | Request a Fixed Supply PDO at the specified index with a |
+| `set_epr_enabled` | `async def set_epr_enabled(self, enabled: bool) -> None` | Set whether Sink policy may enter EPR mode during future negotiation. |
+| `get_epr_enabled` | `async def get_epr_enabled(self) -> bool` | Get whether Sink policy may enter EPR mode during negotiation. |
+| `set_pps_status_query_enabled` | `async def set_pps_status_query_enabled(self, enabled: bool) -> None` | Set whether Sink policy sends Get_PPS_Status after SPR PPS transitions. |
+| `get_pps_status_query_enabled` | `async def get_pps_status_query_enabled(self) -> bool` | Query whether Sink policy sends Get_PPS_Status after PPS transitions. |
+| `get_request_status` | `async def get_request_status(self) -> SinkRequestStatus` | Query the most recent Sink PDO request outcome. |
+| `get_spr_capability_count` | `async def get_spr_capability_count(self) -> int` | — |
+| `get_spr_capability_pdo` | `async def get_spr_capability_pdo(self, index: int) -> int` | — |
+| `set_spr_capability_pdo` | `async def set_spr_capability_pdo(self, index: int, raw_pdo: int) -> None` | — |
+| `get_epr_capability_count` | `async def get_epr_capability_count(self) -> int` | — |
+| `get_epr_capability_pdo` | `async def get_epr_capability_pdo(self, index: int) -> int` | — |
+| `set_epr_capability_pdo` | `async def set_epr_capability_pdo(self, index: int, raw_pdo: int) -> None` | — |
+| `get_status` | `async def get_status(self) -> SinkState` | Get the current state of the sink state machine. |
+| `get_negotiated_pdo` | `async def get_negotiated_pdo(self) -> Optional[DeviceSinkPDO]` | Get information about the negotiated PDO. |
+| `get_negotiated_voltage` | `async def get_negotiated_voltage(self) -> int` | Get the negotiated voltage in millivolts. |
+| `get_negotiated_current` | `async def get_negotiated_current(self) -> int` | Get the negotiated current in milliamps. |
+| `get_error_status` | `async def get_error_status(self) -> bool` | Get the error status of the sink. |
+| `get_sink_info` | `async def get_sink_info(self) -> SinkInfo` | Get comprehensive information about the sink system. |
 
 
 ## `t76.drpd.device.device_sink_pdos`
@@ -354,12 +373,13 @@ automatically instantiated based on the response format.
 
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_response` | `(response: Sequence[str]) -> Optional['DeviceSinkPDO']` | Parse an SCPI SINK:PDO? response and return the appropriate |
-| `to_dict` | `(self) -> dict[str, Any]` | Serialize the PDO to a dictionary representation. |
+| `from_response` | `def from_response(response: Sequence[str]) -> Optional['DeviceSinkPDO']` | Parse an SCPI SINK:PDO? response and return the appropriate |
+| `to_dict` | `def to_dict(self) -> dict[str, Any]` | Serialize the PDO to a dictionary representation. |
 
 
 ### `t76.drpd.device.device_sink_pdos.FixedPDO`
@@ -388,11 +408,12 @@ Attributes:
 | `max_current` | float | — |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `to_dict` | `(self) -> dict[str, Any]` | Serialize the Fixed PDO to a dictionary. |
+| `to_dict` | `def to_dict(self) -> dict[str, Any]` | Serialize the Fixed PDO to a dictionary. |
 
 
 ### `t76.drpd.device.device_sink_pdos.VariablePDO`
@@ -423,11 +444,12 @@ Attributes:
 | `max_current` | float | — |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `to_dict` | `(self) -> dict[str, Any]` | Serialize the Variable PDO to a dictionary. |
+| `to_dict` | `def to_dict(self) -> dict[str, Any]` | Serialize the Variable PDO to a dictionary. |
 
 
 ### `t76.drpd.device.device_sink_pdos.BatteryPDO`
@@ -459,11 +481,12 @@ Attributes:
 | `max_power` | float | — |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `to_dict` | `(self) -> dict[str, Any]` | Serialize the Battery PDO to a dictionary. |
+| `to_dict` | `def to_dict(self) -> dict[str, Any]` | Serialize the Battery PDO to a dictionary. |
 
 
 ### `t76.drpd.device.device_sink_pdos.SPR_PDOPPS`
@@ -496,11 +519,12 @@ Attributes:
 | `max_current` | float | — |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `to_dict` | `(self) -> dict[str, Any]` | Serialize the SPR PPS PDO to a dictionary. |
+| `to_dict` | `def to_dict(self) -> dict[str, Any]` | Serialize the SPR PPS PDO to a dictionary. |
 
 
 ### `t76.drpd.device.device_sink_pdos.SPR_PDOAVs`
@@ -534,11 +558,12 @@ Attributes:
 | `max_current_20v` | float | — |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `to_dict` | `(self) -> dict[str, Any]` | Serialize the SPR AVS PDO to a dictionary. |
+| `to_dict` | `def to_dict(self) -> dict[str, Any]` | Serialize the SPR AVS PDO to a dictionary. |
 
 
 ### `t76.drpd.device.device_sink_pdos.EPR_PDOAVs`
@@ -571,11 +596,12 @@ Attributes:
 | `max_power` | float | — |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `to_dict` | `(self) -> dict[str, Any]` | Serialize the EPR AVS PDO to a dictionary. |
+| `to_dict` | `def to_dict(self) -> dict[str, Any]` | Serialize the EPR AVS PDO to a dictionary. |
 
 
 ## `t76.drpd.device.device_system`
@@ -608,16 +634,17 @@ Manage persisted BMC decoder physical-layer settings.
 | `PWM_DEFAULT_HZ` | — | 100000 |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `get_cc_vref_voltage` | `(self) -> float` | Return persisted CC reference voltage in volts. |
-| `set_cc_vref_voltage` | `(self, voltage: float) -> None` | Validate, persist, and immediately apply CC reference voltage. |
-| `reset_cc_vref_voltage` | `(self) -> None` | Restore and persist build-time CC reference voltage default. |
-| `get_cc_vref_pwm_frequency_hz` | `(self) -> int` | Return persisted CC reference PWM frequency in hertz. |
-| `set_cc_vref_pwm_frequency_hz` | `(self, frequency_hz: int) -> None` | Validate, persist, and immediately apply PWM frequency. |
-| `reset_cc_vref_pwm_frequency_hz` | `(self) -> None` | Restore and persist build-time PWM frequency default. |
+| `get_cc_vref_voltage` | `async def get_cc_vref_voltage(self) -> float` | Return persisted CC reference voltage in volts. |
+| `set_cc_vref_voltage` | `async def set_cc_vref_voltage(self, voltage: float) -> None` | Validate, persist, and immediately apply CC reference voltage. |
+| `reset_cc_vref_voltage` | `async def reset_cc_vref_voltage(self) -> None` | Restore and persist build-time CC reference voltage default. |
+| `get_cc_vref_pwm_frequency_hz` | `async def get_cc_vref_pwm_frequency_hz(self) -> int` | Return persisted CC reference PWM frequency in hertz. |
+| `set_cc_vref_pwm_frequency_hz` | `async def set_cc_vref_pwm_frequency_hz(self, frequency_hz: int) -> None` | Validate, persist, and immediately apply PWM frequency. |
+| `reset_cc_vref_pwm_frequency_hz` | `async def reset_cc_vref_pwm_frequency_hz(self) -> None` | Restore and persist build-time PWM frequency default. |
 
 
 ### `t76.drpd.device.device_system.DeviceSystemConfiguration`
@@ -625,6 +652,7 @@ Manage persisted BMC decoder physical-layer settings.
 **Kind:** class
 
 System configuration namespace.
+
 
 
 
@@ -637,18 +665,19 @@ Represents the system-related commands for a DRPD device.
 
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `identify` | `(self) -> DeviceInfo` | Identify the device. |
-| `reset` | `(self) -> None` | Reset the instrument to its power-on state. |
-| `get_hardware_revision` | `(self) -> str` | Query the detected hardware revision. |
-| `enter_firmware_updater` | `(self) -> None` | Reboot into the resident firmware updater bootloader. |
-| `get_memory_usage` | `(self) -> MemoryUsage` | Get the memory usage of the device. |
-| `get_clock_frequency` | `(self) -> int` | Get the clock frequency of the device. |
-| `get_uptime` | `(self) -> int` | Get the uptime of the device in seconds. |
-| `get_timestamp` | `(self) -> str` | Get the current timestamp from the device. |
+| `identify` | `async def identify(self) -> DeviceInfo` | Identify the device. |
+| `reset` | `async def reset(self) -> None` | Reset the instrument to its power-on state. |
+| `get_hardware_revision` | `async def get_hardware_revision(self) -> str` | Query the detected hardware revision. |
+| `enter_firmware_updater` | `async def enter_firmware_updater(self) -> None` | Reboot into the resident firmware updater bootloader. |
+| `get_memory_usage` | `async def get_memory_usage(self) -> MemoryUsage` | Get the memory usage of the device. |
+| `get_clock_frequency` | `async def get_clock_frequency(self) -> int` | Get the clock frequency of the device. |
+| `get_uptime` | `async def get_uptime(self) -> int` | Get the uptime of the device in seconds. |
+| `get_timestamp` | `async def get_timestamp(self) -> str` | Get the current timestamp from the device. |
 
 
 ## `t76.drpd.device.device_test`
@@ -665,22 +694,23 @@ Provides access to firmware TEST:* SCPI commands.
 
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `set_vbus_manager_state` | `(self, state: OnOffStatus) -> None` | — |
-| `get_vbus_manager_state` | `(self) -> OnOffStatus` | — |
-| `set_cc1_role` | `(self, role: DiagnosticCCRole) -> None` | — |
-| `get_cc1_role` | `(self) -> DiagnosticCCRole` | — |
-| `set_cc2_role` | `(self, role: DiagnosticCCRole) -> None` | — |
-| `get_cc2_role` | `(self) -> DiagnosticCCRole` | — |
-| `set_dut_channel` | `(self, channel: DiagnosticCCChannel) -> None` | — |
-| `get_dut_channel` | `(self) -> DiagnosticCCChannel` | — |
-| `set_usds_channel` | `(self, channel: DiagnosticCCChannel) -> None` | — |
-| `get_usds_channel` | `(self) -> DiagnosticCCChannel` | — |
-| `set_cc_mux_state` | `(self, state: OnOffStatus) -> None` | — |
-| `get_cc_mux_state` | `(self) -> OnOffStatus` | — |
+| `set_vbus_manager_state` | `async def set_vbus_manager_state(self, state: OnOffStatus) -> None` | — |
+| `get_vbus_manager_state` | `async def get_vbus_manager_state(self) -> OnOffStatus` | — |
+| `set_cc1_role` | `async def set_cc1_role(self, role: DiagnosticCCRole) -> None` | — |
+| `get_cc1_role` | `async def get_cc1_role(self) -> DiagnosticCCRole` | — |
+| `set_cc2_role` | `async def set_cc2_role(self, role: DiagnosticCCRole) -> None` | — |
+| `get_cc2_role` | `async def get_cc2_role(self) -> DiagnosticCCRole` | — |
+| `set_dut_channel` | `async def set_dut_channel(self, channel: DiagnosticCCChannel) -> None` | — |
+| `get_dut_channel` | `async def get_dut_channel(self) -> DiagnosticCCChannel` | — |
+| `set_usds_channel` | `async def set_usds_channel(self, channel: DiagnosticCCChannel) -> None` | — |
+| `get_usds_channel` | `async def get_usds_channel(self) -> DiagnosticCCChannel` | — |
+| `set_cc_mux_state` | `async def set_cc_mux_state(self, state: OnOffStatus) -> None` | — |
+| `get_cc_mux_state` | `async def get_cc_mux_state(self) -> OnOffStatus` | — |
 
 
 ## `t76.drpd.device.device_trigger`
@@ -717,6 +747,7 @@ Represents information about the trigger system of the DRPD device.
 
 
 
+
 ### `t76.drpd.device.device_trigger.DeviceTrigger`
 
 **Kind:** class
@@ -725,29 +756,30 @@ Represents the trigger system of the DRPD device.
 
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `reset` | `(self) -> None` | Reset the trigger system of the device. |
-| `get_status` | `(self) -> TriggerStatus` | Get the current trigger status of the device. |
-| `set_type` | `(self, trigger_type: TriggerType) -> None` | Set the trigger type of the device. |
-| `get_type` | `(self) -> TriggerType` | Get the current trigger type of the device. |
-| `set_event_threshold` | `(self, count: int) -> None` | Set the event count threshold for the trigger. |
-| `get_event_threshold` | `(self) -> int` | Get the current event count threshold for the trigger. |
-| `set_sender_filter` | `(self, sender: TriggerSenderFilter) -> None` | Set the trigger sender filter. |
-| `get_sender_filter` | `(self) -> TriggerSenderFilter` | Query the trigger sender filter. |
-| `set_message_type_filters` | `(self, filters: list[TriggerMessageTypeFilter]) -> None` | Replace all trigger message-type filters. |
-| `get_message_type_filters` | `(self) -> list[TriggerMessageTypeFilter]` | Query all configured trigger message-type filters. |
-| `clear_message_type_filters` | `(self) -> None` | Clear all trigger message-type filters. |
-| `set_autorepeat` | `(self, enable: OnOffStatus) -> None` | Enable or disable trigger autorepeat. |
-| `get_autorepeat` | `(self) -> OnOffStatus` | Get the current status of trigger autorepeat. |
-| `get_event_count` | `(self) -> int` | Get the current event count. |
-| `set_sync_mode` | `(self, mode: TriggerSyncMode) -> None` | Set the trigger sync output mode. |
-| `get_sync_mode` | `(self) -> TriggerSyncMode` | Get the current trigger sync output mode. |
-| `set_sync_pulse_length` | `(self, length_us: int) -> None` | Set the trigger output pulse length in microseconds. |
-| `get_sync_pulse_length` | `(self) -> int` | Get the current trigger output pulse length in microseconds. |
-| `get_trigger_info` | `(self) -> TriggerInfo` | Get comprehensive information about the trigger system. |
+| `reset` | `async def reset(self) -> None` | Reset the trigger system of the device. |
+| `get_status` | `async def get_status(self) -> TriggerStatus` | Get the current trigger status of the device. |
+| `set_type` | `async def set_type(self, trigger_type: TriggerType) -> None` | Set the trigger type of the device. |
+| `get_type` | `async def get_type(self) -> TriggerType` | Get the current trigger type of the device. |
+| `set_event_threshold` | `async def set_event_threshold(self, count: int) -> None` | Set the event count threshold for the trigger. |
+| `get_event_threshold` | `async def get_event_threshold(self) -> int` | Get the current event count threshold for the trigger. |
+| `set_sender_filter` | `async def set_sender_filter(self, sender: TriggerSenderFilter) -> None` | Set the trigger sender filter. |
+| `get_sender_filter` | `async def get_sender_filter(self) -> TriggerSenderFilter` | Query the trigger sender filter. |
+| `set_message_type_filters` | `async def set_message_type_filters(self, filters: list[TriggerMessageTypeFilter]) -> None` | Replace all trigger message-type filters. |
+| `get_message_type_filters` | `async def get_message_type_filters(self) -> list[TriggerMessageTypeFilter]` | Query all configured trigger message-type filters. |
+| `clear_message_type_filters` | `async def clear_message_type_filters(self) -> None` | Clear all trigger message-type filters. |
+| `set_autorepeat` | `async def set_autorepeat(self, enable: OnOffStatus) -> None` | Enable or disable trigger autorepeat. |
+| `get_autorepeat` | `async def get_autorepeat(self) -> OnOffStatus` | Get the current status of trigger autorepeat. |
+| `get_event_count` | `async def get_event_count(self) -> int` | Get the current event count. |
+| `set_sync_mode` | `async def set_sync_mode(self, mode: TriggerSyncMode) -> None` | Set the trigger sync output mode. |
+| `get_sync_mode` | `async def get_sync_mode(self) -> TriggerSyncMode` | Get the current trigger sync output mode. |
+| `set_sync_pulse_length` | `async def set_sync_pulse_length(self, length_us: int) -> None` | Set the trigger output pulse length in microseconds. |
+| `get_sync_pulse_length` | `async def get_sync_pulse_length(self) -> int` | Get the current trigger output pulse length in microseconds. |
+| `get_trigger_info` | `async def get_trigger_info(self) -> TriggerInfo` | Get comprehensive information about the trigger system. |
 
 
 ## `t76.drpd.device.device_vbus`
@@ -780,6 +812,7 @@ Represents information about the VBus system of the DRPD device.
 
 
 
+
 ### `t76.drpd.device.device_vbus.DeviceVBus`
 
 **Kind:** class
@@ -788,17 +821,18 @@ Represents the VBus system of the DRPD device.
 
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `reset` | `(self) -> None` | Reset the device's VBus |
-| `get_state` | `(self) -> VBusState` | Get the current VBus status of the device. |
-| `get_ovp_threshold` | `(self) -> float` | Get the Over Voltage Protection (OVP) threshold. |
-| `set_ovp_threshold` | `(self, threshold: float) -> None` | Set the Over Voltage Protection (OVP) threshold. |
-| `get_ocp_threshold` | `(self) -> float` | Get the Over Current Protection (OCP) threshold. |
-| `set_ocp_threshold` | `(self, threshold: float) -> None` | Set the Over Current Protection (OCP) threshold. |
-| `get_info` | `(self) -> VBusInfo` | Get comprehensive information about the VBus system. |
+| `reset` | `async def reset(self) -> None` | Reset the device's VBus |
+| `get_state` | `async def get_state(self) -> VBusState` | Get the current VBus status of the device. |
+| `get_ovp_threshold` | `async def get_ovp_threshold(self) -> float` | Get the Over Voltage Protection (OVP) threshold. |
+| `set_ovp_threshold` | `async def set_ovp_threshold(self, threshold: float) -> None` | Set the Over Voltage Protection (OVP) threshold. |
+| `get_ocp_threshold` | `async def get_ocp_threshold(self) -> float` | Get the Over Current Protection (OCP) threshold. |
+| `set_ocp_threshold` | `async def set_ocp_threshold(self, threshold: float) -> None` | Set the Over Current Protection (OCP) threshold. |
+| `get_info` | `async def get_info(self) -> VBusInfo` | Get comprehensive information about the VBus system. |
 
 
 ## `t76.drpd.device.discovery`
@@ -814,13 +848,14 @@ The discovery module provides functionality to discover DRPD devices connected v
 **Kind:** function
 
 ```python
-find_drpd_devices() -> List[Device]
+def find_drpd_devices() -> List[Device]
 ```
 
 Discover DRPD devices connected via USB.
 
 Returns:
     list: A list of discovered DRPD devices.
+
 
 
 
@@ -842,6 +877,7 @@ No docstring.
 
 
 
+
 ### `t76.drpd.device.events.InterruptReceived`
 
 **Kind:** class
@@ -849,6 +885,7 @@ No docstring.
 **Bases:** `DeviceEvent`
 
 No docstring.
+
 
 
 
@@ -864,6 +901,7 @@ No docstring.
 
 
 
+
 ### `t76.drpd.device.events.DeviceDisconnected`
 
 **Kind:** class
@@ -871,6 +909,7 @@ No docstring.
 **Bases:** `DeviceEvent`
 
 No docstring.
+
 
 
 
@@ -886,6 +925,7 @@ No docstring.
 
 
 
+
 ### `t76.drpd.device.events.CCBusStateChanged`
 
 **Kind:** class
@@ -893,6 +933,7 @@ No docstring.
 **Bases:** `DeviceEvent`
 
 No docstring.
+
 
 
 
@@ -908,6 +949,7 @@ No docstring.
 
 
 
+
 ### `t76.drpd.device.events.VBusManagerStateChanged`
 
 **Kind:** class
@@ -915,6 +957,7 @@ No docstring.
 **Bases:** `DeviceEvent`
 
 No docstring.
+
 
 
 
@@ -930,6 +973,7 @@ No docstring.
 
 
 
+
 ### `t76.drpd.device.events.SinkPDOListChanged`
 
 **Kind:** class
@@ -937,6 +981,7 @@ No docstring.
 **Bases:** `DeviceEvent`
 
 No docstring.
+
 
 
 
@@ -952,6 +997,7 @@ No docstring.
 
 
 
+
 ### `t76.drpd.device.events.BMCSequenceCaptured`
 
 **Kind:** class
@@ -959,6 +1005,7 @@ No docstring.
 **Bases:** `DeviceEvent`
 
 No docstring.
+
 
 
 
@@ -974,6 +1021,7 @@ No docstring.
 
 
 
+
 ### `t76.drpd.device.events.AnalogMonitorStatusChanged`
 
 **Kind:** class
@@ -981,6 +1029,7 @@ No docstring.
 **Bases:** `DeviceEvent`
 
 No docstring.
+
 
 
 
@@ -1014,6 +1063,7 @@ Represents the basic information of the device.
 
 
 
+
 ### `t76.drpd.device.types.DeviceStatusFlags`
 
 **Kind:** class
@@ -1039,6 +1089,7 @@ Represents the status flags of the device.
 
 
 
+
 ### `t76.drpd.device.types.AnalogMonitorCCChannelStatus`
 
 **Kind:** enum
@@ -1059,11 +1110,12 @@ Represents the status of the analog monitor CC channels.
 | `DISCONNECTED` | — | 'Disconnected' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `status_from_voltage` | `(voltage: float) -> 'AnalogMonitorCCChannelStatus'` | Determine the status based on the voltage level. |
+| `status_from_voltage` | `def status_from_voltage(voltage: float) -> 'AnalogMonitorCCChannelStatus'` | Determine the status based on the voltage level. |
 
 
 ### `t76.drpd.device.types.AccumulatedMeasurements`
@@ -1082,6 +1134,7 @@ Represents accumulated VBUS charge and energy counters.
 | `accumulation_elapsed_time_us` | int | — |
 | `accumulated_charge_mah` | int | — |
 | `accumulated_energy_mwh` | int | — |
+
 
 
 
@@ -1117,14 +1170,15 @@ microseconds plus absolute charge and energy counters.
 | `accumulated_energy_mwh` | int \| None | — |
 
 
-#### Public methods
+#### Public properties
 
-| Method | Signature | Summary |
-| --- | --- | --- |
-| `dut_cc1_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
-| `dut_cc2_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
-| `usds_cc1_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
-| `usds_cc2_status` | `(self) -> AnalogMonitorCCChannelStatus` | — |
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `dut_cc1_status` | AnalogMonitorCCChannelStatus | read-only | — |
+| `dut_cc2_status` | AnalogMonitorCCChannelStatus | read-only | — |
+| `usds_cc1_status` | AnalogMonitorCCChannelStatus | read-only | — |
+| `usds_cc2_status` | AnalogMonitorCCChannelStatus | read-only | — |
+
 
 
 ### `t76.drpd.device.types.Mode`
@@ -1146,11 +1200,12 @@ Represents the mode of the device.
 | `SINK` | — | 'SINK' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, mode_str: str) -> 'Mode'` | Convert a string to a Mode enum. |
+| `from_string` | `def from_string(cls, mode_str: str) -> 'Mode'` | Convert a string to a Mode enum. |
 
 
 ### `t76.drpd.device.types.CCBusState`
@@ -1171,11 +1226,12 @@ Represents the status of the CC bus on the device.
 | `ATTACHED` | — | 'ATTACHED' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, status_str: str) -> 'CCBusState'` | Convert a string to a Status enum. |
+| `from_string` | `def from_string(cls, status_str: str) -> 'CCBusState'` | Convert a string to a Status enum. |
 
 
 ### `t76.drpd.device.types.CCChannel`
@@ -1198,12 +1254,13 @@ Represents the ports of the device.
 | `NONE` | — | 'NONE' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_int` | `(cls, port_int: int) -> 'CCChannel'` | Convert an integer to a Port enum. |
-| `from_string` | `(cls, port_str: str) -> 'CCChannel'` | Convert a string to a Port enum. |
+| `from_int` | `def from_int(cls, port_int: int) -> 'CCChannel'` | Convert an integer to a Port enum. |
+| `from_string` | `def from_string(cls, port_str: str) -> 'CCChannel'` | Convert a string to a Port enum. |
 
 
 ### `t76.drpd.device.types.ResistorStatus`
@@ -1230,11 +1287,12 @@ Represents the resistor status of a port.
 | `SOURCE_DEFAULT` | — | 'SOURCE_DEFAULT' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, status_str: str) -> 'ResistorStatus'` | Convert a string to a ResistorStatus enum. |
+| `from_string` | `def from_string(cls, status_str: str) -> 'ResistorStatus'` | Convert a string to a ResistorStatus enum. |
 
 
 ### `t76.drpd.device.types.MemoryUsage`
@@ -1255,6 +1313,7 @@ Represents the memory usage of the device, in bytes.
 
 
 
+
 ### `t76.drpd.device.types.OnOffStatus`
 
 **Kind:** enum
@@ -1272,12 +1331,13 @@ Represents the status of the capture.
 | `OFF` | — | False |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, status_str: str) -> 'OnOffStatus'` | Convert a string to a CaptureStatus enum. |
-| `from_bool` | `(cls, status_bool: bool) -> 'OnOffStatus'` | Convert a boolean to an OnOffStatus enum. |
+| `from_string` | `def from_string(cls, status_str: str) -> 'OnOffStatus'` | Convert a string to a CaptureStatus enum. |
+| `from_bool` | `def from_bool(cls, status_bool: bool) -> 'OnOffStatus'` | Convert a boolean to an OnOffStatus enum. |
 
 
 ### `t76.drpd.device.types.TriggerStatus`
@@ -1298,11 +1358,12 @@ Represents the trigger status of the device.
 | `TRIGGERED` | — | 'TRIGGERED' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, status_str: str) -> 'TriggerStatus'` | Convert a string to a TriggerStatus enum. |
+| `from_string` | `def from_string(cls, status_str: str) -> 'TriggerStatus'` | Convert a string to a TriggerStatus enum. |
 
 
 ### `t76.drpd.device.types.TriggerType`
@@ -1332,11 +1393,12 @@ Represents the trigger types of the device.
 | `ANY_ERROR` | — | 'ANY_ERROR' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, type_str: str) -> 'TriggerType'` | Convert a string to a TriggerType enum. |
+| `from_string` | `def from_string(cls, type_str: str) -> 'TriggerType'` | Convert a string to a TriggerType enum. |
 
 
 ### `t76.drpd.device.types.TriggerSyncMode`
@@ -1358,11 +1420,12 @@ Represents the trigger output modes of the device.
 | `PULL_DOWN` | — | 'PULL_DOWN' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, mode_str: str) -> 'TriggerSyncMode'` | Convert a string to a TriggerOutputMode enum. |
+| `from_string` | `def from_string(cls, mode_str: str) -> 'TriggerSyncMode'` | Convert a string to a TriggerOutputMode enum. |
 
 
 ### `t76.drpd.device.types.TriggerSenderFilter`
@@ -1384,11 +1447,12 @@ Represents the trigger sender filter.
 | `CABLE` | — | 'CABLE' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, filter_str: str) -> 'TriggerSenderFilter'` | — |
+| `from_string` | `def from_string(cls, filter_str: str) -> 'TriggerSenderFilter'` | — |
 
 
 ### `t76.drpd.device.types.TriggerMessageTypeFilterClass`
@@ -1408,11 +1472,12 @@ Represents a trigger message-type filter class.
 | `DATA` | — | 'DATA' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, class_str: str) -> 'TriggerMessageTypeFilterClass'` | — |
+| `from_string` | `def from_string(cls, class_str: str) -> 'TriggerMessageTypeFilterClass'` | — |
 
 
 ### `t76.drpd.device.types.TriggerMessageTypeFilter`
@@ -1432,12 +1497,13 @@ Represents one trigger message-type filter slot.
 | `message_type_number` | int | — |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, value: str) -> 'TriggerMessageTypeFilter'` | — |
-| `to_scpi` | `(self) -> str` | — |
+| `from_string` | `def from_string(cls, value: str) -> 'TriggerMessageTypeFilter'` | — |
+| `to_scpi` | `def to_scpi(self) -> str` | — |
 
 
 ### `t76.drpd.device.types.VBusState`
@@ -1460,11 +1526,12 @@ Represents the VBus state of the device.
 | `UNKNOWN` | — | 'UNKNOWN' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, state_str: str) -> 'VBusState'` | Convert a string to a VBusState enum. |
+| `from_string` | `def from_string(cls, state_str: str) -> 'VBusState'` | Convert a string to a VBusState enum. |
 
 
 ### `t76.drpd.device.types.SinkState`
@@ -1500,11 +1567,12 @@ Represents the Sink state of the device.
 | `ERROR` | — | 'ERROR' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, state_str: str) -> 'SinkState'` | Convert a string to a SinkState enum. |
+| `from_string` | `def from_string(cls, state_str: str) -> 'SinkState'` | Convert a string to a SinkState enum. |
 
 
 ### `t76.drpd.device.types.SinkRequestOutcome`
@@ -1529,11 +1597,12 @@ Represents a SINK:REQUEST:STATUS? outcome token.
 | `TIMEOUT` | — | 'TIMEOUT' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, outcome_str: str) -> 'SinkRequestOutcome'` | — |
+| `from_string` | `def from_string(cls, outcome_str: str) -> 'SinkRequestOutcome'` | — |
 
 
 ### `t76.drpd.device.types.SinkRequestStatus`
@@ -1553,6 +1622,7 @@ Represents the most recent SINK:PDO request outcome.
 | `index` | int \| None | — |
 | `voltage_mv` | int \| None | — |
 | `current_ma` | int \| None | — |
+
 
 
 
@@ -1578,11 +1648,12 @@ Represents TEST:CCROLE role values.
 | `OFF` | — | 'OFF' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, role_str: str) -> 'DiagnosticCCRole'` | — |
+| `from_string` | `def from_string(cls, role_str: str) -> 'DiagnosticCCRole'` | — |
 
 
 ### `t76.drpd.device.types.DiagnosticCCChannel`
@@ -1602,11 +1673,12 @@ Represents TEST:CCBUS channel selections.
 | `CC2` | — | 'CC2' |
 
 
+
 #### Public methods
 
-| Method | Signature | Summary |
+| Method | Declaration | Summary |
 | --- | --- | --- |
-| `from_string` | `(cls, channel_str: str) -> 'DiagnosticCCChannel'` | — |
+| `from_string` | `def from_string(cls, channel_str: str) -> 'DiagnosticCCChannel'` | — |
 
 
 ## `t76.drpd.device_reconciliation`
@@ -1620,11 +1692,7 @@ Helpers for selecting the active device from discovery results.
 **Kind:** function
 
 ```python
-choose_active_device(current_device: Optional[DeviceType], discovered_devices: Sequence[DeviceType], allow_auto_connect_single: bool) -> Optional[DeviceType]
+def choose_active_device(current_device: Optional[DeviceType], discovered_devices: Sequence[DeviceType], allow_auto_connect_single: bool) -> Optional[DeviceType]
 ```
 
 Choose the next active device from the current discovery snapshot.
-
-
-
-
