@@ -30,7 +30,8 @@ async def main() -> None:
         capture_status = await device.capture.get_status()
         analog = await device.analog_monitor.get_status()
 
-        print(f"Connected to {device.name}")
+        device_label = device.name or f"{info.model} {info.serial_number}"
+        print(f"Connected to {device_label}")
         print(f"Model: {info.model}")
         print(f"Serial number: {info.serial_number}")
         print(f"Firmware version: {info.firmware_version}")
@@ -38,7 +39,7 @@ async def main() -> None:
         print(f"Mode: {mode.value}")
         print(f"Mode status: {mode_status.value}")
         print(f"Capture: {capture_status.value}")
-        print(f"VBUS: {analog.vbus.voltage:.3f} V, {analog.vbus.current:.3f} A")
+        print(f"VBUS: {analog.vbus:.3f} V, {analog.ibus:.3f} A")
     finally:
         await device.disconnect()
 
@@ -55,4 +56,7 @@ Save the file as `drpd_demo.py`, then run:
 python drpd_demo.py
 ```
 
-If another app is connected to Dr. PD, disconnect it first so the Python process can claim the USBTMC interface.
+If the browser control app is connected to Dr. PD, choose
+**Device → [device name] → Disconnect** and wait for it to release the USB
+interface before running the script. Closing the app or browser tab is a
+fallback. Only one application can claim the device interface at a time.
