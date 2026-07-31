@@ -42,9 +42,9 @@ For a first look, use a known-good USB-PD charger and cable.
    in Chrome or Edge, and pair the device. If your browser offers it, you can
    [install Dr. PD as an app](../how-to/installing-as-app.mdx) and launch the
    same control software in a standalone app window later.
-2. Connect the USB-PD source to Port 1.
+2. Select **Capture → Enable Capture**.
 3. Select **Mode → Sink**.
-4. Select **Capture → Enable Capture**.
+4. Connect the USB-PD source to Port 1.
 5. Watch the Message Log populate with decoded USB-PD messages and correlated
    VBUS measurements.
 6. Open **Mode → Choose power contract...** if you want to compare another
@@ -52,6 +52,10 @@ For a first look, use a known-good USB-PD charger and cable.
 7. Select a few messages and use **Capture → Export Selected → CSV...** or
    **Capture → Export Selected → JSON...** if you want data for notes or
    external analysis.
+
+If the source was already connected when capture started, select **Mode → Cycle
+USB Connection** before reviewing the log so the attach and initial negotiation
+are captured.
 
 For an inline observation path, put Dr. PD in **Mode → Observer**, connect it
 between a source and sink with two USB-C cables, select **Capture → Enable
