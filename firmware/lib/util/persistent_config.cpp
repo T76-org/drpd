@@ -23,6 +23,18 @@ static_assert(std::is_trivially_copyable_v<PersistentConfigDataV3>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV4>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataV5>);
 static_assert(std::is_trivially_copyable_v<PersistentConfigDataCurrent>);
+static_assert(sizeof(PersistentConfigHeader) == 20);
+static_assert(sizeof(PersistentConfigDataV1) == 340);
+static_assert(sizeof(PersistentConfigDataV2) == 344);
+static_assert(sizeof(PersistentConfigDataV3) == 396);
+static_assert(sizeof(PersistentConfigDataV4) == 400);
+static_assert(sizeof(PersistentConfigDataV5) == 408);
+static_assert(offsetof(PersistentConfigDataV1, analogMonitor) == 8);
+static_assert(offsetof(PersistentConfigDataV1, trigger) == 252);
+static_assert(offsetof(PersistentConfigDataV2, sink) == 340);
+static_assert(offsetof(PersistentConfigDataV3, trigger) == 304);
+static_assert(offsetof(PersistentConfigDataV4, ccBus) == 396);
+static_assert(offsetof(PersistentConfigDataV5, bmcDecoder) == 400);
 
 PersistentConfig &PersistentConfig::instance() {
     static PersistentConfig config;
@@ -34,11 +46,18 @@ PersistentConfig::PersistentConfig() {
 }
 
 void PersistentConfig::init() {
-    if (_loadFromFlash()) {
-        return;
+    switch (_loadFromFlash()) {
+        case LoadResult::Loaded:
+            return;
+        case LoadResult::InvalidImage:
+            (void)resetToDefaults();
+            return;
+        case LoadResult::MigrationFailed:
+            _current = _defaultConfig();
+            _valid = false;
+            _factoryDefaultsActive = true;
+            return;
     }
-
-    (void)resetToDefaults();
 }
 
 const PersistentConfigDataCurrent &PersistentConfig::current() const {
@@ -108,16 +127,16 @@ PersistentConfigDataCurrent PersistentConfig::_defaultConfig() const {
     };
 }
 
-bool PersistentConfig::_loadFromFlash() {
+PersistentConfig::LoadResult PersistentConfig::_loadFromFlash() {
     PersistentConfigHeader header{};
     const uint8_t *payload = nullptr;
     if (!_readFlashImage(header, payload)) {
-        return false;
+        return LoadResult::InvalidImage;
     }
 
     PersistentConfigDataCurrent migrated{};
     if (!_decodeStoredConfig(header.schemaVersion, payload, header.payloadSize, migrated)) {
-        return false;
+        return LoadResult::MigrationFailed;
     }
 
     _current = migrated;
@@ -128,7 +147,7 @@ bool PersistentConfig::_loadFromFlash() {
         (void)save();
     }
 
-    return true;
+    return LoadResult::Loaded;
 }
 
 bool PersistentConfig::_readFlashImage(PersistentConfigHeader &header, const uint8_t *&payload) const {
@@ -164,133 +183,173 @@ bool PersistentConfig::_headerLooksValid(const PersistentConfigHeader &header) c
     return true;
 }
 
-bool PersistentConfig::_decodeVersion1(const uint8_t *payload,
-                                       uint32_t payloadSize,
-                                       PersistentConfigDataCurrent &decoded) const {
-    if (payloadSize != sizeof(PersistentConfigDataV1)) {
-        return false;
-    }
-
-    PersistentConfigDataV1 version1{};
-    std::memcpy(&version1, payload, sizeof(version1));
-    decoded = PersistentConfigDataCurrent{
-        .vbus = version1.vbus,
-        .analogMonitor = AnalogMonitorPersistentConfig{
-            .vbusVoltageCorrectionByRawVolt = version1.analogMonitor.vbusVoltageCorrectionByRawVolt,
-            .vbusCurrentRawByCalibratedHalfAmp = T76::DRPD::PHY::AnalogMonitor::defaultVBusCurrentRawCalibration(),
-        },
-        .trigger = version1.trigger,
-        .sync = version1.sync,
-        .sink = SinkPersistentConfig{
+PersistentConfigDataV2 PersistentConfig::_migrateV1ToV2(
+    const PersistentConfigDataV1 &source) const {
+    return PersistentConfigDataV2{
+        .vbus = source.vbus,
+        .analogMonitor = source.analogMonitor,
+        .trigger = source.trigger,
+        .sync = source.sync,
+        .sink = SinkPersistentConfigV1{
             .eprEntryEnabled = true,
             .ppsStatusQueryEnabled = false,
         },
-        .ccBus = CCBusPersistentConfig{
-            .role = 1,
-        },
-        .bmcDecoder = BMCDecoderPersistentConfig{},
     };
-    return true;
 }
 
-bool PersistentConfig::_decodeVersion2(const uint8_t *payload,
-                                       uint32_t payloadSize,
-                                       PersistentConfigDataCurrent &decoded) const {
-    if (payloadSize != sizeof(PersistentConfigDataV2)) {
-        return false;
+PersistentConfigDataV3 PersistentConfig::_migrateV2ToV3(
+    const PersistentConfigDataV2 &source) const {
+    return PersistentConfigDataV3{
+        .vbus = source.vbus,
+        .analogMonitor = AnalogMonitorPersistentConfigV2{
+            .vbusVoltageCorrectionByRawVolt = source.analogMonitor.vbusVoltageCorrectionByRawVolt,
+            .vbusCurrentRawByCalibratedHalfAmp =
+                T76::DRPD::PHY::AnalogMonitor::defaultVBusCurrentRawCalibration(),
+        },
+        .trigger = source.trigger,
+        .sync = source.sync,
+        .sink = source.sink,
+    };
+}
+
+PersistentConfigDataV4 PersistentConfig::_migrateV3ToV4(
+    const PersistentConfigDataV3 &source) const {
+    return PersistentConfigDataV4{
+        .vbus = source.vbus,
+        .analogMonitor = source.analogMonitor,
+        .trigger = source.trigger,
+        .sync = source.sync,
+        .sink = source.sink,
+        .ccBus = CCBusPersistentConfigV1{.role = 1},
+    };
+}
+
+PersistentConfigDataV5 PersistentConfig::_migrateV4ToV5(
+    const PersistentConfigDataV4 &source) const {
+    TriggerPersistentConfig trigger{
+        .mode = source.trigger.mode,
+        .eventThreshold = source.trigger.eventThreshold,
+        .autoRepeat = source.trigger.autoRepeat,
+        .senderFilter = source.trigger.senderFilter,
+    };
+    for (size_t index = 0; index < source.trigger.messageTypeFilters.size(); ++index) {
+        const auto &sourceFilter = source.trigger.messageTypeFilters[index];
+        trigger.messageTypeFilters[index] = TriggerMessageTypeFilterPersistentConfig{
+            .rawMessageType = sourceFilter.rawMessageType,
+            .hasDataObjects = sourceFilter.hasDataObjects,
+            .enabled = sourceFilter.enabled,
+            .reserved = sourceFilter.reserved,
+        };
     }
 
-    PersistentConfigDataV2 version2{};
-    std::memcpy(&version2, payload, sizeof(version2));
-    decoded = PersistentConfigDataCurrent{
-        .vbus = version2.vbus,
+    return PersistentConfigDataV5{
+        .vbus = VBusPersistentConfig{
+            .ovpThresholdVolts = source.vbus.ovpThresholdVolts,
+            .ocpThresholdAmps = source.vbus.ocpThresholdAmps,
+        },
         .analogMonitor = AnalogMonitorPersistentConfig{
-            .vbusVoltageCorrectionByRawVolt = version2.analogMonitor.vbusVoltageCorrectionByRawVolt,
-            .vbusCurrentRawByCalibratedHalfAmp = T76::DRPD::PHY::AnalogMonitor::defaultVBusCurrentRawCalibration(),
+            .vbusVoltageCorrectionByRawVolt =
+                source.analogMonitor.vbusVoltageCorrectionByRawVolt,
+            .vbusCurrentRawByCalibratedHalfAmp =
+                source.analogMonitor.vbusCurrentRawByCalibratedHalfAmp,
         },
-        .trigger = version2.trigger,
-        .sync = version2.sync,
-        .sink = version2.sink,
-        .ccBus = CCBusPersistentConfig{
-            .role = 1,
+        .trigger = trigger,
+        .sync = SyncPersistentConfig{
+            .mode = source.sync.mode,
+            .pulseWidthUs = source.sync.pulseWidthUs,
         },
+        .sink = SinkPersistentConfig{
+            .eprEntryEnabled = source.sink.eprEntryEnabled,
+            .ppsStatusQueryEnabled = source.sink.ppsStatusQueryEnabled,
+            .reserved = source.sink.reserved,
+        },
+        .ccBus = CCBusPersistentConfig{.role = source.ccBus.role},
         .bmcDecoder = BMCDecoderPersistentConfig{},
     };
-    return true;
-}
-
-bool PersistentConfig::_decodeVersion3(const uint8_t *payload,
-                                       uint32_t payloadSize,
-                                       PersistentConfigDataCurrent &decoded) const {
-    if (payloadSize != sizeof(PersistentConfigDataV3)) {
-        return false;
-    }
-
-    PersistentConfigDataV3 version3{};
-    std::memcpy(&version3, payload, sizeof(version3));
-    decoded = PersistentConfigDataCurrent{
-        .vbus = version3.vbus,
-        .analogMonitor = version3.analogMonitor,
-        .trigger = version3.trigger,
-        .sync = version3.sync,
-        .sink = version3.sink,
-        .ccBus = CCBusPersistentConfig{
-            .role = 1,
-        },
-        .bmcDecoder = BMCDecoderPersistentConfig{},
-    };
-    return true;
-}
-
-bool PersistentConfig::_decodeVersion4(const uint8_t *payload,
-                                       uint32_t payloadSize,
-                                       PersistentConfigDataCurrent &decoded) const {
-    if (payloadSize != sizeof(PersistentConfigDataV4)) {
-        return false;
-    }
-
-    PersistentConfigDataV4 version4{};
-    std::memcpy(&version4, payload, sizeof(version4));
-    decoded = PersistentConfigDataCurrent{
-        .vbus = version4.vbus,
-        .analogMonitor = version4.analogMonitor,
-        .trigger = version4.trigger,
-        .sync = version4.sync,
-        .sink = version4.sink,
-        .ccBus = version4.ccBus,
-        .bmcDecoder = BMCDecoderPersistentConfig{},
-    };
-    return true;
-}
-
-bool PersistentConfig::_decodeVersion5(const uint8_t *payload,
-                                       uint32_t payloadSize,
-                                       PersistentConfigDataCurrent &decoded) const {
-    if (payloadSize != sizeof(PersistentConfigDataV5)) {
-        return false;
-    }
-    std::memcpy(&decoded, payload, sizeof(decoded));
-    return true;
 }
 
 bool PersistentConfig::_decodeStoredConfig(uint32_t schemaVersion,
                                            const uint8_t *payload,
                                            uint32_t payloadSize,
                                            PersistentConfigDataCurrent &decoded) const {
+    std::variant<PersistentConfigDataV1,
+                 PersistentConfigDataV2,
+                 PersistentConfigDataV3,
+                 PersistentConfigDataV4,
+                 PersistentConfigDataV5> migrating;
+
     switch (schemaVersion) {
-        case 1:
-            return _decodeVersion1(payload, payloadSize, decoded);
-        case 2:
-            return _decodeVersion2(payload, payloadSize, decoded);
-        case 3:
-            return _decodeVersion3(payload, payloadSize, decoded);
-        case 4:
-            return _decodeVersion4(payload, payloadSize, decoded);
-        case 5:
-            return _decodeVersion5(payload, payloadSize, decoded);
+        case 1: {
+            if (payloadSize != sizeof(PersistentConfigDataV1)) {
+                return false;
+            }
+            PersistentConfigDataV1 stored{};
+            std::memcpy(&stored, payload, sizeof(stored));
+            migrating = stored;
+            break;
+        }
+        case 2: {
+            if (payloadSize != sizeof(PersistentConfigDataV2)) {
+                return false;
+            }
+            PersistentConfigDataV2 stored{};
+            std::memcpy(&stored, payload, sizeof(stored));
+            migrating = stored;
+            break;
+        }
+        case 3: {
+            if (payloadSize != sizeof(PersistentConfigDataV3)) {
+                return false;
+            }
+            PersistentConfigDataV3 stored{};
+            std::memcpy(&stored, payload, sizeof(stored));
+            migrating = stored;
+            break;
+        }
+        case 4: {
+            if (payloadSize != sizeof(PersistentConfigDataV4)) {
+                return false;
+            }
+            PersistentConfigDataV4 stored{};
+            std::memcpy(&stored, payload, sizeof(stored));
+            migrating = stored;
+            break;
+        }
+        case 5: {
+            if (payloadSize != sizeof(PersistentConfigDataV5)) {
+                return false;
+            }
+            PersistentConfigDataV5 stored{};
+            std::memcpy(&stored, payload, sizeof(stored));
+            migrating = stored;
+            break;
+        }
         default:
             return false;
     }
+
+    while (schemaVersion < CurrentSchemaVersion) {
+        switch (schemaVersion) {
+            case 1:
+                migrating = _migrateV1ToV2(std::get<PersistentConfigDataV1>(migrating));
+                break;
+            case 2:
+                migrating = _migrateV2ToV3(std::get<PersistentConfigDataV2>(migrating));
+                break;
+            case 3:
+                migrating = _migrateV3ToV4(std::get<PersistentConfigDataV3>(migrating));
+                break;
+            case 4:
+                migrating = _migrateV4ToV5(std::get<PersistentConfigDataV4>(migrating));
+                break;
+            default:
+                return false;
+        }
+        ++schemaVersion;
+    }
+
+    decoded = std::get<PersistentConfigDataCurrent>(migrating);
+    return true;
 }
 
 uint32_t PersistentConfig::_crc32(const uint8_t *data, size_t size) const {
