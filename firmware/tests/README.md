@@ -41,3 +41,12 @@ clang++ -std=c++20 -Wall -Wextra -Werror \
   -o /tmp/drpd-structured-vdm-test
 /tmp/drpd-structured-vdm-test
 ```
+
+Run the Sink inquiry response matcher regression with:
+
+```sh
+clang++ -std=c++20 -Wall -Wextra -Werror \
+  firmware/tests/inquiry_matcher_test.cpp \
+  -o /tmp/drpd-inquiry-matcher-test
+/tmp/drpd-inquiry-matcher-test
+```

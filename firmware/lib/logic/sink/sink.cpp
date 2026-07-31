@@ -23,6 +23,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _eprModeExitStateHandler(),
     _eprModeEntryStateHandler(),
     _getPPSStatusStateHandler(),
+    _inquiryStateHandler(),
     _readySinkStateHandler(),
     _sendResponseStateHandler(),
     _sendSoftResetStateHandler(),
@@ -48,6 +49,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _eprModeExitStateHandler,
         _eprModeEntryStateHandler,
         _getPPSStatusStateHandler,
+        _inquiryStateHandler,
         _readySinkStateHandler,
         _sendResponseStateHandler,
         _sendSoftResetStateHandler,
@@ -63,6 +65,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     queue_init(&_messageQueue, sizeof(const PHY::BMCDecodedMessage*), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
     queue_init(&_timeoutEventQueue, sizeof(SinkTimeoutEvent), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
     queue_init(&_pendingRequestQueue, sizeof(PendingPDORequest), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
+    queue_init(&_pendingInquiryQueue, sizeof(SinkInquiryRequest), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
 
     reset();
 }
@@ -74,6 +77,7 @@ void Sink::initCore1() {
 void Sink::loopCore1() {
     _processPendingPolicyRequests();
     _processPendingRequests();
+    _processPendingInquiries();
 
     if (_ccBusResetPending.exchange(false, std::memory_order_acq_rel)) {
         reset();
@@ -177,6 +181,7 @@ Sink::~Sink() {
     queue_free(&_messageQueue);
     queue_free(&_timeoutEventQueue);
     queue_free(&_pendingRequestQueue);
+    queue_free(&_pendingInquiryQueue);
 }
 
 void Sink::enable() {
@@ -216,6 +221,10 @@ void Sink::disable() {
     PendingPDORequest droppedRequest{};
     while (queue_try_remove(&_pendingRequestQueue, &droppedRequest)) {
     }
+    SinkInquiryRequest droppedInquiry{};
+    while (queue_try_remove(&_pendingInquiryQueue, &droppedInquiry)) {
+    }
+    _inquiryQueued.store(false, std::memory_order_release);
     _ccBusResetPending.store(false, std::memory_order_release);
     _eprExitPending.store(false, std::memory_order_release);
 
@@ -231,6 +240,16 @@ void Sink::_processTimeoutEvents() {
     while (queue_try_remove(&_timeoutEventQueue, &event)) {
         if (!_enabled.load()) {
             continue;
+        }
+
+        if (event.type == SinkTimeoutEventType::InquiryResponseTimeout ||
+            event.type == SinkTimeoutEventType::InquirySinkTxOKRetryTimeout) {
+            const SinkInquiryStatus status = _runtimeState.inquiryResult().status;
+            if (_runtimeState._state != SinkState::PE_SNK_Inquiry ||
+                status.outcome != SinkInquiryOutcome::Pending ||
+                status.id != event.inquiryId) {
+                continue;
+            }
         }
 
         if (event.type == SinkTimeoutEventType::GoodCRCTimeout) {
@@ -326,4 +345,18 @@ void Sink::_processPendingPolicyRequests() {
     }
 
     _context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
+}
+
+void Sink::_processPendingInquiries() {
+    if (!_enabled.load() || _ccBusResetPending.load(std::memory_order_acquire) ||
+        _runtimeState._state != SinkState::PE_SNK_Ready) {
+        return;
+    }
+    SinkInquiryRequest request{};
+    if (!queue_try_remove(&_pendingInquiryQueue, &request)) {
+        return;
+    }
+    _inquiryQueued.store(false, std::memory_order_release);
+    _runtimeState.beginInquiry(request);
+    _context.transitionTo(SinkState::PE_SNK_Inquiry);
 }

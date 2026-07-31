@@ -14,6 +14,10 @@
 namespace T76::DRPD::Logic {
 
 void Sink::reset(SinkResetType resetType) {
+    SinkInquiryRequest droppedInquiry{};
+    while (queue_try_remove(&_pendingInquiryQueue, &droppedInquiry)) {
+    }
+    _inquiryQueued.store(false, std::memory_order_release);
     _chunkingNotSupportedPending = false;
 
     if (_chunkingNotSupportedAlarmId != -1) {
@@ -115,6 +119,34 @@ SinkRequestResult Sink::requestPDO(size_t pdoIndex, uint32_t voltageMV, uint32_t
 
 SinkRequestStatus Sink::lastRequestStatus() const {
     return _runtimeState._lastRequestStatus;
+}
+
+SinkRequestResult Sink::requestInquiry(SinkInquiryType type) {
+    if (!_enabled.load()) {
+        return SinkRequestResult::failure("Sink is disabled");
+    }
+    if (type != SinkInquiryType::GetRevision) {
+        return SinkRequestResult::failure("Unsupported inquiry type");
+    }
+    if (_runtimeState._state != SinkState::PE_SNK_Ready ||
+        !_runtimeState._hasExplicitContract) {
+        return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
+    }
+    if (_runtimeState.inquiryResult().status.outcome == SinkInquiryOutcome::Pending ||
+        _inquiryQueued.exchange(true, std::memory_order_acq_rel)) {
+        return SinkRequestResult::failure("A Sink inquiry is already active");
+    }
+    const SinkInquiryRequest request{_nextInquiryId.fetch_add(1), type};
+    if (!queue_try_add(&_pendingInquiryQueue, &request)) {
+        _inquiryQueued.store(false, std::memory_order_release);
+        return SinkRequestResult::failure("Sink inquiry queue is full");
+    }
+    _runtimeState.beginInquiry(request);
+    return SinkRequestResult::ok();
+}
+
+SinkInquiryResult Sink::lastInquiryResult() const {
+    return _runtimeState.inquiryResult();
 }
 
 void Sink::eprEntryEnabled(bool enabled) {

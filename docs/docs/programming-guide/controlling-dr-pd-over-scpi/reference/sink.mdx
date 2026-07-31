@@ -227,6 +227,124 @@ No parameters.
 - Catalog handler: `_querySinkRequestStatus`
 - Handler source: `firmware/lib/app/app_scpi_sink.cpp`
 
+## `SINK:INQuiry`
+
+**Type:** Command
+
+**Syntax:**
+
+```scpi
+SINK:INQuiry
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:INQuiry` |
+| Short form | `SINK:INQ` |
+
+Start a supported Sink-to-Source inquiry as a serialized SOP AMS.
+
+### Parameters
+
+| Name | Type | Values/default | Description |
+| --- | --- | --- | --- |
+| `type` | enum | `GET_REVISION` | Supported inquiry message type. |
+
+### Response
+
+No SCPI data response. Successful command execution completes without a payload.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-224` | Illegal parameter value | The inquiry type is unsupported. |
+| `-221` | Settings conflict | Sink is not Ready with an explicit contract, or another inquiry is active. |
+| `-200` | Execution error. Unable to access sink policy engine. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_setSinkInquiry`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:INQuiry:STATus?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:INQuiry:STATus?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:INQuiry:STATus?` |
+| Short form | `SINK:INQ:STAT?` |
+
+Return OUTCOME,request_id,type,response_class,response_type,response_length.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Return OUTCOME,request_id,type,response_class,response_type,response_length.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_querySinkInquiryStatus`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
+## `SINK:INQuiry:RESPonse?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+SINK:INQuiry:RESPonse?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `SINK:INQuiry:RESPonse?` |
+| Short form | `SINK:INQ:RESP?` |
+
+Return the raw response payload as an IEEE 488.2 arbitrary block.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+- Return the raw response payload as an IEEE 488.2 arbitrary block.
+
+### Command-specific errors
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-221` | Settings conflict. Not in sink mode. | Extracted from handler implementation. |
+
+### Source
+
+- Catalog handler: `_querySinkInquiryResponse`
+- Handler source: `firmware/lib/app/app_scpi_sink.cpp`
+
 ## `SINK:CAPability:SPR:COUNT?`
 
 **Type:** Query
@@ -682,6 +800,7 @@ Returns one of:
 - PE_SNK_SELECT_CAPABILITY
 - PE_SNK_TRANSITION_SINK
 - PE_SNK_READY
+- PE_SNK_INQUIRY
 - PE_SNK_SEND_EPR_MODE_ENTRY
 - PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE
 - PE_SNK_SEND_EPR_MODE_EXIT

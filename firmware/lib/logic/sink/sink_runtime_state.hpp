@@ -23,7 +23,6 @@
 #include <span>
 
 #include <pico/time.h>
-
 #include "sink_types.hpp"
 
 #include "../../proto/pd_messages/epr_source_capabilities.hpp"
@@ -108,6 +107,19 @@ namespace T76::DRPD::Logic {
          */
         [[nodiscard]] static std::optional<size_t> trackedTypeIndex(Proto::ExtendedMessageType type);
 
+        /** Return an atomic snapshot of the latest host inquiry result. */
+        [[nodiscard]] SinkInquiryResult inquiryResult() const;
+
+        /** Publish a newly accepted host inquiry. */
+        void beginInquiry(const SinkInquiryRequest& request);
+
+        /** Finish the active inquiry and atomically publish its response. */
+        void finishInquiry(
+            SinkInquiryOutcome outcome,
+            uint32_t responseClass = 0,
+            uint32_t responseType = 0,
+            std::span<const uint8_t> response = {});
+
         SinkState _state;                                         ///< Current policy state.
         SinkStateHandler* _currentStateHandler;                   ///< Active state handler pointer.
 
@@ -134,12 +146,19 @@ namespace T76::DRPD::Logic {
         bool _eprSourceExitRequested = false;                     ///< True when Source advertised no EPR PDOs.
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.
         std::optional<Proto::PPSStatus> _ppsStatus;               ///< Last Source PPS status response.
+        SinkInquiryResult _inquiryResult;                         ///< Latest host inquiry and response.
 
         bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
         uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.
 
         std::array<ExtendedReassemblyState, 5> _extendedReassemblyStates; ///< Per-type reassembly.
         std::array<std::optional<ExtendedPayloadBuffer>, 5> _completedExtendedPayloads; ///< Completed payloads.
+
+    private:
+        void _lockInquiryResult() const;
+        void _unlockInquiryResult() const;
+
+        mutable std::atomic_flag _inquiryResultLock = ATOMIC_FLAG_INIT; ///< Serializes cross-core result publication.
     };
 
 } // namespace T76::DRPD::Logic

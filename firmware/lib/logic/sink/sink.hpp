@@ -70,6 +70,7 @@
 #include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
+#include "state_handlers/inquiry.hpp"
 #include "state_handlers/ready.hpp"
 #include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
@@ -225,6 +226,8 @@ namespace T76::DRPD::Logic {
          * @return Last request status snapshot.
          */
         [[nodiscard]] SinkRequestStatus lastRequestStatus() const;
+        SinkRequestResult requestInquiry(SinkInquiryType type);
+        [[nodiscard]] SinkInquiryResult lastInquiryResult() const;
 
         /**
          * @brief Set whether local policy allows automatic EPR entry.
@@ -317,6 +320,7 @@ namespace T76::DRPD::Logic {
         queue_t _messageQueue;                                   ///< Queue of decoded message pointers.
         queue_t _timeoutEventQueue;                              ///< Queue of timer timeout events.
         queue_t _pendingRequestQueue;                            ///< Queue of host PDO requests for core-1 dispatch.
+        queue_t _pendingInquiryQueue;                            ///< Queue of host inquiry requests for core-1 dispatch.
 
         CCBusController& _ccBusController;                       ///< CC bus controller dependency.
         T76::DRPD::PHY::BMCDecoder& _bmcDecoder;                ///< Decoder for incoming PD messages.
@@ -330,6 +334,7 @@ namespace T76::DRPD::Logic {
         EPRModeExitStateHandler _eprModeExitStateHandler;        ///< EPR mode exit state handler.
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
         GetPPSStatusStateHandler _getPPSStatusStateHandler;      ///< PPS status query state handler.
+        InquiryStateHandler _inquiryStateHandler;                ///< Host inquiry state handler.
         ReadySinkStateHandler _readySinkStateHandler;            ///< Ready state handler.
         SendResponseStateHandler _sendResponseStateHandler;      ///< Ready response state handler.
         SendSoftResetStateHandler _sendSoftResetStateHandler;    ///< Send Soft Reset state handler.
@@ -349,6 +354,8 @@ namespace T76::DRPD::Logic {
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
         std::atomic<bool> _ccBusResetPending = false;            ///< Core-0 state-change reset request latched for core 1.
         std::atomic<bool> _eprExitPending = false;               ///< Core-0 request asking Core 1 to exit active EPR mode.
+        std::atomic<uint32_t> _nextInquiryId = 1;                ///< Monotonic host inquiry identifier.
+        std::atomic<bool> _inquiryQueued = false;                ///< Host inquiry awaits policy dispatch.
         alarm_id_t _chunkingNotSupportedAlarmId = -1;            ///< Delay before Not_Supported for unsupported chunks.
         bool _chunkingNotSupportedPending = false;               ///< True while delayed Not_Supported is still applicable.
 
@@ -417,6 +424,7 @@ namespace T76::DRPD::Logic {
          * @brief Drain host policy requests and dispatch in core-1 policy context.
          */
         void _processPendingPolicyRequests();
+        void _processPendingInquiries();
 
         /**
          * @brief Handle message sender state transitions.

@@ -36,6 +36,22 @@ const char *sinkRequestOutcomeName(Logic::SinkRequestOutcome outcome) {
     return "UNKNOWN";
 }
 
+const char *sinkInquiryOutcomeName(Logic::SinkInquiryOutcome outcome) {
+    switch (outcome) {
+        case Logic::SinkInquiryOutcome::None: return "NONE";
+        case Logic::SinkInquiryOutcome::Pending: return "PENDING";
+        case Logic::SinkInquiryOutcome::Response: return "RESPONSE";
+        case Logic::SinkInquiryOutcome::NotSupported: return "NOT_SUPPORTED";
+        case Logic::SinkInquiryOutcome::Rejected: return "REJECTED";
+        case Logic::SinkInquiryOutcome::Wait: return "WAIT";
+        case Logic::SinkInquiryOutcome::GoodCRCTimeout: return "GOODCRC_TIMEOUT";
+        case Logic::SinkInquiryOutcome::ResponseTimeout: return "RESPONSE_TIMEOUT";
+        case Logic::SinkInquiryOutcome::ProtocolError: return "PROTOCOL_ERROR";
+        case Logic::SinkInquiryOutcome::Aborted: return "ABORTED";
+    }
+    return "UNKNOWN";
+}
+
 } // namespace
 
 
@@ -186,6 +202,62 @@ void App::_querySinkRequestStatus(const std::vector<T76::SCPI::ParameterValue> &
     response += ",";
     response += std::to_string(status.currentMA);
     _sendTransportTextResponse(response, true);
+}
+
+void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+    Logic::Sink *sink = _ccBusController.sink();
+    if (sink == nullptr) {
+        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
+        return;
+    }
+    std::string type = params[0].stringValue;
+    std::transform(type.begin(), type.end(), type.begin(), ::toupper);
+    if (type != "GET_REVISION") {
+        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. Unsupported inquiry type.");
+        return;
+    }
+    const auto result = sink->requestInquiry(Logic::SinkInquiryType::GetRevision);
+    if (!result) {
+        _interpreter.addError(_scpiErrorSettingsConflict,
+            "Settings conflict. " + std::string(result.error));
+    }
+}
+
+void App::_querySinkInquiryStatus(const std::vector<T76::SCPI::ParameterValue>&) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink || _ccBusController.sink() == nullptr) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+    const auto status = _ccBusController.sink()->lastInquiryResult().status;
+    std::string response = sinkInquiryOutcomeName(status.outcome);
+    response += "," + std::to_string(status.id);
+    response += ",GET_REVISION," + std::to_string(status.responseClass);
+    response += "," + std::to_string(status.responseType);
+    response += "," + std::to_string(status.responseLength);
+    _sendTransportTextResponse(response, true);
+}
+
+void App::_querySinkInquiryResponse(const std::vector<T76::SCPI::ParameterValue>&) {
+    if (_ccBusController.role() != Logic::CCBusRole::Sink || _ccBusController.sink() == nullptr) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
+        return;
+    }
+    const auto result = _ccBusController.sink()->lastInquiryResult();
+    if (result.status.outcome != Logic::SinkInquiryOutcome::Response) {
+        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. No inquiry response is available.");
+        return;
+    }
+    std::vector<uint8_t> block;
+    const std::string preamble = _interpreter.abdPreamble(result.status.responseLength);
+    block.insert(block.end(), preamble.begin(), preamble.end());
+    block.insert(block.end(), result.response.begin(),
+        result.response.begin() + result.status.responseLength);
+    block.push_back('\n');
+    _sendTransportBinaryResponse(block);
 }
 
 void App::_querySinkCapabilityCount(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -447,6 +519,9 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
             break;
         case Logic::SinkState::PE_SNK_Get_PPS_Status:
             _sendTransportTextResponse("PE_SNK_GET_PPS_STATUS", true);
+            break;
+        case Logic::SinkState::PE_SNK_Inquiry:
+            _sendTransportTextResponse("PE_SNK_INQUIRY", true);
             break;
         case Logic::SinkState::PE_SNK_EPR_Keepalive:
             _sendTransportTextResponse("PE_SNK_EPR_KEEPALIVE", true);

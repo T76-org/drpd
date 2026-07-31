@@ -13,6 +13,9 @@ from t76.drpd.device.types import (
     Mode,
     SinkRequestOutcome,
     SinkRequestStatus,
+    SinkInquiryOutcome,
+    SinkInquiryStatus,
+    SinkInquiryType,
     SinkState,
 )
 
@@ -251,6 +254,56 @@ class DeviceSink:
             voltage_mv=int(parts[2]),
             current_ma=int(parts[3]),
         )
+
+    async def send_inquiry(self, inquiry_type: SinkInquiryType) -> None:
+        """Start a supported Sink-to-Source inquiry."""
+        await self._internal.write_ascii_and_check(
+            f"SINK:INQ {inquiry_type.value}"
+        )
+
+    async def get_inquiry_status(self) -> SinkInquiryStatus:
+        """Query the most recent Sink-to-Source inquiry status."""
+        response = await self._internal.query_ascii_values_and_check(
+            "SINK:INQ:STAT?", "s"
+        )
+        parts = [str(part).strip() for part in response]
+        if len(parts) == 1:
+            parts = [part.strip() for part in parts[0].split(",")]
+        if len(parts) != 6:
+            raise ValueError(
+                "SINK:INQuiry:STATus? response must contain 6 fields"
+            )
+        try:
+            inquiry_type = SinkInquiryType(parts[2].upper())
+        except ValueError as exc:
+            raise ValueError(
+                f"Unknown sink inquiry type: {parts[2]}"
+            ) from exc
+        request_id = int(parts[1])
+        response_class = int(parts[3])
+        response_type = int(parts[4])
+        response_length = int(parts[5])
+        if min(
+            request_id, response_class, response_type, response_length
+        ) < 0:
+            raise ValueError(
+                "Sink inquiry numeric fields must be non-negative"
+            )
+        return SinkInquiryStatus(
+            outcome=SinkInquiryOutcome.from_string(parts[0]),
+            request_id=request_id,
+            type=inquiry_type,
+            response_class=response_class,
+            response_type=response_type,
+            response_length=response_length,
+        )
+
+    async def get_inquiry_response(self) -> bytes:
+        """Fetch the raw response bytes for the most recent inquiry."""
+        response = await self._internal.query_binary_value_and_check(
+            "SINK:INQ:RESP?"
+        )
+        return bytes(int(value) for value in response)
 
     async def get_spr_capability_count(self) -> int:
         response = await self._internal.query_ascii_values_and_check(

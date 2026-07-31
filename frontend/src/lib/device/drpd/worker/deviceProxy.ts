@@ -29,6 +29,8 @@ import type {
   LoggedCapturedMessage,
   OnOffState,
   SinkInfo,
+  SinkInquiryStatus,
+  SinkInquiryType,
   SinkPdo,
   SinkRequestStatus,
   TriggerEventType,
@@ -115,6 +117,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getPpsStatusQueryEnabled: () => Promise<boolean>
     setPpsStatusQueryEnabled: (enabled: boolean) => Promise<void>
     getRequestStatus: () => Promise<SinkRequestStatus>
+    sendInquiry: (type: SinkInquiryType) => Promise<void>
+    getInquiryStatus: () => Promise<SinkInquiryStatus>
+    getInquiryResponse: () => Promise<Uint8Array>
     getSprCapabilityCount: () => Promise<number>
     getSprCapabilityPdo: (index: number) => Promise<number>
     setSprCapabilityPdo: (index: number, rawPdo: number) => Promise<void>
@@ -326,6 +331,13 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
         await this.callGroup('sink', 'setPpsStatusQueryEnabled', enabled)
       },
       getRequestStatus: async () => (await this.callGroup('sink', 'getRequestStatus')) as SinkRequestStatus,
+      sendInquiry: async (type) => {
+        await this.callGroup('sink', 'sendInquiry', type)
+      },
+      getInquiryStatus: async () =>
+        (await this.callGroup('sink', 'getInquiryStatus')) as SinkInquiryStatus,
+      getInquiryResponse: async () =>
+        (await this.callGroup('sink', 'getInquiryResponse')) as Uint8Array,
       getSprCapabilityCount: async () => (await this.callGroup('sink', 'getSprCapabilityCount')) as number,
       getSprCapabilityPdo: async (index) =>
         (await this.callGroup('sink', 'getSprCapabilityPdo', index)) as number,

@@ -220,6 +220,7 @@ export const SinkState = {
   PE_SNK_GIVE_SINK_CAP: 'PE_SNK_GIVE_SINK_CAP',
   PE_SNK_GET_SOURCE_CAP: 'PE_SNK_GET_SOURCE_CAP',
   PE_SNK_GET_PPS_STATUS: 'PE_SNK_GET_PPS_STATUS',
+  PE_SNK_INQUIRY: 'PE_SNK_INQUIRY',
   PE_SNK_EPR_KEEPALIVE: 'PE_SNK_EPR_KEEPALIVE',
   PE_SNK_HARD_RESET: 'PE_SNK_HARD_RESET',
   PE_SNK_TRANSITION_TO_DEFAULT: 'PE_SNK_TRANSITION_TO_DEFAULT',
@@ -269,6 +270,33 @@ export const SinkRequestOutcome = {
  */
 export type SinkRequestOutcome =
   (typeof SinkRequestOutcome)[keyof typeof SinkRequestOutcome]
+
+/** Supported Sink-to-Source inquiry message types. */
+export const SinkInquiryType = {
+  GET_REVISION: 'GET_REVISION',
+} as const
+
+/** Supported Sink-to-Source inquiry message type value. */
+export type SinkInquiryType =
+  (typeof SinkInquiryType)[keyof typeof SinkInquiryType]
+
+/** Sink inquiry protocol outcome token. */
+export const SinkInquiryOutcome = {
+  NONE: 'NONE',
+  PENDING: 'PENDING',
+  RESPONSE: 'RESPONSE',
+  NOT_SUPPORTED: 'NOT_SUPPORTED',
+  REJECTED: 'REJECTED',
+  WAIT: 'WAIT',
+  GOODCRC_TIMEOUT: 'GOODCRC_TIMEOUT',
+  RESPONSE_TIMEOUT: 'RESPONSE_TIMEOUT',
+  PROTOCOL_ERROR: 'PROTOCOL_ERROR',
+  ABORTED: 'ABORTED',
+} as const
+
+/** Sink inquiry protocol outcome value. */
+export type SinkInquiryOutcome =
+  (typeof SinkInquiryOutcome)[keyof typeof SinkInquiryOutcome]
 
 /**
  * CC channel selection.
@@ -615,6 +643,22 @@ export interface SinkRequestStatus {
   voltageMv: number | null
   ///< Requested current in milliamps, absent for NONE outcomes.
   currentMa: number | null
+}
+
+/** Most recent Sink-to-Source inquiry status reported by firmware. */
+export interface SinkInquiryStatus {
+  ///< Protocol outcome.
+  outcome: SinkInquiryOutcome
+  ///< Firmware-assigned request identifier.
+  requestId: number
+  ///< Inquiry message type.
+  type: SinkInquiryType
+  ///< Numeric USB-PD response message class.
+  responseClass: number
+  ///< Numeric USB-PD response message type.
+  responseType: number
+  ///< Raw response payload length in bytes.
+  responseLength: number
 }
 
 /**
