@@ -11,9 +11,6 @@ import type { DRPDTransport, DRPDSCPIParam } from '../transport'
 import {
   CCBusRole,
   OnOffState,
-  SinkInquiryOutcome,
-  SinkInquiryCablePlug,
-  SinkInquiryType,
   SinkRequestOutcome,
   TestCcRole,
   TriggerEventType,
@@ -323,104 +320,6 @@ describe('DRPD command groups', () => {
       currentMa: 3000,
     })
   })
-
-  it('sends a typed sink inquiry and reads its response', async () => {
-    const transport = new MockTransport()
-    transport.textResponses.set('SINK:INQ:STAT?', [
-      'RESPONSE,17,GET_REVISION,1,12,6',
-    ])
-    transport.binaryResponses.set('SINK:INQ:RESP?', new Uint8Array([1, 2, 3]))
-    const group = new DRPDSink(transport)
-
-    await group.sendInquiry(SinkInquiryType.GET_REVISION)
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_SOURCE_CAP })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: 3 })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_COUNTRY_CODES })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: 'ca' })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_BATTERY_CAP, batteryReference: 0 })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference: 7 })
-    await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_IDENTITY })
-    await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_SVIDS })
-    await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_MODES, svid: 0xff01 })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_STATUS, plug: SinkInquiryCablePlug.SOP_PRIME })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_REVISION, plug: SinkInquiryCablePlug.SOP_DOUBLE_PRIME })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: SinkInquiryCablePlug.SOP_PRIME })
-    await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_IDENTITY, plug: SinkInquiryCablePlug.SOP_PRIME })
-    await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_SVIDS, plug: SinkInquiryCablePlug.SOP_DOUBLE_PRIME })
-    await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_MODES, plug: SinkInquiryCablePlug.SOP_DOUBLE_PRIME, svid: 0xff01 })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_DIGESTS })
-    await group.sendInquiryRequest({ type: SinkInquiryType.GET_CERTIFICATE, slot: 2, offset: 256, length: 128 })
-    await group.sendInquiryRequest({ type: SinkInquiryType.CHALLENGE, slot: 3, nonce: new Uint8Array(32).fill(0xab) })
-    await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: 8 })).rejects.toThrow('0 to 7')
-    await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT', batteryReference: 1 } as never)).rejects.toThrow('must not include')
-    await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'CABLE' } as never)).rejects.toThrow('PORT, BATTERY, SOP_PRIME, or SOP_DOUBLE_PRIME')
-    await expect(group.getInquiryStatus()).resolves.toEqual({
-      outcome: SinkInquiryOutcome.RESPONSE,
-      requestId: 17,
-      type: SinkInquiryType.GET_REVISION,
-      responseClass: 1,
-      responseType: 12,
-      responseLength: 6,
-    })
-    await expect(group.getInquiryResponse()).resolves.toEqual(new Uint8Array([1, 2, 3]))
-    expect(transport.commands[0]).toEqual({
-      command: 'SINK:INQ',
-      params: [{ raw: 'GET_REVISION' }],
-    })
-    expect(transport.commands[1]).toEqual({
-      command: 'SINK:INQ',
-      params: [{ raw: 'GET_SOURCE_CAP' }],
-    })
-    expect(transport.commands.slice(2)).toEqual([
-      { command: 'SINK:INQ', params: [{ raw: 'GET_MANUFACTURER_INFO' }, 'PORT'] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_MANUFACTURER_INFO' }, 'BATTERY', 3] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_COUNTRY_CODES' }] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_COUNTRY_INFO' }, 'CA'] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_BATTERY_CAP' }, 0] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_BATTERY_STATUS' }, 7] },
-      { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_IDENTITY' }] },
-      { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_SVIDS' }] },
-      { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_MODES' }, 0xff01] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_STATUS' }, 'SOP_PRIME'] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_REVISION' }, 'SOP_DOUBLE_PRIME'] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_MANUFACTURER_INFO' }, 'SOP_PRIME'] },
-      { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_IDENTITY' }, 'SOP_PRIME'] },
-      { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_SVIDS' }, 'SOP_DOUBLE_PRIME'] },
-      { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_MODES' }, 'SOP_DOUBLE_PRIME', 0xff01] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_DIGESTS' }] },
-      { command: 'SINK:INQ', params: [{ raw: 'GET_CERTIFICATE' }, 2, 256, 128] },
-      { command: 'SINK:INQ', params: [{ raw: 'CHALLENGE' }, 3, 'AB'.repeat(32)] },
-    ])
-  })
-
-  it('rejects malformed sink inquiry status responses', async () => {
-    const transport = new MockTransport()
-    const group = new DRPDSink(transport)
-    transport.textResponses.set('SINK:INQ:STAT?', ['RESPONSE,17,GET_REVISION'])
-    await expect(group.getInquiryStatus()).rejects.toThrow('expected 6 fields')
-
-    transport.textResponses.set('SINK:INQ:STAT?', [
-      'MADE_UP,17,GET_REVISION,1,12,6',
-    ])
-    await expect(group.getInquiryStatus()).rejects.toThrow('Invalid sink inquiry outcome')
-
-    transport.textResponses.set('SINK:INQ:STAT?', [
-      'RESPONSE,17,UNKNOWN,1,12,6',
-    ])
-    await expect(group.getInquiryStatus()).rejects.toThrow('Invalid sink inquiry type')
-  })
-
-  it.each(Object.values(SinkInquiryOutcome))(
-    'parses the %s sink inquiry outcome',
-    async (outcome) => {
-      const transport = new MockTransport()
-      transport.textResponses.set('SINK:INQ:STAT?', [
-        `${outcome},17,GET_REVISION,0,0,0`,
-      ])
-      await expect(new DRPDSink(transport).getInquiryStatus()).resolves.toMatchObject({ outcome })
-    },
-  )
 
   it('queries and sets local sink capability PDOs', async () => {
     const transport = new MockTransport()

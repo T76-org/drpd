@@ -16,15 +16,13 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.19",
     "@fontsource/inter": "^5.2.8",
-    "@peculiar/x509": "^2.0.0",
     "@phosphor-icons/react": "^2.1.10",
     "@sqlite.org/sqlite-wasm": "^3.51.2-build6",
     "@tanstack/react-virtual": "^3.14.2",
     "d3": "^7.9.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-markdown": "^10.1.0",
-    "reflect-metadata": "^0.2.2"
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

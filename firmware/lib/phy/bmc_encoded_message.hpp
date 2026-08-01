@@ -116,9 +116,6 @@ namespace T76::DRPD::PHY {
          */
         Proto::PDHeader &header();
 
-        /** Return the exact SOP target encoded for this message. */
-        [[nodiscard]] Proto::SOP::SOPType sopType() const { return _sop.type(); }
-
         /**
          * @brief Returns an encoded BitPacker for the message.
          * 

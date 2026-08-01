@@ -4,8 +4,6 @@
  */
 
 #include "sink.hpp"
-#include "inquiry_descriptor.hpp"
-#include "sop_target_match.hpp"
 
 #include <algorithm>
 
@@ -25,23 +23,6 @@ namespace {
 
         return true;
     }
-
-    std::optional<size_t> sopTargetIndex(Proto::SOP::SOPType target) {
-        switch (target) {
-            case Proto::SOP::SOPType::SOP: return 0;
-            case Proto::SOP::SOPType::SOPPrime: return 1;
-            case Proto::SOP::SOPType::SOPDoublePrime: return 2;
-            default: return std::nullopt;
-        }
-    }
-
-    Proto::SOP::SOPType inquirySOPTarget(SinkInquirySOPTarget target) {
-        switch (target) {
-            case SinkInquirySOPTarget::SOPPrime: return Proto::SOP::SOPType::SOPPrime;
-            case SinkInquirySOPTarget::SOPDoublePrime: return Proto::SOP::SOPType::SOPDoublePrime;
-            default: return Proto::SOP::SOPType::SOP;
-        }
-    }
 }
 
 
@@ -54,36 +35,16 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
         reset();
         return;
     }
-    if (message->decodedSOP().type() == Proto::SOP::SOPType::CableReset) {
-        _context.resetCableProtocol();
-        return;
-    }
 
-    const auto receivedTarget = message->decodedSOP().type();
-    const auto targetIndex = sopTargetIndex(receivedTarget);
-    if (!targetIndex.has_value()) {
+    if (message->decodedSOP().type() != Proto::SOP::SOPType::SOP) {
         return;
     }
 
     const Proto::PDHeader decodedHeader = message->decodedHeader();
 
-    if (receivedTarget == Proto::SOP::SOPType::SOP) {
-        const auto powerRole = decodedHeader.portPowerRole();
-        if (!powerRole.has_value() || powerRole.value() != Proto::PDHeader::PortPowerRole::Source) {
-            return;
-        }
-    } else {
-        const auto inquiry = _runtimeState.inquiryResult();
-        const bool activeInquiryTarget =
-            inquiry.status.outcome == SinkInquiryOutcome::Pending &&
-            inquirySOPTarget(inquiry.parameters.sopTarget) == receivedTarget;
-        const bool preparedResponseTarget =
-            _runtimeState._state == SinkState::PE_SNK_Send_Response &&
-            exactSOPTargetMatch(
-                _sendResponseStateHandler.preparedSOPTarget(), receivedTarget);
-        if (!activeInquiryTarget && !preparedResponseTarget) {
-            return;
-        }
+    const auto powerRole = decodedHeader.portPowerRole();
+    if (!powerRole.has_value() || powerRole.value() != Proto::PDHeader::PortPowerRole::Source) {
+        return;
     }
 
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Control) {
@@ -91,7 +52,7 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::GoodCRC) {
-            _messageSender.handleGoodCRCReceived(receivedTarget, decodedHeader.messageId());
+            _messageSender.handleGoodCRCReceived(decodedHeader.messageId());
             return;
         }
     }
@@ -102,20 +63,20 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Soft_Reset) {
             _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
-            _context.handleReceivedSoftReset(receivedTarget, decodedHeader.specRevision());
+            _context.handleReceivedSoftReset(decodedHeader.specRevision());
             return;
         }
     }
 
     const uint8_t receivedMessageId = static_cast<uint8_t>(decodedHeader.messageId() & 0x7);
 
-    if (_runtimeState.isDuplicateReceivedMessageId(targetIndex.value(), receivedMessageId)) {
+    if (_runtimeState.isDuplicateReceivedMessageId(receivedMessageId)) {
         // Retransmission due to missing GoodCRC. Acknowledge but do not process twice.
         _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
         return;
     }
 
-    _runtimeState.storeReceivedMessageId(targetIndex.value(), receivedMessageId);
+    _runtimeState.storeReceivedMessageId(receivedMessageId);
     _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
 
     const T76::DRPD::PHY::BMCDecodedMessage* messagePtr = message;
@@ -299,8 +260,7 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         _sendExtendedChunkRequest(
             extendedType,
             reassembly.expectedPayloadBytes,
-            nextChunkNumber,
-            Proto::SOP::SOPType::SOP
+            nextChunkNumber
         );
         return ExtendedFragmentResult::InProgress;
     }
@@ -311,77 +271,11 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     return ExtendedFragmentResult::Complete;
 }
 
-Sink::ExtendedFragmentResult Sink::_handleInquiryExtendedFragment(
-    const T76::DRPD::PHY::BMCDecodedMessage *message) {
-    const auto descriptor = sinkInquiryDescriptor(
-        _runtimeState.inquiryResult().status.type);
-    if (!descriptor.has_value() ||
-        descriptor->response.messageClass != InquiryMessageClass::Extended) {
-        return ExtendedFragmentResult::Malformed;
-    }
-    const auto body = message->rawBody();
-    const auto extendedType = message->decodedHeader().extendedMessageType();
-    if (body.size() < 2 || !extendedType.has_value() ||
-        static_cast<uint32_t>(extendedType.value()) != descriptor->response.messageType) {
-        return ExtendedFragmentResult::Malformed;
-    }
-    const uint16_t rawHeader = static_cast<uint16_t>(body[0]) |
-        (static_cast<uint16_t>(body[1]) << 8);
-    const Proto::PDExtendedHeader header(rawHeader);
-    const bool malformedPPSStatusDataSize = isRecoverableMalformedInquiryPPSStatus(
-        static_cast<uint32_t>(extendedType.value()), header.chunked(),
-        header.requestChunk(), header.dataSizeBytes(), header.chunkNumber(),
-        message->decodedHeader().numDataObjects(), body);
-    if (malformedPPSStatusDataSize) {
-        SinkRuntimeState::ExtendedPayloadBuffer payload;
-        payload.length = 4;
-        std::copy_n(body.begin() + 2, payload.length, payload.bytes.begin());
-        _runtimeState._completedInquiryExtendedPayload = payload;
-        _runtimeState._inquiryRecoveredMalformedPPSStatus = true;
-        _context.reportWarning(
-            "malformed PPS_Status declared Data Size 1; decoded 4-byte PPSSDB from packet payload");
-        return ExtendedFragmentResult::Complete;
-    }
-    const auto result = _inquiryReassembly.accept(
-        header.chunked(), header.requestChunk(), header.dataSizeBytes(),
-        header.chunkNumber(), body.subspan(2));
-    if (result == InquiryReassemblyResult::TooLarge) {
-        return ExtendedFragmentResult::TooLarge;
-    }
-    if (result == InquiryReassemblyResult::Malformed ||
-        result == InquiryReassemblyResult::RequestChunk) {
-        return ExtendedFragmentResult::Malformed;
-    }
-    if (result == InquiryReassemblyResult::InProgress ||
-        result == InquiryReassemblyResult::Duplicate) {
-        _sendExtendedChunkRequest(
-            extendedType.value(),
-            header.dataSizeBytes(), static_cast<uint8_t>(header.chunkNumber() + 1),
-            message->decodedSOP().type());
-        return ExtendedFragmentResult::InProgress;
-    }
-    SinkRuntimeState::ExtendedPayloadBuffer payload;
-    payload.length = _inquiryReassembly.payload().size();
-    std::copy(_inquiryReassembly.payload().begin(),
-              _inquiryReassembly.payload().end(), payload.bytes.begin());
-    _runtimeState._completedInquiryExtendedPayload = payload;
-    return ExtendedFragmentResult::Complete;
-}
-
-void Sink::_onMessageSenderStateChanged(
-    SinkMessageSenderState state, Proto::SOP::SOPType sopTarget) {
+void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
     if (!_enabled.load()) {
         return;
     }
 
-    Proto::SOP::SOPType activeTarget = Proto::SOP::SOPType::SOP;
-    if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
-        activeTarget = inquirySOPTarget(_runtimeState.inquiryResult().parameters.sopTarget);
-    }
-    if (_runtimeState._state == SinkState::PE_SNK_Send_Response) {
-        if (!exactSOPTargetMatch(
-                _sendResponseStateHandler.preparedSOPTarget(), sopTarget)) return;
-    } else if (sopTarget != activeTarget) return;
     if (state == SinkMessageSenderState::GoodCRCTimeout) {
         _enqueueTimeoutEvent(SinkTimeoutEvent{SinkTimeoutEventType::GoodCRCTimeout});
         return;
@@ -407,8 +301,7 @@ void Sink::_handleMessageSenderStateChangedPolicyContext(SinkMessageSenderState 
          _runtimeState._state == SinkState::PE_SNK_EPR_Keepalive ||
          _runtimeState._state == SinkState::PE_SNK_Send_Response ||
          _runtimeState._state == SinkState::PE_SNK_Send_Soft_Reset ||
-         _runtimeState._state == SinkState::PE_SNK_Get_PPS_Status ||
-         _runtimeState._state == SinkState::PE_SNK_Inquiry) &&
+         _runtimeState._state == SinkState::PE_SNK_Get_PPS_Status) &&
         _runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->handleMessageSenderStateChange(_context, state);
         return;
