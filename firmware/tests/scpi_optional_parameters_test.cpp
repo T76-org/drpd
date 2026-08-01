@@ -10,15 +10,18 @@ class OptionalParameterTarget {
 public:
     void handle(const std::vector<ParameterValue>& parameters) {
         observedCounts.push_back(parameters.size());
+        observedSecondTypes.push_back(parameters.size() > 1
+            ? parameters[1].type : ParameterType::Invalid);
     }
 
     std::vector<size_t> observedCounts;
+    std::vector<ParameterType> observedSecondTypes;
 };
 
 namespace {
 const ParameterDescriptor parameters[] = {
     {.type = ParameterType::Number},
-    {.type = ParameterType::String},
+    {.type = ParameterType::StringOrNumber},
     {.type = ParameterType::String},
 };
 const TrieNode children[] = {
@@ -57,7 +60,12 @@ int main() {
     submit(interpreter, "T 1");
     submit(interpreter, "T 1,\"one\"");
     submit(interpreter, "T 1,\"one\",\"two\"");
-    assert((target.observedCounts == std::vector<size_t>{1, 2, 3}));
+    submit(interpreter, "T 1,2");
+    submit(interpreter, "T 1,\"2\"");
+    assert((target.observedCounts == std::vector<size_t>{1, 2, 3, 2, 2}));
+    assert((target.observedSecondTypes == std::vector<ParameterType>{
+        ParameterType::Invalid, ParameterType::String, ParameterType::String,
+        ParameterType::Number, ParameterType::String}));
 
     submit(interpreter, "T");
     assert(!interpreter.errorQueue.empty());

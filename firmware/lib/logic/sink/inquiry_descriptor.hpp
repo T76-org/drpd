@@ -58,11 +58,17 @@ enum class InquiryParameterKind : uint8_t {
     None,
     ManufacturerInfo,
     CountryCode,
+    BatteryReference,
 };
 
 struct EncodedInquiryBody {
     std::array<uint8_t, 4> bytes{};
     uint8_t length = 0;
+};
+
+struct EncodedExtendedInquiryFrame {
+    std::array<uint8_t, 4> bytes{};
+    bool valid = false;
 };
 
 struct InquiryResponseDescriptor {
@@ -146,6 +152,8 @@ struct SinkInquiryDescriptor {
                 (selector & 0xffff0000u) == 0 &&
                 first >= 'A' && first <= 'Z' && second >= 'A' && second <= 'Z';
         }
+        case InquiryParameterKind::BatteryReference:
+            return target == 0 && argument <= 7 && selector == 0;
     }
     return false;
 }
@@ -167,8 +175,29 @@ struct SinkInquiryDescriptor {
         result.bytes[2] = static_cast<uint8_t>((selector >> 8) & 0xff);
         result.bytes[3] = static_cast<uint8_t>(selector & 0xff);
         result.length = 4;
+    } else if (descriptor.parameterKind == InquiryParameterKind::BatteryReference) {
+        result.bytes[0] = static_cast<uint8_t>(argument);
+        result.length = 1;
     }
     return result;
+}
+
+/** Encode a single-chunk Extended request body including Extended Header. */
+[[nodiscard]] constexpr EncodedExtendedInquiryFrame encodeExtendedInquiryFrame(
+    const SinkInquiryDescriptor& descriptor,
+    uint32_t target,
+    uint32_t argument,
+    uint32_t selector) {
+    EncodedExtendedInquiryFrame frame;
+    if (descriptor.requestClass != InquiryMessageClass::Extended) return frame;
+    const auto body = encodeInquiryBody(descriptor, target, argument, selector);
+    if (body.length == 0 || body.length > 2) return frame;
+    // Data Size B8..0 plus Chunked B15. Request Chunk and Chunk Number are zero.
+    const uint16_t header = static_cast<uint16_t>(0x8000u | body.length);
+    frame.bytes = {static_cast<uint8_t>(header & 0xff),
+        static_cast<uint8_t>((header >> 8) & 0xff), body.bytes[0], body.bytes[1]};
+    frame.valid = true;
+    return frame;
 }
 
 /** Verify response fields which echo a request selector. */
@@ -197,6 +226,17 @@ struct SinkInquiryDescriptor {
     // Country_Info CIDB reserved bytes Shall be zero.
     if (descriptor.parameterKind == InquiryParameterKind::CountryCode) {
         return payload.size() >= 4 && payload[2] == 0 && payload[3] == 0;
+    }
+    if (descriptor.response.messageClass == InquiryMessageClass::Extended &&
+        descriptor.response.messageType == 0x05) {
+        return payload.size() == 9 && (payload[8] & 0xfeu) == 0;
+    }
+    if (descriptor.response.messageClass == InquiryMessageClass::Data &&
+        descriptor.response.messageType == 0x05) {
+        if (payload.size() != 4 || payload[0] != 0 || (payload[1] & 0xf0u) != 0) return false;
+        const bool present = (payload[1] & 0x02u) != 0;
+        const uint8_t charging = static_cast<uint8_t>((payload[1] >> 2) & 0x03u);
+        return present ? charging != 3 : charging == 0;
     }
     return true;
 }

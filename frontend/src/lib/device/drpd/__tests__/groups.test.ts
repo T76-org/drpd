@@ -337,6 +337,8 @@ describe('DRPD command groups', () => {
     await group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: 3 })
     await group.sendInquiryRequest({ type: SinkInquiryType.GET_COUNTRY_CODES })
     await group.sendInquiryRequest({ type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: 'ca' })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_BATTERY_CAP, batteryReference: 0 })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference: 7 })
     await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: 8 })).rejects.toThrow('0 to 7')
     await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT', batteryReference: 1 } as never)).rejects.toThrow('must not include')
     await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'CABLE' } as never)).rejects.toThrow('PORT or BATTERY')
@@ -362,6 +364,8 @@ describe('DRPD command groups', () => {
       { command: 'SINK:INQ', params: [{ raw: 'GET_MANUFACTURER_INFO' }, 'BATTERY', 3] },
       { command: 'SINK:INQ', params: [{ raw: 'GET_COUNTRY_CODES' }] },
       { command: 'SINK:INQ', params: [{ raw: 'GET_COUNTRY_INFO' }, 'CA'] },
+      { command: 'SINK:INQ', params: [{ raw: 'GET_BATTERY_CAP' }, 0] },
+      { command: 'SINK:INQ', params: [{ raw: 'GET_BATTERY_STATUS' }, 7] },
     ])
   })
 

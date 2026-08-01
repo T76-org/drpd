@@ -6,6 +6,7 @@ Unit tests for the DeviceSink class.
 
 import asyncio
 import unittest
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 from t76.drpd.device.device_sink import (
@@ -19,11 +20,19 @@ from t76.drpd.device.device_sink_pdos import (
     VariablePDO,
 )
 from t76.drpd.device.types import (
+    BatteryCapabilitiesInquiryData,
+    BatteryCapacityMeaning,
+    BatteryChargingState,
+    BatteryInquiryFailureAction,
+    BatteryReferenceKind,
+    BatteryStatusInquiryData,
     CountryCodesInquiryData,
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
     ExtendedSourceCapabilitiesInquiryData,
     GetExtendedSourceCapabilitiesInquiryRequest,
+    GetBatteryCapabilitiesInquiryRequest,
+    GetBatteryStatusInquiryRequest,
     GetCountryCodesInquiryRequest,
     GetCountryInfoInquiryRequest,
     GetManufacturerInfoInquiryRequest,
@@ -990,6 +999,254 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
                 "SINK:INQ GET_REVISION",
             ],
         )
+
+    async def test_battery_request_encoding_and_reference_meaning(self) -> None:
+        fixed = GetBatteryCapabilitiesInquiryRequest(3)
+        hot = GetBatteryStatusInquiryRequest(4)
+        self.assertEqual(fixed.reference_kind, BatteryReferenceKind.FIXED)
+        self.assertEqual(fixed.slot_index, 3)
+        self.assertEqual(hot.reference_kind, BatteryReferenceKind.HOT_SWAPPABLE)
+        self.assertEqual(hot.slot_index, 0)
+
+        await self.device_sink.send_inquiry(fixed)
+        await self.device_sink.send_inquiry(hot)
+
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            ["SINK:INQ GET_BATTERY_CAP,3", "SINK:INQ GET_BATTERY_STATUS,4"],
+        )
+        for invalid in (-1, 8, 1.0, True):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                GetBatteryCapabilitiesInquiryRequest(invalid)  # type: ignore[arg-type]
+
+    async def test_battery_capabilities_exact_units_and_sentinels(self) -> None:
+        bodies = [
+            b"\x34\x12\x78\x56\x10\x00\x08\x00\x00",
+            b"\x00\x00\x00\x00\x00\x00\xff\xff\x01",
+        ]
+        for request_id, body in enumerate(bodies, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"RESPONSE,{request_id},GET_BATTERY_CAP,0,5,9"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetBatteryCapabilitiesInquiryRequest(0),
+                poll_interval_seconds=0,
+            )
+            assert isinstance(result.decoded, BatteryCapabilitiesInquiryData)
+            if request_id == 1:
+                self.assertEqual(result.decoded.vendor_id, 0x1234)
+                self.assertEqual(result.decoded.product_id, 0x5678)
+                self.assertEqual(
+                    result.decoded.design_capacity.watt_hours, Decimal("1.6")
+                )
+                self.assertEqual(
+                    result.decoded.last_full_charge_capacity.watt_hours,
+                    Decimal("0.8"),
+                )
+                self.assertTrue(result.decoded.battery_present)
+            else:
+                self.assertTrue(result.decoded.invalid_battery_reference)
+                self.assertFalse(result.decoded.battery_present)
+                self.assertEqual(
+                    result.decoded.design_capacity.meaning,
+                    BatteryCapacityMeaning.BATTERY_NOT_PRESENT,
+                )
+                self.assertEqual(
+                    result.decoded.last_full_charge_capacity.meaning,
+                    BatteryCapacityMeaning.UNKNOWN,
+                )
+
+    async def test_battery_status_exact_units_and_wire_flags(self) -> None:
+        raw = (0x1234 << 16) | (1 << 8) | (1 << 9) | (1 << 10)
+        body = raw.to_bytes(4, "little")
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_BATTERY_STATUS,2,5,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(body)
+
+        result = await SinkInquiryRunner(self.device_sink).run(
+            GetBatteryStatusInquiryRequest(7), poll_interval_seconds=0
+        )
+
+        assert isinstance(result.decoded, BatteryStatusInquiryData)
+        self.assertEqual(result.decoded.present_capacity_raw_tenths_wh, 0x1234)
+        self.assertEqual(
+            result.decoded.present_capacity_meaning,
+            BatteryCapacityMeaning.VALUE,
+        )
+        self.assertEqual(result.decoded.present_capacity_wh, Decimal("466.0"))
+        self.assertTrue(result.decoded.invalid_battery_reference)
+        self.assertTrue(result.decoded.battery_present)
+        self.assertEqual(
+            result.decoded.charging_state, BatteryChargingState.DISCHARGING
+        )
+
+    async def test_battery_response_shape_and_reserved_bits(self) -> None:
+        malformed = [
+            (GetBatteryCapabilitiesInquiryRequest(0), 0, 5, b"\x00" * 8),
+            (
+                GetBatteryCapabilitiesInquiryRequest(0),
+                0,
+                5,
+                b"\x00" * 8 + b"\x02",
+            ),
+            (GetBatteryStatusInquiryRequest(0), 2, 5, b"\x01\x00\x00\x00"),
+            (GetBatteryStatusInquiryRequest(0), 2, 5, b"\x00" * 5),
+            (
+                GetBatteryStatusInquiryRequest(0),
+                2,
+                5,
+                ((1 << 9) | (3 << 10)).to_bytes(4, "little"),
+            ),
+            (
+                GetBatteryStatusInquiryRequest(0),
+                2,
+                5,
+                (1 << 10).to_bytes(4, "little"),
+            ),
+        ]
+        for request_id, vector in enumerate(malformed, start=1):
+            request, response_class, response_type, body = vector
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},{request.type.value},"
+                    f"{response_class},{response_type},{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    request, poll_interval_seconds=0
+                )
+
+    async def test_battery_survey_uses_scedb_counts_and_serial_history(
+        self,
+    ) -> None:
+        statuses = []
+        types = [
+            ("GET_BATTERY_CAP", 0, 5, 9),
+            ("GET_BATTERY_STATUS", 2, 5, 4),
+            ("GET_BATTERY_CAP", 0, 5, 9),
+            ("GET_BATTERY_STATUS", 2, 5, 4),
+        ]
+        previous_type = "GET_REVISION"
+        for request_id, (name, response_class, response_type, length) in enumerate(
+            types, start=1
+        ):
+            statuses.extend([
+                [
+                    f"{'NONE' if request_id == 1 else 'RESPONSE'},"
+                    f"{request_id - 1},{previous_type},0,0,0"
+                ],
+                [
+                    f"RESPONSE,{request_id},{name},{response_class},"
+                    f"{response_type},{length}"
+                ],
+            ])
+            previous_type = name
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x01\x00\x02\x00\x10\x00\x08\x00\x00"),
+            list(((10 << 16) | (1 << 9)).to_bytes(4, "little")),
+            list(b"\x03\x00\x04\x00\x20\x00\x18\x00\x00"),
+            list(((20 << 16) | (1 << 9) | (2 << 10)).to_bytes(4, "little")),
+        ]
+        scedb = ExtendedSourceCapabilitiesInquiryData(
+            25, 0, 0, 0, 0, 0, 0, 0, 0, 0, (0, 0, 0), 0, 0, 1, 1, 0, 0,
+            True,
+        )
+
+        survey = await self.device_sink.inquiry_runner.run_battery_survey(
+            extended_source_capabilities=scedb,
+            poll_interval_seconds=0,
+        )
+
+        self.assertEqual(survey.battery_references, (0, 4))
+        self.assertTrue(survey.used_extended_source_counts)
+        self.assertFalse(survey.stopped_early)
+        self.assertEqual(len(survey.inquiry_results), 4)
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 4)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ GET_BATTERY_CAP,0",
+                "SINK:INQ GET_BATTERY_STATUS,0",
+                "SINK:INQ GET_BATTERY_CAP,4",
+                "SINK:INQ GET_BATTERY_STATUS,4",
+            ],
+        )
+
+    async def test_battery_survey_bounds_and_failure_controls(self) -> None:
+        runner = self.device_sink.inquiry_runner
+        with self.assertRaisesRegex(ValueError, "unique"):
+            await runner.run_battery_survey((0, 0))
+        with self.assertRaisesRegex(ValueError, "at least one"):
+            await runner.run_battery_survey(())
+        oversized_counts = ExtendedSourceCapabilitiesInquiryData(
+            25, 0, 0, 0, 0, 0, 0, 0, 0, 0, (0, 0, 0), 0, 0, 5, 0, 0, 0,
+            True,
+        )
+        with self.assertRaisesRegex(ValueError, "counts exceed"):
+            await runner.run_battery_survey(
+                extended_source_capabilities=oversized_counts
+            )
+
+        zero_counts = ExtendedSourceCapabilitiesInquiryData(
+            25, 0, 0, 0, 0, 0, 0, 0, 0, 0, (0, 0, 0), 0, 0, 0, 0, 0, 0,
+            True,
+        )
+        empty = await runner.run_battery_survey(
+            extended_source_capabilities=zero_counts
+        )
+        self.assertEqual(empty.battery_references, ())
+        self.assertEqual(empty.inquiry_results, ())
+        self.assertTrue(empty.used_extended_source_counts)
+        self.assertFalse(empty.stopped_early)
+        self.mock_internal.write_ascii_and_check.assert_not_awaited()
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_BATTERY_CAP,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_BATTERY_CAP,0,0,0"],
+            ["RESPONSE,2,GET_BATTERY_STATUS,2,5,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            ((1 << 9) | (2 << 10)).to_bytes(4, "little")
+        )
+        survey = await runner.run_battery_survey(
+            (0,),
+            failure_action=BatteryInquiryFailureAction.CONTINUE,
+            poll_interval_seconds=0,
+        )
+        self.assertFalse(survey.stopped_early)
+        self.assertEqual(len(survey.inquiry_results), 2)
+
+    async def test_battery_status_unknown_capacity_preserves_raw(self) -> None:
+        raw = (0xFFFF << 16) | (1 << 8)
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_BATTERY_STATUS,2,5,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            raw.to_bytes(4, "little")
+        )
+
+        result = await SinkInquiryRunner(self.device_sink).run(
+            GetBatteryStatusInquiryRequest(7), poll_interval_seconds=0
+        )
+
+        assert isinstance(result.decoded, BatteryStatusInquiryData)
+        self.assertEqual(result.decoded.present_capacity_raw_tenths_wh, 0xFFFF)
+        self.assertEqual(
+            result.decoded.present_capacity_meaning,
+            BatteryCapacityMeaning.UNKNOWN,
+        )
+        self.assertIsNone(result.decoded.present_capacity_wh)
+        self.assertTrue(result.decoded.invalid_battery_reference)
 
 
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):
