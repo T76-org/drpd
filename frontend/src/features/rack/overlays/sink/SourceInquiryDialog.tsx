@@ -481,7 +481,9 @@ export const SourceInquiryDialog = ({
       description={definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
         ? undefined
         : definition?.description}
-      dialogStyle={{ width: 'min(520px, calc(100vw - var(--space-32)))' }}
+      dialogStyle={{ width: definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
+        ? 'min(260px, calc(100vw - var(--space-32)))'
+        : 'min(520px, calc(100vw - var(--space-32)))' }}
       footer={definition?.confirmation && !confirmed ? (
         <>
           <DialogButton onClick={() => handleOpenChange(false)}>Cancel</DialogButton>
