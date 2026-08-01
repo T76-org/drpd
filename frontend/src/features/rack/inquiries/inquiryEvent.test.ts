@@ -104,6 +104,42 @@ describe('inquiry event presentation', () => {
     expect(event.eventData[0].entries.map(({ key }) => key)).toContain('Country 1 (bytes 2–3)')
   })
 
+  it('explains every Source Status field and its operational meaning', () => {
+    const request = { type: SinkInquiryType.GET_STATUS } as const
+    const raw = new Uint8Array([42, 0x0e, 0x21, 0x06, 0x04, 0x22, 0x12])
+    const event = presentInquiryResponse(request, response(request, raw, 0, 0x02))
+    expect(event.summary).toContain('Internal temperature:** 42 C')
+    expect(event.summary).toContain('External power present (AC)')
+    expect(event.summary).toContain('OCP event')
+    expect(event.summary).toContain('Warning')
+    expect(event.summary).toContain('Modern Standby')
+    const entries = event.eventData[0].entries
+    expect(entries).toContainEqual(expect.objectContaining({
+      key: 'Event Flags (byte 3)',
+      value: expect.stringContaining('reading Status clears'),
+    }))
+    expect(entries).toContainEqual(expect.objectContaining({
+      key: 'Power Status (byte 5)',
+      value: expect.stringContaining('limited by cable current'),
+    }))
+    expect(entries).toContainEqual(expect.objectContaining({
+      key: 'Power State Change (byte 6)',
+      value: expect.stringContaining('indicator behavior'),
+    }))
+  })
+
+  it('explains the valid six-byte Source Status form without inventing byte 6', () => {
+    const request = { type: SinkInquiryType.GET_STATUS } as const
+    const raw = new Uint8Array([0, 0, 0, 0, 0, 0])
+    const event = presentInquiryResponse(request, response(request, raw, 0, 0x02))
+    expect(event.summary).toContain('Internal temperature:** Unsupported')
+    expect(event.summary).toContain('Power state change:** Not present')
+    expect(event.eventData[0].entries).toContainEqual({
+      key: 'Power State Change (byte 6)',
+      value: '**Not present.** This is the valid six-byte Status Data Block form.',
+    })
+  })
+
   it('retains the explicit cable target and never claims SOP fallback', () => {
     const request = { type: SinkInquiryType.GET_STATUS, plug: SinkInquiryCablePlug.SOP_DOUBLE_PRIME } as const
     const raw = new Uint8Array([71, 1])

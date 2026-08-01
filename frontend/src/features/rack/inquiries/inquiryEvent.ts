@@ -14,6 +14,13 @@ import {
   parseSOPStatusDataBlock,
   parseSourceCapabilitiesExtendedDataBlock,
   parseSourceInfoDataObject,
+  formatInternalTemperature,
+  formatPowerStateChange,
+  formatPowerStatus,
+  formatPresentBatteryInput,
+  formatPresentInput,
+  formatStatusEventFlags,
+  formatTemperatureStatus,
   readDataObjects,
   type ParsedPDO,
 } from '../../../lib/device/drpd/usb-pd/DataObjects'
@@ -221,7 +228,44 @@ export const presentInquiryResponse = (request: SinkInquiryRequest, result: Extr
       return { title, summary: [`- **${cablePlugLabel(plug)} cable status:**`, `  - **Internal temperature:** ${status.internalTemp >= 2 ? `${status.internalTemp} °C` : status.internalTemp === 1 ? 'Below 2 °C' : 'Not supported'}`, `  - **Thermal shutdown:** ${(status.flags & 1) !== 0 ? 'Yes' : 'No'}`].join('\n'), eventData: [{ title: `${cablePlugLabel(plug)} Cable Status`, entries: [...targetEntry, { key: 'Internal Temperature (byte 0)', value: `${hex8(status.internalTemp)} — ${status.internalTemp >= 2 ? `${status.internalTemp} °C` : status.internalTemp === 1 ? 'below 2 °C' : 'not supported'}.` }, { key: 'Flags (byte 1)', value: `\`${hex8(status.flags)}\` (${binary(status.flags, 8)}); bit 0 thermal shutdown = ${(status.flags & 1) !== 0}; bits 7:1 reserved.` }, rawEntry] }] }
     }
     const status = parseSOPStatusDataBlock(raw)
-    return { title, summary: ['- **Source status:**', `  - **Internal temperature:** ${status.internalTemp} °C`, `  - **Present input:** ${hex8(status.presentInput)}`, `  - **Event flags:** ${hex8(status.eventFlags)}`, `  - **Temperature status:** ${hex8(status.temperatureStatus)}`, `  - **Power status:** ${hex8(status.powerStatus)}`, `  - **Power state change:** ${status.powerStateChange === null ? 'Not present' : hex8(status.powerStateChange)}`].join('\n'), eventData: [{ title: 'Source Status', entries: [{ key: 'Data Block Length', value: `${raw.length} bytes` }, ...Object.entries(status).map(([key, value]) => ({ key, value: typeof value === 'number' ? `\`${hex8(value)}\` (${binary(value, 8)})` : String(value) })), rawEntry] }] }
+    const temperatureMeaning = formatInternalTemperature(status.internalTemp)
+    const presentInputMeaning = formatPresentInput(status.presentInput)
+    const batteryInputMeaning = formatPresentBatteryInput(status.presentBatteryInput)
+    const eventMeaning = formatStatusEventFlags(status.eventFlags)
+    const temperatureStatusMeaning = formatTemperatureStatus(status.temperatureStatus)
+    const powerStatusMeaning = formatPowerStatus(status.powerStatus)
+    const powerStateMeaning = status.powerStateChange === null
+      ? 'Not present in the six-byte Status Data Block'
+      : formatPowerStateChange(status.powerStateChange)
+    return {
+      title,
+      summary: [
+        '- **Source status:**',
+        `  - **Internal temperature:** ${temperatureMeaning}`,
+        `  - **Input power:** ${presentInputMeaning}`,
+        `  - **Battery inputs:** ${batteryInputMeaning}`,
+        `  - **Latched events:** ${eventMeaning}`,
+        `  - **Temperature state:** ${temperatureStatusMeaning}`,
+        `  - **Power limitations:** ${powerStatusMeaning}`,
+        `  - **Power state change:** ${powerStateMeaning}`,
+      ].join('\n'),
+      eventData: [{
+        title: 'Source Status',
+        entries: [
+          { key: 'Data Block Length', value: `**${raw.length} bytes** — ${status.sixByteBlock ? 'legacy form without Power State Change' : 'seven-byte form including Power State Change'}.` },
+          { key: 'Internal Temperature (byte 0)', value: `**${temperatureMeaning}**; raw \`${hex8(status.internalTemp)}\`. A value of 0 means unsupported, 1 means below 2 °C, and values 2–255 are degrees Celsius.` },
+          { key: 'Present Input (byte 1)', value: `**${presentInputMeaning}**\n\nBit 1: external power present; bit 2: external input type (1 = AC, 0 = DC); bit 3: internal battery power; bit 4: internal non-battery power; bits 7:5 and 0 are reserved. Raw \`${hex8(status.presentInput)}\` (${binary(status.presentInput, 8)}).` },
+          { key: 'Present Battery Input (byte 2)', value: `**${batteryInputMeaning}**\n\nBits 3:0 are presence flags for fixed batteries 3–0. Bits 7:4 are presence flags for hot-swappable batteries 3–0. Raw \`${hex8(status.presentBatteryInput)}\` (${binary(status.presentBatteryInput, 8)}).` },
+          { key: 'Event Flags (byte 3)', value: `**${eventMeaning}**\n\nBit 1: over-current event; bit 2: over-temperature event; bit 3: over-voltage event; bit 4: PPS current-limit mode; bits 7:5 and 0 are reserved. These flags are latched, and reading Status clears the Source's OCP, OTP, and OVP event indications. Raw \`${hex8(status.eventFlags)}\` (${binary(status.eventFlags, 8)}).` },
+          { key: 'Temperature Status (byte 4)', value: `**${temperatureStatusMeaning}**\n\nBits 2:1 encode Not Supported, Normal, Warning, or Over temperature. Bits 7:3 and bit 0 are reserved. Raw \`${hex8(status.temperatureStatus)}\` (${binary(status.temperatureStatus, 8)}).` },
+          { key: 'Power Status (byte 5)', value: `**${powerStatusMeaning}**\n\nBit 1: limited by cable current; bit 2: limited while sourcing other ports; bit 3: insufficient external power; bit 4: limited by an active event flag; bit 5: temperature limited; bits 7:6 and 0 are reserved. Raw \`${hex8(status.powerStatus)}\` (${binary(status.powerStatus, 8)}).` },
+          { key: 'Power State Change (byte 6)', value: status.powerStateChange === null
+            ? '**Not present.** This is the valid six-byte Status Data Block form.'
+            : `**${powerStateMeaning}**\n\nBits 2:0 identify the new system power state; bits 5:3 identify the associated indicator behavior; bits 7:6 are reserved. Raw \`${hex8(status.powerStateChange)}\` (${binary(status.powerStateChange, 8)}).` },
+          rawEntry,
+        ],
+      }],
+    }
   }
 
   if (request.type === SinkInquiryType.GET_SOURCE_INFO) {

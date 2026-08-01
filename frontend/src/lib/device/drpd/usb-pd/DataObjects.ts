@@ -2433,7 +2433,7 @@ export const formatPeakCurrentField = (value: number): string => {
   return `0b${value.toString(2).padStart(16, '0')} (Percent overload: ${Math.min(percentOverload, 25) * 10}%; Overload period: ${overloadPeriod * 20} ms; Duty cycle: ${dutyCycle * 5}%; VBUS voltage droop: ${droop ? 'set' : 'clear'})`
 }
 
-const formatPresentInput = (value: number): string => {
+export const formatPresentInput = (value: number): string => {
   const meanings: string[] = []
   if ((value & (1 << 1)) !== 0) meanings.push(`External power present (${(value & (1 << 2)) !== 0 ? 'AC' : 'DC'})`)
   if ((value & (1 << 3)) !== 0) meanings.push('Internal power from Battery')
@@ -2441,13 +2441,13 @@ const formatPresentInput = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
-const formatPresentBatteryInput = (value: number): string => {
+export const formatPresentBatteryInput = (value: number): string => {
   const fixed = value & 0x0f
   const hotSwap = (value >> 4) & 0x0f
   return `0b${value.toString(2).padStart(8, '0')} (Fixed Batteries: 0b${fixed.toString(2).padStart(4, '0')}; Hot Swappable Batteries: 0b${hotSwap.toString(2).padStart(4, '0')})`
 }
 
-const formatStatusEventFlags = (value: number): string => {
+export const formatStatusEventFlags = (value: number): string => {
   const meanings: string[] = []
   if ((value & (1 << 1)) !== 0) meanings.push('OCP event')
   if ((value & (1 << 2)) !== 0) meanings.push('OTP event')
@@ -2456,7 +2456,7 @@ const formatStatusEventFlags = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
-const formatTemperatureStatus = (value: number): string => {
+export const formatTemperatureStatus = (value: number): string => {
   const code = (value >> 1) & 0b11
   switch (code) {
     case 0b00: return `0b${value.toString(2).padStart(8, '0')} (Not Supported)`
@@ -2467,7 +2467,7 @@ const formatTemperatureStatus = (value: number): string => {
   }
 }
 
-const formatPowerStatus = (value: number): string => {
+export const formatPowerStatus = (value: number): string => {
   const meanings: string[] = []
   if ((value & (1 << 1)) !== 0) meanings.push('Source power limited due to cable supported current')
   if ((value & (1 << 2)) !== 0) meanings.push('Source power limited while sourcing other ports')
@@ -2477,7 +2477,7 @@ const formatPowerStatus = (value: number): string => {
   return formatBitfieldWithMeanings(value, 8, meanings)
 }
 
-const formatInternalTemperature = (value: number): string => {
+export const formatInternalTemperature = (value: number): string => {
   if (value === 0) {
     return 'Unsupported'
   }
@@ -2487,7 +2487,7 @@ const formatInternalTemperature = (value: number): string => {
   return `${value} C`
 }
 
-const formatPowerStateChange = (value: number): string => {
+export const formatPowerStateChange = (value: number): string => {
   const state = value & 0b111
   const indicator = (value >> 3) & 0b111
   const stateText = ['Status not supported', 'S0', 'Modern Standby', 'S3', 'S4', 'S5', 'G3', 'Reserved'][state] ?? 'Reserved'
