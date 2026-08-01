@@ -96,8 +96,15 @@
 }
 
 .eventSummary {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.eventSummary > :first-child {
+  margin-top: 0;
+}
+
+.eventSummary > :last-child {
+  margin-bottom: 0;
 }
 
 :global(:root[data-high-contrast='true']) .section {

@@ -800,9 +800,9 @@ export const DrpdMessageDetailInstrumentView = ({
                                 <span className={styles.metadataLabelText}>Details</span>
                               </th>
                               <td className={styles.metadataValueCell}>
-                                <span className={`${styles.scalarValue} ${styles.eventSummary}`}>
-                                  {visibleSelection.summary}
-                                </span>
+                                <div className={`${styles.scalarValue} ${styles.eventSummary}`}>
+                                  <ReactMarkdown skipHtml>{visibleSelection.summary}</ReactMarkdown>
+                                </div>
                               </td>
                             </tr>
                           ) : null}

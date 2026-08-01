@@ -193,7 +193,7 @@ describe('DrpdMessageDetailInstrumentView', () => {
     const row = buildMessageRow({
       entryKind: 'event',
       eventType: 'mark',
-      eventText: 'INQUIRY - Battery status\nBattery 0: Present\nBattery 1: Not Supported',
+      eventText: 'INQUIRY - Battery status\n- Battery 0: **Present**\n- Battery 1: Not Supported\n<script>alert(1)</script>',
       startTimestampUs: 1_020n,
       endTimestampUs: 1_020n,
       createdAtMs: 1_700_000_000_120,
@@ -212,9 +212,11 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(within(details).getByText('INQUIRY - Battery status')).toBeInTheDocument()
     const detailsLabel = within(details).getByRole('rowheader', { name: 'Details' })
     expect(detailsLabel).toBeInTheDocument()
-    expect(detailsLabel.parentElement?.querySelector('td')?.textContent).toBe(
-      'Battery 0: Present\nBattery 1: Not Supported',
-    )
+    const detailsCell = detailsLabel.parentElement?.querySelector('td')
+    expect(detailsCell).toHaveTextContent('Battery 0: Present Battery 1: Not Supported')
+    expect(detailsCell?.querySelector('strong')?.textContent).toBe('Present')
+    expect(detailsCell?.querySelectorAll('li')).toHaveLength(2)
+    expect(detailsCell?.querySelector('script')).toBeNull()
     await userEvent.click(eventToggle)
     expect(eventToggle).toHaveAttribute('aria-expanded', 'false')
     expect(within(details).queryByRole('rowheader', { name: 'Title' })).not.toBeInTheDocument()
