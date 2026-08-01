@@ -1741,8 +1741,9 @@ export const RackView = ({
     if (definition.type === SinkInquiryType.GET_BATTERY_CAP) {
       setDeviceError(null)
       void surveyBatteryCapabilities(activeDriver.sink)
-        .then(({ summary }) => activeDriver.markLog(
+        .then(({ summary, eventData }) => activeDriver.markLog(
           `${BATTERY_CAPABILITIES_EVENT_TITLE}\n${summary}`,
+          eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
