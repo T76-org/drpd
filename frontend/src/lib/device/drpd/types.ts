@@ -803,8 +803,6 @@ export interface DRPDDeviceState {
   sinkPdoList: SinkPdo[] | null
   ///< Sink EPR entry policy, or null if unknown.
   sinkEprEnabled: boolean | null
-  ///< Sink PPS status query policy, or null if unknown.
-  sinkPpsStatusQueryEnabled: boolean | null
   ///< Current message-log selection state.
   logSelection: DRPDLogSelectionState
 }
