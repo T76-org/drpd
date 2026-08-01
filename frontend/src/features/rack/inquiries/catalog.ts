@@ -133,7 +133,7 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   },
   {
     id: 'get-country-information', type: SinkInquiryType.GET_COUNTRY_INFO,
-    label: 'Get country information…', description: 'Discover supported country codes, then request one selected record or all records.',
+    label: 'Get country information', description: 'Discover supported country codes, then request every advertised record.',
     workflow: 'guided', parameters: [{ kind: 'country-code', name: 'countryCode', label: 'Country code' }], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: String(values.countryCode).toUpperCase() }),
