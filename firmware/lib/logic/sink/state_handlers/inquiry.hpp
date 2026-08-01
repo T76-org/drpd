@@ -1,4 +1,5 @@
 #pragma once
+#include "../authentication_inquiry.hpp"
 
 #include "../state_handler.hpp"
 
@@ -16,6 +17,7 @@ private:
     alarm_id_t _responseTimeoutAlarmId = -1;
     alarm_id_t _retryAlarmId = -1;
     uint32_t _requestId = 0;
+    AuthenticationChunkRequestState _authenticationChunkState;
     bool _sent = false;
     static int64_t _onResponseTimeout(alarm_id_t, void*);
     static int64_t _onRetryTimeout(alarm_id_t, void*);

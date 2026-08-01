@@ -13,6 +13,10 @@ from typing import TYPE_CHECKING, Deque, Optional
 
 from t76.drpd.device.device_sink_pdos import DeviceSinkPDO
 from t76.drpd.device.types import (
+    AuthenticationCertificateInquiryData,
+    AuthenticationChallengeInquiryData,
+    AuthenticationDigestsInquiryData,
+    AuthenticationErrorInquiryData,
     BatteryCapabilitiesInquiryData,
     BatteryCapacity,
     BatteryCapacityMeaning,
@@ -28,6 +32,7 @@ from t76.drpd.device.types import (
     CableRevisionInquiryRequest,
     CableStatusInquiryData,
     CableStatusInquiryRequest,
+    ChallengeInquiryRequest,
     CountryCodesInquiryData,
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
@@ -39,6 +44,8 @@ from t76.drpd.device.types import (
     DiscoverSVIDsInquiryData,
     DiscoverSVIDsInquiryRequest,
     ExtendedSourceCapabilitiesInquiryData,
+    GetCertificateInquiryRequest,
+    GetDigestsInquiryRequest,
     GetCountryCodesInquiryRequest,
     GetCountryInfoInquiryRequest,
     GetBatteryCapabilitiesInquiryRequest,
@@ -605,6 +612,9 @@ def _decode_inquiry_response(
         SinkInquiryType.DISCOVER_IDENTITY: (2, 0x0F),
         SinkInquiryType.DISCOVER_SVIDS: (2, 0x0F),
         SinkInquiryType.DISCOVER_MODES: (2, 0x0F),
+        SinkInquiryType.GET_DIGESTS: (0, 0x09),
+        SinkInquiryType.GET_CERTIFICATE: (0, 0x09),
+        SinkInquiryType.CHALLENGE: (0, 0x09),
     }
     expected_class, expected_type = expected_metadata[inquiry_type]
     if (
@@ -616,6 +626,58 @@ def _decode_inquiry_response(
             f"expected class/type {expected_class}/{expected_type}, got "
             f"{status.response_class}/{status.response_type}"
         )
+
+    if inquiry_type in (
+        SinkInquiryType.GET_DIGESTS,
+        SinkInquiryType.GET_CERTIFICATE,
+        SinkInquiryType.CHALLENGE,
+    ):
+        if len(body) < 4 or len(body) > 260:
+            raise ValueError("Authentication body must contain 4 to 260 bytes")
+        version, response_type, parameter1, parameter2 = body[:4]
+        if version not in (0x10, 0x01):
+            raise ValueError("Unsupported authentication protocol version")
+        if response_type == 0x7F:
+            if len(body) != 4:
+                raise ValueError("Authentication ERROR body must be exactly 4 bytes")
+            return AuthenticationErrorInquiryData(parameter1, parameter2)
+        expected_auth_type = {
+            SinkInquiryType.GET_DIGESTS: 0x01,
+            SinkInquiryType.GET_CERTIFICATE: 0x02,
+            SinkInquiryType.CHALLENGE: 0x03,
+        }[inquiry_type]
+        if response_type != expected_auth_type:
+            raise ValueError("Authentication response type does not match request")
+        if inquiry_type == SinkInquiryType.GET_DIGESTS:
+            if parameter1 != 0x01:
+                raise ValueError("DIGESTS capabilities must advertise USB authentication")
+            slots = tuple(slot for slot in range(8) if parameter2 & (1 << slot))
+            if len(body) != 4 + 32 * len(slots):
+                raise ValueError("DIGESTS length does not match populated slot mask")
+            return AuthenticationDigestsInquiryData(parameter2, tuple(
+                (slot, body[4 + index * 32:36 + index * 32])
+                for index, slot in enumerate(slots)
+            ))
+        if inquiry_type == SinkInquiryType.GET_CERTIFICATE:
+            if not isinstance(request, GetCertificateInquiryRequest):
+                raise ValueError("CERTIFICATE response has incompatible request")
+            if parameter1 != request.slot or parameter2 != 0:
+                raise ValueError("CERTIFICATE response does not correlate with slot")
+            part = body[4:]
+            if not part or request.offset + len(part) > 4096 or len(part) > request.length:
+                raise ValueError("CERTIFICATE part violates progress/request/chain bounds")
+            return AuthenticationCertificateInquiryData(request.slot, request.offset, part)
+        if not isinstance(request, ChallengeInquiryRequest):
+            raise ValueError("CHALLENGE_AUTH response has incompatible request")
+        if parameter1 != request.slot or len(body) != 168:
+            raise ValueError("CHALLENGE_AUTH response does not correlate or has wrong length")
+        if not parameter2 & (1 << request.slot):
+            raise ValueError("CHALLENGE_AUTH slot mask omits selected slot")
+        if body[4:8] != b"\x01\x01\x01\x00":
+            raise ValueError("CHALLENGE_AUTH version/capabilities/reserved fields are invalid")
+        if any(body[72:104]):
+            raise ValueError("CHALLENGE_AUTH PD Source context hash must be all zero")
+        return AuthenticationChallengeInquiryData(request.slot, body[:104], body[104:])
 
     if inquiry_type == SinkInquiryType.GET_SOURCE_CAP:
         if not 4 <= len(body) <= 28 or len(body) % 4:
@@ -1181,6 +1243,16 @@ class DeviceSink:
         """Start an enum-compatible or semantic Sink-to-Source inquiry."""
         if isinstance(inquiry, SinkInquiryType):
             command = f"SINK:INQ {inquiry.value}"
+        elif isinstance(inquiry, GetCertificateInquiryRequest):
+            command = (
+                f"SINK:INQ {inquiry.type.value},{inquiry.slot},"
+                f"{inquiry.offset},{inquiry.length}"
+            )
+        elif isinstance(inquiry, ChallengeInquiryRequest):
+            command = (
+                f'SINK:INQ {inquiry.type.value},{inquiry.slot},'
+                f'"{inquiry.nonce.hex().upper()}"'
+            )
         elif isinstance(inquiry, CableDiscoverModesInquiryRequest):
             command = (
                 f'SINK:INQ {inquiry.type.value},"{inquiry.plug.value}",'

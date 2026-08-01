@@ -15,9 +15,132 @@ Discovery, device connection, SCPI-backed controllers, events, and device data t
 
 **Source:** `python/t76/drpd/device/__init__.py`
 
-**Exports:** `AccumulatedMeasurements`, `AnalogMonitorChannels`, `CCBusState`, `CCChannel`, `Device`, `DeviceInfo`, `DeviceStatusFlags`, `DiagnosticCCChannel`, `DiagnosticCCRole`, `MemoryUsage`, `Mode`, `OnOffStatus`, `ResistorStatus`, `SinkInquiryOutcome`, `SinkInquiryStatus`, `SinkInquiryType`, `SinkRequestOutcome`, `SinkRequestStatus`, `SinkState`, `TriggerMessageTypeFilter`, `TriggerMessageTypeFilterClass`, `TriggerSenderFilter`, `TriggerStatus`, `TriggerSyncMode`, `TriggerType`, `VBusState`, `find_drpd_devices`
+**Exports:** `AccumulatedMeasurements`, `AnalogMonitorChannels`, `BatteryCapabilitiesInquiryData`, `BatteryCapacity`, `BatteryCapacityMeaning`, `BatteryChargingState`, `BatteryInquiryFailureAction`, `BatteryReferenceKind`, `BatteryStatusInquiryData`, `BatterySurveyResult`, `CableDiscoverIdentityInquiryRequest`, `CableDiscoverModesInquiryRequest`, `CableDiscoverSVIDsInquiryRequest`, `CableManufacturerInfoInquiryRequest`, `CablePlug`, `CableRevisionInquiryRequest`, `CableStatusInquiryData`, `CableStatusInquiryRequest`, `CCBusState`, `CCChannel`, `Device`, `DeviceInfo`, `DeviceStatusFlags`, `DiagnosticCCChannel`, `DiagnosticCCRole`, `DiscoverIdentityInquiryData`, `DiscoverIdentityInquiryRequest`, `DiscoverModesInquiryData`, `DiscoverModesInquiryRequest`, `DiscoverSVIDsInquiryData`, `DiscoverSVIDsInquiryRequest`, `CountryCodesInquiryData`, `CountryInfoInquiryData`, `CountryInquiryFailureAction`, `CountryInquiryWorkflowResult`, `ExtendedSourceCapabilitiesInquiryData`, `GetExtendedSourceCapabilitiesInquiryRequest`, `GetBatteryCapabilitiesInquiryRequest`, `GetBatteryStatusInquiryRequest`, `GetCountryCodesInquiryRequest`, `GetCountryInfoInquiryRequest`, `GetManufacturerInfoInquiryRequest`, `GetPPSStatusInquiryRequest`, `GetRevisionInquiryRequest`, `GetSourceCapabilitiesInquiryRequest`, `GetSourceInfoInquiryRequest`, `GetStatusInquiryRequest`, `MemoryUsage`, `Mode`, `ManufacturerInfoInquiryData`, `ManufacturerInfoTarget`, `OnOffStatus`, `ResistorStatus`, `SinkInquiryOutcome`, `SinkInquiryDecodedData`, `SinkInquiryRequest`, `SinkInquiryResult`, `SinkInquiryRunner`, `SinkInquiryStatus`, `SinkInquirySupersededError`, `SinkInquiryType`, `PPSStatusInquiryData`, `RevisionInquiryData`, `SinkRequestOutcome`, `SinkRequestStatus`, `SinkState`, `SourceCapabilitiesInquiryData`, `SourceInfoInquiryData`, `SourceStatusInquiryData`, `StructuredVDMHeaderData`, `StructuredVDMNegativeResponseData`, `TriggerMessageTypeFilter`, `TriggerMessageTypeFilterClass`, `TriggerSenderFilter`, `TriggerStatus`, `TriggerSyncMode`, `TriggerType`, `VBusState`, `VDMDiscoveryFailureAction`, `VDMDiscoveryWorkflowResult`, `find_drpd_devices`
 
 No public classes or functions defined directly in this module.
+
+## `t76.drpd.device.authentication`
+
+**Source:** `python/t76/drpd/device/authentication.py`
+
+Deterministic USB Type-C Authentication verification primitives.
+
+### `t76.drpd.device.authentication.AuthenticationTrustAnchor`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Explicit offline USB authentication root; OS/Web PKI is never consulted.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `root_certificate_der` | bytes | — |
+| `root_hash` | bytes | — |
+| `disabled` | bool | False |
+| `denied_fingerprints` | frozenset[bytes] | frozenset() |
+
+
+
+
+### `t76.drpd.device.authentication.AuthenticationVerificationError`
+
+**Kind:** class
+
+**Bases:** `ValueError`
+
+Failure tagged by transport/parse/signature/chain/trust/policy layer.
+
+
+
+
+
+### `t76.drpd.device.authentication.generate_challenge_nonce`
+
+**Kind:** function
+
+```python
+def generate_challenge_nonce() -> bytes
+```
+
+Return one fresh 32-byte platform-CSPRNG nonce.
+
+
+
+
+
+### `t76.drpd.device.authentication.certificate_chain_digest`
+
+**Kind:** function
+
+```python
+def certificate_chain_digest(chain: bytes) -> bytes
+```
+
+Return the protocol SHA-256 digest of the exact chain bytes.
+
+
+
+
+
+### `t76.drpd.device.authentication.signature_little_endian_to_p1363`
+
+**Kind:** function
+
+```python
+def signature_little_endian_to_p1363(signature: bytes) -> bytes
+```
+
+Convert USB Auth little-endian r||s to fixed-width big-endian P1363.
+
+
+
+
+
+### `t76.drpd.device.authentication.challenge_transcript`
+
+**Kind:** function
+
+```python
+def challenge_transcript(request_body: bytes, response_body: bytes) -> bytes
+```
+
+Build the exact signed transcript: 36 request bytes + first 104 response bytes.
+
+
+
+
+
+### `t76.drpd.device.authentication.verify_challenge_signature`
+
+**Kind:** function
+
+```python
+def verify_challenge_signature(public_key: object, request_body: bytes, response_body: bytes) -> None
+```
+
+Verify ECDSA-P256/SHA-256; raises a layer-specific deterministic failure.
+
+
+
+
+
+### `t76.drpd.device.authentication.verify_certificate_chain`
+
+**Kind:** function
+
+```python
+def verify_certificate_chain(certificate_chain: tuple[bytes, ...], anchor: AuthenticationTrustAnchor | None, *, expected_vid: int | None = None, expected_pid: int | None = None, wire_root_hash: bytes | None = None, slot: int | None = None, allowed_slots: frozenset[int] | None = None) -> x509.Certificate
+```
+
+Verify exact wire-order product chain against one explicit offline anchor.
+
+
+
+
 
 ## `t76.drpd.device.device`
 
@@ -305,6 +428,52 @@ Represents comprehensive information about the sink system of the DRPD device.
 
 
 
+### `t76.drpd.device.device_sink.SinkInquirySupersededError`
+
+**Kind:** class
+
+**Bases:** `RuntimeError`
+
+Raised when firmware's latest result no longer belongs to this run.
+
+
+
+
+
+### `t76.drpd.device.device_sink.SinkInquiryRunner`
+
+**Kind:** class
+
+Serialize, correlate, and retain semantic Sink inquiry executions.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `MAX_HISTORY` | — | 256 |
+| `MAX_POLLS` | — | 10000 |
+| `MAX_POLL_INTERVAL_SECONDS` | — | 60.0 |
+
+
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `history` | tuple[SinkInquiryResult, ...] | read-only | Return oldest-to-newest completed host-side inquiry history. |
+
+
+#### Public methods
+
+| Method | Declaration | Summary |
+| --- | --- | --- |
+| `run` | `async def run(self, request: SinkInquiryRequest, *, poll_interval_seconds: float = 0.01, max_polls: int = 1000) -> SinkInquiryResult` | Run one inquiry and return its correlated terminal result. |
+| `run_country_information` | `async def run_country_information(self, country_codes: tuple[str, ...] \| None = None, *, failure_action: CountryInquiryFailureAction = CountryInquiryFailureAction.STOP, max_retries: int = 1, max_countries: int = 12, poll_interval_seconds: float = 0.01, max_polls: int = 1000) -> CountryInquiryWorkflowResult` | Enumerate country codes, then fetch selected or all country data. |
+| `run_battery_survey` | `async def run_battery_survey(self, battery_references: tuple[int, ...] \| None = None, *, extended_source_capabilities: ExtendedSourceCapabilitiesInquiryData \| None = None, failure_action: BatteryInquiryFailureAction = BatteryInquiryFailureAction.STOP, max_retries: int = 1, poll_interval_seconds: float = 0.01, max_polls: int = 1000) -> BatterySurveyResult` | Survey Battery Capabilities then Status for bounded references. |
+| `run_vdm_discovery` | `async def run_vdm_discovery(self, selected_svids: tuple[int, ...] \| None = None, *, failure_action: VDMDiscoveryFailureAction = VDMDiscoveryFailureAction.STOP, max_retries: int = 1, max_svids: int = 64, max_svid_pages: int = 8, poll_interval_seconds: float = 0.01, max_polls: int = 1000, _cable_plug: CablePlug \| None = None) -> VDMDiscoveryWorkflowResult` | Diagnose SOP partner from UFP/Sink; SVIDs/Modes are optional. |
+| `run_cable_vdm_discovery` | `async def run_cable_vdm_discovery(self, plug: CablePlug, selected_svids: tuple[int, ...] \| None = None, *, failure_action: VDMDiscoveryFailureAction = VDMDiscoveryFailureAction.STOP, max_retries: int = 1, max_svids: int = 64, max_svid_pages: int = 8, poll_interval_seconds: float = 0.01, max_polls: int = 1000) -> VDMDiscoveryWorkflowResult` | Discover one explicit cable plug; never falls back to SOP. |
+
+
 ### `t76.drpd.device.device_sink.DeviceSink`
 
 **Kind:** class
@@ -328,9 +497,10 @@ Represents the sink system of the DRPD device.
 | `set_pps_status_query_enabled` | `async def set_pps_status_query_enabled(self, enabled: bool) -> None` | Set whether Sink policy sends Get_PPS_Status after SPR PPS transitions. |
 | `get_pps_status_query_enabled` | `async def get_pps_status_query_enabled(self) -> bool` | Query whether Sink policy sends Get_PPS_Status after PPS transitions. |
 | `get_request_status` | `async def get_request_status(self) -> SinkRequestStatus` | Query the most recent Sink PDO request outcome. |
-| `send_inquiry` | `async def send_inquiry(self, inquiry_type: SinkInquiryType) -> None` | Start a supported Sink-to-Source inquiry. |
+| `send_inquiry` | `async def send_inquiry(self, inquiry: SinkInquiryType \| SinkInquiryRequest) -> None` | Start an enum-compatible or semantic Sink-to-Source inquiry. |
 | `get_inquiry_status` | `async def get_inquiry_status(self) -> SinkInquiryStatus` | Query the most recent Sink-to-Source inquiry status. |
 | `get_inquiry_response` | `async def get_inquiry_response(self) -> bytes` | Fetch the raw response bytes for the most recent inquiry. |
+| `run_inquiry` | `async def run_inquiry(self, request: SinkInquiryRequest, *, poll_interval_seconds: float = 0.01, max_polls: int = 1000) -> SinkInquiryResult` | Run one semantic inquiry through this Sink's serialized runner. |
 | `get_spr_capability_count` | `async def get_spr_capability_count(self) -> int` | — |
 | `get_spr_capability_pdo` | `async def get_spr_capability_pdo(self, index: int) -> int` | — |
 | `set_spr_capability_pdo` | `async def set_spr_capability_pdo(self, index: int, raw_pdo: int) -> None` | — |
@@ -1643,7 +1813,540 @@ Supported Sink-to-Source inquiry message types.
 
 | Field | Type | Default |
 | --- | --- | --- |
+| `GET_SOURCE_CAP` | — | 'GET_SOURCE_CAP' |
+| `GET_SOURCE_CAP_EXTENDED` | — | 'GET_SOURCE_CAP_EXTENDED' |
+| `GET_STATUS` | — | 'GET_STATUS' |
 | `GET_REVISION` | — | 'GET_REVISION' |
+| `GET_SOURCE_INFO` | — | 'GET_SOURCE_INFO' |
+| `GET_PPS_STATUS` | — | 'GET_PPS_STATUS' |
+| `GET_MANUFACTURER_INFO` | — | 'GET_MANUFACTURER_INFO' |
+| `GET_COUNTRY_CODES` | — | 'GET_COUNTRY_CODES' |
+| `GET_COUNTRY_INFO` | — | 'GET_COUNTRY_INFO' |
+| `GET_BATTERY_CAP` | — | 'GET_BATTERY_CAP' |
+| `GET_BATTERY_STATUS` | — | 'GET_BATTERY_STATUS' |
+| `DISCOVER_IDENTITY` | — | 'DISCOVER_IDENTITY' |
+| `DISCOVER_SVIDS` | — | 'DISCOVER_SVIDS' |
+| `DISCOVER_MODES` | — | 'DISCOVER_MODES' |
+| `GET_DIGESTS` | — | 'GET_DIGESTS' |
+| `GET_CERTIFICATE` | — | 'GET_CERTIFICATE' |
+| `CHALLENGE` | — | 'CHALLENGE' |
+
+
+
+
+### `t76.drpd.device.types.ManufacturerInfoTarget`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Semantic Manufacturer_Info target.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `PORT` | — | 'PORT' |
+| `BATTERY` | — | 'BATTERY' |
+
+
+
+
+### `t76.drpd.device.types.BatteryReferenceKind`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Meaning of a USB-PD battery reference.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `FIXED` | — | 'FIXED' |
+| `HOT_SWAPPABLE` | — | 'HOT_SWAPPABLE' |
+
+
+
+
+### `t76.drpd.device.types.CablePlug`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Explicit cable-message target; SOP fallback is forbidden.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `SOP_PRIME` | — | 'SOP_PRIME' |
+| `SOP_DOUBLE_PRIME` | — | 'SOP_DOUBLE_PRIME' |
+
+
+
+
+### `t76.drpd.device.types.battery_reference_kind`
+
+**Kind:** function
+
+```python
+def battery_reference_kind(reference: int) -> BatteryReferenceKind
+```
+
+Map references 0..3 to fixed and 4..7 to hot-swappable.
+
+
+
+
+
+### `t76.drpd.device.types.GetSourceCapabilitiesInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request current SPR Source Capabilities.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_SOURCE_CAP, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetExtendedSourceCapabilitiesInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request the PD 3.x Source Capabilities Extended data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_SOURCE_CAP_EXTENDED, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetStatusInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request the PD 3.x Source Status data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_STATUS, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetRevisionInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Semantic request for the Source's USB-PD Revision data message.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_REVISION, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetSourceInfoInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request the PD 3.x Source Info data object.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_SOURCE_INFO, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetPPSStatusInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request PPS Status; firmware validates active SPR PPS applicability.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_PPS_STATUS, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetManufacturerInfoInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request Port or Battery manufacturer information.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `target` | ManufacturerInfoTarget | ManufacturerInfoTarget.PORT |
+| `battery_reference` | int \| None | None |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_MANUFACTURER_INFO, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetCountryCodesInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request supported ISO 3166 alpha-2 country codes.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_COUNTRY_CODES, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetCountryInfoInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request information for one ISO 3166 alpha-2 country code.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `country_code` | str | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_COUNTRY_INFO, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetBatteryCapabilitiesInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request capabilities for fixed ref 0..3 or hot-swappable ref 4..7.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `battery_reference` | int | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_BATTERY_CAP, init=False) |
+
+
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `reference_kind` | BatteryReferenceKind | read-only | — |
+| `slot_index` | int | read-only | — |
+
+
+
+### `t76.drpd.device.types.GetBatteryStatusInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request live status for fixed ref 0..3 or hot-swappable ref 4..7.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `battery_reference` | int | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_BATTERY_STATUS, init=False) |
+
+
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `reference_kind` | BatteryReferenceKind | read-only | — |
+| `slot_index` | int | read-only | — |
+
+
+
+### `t76.drpd.device.types.DiscoverIdentityInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Diagnostic Identity request from current UFP/Sink to SOP partner.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.DISCOVER_IDENTITY, init=False) |
+
+
+
+
+### `t76.drpd.device.types.DiscoverSVIDsInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Optional UFP-initiated SVID discovery of the SOP Port Partner.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.DISCOVER_SVIDS, init=False) |
+
+
+
+
+### `t76.drpd.device.types.DiscoverModesInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Optional UFP-initiated Modes discovery for one partner SVID.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `svid` | int | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.DISCOVER_MODES, init=False) |
+
+
+
+
+### `t76.drpd.device.types.CableStatusInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request Status from an explicitly selected active-cable plug.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `plug` | CablePlug | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_STATUS, init=False) |
+
+
+
+
+### `t76.drpd.device.types.CableRevisionInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request Revision from an explicitly selected cable plug.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `plug` | CablePlug | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_REVISION, init=False) |
+
+
+
+
+### `t76.drpd.device.types.CableManufacturerInfoInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Request cable-plug Manufacturer Info using Port/CablePlug target.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `plug` | CablePlug | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_MANUFACTURER_INFO, init=False) |
+
+
+
+
+### `t76.drpd.device.types.CableDiscoverIdentityInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Discover Identity from an explicitly selected cable plug.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `plug` | CablePlug | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.DISCOVER_IDENTITY, init=False) |
+
+
+
+
+### `t76.drpd.device.types.CableDiscoverSVIDsInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Discover optional SVIDs from an explicitly selected cable plug.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `plug` | CablePlug | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.DISCOVER_SVIDS, init=False) |
+
+
+
+
+### `t76.drpd.device.types.CableDiscoverModesInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Discover optional Modes for a selected SVID and cable plug.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `plug` | CablePlug | — |
+| `svid` | int | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.DISCOVER_MODES, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetDigestsInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Enumerate populated USB Type-C Authentication certificate slots.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_DIGESTS, init=False) |
+
+
+
+
+### `t76.drpd.device.types.GetCertificateInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Retrieve one bounded part of a selected authentication certificate chain.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `slot` | int | — |
+| `offset` | int | — |
+| `length` | int | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.GET_CERTIFICATE, init=False) |
+
+
+
+
+### `t76.drpd.device.types.ChallengeInquiryRequest`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Authenticate a selected slot using one caller-generated fresh nonce.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `slot` | int | — |
+| `nonce` | bytes | — |
+| `type` | SinkInquiryType | field(default=SinkInquiryType.CHALLENGE, init=False) |
 
 
 
@@ -1670,7 +2373,11 @@ Represents a SINK:INQuiry:STATus? outcome token.
 | `GOODCRC_TIMEOUT` | — | 'GOODCRC_TIMEOUT' |
 | `RESPONSE_TIMEOUT` | — | 'RESPONSE_TIMEOUT' |
 | `PROTOCOL_ERROR` | — | 'PROTOCOL_ERROR' |
+| `MALFORMED_RESPONSE` | — | 'MALFORMED_RESPONSE' |
+| `RESPONSE_TOO_LARGE` | — | 'RESPONSE_TOO_LARGE' |
 | `ABORTED` | — | 'ABORTED' |
+| `NAK` | — | 'NAK' |
+| `BUSY` | — | 'BUSY' |
 
 
 
@@ -1700,6 +2407,669 @@ Most recent Sink-to-Source inquiry status.
 | `response_class` | int | — |
 | `response_type` | int | — |
 | `response_length` | int | — |
+
+
+
+
+### `t76.drpd.device.types.SourceCapabilitiesInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Source_Capabilities logical body.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `pdos` | tuple[SourcePDO, ...] | — |
+
+
+
+
+### `t76.drpd.device.types.ExtendedSourceCapabilitiesInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Source Capabilities Extended data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `payload_length` | int | — |
+| `vendor_id` | int | — |
+| `product_id` | int | — |
+| `xid` | int | — |
+| `firmware_version` | int | — |
+| `hardware_version` | int | — |
+| `voltage_regulation` | int | — |
+| `holdup_time_ms` | int | — |
+| `compliance` | int | — |
+| `touch_current` | int | — |
+| `peak_current` | tuple[int, int, int] | — |
+| `touch_temperature` | int | — |
+| `source_inputs` | int | — |
+| `hot_swappable_battery_slots` | int | — |
+| `fixed_batteries` | int | — |
+| `spr_source_pdp_w` | int | — |
+| `epr_source_pdp_w` | int \| None | — |
+| `has_epr_source_pdp` | bool | — |
+
+
+
+
+### `t76.drpd.device.types.SourceStatusInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded SOP Status data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `payload_length` | int | — |
+| `internal_temperature` | int | — |
+| `present_input` | int | — |
+| `present_battery_input` | int | — |
+| `event_flags` | int | — |
+| `temperature_status` | int | — |
+| `power_status` | int | — |
+| `power_state` | int \| None | — |
+| `has_power_state_change` | bool | — |
+| `over_current_event` | bool | — |
+| `over_temperature_event` | bool | — |
+| `over_voltage_event` | bool | — |
+| `operating_in_current_limit` | bool | — |
+
+
+
+
+### `t76.drpd.device.types.RevisionInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Revision Message data object.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `revision_major` | int | — |
+| `revision_minor` | int | — |
+| `version_major` | int | — |
+| `version_minor` | int | — |
+
+
+
+
+### `t76.drpd.device.types.SourceInfoInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Source Info data object; PDP values are watts.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `port_type` | int | — |
+| `port_maximum_pdp_w` | int | — |
+| `port_present_pdp_w` | int | — |
+| `port_reported_pdp_w` | int | — |
+
+
+
+
+### `t76.drpd.device.types.PPSStatusInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded four-byte PPS Status data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `output_voltage_mv` | int \| None | — |
+| `output_current_ma` | int \| None | — |
+| `present_temperature_flag` | int | — |
+| `operating_in_current_limit` | bool | — |
+| `real_time_flags` | int | — |
+
+
+
+
+### `t76.drpd.device.types.ManufacturerInfoInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Manufacturer Info data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `vendor_id` | int | — |
+| `product_id` | int | — |
+| `manufacturer_string` | str | — |
+| `manufacturer_string_bytes` | bytes | — |
+
+
+
+
+### `t76.drpd.device.types.CountryCodesInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Country Codes data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `country_codes` | tuple[str, ...] | — |
+
+
+
+
+### `t76.drpd.device.types.CountryInfoInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Country Info data block correlated to its request.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `country_code` | str | — |
+| `country_specific_data` | bytes | — |
+
+
+
+
+### `t76.drpd.device.types.BatteryCapacityMeaning`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Meaning of a 0.1 Wh Battery_Capabilities capacity field.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `VALUE` | — | 'VALUE' |
+| `BATTERY_NOT_PRESENT` | — | 'BATTERY_NOT_PRESENT' |
+| `UNKNOWN` | — | 'UNKNOWN' |
+
+
+
+
+### `t76.drpd.device.types.BatteryCapacity`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Exact Battery_Capabilities capacity value and sentinel meaning.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw_tenths_wh` | int | — |
+| `meaning` | BatteryCapacityMeaning | — |
+
+
+#### Public properties
+
+| Property | Type | Access | Summary |
+| --- | --- | --- | --- |
+| `watt_hours` | Decimal \| None | read-only | — |
+
+
+
+### `t76.drpd.device.types.BatteryCapabilitiesInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded nine-byte Battery Capabilities data block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `vendor_id` | int | — |
+| `product_id` | int | — |
+| `design_capacity` | BatteryCapacity | — |
+| `last_full_charge_capacity` | BatteryCapacity | — |
+| `battery_type_raw` | int | — |
+| `invalid_battery_reference` | bool | — |
+| `battery_present` | bool | — |
+
+
+
+
+### `t76.drpd.device.types.BatteryChargingState`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Battery_Status charging-state field.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `CHARGING` | — | 0 |
+| `DISCHARGING` | — | 1 |
+| `IDLE` | — | 2 |
+| `RESERVED` | — | 3 |
+
+
+
+
+### `t76.drpd.device.types.BatteryStatusInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded Battery Status Data Object.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `present_capacity_raw_tenths_wh` | int | — |
+| `present_capacity_meaning` | BatteryCapacityMeaning | — |
+| `present_capacity_wh` | Decimal \| None | — |
+| `invalid_battery_reference` | bool | — |
+| `battery_present` | bool | — |
+| `charging_state` | BatteryChargingState | — |
+
+
+
+
+### `t76.drpd.device.types.CableStatusInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Decoded two-byte SOP'/SOP'' Status Data Block.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `internal_temperature_raw` | int | — |
+| `internal_temperature_c` | int \| None | — |
+| `below_2_c` | bool | — |
+| `flags_raw` | int | — |
+| `thermal_shutdown` | bool | — |
+
+
+
+
+### `t76.drpd.device.types.AuthenticationDigestsInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Validated slot mask and SHA-256 digest values in slot order.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `slot_mask` | int | — |
+| `digests` | tuple[tuple[int, bytes], ...] | — |
+
+
+
+
+### `t76.drpd.device.types.AuthenticationCertificateInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+One correlated, progress-making certificate-chain part.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `slot` | int | — |
+| `offset` | int | — |
+| `certificate_part` | bytes | — |
+
+
+
+
+### `t76.drpd.device.types.AuthenticationChallengeInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Correlated CHALLENGE_AUTH transcript and little-endian signature.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `slot` | int | — |
+| `signed_response` | bytes | — |
+| `signature_little_endian` | bytes | — |
+
+
+
+
+### `t76.drpd.device.types.AuthenticationErrorInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Protocol ERROR body; never represents authenticated success.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `code` | int | — |
+| `data` | int | — |
+
+
+
+
+### `t76.drpd.device.types.StructuredVDMHeaderData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Validated Structured VDM ACK header.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `raw` | int | — |
+| `svid` | int | — |
+| `version_major` | int | — |
+| `version_minor` | int | — |
+| `command` | int | — |
+
+
+
+
+### `t76.drpd.device.types.StructuredVDMNegativeResponseData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Validated raw NAK or BUSY Structured VDM header.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `header` | StructuredVDMHeaderData | — |
+| `outcome` | SinkInquiryOutcome | — |
+
+
+
+
+### `t76.drpd.device.types.DiscoverIdentityInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Ordered raw Identity VDOs following the ACK header.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `header` | StructuredVDMHeaderData | — |
+| `identity_vdos` | tuple[int, ...] | — |
+
+
+
+
+### `t76.drpd.device.types.DiscoverSVIDsInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Ordered raw SVID VDOs plus stable first-occurrence deduplication.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `header` | StructuredVDMHeaderData | — |
+| `svid_vdos` | tuple[int, ...] | — |
+| `svids` | tuple[int, ...] | — |
+| `complete` | bool | — |
+
+
+
+
+### `t76.drpd.device.types.DiscoverModesInquiryData`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Ordered raw Mode VDOs correlated to selected SVID.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `header` | StructuredVDMHeaderData | — |
+| `svid` | int | — |
+| `mode_vdos` | tuple[int, ...] | — |
+
+
+
+
+### `t76.drpd.device.types.SinkInquiryResult`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Correlated terminal inquiry result retained by the host runner.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `request` | SinkInquiryRequest | — |
+| `status` | SinkInquiryStatus | — |
+| `raw_response` | bytes \| None | — |
+| `decoded` | SinkInquiryDecodedData \| None | None |
+
+
+
+
+### `t76.drpd.device.types.CountryInquiryFailureAction`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Guided country-workflow handling for a terminal non-response.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `RETRY` | — | 'RETRY' |
+| `CONTINUE` | — | 'CONTINUE' |
+| `STOP` | — | 'STOP' |
+
+
+
+
+### `t76.drpd.device.types.CountryInquiryWorkflowResult`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Host-retained result of a guided country-information workflow.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `country_codes_result` | SinkInquiryResult | — |
+| `country_info_results` | tuple[SinkInquiryResult, ...] | — |
+| `stopped_early` | bool | — |
+
+
+
+
+### `t76.drpd.device.types.BatteryInquiryFailureAction`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Guided battery-survey handling for a terminal non-response.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `RETRY` | — | 'RETRY' |
+| `CONTINUE` | — | 'CONTINUE' |
+| `STOP` | — | 'STOP' |
+
+
+
+
+### `t76.drpd.device.types.BatterySurveyResult`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Serialized Battery Capabilities/Status survey results.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `battery_references` | tuple[int, ...] | — |
+| `inquiry_results` | tuple[SinkInquiryResult, ...] | — |
+| `used_extended_source_counts` | bool | — |
+| `stopped_early` | bool | — |
+
+
+
+
+### `t76.drpd.device.types.VDMDiscoveryFailureAction`
+
+**Kind:** enum
+
+**Bases:** `enum.Enum`
+
+Guided VDM discovery handling for NAK/BUSY/other non-ACK results.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `RETRY` | — | 'RETRY' |
+| `CONTINUE` | — | 'CONTINUE' |
+| `STOP` | — | 'STOP' |
+
+
+
+
+### `t76.drpd.device.types.VDMDiscoveryWorkflowResult`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Serialized Identity, SVID, and Modes discovery history.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `identity_results` | tuple[SinkInquiryResult, ...] | — |
+| `svid_results` | tuple[SinkInquiryResult, ...] | — |
+| `mode_results` | tuple[SinkInquiryResult, ...] | — |
+| `selected_svids` | tuple[int, ...] | — |
+| `stopped_early` | bool | — |
 
 
 

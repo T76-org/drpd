@@ -365,6 +365,8 @@ namespace T76::DRPD::Logic {
          */
         bool sendGetPPSStatus();
         bool sendInquiryRequest(const SinkInquiryRequest& request);
+        bool sendAuthenticationRequestChunk(
+            const SinkInquiryRequest& request, uint8_t chunkNumber);
 
         /** Record the common Structured VDM version from a correlated Identity ACK. */
         bool recordStructuredVDMIdentityACK(

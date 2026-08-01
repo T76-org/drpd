@@ -9,7 +9,7 @@ namespace {
 constexpr uint8_t rev1 = 0;
 constexpr uint8_t rev3 = 2;
 
-const std::array<SinkInquiryDescriptor, 14> descriptors{{
+const std::array<SinkInquiryDescriptor, 17> descriptors{{
     {SinkInquiryType::GetRevision, "GET_REVISION", InquiryMessageClass::Control,
         0x18, 0, {InquiryMessageClass::Data, 0x0c, 1, 1},
         LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 4, true, rev3, false, InquiryParameterKind::None,
@@ -67,6 +67,18 @@ const std::array<SinkInquiryDescriptor, 14> descriptors{{
         0x0f, 1, {InquiryMessageClass::Data, 0x0f, 1, 7},
         LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 8, 28, true, rev3, false,
         InquiryParameterKind::DiscoverModes, InquiryCacheKind::None, InquiryWarningNone},
+    {SinkInquiryType::GetDigests, "GET_DIGESTS", InquiryMessageClass::Extended,
+        0x08, 2, {InquiryMessageClass::Extended, 0x09, 1, 7},
+        200000, 4, 260, true, rev3, false,
+        InquiryParameterKind::Authentication, InquiryCacheKind::None, InquiryWarningNone},
+    {SinkInquiryType::GetCertificate, "GET_CERTIFICATE", InquiryMessageClass::Extended,
+        0x08, 3, {InquiryMessageClass::Extended, 0x09, 1, 7},
+        200000, 4, 260, true, rev3, false,
+        InquiryParameterKind::Authentication, InquiryCacheKind::None, InquiryWarningNone},
+    {SinkInquiryType::Challenge, "CHALLENGE", InquiryMessageClass::Extended,
+        0x08, 7, {InquiryMessageClass::Extended, 0x09, 1, 7},
+        1200000, 4, 168, true, rev3, false,
+        InquiryParameterKind::Authentication, InquiryCacheKind::None, InquiryWarningNone},
 }};
 }
 

@@ -35,6 +35,9 @@ const RESPONSE_TYPES: Record<SinkInquiryType, { responseClass: number; responseT
   [SinkInquiryType.DISCOVER_IDENTITY]: { responseClass: 2, responseType: 0x0f, name: 'Discover Identity ACK' },
   [SinkInquiryType.DISCOVER_SVIDS]: { responseClass: 2, responseType: 0x0f, name: 'Discover SVIDs ACK' },
   [SinkInquiryType.DISCOVER_MODES]: { responseClass: 2, responseType: 0x0f, name: 'Discover Modes ACK' },
+  [SinkInquiryType.GET_DIGESTS]: { responseClass: 0, responseType: 0x09, name: 'Security_Response' },
+  [SinkInquiryType.GET_CERTIFICATE]: { responseClass: 0, responseType: 0x09, name: 'Security_Response' },
+  [SinkInquiryType.CHALLENGE]: { responseClass: 0, responseType: 0x09, name: 'Security_Response' },
 }
 
 const isUpperAlpha = (byte: number): boolean => byte >= 0x41 && byte <= 0x5a

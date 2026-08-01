@@ -321,7 +321,8 @@ Sink::ExtendedFragmentResult Sink::_handleInquiryExtendedFragment(
     }
     const auto body = message->rawBody();
     const auto extendedType = message->decodedHeader().extendedMessageType();
-    if (body.size() < 2 || !extendedType.has_value()) {
+    if (body.size() < 2 || !extendedType.has_value() ||
+        static_cast<uint32_t>(extendedType.value()) != descriptor->response.messageType) {
         return ExtendedFragmentResult::Malformed;
     }
     const uint16_t rawHeader = static_cast<uint16_t>(body[0]) |

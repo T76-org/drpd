@@ -1,7 +1,21 @@
 from .device import Device
+from .authentication import (
+    AuthenticationTrustAnchor,
+    AuthenticationVerificationError,
+    certificate_chain_digest,
+    challenge_transcript,
+    generate_challenge_nonce,
+    signature_little_endian_to_p1363,
+    verify_certificate_chain,
+    verify_challenge_signature,
+)
 from .device_sink import SinkInquiryRunner, SinkInquirySupersededError
 from .discovery import find_drpd_devices
 from .types import (
+    AuthenticationCertificateInquiryData,
+    AuthenticationChallengeInquiryData,
+    AuthenticationDigestsInquiryData,
+    AuthenticationErrorInquiryData,
     AccumulatedMeasurements,
     AnalogMonitorChannels,
     BatteryCapabilitiesInquiryData,
@@ -20,6 +34,7 @@ from .types import (
     CableRevisionInquiryRequest,
     CableStatusInquiryData,
     CableStatusInquiryRequest,
+    ChallengeInquiryRequest,
     CCChannel,
     CCBusState,
     DeviceInfo,
@@ -42,6 +57,8 @@ from .types import (
     GetBatteryStatusInquiryRequest,
     GetCountryCodesInquiryRequest,
     GetCountryInfoInquiryRequest,
+    GetCertificateInquiryRequest,
+    GetDigestsInquiryRequest,
     GetManufacturerInfoInquiryRequest,
     GetPPSStatusInquiryRequest,
     GetRevisionInquiryRequest,

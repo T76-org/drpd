@@ -51,6 +51,9 @@ int main() {
         {SinkInquiryType::DiscoverIdentity, "DISCOVER_IDENTITY", 0x0f, InquiryMessageClass::Data, InquiryMessageClass::Data, 0x0f, 16},
         {SinkInquiryType::DiscoverSVIDs, "DISCOVER_SVIDS", 0x0f, InquiryMessageClass::Data, InquiryMessageClass::Data, 0x0f, 8},
         {SinkInquiryType::DiscoverModes, "DISCOVER_MODES", 0x0f, InquiryMessageClass::Data, InquiryMessageClass::Data, 0x0f, 8},
+        {SinkInquiryType::GetDigests, "GET_DIGESTS", 0x08, InquiryMessageClass::Extended, InquiryMessageClass::Extended, 0x09, 4},
+        {SinkInquiryType::GetCertificate, "GET_CERTIFICATE", 0x08, InquiryMessageClass::Extended, InquiryMessageClass::Extended, 0x09, 4},
+        {SinkInquiryType::Challenge, "CHALLENGE", 0x08, InquiryMessageClass::Extended, InquiryMessageClass::Extended, 0x09, 4},
     };
     for (const auto& expected : golden) {
         const auto actual = sinkInquiryDescriptor(expected.type);
@@ -58,7 +61,9 @@ int main() {
         assert(std::strcmp(actual->token, expected.token) == 0);
         assert(actual->requestClass == expected.requestClass);
         assert(actual->requestMessageType == expected.requestType);
-        assert(actual->requestDataObjects ==
+        if (actual->parameterKind == InquiryParameterKind::Authentication)
+            assert(actual->requestDataObjects >= 2 && actual->requestDataObjects <= 7);
+        else assert(actual->requestDataObjects ==
             (expected.requestClass == InquiryMessageClass::Control ? 0 : 1));
         assert(actual->response.messageClass == expected.responseClass);
         assert(actual->response.messageType == expected.responseType);

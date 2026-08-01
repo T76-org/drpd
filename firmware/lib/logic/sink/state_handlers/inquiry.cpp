@@ -2,6 +2,8 @@
 
 #include "../sink_context.hpp"
 #include "../inquiry_descriptor.hpp"
+#include "../authentication_inquiry.hpp"
+#include "../../../proto/pd_extended_header.hpp"
 #include <optional>
 #include <variant>
 using namespace T76::DRPD::Logic;
@@ -29,6 +31,8 @@ int64_t InquiryStateHandler::_onRetryTimeout(alarm_id_t, void *userData) {
 void InquiryStateHandler::enter(SinkContext& context) {
     _bindContext(context);
     _requestId = context.runtimeState().inquiryResult().status.id;
+    _authenticationChunkState.begin(
+        context.runtimeState().inquiryResult().status.type, _requestId);
     _trySend(context);
 }
 
@@ -38,7 +42,8 @@ void InquiryStateHandler::handleMessageSenderStateChange(
         _finish(context, SinkInquiryOutcome::GoodCRCTimeout);
         return;
     }
-    if (state == SinkMessageSenderState::GoodCRCReceived && _sent) {
+    if (state == SinkMessageSenderState::GoodCRCReceived && _sent &&
+        _responseTimeoutAlarmId == -1) {
         const auto descriptor = sinkInquiryDescriptor(
             context.runtimeState().inquiryResult().status.type);
         if (!descriptor.has_value()) {
@@ -62,6 +67,39 @@ void InquiryStateHandler::handleTimeoutEvent(
 void InquiryStateHandler::handleMessage(
     SinkContext& context, const PHY::BMCDecodedMessage *message) {
     const auto header = message->decodedHeader();
+    const auto resultSnapshot = context.runtimeState().inquiryResult();
+    const auto descriptor = sinkInquiryDescriptor(resultSnapshot.status.type);
+    if (!descriptor.has_value()) {
+        _finish(context, SinkInquiryOutcome::ProtocolError);
+        return;
+    }
+    if (header.messageClass() == Proto::PDHeader::MessageClass::Extended &&
+        header.extendedMessageType() == Proto::ExtendedMessageType::Security_Request) {
+        const auto body = message->rawBody();
+        if (resultSnapshot.status.type != SinkInquiryType::Challenge || body.size() != 4) {
+            _finish(context, SinkInquiryOutcome::ProtocolError);
+            return;
+        }
+        const uint16_t raw = static_cast<uint16_t>(body[0]) |
+            (static_cast<uint16_t>(body[1]) << 8);
+        const Proto::PDExtendedHeader ext(raw);
+        if (!ext.chunked() || !ext.requestChunk() || ext.dataSizeBytes() != 0 ||
+            ext.chunkNumber() != 1 || body[2] != 0 || body[3] != 0 ||
+            !_authenticationChunkState.accept(resultSnapshot.status.id, ext.chunkNumber()) ||
+            !context.sendAuthenticationRequestChunk(
+                SinkInquiryRequest{resultSnapshot.status.id, resultSnapshot.status.type,
+                    resultSnapshot.parameters}, 1)) {
+            _finish(context, SinkInquiryOutcome::ProtocolError);
+        }
+        return;
+    }
+    if (resultSnapshot.status.type == SinkInquiryType::Challenge &&
+        header.messageClass() == Proto::PDHeader::MessageClass::Extended &&
+        header.extendedMessageType() == Proto::ExtendedMessageType::Security_Response &&
+        _authenticationChunkState.expected()) {
+        _finish(context, SinkInquiryOutcome::ProtocolError);
+        return;
+    }
     uint32_t rawType = 0xffffffffu;
     if (header.messageClass() == Proto::PDHeader::MessageClass::Control &&
         header.controlMessageType().has_value()) {
@@ -72,12 +110,6 @@ void InquiryStateHandler::handleMessage(
     } else if (header.messageClass() == Proto::PDHeader::MessageClass::Extended &&
                header.extendedMessageType().has_value()) {
         rawType = static_cast<uint32_t>(header.extendedMessageType().value());
-    }
-    const auto resultSnapshot = context.runtimeState().inquiryResult();
-    const auto descriptor = sinkInquiryDescriptor(resultSnapshot.status.type);
-    if (!descriptor.has_value()) {
-        _finish(context, SinkInquiryOutcome::ProtocolError);
-        return;
     }
     InquiryMatch match = matchInquiryResponse(
         descriptor.value(), static_cast<uint32_t>(header.messageClass()),
@@ -114,6 +146,16 @@ void InquiryStateHandler::handleMessage(
         const auto body = extendedPayload.has_value()
             ? extendedPayload->span()
             : message->rawBody();
+        if (descriptor->parameterKind == InquiryParameterKind::Authentication) {
+            const auto authentication = validateAuthenticationResponse(
+                resultSnapshot.status.type, resultSnapshot.parameters, body);
+            if (authentication == AuthenticationResponseKind::Malformed) {
+                _finish(context, SinkInquiryOutcome::MalformedResponse);
+                return;
+            }
+            // A well-formed Authentication ERROR is a protocol response, not
+            // transport success or trust. Preserve it as the raw RESPONSE body.
+        }
         if (!inquiryResponsePayloadSizeValid(
                 descriptor.value(), body.size(),
                 resultSnapshot.parameters.sopTarget != SinkInquirySOPTarget::SOP) ||
@@ -178,6 +220,7 @@ void InquiryStateHandler::reset(SinkContext& context) {
     }
     _sent = false;
     _requestId = 0;
+    _authenticationChunkState.reset();
     _unbindContext();
 }
 

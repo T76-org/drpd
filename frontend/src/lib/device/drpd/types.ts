@@ -287,6 +287,9 @@ export const SinkInquiryType = {
   DISCOVER_IDENTITY: 'DISCOVER_IDENTITY',
   DISCOVER_SVIDS: 'DISCOVER_SVIDS',
   DISCOVER_MODES: 'DISCOVER_MODES',
+  GET_DIGESTS: 'GET_DIGESTS',
+  GET_CERTIFICATE: 'GET_CERTIFICATE',
+  CHALLENGE: 'CHALLENGE',
 } as const
 
 /** Supported Sink-to-Source inquiry message type value. */
@@ -303,13 +306,15 @@ export type SinkInquiryCablePlug =
 
 /** Semantic request for Get_Revision; callers never construct a PD header. */
 export type SinkInquiryRequest =
-  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_STATUS | typeof SinkInquiryType.GET_REVISION | typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO | typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS | typeof SinkInquiryType.DISCOVER_IDENTITY | typeof SinkInquiryType.DISCOVER_SVIDS | typeof SinkInquiryType.DISCOVER_MODES> }
+  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_STATUS | typeof SinkInquiryType.GET_REVISION | typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO | typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS | typeof SinkInquiryType.DISCOVER_IDENTITY | typeof SinkInquiryType.DISCOVER_SVIDS | typeof SinkInquiryType.DISCOVER_MODES | typeof SinkInquiryType.GET_CERTIFICATE | typeof SinkInquiryType.CHALLENGE> }
   | { type: typeof SinkInquiryType.GET_STATUS | typeof SinkInquiryType.GET_REVISION | typeof SinkInquiryType.DISCOVER_IDENTITY | typeof SinkInquiryType.DISCOVER_SVIDS; plug?: SinkInquiryCablePlug }
   | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'PORT' | SinkInquiryCablePlug }
   | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'BATTERY'; batteryReference: number }
   | { type: typeof SinkInquiryType.GET_COUNTRY_INFO; countryCode: string }
   | { type: typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS; batteryReference: number }
   | { type: typeof SinkInquiryType.DISCOVER_MODES; svid: number; plug?: SinkInquiryCablePlug }
+  | { type: typeof SinkInquiryType.GET_CERTIFICATE; slot: number; offset: number; length: number }
+  | { type: typeof SinkInquiryType.CHALLENGE; slot: number; nonce: Uint8Array }
 
 /** Sink inquiry protocol outcome token. */
 export const SinkInquiryOutcome = {
