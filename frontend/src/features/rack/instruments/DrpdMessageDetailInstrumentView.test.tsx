@@ -194,6 +194,20 @@ describe('DrpdMessageDetailInstrumentView', () => {
       entryKind: 'event',
       eventType: 'mark',
       eventText: 'INQUIRY - Battery status\n- Battery 0: **Present**\n- Battery 1: Not Supported\n<script>alert(1)</script>',
+      eventData: [
+        {
+          title: 'Battery 0',
+          entries: [
+            { key: 'State', value: '**Present**' },
+            { key: 'Capacity', value: '<strong>20 Wh</strong><script>alert(1)</script>' },
+            { key: 'Unsafe link', value: '<a href="javascript:alert(1)" onclick="alert(2)">Blocked URL</a>' },
+          ],
+        },
+        {
+          title: 'Battery 1',
+          entries: [{ key: 'State', value: '<em>Not Supported</em>' }],
+        },
+      ],
       startTimestampUs: 1_020n,
       endTimestampUs: 1_020n,
       createdAtMs: 1_700_000_000_120,
@@ -217,6 +231,21 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(detailsCell?.querySelector('strong')?.textContent).toBe('Present')
     expect(detailsCell?.querySelectorAll('li')).toHaveLength(2)
     expect(detailsCell?.querySelector('script')).toBeNull()
+    const additionalData = screen.getByRole('region', { name: 'Additional Data' })
+    const additionalToggle = within(additionalData).getByRole('button', { name: 'Additional Data' })
+    expect(additionalToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(additionalData).getByRole('heading', { name: 'Battery 0' })).toBeInTheDocument()
+    expect(within(additionalData).getByRole('heading', { name: 'Battery 1' })).toBeInTheDocument()
+    expect(within(additionalData).getByText('20 Wh').tagName).toBe('STRONG')
+    expect(within(additionalData).getByText('Not Supported').tagName).toBe('EM')
+    expect(additionalData.querySelector('script')).toBeNull()
+    const unsafeLink = within(additionalData).getByText('Blocked URL')
+    expect(unsafeLink.tagName).toBe('A')
+    expect(unsafeLink).not.toHaveAttribute('href')
+    expect(unsafeLink).not.toHaveAttribute('onclick')
+    await userEvent.click(additionalToggle)
+    expect(additionalToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(additionalData).queryByRole('heading', { name: 'Battery 0' })).not.toBeInTheDocument()
     await userEvent.click(eventToggle)
     expect(eventToggle).toHaveAttribute('aria-expanded', 'false')
     expect(within(details).queryByRole('rowheader', { name: 'Title' })).not.toBeInTheDocument()

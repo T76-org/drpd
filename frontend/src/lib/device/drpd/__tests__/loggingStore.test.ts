@@ -356,6 +356,10 @@ describe('SQLiteWasmStore', () => {
       flagged: true,
       comment: '**Exported checkpoint**',
       commentCreatedAtMs: 1_700_000_200_000,
+      eventData: [{
+        title: 'Power',
+        entries: [{ key: 'Voltage', value: '**20 V**' }],
+      }],
     }
     await store.insertCapturedMessage(mark)
 
@@ -365,6 +369,7 @@ describe('SQLiteWasmStore', () => {
       sortOrder: 'asc',
     })
     expect(rows.map((row) => row.entryKind)).toEqual(['message', 'event', 'event'])
+    expect(rows[2].eventData).toEqual(mark.eventData)
 
     const exportData = await store.exportData({
       format: 'csv',
@@ -372,11 +377,11 @@ describe('SQLiteWasmStore', () => {
       includeMessages: true,
     })
     expect(exportData.payload).toContain(
-      'entry_kind,event_type,event_text,event_wall_clock_ms,flagged,comment,comment_created_at_ms,wall_clock_us',
+      'entry_kind,event_type,event_text,event_data,event_wall_clock_ms,flagged,comment,comment_created_at_ms,wall_clock_us',
     )
     expect(exportData.payload).toContain('event,capture_changed')
     expect(exportData.payload).toContain(
-      `event,mark,Mark,${mark.eventWallClockMs},1,**Exported checkpoint**,${mark.commentCreatedAtMs}`,
+      `event,mark,Mark,"[{""title"":""Power"",""entries"":[{""key"":""Voltage"",""value"":""**20 V**""}]}]",${mark.eventWallClockMs},1,**Exported checkpoint**,${mark.commentCreatedAtMs}`,
     )
 
     const jsonExport = await store.exportData({
@@ -391,6 +396,7 @@ describe('SQLiteWasmStore', () => {
       flagged: true,
       comment: '**Exported checkpoint**',
       commentCreatedAtMs: 1_700_000_200_000,
+      eventData: mark.eventData,
     })
   })
 

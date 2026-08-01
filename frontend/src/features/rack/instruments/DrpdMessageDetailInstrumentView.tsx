@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import {
   buildCapturedLogSelectionKey,
   decodeLoggedCapturedMessageWithContext,
@@ -71,6 +73,7 @@ type LoadedSelection =
       kind: 'event'
       title: string
       summary: string | null
+      additionalData: LoggedCapturedMessage['eventData']
       comment: string | null
       commentCreatedAtMs: number | null
     }
@@ -556,6 +559,7 @@ export const DrpdMessageDetailInstrumentView = ({
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection>({ kind: 'none' })
   const [annotationRevision, setAnnotationRevision] = useState(0)
   const [isEventCollapsed, setIsEventCollapsed] = useState(false)
+  const [isAdditionalDataCollapsed, setIsAdditionalDataCollapsed] = useState(false)
   const [isCommentCollapsed, setIsCommentCollapsed] = useState(false)
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<(keyof HumanReadableMetadataRoot)[]>(
     () => (readStoredCollapsedSectionIds(instrument.id) ?? []) as (keyof HumanReadableMetadataRoot)[],
@@ -648,6 +652,7 @@ export const DrpdMessageDetailInstrumentView = ({
         setLoadedSelection({
           kind: 'event',
           ...details,
+          additionalData: row.eventData ?? null,
           comment: row.comment?.trim() || null,
           commentCreatedAtMs: row.commentCreatedAtMs ?? null,
         })
@@ -765,6 +770,7 @@ export const DrpdMessageDetailInstrumentView = ({
           visibleSelection.kind === 'event' ? (
             <div className={styles.sectionsContainer}>
               {visibleSelection.kind === 'event' ? (
+                <>
                 <section className={styles.section} data-section-id="event" aria-label="Event details">
                   <h3 className={styles.sectionHeading}>
                     <button
@@ -811,6 +817,60 @@ export const DrpdMessageDetailInstrumentView = ({
                     </div>
                   ) : null}
                 </section>
+                {visibleSelection.additionalData && visibleSelection.additionalData.length > 0 ? (
+                  <section
+                    className={styles.section}
+                    data-section-id="additionalData"
+                    aria-label="Additional Data"
+                  >
+                    <h3 className={styles.sectionHeading}>
+                      <button
+                        type="button"
+                        className={styles.sectionToggle}
+                        aria-expanded={!isAdditionalDataCollapsed}
+                        onClick={() => setIsAdditionalDataCollapsed((current) => !current)}
+                      >
+                        <span
+                          className={`${styles.sectionArrow} ${!isAdditionalDataCollapsed ? styles.sectionArrowExpanded : ''}`}
+                          aria-hidden="true"
+                        >
+                          ▶
+                        </span>
+                        <span className={styles.sectionHeadingText}>Additional Data</span>
+                      </button>
+                    </h3>
+                    {!isAdditionalDataCollapsed ? (
+                      <div className={`${styles.sectionContent} ${styles.additionalDataContent}`}>
+                        {visibleSelection.additionalData.map((dataSection, sectionIndex) => (
+                          <section className={styles.additionalDataSection} key={`${sectionIndex}:${dataSection.title}`}>
+                            <h4 className={styles.additionalDataHeading}>{dataSection.title}</h4>
+                            <table className={styles.metadataTable}>
+                              <tbody className={styles.metadataTableBody}>
+                                {dataSection.entries.map((entry, entryIndex) => (
+                                  <tr className={styles.metadataRow} key={`${entryIndex}:${entry.key}`}>
+                                    <th className={styles.metadataLabelCell} scope="row">
+                                      <span className={styles.metadataLabelText}>{entry.key}</span>
+                                    </th>
+                                    <td className={styles.metadataValueCell}>
+                                      <div className={`${styles.scalarValue} ${styles.structuredEventValue}`}>
+                                        <ReactMarkdown
+                                          rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                                        >
+                                          {entry.value}
+                                        </ReactMarkdown>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </section>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
+                </>
               ) : null}
               {visibleSelection.comment ? (
                 <section className={styles.section} data-section-id="comment" aria-label="Comment">

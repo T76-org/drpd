@@ -22,6 +22,8 @@ import type {
   LoggedCapturedEntryKind,
   LoggedCapturedEventType,
   LoggedCapturedMessage,
+  LoggedEventDataEntry,
+  LoggedEventDataSection,
 } from './logging/types'
 
 /**
@@ -840,4 +842,6 @@ export type {
   LoggedCapturedEntryKind,
   LoggedCapturedEventType,
   LoggedCapturedMessage,
+  LoggedEventDataEntry,
+  LoggedEventDataSection,
 }

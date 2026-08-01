@@ -50,6 +50,30 @@ class TestDRPDWorkerDeviceProxy extends DRPDWorkerDeviceProxy {
   }
 }
 
+describe('DRPDWorkerDeviceProxy event logging', () => {
+  it('forwards optional structured event data to the worker', async () => {
+    const callWorker = vi.fn(async () => null)
+    const client: ProxyClientStub = {
+      callWorker,
+      registerDRPDSessionEvents: vi.fn(),
+      unregisterDRPDSessionEvents: vi.fn(),
+    }
+    const eventData = [{
+      title: 'Power',
+      entries: [{ key: 'Voltage', value: '**20 V**' }],
+    }]
+
+    await new TestDRPDWorkerDeviceProxy(client).markLog('Inquiry result', eventData)
+
+    expect(callWorker).toHaveBeenCalledWith('drpdSession.call', {
+      sessionId: 'session-1',
+      target: 'device',
+      method: 'markLog',
+      args: ['Inquiry result', eventData],
+    })
+  })
+})
+
 describe('DRPDWorkerDeviceProxy system configuration group', () => {
   it('forwards BMC decoder configuration calls', async () => {
     const callWorker = vi.fn(async (_method: string, request?: { method?: string }) => {

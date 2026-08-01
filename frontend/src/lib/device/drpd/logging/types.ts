@@ -81,6 +81,18 @@ export type LoggedCapturedEventType =
   | 'vbus_ovp'
   | 'vbus_ocp'
 
+/** One Markdown/HTML value associated with a structured event field. */
+export interface LoggedEventDataEntry {
+  key: string
+  value: string
+}
+
+/** Ordered structured data subsection attached to an event. */
+export interface LoggedEventDataSection {
+  title: string
+  entries: LoggedEventDataEntry[]
+}
+
 /**
  * Logged captured USB-PD message row.
  */
@@ -97,6 +109,8 @@ export interface LoggedCapturedMessage {
   eventType: LoggedCapturedEventType | null
   ///< Optional event text for event rows.
   eventText: string | null
+  ///< Optional ordered structured data for event rows. Values contain Markdown or sanitized HTML.
+  eventData?: LoggedEventDataSection[] | null
   ///< Optional event wall-clock timestamp in milliseconds.
   eventWallClockMs: number | null
   ///< Estimated host wall-clock timestamp in microseconds.

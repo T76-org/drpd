@@ -13,7 +13,7 @@ import {
 } from './transport'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import { decodeSOPKind } from './usb-pd/sop'
-import { buildDefaultLoggingConfig, SQLiteWasmStore } from './logging'
+import { buildDefaultLoggingConfig, parseLoggedEventData, SQLiteWasmStore } from './logging'
 import { buildCapturedLogSelectionKey, OnOffState as OnOffStateValues } from './types'
 import type {
   AnalogMonitorChannels,
@@ -662,7 +662,10 @@ export class DRPDDevice extends EventTarget {
   /**
    * Insert a manual mark into the captured-message log stream.
    */
-  public async markLog(eventSummary = 'Mark'): Promise<void> {
+  public async markLog(
+    eventSummary = 'Mark',
+    eventData?: LoggedCapturedMessage['eventData'],
+  ): Promise<void> {
     if (!this.logStore) {
       await this.ensureLogStoreOpen()
     }
@@ -672,6 +675,7 @@ export class DRPDDevice extends EventTarget {
     await this.logSignificantEvent('mark', eventSummary, {
       resetDisplayEpoch: false,
       allowWithoutLoggingStarted: true,
+      eventData,
     })
   }
 
@@ -2057,6 +2061,7 @@ export class DRPDDevice extends EventTarget {
       resetDisplayEpoch?: boolean
       allowWithoutLoggingStarted?: boolean
       orderedInsertion?: boolean
+      eventData?: LoggedCapturedMessage['eventData']
     },
   ): Promise<void> {
     if ((!this.loggingStarted && options?.allowWithoutLoggingStarted !== true) || !this.logStore) {
@@ -2091,6 +2096,7 @@ export class DRPDDevice extends EventTarget {
         entryKind: 'event',
         eventType,
         eventText,
+        eventData: parseLoggedEventData(options?.eventData),
         eventWallClockMs,
         wallClockUs,
         startTimestampUs: eventTimestampUs,
