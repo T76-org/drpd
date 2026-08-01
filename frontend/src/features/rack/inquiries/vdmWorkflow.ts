@@ -15,6 +15,9 @@ const hex16 = (value: number): string => `0x${value.toString(16).toUpperCase().p
 const hex32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
 const rawHex = (bytes: Uint8Array): string => `\`${bytesToHex(bytes) || '(empty)'}\``
 const detail = (value: string, explanation: string): string => `${value}\n\n_${explanation}_`
+const cableTargetEntries = (plug?: SinkInquiryCablePlug): LoggedEventDataSection['entries'] => plug
+  ? [{ key: 'Target', value: `**${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'}** — explicitly addressed; no fallback to SOP.` }]
+  : []
 
 const vdmHeaderEntries = (raw: Uint8Array): LoggedEventDataSection['entries'] => {
   const word = readDataObjects(raw, 0, 1)[0]
@@ -31,10 +34,11 @@ const vdmHeaderEntries = (raw: Uint8Array): LoggedEventDataSection['entries'] =>
   ]
 }
 
-const failedSection = (title: string, outcome: string, raw?: Uint8Array, error?: string): LoggedEventDataSection => ({
+const failedSection = (title: string, outcome: string, raw?: Uint8Array, error?: string, plug?: SinkInquiryCablePlug): LoggedEventDataSection => ({
   title,
   entries: [
     { key: 'Outcome', value: outcome },
+    ...cableTargetEntries(plug),
     ...(error ? [{ key: 'Decode Error', value: error }] : []),
     ...(raw ? [{ key: 'Raw Logical Response', value: detail(rawHex(raw), 'Complete logical response body; no fabricated USB-PD header or CRC is included.') }] : []),
   ],
@@ -53,25 +57,80 @@ export interface VdmDiscoverySurveyResult {
   eventData?: LoggedEventDataSection[]
 }
 
+/** Query and decode one SVID's modes, retaining the explicit SOP target. */
+export const surveySinglePortPartnerModes = async (
+  client: SinkInquiryClient,
+  svid: number,
+  plug?: SinkInquiryCablePlug,
+): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
+  const formattedSvid = hex16(svid)
+  const result = await run({ type: SinkInquiryType.DISCOVER_MODES, svid, ...(plug ? { plug } : {}) })
+  const target = plug ? `${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'} cable` : 'Port Partner'
+  if (result.phase !== 'response') {
+    const outcome = describeFailure(result)
+    return {
+      summary: `- **${target} modes for SVID ${formattedSvid}:**\n  - **Outcome:** ${outcome}.`,
+      eventData: [failedSection(`Modes for SVID ${formattedSvid}`, outcome, undefined, undefined, plug)],
+    }
+  }
+  try {
+    decodeInquiryResponse(result.status, result.rawResponse, result.request)
+    const modeVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+    return {
+      summary: [
+        `- **${target} modes for SVID ${formattedSvid}:**`,
+        '  - **Outcome:** Response decoded successfully.',
+        `  - **Mode count:** ${modeVdos.length}`,
+        ...modeVdos.map((vdo, index) => `  - **Mode ${index + 1} VDO:** ${hex32(vdo)}`),
+      ].join('\n'),
+      eventData: [{
+        title: `Modes for SVID ${formattedSvid}`,
+        entries: [
+          { key: 'Target', value: `**${target}** — explicitly addressed; no fallback to SOP.` },
+          { key: 'Selected SVID', value: `**${formattedSvid}**` },
+          ...vdmHeaderEntries(result.rawResponse),
+          { key: 'Mode Count', value: `${modeVdos.length}` },
+          ...modeVdos.map((vdo, index) => ({
+            key: `Mode ${index + 1} VDO`,
+            value: detail(`\`${hex32(vdo)}\``, `Raw mode-specific value; interpretation is defined by SVID ${formattedSvid}.`),
+          })),
+          { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Modes ACK logical response body.') },
+        ],
+      }],
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      summary: `- **${target} modes for SVID ${formattedSvid}:**\n  - **Outcome:** Malformed response (${message}).`,
+      eventData: [failedSection(`Modes for SVID ${formattedSvid}`, 'Malformed response.', result.rawResponse, message, plug)],
+    }
+  }
+})
+
 /** Discover and decode the SOP Port Partner identity into one event-ready summary. */
 export const surveyPortPartnerIdentity = async (
   client: SinkInquiryClient,
+  plug?: SinkInquiryCablePlug,
 ): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
-  const result = await run({ type: SinkInquiryType.DISCOVER_IDENTITY })
+  const result = await run({ type: SinkInquiryType.DISCOVER_IDENTITY, ...(plug ? { plug } : {}) })
+  const subject = plug ? `${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'} cable` : 'Port Partner'
   if (result.phase !== 'response') {
     const outcome = describeFailure(result)
-    return { summary: `- **Port Partner identity:**\n  - **Outcome:** ${outcome}.`, eventData: [failedSection('Port Partner Identity', outcome)] }
+    return { summary: `- **${subject} identity:**\n  - **Outcome:** ${outcome}.`, eventData: [failedSection(`${subject} Identity`, outcome, undefined, undefined, plug)] }
   }
   try {
     decodeInquiryResponse(result.status, result.rawResponse, result.request)
     const words = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4)
-    const identity = parseDiscoverIdentityVDOs(words.slice(1), 'SOP')
+    const identity = parseDiscoverIdentityVDOs(
+      words.slice(1),
+      plug === 'SOP_PRIME' ? 'SOP_PRIME' : plug === 'SOP_DOUBLE_PRIME' ? 'SOP_DOUBLE_PRIME' : 'SOP',
+    )
     const id = identity.idHeader!
     const cert = identity.certStat!
     const product = identity.product!
     return {
       summary: [
-        '- **Port Partner identity:**',
+        `- **${subject} identity:**`,
         '  - **Outcome:** Response decoded successfully.',
         `  - **VID:** ${hex16(id.usbVendorId)}`,
         `  - **PID:** ${hex16(product.usbProductId)}`,
@@ -80,9 +139,10 @@ export const surveyPortPartnerIdentity = async (
         `  - **Modal operation supported:** ${id.modalOperationSupported ? 'Yes' : 'No'}`,
       ].join('\n'),
       eventData: [{
-        title: 'Port Partner Identity',
+        title: `${subject} Identity`,
         entries: [
           { key: 'Outcome', value: 'Response decoded successfully.' },
+          ...cableTargetEntries(plug),
           ...vdmHeaderEntries(result.rawResponse),
           { key: 'ID Header VDO (VDO 1)', value: detail(`\`${hex32(id.raw)}\``, `VID ${hex16(id.usbVendorId)}; USB host capable: ${id.usbHostCapable}; USB device capable: ${id.usbDeviceCapable}; modal operation supported: ${id.modalOperationSupported}; UFP product type bits 29:27 = ${id.sopProductTypeUfpOrCable}; DFP product type bits 25:23 = ${id.sopProductTypeDfp}; connector type bits 22:21 = ${id.connectorType}.`) },
           { key: 'Cert Stat VDO (VDO 2)', value: detail(`\`${hex32(cert.raw)}\``, `XID: **${hex32(cert.xid)}**.`) },
@@ -97,8 +157,8 @@ export const surveyPortPartnerIdentity = async (
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return {
-      summary: `- **Port Partner identity:**\n  - **Outcome:** Malformed response (${message}).`,
-      eventData: [failedSection('Port Partner Identity', 'Malformed response.', result.rawResponse, message)],
+      summary: `- **${subject} identity:**\n  - **Outcome:** Malformed response (${message}).`,
+      eventData: [failedSection(`${subject} Identity`, 'Malformed response.', result.rawResponse, message, plug)],
     }
   }
 })
@@ -106,15 +166,16 @@ export const surveyPortPartnerIdentity = async (
 /** Discover all SOP Port Partner SVID pages, bounded to eight requests. */
 export const surveyPortPartnerSvids = async (
   client: SinkInquiryClient,
+  plug?: SinkInquiryCablePlug,
 ): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
   const pages: number[][] = []
   const eventData: LoggedEventDataSection[] = []
   let ending = 'Discovery complete.'
   for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
-    const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS })
+    const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS, ...(plug ? { plug } : {}) })
     if (result.phase !== 'response') {
       const outcome = describeFailure(result)
-      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome))
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome, undefined, undefined, plug))
       ending = `Discovery stopped on page ${pageIndex + 1}: ${outcome}.`
       break
     }
@@ -125,6 +186,7 @@ export const surveyPortPartnerSvids = async (
       const rawVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
       eventData.push({ title: `SVID Discovery Page ${pageIndex + 1}`, entries: [
         { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...cableTargetEntries(plug),
         ...vdmHeaderEntries(result.rawResponse),
         ...rawVdos.map((vdo, index) => ({ key: `SVID VDO ${index + 1}`, value: detail(`\`${hex32(vdo)}\``, `First discovered SVID: ${hex16(parseSVIDsVDO(vdo).svid1)}; second discovered SVID: ${hex16(parseSVIDsVDO(vdo).svid0)}.`) })),
         { key: 'Ordered SVIDs', value: parsed.ordered.map((svid) => `\`${hex16(svid)}\``).join(', ') || 'None.' },
@@ -137,7 +199,7 @@ export const surveyPortPartnerSvids = async (
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message))
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message, plug))
       ending = `Discovery stopped on malformed page ${pageIndex + 1}.`
       break
     }
@@ -159,16 +221,17 @@ export const surveyPortPartnerSvids = async (
 /** Discover all bounded SOP Port Partner SVID pages, then query Modes for every unique SVID. */
 export const surveyPortPartnerModes = async (
   client: SinkInquiryClient,
+  plug?: SinkInquiryCablePlug,
 ): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
   const pages: number[][] = []
   const eventData: LoggedEventDataSection[] = []
   let discoveryComplete = false
   let discoveryOutcome = 'Incomplete discovery.'
   for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
-    const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS })
+    const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS, ...(plug ? { plug } : {}) })
     if (result.phase !== 'response') {
       const outcome = describeFailure(result)
-      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome))
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome, undefined, undefined, plug))
       discoveryOutcome = `Stopped on page ${pageIndex + 1}: ${outcome}.`
       break
     }
@@ -179,6 +242,7 @@ export const surveyPortPartnerModes = async (
       const rawVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
       eventData.push({ title: `SVID Discovery Page ${pageIndex + 1}`, entries: [
         { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...cableTargetEntries(plug),
         ...vdmHeaderEntries(result.rawResponse),
         ...rawVdos.map((vdo, index) => ({ key: `SVID VDO ${index + 1}`, value: `\`${hex32(vdo)}\`` })),
         { key: 'Ordered SVIDs', value: parsed.ordered.map((svid) => `\`${hex16(svid)}\``).join(', ') || 'None.' },
@@ -192,7 +256,7 @@ export const surveyPortPartnerModes = async (
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message))
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message, plug))
       discoveryOutcome = `Stopped on malformed page ${pageIndex + 1}.`
       break
     }
@@ -207,13 +271,13 @@ export const surveyPortPartnerModes = async (
   }
 
   for (const svid of svids) {
-    const request = { type: SinkInquiryType.DISCOVER_MODES, svid } as const
+    const request = { type: SinkInquiryType.DISCOVER_MODES, svid, ...(plug ? { plug } : {}) } as const
     const result = await run(request)
     const formattedSvid = `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`
     if (result.phase !== 'response') {
       const outcome = describeFailure(result)
       lines.push(`- **SVID ${formattedSvid}:**`, `  - **Outcome:** ${outcome}.`)
-      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, outcome))
+      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, outcome, undefined, undefined, plug))
       continue
     }
     try {
@@ -222,6 +286,7 @@ export const surveyPortPartnerModes = async (
       lines.push(`- **SVID ${formattedSvid}:**`, '  - **Outcome:** Response decoded successfully.', `  - **Mode count:** ${modeVdos.length}`, ...modeVdos.map((vdo, index) => `  - **Mode ${index + 1} VDO:** ${hex32(vdo)}`))
       eventData.push({ title: `Modes for SVID ${formattedSvid}`, entries: [
         { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...cableTargetEntries(plug),
         { key: 'Selected SVID', value: `**${formattedSvid}**` },
         ...vdmHeaderEntries(result.rawResponse),
         { key: 'Mode Count', value: `${modeVdos.length}` },
@@ -231,7 +296,7 @@ export const surveyPortPartnerModes = async (
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       lines.push(`- **SVID ${formattedSvid}:**`, `  - **Outcome:** Malformed response (${message}).`)
-      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, 'Malformed response.', result.rawResponse, message))
+      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, 'Malformed response.', result.rawResponse, message, plug))
     }
   }
   return { summary: lines.join('\n'), eventData }

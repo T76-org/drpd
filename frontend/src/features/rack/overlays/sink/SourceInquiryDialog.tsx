@@ -19,6 +19,7 @@ import {
   BATTERY_MANUFACTURER_IDENTITY_EVENT_TITLE,
   surveyBatteryManufacturerIdentity,
 } from '../../inquiries/manufacturerWorkflow'
+import { runSingleInquiryEvent, type InquiryEventResult } from '../../inquiries/inquiryEvent'
 import styles from './SourceInquiryDialog.module.css'
 
 const bytesToHex = (bytes: Uint8Array): string => (
@@ -295,6 +296,7 @@ export const SourceInquiryDialog = ({
   onResponse,
   logOnly = false,
   publishLogEvent,
+  executeInquiryEvent,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -303,6 +305,7 @@ export const SourceInquiryDialog = ({
   onResponse?: (definition: InquiryDefinition) => void | Promise<void>
   logOnly?: boolean
   publishLogEvent?: (title: string, summary: string, eventData?: LoggedEventDataSection[]) => Promise<void>
+  executeInquiryEvent?: (request: SinkInquiryRequest) => Promise<InquiryEventResult>
 }) => {
   const [state, setState] = useState<InquiryRunState>({ phase: 'idle' })
   const [approvedDefinitionId, setApprovedDefinitionId] = useState<string | null>(null)
@@ -438,13 +441,11 @@ export const SourceInquiryDialog = ({
               return
             }
             setState({ phase: 'sending', type: nextRequest.type })
-            const send = client.sendInquiryRequest
-              ? client.sendInquiryRequest(nextRequest)
-              : client.sendInquiry
-                ? client.sendInquiry(nextRequest.type)
-                : Promise.reject(new Error('Sink inquiry transport is unavailable'))
-            void send
-              .then(() => handleOpenChange(false))
+            void (executeInquiryEvent?.(nextRequest) ?? runSingleInquiryEvent(client, nextRequest))
+              .then(async ({ title, summary, eventData }) => {
+                await publishLogEvent?.(title, summary, eventData)
+                handleOpenChange(false)
+              })
               .catch((error) => setState({
                 phase: 'transportError',
                 type: nextRequest.type,

@@ -9,6 +9,7 @@ import {
   OnOffState,
   SinkPdoType,
   SinkInquiryType,
+  type SinkInquiryCablePlug,
   TriggerEventType,
   TriggerSenderFilter,
   TriggerStatus,
@@ -119,11 +120,13 @@ import {
   surveyPortPartnerIdentity,
   surveyPortPartnerModes,
   surveyPortPartnerSvids,
+  surveySinglePortPartnerModes,
 } from './inquiries/vdmWorkflow'
 import {
   SOURCE_AUTHENTICATION_EVENT_TITLE,
   surveySourceAuthentication,
 } from './inquiries/authenticationSurvey'
+import { inquiryEventTitle, runSingleInquiryEvent } from './inquiries/inquiryEvent'
 import {
   CalibrationManagementDialog,
   CalibrationSafetyDialog,
@@ -181,27 +184,7 @@ const LEGACY_SOURCE_CAPABILITIES_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY =
   'drpd:source-capabilities-capture-warning-suppressed'
 const GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY =
   'drpd:get-status-side-effect-warning-suppressed'
-const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
-  SinkInquiryType.GET_SOURCE_CAP,
-  SinkInquiryType.GET_SOURCE_CAP_EXTENDED,
-  SinkInquiryType.GET_STATUS,
-  SinkInquiryType.GET_SOURCE_INFO,
-  SinkInquiryType.GET_REVISION,
-  SinkInquiryType.GET_MANUFACTURER_INFO,
-  SinkInquiryType.GET_COUNTRY_CODES,
-  SinkInquiryType.GET_COUNTRY_INFO,
-  SinkInquiryType.GET_BATTERY_CAP,
-  SinkInquiryType.GET_BATTERY_STATUS,
-])
-const LOG_ONLY_SOURCE_INQUIRY_IDS = new Set([
-  'authenticate-source',
-  'discover-identity',
-  'discover-svids',
-  'discover-modes',
-])
-const isLogOnlySourceInquiry = (definition: InquiryDefinition): boolean =>
-  LOG_ONLY_SOURCE_INQUIRY_TYPES.has(definition.type) ||
-  LOG_ONLY_SOURCE_INQUIRY_IDS.has(definition.id)
+const isEventProducingInquiry = (definition: InquiryDefinition): boolean => definition.active
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
@@ -1706,75 +1689,74 @@ export const RackView = ({
   const selectedAnnotationTargetLabel =
     selectedAnnotatableMessage?.entryKind === 'event' ? 'mark' : 'message'
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
-  const proceedWithLogOnlyInquiry = useCallback((definition: InquiryDefinition) => {
+  const publishInquiryEvent = useCallback(async (
+    title: string,
+    summary: string,
+    eventData?: import('../../lib/device').LoggedEventDataSection[],
+  ) => {
+    if (!activeDriver) throw new Error('No Dr. PD device is connected')
+    await activeDriver.markLog(`${title}\n${summary}`, eventData)
+  }, [activeDriver])
+  const runAuthorizedInquiry = useCallback((definition: InquiryDefinition) => {
     if (!activeDriver) return
     if (definition.id === 'authenticate-source') {
       setDeviceError(null)
       void surveySourceAuthentication(activeDriver.sink)
-        .then(({ summary, eventData }) => activeDriver.markLog(
-          `${SOURCE_AUTHENTICATION_EVENT_TITLE}\n${summary}`,
-          eventData,
-        ))
+        .then(({ summary, eventData }) => publishInquiryEvent(SOURCE_AUTHENTICATION_EVENT_TITLE, summary, eventData))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
     }
-    const getStatusWarningSuppressed = window.localStorage.getItem(
-      GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY,
-    ) === 'true'
-    if (definition.type === SinkInquiryType.GET_STATUS && !getStatusWarningSuppressed) {
-      setSuppressGetStatusSideEffectWarning(false)
-      setGetStatusConfirmationDefinition(definition)
-      return
-    }
-    if (definition.type === SinkInquiryType.GET_MANUFACTURER_INFO) {
+    if (definition.workflow !== 'immediate' &&
+      (definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ||
+        definition.type === SinkInquiryType.DISCOVER_MODES)) {
       setSourceInquiryDefinition(definition)
       return
     }
     if (definition.type === SinkInquiryType.GET_COUNTRY_INFO) {
       setDeviceError(null)
       void surveyCountryInformation(activeDriver.sink)
-        .then(({ summary, eventData }) => activeDriver.markLog(
-          `${COUNTRY_INFORMATION_EVENT_TITLE}\n${summary}`,
-          eventData,
-        ))
+        .then(({ summary, eventData }) => publishInquiryEvent(COUNTRY_INFORMATION_EVENT_TITLE, summary, eventData))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
     }
     if (definition.type === SinkInquiryType.GET_BATTERY_CAP) {
       setDeviceError(null)
       void surveyBatteryCapabilities(activeDriver.sink)
-        .then(({ summary, eventData }) => activeDriver.markLog(
-          `${BATTERY_CAPABILITIES_EVENT_TITLE}\n${summary}`,
-          eventData,
-        ))
+        .then(({ summary, eventData }) => publishInquiryEvent(BATTERY_CAPABILITIES_EVENT_TITLE, summary, eventData))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
     }
     if (definition.type === SinkInquiryType.GET_BATTERY_STATUS) {
       setDeviceError(null)
       void surveyBatteryStatus(activeDriver.sink)
-        .then(({ summary, eventData }) => activeDriver.markLog(
-          `${BATTERY_STATUS_EVENT_TITLE}\n${summary}`,
+        .then(({ summary, eventData }) => publishInquiryEvent(BATTERY_STATUS_EVENT_TITLE, summary, eventData))
+        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+      return
+    }
+    const builtRequest = definition.buildRequest({})
+    const plug: SinkInquiryCablePlug | undefined = 'plug' in builtRequest
+      ? builtRequest.plug
+      : 'target' in builtRequest &&
+          builtRequest.target !== 'PORT' && builtRequest.target !== 'BATTERY'
+        ? builtRequest.target
+        : undefined
+    if (definition.id === 'discover-identity' || definition.id.startsWith('cable-identity-')) {
+      setDeviceError(null)
+      void surveyPortPartnerIdentity(activeDriver.sink, plug)
+        .then(({ summary, eventData }) => publishInquiryEvent(
+          plug ? inquiryEventTitle(builtRequest) : PORT_PARTNER_IDENTITY_EVENT_TITLE,
+          summary,
           eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
     }
-    if (definition.id === 'discover-identity') {
+    if (definition.id === 'discover-svids' || definition.id.startsWith('cable-svids-')) {
       setDeviceError(null)
-      void surveyPortPartnerIdentity(activeDriver.sink)
-        .then(({ summary, eventData }) => activeDriver.markLog(
-          `${PORT_PARTNER_IDENTITY_EVENT_TITLE}\n${summary}`,
-          eventData,
-        ))
-        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
-      return
-    }
-    if (definition.id === 'discover-svids') {
-      setDeviceError(null)
-      void surveyPortPartnerSvids(activeDriver.sink)
-        .then(({ summary, eventData }) => activeDriver.markLog(
-          `${PORT_PARTNER_SVIDS_EVENT_TITLE}\n${summary}`,
+      void surveyPortPartnerSvids(activeDriver.sink, plug)
+        .then(({ summary, eventData }) => publishInquiryEvent(
+          plug ? inquiryEventTitle(builtRequest) : PORT_PARTNER_SVIDS_EVENT_TITLE,
+          summary,
           eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
@@ -1783,23 +1765,41 @@ export const RackView = ({
     if (definition.id === 'discover-modes') {
       setDeviceError(null)
       void surveyPortPartnerModes(activeDriver.sink)
-        .then(({ summary, eventData }) => activeDriver.markLog(
-          `${PORT_PARTNER_MODES_EVENT_TITLE}\n${summary}`,
-          eventData,
-        ))
+        .then(({ summary, eventData }) => publishInquiryEvent(PORT_PARTNER_MODES_EVENT_TITLE, summary, eventData))
+        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+      return
+    }
+    if (definition.id.startsWith('survey-cable-') && plug) {
+      setDeviceError(null)
+      void surveyPortPartnerIdentity(activeDriver.sink, plug).then(async (identity) => {
+        const modes = await surveyPortPartnerModes(activeDriver.sink, plug)
+        await publishInquiryEvent(
+          `INQUIRY - ${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'} cable survey`,
+          `${identity.summary}\n${modes.summary}`,
+          [...(identity.eventData ?? []), ...(modes.eventData ?? [])],
+        )
+      })
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
     }
     setDeviceError(null)
-    void activeDriver.sink
-      .sendInquiry(definition.type)
+    void runSingleInquiryEvent(activeDriver.sink, builtRequest)
+      .then(({ title, summary, eventData }) => publishInquiryEvent(title, summary, eventData))
       .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
-  }, [activeDriver])
-  const handleSelectSourceInquiry = useCallback((definition: InquiryDefinition) => {
-    if (!isLogOnlySourceInquiry(definition)) {
-      setSourceInquiryDefinition(definition)
+  }, [activeDriver, publishInquiryEvent])
+  const proceedWithInquiry = useCallback((definition: InquiryDefinition) => {
+    const getStatusWarningSuppressed = window.localStorage.getItem(
+      GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY,
+    ) === 'true'
+    if (definition.type === SinkInquiryType.GET_STATUS &&
+      !definition.id.startsWith('cable-') && !getStatusWarningSuppressed) {
+      setSuppressGetStatusSideEffectWarning(false)
+      setGetStatusConfirmationDefinition(definition)
       return
     }
+    runAuthorizedInquiry(definition)
+  }, [runAuthorizedInquiry])
+  const handleSelectInquiry = useCallback((definition: InquiryDefinition) => {
     const warningSuppressed =
       window.localStorage.getItem(INQUIRY_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY) === 'true' ||
       window.localStorage.getItem(
@@ -1810,8 +1810,8 @@ export const RackView = ({
       setPendingCaptureWarningInquiry(definition)
       return
     }
-    proceedWithLogOnlyInquiry(definition)
-  }, [isCaptureEnabled, proceedWithLogOnlyInquiry])
+    proceedWithInquiry(definition)
+  }, [isCaptureEnabled, proceedWithInquiry])
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const isGoodCrcHidden = !isGoodCrcShown
   const messageLogFilterOptions = useMemo(
@@ -3255,7 +3255,7 @@ export const RackView = ({
                 sprPpsContract:
                   activeDriverState?.sinkInfo?.negotiatedPdo?.type === SinkPdoType.SPR_PPS,
               }),
-              onSelect: () => handleSelectSourceInquiry(definition),
+              onSelect: () => handleSelectInquiry(definition),
             })),
           },
           {
@@ -3273,7 +3273,7 @@ export const RackView = ({
                 sinkMode: isSinkMode,
                 attached: activeDriverState?.ccBusRoleStatus === CCBusRoleStatus.ATTACHED,
               }),
-              onSelect: () => setSourceInquiryDefinition(definition),
+              onSelect: () => handleSelectInquiry(definition),
             })),
           },
         ],
@@ -3301,7 +3301,7 @@ export const RackView = ({
       canCycleUsbConnection,
       canUseSinkBehaviourSettings,
       handlePulseUsbConnection,
-      handleSelectSourceInquiry,
+      handleSelectInquiry,
       handleSetActiveDeviceRole,
       handleSetActiveSinkEprEnabled,
       isSinkMode,
@@ -4131,10 +4131,26 @@ export const RackView = ({
         client={activeDriver?.sink ?? null}
         onResponse={handleSourceInquiryResponse}
         logOnly={sourceInquiryDefinition != null &&
-          isLogOnlySourceInquiry(sourceInquiryDefinition)}
+          isEventProducingInquiry(sourceInquiryDefinition)}
         publishLogEvent={async (title, summary, eventData) => {
           if (!activeDriver) return
           await activeDriver.markLog(`${title}\n${summary}`, eventData)
+        }}
+        executeInquiryEvent={async (request) => {
+          if (!activeDriver) throw new Error('No Dr. PD device is connected')
+          if (request.type === SinkInquiryType.DISCOVER_MODES) {
+            const result = await surveySinglePortPartnerModes(
+              activeDriver.sink,
+              request.svid,
+              request.plug,
+            )
+            return {
+              title: inquiryEventTitle(request),
+              summary: result.summary,
+              eventData: result.eventData ?? [],
+            }
+          }
+          return runSingleInquiryEvent(activeDriver.sink, request)
         }}
       />
       <Dialog
@@ -4172,14 +4188,15 @@ export const RackView = ({
                 }
                 setPendingCaptureWarningInquiry(null)
                 setSuppressInquiryCaptureWarning(false)
-                if (inquiry) proceedWithLogOnlyInquiry(inquiry)
+                if (inquiry) proceedWithInquiry(inquiry)
               }}>REQUEST ANYWAY</DialogButton>
             </div>
           </div>
         }
       >
         <p>
-          Capture is turned off. The response to this request will not appear in Message Log.
+          Capture is turned off. An event summary will still be added to Message Log, but the
+          packet-level request and response evidence will not be captured.
         </p>
       </Dialog>
       <Dialog
@@ -4220,10 +4237,8 @@ export const RackView = ({
                     )
                   }
                   setDeviceError(null)
-                  void activeDriver.sink
-                    .sendInquiry(SinkInquiryType.GET_STATUS)
-                    .catch((error) =>
-                      setDeviceError(error instanceof Error ? error.message : String(error)))
+                  const inquiry = getStatusConfirmationDefinition
+                  if (inquiry) runAuthorizedInquiry(inquiry)
                   setGetStatusConfirmationDefinition(null)
                   setSuppressGetStatusSideEffectWarning(false)
                 }}
