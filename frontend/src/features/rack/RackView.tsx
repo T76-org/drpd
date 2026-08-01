@@ -166,6 +166,7 @@ const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
   SinkInquiryType.GET_SOURCE_INFO,
   SinkInquiryType.GET_REVISION,
   SinkInquiryType.GET_MANUFACTURER_INFO,
+  SinkInquiryType.GET_COUNTRY_CODES,
 ])
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'

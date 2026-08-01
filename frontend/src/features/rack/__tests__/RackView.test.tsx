@@ -3222,6 +3222,41 @@ describe('RackView', () => {
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_REVISION')
   })
 
+  it('sends Get country codes without opening a result dialog when capture is on', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get country codes' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_COUNTRY_CODES')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before Get country codes when capture is off', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get country codes' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_COUNTRY_CODES')
+  })
+
   it('closes Get manufacturer info after sending its parameterized request', async () => {
     const user = userEvent.setup()
     saveRackDocument(buildBoundHydratedRackDocument())
