@@ -8,10 +8,18 @@ over USB using SCPI commands.
 import asyncio
 from collections import deque
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING, Deque, Optional
 
 from t76.drpd.device.device_sink_pdos import DeviceSinkPDO
 from t76.drpd.device.types import (
+    BatteryCapabilitiesInquiryData,
+    BatteryCapacity,
+    BatteryCapacityMeaning,
+    BatteryChargingState,
+    BatteryInquiryFailureAction,
+    BatteryStatusInquiryData,
+    BatterySurveyResult,
     CountryCodesInquiryData,
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
@@ -19,6 +27,8 @@ from t76.drpd.device.types import (
     ExtendedSourceCapabilitiesInquiryData,
     GetCountryCodesInquiryRequest,
     GetCountryInfoInquiryRequest,
+    GetBatteryCapabilitiesInquiryRequest,
+    GetBatteryStatusInquiryRequest,
     GetManufacturerInfoInquiryRequest,
     ManufacturerInfoInquiryData,
     ManufacturerInfoTarget,
@@ -267,6 +277,84 @@ class SinkInquiryRunner:
             codes_result, tuple(results), stopped
         )
 
+    async def run_battery_survey(
+        self,
+        battery_references: tuple[int, ...] | None = None,
+        *,
+        extended_source_capabilities: (
+            ExtendedSourceCapabilitiesInquiryData | None
+        ) = None,
+        failure_action: BatteryInquiryFailureAction = (
+            BatteryInquiryFailureAction.STOP
+        ),
+        max_retries: int = 1,
+        poll_interval_seconds: float = 0.01,
+        max_polls: int = 1000,
+    ) -> BatterySurveyResult:
+        """Survey Battery Capabilities then Status for bounded references."""
+        if not 0 <= max_retries <= 3:
+            raise ValueError("max_retries must be between 0 and 3")
+        if battery_references is not None:
+            references = tuple(
+                GetBatteryCapabilitiesInquiryRequest(ref).battery_reference
+                for ref in battery_references
+            )
+            used_counts = False
+        elif extended_source_capabilities is not None:
+            fixed = extended_source_capabilities.fixed_batteries
+            hot = extended_source_capabilities.hot_swappable_battery_slots
+            if fixed > 4 or hot > 4:
+                raise ValueError(
+                    "Extended Source Capabilities battery counts exceed 4"
+                )
+            references = tuple(range(fixed)) + tuple(range(4, 4 + hot))
+            used_counts = True
+        else:
+            references = tuple(range(8))
+            used_counts = False
+        if not references:
+            if used_counts:
+                return BatterySurveyResult((), (), True, False)
+            raise ValueError("Battery survey requires at least one reference")
+        if len(references) > 8 or len(set(references)) != len(references):
+            raise ValueError(
+                "Battery survey requires 1 to 8 unique references"
+            )
+
+        self._validate_run_options(poll_interval_seconds, max_polls)
+        async with self._lock:
+            results: list[SinkInquiryResult] = []
+            stopped = False
+            for reference in references:
+                requests: tuple[SinkInquiryRequest, ...] = (
+                    GetBatteryCapabilitiesInquiryRequest(reference),
+                    GetBatteryStatusInquiryRequest(reference),
+                )
+                for request in requests:
+                    attempts = 0
+                    while True:
+                        result = await self._run_locked(
+                            request, poll_interval_seconds, max_polls
+                        )
+                        results.append(result)
+                        if result.status.outcome == SinkInquiryOutcome.RESPONSE:
+                            break
+                        if failure_action == BatteryInquiryFailureAction.RETRY:
+                            if attempts < max_retries:
+                                attempts += 1
+                                continue
+                            stopped = True
+                        elif failure_action == BatteryInquiryFailureAction.STOP:
+                            stopped = True
+                        break
+                    if stopped:
+                        break
+                if stopped:
+                    break
+            return BatterySurveyResult(
+                references, tuple(results), used_counts, stopped
+            )
+
 
 def _decode_inquiry_response(
     request: SinkInquiryRequest,
@@ -285,6 +373,8 @@ def _decode_inquiry_response(
         SinkInquiryType.GET_MANUFACTURER_INFO: (0, 0x07),
         SinkInquiryType.GET_COUNTRY_CODES: (0, 0x0E),
         SinkInquiryType.GET_COUNTRY_INFO: (0, 0x0D),
+        SinkInquiryType.GET_BATTERY_CAP: (0, 0x05),
+        SinkInquiryType.GET_BATTERY_STATUS: (2, 0x05),
     }
     expected_class, expected_type = expected_metadata[inquiry_type]
     if (
@@ -428,6 +518,74 @@ def _decode_inquiry_response(
                 "Country_Info response code does not match requested country"
             )
         return CountryInfoInquiryData(echoed_code, body[4:])
+
+    if inquiry_type == SinkInquiryType.GET_BATTERY_CAP:
+        if len(body) != 9:
+            raise ValueError(
+                "Battery_Capabilities body must be exactly 9 bytes"
+            )
+        battery_type = body[8]
+        if battery_type & 0xFE:
+            raise ValueError(
+                "Battery_Capabilities reserved battery type bits must be zero"
+            )
+
+        def capacity(raw: int) -> BatteryCapacity:
+            if raw == 0:
+                meaning = BatteryCapacityMeaning.BATTERY_NOT_PRESENT
+            elif raw == 0xFFFF:
+                meaning = BatteryCapacityMeaning.UNKNOWN
+            else:
+                meaning = BatteryCapacityMeaning.VALUE
+            return BatteryCapacity(raw, meaning)
+
+        design = capacity(int.from_bytes(body[4:6], "little"))
+        last_full = capacity(int.from_bytes(body[6:8], "little"))
+        return BatteryCapabilitiesInquiryData(
+            vendor_id=int.from_bytes(body[0:2], "little"),
+            product_id=int.from_bytes(body[2:4], "little"),
+            design_capacity=design,
+            last_full_charge_capacity=last_full,
+            battery_type_raw=battery_type,
+            invalid_battery_reference=bool(battery_type & 0x01),
+            battery_present=(
+                design.meaning != BatteryCapacityMeaning.BATTERY_NOT_PRESENT
+            ),
+        )
+
+    if inquiry_type == SinkInquiryType.GET_BATTERY_STATUS:
+        if len(body) != 4:
+            raise ValueError("Battery_Status body must be exactly 4 bytes")
+        raw = int.from_bytes(body, "little")
+        if raw & 0x0000F0FF:
+            raise ValueError("Battery_Status reserved bits must be zero")
+        present_capacity = (raw >> 16) & 0xFFFF
+        battery_present = bool(raw & (1 << 9))
+        charging_raw = (raw >> 10) & 0x03
+        if charging_raw == BatteryChargingState.RESERVED.value:
+            raise ValueError("Battery_Status charging state is reserved")
+        if not battery_present and charging_raw != 0:
+            raise ValueError(
+                "Battery_Status absent battery must use charging state zero"
+            )
+        if present_capacity == 0xFFFF:
+            capacity_meaning = BatteryCapacityMeaning.UNKNOWN
+        elif not battery_present:
+            capacity_meaning = BatteryCapacityMeaning.BATTERY_NOT_PRESENT
+        else:
+            capacity_meaning = BatteryCapacityMeaning.VALUE
+        return BatteryStatusInquiryData(
+            present_capacity_raw_tenths_wh=present_capacity,
+            present_capacity_meaning=capacity_meaning,
+            present_capacity_wh=(
+                Decimal(present_capacity) / Decimal(10)
+                if capacity_meaning == BatteryCapacityMeaning.VALUE
+                else None
+            ),
+            invalid_battery_reference=bool(raw & (1 << 8)),
+            battery_present=battery_present,
+            charging_state=BatteryChargingState(charging_raw),
+        )
 
     if len(body) != 4:
         raise ValueError(f"{inquiry_type.value} body must be exactly 4 bytes")
@@ -693,6 +851,13 @@ class DeviceSink:
         elif isinstance(inquiry, GetCountryInfoInquiryRequest):
             command = (
                 f'SINK:INQ {inquiry.type.value},"{inquiry.country_code}"'
+            )
+        elif isinstance(
+            inquiry,
+            (GetBatteryCapabilitiesInquiryRequest, GetBatteryStatusInquiryRequest),
+        ):
+            command = (
+                f"SINK:INQ {inquiry.type.value},{inquiry.battery_reference}"
             )
         else:
             command = f"SINK:INQ {inquiry.type.value}"

@@ -128,6 +128,29 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
     guided: { initialContext: {}, steps: [{ id: 'country-codes', label: 'Discover country codes', buildRequest: () => ({ type: SinkInquiryType.GET_COUNTRY_CODES }) }] },
     active: true,
   } as InquiryDefinition<Record<string, unknown>>,
+  {
+    id: 'get-battery-capabilities', type: SinkInquiryType.GET_BATTERY_CAP,
+    label: 'Get battery capabilities…', description: 'Ask for capabilities of battery reference 0–7.',
+    workflow: 'parameterized', parameters: [{ kind: 'integer', name: 'batteryReference', label: 'Battery reference', min: 0, max: 7 }], sideEffects: [],
+    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_BATTERY_CAP, batteryReference: values.batteryReference as number }), active: true,
+  } as InquiryDefinition<Record<string, unknown>>,
+  {
+    id: 'get-battery-status', type: SinkInquiryType.GET_BATTERY_STATUS,
+    label: 'Get battery status…', description: 'Ask for status of battery reference 0–7.',
+    workflow: 'parameterized', parameters: [{ kind: 'integer', name: 'batteryReference', label: 'Battery reference', min: 0, max: 7 }], sideEffects: [],
+    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference: values.batteryReference as number }), active: true,
+  } as InquiryDefinition<Record<string, unknown>>,
+  {
+    id: 'survey-batteries', type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED,
+    label: 'Survey batteries…', description: 'Discover advertised battery references, then query capabilities and status sequentially.',
+    workflow: 'guided', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED }),
+    guided: { initialContext: {}, steps: [{ id: 'battery-discovery', label: 'Discover battery counts', buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED }) }] },
+    active: true,
+  },
 ]
 
 export const ACTIVE_SOURCE_INQUIRIES = SOURCE_INQUIRY_CATALOG.filter(

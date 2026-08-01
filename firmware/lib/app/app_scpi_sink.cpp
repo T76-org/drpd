@@ -236,7 +236,8 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
             return;
         }
     } else if (descriptor->parameterKind == Logic::InquiryParameterKind::ManufacturerInfo) {
-        if (params.size() < 2 || params.size() > 3) {
+        if (params.size() < 2 || params.size() > 3 ||
+            params[1].type != T76::SCPI::ParameterType::String) {
             illegalParameters("GET_MANUFACTURER_INFO requires PORT or BATTERY target.");
             return;
         }
@@ -255,7 +256,8 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
             return;
         }
     } else if (descriptor->parameterKind == Logic::InquiryParameterKind::CountryCode) {
-        if (params.size() != 2 || params[1].stringValue.size() != 2 ||
+        if (params.size() != 2 || params[1].type != T76::SCPI::ParameterType::String ||
+            params[1].stringValue.size() != 2 ||
             params[1].stringValue[0] < 'A' || params[1].stringValue[0] > 'Z' ||
             params[1].stringValue[1] < 'A' || params[1].stringValue[1] > 'Z') {
             illegalParameters("GET_COUNTRY_INFO requires an uppercase ISO alpha-2 code.");
@@ -263,6 +265,15 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
         }
         inquiryParameters.selector[0] = static_cast<uint8_t>(params[1].stringValue[0]);
         inquiryParameters.selector[1] = static_cast<uint8_t>(params[1].stringValue[1]);
+    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::BatteryReference) {
+        if (params.size() != 2 || params[1].type != T76::SCPI::ParameterType::Number ||
+            !std::isfinite(params[1].numberValue) || params[1].numberValue < 0 ||
+            params[1].numberValue > 7 ||
+            std::floor(params[1].numberValue) != params[1].numberValue) {
+            illegalParameters("Battery inquiry requires an integer reference 0..7.");
+            return;
+        }
+        inquiryParameters.argument = static_cast<uint32_t>(params[1].numberValue);
     }
     const auto result = sink->requestInquiry(descriptor->type, inquiryParameters);
     if (!result) {

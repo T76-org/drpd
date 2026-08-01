@@ -46,6 +46,8 @@ int main() {
         {SinkInquiryType::GetManufacturerInfo, "GET_MANUFACTURER_INFO", 0x06, InquiryMessageClass::Extended, InquiryMessageClass::Extended, 0x07, 5},
         {SinkInquiryType::GetCountryCodes, "GET_COUNTRY_CODES", 0x15, InquiryMessageClass::Control, InquiryMessageClass::Extended, 0x0e, 4},
         {SinkInquiryType::GetCountryInfo, "GET_COUNTRY_INFO", 0x07, InquiryMessageClass::Data, InquiryMessageClass::Extended, 0x0d, 4},
+        {SinkInquiryType::GetBatteryCapabilities, "GET_BATTERY_CAP", 0x03, InquiryMessageClass::Extended, InquiryMessageClass::Extended, 0x05, 9},
+        {SinkInquiryType::GetBatteryStatus, "GET_BATTERY_STATUS", 0x04, InquiryMessageClass::Extended, InquiryMessageClass::Data, 0x05, 4},
     };
     for (const auto& expected : golden) {
         const auto actual = sinkInquiryDescriptor(expected.type);
@@ -121,6 +123,37 @@ int main() {
     assert(inquiryResponseStructureValid(countryCodes, validCodes));
     assert(!inquiryResponseStructureValid(countryCodes, badLength));
     assert(!inquiryResponseStructureValid(countryCodes, badCode));
+
+    const auto batteryCap = sinkInquiryDescriptor(SinkInquiryType::GetBatteryCapabilities).value();
+    const auto batteryStatus = sinkInquiryDescriptor(SinkInquiryType::GetBatteryStatus).value();
+    for (uint32_t reference = 0; reference <= 7; ++reference) {
+        assert(inquiryParametersApplicable(batteryCap, 0, reference, 0));
+        assert(inquiryParametersApplicable(batteryStatus, 0, reference, 0));
+        encoded = encodeInquiryBody(batteryCap, 0, reference, 0);
+        assert(encoded.length == 1 && encoded.bytes[0] == reference &&
+            encoded.bytes[1] == 0 && encoded.bytes[2] == 0 && encoded.bytes[3] == 0);
+        const auto capFrame = encodeExtendedInquiryFrame(batteryCap, 0, reference, 0);
+        const auto statusFrame = encodeExtendedInquiryFrame(batteryStatus, 0, reference, 0);
+        assert(capFrame.valid && capFrame.bytes ==
+            (std::array<uint8_t, 4>{0x01, 0x80, static_cast<uint8_t>(reference), 0x00}));
+        assert(statusFrame.valid && statusFrame.bytes == capFrame.bytes);
+    }
+    assert(!inquiryParametersApplicable(batteryCap, 0, 8, 0));
+    assert(!inquiryParametersApplicable(batteryStatus, 0, 8, 0));
+    assert(inquiryResponsePayloadSizeValid(batteryCap, 9));
+    assert(!inquiryResponsePayloadSizeValid(batteryCap, 8));
+    assert(!inquiryResponsePayloadSizeValid(batteryCap, 10));
+    assert(inquiryResponsePayloadSizeValid(batteryStatus, 4));
+    assert(!inquiryResponsePayloadSizeValid(batteryStatus, 3));
+    assert(!inquiryResponsePayloadSizeValid(batteryStatus, 5));
+    const uint8_t invalidBatteryCap[] = {0xff, 0xff, 0, 0, 0, 0, 0, 0, 1};
+    const uint8_t invalidBatteryStatus[] = {0, 1, 0xff, 0xff};
+    assert(inquiryResponseStructureValid(batteryCap, invalidBatteryCap));
+    assert(inquiryResponseStructureValid(batteryStatus, invalidBatteryStatus));
+    const uint8_t badBatteryCapReserved[] = {0xff, 0xff, 0, 0, 0, 0, 0, 0, 2};
+    const uint8_t badBatteryStatusReserved[] = {1, 0, 0xff, 0xff};
+    assert(!inquiryResponseStructureValid(batteryCap, badBatteryCapReserved));
+    assert(!inquiryResponseStructureValid(batteryStatus, badBatteryStatusReserved));
 
     const uint32_t refreshed[] = {0x00019096, 0x0002d0c8, 0xc0dc213c};
     auto selection = selectRefreshedCapability(0x0002d0c8, refreshed);

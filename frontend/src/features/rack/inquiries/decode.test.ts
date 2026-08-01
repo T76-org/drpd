@@ -109,4 +109,39 @@ describe('decodeInquiryResponse', () => {
     expect(() => decodeInquiryResponse(status, new Uint8Array([0, 0, 0, 0, 0x80, 0]))).toThrow('printable ASCII')
     expect(() => decodeInquiryResponse(status, new Uint8Array([0, 0, 0, 0, 0x41, 0x42]))).toThrow('null terminator')
   })
+
+  it('decodes battery capabilities with raw 0.1 Wh and converted Wh units', () => {
+    const body = new Uint8Array([0x34, 0x12, 0x78, 0x56, 16, 0, 8, 0, 1])
+    const decoded = decodeInquiryResponse(
+      response(SinkInquiryType.GET_BATTERY_CAP, 0, 0x05, 9), body,
+      { type: SinkInquiryType.GET_BATTERY_CAP, batteryReference: 4 },
+    )
+    expect(decoded.summary).toContain('"designCapacityWh": 1.6')
+    expect(decoded.summary).toContain('"batteryReference": 4')
+  })
+
+  it('decodes invalid-reference battery status without hiding wire semantics', () => {
+    const raw = (0xffff << 16) | (1 << 8)
+    const body = new Uint8Array([raw & 0xff, (raw >>> 8) & 0xff, (raw >>> 16) & 0xff, (raw >>> 24) & 0xff])
+    const decoded = decodeInquiryResponse(
+      response(SinkInquiryType.GET_BATTERY_STATUS, 2, 0x05, 4), body,
+      { type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference: 7 },
+    )
+    expect(decoded.summary).toContain('"invalidBatteryReference": true')
+    expect(decoded.summary).toContain('"presentCapacityWh": null')
+  })
+
+  it.each([
+    [0x00000100, '"batteryPresentCapacity": 0', '"presentCapacityWh": null'],
+    [0xffff0100, '"batteryPresentCapacity": 65535', '"presentCapacityWh": null'],
+  ])('preserves invalid-reference capacity form 0x%s', (raw, rawCapacity, convertedCapacity) => {
+    const body = new Uint8Array([raw & 0xff, (raw >>> 8) & 0xff, (raw >>> 16) & 0xff, (raw >>> 24) & 0xff])
+    const decoded = decodeInquiryResponse(
+      response(SinkInquiryType.GET_BATTERY_STATUS, 2, 0x05, 4), body,
+      { type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference: 3 },
+    )
+    expect(decoded.summary).toContain('"invalidBatteryReference": true')
+    expect(decoded.summary).toContain(rawCapacity)
+    expect(decoded.summary).toContain(convertedCapacity)
+  })
 })

@@ -775,16 +775,11 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
     std::array<uint8_t, 4> rawBody = body.bytes;
     uint32_t dataObjects = descriptor->requestDataObjects;
     if (descriptor->requestClass == InquiryMessageClass::Extended) {
-        Proto::PDExtendedHeader extHeader;
-        extHeader.dataSizeBytes(body.length);
-        extHeader.requestChunk(false);
-        // Sink policy advertises chunked-only Extended Message support; a
-        // one-fragment request is still Chunk Number 0 with Chunked set.
-        extHeader.chunked(true);
-        extHeader.chunkNumber(0);
-        rawBody = {static_cast<uint8_t>(extHeader.raw() & 0xff),
-            static_cast<uint8_t>((extHeader.raw() >> 8) & 0xff),
-            body.bytes[0], body.bytes[1]};
+        const auto frame = encodeExtendedInquiryFrame(
+            descriptor.value(), request.parameters.target,
+            request.parameters.argument, selector);
+        if (!frame.valid) return false;
+        rawBody = frame.bytes;
         dataObjects = 1;
     }
     const SinkRawPDMessage rawMessage(
@@ -846,6 +841,11 @@ bool SinkContext::cacheInquiryResponse(
         }
         case SinkInquiryType::GetRevision:
         case SinkInquiryType::GetSourceInfo:
+        case SinkInquiryType::GetManufacturerInfo:
+        case SinkInquiryType::GetCountryCodes:
+        case SinkInquiryType::GetCountryInfo:
+        case SinkInquiryType::GetBatteryCapabilities:
+        case SinkInquiryType::GetBatteryStatus:
             return true;
     }
     return false;

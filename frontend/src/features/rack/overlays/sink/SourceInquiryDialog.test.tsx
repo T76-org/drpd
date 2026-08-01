@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { SinkInquiryOutcome, SinkInquiryType } from '../../../../lib/device'
+import { SinkInquiryOutcome, SinkInquiryType, type SinkInquiryRequest } from '../../../../lib/device'
 import { ACTIVE_SOURCE_INQUIRIES } from '../../inquiries/catalog'
 import { formatSinkInquiryOutcome } from '../../inquiries/presentation'
 import { SourceInquiryDialog } from './SourceInquiryDialog'
@@ -141,5 +141,28 @@ describe('SourceInquiryDialog', () => {
     expect(screen.getByText(/country-codes · attempt 1 · response/)).toBeInTheDocument()
     expect(screen.getByText(/country-info-CA · attempt 1 · response/)).toBeInTheDocument()
     expect(screen.getByText(/country-info-US · attempt 1 · response/)).toBeInTheDocument()
+  })
+
+  it('discovers SCEDB references then surveys Cap before Status', async () => {
+    const definition = ACTIVE_SOURCE_INQUIRIES.find(({ id }) => id === 'survey-batteries')!
+    const scedb = new Uint8Array(24); scedb[22] = 1
+    const statuses = [
+      { outcome: SinkInquiryOutcome.NONE, requestId: 0, type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED, responseClass: 0, responseType: 0, responseLength: 0 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED, responseClass: 0, responseType: 1, responseLength: 24 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED, responseClass: 0, responseType: 1, responseLength: 24 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.GET_BATTERY_CAP, responseClass: 0, responseType: 5, responseLength: 9 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.GET_BATTERY_CAP, responseClass: 0, responseType: 5, responseLength: 9 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 3, type: SinkInquiryType.GET_BATTERY_STATUS, responseClass: 2, responseType: 5, responseLength: 4 },
+    ]
+    const responses = [scedb, new Uint8Array(9), new Uint8Array(4)]
+    const sendInquiryRequest = vi.fn<(request: SinkInquiryRequest) => Promise<void>>().mockResolvedValue(undefined)
+    const client = { sendInquiryRequest, getInquiryStatus: vi.fn(async () => statuses.shift()!), getInquiryResponse: vi.fn(async () => responses.shift()!) }
+    render(<SourceInquiryDialog open onOpenChange={vi.fn()} definition={definition} client={client} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Survey advertised batteries' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Survey advertised batteries' }))
+    await waitFor(() => expect(client.sendInquiryRequest).toHaveBeenCalledTimes(3))
+    expect(client.sendInquiryRequest.mock.calls.map(([request]) => request.type)).toEqual([
+      SinkInquiryType.GET_SOURCE_CAP_EXTENDED, SinkInquiryType.GET_BATTERY_CAP, SinkInquiryType.GET_BATTERY_STATUS,
+    ])
   })
 })

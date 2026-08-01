@@ -7,6 +7,7 @@ Types and Enums for DRPD device communication.
 import enum
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import TypeAlias, Union
 
 from t76.drpd.message.data_objects import SourcePDO
@@ -577,6 +578,8 @@ class SinkInquiryType(enum.Enum):
     GET_MANUFACTURER_INFO = "GET_MANUFACTURER_INFO"
     GET_COUNTRY_CODES = "GET_COUNTRY_CODES"
     GET_COUNTRY_INFO = "GET_COUNTRY_INFO"
+    GET_BATTERY_CAP = "GET_BATTERY_CAP"
+    GET_BATTERY_STATUS = "GET_BATTERY_STATUS"
 
 
 class ManufacturerInfoTarget(enum.Enum):
@@ -584,6 +587,30 @@ class ManufacturerInfoTarget(enum.Enum):
 
     PORT = "PORT"
     BATTERY = "BATTERY"
+
+
+class BatteryReferenceKind(enum.Enum):
+    """Meaning of a USB-PD battery reference."""
+
+    FIXED = "FIXED"
+    HOT_SWAPPABLE = "HOT_SWAPPABLE"
+
+
+def _validate_battery_reference(reference: int) -> None:
+    if isinstance(reference, bool) or not isinstance(reference, int):
+        raise ValueError("battery_reference must be an integer from 0 to 7")
+    if not 0 <= reference <= 7:
+        raise ValueError("battery_reference must be an integer from 0 to 7")
+
+
+def battery_reference_kind(reference: int) -> BatteryReferenceKind:
+    """Map references 0..3 to fixed and 4..7 to hot-swappable."""
+    _validate_battery_reference(reference)
+    return (
+        BatteryReferenceKind.FIXED
+        if reference < 4
+        else BatteryReferenceKind.HOT_SWAPPABLE
+    )
 
 
 @dataclass(frozen=True)
@@ -695,6 +722,52 @@ class GetCountryInfoInquiryRequest:
         object.__setattr__(self, "country_code", normalized)
 
 
+@dataclass(frozen=True)
+class GetBatteryCapabilitiesInquiryRequest:
+    """Request capabilities for fixed ref 0..3 or hot-swappable ref 4..7."""
+
+    battery_reference: int
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_BATTERY_CAP, init=False
+    )
+
+    def __post_init__(self) -> None:
+        _validate_battery_reference(self.battery_reference)
+
+    @property
+    def reference_kind(self) -> BatteryReferenceKind:
+        return battery_reference_kind(self.battery_reference)
+
+    @property
+    def slot_index(self) -> int:
+        return self.battery_reference if self.battery_reference < 4 else (
+            self.battery_reference - 4
+        )
+
+
+@dataclass(frozen=True)
+class GetBatteryStatusInquiryRequest:
+    """Request live status for fixed ref 0..3 or hot-swappable ref 4..7."""
+
+    battery_reference: int
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_BATTERY_STATUS, init=False
+    )
+
+    def __post_init__(self) -> None:
+        _validate_battery_reference(self.battery_reference)
+
+    @property
+    def reference_kind(self) -> BatteryReferenceKind:
+        return battery_reference_kind(self.battery_reference)
+
+    @property
+    def slot_index(self) -> int:
+        return self.battery_reference if self.battery_reference < 4 else (
+            self.battery_reference - 4
+        )
+
+
 # New categories extend this discriminated union with bounded semantic
 # parameter dataclasses. Callers never construct PD headers directly.
 SinkInquiryRequest: TypeAlias = Union[
@@ -707,6 +780,8 @@ SinkInquiryRequest: TypeAlias = Union[
     GetManufacturerInfoInquiryRequest,
     GetCountryCodesInquiryRequest,
     GetCountryInfoInquiryRequest,
+    GetBatteryCapabilitiesInquiryRequest,
+    GetBatteryStatusInquiryRequest,
 ]
 
 
@@ -854,6 +929,62 @@ class CountryInfoInquiryData:
     country_specific_data: bytes
 
 
+class BatteryCapacityMeaning(enum.Enum):
+    """Meaning of a 0.1 Wh Battery_Capabilities capacity field."""
+
+    VALUE = "VALUE"
+    BATTERY_NOT_PRESENT = "BATTERY_NOT_PRESENT"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True)
+class BatteryCapacity:
+    """Exact Battery_Capabilities capacity value and sentinel meaning."""
+
+    raw_tenths_wh: int
+    meaning: BatteryCapacityMeaning
+
+    @property
+    def watt_hours(self) -> Decimal | None:
+        if self.meaning != BatteryCapacityMeaning.VALUE:
+            return None
+        return Decimal(self.raw_tenths_wh) / Decimal(10)
+
+
+@dataclass(frozen=True)
+class BatteryCapabilitiesInquiryData:
+    """Decoded nine-byte Battery Capabilities data block."""
+
+    vendor_id: int
+    product_id: int
+    design_capacity: BatteryCapacity
+    last_full_charge_capacity: BatteryCapacity
+    battery_type_raw: int
+    invalid_battery_reference: bool
+    battery_present: bool
+
+
+class BatteryChargingState(enum.Enum):
+    """Battery_Status charging-state field."""
+
+    CHARGING = 0
+    DISCHARGING = 1
+    IDLE = 2
+    RESERVED = 3
+
+
+@dataclass(frozen=True)
+class BatteryStatusInquiryData:
+    """Decoded Battery Status Data Object."""
+
+    present_capacity_raw_tenths_wh: int
+    present_capacity_meaning: BatteryCapacityMeaning
+    present_capacity_wh: Decimal | None
+    invalid_battery_reference: bool
+    battery_present: bool
+    charging_state: BatteryChargingState
+
+
 SinkInquiryDecodedData: TypeAlias = Union[
     SourceCapabilitiesInquiryData,
     ExtendedSourceCapabilitiesInquiryData,
@@ -864,6 +995,8 @@ SinkInquiryDecodedData: TypeAlias = Union[
     ManufacturerInfoInquiryData,
     CountryCodesInquiryData,
     CountryInfoInquiryData,
+    BatteryCapabilitiesInquiryData,
+    BatteryStatusInquiryData,
 ]
 
 
@@ -891,6 +1024,24 @@ class CountryInquiryWorkflowResult:
 
     country_codes_result: SinkInquiryResult
     country_info_results: tuple[SinkInquiryResult, ...]
+    stopped_early: bool
+
+
+class BatteryInquiryFailureAction(enum.Enum):
+    """Guided battery-survey handling for a terminal non-response."""
+
+    RETRY = "RETRY"
+    CONTINUE = "CONTINUE"
+    STOP = "STOP"
+
+
+@dataclass(frozen=True)
+class BatterySurveyResult:
+    """Serialized Battery Capabilities/Status survey results."""
+
+    battery_references: tuple[int, ...]
+    inquiry_results: tuple[SinkInquiryResult, ...]
+    used_extended_source_counts: bool
     stopped_early: bool
 
 

@@ -9,7 +9,7 @@ namespace {
 constexpr uint8_t rev1 = 0;
 constexpr uint8_t rev3 = 2;
 
-const std::array<SinkInquiryDescriptor, 9> descriptors{{
+const std::array<SinkInquiryDescriptor, 11> descriptors{{
     {SinkInquiryType::GetRevision, "GET_REVISION", InquiryMessageClass::Control,
         0x18, 0, {InquiryMessageClass::Data, 0x0c, 1, 1},
         LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 4, true, rev3, false, InquiryParameterKind::None,
@@ -46,6 +46,14 @@ const std::array<SinkInquiryDescriptor, 9> descriptors{{
         0x07, 1, {InquiryMessageClass::Extended, 0x0d, 1, 7},
         LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 26, true, rev3, false,
         InquiryParameterKind::CountryCode, InquiryCacheKind::None, InquiryWarningNone},
+    {SinkInquiryType::GetBatteryCapabilities, "GET_BATTERY_CAP", InquiryMessageClass::Extended,
+        0x03, 1, {InquiryMessageClass::Extended, 0x05, 1, 7},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 9, 9, true, rev3, false,
+        InquiryParameterKind::BatteryReference, InquiryCacheKind::None, InquiryWarningNone},
+    {SinkInquiryType::GetBatteryStatus, "GET_BATTERY_STATUS", InquiryMessageClass::Extended,
+        0x04, 1, {InquiryMessageClass::Data, 0x05, 1, 1},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 4, true, rev3, false,
+        InquiryParameterKind::BatteryReference, InquiryCacheKind::None, InquiryWarningNone},
 }};
 }
 

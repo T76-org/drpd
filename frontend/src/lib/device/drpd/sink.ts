@@ -109,6 +109,11 @@ export class DRPDSink {
       await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), countryCode)
       return
     }
+    if (request.type === SinkInquiryType.GET_BATTERY_CAP || request.type === SinkInquiryType.GET_BATTERY_STATUS) {
+      if (!Number.isInteger(request.batteryReference) || request.batteryReference < 0 || request.batteryReference > 7) throw new Error('Battery reference must be an integer from 0 to 7')
+      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.batteryReference)
+      return
+    }
     await this.sendInquiry(request.type)
   }
 

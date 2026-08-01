@@ -148,24 +148,35 @@ const runSinkInquiryUnlocked = async (
 
 const clientQueues = new WeakMap<object, Promise<void>>()
 
-/** Serialize inquiry transactions per client so dialogs/workflows cannot interleave SCPI state. */
-export const runSinkInquiry = async (
-  client: SinkInquiryClient,
-  request: SinkInquiryRequest,
-  options: InquiryRunnerOptions = {},
-): Promise<InquiryRunState> => {
+const withClientQueue = async <T>(client: SinkInquiryClient, operation: () => Promise<T>): Promise<T> => {
   const previous = clientQueues.get(client as object) ?? Promise.resolve()
   let release!: () => void
   const gate = new Promise<void>((resolve) => { release = resolve })
   const queued = previous.then(() => gate)
   clientQueues.set(client as object, queued)
   await previous
-  try {
-    return await runSinkInquiryUnlocked(client, request, options)
-  } finally {
+  try { return await operation() }
+  finally {
     release()
     if (clientQueues.get(client as object) === queued) clientQueues.delete(client as object)
   }
+}
+
+/** Hold the client queue across a multi-request workflow without recursively acquiring it. */
+export const withSinkInquiryLease = async <T>(
+  client: SinkInquiryClient,
+  operation: (run: (request: SinkInquiryRequest, options?: InquiryRunnerOptions) => Promise<InquiryRunState>) => Promise<T>,
+): Promise<T> => withClientQueue(client, async () => operation(
+  (request, options = {}) => runSinkInquiryUnlocked(client, request, options),
+))
+
+/** Serialize inquiry transactions per client so dialogs/workflows cannot interleave SCPI state. */
+export const runSinkInquiry = async (
+  client: SinkInquiryClient,
+  request: SinkInquiryRequest,
+  options: InquiryRunnerOptions = {},
+): Promise<InquiryRunState> => {
+  return await withClientQueue(client, () => runSinkInquiryUnlocked(client, request, options))
 }
 
 export const runSerialInquiryWorkflow = async (

@@ -30,6 +30,8 @@ namespace T76::DRPD::Logic {
         GetManufacturerInfo,
         GetCountryCodes,
         GetCountryInfo,
+        GetBatteryCapabilities,
+        GetBatteryStatus,
     };
 
     enum class SinkInquiryTarget : uint32_t {
