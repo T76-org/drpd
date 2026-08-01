@@ -68,4 +68,45 @@ describe('decodeInquiryResponse', () => {
       new Uint8Array(4),
     )).toThrow('Unexpected response class/type')
   })
+
+  it.each([26, 27])('decodes Manufacturer_Info across a %i-byte chunk boundary', (length) => {
+    const body = new Uint8Array(length).fill(0x41)
+    body.set([0x34, 0x12, 0x78, 0x56])
+    body[length - 1] = 0
+    const decoded = decodeInquiryResponse(
+      response(SinkInquiryType.GET_MANUFACTURER_INFO, 0, 0x07, length), body,
+      { type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' },
+    )
+    expect(decoded.summary).toContain('manufacturerString')
+  })
+
+  it('decodes and validates Country_Codes count, reserved byte, and pairs', () => {
+    const body = new Uint8Array([2, 0, 0x43, 0x41, 0x55, 0x53])
+    expect(decodeInquiryResponse(response(SinkInquiryType.GET_COUNTRY_CODES, 0, 0x0e, 6), body).summary)
+      .toContain('CA')
+    expect(() => decodeInquiryResponse(response(SinkInquiryType.GET_COUNTRY_CODES, 0, 0x0e, 6), new Uint8Array([2, 1, 0x43, 0x41, 0x55, 0x53]))).toThrow()
+  })
+
+  it.each([25, 26])('decodes correlated Country_Info across a %i-byte chunk boundary', (length) => {
+    const body = new Uint8Array(length)
+    body.set([0x43, 0x41, 0, 0])
+    const request = { type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: 'CA' } as const
+    expect(decodeInquiryResponse(response(SinkInquiryType.GET_COUNTRY_INFO, 0, 0x0d, length), body, request).summary).toContain('CA')
+    expect(() => decodeInquiryResponse(response(SinkInquiryType.GET_COUNTRY_INFO, 0, 0x0d, length), body, { ...request, countryCode: 'US' })).toThrow('echoed CA')
+  })
+
+  it('rejects 27-byte Country_Info', () => {
+    const body = new Uint8Array(27)
+    body.set([0x43, 0x41, 0, 0])
+    expect(() => decodeInquiryResponse(
+      response(SinkInquiryType.GET_COUNTRY_INFO, 0, 0x0d, 27), body,
+      { type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: 'CA' },
+    )).toThrow('malformed')
+  })
+
+  it('rejects malformed Manufacturer_Info ASCII and termination', () => {
+    const status = response(SinkInquiryType.GET_MANUFACTURER_INFO, 0, 0x07, 6)
+    expect(() => decodeInquiryResponse(status, new Uint8Array([0, 0, 0, 0, 0x80, 0]))).toThrow('printable ASCII')
+    expect(() => decodeInquiryResponse(status, new Uint8Array([0, 0, 0, 0, 0x41, 0x42]))).toThrow('null terminator')
+  })
 })

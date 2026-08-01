@@ -14,8 +14,9 @@ describe('source inquiry catalog', () => {
     )
     expect(ACTIVE_SOURCE_INQUIRIES.map(({ type }) => type)).toEqual(Object.values(SinkInquiryType))
     const definition = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_REVISION)!
-    expect(ACTIVE_SOURCE_INQUIRIES.every(({ workflow, active }) => workflow === 'immediate' && active)).toBe(true)
-    expect(ACTIVE_SOURCE_INQUIRIES.every(({ parameters }) => parameters.length === 0)).toBe(true)
+    expect(ACTIVE_SOURCE_INQUIRIES.every(({ active }) => active)).toBe(true)
+    expect(ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_MANUFACTURER_INFO)?.workflow).toBe('parameterized')
+    expect(ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_COUNTRY_INFO)?.workflow).toBe('guided')
     expect(definition.applicability({ sinkMode: true, attached: true })).toBe(true)
     expect(definition.applicability({ sinkMode: true, attached: false })).toBe(false)
     expect(definition.buildRequest({})).toEqual({ type: SinkInquiryType.GET_REVISION })

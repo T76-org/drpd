@@ -27,6 +27,14 @@ namespace T76::DRPD::Logic {
         GetStatus,
         GetSourceInfo,
         GetPPSStatus,
+        GetManufacturerInfo,
+        GetCountryCodes,
+        GetCountryInfo,
+    };
+
+    enum class SinkInquiryTarget : uint32_t {
+        Port = 0,
+        Battery = 1,
     };
 
     /** Fixed, queue-safe parameters shared by typed inquiry descriptors. */

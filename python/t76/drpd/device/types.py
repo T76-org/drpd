@@ -574,6 +574,16 @@ class SinkInquiryType(enum.Enum):
     GET_REVISION = "GET_REVISION"
     GET_SOURCE_INFO = "GET_SOURCE_INFO"
     GET_PPS_STATUS = "GET_PPS_STATUS"
+    GET_MANUFACTURER_INFO = "GET_MANUFACTURER_INFO"
+    GET_COUNTRY_CODES = "GET_COUNTRY_CODES"
+    GET_COUNTRY_INFO = "GET_COUNTRY_INFO"
+
+
+class ManufacturerInfoTarget(enum.Enum):
+    """Semantic Manufacturer_Info target."""
+
+    PORT = "PORT"
+    BATTERY = "BATTERY"
 
 
 @dataclass(frozen=True)
@@ -631,6 +641,60 @@ class GetPPSStatusInquiryRequest:
     )
 
 
+@dataclass(frozen=True)
+class GetManufacturerInfoInquiryRequest:
+    """Request Port or Battery manufacturer information."""
+
+    target: ManufacturerInfoTarget = ManufacturerInfoTarget.PORT
+    battery_reference: int | None = None
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_MANUFACTURER_INFO, init=False
+    )
+
+    def __post_init__(self) -> None:
+        if self.target == ManufacturerInfoTarget.PORT:
+            if self.battery_reference is not None:
+                raise ValueError(
+                    "battery_reference must be omitted for PORT target"
+                )
+            return
+        if self.battery_reference is None or not 0 <= self.battery_reference <= 7:
+            raise ValueError(
+                "BATTERY target requires battery_reference between 0 and 7"
+            )
+
+
+@dataclass(frozen=True)
+class GetCountryCodesInquiryRequest:
+    """Request supported ISO 3166 alpha-2 country codes."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_COUNTRY_CODES, init=False
+    )
+
+
+@dataclass(frozen=True)
+class GetCountryInfoInquiryRequest:
+    """Request information for one ISO 3166 alpha-2 country code."""
+
+    country_code: str
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_COUNTRY_INFO, init=False
+    )
+
+    def __post_init__(self) -> None:
+        normalized = self.country_code.upper()
+        if (
+            len(normalized) != 2
+            or not normalized.isascii()
+            or not normalized.isalpha()
+        ):
+            raise ValueError(
+                "country_code must contain exactly two ASCII letters"
+            )
+        object.__setattr__(self, "country_code", normalized)
+
+
 # New categories extend this discriminated union with bounded semantic
 # parameter dataclasses. Callers never construct PD headers directly.
 SinkInquiryRequest: TypeAlias = Union[
@@ -640,6 +704,9 @@ SinkInquiryRequest: TypeAlias = Union[
     GetRevisionInquiryRequest,
     GetSourceInfoInquiryRequest,
     GetPPSStatusInquiryRequest,
+    GetManufacturerInfoInquiryRequest,
+    GetCountryCodesInquiryRequest,
+    GetCountryInfoInquiryRequest,
 ]
 
 
@@ -762,6 +829,31 @@ class PPSStatusInquiryData:
     real_time_flags: int
 
 
+@dataclass(frozen=True)
+class ManufacturerInfoInquiryData:
+    """Decoded Manufacturer Info data block."""
+
+    vendor_id: int
+    product_id: int
+    manufacturer_string: str
+    manufacturer_string_bytes: bytes
+
+
+@dataclass(frozen=True)
+class CountryCodesInquiryData:
+    """Decoded Country Codes data block."""
+
+    country_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CountryInfoInquiryData:
+    """Decoded Country Info data block correlated to its request."""
+
+    country_code: str
+    country_specific_data: bytes
+
+
 SinkInquiryDecodedData: TypeAlias = Union[
     SourceCapabilitiesInquiryData,
     ExtendedSourceCapabilitiesInquiryData,
@@ -769,6 +861,9 @@ SinkInquiryDecodedData: TypeAlias = Union[
     RevisionInquiryData,
     SourceInfoInquiryData,
     PPSStatusInquiryData,
+    ManufacturerInfoInquiryData,
+    CountryCodesInquiryData,
+    CountryInfoInquiryData,
 ]
 
 
@@ -780,6 +875,23 @@ class SinkInquiryResult:
     status: SinkInquiryStatus
     raw_response: bytes | None
     decoded: SinkInquiryDecodedData | None = None
+
+
+class CountryInquiryFailureAction(enum.Enum):
+    """Guided country-workflow handling for a terminal non-response."""
+
+    RETRY = "RETRY"
+    CONTINUE = "CONTINUE"
+    STOP = "STOP"
+
+
+@dataclass(frozen=True)
+class CountryInquiryWorkflowResult:
+    """Host-retained result of a guided country-information workflow."""
+
+    country_codes_result: SinkInquiryResult
+    country_info_results: tuple[SinkInquiryResult, ...]
+    stopped_early: bool
 
 
 class DiagnosticCCRole(enum.Enum):

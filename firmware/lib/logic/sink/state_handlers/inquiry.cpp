@@ -106,7 +106,16 @@ void InquiryStateHandler::handleMessage(
         const auto body = extendedPayload.has_value()
             ? extendedPayload->span()
             : message->rawBody();
-        if (!inquiryResponsePayloadSizeValid(descriptor.value(), body.size())) {
+        if (!inquiryResponsePayloadSizeValid(descriptor.value(), body.size()) ||
+            !inquiryResponseStructureValid(descriptor.value(), body)) {
+            _finish(context, SinkInquiryOutcome::MalformedResponse);
+            return;
+        }
+        const uint32_t selector = static_cast<uint32_t>(resultSnapshot.parameters.selector[0]) |
+            (static_cast<uint32_t>(resultSnapshot.parameters.selector[1]) << 8) |
+            (static_cast<uint32_t>(resultSnapshot.parameters.selector[2]) << 16) |
+            (static_cast<uint32_t>(resultSnapshot.parameters.selector[3]) << 24);
+        if (!inquiryResponseCorrelates(descriptor.value(), selector, body)) {
             _finish(context, SinkInquiryOutcome::MalformedResponse);
             return;
         }

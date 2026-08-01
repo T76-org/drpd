@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <cstddef>
 #include <optional>
+#include <array>
+#include <span>
 #include <string_view>
 
 namespace T76::DRPD::Logic {
@@ -52,6 +54,17 @@ enum class InquiryApplicability : uint8_t {
     RequiresPPSContract,
 };
 
+enum class InquiryParameterKind : uint8_t {
+    None,
+    ManufacturerInfo,
+    CountryCode,
+};
+
+struct EncodedInquiryBody {
+    std::array<uint8_t, 4> bytes{};
+    uint8_t length = 0;
+};
+
 struct InquiryResponseDescriptor {
     InquiryMessageClass messageClass;
     uint8_t messageType;
@@ -72,7 +85,7 @@ struct SinkInquiryDescriptor {
     bool requiresExplicitContract;
     uint8_t minimumSpecRevision;
     bool requiresPPSContract;
-    bool acceptsParameters;
+    InquiryParameterKind parameterKind;
     InquiryCacheKind cacheKind;
     uint32_t warningFlags;
 };
@@ -120,8 +133,72 @@ struct SinkInquiryDescriptor {
     uint32_t target,
     uint32_t argument,
     uint32_t selector) {
-    return descriptor.acceptsParameters ||
-        (target == 0 && argument == 0 && selector == 0);
+    switch (descriptor.parameterKind) {
+        case InquiryParameterKind::None:
+            return target == 0 && argument == 0 && selector == 0;
+        case InquiryParameterKind::ManufacturerInfo:
+            return (target == 0 && argument == 0 && selector == 0) ||
+                (target == 1 && argument <= 7 && selector == 0);
+        case InquiryParameterKind::CountryCode: {
+            const uint8_t first = static_cast<uint8_t>(selector & 0xff);
+            const uint8_t second = static_cast<uint8_t>((selector >> 8) & 0xff);
+            return target == 0 && argument == 0 &&
+                (selector & 0xffff0000u) == 0 &&
+                first >= 'A' && first <= 'Z' && second >= 'A' && second <= 'Z';
+        }
+    }
+    return false;
+}
+
+/** Encode the message-specific logical request body (without Extended Header). */
+[[nodiscard]] constexpr EncodedInquiryBody encodeInquiryBody(
+    const SinkInquiryDescriptor& descriptor,
+    uint32_t target,
+    uint32_t argument,
+    uint32_t selector) {
+    EncodedInquiryBody result;
+    if (!inquiryParametersApplicable(descriptor, target, argument, selector)) return result;
+    if (descriptor.parameterKind == InquiryParameterKind::ManufacturerInfo) {
+        result.bytes[0] = static_cast<uint8_t>(target);
+        result.bytes[1] = static_cast<uint8_t>(argument);
+        result.length = 2;
+    } else if (descriptor.parameterKind == InquiryParameterKind::CountryCode) {
+        // CCDO B31..24/B23..16; raw PD bodies are little-endian.
+        result.bytes[2] = static_cast<uint8_t>((selector >> 8) & 0xff);
+        result.bytes[3] = static_cast<uint8_t>(selector & 0xff);
+        result.length = 4;
+    }
+    return result;
+}
+
+/** Verify response fields which echo a request selector. */
+[[nodiscard]] constexpr bool inquiryResponseCorrelates(
+    const SinkInquiryDescriptor& descriptor,
+    uint32_t selector,
+    std::span<const uint8_t> payload) {
+    if (descriptor.parameterKind != InquiryParameterKind::CountryCode) return true;
+    return payload.size() >= 2 && payload[0] == static_cast<uint8_t>(selector & 0xff) &&
+        payload[1] == static_cast<uint8_t>((selector >> 8) & 0xff);
+}
+
+/** Validate message-specific response data-block invariants. */
+[[nodiscard]] constexpr bool inquiryResponseStructureValid(
+    const SinkInquiryDescriptor& descriptor,
+    std::span<const uint8_t> payload) {
+    // Country_Codes CCDB: Length, zero reserved byte, then exactly Length codes.
+    if (descriptor.response.messageClass == InquiryMessageClass::Extended &&
+        descriptor.response.messageType == 0x0e) {
+        if (payload.size() < 4 || payload[1] != 0 ||
+            payload.size() != 2u + static_cast<size_t>(payload[0]) * 2u) return false;
+        for (size_t i = 2; i < payload.size(); ++i) {
+            if (payload[i] < 'A' || payload[i] > 'Z') return false;
+        }
+    }
+    // Country_Info CIDB reserved bytes Shall be zero.
+    if (descriptor.parameterKind == InquiryParameterKind::CountryCode) {
+        return payload.size() >= 4 && payload[2] == 0 && payload[3] == 0;
+    }
+    return true;
 }
 
 [[nodiscard]] constexpr InquiryApplicability inquiryStateApplicability(

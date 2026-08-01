@@ -113,4 +113,33 @@ describe('SourceInquiryDialog', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(client.sendInquiryRequest).toHaveBeenCalledTimes(2)
   })
+
+  it('discovers countries and fetches all sequentially with complete history', async () => {
+    const countryDefinition = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_COUNTRY_INFO)!
+    const statuses = [
+      { outcome: SinkInquiryOutcome.NONE, requestId: 0, type: SinkInquiryType.GET_COUNTRY_CODES, responseClass: 0, responseType: 0, responseLength: 0 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.GET_COUNTRY_CODES, responseClass: 0, responseType: 0x0e, responseLength: 6 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.GET_COUNTRY_CODES, responseClass: 0, responseType: 0x0e, responseLength: 6 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.GET_COUNTRY_INFO, responseClass: 0, responseType: 0x0d, responseLength: 4 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.GET_COUNTRY_INFO, responseClass: 0, responseType: 0x0d, responseLength: 4 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 3, type: SinkInquiryType.GET_COUNTRY_INFO, responseClass: 0, responseType: 0x0d, responseLength: 4 },
+    ]
+    const responses = [
+      new Uint8Array([2, 0, 0x43, 0x41, 0x55, 0x53]),
+      new Uint8Array([0x43, 0x41, 0, 0]),
+      new Uint8Array([0x55, 0x53, 0, 0]),
+    ]
+    const client = {
+      sendInquiryRequest: vi.fn(async () => undefined),
+      getInquiryStatus: vi.fn(async () => statuses.shift()!),
+      getInquiryResponse: vi.fn(async () => responses.shift()!),
+    }
+    render(<SourceInquiryDialog open onOpenChange={vi.fn()} definition={countryDefinition} client={client} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Get all countries' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Get all countries' }))
+    await waitFor(() => expect(client.sendInquiryRequest).toHaveBeenCalledTimes(3))
+    expect(screen.getByText(/country-codes · attempt 1 · response/)).toBeInTheDocument()
+    expect(screen.getByText(/country-info-CA · attempt 1 · response/)).toBeInTheDocument()
+    expect(screen.getByText(/country-info-US · attempt 1 · response/)).toBeInTheDocument()
+  })
 })

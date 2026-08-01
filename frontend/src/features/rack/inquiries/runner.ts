@@ -18,7 +18,7 @@ export type InquiryRunState =
   | { phase: 'validating'; request: SinkInquiryRequest }
   | { phase: 'sending'; type: SinkInquiryType }
   | { phase: 'waiting'; type: SinkInquiryType; requestId: number | null }
-  | { phase: 'response'; status: SinkInquiryStatus; rawResponse: Uint8Array }
+  | { phase: 'response'; status: SinkInquiryStatus; rawResponse: Uint8Array; request: SinkInquiryRequest }
   | { phase: 'terminal'; status: SinkInquiryStatus }
   | { phase: 'superseded'; expectedType: SinkInquiryType; status: SinkInquiryStatus }
   | { phase: 'transportError'; type: SinkInquiryType; message: string }
@@ -79,7 +79,7 @@ const validateRunnerOptions = (options: InquiryRunnerOptions): void => {
   }
 }
 
-export const runSinkInquiry = async (
+const runSinkInquiryUnlocked = async (
   client: SinkInquiryClient,
   request: SinkInquiryRequest,
   options: InquiryRunnerOptions = {},
@@ -126,7 +126,7 @@ export const runSinkInquiry = async (
             `Inquiry response length mismatch: expected ${status.responseLength}, got ${rawResponse.byteLength}`,
           )
         }
-        return emit({ phase: 'response', status, rawResponse })
+        return emit({ phase: 'response', status, rawResponse, request })
       }
       if (requestId !== null && isTerminalOutcome(status.outcome)) {
         return emit({ phase: 'terminal', status })
@@ -143,6 +143,28 @@ export const runSinkInquiry = async (
       type,
       message: error instanceof Error ? error.message : String(error),
     })
+  }
+}
+
+const clientQueues = new WeakMap<object, Promise<void>>()
+
+/** Serialize inquiry transactions per client so dialogs/workflows cannot interleave SCPI state. */
+export const runSinkInquiry = async (
+  client: SinkInquiryClient,
+  request: SinkInquiryRequest,
+  options: InquiryRunnerOptions = {},
+): Promise<InquiryRunState> => {
+  const previous = clientQueues.get(client as object) ?? Promise.resolve()
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  const queued = previous.then(() => gate)
+  clientQueues.set(client as object, queued)
+  await previous
+  try {
+    return await runSinkInquiryUnlocked(client, request, options)
+  } finally {
+    release()
+    if (clientQueues.get(client as object) === queued) clientQueues.delete(client as object)
   }
 }
 

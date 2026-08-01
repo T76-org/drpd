@@ -279,6 +279,9 @@ export const SinkInquiryType = {
   GET_SOURCE_INFO: 'GET_SOURCE_INFO',
   GET_PPS_STATUS: 'GET_PPS_STATUS',
   GET_REVISION: 'GET_REVISION',
+  GET_MANUFACTURER_INFO: 'GET_MANUFACTURER_INFO',
+  GET_COUNTRY_CODES: 'GET_COUNTRY_CODES',
+  GET_COUNTRY_INFO: 'GET_COUNTRY_INFO',
 } as const
 
 /** Supported Sink-to-Source inquiry message type value. */
@@ -286,9 +289,11 @@ export type SinkInquiryType =
   (typeof SinkInquiryType)[keyof typeof SinkInquiryType]
 
 /** Semantic request for Get_Revision; callers never construct a PD header. */
-export type SinkInquiryRequest = {
-  [K in keyof typeof SinkInquiryType]: { type: (typeof SinkInquiryType)[K] }
-}[keyof typeof SinkInquiryType]
+export type SinkInquiryRequest =
+  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO> }
+  | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'PORT' }
+  | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'BATTERY'; batteryReference: number }
+  | { type: typeof SinkInquiryType.GET_COUNTRY_INFO; countryCode: string }
 
 /** Sink inquiry protocol outcome token. */
 export const SinkInquiryOutcome = {
