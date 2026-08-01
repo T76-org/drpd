@@ -191,7 +191,10 @@ export const surveyBatteryCapabilities = async (
     const result = await run(request)
     if (result.phase !== 'response') {
       const failure = describeFailure(result)
-      lines.push(`- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):** ${failure}.`)
+      lines.push(
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **Outcome:** ${failure}.`,
+      )
       eventData.push(buildFailedBatterySection(batteryReference, failure))
       continue
     }
@@ -200,17 +203,20 @@ export const surveyBatteryCapabilities = async (
       const capabilities = parseBatteryCapabilitiesDataBlock(result.rawResponse)
       const invalidReference = (capabilities.batteryType & 0x01) !== 0
       lines.push(
-        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):** ` +
-        `VID ${hex16(capabilities.vid)}, ` +
-        `PID ${hex16(capabilities.pid)}, ` +
-        `design capacity ${formatCapacity(capabilities.batteryDesignCapacity)}, ` +
-        `last full charge capacity ${formatCapacity(capabilities.batteryLastFullChargeCapacity)}, ` +
-        `reference ${invalidReference ? 'invalid' : 'valid'}.`,
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **VID:** ${hex16(capabilities.vid)}`,
+        `  - **PID:** ${hex16(capabilities.pid)}`,
+        `  - **Design capacity:** ${formatCapacity(capabilities.batteryDesignCapacity)}`,
+        `  - **Last full-charge capacity:** ${formatCapacity(capabilities.batteryLastFullChargeCapacity)}`,
+        `  - **Battery reference:** ${invalidReference ? 'Invalid' : 'Valid'}`,
       )
       eventData.push(buildBatteryCapabilitiesSection(batteryReference, result.rawResponse))
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      lines.push(`- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):** malformed response (${message}).`)
+      lines.push(
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **Outcome:** Malformed response (${message}).`,
+      )
       eventData.push(buildFailedBatterySection(batteryReference, 'Malformed response.', result.rawResponse, message))
     }
   }

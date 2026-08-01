@@ -44,8 +44,14 @@ describe('battery survey helpers', () => {
     expect(result.references).toEqual([0, 4])
     expect(result.summary).toBe([
       '- **Advertised batteries:** 2 total — 1 fixed, 1 hot-swappable.',
-      '- **Battery 0 (fixed):** VID 0x1234, PID 0x5678, design capacity 12.3 Wh, last full charge capacity 10.0 Wh, reference valid.',
-      '- **Battery 4 (hot-swappable slot 0):** Not Supported.',
+      '- **Battery 0 (fixed):**',
+      '  - **VID:** 0x1234',
+      '  - **PID:** 0x5678',
+      '  - **Design capacity:** 12.3 Wh',
+      '  - **Last full-charge capacity:** 10.0 Wh',
+      '  - **Battery reference:** Valid',
+      '- **Battery 4 (hot-swappable slot 0):**',
+      '  - **Outcome:** Not Supported.',
     ].join('\n'))
     expect(result.eventData?.map((section) => section.title)).toEqual([
       'Source Capabilities Extended',
@@ -132,7 +138,9 @@ describe('battery survey helpers', () => {
       getInquiryResponse: vi.fn(async () => responses.shift()!),
     })
 
-    expect(result.summary).toContain('design capacity battery not present, last full charge capacity unknown, reference invalid')
+    expect(result.summary).toContain('  - **Design capacity:** battery not present')
+    expect(result.summary).toContain('  - **Last full-charge capacity:** unknown')
+    expect(result.summary).toContain('  - **Battery reference:** Invalid')
     const battery = result.eventData![1]
     expect(sectionEntry(battery, 'Design Capacity (bytes 4–5)')).toContain('0x0000')
     expect(sectionEntry(battery, 'Last Full-Charge Capacity (bytes 6–7)')).toContain('0xFFFF')
@@ -157,7 +165,7 @@ describe('battery survey helpers', () => {
       getInquiryResponse: vi.fn(async () => responses.shift()!),
     })
 
-    expect(result.summary).toContain('malformed response (Battery_Capabilities response must contain exactly 9 bytes)')
+    expect(result.summary).toContain('  - **Outcome:** Malformed response (Battery_Capabilities response must contain exactly 9 bytes).')
     const battery = result.eventData![1]
     expect(sectionEntry(battery, 'Decode Error')).toBe('Battery_Capabilities response must contain exactly 9 bytes')
     expect(sectionEntry(battery, 'Raw Logical Response')).toContain('01 02 03')
