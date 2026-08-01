@@ -588,11 +588,16 @@ commands:
     handler:      _querySinkRequestStatus
 
   - syntax:       "SINK:INQuiry"
-    description:  "Start a supported Sink-to-Source inquiry as a serialized SOP AMS."
+    description:  |
+                    Start a supported Sink-to-Source inquiry as a serialized SOP AMS.
+                    GET_SOURCE_CAP is available at all negotiated revisions. Other
+                    category inquiries require PD 3.x; GET_PPS_STATUS additionally
+                    requires an active SPR PPS contract. GET_STATUS reads and clears
+                    the Source's latched OCP, OVP, and OTP event indicators.
     parameters:
       - name: type
         type: enum
-        choices: ["GET_REVISION"]
+        choices: ["GET_REVISION", "GET_SOURCE_CAP", "GET_SOURCE_CAP_EXTENDED", "GET_STATUS", "GET_SOURCE_INFO", "GET_PPS_STATUS"]
         description: "Supported inquiry message type."
     errors:
       -221:

@@ -1,30 +1,52 @@
 #include "inquiry_descriptor.hpp"
 #include "sink_types.hpp"
 
+#include <array>
+
 namespace T76::DRPD::Logic {
 
+namespace {
+constexpr uint8_t rev1 = 0;
+constexpr uint8_t rev3 = 2;
+
+const std::array<SinkInquiryDescriptor, 6> descriptors{{
+    {SinkInquiryType::GetRevision, "GET_REVISION", InquiryMessageClass::Control,
+        0x18, 0, {InquiryMessageClass::Data, 0x0c, 1, 1},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 4, true, rev3, false, false,
+        InquiryCacheKind::None, InquiryWarningNone},
+    {SinkInquiryType::GetSourceCapabilities, "GET_SOURCE_CAP", InquiryMessageClass::Control,
+        0x07, 0, {InquiryMessageClass::Data, 0x01, 1, 7},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 28, true, rev1, false, false,
+        InquiryCacheKind::SourceCapabilities, InquiryWarningNone},
+    {SinkInquiryType::GetSourceCapabilitiesExtended, "GET_SOURCE_CAP_EXTENDED", InquiryMessageClass::Control,
+        0x11, 0, {InquiryMessageClass::Extended, 0x01, 1, 7},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 24, 25, true, rev3, false, false,
+        InquiryCacheKind::SourceCapabilitiesExtended, InquiryWarningNone},
+    {SinkInquiryType::GetStatus, "GET_STATUS", InquiryMessageClass::Control,
+        0x12, 0, {InquiryMessageClass::Extended, 0x02, 1, 7},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 6, 7, true, rev3, false, false,
+        InquiryCacheKind::Status, InquiryWarningStatusReadClearsEvents},
+    {SinkInquiryType::GetSourceInfo, "GET_SOURCE_INFO", InquiryMessageClass::Control,
+        0x17, 0, {InquiryMessageClass::Data, 0x0b, 1, 1},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 4, true, rev3, false, false,
+        InquiryCacheKind::None, InquiryWarningNone},
+    {SinkInquiryType::GetPPSStatus, "GET_PPS_STATUS", InquiryMessageClass::Control,
+        0x14, 0, {InquiryMessageClass::Extended, 0x0c, 1, 7},
+        LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, 4, 4, true, rev3, true, false,
+        InquiryCacheKind::PPSStatus, InquiryWarningNone},
+}};
+}
+
 std::optional<SinkInquiryDescriptor> sinkInquiryDescriptor(SinkInquiryType type) {
-    switch (type) {
-        case SinkInquiryType::GetRevision:
-            return SinkInquiryDescriptor{
-                .type = type,
-                .token = "GET_REVISION",
-                .requestClass = InquiryMessageClass::Control,
-                .requestMessageType = 0x18,
-                .requestDataObjects = 0,
-                .response = {InquiryMessageClass::Data, 0x0c, 1, 1},
-                .responseTimeoutUs = LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US,
-                .requiresExplicitContract = true,
-                .acceptsParameters = false,
-            };
+    for (const auto& descriptor : descriptors) {
+        if (descriptor.type == type) return descriptor;
     }
     return std::nullopt;
 }
 
 std::optional<SinkInquiryDescriptor> sinkInquiryDescriptor(std::string_view token) {
-    const auto getRevision = sinkInquiryDescriptor(SinkInquiryType::GetRevision);
-    if (getRevision.has_value() && token == getRevision->token) {
-        return getRevision;
+    for (const auto& descriptor : descriptors) {
+        if (token == descriptor.token) return descriptor;
     }
     return std::nullopt;
 }

@@ -7,6 +7,7 @@ export interface InquiryApplicabilityContext {
   attached: boolean
   explicitContract?: boolean
   sprPpsContract?: boolean
+  pdRevision3?: boolean
 }
 
 export type InquirySideEffect =
@@ -43,9 +44,50 @@ export interface InquiryDefinition<TParameters = Record<string, never>> {
   buildRequest: (parameters: TParameters) => SinkInquiryRequest
   guided?: GuidedInquiryStepGraph
   active: boolean
+  confirmation?: { title: string; body: string; confirmLabel: string }
 }
 
 export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
+  {
+    id: 'get-source-capabilities', type: SinkInquiryType.GET_SOURCE_CAP,
+    label: 'Get source capabilities', description: 'Ask the attached Source to resend its advertised power capabilities.',
+    workflow: 'immediate', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached }) => sinkMode && attached,
+    buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP }), active: true,
+  },
+  {
+    id: 'get-extended-source-capabilities', type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED,
+    label: 'Get extended source capabilities', description: 'Ask the attached PD 3.x Source for its extended capabilities.',
+    workflow: 'immediate', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED }), active: true,
+  },
+  {
+    id: 'get-status', type: SinkInquiryType.GET_STATUS,
+    label: 'Get status', description: 'Ask the attached PD 3.x Source for its current status.',
+    workflow: 'immediate', parameters: [], sideEffects: ['clears-source-status-events'],
+    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: () => ({ type: SinkInquiryType.GET_STATUS }), active: true,
+    confirmation: {
+      title: 'Send Get_Status?',
+      body: 'Reading Status clears the Source’s latched OCP, OVP, and OTP event flags.',
+      confirmLabel: 'Send Get_Status',
+    },
+  },
+  {
+    id: 'get-source-information', type: SinkInquiryType.GET_SOURCE_INFO,
+    label: 'Get source information', description: 'Ask the attached PD 3.x Source for identifying and capability information.',
+    workflow: 'immediate', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_INFO }), active: true,
+  },
+  {
+    id: 'get-pps-status', type: SinkInquiryType.GET_PPS_STATUS,
+    label: 'Get PPS status', description: 'Ask the attached Source for status of the active SPR PPS contract.',
+    workflow: 'immediate', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached, sprPpsContract, pdRevision3 }) => sinkMode && attached && sprPpsContract === true && pdRevision3 !== false,
+    buildRequest: () => ({ type: SinkInquiryType.GET_PPS_STATUS }), active: true,
+  },
   {
     id: 'get-revision',
     type: SinkInquiryType.GET_REVISION,

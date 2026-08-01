@@ -118,7 +118,8 @@ namespace T76::DRPD::Logic {
             SinkInquiryOutcome outcome,
             uint32_t responseClass = 0,
             uint32_t responseType = 0,
-            std::span<const uint8_t> response = {});
+            std::span<const uint8_t> response = {},
+            uint32_t warningFlags = 0);
 
         SinkState _state;                                         ///< Current policy state.
         SinkStateHandler* _currentStateHandler;                   ///< Active state handler pointer.
@@ -146,8 +147,11 @@ namespace T76::DRPD::Logic {
         bool _eprSourceExitRequested = false;                     ///< True when Source advertised no EPR PDOs.
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.
         std::optional<Proto::PPSStatus> _ppsStatus;               ///< Last Source PPS status response.
+        std::optional<ExtendedPayloadBuffer> _sourceCapabilitiesExtended; ///< Canonical 25-byte SCEDB.
+        std::optional<ExtendedPayloadBuffer> _sourceStatus;      ///< Canonical 7-byte SOP SDB.
         SinkInquiryResult _inquiryResult;                         ///< Latest host inquiry and response.
         std::optional<ExtendedPayloadBuffer> _completedInquiryExtendedPayload; ///< Active inquiry payload.
+        bool _inquiryRecoveredMalformedPPSStatus = false; ///< Interop recovery warning latch.
 
         bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
         uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.

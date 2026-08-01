@@ -15,14 +15,16 @@ describe('dispatchSinkInquiryRpc', () => {
     const response = new Uint8Array([0xab])
     const sink = {
       sendInquiry: vi.fn(async () => undefined),
+      sendInquiryRequest: vi.fn(async () => undefined),
       getInquiryStatus: vi.fn(async () => status),
       getInquiryResponse: vi.fn(async () => response),
     }
     expect(await dispatchSinkInquiryRpc(sink, 'sendInquiry', [SinkInquiryType.GET_REVISION]))
+      .toEqual({ handled: true, value: null })
+    expect(await dispatchSinkInquiryRpc(sink, 'sendInquiryRequest', [{ type: SinkInquiryType.GET_REVISION }]))
       .toEqual({ handled: true, value: null })
     expect(await dispatchSinkInquiryRpc(sink, 'getInquiryStatus', [])).toEqual({ handled: true, value: status })
     expect(await dispatchSinkInquiryRpc(sink, 'getInquiryResponse', [])).toEqual({ handled: true, value: response })
     expect(await dispatchSinkInquiryRpc(sink, 'other', [])).toEqual({ handled: false })
   })
 })
-

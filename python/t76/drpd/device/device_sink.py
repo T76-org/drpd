@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING, Deque, Optional
 
 from t76.drpd.device.device_sink_pdos import DeviceSinkPDO
 from t76.drpd.device.types import (
+    ExtendedSourceCapabilitiesInquiryData,
     Mode,
+    PPSStatusInquiryData,
+    RevisionInquiryData,
+    SinkInquiryDecodedData,
     SinkRequestOutcome,
     SinkRequestStatus,
     SinkInquiryOutcome,
@@ -21,7 +25,11 @@ from t76.drpd.device.types import (
     SinkInquiryStatus,
     SinkInquiryType,
     SinkState,
+    SourceCapabilitiesInquiryData,
+    SourceInfoInquiryData,
+    SourceStatusInquiryData,
 )
+from t76.drpd.message.data_objects import SourcePDO
 
 from .device_internal import DeviceInternal
 
@@ -124,7 +132,15 @@ class SinkInquiryRunner:
                             f"got {len(raw_response)}"
                         )
 
-                result = SinkInquiryResult(request, status, raw_response)
+                decoded = None
+                if raw_response is not None:
+                    decoded = _decode_inquiry_response(
+                        request.type, status, raw_response
+                    )
+
+                result = SinkInquiryResult(
+                    request, status, raw_response, decoded
+                )
                 self._history.append(result)
                 return result
 
@@ -132,6 +148,123 @@ class SinkInquiryRunner:
                 "Inquiry did not publish a correlated terminal result within "
                 f"{max_polls} polls"
             )
+
+
+def _decode_inquiry_response(
+    inquiry_type: SinkInquiryType,
+    status: SinkInquiryStatus,
+    body: bytes,
+) -> SinkInquiryDecodedData:
+    """Decode one validated logical response body."""
+    expected_metadata = {
+        SinkInquiryType.GET_SOURCE_CAP: (2, 0x01),
+        SinkInquiryType.GET_SOURCE_CAP_EXTENDED: (0, 0x01),
+        SinkInquiryType.GET_STATUS: (0, 0x02),
+        SinkInquiryType.GET_REVISION: (2, 0x0C),
+        SinkInquiryType.GET_SOURCE_INFO: (2, 0x0B),
+        SinkInquiryType.GET_PPS_STATUS: (0, 0x0C),
+    }
+    expected_class, expected_type = expected_metadata[inquiry_type]
+    if (
+        status.response_class != expected_class
+        or status.response_type != expected_type
+    ):
+        raise ValueError(
+            "Inquiry response metadata does not match request: "
+            f"expected class/type {expected_class}/{expected_type}, got "
+            f"{status.response_class}/{status.response_type}"
+        )
+
+    if inquiry_type == SinkInquiryType.GET_SOURCE_CAP:
+        if not 4 <= len(body) <= 28 or len(body) % 4:
+            raise ValueError(
+                "Source_Capabilities body must contain 1 to 7 four-byte PDOs"
+            )
+        return SourceCapabilitiesInquiryData(tuple(
+            SourcePDO.from_raw(int.from_bytes(body[offset:offset + 4], "little"))
+            for offset in range(0, len(body), 4)
+        ))
+
+    if inquiry_type == SinkInquiryType.GET_SOURCE_CAP_EXTENDED:
+        if len(body) not in (24, 25):
+            raise ValueError(
+                "Source_Capabilities_Extended body must be 24 or 25 bytes"
+            )
+        battery_slots = body[22]
+        return ExtendedSourceCapabilitiesInquiryData(
+            payload_length=len(body),
+            vendor_id=int.from_bytes(body[0:2], "little"),
+            product_id=int.from_bytes(body[2:4], "little"),
+            xid=int.from_bytes(body[4:8], "little"),
+            firmware_version=body[8],
+            hardware_version=body[9],
+            voltage_regulation=body[10],
+            holdup_time_ms=body[11],
+            compliance=body[12],
+            touch_current=body[13],
+            peak_current=(
+                int.from_bytes(body[14:16], "little"),
+                int.from_bytes(body[16:18], "little"),
+                int.from_bytes(body[18:20], "little"),
+            ),
+            touch_temperature=body[20],
+            source_inputs=body[21],
+            hot_swappable_battery_slots=(battery_slots >> 4) & 0x0F,
+            fixed_batteries=battery_slots & 0x0F,
+            spr_source_pdp_w=body[23] & 0x7F,
+            epr_source_pdp_w=body[24] if len(body) == 25 else None,
+            has_epr_source_pdp=len(body) == 25,
+        )
+
+    if inquiry_type == SinkInquiryType.GET_STATUS:
+        if len(body) not in (6, 7):
+            raise ValueError("Status body must be 6 or 7 bytes for SOP")
+        events = body[3]
+        return SourceStatusInquiryData(
+            payload_length=len(body),
+            internal_temperature=body[0],
+            present_input=body[1],
+            present_battery_input=body[2],
+            event_flags=events,
+            temperature_status=(body[4] >> 1) & 0x03,
+            power_status=body[5],
+            power_state=body[6] if len(body) == 7 else None,
+            has_power_state_change=len(body) == 7,
+            over_current_event=bool(events & (1 << 1)),
+            over_temperature_event=bool(events & (1 << 2)),
+            over_voltage_event=bool(events & (1 << 3)),
+            operating_in_current_limit=bool(events & (1 << 4)),
+        )
+
+    if len(body) != 4:
+        raise ValueError(f"{inquiry_type.value} body must be exactly 4 bytes")
+
+    raw = int.from_bytes(body, "little")
+    if inquiry_type == SinkInquiryType.GET_REVISION:
+        return RevisionInquiryData(
+            revision_major=(raw >> 28) & 0x0F,
+            revision_minor=(raw >> 24) & 0x0F,
+            version_major=(raw >> 20) & 0x0F,
+            version_minor=(raw >> 16) & 0x0F,
+        )
+    if inquiry_type == SinkInquiryType.GET_SOURCE_INFO:
+        return SourceInfoInquiryData(
+            port_type=(raw >> 31) & 0x01,
+            port_maximum_pdp_w=(raw >> 16) & 0xFF,
+            port_present_pdp_w=(raw >> 8) & 0xFF,
+            port_reported_pdp_w=raw & 0xFF,
+        )
+
+    voltage_raw = int.from_bytes(body[0:2], "little")
+    current_raw = body[2]
+    flags = body[3]
+    return PPSStatusInquiryData(
+        output_voltage_mv=None if voltage_raw == 0xFFFF else voltage_raw * 20,
+        output_current_ma=None if current_raw == 0xFF else current_raw * 50,
+        present_temperature_flag=(flags >> 1) & 0x03,
+        operating_in_current_limit=bool(flags & 0x08),
+        real_time_flags=flags,
+    )
 
 
 class DeviceSink:

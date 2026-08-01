@@ -332,6 +332,7 @@ describe('DRPD command groups', () => {
     const group = new DRPDSink(transport)
 
     await group.sendInquiry(SinkInquiryType.GET_REVISION)
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_SOURCE_CAP })
     await expect(group.getInquiryStatus()).resolves.toEqual({
       outcome: SinkInquiryOutcome.RESPONSE,
       requestId: 17,
@@ -344,6 +345,10 @@ describe('DRPD command groups', () => {
     expect(transport.commands[0]).toEqual({
       command: 'SINK:INQ',
       params: [{ raw: 'GET_REVISION' }],
+    })
+    expect(transport.commands[1]).toEqual({
+      command: 'SINK:INQ',
+      params: [{ raw: 'GET_SOURCE_CAP' }],
     })
   })
 

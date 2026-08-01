@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <optional>
 #include <string_view>
 
@@ -30,6 +31,27 @@ enum class InquiryMatch : uint8_t {
     ProtocolError,
 };
 
+enum class InquiryCacheKind : uint8_t {
+    None,
+    SourceCapabilities,
+    SourceCapabilitiesExtended,
+    Status,
+    PPSStatus,
+};
+
+enum InquiryWarningFlags : uint32_t {
+    InquiryWarningNone = 0,
+    InquiryWarningStatusReadClearsEvents = 1u << 0,
+    InquiryWarningRecoveredMalformedPPSStatus = 1u << 1,
+};
+
+enum class InquiryApplicability : uint8_t {
+    Applicable,
+    RequiresExplicitContract,
+    RequiresSpecRevision,
+    RequiresPPSContract,
+};
+
 struct InquiryResponseDescriptor {
     InquiryMessageClass messageClass;
     uint8_t messageType;
@@ -45,8 +67,14 @@ struct SinkInquiryDescriptor {
     uint8_t requestDataObjects;
     InquiryResponseDescriptor response;
     uint32_t responseTimeoutUs;
+    uint16_t minimumResponseBytes;
+    uint16_t maximumResponseBytes;
     bool requiresExplicitContract;
+    uint8_t minimumSpecRevision;
+    bool requiresPPSContract;
     bool acceptsParameters;
+    InquiryCacheKind cacheKind;
+    uint32_t warningFlags;
 };
 
 /** Return protocol descriptor for a locally supported inquiry type. */
@@ -79,6 +107,13 @@ struct SinkInquiryDescriptor {
         ? InquiryMatch::Response : InquiryMatch::ProtocolError;
 }
 
+[[nodiscard]] constexpr bool inquiryResponsePayloadSizeValid(
+    const SinkInquiryDescriptor& descriptor,
+    size_t payloadBytes) {
+    return payloadBytes >= descriptor.minimumResponseBytes &&
+        payloadBytes <= descriptor.maximumResponseBytes;
+}
+
 /** Validate fixed POD parameter fields against descriptor contract. */
 [[nodiscard]] constexpr bool inquiryParametersApplicable(
     const SinkInquiryDescriptor& descriptor,
@@ -87,6 +122,23 @@ struct SinkInquiryDescriptor {
     uint32_t selector) {
     return descriptor.acceptsParameters ||
         (target == 0 && argument == 0 && selector == 0);
+}
+
+[[nodiscard]] constexpr InquiryApplicability inquiryStateApplicability(
+    const SinkInquiryDescriptor& descriptor,
+    bool hasExplicitContract,
+    uint8_t negotiatedSpecRevision,
+    bool hasPPSContract) {
+    if (descriptor.requiresExplicitContract && !hasExplicitContract) {
+        return InquiryApplicability::RequiresExplicitContract;
+    }
+    if (negotiatedSpecRevision < descriptor.minimumSpecRevision) {
+        return InquiryApplicability::RequiresSpecRevision;
+    }
+    if (descriptor.requiresPPSContract && !hasPPSContract) {
+        return InquiryApplicability::RequiresPPSContract;
+    }
+    return InquiryApplicability::Applicable;
 }
 
 }

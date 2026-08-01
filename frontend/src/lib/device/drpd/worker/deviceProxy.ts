@@ -30,6 +30,7 @@ import type {
   OnOffState,
   SinkInfo,
   SinkInquiryStatus,
+  SinkInquiryRequest,
   SinkInquiryType,
   SinkPdo,
   SinkRequestStatus,
@@ -118,6 +119,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     setPpsStatusQueryEnabled: (enabled: boolean) => Promise<void>
     getRequestStatus: () => Promise<SinkRequestStatus>
     sendInquiry: (type: SinkInquiryType) => Promise<void>
+    sendInquiryRequest: (request: SinkInquiryRequest) => Promise<void>
     getInquiryStatus: () => Promise<SinkInquiryStatus>
     getInquiryResponse: () => Promise<Uint8Array>
     getSprCapabilityCount: () => Promise<number>
@@ -333,6 +335,9 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       getRequestStatus: async () => (await this.callGroup('sink', 'getRequestStatus')) as SinkRequestStatus,
       sendInquiry: async (type) => {
         await this.callGroup('sink', 'sendInquiry', type)
+      },
+      sendInquiryRequest: async (request) => {
+        await this.callGroup('sink', 'sendInquiryRequest', request)
       },
       getInquiryStatus: async () =>
         (await this.callGroup('sink', 'getInquiryStatus')) as SinkInquiryStatus,

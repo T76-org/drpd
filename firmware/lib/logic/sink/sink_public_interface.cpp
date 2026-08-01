@@ -136,8 +136,19 @@ SinkRequestResult Sink::requestInquiry(
     if (_runtimeState._state != SinkState::PE_SNK_Ready) {
         return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
     }
-    if (descriptor->requiresExplicitContract && !_runtimeState._hasExplicitContract) {
-        return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
+    const bool hasPPSContract = _runtimeState._negotiatedPDO.has_value() &&
+        std::holds_alternative<Proto::SPRPPSAPDO>(*_runtimeState._negotiatedPDO);
+    switch (inquiryStateApplicability(
+        descriptor.value(), _runtimeState._hasExplicitContract,
+        static_cast<uint8_t>(_runtimeState._specRevision), hasPPSContract)) {
+        case InquiryApplicability::RequiresExplicitContract:
+            return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
+        case InquiryApplicability::RequiresSpecRevision:
+            return SinkRequestResult::failure("Inquiry is not supported by the negotiated PD revision");
+        case InquiryApplicability::RequiresPPSContract:
+            return SinkRequestResult::failure("Inquiry requires an active SPR PPS contract");
+        case InquiryApplicability::Applicable:
+            break;
     }
     const uint32_t selector = static_cast<uint32_t>(parameters.selector[0]) |
         (static_cast<uint32_t>(parameters.selector[1]) << 8) |
@@ -145,7 +156,7 @@ SinkRequestResult Sink::requestInquiry(
         (static_cast<uint32_t>(parameters.selector[3]) << 24);
     if (!inquiryParametersApplicable(
             descriptor.value(), parameters.target, parameters.argument, selector)) {
-        return SinkRequestResult::failure("Inquiry parameters are not applicable to GET_REVISION");
+        return SinkRequestResult::failure("Inquiry parameters are not applicable to this message type");
     }
     if (_runtimeState.inquiryResult().status.outcome == SinkInquiryOutcome::Pending ||
         _inquiryQueued.exchange(true, std::memory_order_acq_rel)) {
