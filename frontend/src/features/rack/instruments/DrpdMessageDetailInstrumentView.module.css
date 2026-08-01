@@ -89,16 +89,13 @@
 .section[data-section-id='event'] {
   --detail-section-surface: color-mix(in srgb, #5f6670 12%, var(--color-surface-panel));
   --detail-section-border: color-mix(in srgb, #5f6670 42%, var(--color-border-panel));
-}
-
-.eventTitle {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
+  --detail-label-surface: color-mix(in srgb, #5f6670 28%, var(--color-surface-panel-accent));
+  --detail-label-surface-alt: color-mix(in srgb, #5f6670 22%, var(--color-surface-panel-accent));
+  --detail-value-surface: color-mix(in srgb, #5f6670 16%, var(--color-surface-panel));
+  --detail-value-surface-alt: color-mix(in srgb, #5f6670 10%, var(--color-surface-panel));
 }
 
 .eventSummary {
-  margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

@@ -206,8 +206,18 @@ describe('DrpdMessageDetailInstrumentView', () => {
     />)
 
     const details = await screen.findByRole('region', { name: 'Event details' })
-    expect(within(details).getByRole('heading', { name: 'INQUIRY - Battery status' })).toBeInTheDocument()
-    expect(details.querySelector('p')?.textContent).toBe('Battery 0: Present\nBattery 1: Not Supported')
+    const eventToggle = within(details).getByRole('button', { name: 'Event' })
+    expect(eventToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(details).getByRole('rowheader', { name: 'Title' })).toBeInTheDocument()
+    expect(within(details).getByText('INQUIRY - Battery status')).toBeInTheDocument()
+    const detailsLabel = within(details).getByRole('rowheader', { name: 'Details' })
+    expect(detailsLabel).toBeInTheDocument()
+    expect(detailsLabel.parentElement?.querySelector('td')?.textContent).toBe(
+      'Battery 0: Present\nBattery 1: Not Supported',
+    )
+    await userEvent.click(eventToggle)
+    expect(eventToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(details).queryByRole('rowheader', { name: 'Title' })).not.toBeInTheDocument()
   })
 
   it('renders single-line firmware events and empty event fallback text', async () => {
@@ -226,14 +236,14 @@ describe('DrpdMessageDetailInstrumentView', () => {
     const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
     render(<DrpdMessageDetailInstrumentView instrument={buildInstrument()} displayName="MESSAGE DETAIL" deviceState={deviceState} isEditMode={false} />)
 
-    expect(await screen.findByRole('heading', { name: 'Cc Role Changed' })).toBeInTheDocument()
+    expect(await screen.findByText('Cc Role Changed')).toBeInTheDocument()
     expect(screen.getByText('CC role changed to SINK')).toBeInTheDocument()
 
     act(() => driver.setLogSelectionState({
       selectedKeys: ['event:1040:1700000000140:unknown'], anchorIndex: 1, activeIndex: 1,
     }))
-    expect(await screen.findByRole('heading', { name: 'Event' })).toBeInTheDocument()
-    expect(screen.getByText('No event details available.')).toBeInTheDocument()
+    expect(await screen.findByText('No event details available.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Event' })).toBeInTheDocument()
   })
 
   it('switches cleanly between event and packet detail views', async () => {

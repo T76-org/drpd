@@ -555,6 +555,7 @@ export const DrpdMessageDetailInstrumentView = ({
   const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null)
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection>({ kind: 'none' })
   const [annotationRevision, setAnnotationRevision] = useState(0)
+  const [isEventCollapsed, setIsEventCollapsed] = useState(false)
   const [isCommentCollapsed, setIsCommentCollapsed] = useState(false)
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<(keyof HumanReadableMetadataRoot)[]>(
     () => (readStoredCollapsedSectionIds(instrument.id) ?? []) as (keyof HumanReadableMetadataRoot)[],
@@ -765,9 +766,49 @@ export const DrpdMessageDetailInstrumentView = ({
             <div className={styles.sectionsContainer}>
               {visibleSelection.kind === 'event' ? (
                 <section className={styles.section} data-section-id="event" aria-label="Event details">
-                  <h3 className={styles.eventTitle}>{visibleSelection.title}</h3>
-                  {visibleSelection.summary ? (
-                    <p className={styles.eventSummary}>{visibleSelection.summary}</p>
+                  <h3 className={styles.sectionHeading}>
+                    <button
+                      type="button"
+                      className={styles.sectionToggle}
+                      aria-expanded={!isEventCollapsed}
+                      onClick={() => setIsEventCollapsed((current) => !current)}
+                    >
+                      <span
+                        className={`${styles.sectionArrow} ${!isEventCollapsed ? styles.sectionArrowExpanded : ''}`}
+                        aria-hidden="true"
+                      >
+                        ▶
+                      </span>
+                      <span className={styles.sectionHeadingText}>Event</span>
+                    </button>
+                  </h3>
+                  {!isEventCollapsed ? (
+                    <div className={styles.sectionContent}>
+                      <table className={styles.metadataTable}>
+                        <tbody className={styles.metadataTableBody}>
+                          <tr className={styles.metadataRow}>
+                            <th className={styles.metadataLabelCell} scope="row">
+                              <span className={styles.metadataLabelText}>Title</span>
+                            </th>
+                            <td className={styles.metadataValueCell}>
+                              <span className={styles.scalarValue}>{visibleSelection.title}</span>
+                            </td>
+                          </tr>
+                          {visibleSelection.summary ? (
+                            <tr className={styles.metadataRow}>
+                              <th className={styles.metadataLabelCell} scope="row">
+                                <span className={styles.metadataLabelText}>Details</span>
+                              </th>
+                              <td className={styles.metadataValueCell}>
+                                <span className={`${styles.scalarValue} ${styles.eventSummary}`}>
+                                  {visibleSelection.summary}
+                                </span>
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
                   ) : null}
                 </section>
               ) : null}
