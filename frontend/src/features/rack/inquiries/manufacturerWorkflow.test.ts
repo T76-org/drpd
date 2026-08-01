@@ -31,7 +31,25 @@ describe('battery manufacturer identity survey', () => {
       SinkInquiryType.GET_MANUFACTURER_INFO,
       SinkInquiryType.GET_MANUFACTURER_INFO,
     ])
-    expect(result.summary).toContain('Battery 0: VID 0x1234, PID 0x5678, manufacturer ACM.')
-    expect(result.summary).toContain('Battery 4: Not Supported.')
+    expect(result.summary).toContain([
+      '- **Battery 0 (fixed):**',
+      '  - **VID:** 0x1234',
+      '  - **PID:** 0x5678',
+      '  - **Manufacturer:** ACM',
+      '  - **Battery reference:** Advertised',
+    ].join('\n'))
+    expect(result.summary).toContain([
+      '- **Battery 4 (hot-swappable slot 0):**',
+      '  - **Outcome:** Not Supported.',
+    ].join('\n'))
+    expect(result.eventData?.map(({ title }) => title)).toEqual([
+      'Source Capabilities Extended',
+      'Battery 0 — Fixed battery 0',
+      'Battery 4 — Hot-swappable slot 0',
+    ])
+    expect(result.eventData![1].entries.find(({ key }) => key === 'Vendor ID (bytes 0–1)')?.value).toContain('0x1234')
+    expect(result.eventData![1].entries.find(({ key }) => key === 'Manufacturer String (bytes 4–end)')?.value).toContain('41 43 4D 00')
+    expect(result.eventData![1].entries.find(({ key }) => key === 'Raw Logical Response')?.value).toContain('34 12 78 56 41 43 4D 00')
+    expect(result.eventData![2].entries.find(({ key }) => key === 'Outcome')?.value).toBe('Not Supported')
   })
 })

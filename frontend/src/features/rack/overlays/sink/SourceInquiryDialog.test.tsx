@@ -161,7 +161,11 @@ describe('SourceInquiryDialog', () => {
 
     await waitFor(() => expect(publishLogEvent).toHaveBeenCalledWith(
       'INQUIRY - Battery manufacturer identity',
-      expect.stringContaining('Battery 0: VID 0x1234, PID 0x5678, manufacturer ACM.'),
+      expect.stringContaining('- **Battery 0 (fixed):**'),
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Source Capabilities Extended' }),
+        expect.objectContaining({ title: 'Battery 0 — Fixed battery 0' }),
+      ]),
     ))
     expect(onOpenChange).toHaveBeenCalledWith(false)
     view.unmount()

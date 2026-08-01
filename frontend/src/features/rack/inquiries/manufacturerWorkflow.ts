@@ -1,6 +1,15 @@
-import { SinkInquiryType } from '../../../lib/device'
-import { parseManufacturerInfoDataBlock } from '../../../lib/device/drpd/usb-pd/DataObjects'
-import { batteryReferencesFromScedb } from './batteryWorkflow'
+import { SinkInquiryType, type LoggedEventDataSection } from '../../../lib/device'
+import { parseManufacturerInfoDataBlock, parseSourceCapabilitiesExtendedDataBlock } from '../../../lib/device/drpd/usb-pd/DataObjects'
+import {
+  batteryReferencesFromScedb,
+  buildBatteryDiscoverySection,
+  describeBatteryReference,
+  describeBatteryReferenceSummary,
+  detailedValue,
+  hex16,
+  rawHexValue,
+} from './batteryWorkflow'
+import { decodeInquiryResponse } from './decode'
 import { formatSinkInquiryOutcome } from './presentation'
 import { runSinkInquiry, type InquiryRunState, type SinkInquiryClient } from './runner'
 
@@ -18,6 +27,41 @@ const describeFailure = (result: InquiryRunState): string => {
 export interface BatteryManufacturerSurveyResult {
   references: number[]
   summary: string
+  eventData?: LoggedEventDataSection[]
+}
+
+const batterySectionTitle = (reference: number): string =>
+  `Battery ${reference} — ${reference < 4 ? `Fixed battery ${reference}` : `Hot-swappable slot ${reference - 4}`}`
+
+const failedBatterySection = (
+  reference: number,
+  outcome: string,
+  raw?: Uint8Array,
+  decodeError?: string,
+): LoggedEventDataSection => ({
+  title: batterySectionTitle(reference),
+  entries: [
+    { key: 'Battery Reference', value: detailedValue(`\`${reference}\``, `${describeBatteryReference(reference)}; advertised by Source Capabilities Extended.`) },
+    { key: 'Outcome', value: outcome },
+    ...(decodeError ? [{ key: 'Decode Error', value: decodeError }] : []),
+    ...(raw ? [{ key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete logical Manufacturer_Info response body.') }] : []),
+  ],
+})
+
+const manufacturerSection = (reference: number, raw: Uint8Array): LoggedEventDataSection => {
+  const identity = parseManufacturerInfoDataBlock(raw)
+  return {
+    title: batterySectionTitle(reference),
+    entries: [
+      { key: 'Battery Reference', value: detailedValue(`\`${reference}\``, `${describeBatteryReference(reference)}; advertised by Source Capabilities Extended.`) },
+      { key: 'Outcome', value: 'Response decoded successfully.' },
+      { key: 'Vendor ID (bytes 0–1)', value: detailedValue(`**${hex16(identity.vid)}**`, `USB-IF Vendor ID. Raw little-endian bytes: ${rawHexValue(raw.subarray(0, 2))}.`) },
+      { key: 'Product ID (bytes 2–3)', value: detailedValue(`**${hex16(identity.pid)}**`, `Product ID. Raw little-endian bytes: ${rawHexValue(raw.subarray(2, 4))}.`) },
+      { key: 'Manufacturer String (bytes 4–end)', value: detailedValue(`**${identity.manufacturerString || '(empty)'}**`, `Null-terminated printable ASCII. Raw bytes including terminator: ${rawHexValue(identity.manufacturerStringBytes)}.`) },
+      { key: 'Battery Reference Validity', value: 'Advertised reference; Manufacturer_Info has no Invalid Battery Reference bit.' },
+      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete Manufacturer_Info logical response body; no fabricated USB-PD header or CRC is included.') },
+    ],
+  }
 }
 
 /** Discover advertised batteries and query Manufacturer_Info for each reference serially. */
@@ -30,18 +74,50 @@ export const surveyBatteryManufacturerIdentity = async (
     type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED,
   })
   if (discovery.phase !== 'response') {
+    const failure = describeFailure(discovery)
     return {
       references: [],
-      summary: `Battery discovery: ${describeFailure(discovery)}. No battery manufacturer requests were sent.`,
+      summary: `- **Battery discovery:** ${failure}. No battery manufacturer requests were sent.`,
+      eventData: [{ title: 'Source Capabilities Extended', entries: [{ key: 'Outcome', value: failure }] }],
     }
   }
 
-  const references = batteryReferencesFromScedb(discovery.rawResponse)
+  let references: number[]
+  let fixedBatteries: number
+  let hotSwappableBatterySlots: number
+  let discoverySection: LoggedEventDataSection
+  try {
+    decodeInquiryResponse(discovery.status, discovery.rawResponse, discovery.request)
+    const capabilities = parseSourceCapabilitiesExtendedDataBlock(discovery.rawResponse)
+    references = batteryReferencesFromScedb(discovery.rawResponse)
+    fixedBatteries = capabilities.fixedBatteries
+    hotSwappableBatterySlots = capabilities.hotSwappableBatterySlots
+    discoverySection = buildBatteryDiscoverySection(capabilities, discovery.rawResponse, references)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      references: [],
+      summary: `- **Battery discovery:** malformed response (${message}). No battery manufacturer requests were sent.`,
+      eventData: [{
+        title: 'Source Capabilities Extended',
+        entries: [
+          { key: 'Outcome', value: 'Malformed response.' },
+          { key: 'Decode Error', value: message },
+          { key: 'Raw Logical Response', value: rawHexValue(discovery.rawResponse) },
+        ],
+      }],
+    }
+  }
   if (!references.length) {
-    return { references, summary: 'Battery discovery: the Source advertised no batteries.' }
+    return {
+      references,
+      summary: '- **Advertised batteries:** 0 total — 0 fixed, 0 hot-swappable.',
+      eventData: [discoverySection],
+    }
   }
 
-  const lines = [`Battery discovery: ${references.length} available (${references.join(', ')}).`]
+  const lines = [`- **Advertised batteries:** ${references.length} total — ${fixedBatteries} fixed, ${hotSwappableBatterySlots} hot-swappable.`]
+  const eventData: LoggedEventDataSection[] = [discoverySection]
   for (const batteryReference of references) {
     onProgress?.(`Requesting manufacturer identity for battery ${batteryReference}…`)
     const result = await runSinkInquiry(client, {
@@ -50,19 +126,33 @@ export const surveyBatteryManufacturerIdentity = async (
       batteryReference,
     })
     if (result.phase !== 'response') {
-      lines.push(`Battery ${batteryReference}: ${describeFailure(result)}.`)
+      const failure = describeFailure(result)
+      lines.push(
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **Outcome:** ${failure}.`,
+      )
+      eventData.push(failedBatterySection(batteryReference, failure))
       continue
     }
     try {
+      decodeInquiryResponse(result.status, result.rawResponse, result.request)
       const identity = parseManufacturerInfoDataBlock(result.rawResponse)
       lines.push(
-        `Battery ${batteryReference}: VID 0x${identity.vid.toString(16).toUpperCase().padStart(4, '0')}, ` +
-        `PID 0x${identity.pid.toString(16).toUpperCase().padStart(4, '0')}, ` +
-        `manufacturer ${identity.manufacturerString || '(empty)'}.`,
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **VID:** ${hex16(identity.vid)}`,
+        `  - **PID:** ${hex16(identity.pid)}`,
+        `  - **Manufacturer:** ${identity.manufacturerString || '(empty)'}`,
+        '  - **Battery reference:** Advertised',
       )
+      eventData.push(manufacturerSection(batteryReference, result.rawResponse))
     } catch (error) {
-      lines.push(`Battery ${batteryReference}: malformed response (${error instanceof Error ? error.message : String(error)}).`)
+      const message = error instanceof Error ? error.message : String(error)
+      lines.push(
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **Outcome:** Malformed response (${message}).`,
+      )
+      eventData.push(failedBatterySection(batteryReference, 'Malformed response.', result.rawResponse, message))
     }
   }
-  return { references, summary: lines.join('\n') }
+  return { references, summary: lines.join('\n'), eventData }
 }

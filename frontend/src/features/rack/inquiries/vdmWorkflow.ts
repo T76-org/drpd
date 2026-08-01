@@ -1,8 +1,8 @@
-import { SinkInquiryType, type SinkInquiryCablePlug } from '../../../lib/device'
+import { SinkInquiryType, type LoggedEventDataSection, type SinkInquiryCablePlug } from '../../../lib/device'
 import { formatSinkInquiryOutcome } from './presentation'
 import { decodeInquiryResponse } from './decode'
 import { withSinkInquiryLease, type InquiryRunState, type SerialInquiryWorkflowStep, type SinkInquiryClient } from './runner'
-import { parseSVIDsVDO, readDataObjects } from '../../../lib/device/drpd/usb-pd/DataObjects'
+import { parseDiscoverIdentityVDOs, parseSVIDsVDO, parseVDMHeader, readDataObjects } from '../../../lib/device/drpd/usb-pd/DataObjects'
 
 export const PORT_PARTNER_IDENTITY_EVENT_TITLE = 'INQUIRY - Port Partner identity'
 export const PORT_PARTNER_SVIDS_EVENT_TITLE = 'INQUIRY - Port Partner SVIDs'
@@ -10,6 +10,35 @@ export const PORT_PARTNER_MODES_EVENT_TITLE = 'INQUIRY - Port Partner modes'
 
 const bytesToHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')
+
+const hex16 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
+const hex32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
+const rawHex = (bytes: Uint8Array): string => `\`${bytesToHex(bytes) || '(empty)'}\``
+const detail = (value: string, explanation: string): string => `${value}\n\n_${explanation}_`
+
+const vdmHeaderEntries = (raw: Uint8Array): LoggedEventDataSection['entries'] => {
+  const word = readDataObjects(raw, 0, 1)[0]
+  const header = parseVDMHeader(word)
+  return [
+    { key: 'VDM Header (bytes 0–3)', value: detail(`\`${hex32(word)}\``, `Raw little-endian bytes: ${rawHex(raw.subarray(0, 4))}.`) },
+    { key: 'SVID (bits 31:16)', value: `**${hex16(header.svid)}**` },
+    { key: 'VDM Type (bit 15)', value: `\`1\` — ${header.vdmType}.` },
+    { key: 'Structured VDM Version (bits 14:11)', value: `${header.structuredVersionMajor}.${header.structuredVersionMinor}` },
+    { key: 'Object Position (bits 10:8)', value: `\`${header.objectPosition}\`` },
+    { key: 'Command Type (bits 7:6)', value: `\`${header.commandType}\` — **${header.commandTypeName}**.` },
+    { key: 'Reserved (bit 5)', value: `\`${(word >>> 5) & 1}\` — must be zero.` },
+    { key: 'Command (bits 4:0)', value: `\`${header.command}\` — **${header.commandName}**.` },
+  ]
+}
+
+const failedSection = (title: string, outcome: string, raw?: Uint8Array, error?: string): LoggedEventDataSection => ({
+  title,
+  entries: [
+    { key: 'Outcome', value: outcome },
+    ...(error ? [{ key: 'Decode Error', value: error }] : []),
+    ...(raw ? [{ key: 'Raw Logical Response', value: detail(rawHex(raw), 'Complete logical response body; no fabricated USB-PD header or CRC is included.') }] : []),
+  ],
+})
 
 const describeFailure = (result: InquiryRunState): string => {
   if (result.phase === 'terminal') return formatSinkInquiryOutcome(result.status.outcome)
@@ -21,6 +50,7 @@ const describeFailure = (result: InquiryRunState): string => {
 
 export interface VdmDiscoverySurveyResult {
   summary: string
+  eventData?: LoggedEventDataSection[]
 }
 
 /** Discover and decode the SOP Port Partner identity into one event-ready summary. */
@@ -28,15 +58,47 @@ export const surveyPortPartnerIdentity = async (
   client: SinkInquiryClient,
 ): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
   const result = await run({ type: SinkInquiryType.DISCOVER_IDENTITY })
-  if (result.phase !== 'response') return { summary: `Discover Identity: ${describeFailure(result)}.` }
+  if (result.phase !== 'response') {
+    const outcome = describeFailure(result)
+    return { summary: `- **Port Partner identity:**\n  - **Outcome:** ${outcome}.`, eventData: [failedSection('Port Partner Identity', outcome)] }
+  }
   try {
-    const decoded = decodeInquiryResponse(result.status, result.rawResponse, result.request)
+    decodeInquiryResponse(result.status, result.rawResponse, result.request)
+    const words = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4)
+    const identity = parseDiscoverIdentityVDOs(words.slice(1), 'SOP')
+    const id = identity.idHeader!
+    const cert = identity.certStat!
+    const product = identity.product!
     return {
-      summary: `Discover Identity: response received.\nDecoded:\n${decoded.summary}\nRaw VDO bytes: ${bytesToHex(result.rawResponse)}.`,
+      summary: [
+        '- **Port Partner identity:**',
+        '  - **Outcome:** Response decoded successfully.',
+        `  - **VID:** ${hex16(id.usbVendorId)}`,
+        `  - **PID:** ${hex16(product.usbProductId)}`,
+        `  - **XID:** ${hex32(cert.xid)}`,
+        `  - **Product type:** UFP ${id.sopProductTypeUfpOrCable}; DFP ${id.sopProductTypeDfp}`,
+        `  - **Modal operation supported:** ${id.modalOperationSupported ? 'Yes' : 'No'}`,
+      ].join('\n'),
+      eventData: [{
+        title: 'Port Partner Identity',
+        entries: [
+          { key: 'Outcome', value: 'Response decoded successfully.' },
+          ...vdmHeaderEntries(result.rawResponse),
+          { key: 'ID Header VDO (VDO 1)', value: detail(`\`${hex32(id.raw)}\``, `VID ${hex16(id.usbVendorId)}; USB host capable: ${id.usbHostCapable}; USB device capable: ${id.usbDeviceCapable}; modal operation supported: ${id.modalOperationSupported}; UFP product type bits 29:27 = ${id.sopProductTypeUfpOrCable}; DFP product type bits 25:23 = ${id.sopProductTypeDfp}; connector type bits 22:21 = ${id.connectorType}.`) },
+          { key: 'Cert Stat VDO (VDO 2)', value: detail(`\`${hex32(cert.raw)}\``, `XID: **${hex32(cert.xid)}**.`) },
+          { key: 'Product VDO (VDO 3)', value: detail(`\`${hex32(product.raw)}\``, `PID: **${hex16(product.usbProductId)}**; bcdDevice: ${hex16(product.bcdDevice)}.`) },
+          ...identity.productTypeVDOs.map((vdo, index) => ({ key: `Product Type VDO ${index + 1}`, value: `\`${hex32(vdo.raw)}\`\n\n\`\`\`json\n${JSON.stringify(vdo, null, 2)}\n\`\`\`` })),
+          ...(identity.padVDOs.length ? [{ key: 'Pad VDOs', value: identity.padVDOs.map(hex32).join(', ') }] : []),
+          ...(identity.rawVDOs.length ? [{ key: 'Unparsed VDOs', value: identity.rawVDOs.map(hex32).join(', ') }] : []),
+          { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Identity ACK logical response body.') },
+        ],
+      }],
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     return {
-      summary: `Discover Identity: malformed response (${error instanceof Error ? error.message : String(error)}). Raw VDO bytes: ${bytesToHex(result.rawResponse) || '(empty)'}.`,
+      summary: `- **Port Partner identity:**\n  - **Outcome:** Malformed response (${message}).`,
+      eventData: [failedSection('Port Partner Identity', 'Malformed response.', result.rawResponse, message)],
     }
   }
 })
@@ -46,36 +108,52 @@ export const surveyPortPartnerSvids = async (
   client: SinkInquiryClient,
 ): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
   const pages: number[][] = []
-  const lines: string[] = []
+  const eventData: LoggedEventDataSection[] = []
+  let ending = 'Discovery complete.'
   for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
     const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS })
     if (result.phase !== 'response') {
-      lines.push(`Page ${pageIndex + 1}: ${describeFailure(result)}.`)
-      const discovered = deduplicateOrderedSvids(pages)
-      lines.unshift(`Discovered ${discovered.length} unique SVIDs before termination: ${discovered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'none'}.`)
-      return { summary: lines.join('\n') }
+      const outcome = describeFailure(result)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome))
+      ending = `Discovery stopped on page ${pageIndex + 1}: ${outcome}.`
+      break
     }
     try {
       decodeInquiryResponse(result.status, result.rawResponse, result.request)
       const parsed = parseDiscoverSvidPage(result.rawResponse)
       pages.push(parsed.ordered)
-      lines.push(`Page ${pageIndex + 1}: ${parsed.ordered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'no SVIDs'}; raw ${bytesToHex(result.rawResponse)}.`)
+      const rawVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+      eventData.push({ title: `SVID Discovery Page ${pageIndex + 1}`, entries: [
+        { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...vdmHeaderEntries(result.rawResponse),
+        ...rawVdos.map((vdo, index) => ({ key: `SVID VDO ${index + 1}`, value: detail(`\`${hex32(vdo)}\``, `First discovered SVID: ${hex16(parseSVIDsVDO(vdo).svid1)}; second discovered SVID: ${hex16(parseSVIDsVDO(vdo).svid0)}.`) })),
+        { key: 'Ordered SVIDs', value: parsed.ordered.map((svid) => `\`${hex16(svid)}\``).join(', ') || 'None.' },
+        { key: 'Terminator', value: parsed.complete ? 'Zero terminator or short terminal page observed.' : 'Not observed; another page is required.' },
+        { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover SVIDs ACK logical response body.') },
+      ] })
       if (parsed.complete) {
-        const discovered = deduplicateOrderedSvids(pages)
-        lines.unshift(`Discovered ${discovered.length} unique SVIDs: ${discovered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'none'}.`)
-        return { summary: lines.join('\n') }
+        ending = `Discovery completed on page ${pageIndex + 1}.`
+        break
       }
     } catch (error) {
-      lines.push(`Page ${pageIndex + 1}: malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
-      const discovered = deduplicateOrderedSvids(pages)
-      lines.unshift(`Discovered ${discovered.length} unique SVIDs before malformed response: ${discovered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'none'}.`)
-      return { summary: lines.join('\n') }
+      const message = error instanceof Error ? error.message : String(error)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message))
+      ending = `Discovery stopped on malformed page ${pageIndex + 1}.`
+      break
     }
   }
   const discovered = deduplicateOrderedSvids(pages)
-  lines.unshift(`Discovered ${discovered.length} unique SVIDs before the eight-page safety bound: ${discovered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'none'}.`)
-  lines.push('Discovery stopped without a terminating SVID after eight pages.')
-  return { summary: lines.join('\n') }
+  if (eventData.length === 8 && pages.length === 8 && !eventData.some((section) => section.entries.some((entry) => entry.key === 'Terminator' && entry.value.startsWith('Zero')))) ending = 'Discovery stopped at the eight-page safety bound without a terminator.'
+  const pageBySvid = new Map<number, number>()
+  pages.forEach((page, index) => page.forEach((svid) => { if (!pageBySvid.has(svid)) pageBySvid.set(svid, index + 1) }))
+  return {
+    summary: [
+      `- **Discovered SVIDs:** ${discovered.length} unique (${discovered.map(hex16).join(', ') || 'none'}).`,
+      ...discovered.flatMap((svid, index) => [`- **SVID ${hex16(svid)}:**`, `  - **Discovery order:** ${index + 1}`, `  - **Response page:** ${pageBySvid.get(svid)}`]),
+      `- **Discovery status:** ${ending}`,
+    ].join('\n'),
+    eventData,
+  }
 })
 
 /** Discover all bounded SOP Port Partner SVID pages, then query Modes for every unique SVID. */
@@ -83,40 +161,49 @@ export const surveyPortPartnerModes = async (
   client: SinkInquiryClient,
 ): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
   const pages: number[][] = []
-  const discoveryLines: string[] = []
+  const eventData: LoggedEventDataSection[] = []
   let discoveryComplete = false
+  let discoveryOutcome = 'Incomplete discovery.'
   for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
     const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS })
     if (result.phase !== 'response') {
-      discoveryLines.push(`SVID page ${pageIndex + 1}: ${describeFailure(result)}.`)
+      const outcome = describeFailure(result)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome))
+      discoveryOutcome = `Stopped on page ${pageIndex + 1}: ${outcome}.`
       break
     }
     try {
       decodeInquiryResponse(result.status, result.rawResponse, result.request)
       const parsed = parseDiscoverSvidPage(result.rawResponse)
       pages.push(parsed.ordered)
-      discoveryLines.push(`SVID page ${pageIndex + 1}: ${parsed.ordered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'no SVIDs'}; raw ${bytesToHex(result.rawResponse)}.`)
+      const rawVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+      eventData.push({ title: `SVID Discovery Page ${pageIndex + 1}`, entries: [
+        { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...vdmHeaderEntries(result.rawResponse),
+        ...rawVdos.map((vdo, index) => ({ key: `SVID VDO ${index + 1}`, value: `\`${hex32(vdo)}\`` })),
+        { key: 'Ordered SVIDs', value: parsed.ordered.map((svid) => `\`${hex16(svid)}\``).join(', ') || 'None.' },
+        { key: 'Terminator', value: parsed.complete ? 'Observed.' : 'Not observed.' },
+        { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover SVIDs ACK logical response body.') },
+      ] })
       if (parsed.complete) {
         discoveryComplete = true
+        discoveryOutcome = `Completed on page ${pageIndex + 1}.`
         break
       }
     } catch (error) {
-      discoveryLines.push(`SVID page ${pageIndex + 1}: malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
+      const message = error instanceof Error ? error.message : String(error)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message))
+      discoveryOutcome = `Stopped on malformed page ${pageIndex + 1}.`
       break
     }
   }
 
   const svids = deduplicateOrderedSvids(pages)
-  const lines = [
-    `Discovered ${svids.length} unique SVIDs${discoveryComplete ? '' : ' before incomplete discovery'}: ${svids.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'none'}.`,
-    ...discoveryLines,
-  ]
-  if (!discoveryComplete && discoveryLines.length === 8) {
-    lines.push('SVID discovery reached the eight-page safety bound without a terminator.')
-  }
+  if (!discoveryComplete && pages.length === 8) discoveryOutcome = 'Stopped at the eight-page safety bound without a terminator.'
+  const lines = [`- **SVID discovery:** ${svids.length} unique (${svids.map(hex16).join(', ') || 'none'}).`, `  - **Status:** ${discoveryOutcome}`]
   if (svids.length === 0) {
-    lines.push('No Discover Modes requests were sent.')
-    return { summary: lines.join('\n') }
+    lines.push('- **Discover Modes:** No requests were sent.')
+    return { summary: lines.join('\n'), eventData }
   }
 
   for (const svid of svids) {
@@ -124,22 +211,30 @@ export const surveyPortPartnerModes = async (
     const result = await run(request)
     const formattedSvid = `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`
     if (result.phase !== 'response') {
-      lines.push(`${formattedSvid}: ${describeFailure(result)}.`)
+      const outcome = describeFailure(result)
+      lines.push(`- **SVID ${formattedSvid}:**`, `  - **Outcome:** ${outcome}.`)
+      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, outcome))
       continue
     }
     try {
       decodeInquiryResponse(result.status, result.rawResponse, result.request)
       const modeVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
-      lines.push(
-        `${formattedSvid}: ${modeVdos.length} mode VDO${modeVdos.length === 1 ? '' : 's'} ` +
-        `(${modeVdos.map((vdo) => `0x${vdo.toString(16).toUpperCase().padStart(8, '0')}`).join(', ') || 'none'}); ` +
-        `raw ${bytesToHex(result.rawResponse)}.`,
-      )
+      lines.push(`- **SVID ${formattedSvid}:**`, '  - **Outcome:** Response decoded successfully.', `  - **Mode count:** ${modeVdos.length}`, ...modeVdos.map((vdo, index) => `  - **Mode ${index + 1} VDO:** ${hex32(vdo)}`))
+      eventData.push({ title: `Modes for SVID ${formattedSvid}`, entries: [
+        { key: 'Outcome', value: 'Response decoded successfully.' },
+        { key: 'Selected SVID', value: `**${formattedSvid}**` },
+        ...vdmHeaderEntries(result.rawResponse),
+        { key: 'Mode Count', value: `${modeVdos.length}` },
+        ...modeVdos.map((vdo, index) => ({ key: `Mode ${index + 1} VDO`, value: detail(`\`${hex32(vdo)}\``, `Raw mode-specific value returned in VDO ${index + 1}; interpretation is defined by SVID ${formattedSvid}.`) })),
+        { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Modes ACK logical response body.') },
+      ] })
     } catch (error) {
-      lines.push(`${formattedSvid}: malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
+      const message = error instanceof Error ? error.message : String(error)
+      lines.push(`- **SVID ${formattedSvid}:**`, `  - **Outcome:** Malformed response (${message}).`)
+      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, 'Malformed response.', result.rawResponse, message))
     }
   }
-  return { summary: lines.join('\n') }
+  return { summary: lines.join('\n'), eventData }
 })
 
 export const parseDiscoverSvidPage = (body: Uint8Array): { ordered: number[]; complete: boolean } => {

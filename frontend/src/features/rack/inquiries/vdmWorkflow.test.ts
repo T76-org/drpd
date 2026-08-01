@@ -29,7 +29,7 @@ describe('Port Partner VDM workflow helpers', () => {
     expect(() => parseDiscoverSvidPage(words(0, 0, 0x12340000))).toThrow('after its zero terminator')
   })
 
-  it('summarizes decoded identity with raw VDO evidence', async () => {
+  it('renders decoded identity as nested Markdown with complete structured evidence', async () => {
     const header = (0xff00 << 16) | (1 << 15) | (1 << 13) | (1 << 6) | 1
     const body = words(header, 1, 2, 3)
     const statuses = [
@@ -42,9 +42,18 @@ describe('Port Partner VDM workflow helpers', () => {
       getInquiryResponse: vi.fn(async () => body),
     })
 
-    expect(result.summary).toContain('Discover Identity: response received.')
-    expect(result.summary).toContain('Raw VDO bytes:')
-    expect(result.summary).toContain('"identity"')
+    expect(result.summary).toBe([
+      '- **Port Partner identity:**',
+      '  - **Outcome:** Response decoded successfully.',
+      '  - **VID:** 0x0001',
+      '  - **PID:** 0x0000',
+      '  - **XID:** 0x00000002',
+      '  - **Product type:** UFP 0; DFP 0',
+      '  - **Modal operation supported:** No',
+    ].join('\n'))
+    expect(result.eventData?.map((section) => section.title)).toEqual(['Port Partner Identity'])
+    expect(result.eventData![0].entries.find((entry) => entry.key === 'VDM Header (bytes 0–3)')?.value).toContain('0xFF00A041')
+    expect(result.eventData![0].entries.find((entry) => entry.key === 'Raw Logical Response')?.value).toContain('41 A0 00 FF')
   })
 
   it('collects all SVID pages in order and retains page raw bytes', async () => {
@@ -66,10 +75,12 @@ describe('Port Partner VDM workflow helpers', () => {
     })
 
     expect(sendInquiryRequest).toHaveBeenCalledTimes(2)
-    expect(result.summary).toContain('Discovered 13 unique SVIDs:')
+    expect(result.summary).toContain('- **Discovered SVIDs:** 13 unique')
     expect(result.summary).toContain('0x0001, 0x0002')
     expect(result.summary).toContain('0x1234')
-    expect(result.summary).toContain('Page 2: 0x1234; raw')
+    expect(result.summary).toContain('- **SVID 0x1234:**\n  - **Discovery order:** 13\n  - **Response page:** 2')
+    expect(result.eventData?.map((section) => section.title)).toEqual(['SVID Discovery Page 1', 'SVID Discovery Page 2'])
+    expect(result.eventData![1].entries.find((entry) => entry.key === 'Raw Logical Response')?.value).toContain('00 00 34 12')
   })
 
   it('summarizes unsupported identity and SVID discovery truthfully', async () => {
@@ -81,8 +92,12 @@ describe('Port Partner VDM workflow helpers', () => {
       getInquiryResponse: vi.fn(),
     })
 
-    expect((await surveyPortPartnerIdentity(unsupportedClient(SinkInquiryType.DISCOVER_IDENTITY))).summary).toBe('Discover Identity: Not Supported.')
-    expect((await surveyPortPartnerSvids(unsupportedClient(SinkInquiryType.DISCOVER_SVIDS))).summary).toContain('Page 1: Not Supported.')
+    const identity = await surveyPortPartnerIdentity(unsupportedClient(SinkInquiryType.DISCOVER_IDENTITY))
+    expect(identity.summary).toContain('  - **Outcome:** Not Supported.')
+    expect(identity.eventData![0].entries).toContainEqual({ key: 'Outcome', value: 'Not Supported' })
+    const svids = await surveyPortPartnerSvids(unsupportedClient(SinkInquiryType.DISCOVER_SVIDS))
+    expect(svids.summary).toContain('Discovery stopped on page 1: Not Supported.')
+    expect(svids.eventData![0].entries).toContainEqual({ key: 'Outcome', value: 'Not Supported' })
   })
 
   it('discovers SVIDs then collects modes for every SVID', async () => {
@@ -111,8 +126,31 @@ describe('Port Partner VDM workflow helpers', () => {
     })
 
     expect(sent).toEqual(['DISCOVER_SVIDS', 'DISCOVER_MODES:1234', 'DISCOVER_MODES:5678'])
-    expect(result.summary).toContain('Discovered 2 unique SVIDs: 0x1234, 0x5678.')
-    expect(result.summary).toContain('0x1234: 2 mode VDOs (0xDEADBEEF, 0x01020304)')
-    expect(result.summary).toContain('0x5678: Not Supported.')
+    expect(result.summary).toContain('- **SVID discovery:** 2 unique (0x1234, 0x5678).')
+    expect(result.summary).toContain('- **SVID 0x1234:**\n  - **Outcome:** Response decoded successfully.\n  - **Mode count:** 2\n  - **Mode 1 VDO:** 0xDEADBEEF')
+    expect(result.summary).toContain('- **SVID 0x5678:**\n  - **Outcome:** Not Supported.')
+    expect(result.eventData?.map((section) => section.title)).toEqual([
+      'SVID Discovery Page 1',
+      'Modes for SVID 0x1234',
+      'Modes for SVID 0x5678',
+    ])
+    expect(result.eventData![1].entries.find((entry) => entry.key === 'Mode 2 VDO')?.value).toContain('0x01020304')
+    expect(result.eventData![2].entries).toContainEqual({ key: 'Outcome', value: 'Not Supported' })
+  })
+
+  it('retains malformed SVID raw bytes and the exact decode error', async () => {
+    const malformed = words(0, 0x12340000, 0x00005678)
+    const statuses = [
+      { outcome: SinkInquiryOutcome.NONE, requestId: 0, type: SinkInquiryType.DISCOVER_SVIDS, responseClass: 0, responseType: 0, responseLength: 0 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.DISCOVER_SVIDS, responseClass: 2, responseType: 0x0f, responseLength: 12 },
+    ]
+    const result = await surveyPortPartnerSvids({
+      sendInquiryRequest: vi.fn(async () => undefined),
+      getInquiryStatus: vi.fn(async () => statuses.shift()!),
+      getInquiryResponse: vi.fn(async () => malformed),
+    })
+    const section = result.eventData![0]
+    expect(section.entries.find((entry) => entry.key === 'Decode Error')?.value).toBe('Structured VDM ACK header does not correlate with request')
+    expect(section.entries.find((entry) => entry.key === 'Raw Logical Response')?.value).toContain('00 00 00 00 00 00 34 12 78 56 00 00')
   })
 })

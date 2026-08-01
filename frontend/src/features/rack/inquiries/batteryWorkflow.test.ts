@@ -196,8 +196,26 @@ describe('battery survey helpers', () => {
 
     expect(sent).toEqual(['GET_SOURCE_CAP_EXTENDED', 'GET_BATTERY_STATUS:0', 'GET_BATTERY_STATUS:4'])
     expect(result.references).toEqual([0, 4])
-    expect(result.summary).toContain('Battery 0 (fixed battery 0): present yes, present capacity 50.0 Wh, charge state discharging, reference valid; raw 00 06 F4 01.')
-    expect(result.summary).toContain('Battery 4 (hot-swappable slot 0): Not Supported.')
+    expect(result.summary).toContain([
+      '- **Battery 0 (fixed):**',
+      '  - **Present:** Yes',
+      '  - **Present capacity:** 50.0 Wh',
+      '  - **Charge state:** discharging',
+      '  - **Battery reference:** Valid',
+    ].join('\n'))
+    expect(result.summary).toContain([
+      '- **Battery 4 (hot-swappable slot 0):**',
+      '  - **Outcome:** Not Supported.',
+    ].join('\n'))
+    expect(result.eventData?.map(({ title }) => title)).toEqual([
+      'Source Capabilities Extended',
+      'Battery 0 — Fixed battery 0',
+      'Battery 4 — Hot-swappable slot 0',
+    ])
+    expect(sectionEntry(result.eventData![1], 'Present Capacity (bits 31:16)')).toContain('50.0 Wh')
+    expect(sectionEntry(result.eventData![1], 'Charging Status (bits 11:10)')).toContain('discharging')
+    expect(sectionEntry(result.eventData![1], 'Raw Logical Response')).toContain('00 06 F4 01')
+    expect(sectionEntry(result.eventData![2], 'Outcome')).toBe('Not Supported')
   })
 
   it('summarizes unsupported status discovery without querying references', async () => {
@@ -211,6 +229,10 @@ describe('battery survey helpers', () => {
     })
 
     expect(sendInquiryRequest).toHaveBeenCalledTimes(1)
-    expect(result.summary).toBe('Battery discovery: Not Supported. No Battery_Status requests were sent.')
+    expect(result.summary).toBe('- **Battery discovery:** Not Supported. No Battery_Status requests were sent.')
+    expect(result.eventData).toEqual([{
+      title: 'Source Capabilities Extended',
+      entries: [{ key: 'Outcome', value: 'Not Supported' }],
+    }])
   })
 })

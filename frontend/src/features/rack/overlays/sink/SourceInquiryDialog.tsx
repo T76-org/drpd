@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogButton, DialogForm, DialogFormRow } from '../../../../ui/overlays'
 import { validateInquiryParameters, type InquiryDefinition } from '../../inquiries/catalog'
-import { SinkInquiryType, type SinkInquiryCablePlug, type SinkInquiryRequest } from '../../../../lib/device'
+import { SinkInquiryType, type LoggedEventDataSection, type SinkInquiryCablePlug, type SinkInquiryRequest } from '../../../../lib/device'
 import { parseCountryCodesDataBlock } from '../../../../lib/device/drpd/usb-pd/DataObjects'
 import { buildCountryInfoSteps } from '../../inquiries/countryWorkflow'
 import { buildDiscoverModesSteps, canRetryVdmSurveyStep, deduplicateOrderedSvids, parseDiscoverSvidPage } from '../../inquiries/vdmWorkflow'
@@ -302,7 +302,7 @@ export const SourceInquiryDialog = ({
   client: SinkInquiryClient | null
   onResponse?: (definition: InquiryDefinition) => void | Promise<void>
   logOnly?: boolean
-  publishLogEvent?: (title: string, summary: string) => Promise<void>
+  publishLogEvent?: (title: string, summary: string, eventData?: LoggedEventDataSection[]) => Promise<void>
 }) => {
   const [state, setState] = useState<InquiryRunState>({ phase: 'idle' })
   const [approvedDefinitionId, setApprovedDefinitionId] = useState<string | null>(null)
@@ -425,8 +425,8 @@ export const SourceInquiryDialog = ({
               setManufacturerWorkflowRunning(true)
               setManufacturerWorkflowProgress('Discovering available batteries…')
               void surveyBatteryManufacturerIdentity(client, setManufacturerWorkflowProgress)
-                .then(async ({ summary }) => {
-                  await publishLogEvent?.(BATTERY_MANUFACTURER_IDENTITY_EVENT_TITLE, summary)
+                .then(async ({ summary, eventData }) => {
+                  await publishLogEvent?.(BATTERY_MANUFACTURER_IDENTITY_EVENT_TITLE, summary, eventData)
                   handleOpenChange(false)
                 })
                 .catch((error) => setState({

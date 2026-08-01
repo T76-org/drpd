@@ -52,8 +52,24 @@ describe('buildCountryInfoSteps', () => {
 
     expect(sent).toEqual(['GET_COUNTRY_CODES', 'GET_COUNTRY_INFO:CA', 'GET_COUNTRY_INFO:US'])
     expect(result.countryCodes).toEqual(['CA', 'US'])
-    expect(result.summary).toContain('CA: ASCII "ABC"; raw 41 42 43.')
-    expect(result.summary).toContain('US: Not Supported.')
+    expect(result.summary).toContain([
+      '- **Country CA:**',
+      '  - **Country-specific information:** ABC',
+    ].join('\n'))
+    expect(result.summary).toContain([
+      '- **Country US:**',
+      '  - **Outcome:** Not Supported.',
+    ].join('\n'))
+    expect(result.eventData?.map(({ title }) => title)).toEqual([
+      'Country Codes',
+      'Country CA',
+      'Country US',
+    ])
+    expect(result.eventData![0].entries.find(({ key }) => key === 'Country Codes (bytes 2–end)')?.value).toContain('`CA` at bytes 2–3 (`43 41`)')
+    expect(result.eventData![1].entries.find(({ key }) => key === 'Echoed Country Code (bytes 0–1)')?.value).toContain('CA')
+    expect(result.eventData![1].entries.find(({ key }) => key === 'Country-Specific Data (bytes 4–end)')?.value).toContain('41 42 43')
+    expect(result.eventData![1].entries.find(({ key }) => key === 'Raw Logical Response')?.value).toContain('43 41 00 00 41 42 43')
+    expect(result.eventData![2].entries.find(({ key }) => key === 'Outcome')?.value).toBe('Not Supported')
   })
 
   it('summarizes country discovery failure without sending country requests', async () => {
@@ -67,6 +83,10 @@ describe('buildCountryInfoSteps', () => {
     })
 
     expect(sendInquiryRequest).toHaveBeenCalledTimes(1)
-    expect(result.summary).toBe('Country discovery: Not Supported. No Country_Info requests were sent.')
+    expect(result.summary).toBe('- **Country discovery:** Not Supported. No Country_Info requests were sent.')
+    expect(result.eventData).toEqual([{
+      title: 'Country Codes',
+      entries: [{ key: 'Outcome', value: 'Not Supported' }],
+    }])
   })
 })

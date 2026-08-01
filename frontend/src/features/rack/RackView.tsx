@@ -1711,8 +1711,9 @@ export const RackView = ({
     if (definition.id === 'authenticate-source') {
       setDeviceError(null)
       void surveySourceAuthentication(activeDriver.sink)
-        .then(({ summary }) => activeDriver.markLog(
+        .then(({ summary, eventData }) => activeDriver.markLog(
           `${SOURCE_AUTHENTICATION_EVENT_TITLE}\n${summary}`,
+          eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
@@ -1732,8 +1733,9 @@ export const RackView = ({
     if (definition.type === SinkInquiryType.GET_COUNTRY_INFO) {
       setDeviceError(null)
       void surveyCountryInformation(activeDriver.sink)
-        .then(({ summary }) => activeDriver.markLog(
+        .then(({ summary, eventData }) => activeDriver.markLog(
           `${COUNTRY_INFORMATION_EVENT_TITLE}\n${summary}`,
+          eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
@@ -1751,8 +1753,9 @@ export const RackView = ({
     if (definition.type === SinkInquiryType.GET_BATTERY_STATUS) {
       setDeviceError(null)
       void surveyBatteryStatus(activeDriver.sink)
-        .then(({ summary }) => activeDriver.markLog(
+        .then(({ summary, eventData }) => activeDriver.markLog(
           `${BATTERY_STATUS_EVENT_TITLE}\n${summary}`,
+          eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
@@ -1760,8 +1763,9 @@ export const RackView = ({
     if (definition.id === 'discover-identity') {
       setDeviceError(null)
       void surveyPortPartnerIdentity(activeDriver.sink)
-        .then(({ summary }) => activeDriver.markLog(
+        .then(({ summary, eventData }) => activeDriver.markLog(
           `${PORT_PARTNER_IDENTITY_EVENT_TITLE}\n${summary}`,
+          eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
@@ -1769,8 +1773,9 @@ export const RackView = ({
     if (definition.id === 'discover-svids') {
       setDeviceError(null)
       void surveyPortPartnerSvids(activeDriver.sink)
-        .then(({ summary }) => activeDriver.markLog(
+        .then(({ summary, eventData }) => activeDriver.markLog(
           `${PORT_PARTNER_SVIDS_EVENT_TITLE}\n${summary}`,
+          eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
@@ -1778,8 +1783,9 @@ export const RackView = ({
     if (definition.id === 'discover-modes') {
       setDeviceError(null)
       void surveyPortPartnerModes(activeDriver.sink)
-        .then(({ summary }) => activeDriver.markLog(
+        .then(({ summary, eventData }) => activeDriver.markLog(
           `${PORT_PARTNER_MODES_EVENT_TITLE}\n${summary}`,
+          eventData,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
@@ -4126,9 +4132,9 @@ export const RackView = ({
         onResponse={handleSourceInquiryResponse}
         logOnly={sourceInquiryDefinition != null &&
           isLogOnlySourceInquiry(sourceInquiryDefinition)}
-        publishLogEvent={async (title, summary) => {
+        publishLogEvent={async (title, summary, eventData) => {
           if (!activeDriver) return
-          await activeDriver.markLog(`${title}\n${summary}`)
+          await activeDriver.markLog(`${title}\n${summary}`, eventData)
         }}
       />
       <Dialog

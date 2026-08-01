@@ -19,16 +19,16 @@ import { withSinkInquiryLease, type InquiryRunState, type SinkInquiryClient } fr
 export const BATTERY_CAPABILITIES_EVENT_TITLE = 'INQUIRY - Battery capabilities'
 export const BATTERY_STATUS_EVENT_TITLE = 'INQUIRY - Battery status'
 
-const bytesToHex = (bytes: Uint8Array): string =>
+export const bytesToHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')
 
-const hex8 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
-const hex16 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
-const hex32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
-const binary = (value: number, width: number): string => `0b${value.toString(2).padStart(width, '0')}`
-const rawHexValue = (bytes: Uint8Array): string => `\`${bytesToHex(bytes) || '(empty)'}\``
+export const hex8 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(2, '0')}`
+export const hex16 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
+export const hex32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
+export const binary = (value: number, width: number): string => `0b${value.toString(2).padStart(width, '0')}`
+export const rawHexValue = (bytes: Uint8Array): string => `\`${bytesToHex(bytes) || '(empty)'}\``
 
-const detailedValue = (value: string, explanation: string): string =>
+export const detailedValue = (value: string, explanation: string): string =>
   `${value}\n\n_${explanation}_`
 
 const describeFailure = (result: InquiryRunState): string => {
@@ -45,13 +45,13 @@ const formatCapacity = (raw: number): string => {
   return `${(raw / 10).toFixed(1)} Wh`
 }
 
-const describeBatteryReference = (reference: number): string =>
+export const describeBatteryReference = (reference: number): string =>
   reference < 4 ? `fixed battery ${reference}` : `hot-swappable slot ${reference - 4}`
 
-const describeBatteryReferenceSummary = (reference: number): string =>
+export const describeBatteryReferenceSummary = (reference: number): string =>
   reference < 4 ? 'fixed' : `hot-swappable slot ${reference - 4}`
 
-const buildDiscoverySection = (
+export const buildBatteryDiscoverySection = (
   block: ParsedSourceCapabilitiesExtendedDataBlock,
   raw: Uint8Array,
   references: number[],
@@ -184,7 +184,7 @@ export const surveyBatteryCapabilities = async (
     `- **Advertised batteries:** ${references.length} total — ${fixedBatteries} fixed, ${hotSwappableBatterySlots} hot-swappable.`,
   ]
   const eventData: LoggedEventDataSection[] = [
-    buildDiscoverySection(extendedCapabilities, discovery.rawResponse, references),
+    buildBatteryDiscoverySection(extendedCapabilities, discovery.rawResponse, references),
   ]
   for (const batteryReference of references) {
     const request = { type: SinkInquiryType.GET_BATTERY_CAP, batteryReference } as const
@@ -229,37 +229,49 @@ export const surveyBatteryStatus = async (
 ): Promise<BatteryCapabilitiesSurveyResult> => withSinkInquiryLease(client, async (run) => {
   const discovery = await run({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED })
   if (discovery.phase !== 'response') {
+    const failure = describeFailure(discovery)
     return {
       references: [],
-      summary: `Battery discovery: ${describeFailure(discovery)}. No Battery_Status requests were sent.`,
+      summary: `- **Battery discovery:** ${failure}. No Battery_Status requests were sent.`,
+      eventData: [buildFailedDiscoverySection(failure)],
     }
   }
 
   let references: number[]
   let fixedBatteries: number
   let hotSwappableBatterySlots: number
+  let extendedCapabilities: ParsedSourceCapabilitiesExtendedDataBlock
   try {
     decodeInquiryResponse(discovery.status, discovery.rawResponse, discovery.request)
-    const extendedCapabilities = parseSourceCapabilitiesExtendedDataBlock(discovery.rawResponse)
+    extendedCapabilities = parseSourceCapabilitiesExtendedDataBlock(discovery.rawResponse)
     fixedBatteries = extendedCapabilities.fixedBatteries
     hotSwappableBatterySlots = extendedCapabilities.hotSwappableBatterySlots
     references = batteryReferencesFromScedb(discovery.rawResponse)
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
     return {
       references: [],
-      summary: `Battery discovery: malformed response (${error instanceof Error ? error.message : String(error)}). Raw: ${bytesToHex(discovery.rawResponse) || '(empty)'}.`,
+      summary: `- **Battery discovery:** malformed response (${message}). No Battery_Status requests were sent.`,
+      eventData: [buildFailedDiscoverySection('Malformed response.', discovery.rawResponse, message)],
     }
   }
 
   const lines = [
-    `Battery discovery: ${fixedBatteries} fixed, ${hotSwappableBatterySlots} hot-swappable; ${references.length} total (${references.join(', ') || 'none'}).`,
-    `Source_Capabilities_Extended raw: ${bytesToHex(discovery.rawResponse)}.`,
+    `- **Advertised batteries:** ${references.length} total — ${fixedBatteries} fixed, ${hotSwappableBatterySlots} hot-swappable.`,
+  ]
+  const eventData: LoggedEventDataSection[] = [
+    buildBatteryDiscoverySection(extendedCapabilities, discovery.rawResponse, references),
   ]
   for (const batteryReference of references) {
     const request = { type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference } as const
     const result = await run(request)
     if (result.phase !== 'response') {
-      lines.push(`Battery ${batteryReference} (${describeBatteryReference(batteryReference)}): ${describeFailure(result)}.`)
+      const failure = describeFailure(result)
+      lines.push(
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **Outcome:** ${failure}.`,
+      )
+      eventData.push(buildFailedBatteryStatusSection(batteryReference, failure))
       continue
     }
     try {
@@ -272,17 +284,68 @@ export const surveyBatteryStatus = async (
           : 'battery not present'
       const chargeState = ['charging', 'discharging', 'idle', 'reserved'][status.batteryChargingStatus]
       lines.push(
-        `Battery ${batteryReference} (${describeBatteryReference(batteryReference)}): ` +
-        `present ${status.batteryPresent ? 'yes' : 'no'}, present capacity ${capacity}, ` +
-        `charge state ${chargeState}, reference ${status.invalidBatteryReference ? 'invalid' : 'valid'}; ` +
-        `raw ${bytesToHex(result.rawResponse)}.`,
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **Present:** ${status.batteryPresent ? 'Yes' : 'No'}`,
+        `  - **Present capacity:** ${capacity}`,
+        `  - **Charge state:** ${chargeState}`,
+        `  - **Battery reference:** ${status.invalidBatteryReference ? 'Invalid' : 'Valid'}`,
       )
+      eventData.push(buildBatteryStatusSection(batteryReference, result.rawResponse))
     } catch (error) {
-      lines.push(`Battery ${batteryReference} (${describeBatteryReference(batteryReference)}): malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
+      const message = error instanceof Error ? error.message : String(error)
+      lines.push(
+        `- **Battery ${batteryReference} (${describeBatteryReferenceSummary(batteryReference)}):**`,
+        `  - **Outcome:** Malformed response (${message}).`,
+      )
+      eventData.push(buildFailedBatteryStatusSection(batteryReference, 'Malformed response.', result.rawResponse, message))
     }
   }
-  return { references, summary: lines.join('\n') }
+  return { references, summary: lines.join('\n'), eventData }
 })
+
+const buildFailedBatteryStatusSection = (
+  reference: number,
+  outcome: string,
+  raw?: Uint8Array,
+  decodeError?: string,
+): LoggedEventDataSection => ({
+  title: buildBatterySectionTitle(reference),
+  entries: [
+    { key: 'Battery Reference', value: detailedValue(`\`${reference}\``, describeBatteryReference(reference)) },
+    { key: 'Outcome', value: outcome },
+    ...(decodeError ? [{ key: 'Decode Error', value: decodeError }] : []),
+    ...(raw ? [{ key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete logical Battery_Status response body.') }] : []),
+  ],
+})
+
+const buildBatteryStatusSection = (
+  reference: number,
+  raw: Uint8Array,
+): LoggedEventDataSection => {
+  const rawObject = readDataObjects(raw, 0, 1)[0]
+  const status = parseBatteryStatusDataObject(rawObject)
+  const capacity = status.batteryPresentCapacity === 0xffff
+    ? 'unknown'
+    : status.batteryPresent
+      ? `${(status.batteryPresentCapacity / 10).toFixed(1)} Wh`
+      : 'battery not present'
+  const chargeState = ['charging', 'discharging', 'idle', 'reserved'][status.batteryChargingStatus]
+  return {
+    title: buildBatterySectionTitle(reference),
+    entries: [
+      { key: 'Battery Reference', value: detailedValue(`\`${reference}\``, describeBatteryReference(reference)) },
+      { key: 'Outcome', value: 'Response decoded successfully.' },
+      { key: 'Present Capacity (bits 31:16)', value: detailedValue(`**${capacity}**`, `Raw: \`${hex16(status.batteryPresentCapacity)}\`. Units are tenths of Wh; 0xFFFF means unknown. Value is reported as battery not present when bit 9 is clear.`) },
+      { key: 'Reserved (bits 15:12)', value: `${binary((rawObject >>> 12) & 0x0f, 4)} — must be zero.` },
+      { key: 'Charging Status (bits 11:10)', value: `${binary(status.batteryChargingStatus, 2)} — **${chargeState}**.` },
+      { key: 'Battery Present (bit 9)', value: `${binary(status.batteryPresent ? 1 : 0, 1)} — **${status.batteryPresent ? 'present' : 'not present'}**.` },
+      { key: 'Invalid Battery Reference (bit 8)', value: `${binary(status.invalidBatteryReference ? 1 : 0, 1)} — **${status.invalidBatteryReference ? 'invalid' : 'valid'} battery reference**.` },
+      { key: 'Reserved (bits 7:0)', value: `${binary(rawObject & 0xff, 8)} — must be zero.` },
+      { key: 'Raw Data Object', value: detailedValue(`\`${hex32(rawObject)}\``, 'Battery Status Data Object interpreted in host numeric order.') },
+      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete 4-byte Battery_Status logical response body; no fabricated USB-PD header or CRC is included.') },
+    ],
+  }
+}
 
 export const batteryReferencesFromScedb = (body: Uint8Array): number[] => {
   if (body.length !== 24 && body.length !== 25) throw new Error('SCEDB must contain exactly 24 or 25 bytes')
