@@ -16,6 +16,7 @@
  */
 
 #pragma once
+#include "received_message_id_state.hpp"
 
 #include <array>
 #include <cstdint>
@@ -80,25 +81,26 @@ namespace T76::DRPD::Logic {
         /**
          * @brief Reset all sink runtime fields to defaults.
          */
-        void reset();
+        void reset(bool resetCableMessageIds = true);
 
         /**
          * @brief Clear receiver-side stored MessageID used for duplicate detection.
          */
         void resetStoredReceivedMessageId();
+        void resetStoredReceivedMessageId(size_t targetIndex);
 
         /**
          * @brief Return true when the received MessageID is a retry.
          * @param messageId Incoming MessageID masked to 3 bits.
          * @return True if a stored MessageID exists and matches messageId.
          */
-        [[nodiscard]] bool isDuplicateReceivedMessageId(uint8_t messageId) const;
+        [[nodiscard]] bool isDuplicateReceivedMessageId(size_t targetIndex, uint8_t messageId) const;
 
         /**
          * @brief Store the received MessageID after accepting a new message.
          * @param messageId Incoming MessageID masked to 3 bits.
          */
-        void storeReceivedMessageId(uint8_t messageId);
+        void storeReceivedMessageId(size_t targetIndex, uint8_t messageId);
 
         /**
          * @brief Resolve tracked slot index for supported extended message type.
@@ -153,8 +155,7 @@ namespace T76::DRPD::Logic {
         std::optional<ExtendedPayloadBuffer> _completedInquiryExtendedPayload; ///< Active inquiry payload.
         bool _inquiryRecoveredMalformedPPSStatus = false; ///< Interop recovery warning latch.
 
-        bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
-        uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.
+        ReceivedMessageIdState _receivedMessageIds;              ///< Per-SOP duplicate tracking.
 
         std::array<ExtendedReassemblyState, 5> _extendedReassemblyStates; ///< Per-type reassembly.
         std::array<std::optional<ExtendedPayloadBuffer>, 5> _completedExtendedPayloads; ///< Completed payloads.

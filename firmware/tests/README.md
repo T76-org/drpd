@@ -1,5 +1,13 @@
 # Firmware Host Tests
 
+All CMake-integrated host regressions run with:
+
+```sh
+cmake -S firmware/tests -B /tmp/drpd-firmware-host-tests
+cmake --build /tmp/drpd-firmware-host-tests
+ctest --test-dir /tmp/drpd-firmware-host-tests --output-on-failure
+```
+
 These tests exercise firmware logic that can be built without the Pico SDK or
 hardware target.
 
@@ -71,4 +79,23 @@ clang++ -std=c++20 -Wall -Wextra -Werror -I firmware/t76/scpi \
   firmware/t76/scpi/trie.cpp \
   -o /tmp/drpd-scpi-optional-test
 /tmp/drpd-scpi-optional-test
+```
+
+Run independent SOP transport bookkeeping regressions with:
+
+```sh
+clang++ -std=c++20 -Wall -Wextra -Werror \
+  firmware/tests/message_transport_state_test.cpp \
+  -o /tmp/drpd-message-transport-test
+/tmp/drpd-message-transport-test
+
+clang++ -std=c++20 -Wall -Wextra -Werror \
+  firmware/tests/received_message_id_state_test.cpp \
+  -o /tmp/drpd-received-message-id-test
+/tmp/drpd-received-message-id-test
+
+clang++ -std=c++20 -Wall -Wextra -Werror \
+  firmware/tests/cable_inquiry_test.cpp \
+  -o /tmp/drpd-cable-inquiry-test
+/tmp/drpd-cable-inquiry-test
 ```

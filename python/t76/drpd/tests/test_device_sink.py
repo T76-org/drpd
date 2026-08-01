@@ -26,6 +26,14 @@ from t76.drpd.device.types import (
     BatteryInquiryFailureAction,
     BatteryReferenceKind,
     BatteryStatusInquiryData,
+    CableDiscoverIdentityInquiryRequest,
+    CableDiscoverModesInquiryRequest,
+    CableDiscoverSVIDsInquiryRequest,
+    CableManufacturerInfoInquiryRequest,
+    CablePlug,
+    CableRevisionInquiryRequest,
+    CableStatusInquiryData,
+    CableStatusInquiryRequest,
     CountryCodesInquiryData,
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
@@ -1571,6 +1579,141 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
                 "SINK:INQ DISCOVER_MODES,12289",
             ],
         )
+
+    async def test_cable_requests_encode_explicit_plug_without_fallback(
+        self,
+    ) -> None:
+        requests = [
+            CableStatusInquiryRequest(CablePlug.SOP_PRIME),
+            CableRevisionInquiryRequest(CablePlug.SOP_DOUBLE_PRIME),
+            CableManufacturerInfoInquiryRequest(CablePlug.SOP_PRIME),
+            CableDiscoverIdentityInquiryRequest(CablePlug.SOP_PRIME),
+            CableDiscoverSVIDsInquiryRequest(CablePlug.SOP_DOUBLE_PRIME),
+            CableDiscoverModesInquiryRequest(CablePlug.SOP_PRIME, 0xFF01),
+        ]
+        for request in requests:
+            await self.device_sink.send_inquiry(request)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                'SINK:INQ GET_STATUS,"SOP_PRIME"',
+                'SINK:INQ GET_REVISION,"SOP_DOUBLE_PRIME"',
+                'SINK:INQ GET_MANUFACTURER_INFO,"SOP_PRIME"',
+                'SINK:INQ DISCOVER_IDENTITY,"SOP_PRIME"',
+                'SINK:INQ DISCOVER_SVIDS,"SOP_DOUBLE_PRIME"',
+                'SINK:INQ DISCOVER_MODES,"SOP_PRIME",65281',
+            ],
+        )
+        self.assertTrue(all("SOP_" in call.args[0] for call in (
+            self.mock_internal.write_ascii_and_check.await_args_list
+        )))
+        with self.assertRaisesRegex(ValueError, "plug must"):
+            CableStatusInquiryRequest("SOP")  # type: ignore[arg-type]
+
+    async def test_cable_status_temperature_and_shutdown_decode(self) -> None:
+        vectors = [
+            (b"\x00\x00", None, False, False),
+            (b"\x01\x01", None, True, True),
+            (b"\x1e\x00", 30, False, False),
+        ]
+        for request_id, (body, temperature, below_two, shutdown) in enumerate(
+            vectors, start=1
+        ):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"RESPONSE,{request_id},GET_STATUS,0,2,2"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                CableStatusInquiryRequest(CablePlug.SOP_PRIME),
+                poll_interval_seconds=0,
+            )
+            assert isinstance(result.decoded, CableStatusInquiryData)
+            self.assertEqual(result.decoded.internal_temperature_c, temperature)
+            self.assertEqual(result.decoded.below_2_c, below_two)
+            self.assertEqual(result.decoded.thermal_shutdown, shutdown)
+            assert isinstance(result.request, CableStatusInquiryRequest)
+            self.assertEqual(result.request.plug, CablePlug.SOP_PRIME)
+
+        malformed = (b"\x1e", b"\x1e\x02", b"\x1e\x00\x00")
+        for request_id, body in enumerate(malformed, start=10):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"RESPONSE,{request_id},GET_STATUS,0,2,{len(body)}"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    CableStatusInquiryRequest(CablePlug.SOP_PRIME),
+                    poll_interval_seconds=0,
+                )
+
+    async def test_sop_double_prime_relies_on_firmware_prerequisite(self) -> None:
+        runner = self.device_sink.inquiry_runner
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "NONE,0,GET_REVISION,0,0,0"
+        ]
+        self.mock_internal.write_ascii_and_check.side_effect = RuntimeError(
+            "Execution error: SOP_DOUBLE_PRIME controller is not known"
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "controller is not known"):
+            await runner.run(
+                CableRevisionInquiryRequest(CablePlug.SOP_DOUBLE_PRIME),
+                poll_interval_seconds=0,
+            )
+        self.mock_internal.query_ascii_values_and_check.assert_awaited_once()
+        self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+            'SINK:INQ GET_REVISION,"SOP_DOUBLE_PRIME"'
+        )
+        self.assertEqual(runner.history, ())
+
+    async def test_cable_vdm_workflow_retains_plug_and_serial_history(
+        self,
+    ) -> None:
+        identity_body = _svdm_ack_header(0xFF00, 1) + b"\x00" * 12
+        svid_body = _svdm_ack_header(0xFF00, 2) + (
+            0x1234 << 16
+        ).to_bytes(4, "little")
+        mode_body = _svdm_ack_header(0x1234, 3) + b"\x01\x00\x00\x00"
+        specs = [
+            ("DISCOVER_IDENTITY", identity_body),
+            ("DISCOVER_SVIDS", svid_body),
+            ("DISCOVER_MODES", mode_body),
+        ]
+        statuses = []
+        previous_type = "GET_REVISION"
+        for request_id, (name, body) in enumerate(specs, start=1):
+            statuses.extend([
+                [
+                    f"{'NONE' if request_id == 1 else 'RESPONSE'},"
+                    f"{request_id - 1},{previous_type},0,0,0"
+                ],
+                [f"RESPONSE,{request_id},{name},2,15,{len(body)}"],
+            ])
+            previous_type = name
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(identity_body), list(svid_body), list(mode_body),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_cable_vdm_discovery(
+            CablePlug.SOP_PRIME,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(workflow.selected_svids, (0x1234,))
+        requests = [result.request for result in (
+            workflow.identity_results
+            + workflow.svid_results
+            + workflow.mode_results
+        )]
+        self.assertTrue(all(
+            getattr(request, "plug", None) == CablePlug.SOP_PRIME
+            for request in requests
+        ))
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 3)
 
 
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):

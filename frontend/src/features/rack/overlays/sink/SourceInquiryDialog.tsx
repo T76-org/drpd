@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogButton } from '../../../../ui/overlays'
 import { validateInquiryParameters, type InquiryDefinition } from '../../inquiries/catalog'
-import { SinkInquiryType, type SinkInquiryRequest } from '../../../../lib/device'
+import { SinkInquiryType, type SinkInquiryCablePlug, type SinkInquiryRequest } from '../../../../lib/device'
 import { parseCountryCodesDataBlock } from '../../../../lib/device/drpd/usb-pd/DataObjects'
 import { buildCountryInfoSteps } from '../../inquiries/countryWorkflow'
 import { batteryReferencesFromScedb, buildAllBatterySurveySteps, buildBatterySurveySteps } from '../../inquiries/batteryWorkflow'
@@ -20,6 +20,9 @@ import {
 const bytesToHex = (bytes: Uint8Array): string => (
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(' ')
 )
+
+const requestCablePlug = (request: SinkInquiryRequest): SinkInquiryCablePlug | undefined =>
+  'plug' in request ? request.plug : undefined
 
 const CountryInformationWorkflow = ({ client }: { client: SinkInquiryClient }) => {
   const maxRetries = 2
@@ -146,7 +149,7 @@ type VdmSurveyPending =
   | { kind: 'discovery'; phase: 'identity' | 'svids'; pages: number[][]; pageIndex: number; nonRetryable?: boolean }
   | { kind: 'modes'; steps: SerialInquiryWorkflowStep[]; index: number }
 
-const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) => {
+const PortPartnerSurveyWorkflow = ({ client, plug }: { client: SinkInquiryClient; plug?: SinkInquiryCablePlug }) => {
   const [history, setHistory] = useState<InquiryHistoryEntry[]>([])
   const [svids, setSvids] = useState<number[] | null>(null)
   const [selected, setSelected] = useState('')
@@ -169,7 +172,7 @@ const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) =>
     const completedSvids: { value: number[] | null } = { value: null }
     await withSinkInquiryLease(client, async (run) => {
       if (!startAtSvids) {
-        const request = { type: SinkInquiryType.DISCOVER_IDENTITY } as const
+        const request: SinkInquiryRequest = { type: SinkInquiryType.DISCOVER_IDENTITY, ...(plug ? { plug } : {}) }
         let result = await run(request, { signal: controllerRef.current?.signal })
         if (result.phase === 'response') {
           try { decodeInquiryResponse(result.status, result.rawResponse, result.request) }
@@ -181,7 +184,7 @@ const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) =>
 
       const pages = [...initialPages]
       for (let pageIndex = pageStart; pageIndex < 8; pageIndex += 1) {
-        const request = { type: SinkInquiryType.DISCOVER_SVIDS } as const
+        const request: SinkInquiryRequest = { type: SinkInquiryType.DISCOVER_SVIDS, ...(plug ? { plug } : {}) }
         const stepId = `discover-svids-page-${pageIndex + 1}`
         let result = await run(request, { signal: controllerRef.current?.signal })
         let parsed: ReturnType<typeof parseDiscoverSvidPage> | null = null
@@ -206,7 +209,7 @@ const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) =>
     } else if (failed) setPending(failed)
     setRunning(false)
     busyRef.current = false
-  }, [appendAttempt, client])
+  }, [appendAttempt, client, plug])
 
   const runModes = useCallback(async (steps: SerialInquiryWorkflowStep[], startIndex: number) => {
     if (busyRef.current) return
@@ -245,6 +248,7 @@ const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) =>
     if (!pending) return
     if (action === 'stop') { setPending(null); return }
     if (action === 'retry' && pending.kind === 'discovery' && pending.nonRetryable) return
+    if (plug && action === 'retry') { setSvids(null); void discover(false, [], 0); return }
     if (pending.kind === 'modes') { void runModes(pending.steps, pending.index + (action === 'continue' ? 1 : 0)); return }
     if (pending.phase === 'identity') { void discover(action === 'continue'); return }
     if (action === 'continue') {
@@ -253,7 +257,7 @@ const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) =>
     } else void discover(false, [], 0)
   }
   const startModes = (values: number[]) => {
-    try { setWorkflowError(null); void runModes(buildDiscoverModesSteps(values), 0) }
+    try { setWorkflowError(null); void runModes(buildDiscoverModesSteps(values, plug), 0) }
     catch (error) { setWorkflowError(error instanceof Error ? error.message : String(error)) }
   }
 
@@ -266,7 +270,7 @@ const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) =>
         <DialogButton onClick={() => startModes(svids)}>Discover all SVID modes</DialogButton>
       </> : null}
     </> : null}
-    {running ? <div role="status">Discovering Port Partner identity, SVIDs, or modes…</div> : null}
+    {running ? <div role="status">Discovering {plug ?? 'Port Partner'} identity, SVIDs, or modes…</div> : null}
     {pending ? <div role="alert"><p>Step {pendingStepId} did not return a usable response.</p>
       <DialogButton disabled={!canRetryVdmSurveyStep(attempts, pending.kind === 'discovery' && pending.nonRetryable === true, maxRetries)} onClick={() => resume('retry')}>Retry</DialogButton>
       <DialogButton onClick={() => resume('continue')}>Continue</DialogButton>
@@ -472,8 +476,8 @@ export const SourceInquiryDialog = ({
       {definition?.confirmation && !confirmed ? null : <>
       {definition?.id === 'survey-batteries' && client
         ? <BatterySurveyWorkflow client={client} />
-        : definition?.id === 'survey-port-partner-modes' && client
-          ? <PortPartnerSurveyWorkflow client={client} />
+        : (definition?.id === 'survey-port-partner-modes' || definition?.id.startsWith('survey-cable-')) && client
+          ? <PortPartnerSurveyWorkflow client={client} plug={requestCablePlug(definition.buildRequest({}))} />
         : definition?.type === SinkInquiryType.GET_COUNTRY_INFO && client
           ? <CountryInformationWorkflow client={client} />
         : <>

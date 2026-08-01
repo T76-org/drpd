@@ -5,6 +5,7 @@
 
 #include "sink.hpp"
 #include "inquiry_descriptor.hpp"
+#include "sop_target_match.hpp"
 
 #include <algorithm>
 
@@ -24,6 +25,23 @@ namespace {
 
         return true;
     }
+
+    std::optional<size_t> sopTargetIndex(Proto::SOP::SOPType target) {
+        switch (target) {
+            case Proto::SOP::SOPType::SOP: return 0;
+            case Proto::SOP::SOPType::SOPPrime: return 1;
+            case Proto::SOP::SOPType::SOPDoublePrime: return 2;
+            default: return std::nullopt;
+        }
+    }
+
+    Proto::SOP::SOPType inquirySOPTarget(SinkInquirySOPTarget target) {
+        switch (target) {
+            case SinkInquirySOPTarget::SOPPrime: return Proto::SOP::SOPType::SOPPrime;
+            case SinkInquirySOPTarget::SOPDoublePrime: return Proto::SOP::SOPType::SOPDoublePrime;
+            default: return Proto::SOP::SOPType::SOP;
+        }
+    }
 }
 
 
@@ -36,16 +54,36 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
         reset();
         return;
     }
+    if (message->decodedSOP().type() == Proto::SOP::SOPType::CableReset) {
+        _context.resetCableProtocol();
+        return;
+    }
 
-    if (message->decodedSOP().type() != Proto::SOP::SOPType::SOP) {
+    const auto receivedTarget = message->decodedSOP().type();
+    const auto targetIndex = sopTargetIndex(receivedTarget);
+    if (!targetIndex.has_value()) {
         return;
     }
 
     const Proto::PDHeader decodedHeader = message->decodedHeader();
 
-    const auto powerRole = decodedHeader.portPowerRole();
-    if (!powerRole.has_value() || powerRole.value() != Proto::PDHeader::PortPowerRole::Source) {
-        return;
+    if (receivedTarget == Proto::SOP::SOPType::SOP) {
+        const auto powerRole = decodedHeader.portPowerRole();
+        if (!powerRole.has_value() || powerRole.value() != Proto::PDHeader::PortPowerRole::Source) {
+            return;
+        }
+    } else {
+        const auto inquiry = _runtimeState.inquiryResult();
+        const bool activeInquiryTarget =
+            inquiry.status.outcome == SinkInquiryOutcome::Pending &&
+            inquirySOPTarget(inquiry.parameters.sopTarget) == receivedTarget;
+        const bool preparedResponseTarget =
+            _runtimeState._state == SinkState::PE_SNK_Send_Response &&
+            exactSOPTargetMatch(
+                _sendResponseStateHandler.preparedSOPTarget(), receivedTarget);
+        if (!activeInquiryTarget && !preparedResponseTarget) {
+            return;
+        }
     }
 
     if (decodedHeader.messageClass() == Proto::PDHeader::MessageClass::Control) {
@@ -53,7 +91,7 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::GoodCRC) {
-            _messageSender.handleGoodCRCReceived(decodedHeader.messageId());
+            _messageSender.handleGoodCRCReceived(receivedTarget, decodedHeader.messageId());
             return;
         }
     }
@@ -64,20 +102,20 @@ void Sink::_onMessageReceived(const T76::DRPD::PHY::BMCDecodedMessage *message) 
         if (controlMessageType.has_value() &&
             controlMessageType.value() == Proto::ControlMessageType::Soft_Reset) {
             _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
-            _context.handleReceivedSoftReset(decodedHeader.specRevision());
+            _context.handleReceivedSoftReset(receivedTarget, decodedHeader.specRevision());
             return;
         }
     }
 
     const uint8_t receivedMessageId = static_cast<uint8_t>(decodedHeader.messageId() & 0x7);
 
-    if (_runtimeState.isDuplicateReceivedMessageId(receivedMessageId)) {
+    if (_runtimeState.isDuplicateReceivedMessageId(targetIndex.value(), receivedMessageId)) {
         // Retransmission due to missing GoodCRC. Acknowledge but do not process twice.
         _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
         return;
     }
 
-    _runtimeState.storeReceivedMessageId(receivedMessageId);
+    _runtimeState.storeReceivedMessageId(targetIndex.value(), receivedMessageId);
     _bmcEncoder.sendGoodCRCForDecodedMessage(*message);
 
     const T76::DRPD::PHY::BMCDecodedMessage* messagePtr = message;
@@ -261,7 +299,8 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
         _sendExtendedChunkRequest(
             extendedType,
             reassembly.expectedPayloadBytes,
-            nextChunkNumber
+            nextChunkNumber,
+            Proto::SOP::SOPType::SOP
         );
         return ExtendedFragmentResult::InProgress;
     }
@@ -316,7 +355,8 @@ Sink::ExtendedFragmentResult Sink::_handleInquiryExtendedFragment(
         result == InquiryReassemblyResult::Duplicate) {
         _sendExtendedChunkRequest(
             extendedType.value(),
-            header.dataSizeBytes(), static_cast<uint8_t>(header.chunkNumber() + 1));
+            header.dataSizeBytes(), static_cast<uint8_t>(header.chunkNumber() + 1),
+            message->decodedSOP().type());
         return ExtendedFragmentResult::InProgress;
     }
     SinkRuntimeState::ExtendedPayloadBuffer payload;
@@ -327,11 +367,20 @@ Sink::ExtendedFragmentResult Sink::_handleInquiryExtendedFragment(
     return ExtendedFragmentResult::Complete;
 }
 
-void Sink::_onMessageSenderStateChanged(SinkMessageSenderState state) {
+void Sink::_onMessageSenderStateChanged(
+    SinkMessageSenderState state, Proto::SOP::SOPType sopTarget) {
     if (!_enabled.load()) {
         return;
     }
 
+    Proto::SOP::SOPType activeTarget = Proto::SOP::SOPType::SOP;
+    if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
+        activeTarget = inquirySOPTarget(_runtimeState.inquiryResult().parameters.sopTarget);
+    }
+    if (_runtimeState._state == SinkState::PE_SNK_Send_Response) {
+        if (!exactSOPTargetMatch(
+                _sendResponseStateHandler.preparedSOPTarget(), sopTarget)) return;
+    } else if (sopTarget != activeTarget) return;
     if (state == SinkMessageSenderState::GoodCRCTimeout) {
         _enqueueTimeoutEvent(SinkTimeoutEvent{SinkTimeoutEventType::GoodCRCTimeout});
         return;

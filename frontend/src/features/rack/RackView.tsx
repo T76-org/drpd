@@ -98,6 +98,7 @@ import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopo
 import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
 import { SourceInquiryDialog } from './overlays/sink/SourceInquiryDialog'
 import {
+  ACTIVE_CABLE_INQUIRIES,
   ACTIVE_SOURCE_INQUIRIES,
   type InquiryDefinition,
 } from './inquiries/catalog'
@@ -3113,6 +3114,27 @@ export const RackView = ({
                 attached: activeDriverState?.ccBusRoleStatus === CCBusRoleStatus.ATTACHED,
                 sprPpsContract:
                   activeDriverState?.sinkInfo?.negotiatedPdo?.type === SinkPdoType.SPR_PPS,
+              }),
+              onSelect: () => setSourceInquiryDefinition(definition),
+            })),
+          },
+          {
+            id: 'inspect-cable',
+            type: 'submenu',
+            label: 'Inspect cable…',
+            disabled:
+              !activeDriver ||
+              !isSinkMode ||
+              activeDriverState?.ccBusRoleStatus !== CCBusRoleStatus.ATTACHED,
+            items: ACTIVE_CABLE_INQUIRIES.map((definition) => ({
+              id: `inspect-${definition.id}`,
+              label: definition.label,
+              meta: definition.id.includes('SOP_DOUBLE_PRIME')
+                ? "Requires VCONN and SOP' Identity indicating a second cable controller"
+                : 'Requires VCONN and a responsive electronically marked cable',
+              disabled: !definition.applicability({
+                sinkMode: isSinkMode,
+                attached: activeDriverState?.ccBusRoleStatus === CCBusRoleStatus.ATTACHED,
               }),
               onSelect: () => setSourceInquiryDefinition(definition),
             })),

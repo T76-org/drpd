@@ -34,7 +34,7 @@ void SinkRuntimeState::_unlockInquiryResult() const {
     _inquiryResultLock.clear(std::memory_order_release);
 }
 
-void SinkRuntimeState::reset() {
+void SinkRuntimeState::reset(bool resetCableMessageIds) {
     _lockInquiryResult();
     const SinkInquiryResult previousInquiry = _inquiryResult;
     _state = SinkState::Unknown;
@@ -60,7 +60,8 @@ void SinkRuntimeState::reset() {
     _eprEntryRefusedFallbackActive = false;
     _eprSourceExitRequested = false;
 
-    resetStoredReceivedMessageId();
+    if (resetCableMessageIds) resetStoredReceivedMessageId();
+    else resetStoredReceivedMessageId(0);
 
     _pendingRequestedPDO.reset();
     _pendingPDOIndex = 0;
@@ -121,17 +122,20 @@ void SinkRuntimeState::finishInquiry(
 }
 
 void SinkRuntimeState::resetStoredReceivedMessageId() {
-    _hasStoredReceivedMessageId = false;
-    _storedReceivedMessageId = 0;
+    _receivedMessageIds.reset();
 }
 
-bool SinkRuntimeState::isDuplicateReceivedMessageId(uint8_t messageId) const {
-    return _hasStoredReceivedMessageId && _storedReceivedMessageId == messageId;
+void SinkRuntimeState::resetStoredReceivedMessageId(size_t targetIndex) {
+    _receivedMessageIds.clear(targetIndex);
 }
 
-void SinkRuntimeState::storeReceivedMessageId(uint8_t messageId) {
-    _hasStoredReceivedMessageId = true;
-    _storedReceivedMessageId = messageId;
+bool SinkRuntimeState::isDuplicateReceivedMessageId(
+    size_t targetIndex, uint8_t messageId) const {
+    return _receivedMessageIds.duplicate(targetIndex, messageId);
+}
+
+void SinkRuntimeState::storeReceivedMessageId(size_t targetIndex, uint8_t messageId) {
+    _receivedMessageIds.store(targetIndex, messageId);
 }
 
 std::optional<size_t> SinkRuntimeState::trackedTypeIndex(Proto::ExtendedMessageType type) {
