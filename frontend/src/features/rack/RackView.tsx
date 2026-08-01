@@ -3087,10 +3087,6 @@ export const RackView = ({
             items: ACTIVE_SOURCE_INQUIRIES.map((definition) => ({
               id: `send-inquiry-${definition.id}`,
               label: definition.label,
-              meta: definition.type !== SinkInquiryType.GET_SOURCE_CAP &&
-                definition.type !== SinkInquiryType.GET_REVISION
-                ? 'Firmware validates PD 3.x at send time'
-                : undefined,
               disabled: !definition.applicability({
                 sinkMode: isSinkMode,
                 attached: activeDriverState?.ccBusRoleStatus === CCBusRoleStatus.ATTACHED,
@@ -3111,9 +3107,6 @@ export const RackView = ({
             items: ACTIVE_CABLE_INQUIRIES.map((definition) => ({
               id: `inspect-${definition.id}`,
               label: definition.label,
-              meta: definition.id.includes('SOP_DOUBLE_PRIME')
-                ? "Requires VCONN and SOP' Identity indicating a second cable controller"
-                : 'Requires VCONN and a responsive electronically marked cable',
               disabled: !definition.applicability({
                 sinkMode: isSinkMode,
                 attached: activeDriverState?.ccBusRoleStatus === CCBusRoleStatus.ATTACHED,

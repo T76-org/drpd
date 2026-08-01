@@ -3196,6 +3196,7 @@ describe('RackView', () => {
     const sendInquiry = await screen.findByRole('menuitem', { name: 'Send inquiry to source' })
     expect(sendInquiry).toBeEnabled()
     fireEvent.pointerEnter(sendInquiry)
+    expect(screen.queryByText('Firmware validates PD 3.x at send time')).not.toBeInTheDocument()
     await user.click(await screen.findByRole('menuitem', { name: 'Get revision' }))
 
     expect(await screen.findByRole('dialog', { name: 'Get revision' })).toBeInTheDocument()
