@@ -49,6 +49,7 @@
 
 #include "message_sender.hpp"
 #include "sink_alarm_service.hpp"
+#include "inquiry_reassembly.hpp"
 #include "sink_context.hpp"
 #include "sink_runtime_state.hpp"
 #include "state_handler.hpp"
@@ -226,7 +227,9 @@ namespace T76::DRPD::Logic {
          * @return Last request status snapshot.
          */
         [[nodiscard]] SinkRequestStatus lastRequestStatus() const;
-        SinkRequestResult requestInquiry(SinkInquiryType type);
+        SinkRequestResult requestInquiry(
+            SinkInquiryType type,
+            SinkInquiryParameters parameters = {});
         [[nodiscard]] SinkInquiryResult lastInquiryResult() const;
 
         /**
@@ -305,6 +308,7 @@ namespace T76::DRPD::Logic {
             UnsupportedType,    ///< Message type not supported.
             UnsupportedChunk,   ///< Unsupported message chunk needs delayed Not_Supported.
             RecoveredMalformed, ///< Known malformed encoding was safely recovered.
+            TooLarge,           ///< Declared inquiry response exceeds bounded storage.
             Malformed           ///< Fragment/header invalid.
         };
 
@@ -358,6 +362,7 @@ namespace T76::DRPD::Logic {
         std::atomic<bool> _inquiryQueued = false;                ///< Host inquiry awaits policy dispatch.
         alarm_id_t _chunkingNotSupportedAlarmId = -1;            ///< Delay before Not_Supported for unsupported chunks.
         bool _chunkingNotSupportedPending = false;               ///< True while delayed Not_Supported is still applicable.
+        InquiryExtendedReassembly<LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES> _inquiryReassembly;
 
         /**
          * @brief Handle CC bus state changes.
@@ -380,6 +385,8 @@ namespace T76::DRPD::Logic {
         ExtendedFragmentResult _handleExtendedMessageFragment(
             const T76::DRPD::PHY::BMCDecodedMessage *message,
             Proto::ExtendedMessageType &completedType);
+        ExtendedFragmentResult _handleInquiryExtendedFragment(
+            const T76::DRPD::PHY::BMCDecodedMessage *message);
 
         /**
          * @brief Apply protocol message-discarding rules before handling a received SOP.

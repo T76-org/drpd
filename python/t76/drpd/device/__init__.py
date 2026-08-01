@@ -1,4 +1,5 @@
 from .device import Device
+from .device_sink import SinkInquiryRunner, SinkInquirySupersededError
 from .discovery import find_drpd_devices
 from .types import (
     AccumulatedMeasurements,
@@ -9,11 +10,14 @@ from .types import (
     DeviceStatusFlags,
     DiagnosticCCChannel,
     DiagnosticCCRole,
+    GetRevisionInquiryRequest,
     MemoryUsage,
     Mode,
     OnOffStatus,
     ResistorStatus,
     SinkInquiryOutcome,
+    SinkInquiryRequest,
+    SinkInquiryResult,
     SinkInquiryStatus,
     SinkInquiryType,
     SinkRequestOutcome,
@@ -38,12 +42,17 @@ __all__ = [
     "DeviceStatusFlags",
     "DiagnosticCCChannel",
     "DiagnosticCCRole",
+    "GetRevisionInquiryRequest",
     "MemoryUsage",
     "Mode",
     "OnOffStatus",
     "ResistorStatus",
     "SinkInquiryOutcome",
+    "SinkInquiryRequest",
+    "SinkInquiryResult",
+    "SinkInquiryRunner",
     "SinkInquiryStatus",
+    "SinkInquirySupersededError",
     "SinkInquiryType",
     "SinkRequestOutcome",
     "SinkRequestStatus",

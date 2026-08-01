@@ -23,6 +23,7 @@ import type {
   WorkerToMainMessage,
 } from './protocol'
 import { deserializeWorkerError, serializeWorkerError } from './serialization'
+import { dispatchSinkInquiryRpc } from './sinkInquiryRpc'
 
 const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope ///< Dedicated worker global scope.
 
@@ -667,6 +668,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         throw new Error(`Unsupported capture method: ${method}`)
       }
       if (target === 'sink') {
+        const inquiryResult = await dispatchSinkInquiryRpc(session.device.sink, method, args)
+        if (inquiryResult.handled) {
+          return inquiryResult.value
+        }
         if (method === 'getAvailablePdoCount') {
           return await session.device.sink.getAvailablePdoCount()
         }

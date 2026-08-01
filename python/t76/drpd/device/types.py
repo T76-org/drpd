@@ -6,7 +6,8 @@ Types and Enums for DRPD device communication.
 
 import enum
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TypeAlias
 
 
 @dataclass
@@ -568,6 +569,21 @@ class SinkInquiryType(enum.Enum):
     GET_REVISION = "GET_REVISION"
 
 
+@dataclass(frozen=True)
+class GetRevisionInquiryRequest:
+    """Semantic request for the Source's USB-PD Revision data message."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_REVISION,
+        init=False,
+    )
+
+
+# New inquiry categories turn this alias into a union of bounded semantic
+# parameter dataclasses. Callers never construct PD headers directly.
+SinkInquiryRequest: TypeAlias = GetRevisionInquiryRequest
+
+
 class SinkInquiryOutcome(enum.Enum):
     """Represents a SINK:INQuiry:STATus? outcome token."""
 
@@ -580,6 +596,8 @@ class SinkInquiryOutcome(enum.Enum):
     GOODCRC_TIMEOUT = "GOODCRC_TIMEOUT"
     RESPONSE_TIMEOUT = "RESPONSE_TIMEOUT"
     PROTOCOL_ERROR = "PROTOCOL_ERROR"
+    MALFORMED_RESPONSE = "MALFORMED_RESPONSE"
+    RESPONSE_TOO_LARGE = "RESPONSE_TOO_LARGE"
     ABORTED = "ABORTED"
 
     @classmethod
@@ -602,6 +620,15 @@ class SinkInquiryStatus:
     response_class: int
     response_type: int
     response_length: int
+
+
+@dataclass(frozen=True)
+class SinkInquiryResult:
+    """Correlated terminal inquiry result retained by the host runner."""
+
+    request: SinkInquiryRequest
+    status: SinkInquiryStatus
+    raw_response: bytes | None
 
 
 class DiagnosticCCRole(enum.Enum):

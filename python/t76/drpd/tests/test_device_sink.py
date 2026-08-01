@@ -4,16 +4,22 @@ Copyright (c) 2025 MTA, Inc.
 Unit tests for the DeviceSink class.
 """
 
+import asyncio
 import unittest
 from unittest.mock import AsyncMock
 
-from t76.drpd.device.device_sink import DeviceSink
+from t76.drpd.device.device_sink import (
+    DeviceSink,
+    SinkInquiryRunner,
+    SinkInquirySupersededError,
+)
 from t76.drpd.device.device_sink_pdos import (
     BatteryPDO,
     FixedPDO,
     VariablePDO,
 )
 from t76.drpd.device.types import (
+    GetRevisionInquiryRequest,
     SinkInquiryOutcome,
     SinkInquiryType,
     SinkRequestOutcome,
@@ -293,6 +299,130 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
         self.mock_internal.query_binary_value_and_check.assert_awaited_once_with(
             "SINK:INQ:RESP?"
         )
+
+    async def test_run_inquiry_correlates_response_and_retains_history(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["RESPONSE,7,GET_REVISION,1,12,4"],
+            ["PENDING,8,GET_REVISION,0,0,0"],
+            ["RESPONSE,8,GET_REVISION,1,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            1, 2, 3, 4
+        ]
+
+        request = GetRevisionInquiryRequest()
+        result = await self.device_sink.run_inquiry(
+            request, poll_interval_seconds=0
+        )
+
+        self.assertIs(result.request, request)
+        self.assertEqual(result.status.request_id, 8)
+        self.assertEqual(result.raw_response, b"\x01\x02\x03\x04")
+        self.assertEqual(self.device_sink.inquiry_runner.history, (result,))
+        self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+            "SINK:INQ GET_REVISION"
+        )
+
+    async def test_run_inquiry_does_not_fetch_body_for_terminal_error(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["RESPONSE,2,GET_REVISION,1,12,4"],
+            ["NOT_SUPPORTED,3,GET_REVISION,0,0,0"],
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetRevisionInquiryRequest(), poll_interval_seconds=0
+        )
+
+        self.assertEqual(result.status.outcome, SinkInquiryOutcome.NOT_SUPPORTED)
+        self.assertIsNone(result.raw_response)
+        self.mock_internal.query_binary_value_and_check.assert_not_awaited()
+
+    async def test_run_inquiry_detects_superseded_id(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["RESPONSE,2,GET_REVISION,1,12,4"],
+            ["PENDING,3,GET_REVISION,0,0,0"],
+            ["PENDING,4,GET_REVISION,0,0,0"],
+        ]
+
+        with self.assertRaisesRegex(
+            SinkInquirySupersededError, "superseded"
+        ):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_run_inquiry_rejects_mismatched_response_length(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_REVISION,1,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [1, 2]
+
+        with self.assertRaisesRegex(ValueError, "expected 4, got 2"):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_runner_serializes_concurrent_callers(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["WAIT,2,GET_REVISION,0,0,0"],
+        ]
+
+        first, second = await asyncio.gather(
+            self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            ),
+            self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            ),
+        )
+
+        self.assertEqual(first.status.request_id, 1)
+        self.assertEqual(second.status.request_id, 2)
+        self.assertEqual(
+            [entry.status.request_id for entry in
+             self.device_sink.inquiry_runner.history],
+            [1, 2],
+        )
+
+    async def test_run_inquiry_times_out_when_id_never_advances(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "NONE,0,GET_REVISION,0,0,0"
+        ]
+
+        with self.assertRaisesRegex(TimeoutError, "within 2 polls"):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(),
+                poll_interval_seconds=0,
+                max_polls=2,
+            )
+
+    async def test_runner_bounds_configuration(self) -> None:
+        with self.assertRaisesRegex(ValueError, "history_limit"):
+            SinkInquiryRunner(self.device_sink, history_limit=0)
+        with self.assertRaisesRegex(ValueError, "max_polls"):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), max_polls=0
+            )
+
+    async def test_runner_history_is_bounded(self) -> None:
+        runner = SinkInquiryRunner(self.device_sink, history_limit=1)
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["WAIT,2,GET_REVISION,0,0,0"],
+        ]
+
+        await runner.run(GetRevisionInquiryRequest(), poll_interval_seconds=0)
+        latest = await runner.run(
+            GetRevisionInquiryRequest(), poll_interval_seconds=0
+        )
+
+        self.assertEqual(runner.history, (latest,))
 
 
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):

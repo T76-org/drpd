@@ -147,6 +147,7 @@ namespace T76::DRPD::Logic {
         bool _sourceSupportsEpr = false;                          ///< Source SPR advertises EPR support.
         std::optional<Proto::PPSStatus> _ppsStatus;               ///< Last Source PPS status response.
         SinkInquiryResult _inquiryResult;                         ///< Latest host inquiry and response.
+        std::optional<ExtendedPayloadBuffer> _completedInquiryExtendedPayload; ///< Active inquiry payload.
 
         bool _hasStoredReceivedMessageId = false;                 ///< True once first post-reset MessageID is stored.
         uint8_t _storedReceivedMessageId = 0;                     ///< Last accepted MessageID from port partner.

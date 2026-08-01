@@ -5,6 +5,7 @@
  */
 
 #include "app.hpp"
+#include "../logic/sink/inquiry_descriptor.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -47,6 +48,8 @@ const char *sinkInquiryOutcomeName(Logic::SinkInquiryOutcome outcome) {
         case Logic::SinkInquiryOutcome::GoodCRCTimeout: return "GOODCRC_TIMEOUT";
         case Logic::SinkInquiryOutcome::ResponseTimeout: return "RESPONSE_TIMEOUT";
         case Logic::SinkInquiryOutcome::ProtocolError: return "PROTOCOL_ERROR";
+        case Logic::SinkInquiryOutcome::MalformedResponse: return "MALFORMED_RESPONSE";
+        case Logic::SinkInquiryOutcome::ResponseTooLarge: return "RESPONSE_TOO_LARGE";
         case Logic::SinkInquiryOutcome::Aborted: return "ABORTED";
     }
     return "UNKNOWN";
@@ -216,11 +219,12 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
     }
     std::string type = params[0].stringValue;
     std::transform(type.begin(), type.end(), type.begin(), ::toupper);
-    if (type != "GET_REVISION") {
+    const auto descriptor = Logic::sinkInquiryDescriptor(type);
+    if (!descriptor.has_value()) {
         _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. Unsupported inquiry type.");
         return;
     }
-    const auto result = sink->requestInquiry(Logic::SinkInquiryType::GetRevision);
+    const auto result = sink->requestInquiry(descriptor->type);
     if (!result) {
         _interpreter.addError(_scpiErrorSettingsConflict,
             "Settings conflict. " + std::string(result.error));
@@ -235,7 +239,9 @@ void App::_querySinkInquiryStatus(const std::vector<T76::SCPI::ParameterValue>&)
     const auto status = _ccBusController.sink()->lastInquiryResult().status;
     std::string response = sinkInquiryOutcomeName(status.outcome);
     response += "," + std::to_string(status.id);
-    response += ",GET_REVISION," + std::to_string(status.responseClass);
+    const auto descriptor = Logic::sinkInquiryDescriptor(status.type);
+    response += "," + std::string(descriptor.has_value() ? descriptor->token : "UNKNOWN") +
+        "," + std::to_string(status.responseClass);
     response += "," + std::to_string(status.responseType);
     response += "," + std::to_string(status.responseLength);
     _sendTransportTextResponse(response, true);

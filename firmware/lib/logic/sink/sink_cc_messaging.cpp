@@ -4,6 +4,7 @@
  */
 
 #include "sink.hpp"
+#include "inquiry_descriptor.hpp"
 
 #include <algorithm>
 
@@ -268,6 +269,47 @@ Sink::ExtendedFragmentResult Sink::_handleExtendedMessageFragment(
     _runtimeState._completedExtendedPayloads[typeIndex.value()] = reassembly.payload;
     reassembly = SinkRuntimeState::ExtendedReassemblyState{};
     completedType = extendedType;
+    return ExtendedFragmentResult::Complete;
+}
+
+Sink::ExtendedFragmentResult Sink::_handleInquiryExtendedFragment(
+    const T76::DRPD::PHY::BMCDecodedMessage *message) {
+    const auto descriptor = sinkInquiryDescriptor(
+        _runtimeState.inquiryResult().status.type);
+    if (!descriptor.has_value() ||
+        descriptor->response.messageClass != InquiryMessageClass::Extended) {
+        return ExtendedFragmentResult::Malformed;
+    }
+    const auto body = message->rawBody();
+    const auto extendedType = message->decodedHeader().extendedMessageType();
+    if (body.size() < 2 || !extendedType.has_value()) {
+        return ExtendedFragmentResult::Malformed;
+    }
+    const uint16_t rawHeader = static_cast<uint16_t>(body[0]) |
+        (static_cast<uint16_t>(body[1]) << 8);
+    const Proto::PDExtendedHeader header(rawHeader);
+    const auto result = _inquiryReassembly.accept(
+        header.chunked(), header.requestChunk(), header.dataSizeBytes(),
+        header.chunkNumber(), body.subspan(2));
+    if (result == InquiryReassemblyResult::TooLarge) {
+        return ExtendedFragmentResult::TooLarge;
+    }
+    if (result == InquiryReassemblyResult::Malformed ||
+        result == InquiryReassemblyResult::RequestChunk) {
+        return ExtendedFragmentResult::Malformed;
+    }
+    if (result == InquiryReassemblyResult::InProgress ||
+        result == InquiryReassemblyResult::Duplicate) {
+        _sendExtendedChunkRequest(
+            extendedType.value(),
+            header.dataSizeBytes(), static_cast<uint8_t>(header.chunkNumber() + 1));
+        return ExtendedFragmentResult::InProgress;
+    }
+    SinkRuntimeState::ExtendedPayloadBuffer payload;
+    payload.length = _inquiryReassembly.payload().size();
+    std::copy(_inquiryReassembly.payload().begin(),
+              _inquiryReassembly.payload().end(), payload.bytes.begin());
+    _runtimeState._completedInquiryExtendedPayload = payload;
     return ExtendedFragmentResult::Complete;
 }
 

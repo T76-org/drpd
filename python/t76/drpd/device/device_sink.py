@@ -5,8 +5,10 @@ The Device class enables communication with DRPD devices
 over USB using SCPI commands.
 """
 
+import asyncio
+from collections import deque
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Deque, Optional
 
 from t76.drpd.device.device_sink_pdos import DeviceSinkPDO
 from t76.drpd.device.types import (
@@ -14,6 +16,8 @@ from t76.drpd.device.types import (
     SinkRequestOutcome,
     SinkRequestStatus,
     SinkInquiryOutcome,
+    SinkInquiryRequest,
+    SinkInquiryResult,
     SinkInquiryStatus,
     SinkInquiryType,
     SinkState,
@@ -36,6 +40,98 @@ class SinkInfo:
     negotiated_voltage: float
     negotiated_current: float
     error_status: bool
+
+
+class SinkInquirySupersededError(RuntimeError):
+    """Raised when firmware's latest result no longer belongs to this run."""
+
+
+class SinkInquiryRunner:
+    """Serialize, correlate, and retain semantic Sink inquiry executions."""
+
+    MAX_HISTORY = 256
+    MAX_POLLS = 10000
+    MAX_POLL_INTERVAL_SECONDS = 60.0
+
+    def __init__(self, sink: "DeviceSink", history_limit: int = 64):
+        if not 1 <= history_limit <= self.MAX_HISTORY:
+            raise ValueError(
+                f"history_limit must be between 1 and {self.MAX_HISTORY}"
+            )
+        self._sink = sink
+        self._lock = asyncio.Lock()
+        self._history: Deque[SinkInquiryResult] = deque(maxlen=history_limit)
+
+    @property
+    def history(self) -> tuple[SinkInquiryResult, ...]:
+        """Return oldest-to-newest completed host-side inquiry history."""
+        return tuple(self._history)
+
+    async def run(
+        self,
+        request: SinkInquiryRequest,
+        *,
+        poll_interval_seconds: float = 0.01,
+        max_polls: int = 1000,
+    ) -> SinkInquiryResult:
+        """Run one inquiry and return its correlated terminal result."""
+        if not 0 <= poll_interval_seconds <= self.MAX_POLL_INTERVAL_SECONDS:
+            raise ValueError(
+                "poll_interval_seconds must be between 0 and "
+                f"{self.MAX_POLL_INTERVAL_SECONDS}"
+            )
+        if not 1 <= max_polls <= self.MAX_POLLS:
+            raise ValueError(f"max_polls must be between 1 and {self.MAX_POLLS}")
+
+        async with self._lock:
+            baseline = await self._sink.get_inquiry_status()
+            await self._sink.send_inquiry(request.type)
+            request_id: int | None = None
+
+            for poll_index in range(max_polls):
+                status = await self._sink.get_inquiry_status()
+
+                if request_id is None and status.request_id == baseline.request_id:
+                    if poll_index + 1 < max_polls and poll_interval_seconds:
+                        await asyncio.sleep(poll_interval_seconds)
+                    continue
+
+                if status.type != request.type:
+                    raise SinkInquirySupersededError(
+                        "Inquiry result type changed before this request completed"
+                    )
+
+                if request_id is None:
+                    request_id = status.request_id
+                elif status.request_id != request_id:
+                    raise SinkInquirySupersededError(
+                        f"Inquiry {request_id} was superseded by "
+                        f"inquiry {status.request_id}"
+                    )
+
+                if status.outcome == SinkInquiryOutcome.PENDING:
+                    if poll_index + 1 < max_polls and poll_interval_seconds:
+                        await asyncio.sleep(poll_interval_seconds)
+                    continue
+
+                raw_response = None
+                if status.outcome == SinkInquiryOutcome.RESPONSE:
+                    raw_response = await self._sink.get_inquiry_response()
+                    if len(raw_response) != status.response_length:
+                        raise ValueError(
+                            "Inquiry response length does not match status: "
+                            f"expected {status.response_length}, "
+                            f"got {len(raw_response)}"
+                        )
+
+                result = SinkInquiryResult(request, status, raw_response)
+                self._history.append(result)
+                return result
+
+            raise TimeoutError(
+                "Inquiry did not publish a correlated terminal result within "
+                f"{max_polls} polls"
+            )
 
 
 class DeviceSink:
@@ -61,6 +157,7 @@ class DeviceSink:
         self._internal = device_internal
         self._device = device
         self._current_role: Optional[Mode] = None
+        self.inquiry_runner = SinkInquiryRunner(self)
 
         if device is not None:
             device.events.register_event_observer(
@@ -304,6 +401,20 @@ class DeviceSink:
             "SINK:INQ:RESP?"
         )
         return bytes(int(value) for value in response)
+
+    async def run_inquiry(
+        self,
+        request: SinkInquiryRequest,
+        *,
+        poll_interval_seconds: float = 0.01,
+        max_polls: int = 1000,
+    ) -> SinkInquiryResult:
+        """Run one semantic inquiry through this Sink's serialized runner."""
+        return await self.inquiry_runner.run(
+            request,
+            poll_interval_seconds=poll_interval_seconds,
+            max_polls=max_polls,
+        )
 
     async def get_spr_capability_count(self) -> int:
         response = await self._internal.query_ascii_values_and_check(

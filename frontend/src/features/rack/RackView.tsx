@@ -95,6 +95,11 @@ import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
 import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
 import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopover'
 import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
+import { SourceInquiryDialog } from './overlays/sink/SourceInquiryDialog'
+import {
+  ACTIVE_SOURCE_INQUIRIES,
+  type InquiryDefinition,
+} from './inquiries/catalog'
 import {
   CalibrationManagementDialog,
   CalibrationSafetyDialog,
@@ -948,6 +953,8 @@ export const RackView = ({
   const [globalVbusConfigureError, setGlobalVbusConfigureError] = useState<string | null>(null)
   const [isGlobalVbusApplying, setIsGlobalVbusApplying] = useState(false)
   const [isGlobalSinkDialogOpen, setIsGlobalSinkDialogOpen] = useState(false)
+  const [sourceInquiryDefinition, setSourceInquiryDefinition] =
+    useState<InquiryDefinition | null>(null)
   const [globalSinkPdoList, setGlobalSinkPdoList] = useState<SinkPdo[]>([])
   const [globalSinkSelectedIndex, setGlobalSinkSelectedIndex] = useState(0)
   const [globalSinkVoltageV, setGlobalSinkVoltageV] = useState('')
@@ -3083,6 +3090,20 @@ export const RackView = ({
             },
           },
           {
+            id: 'send-inquiry-to-source',
+            type: 'submenu',
+            label: 'Send inquiry to source',
+            disabled:
+              !activeDriver ||
+              !isSinkMode ||
+              activeDriverState?.ccBusRoleStatus !== CCBusRoleStatus.ATTACHED,
+            items: ACTIVE_SOURCE_INQUIRIES.map((definition) => ({
+              id: `send-inquiry-${definition.id}`,
+              label: definition.label,
+              onSelect: () => setSourceInquiryDefinition(definition),
+            })),
+          },
+          {
             id: 'send-get-pps-status-messages',
             type: 'checkbox',
             label: 'Send Get_PPS_Status messages',
@@ -3935,6 +3956,15 @@ export const RackView = ({
               setGlobalSinkRequestStatus('error')
           })
         }}
+      />
+      <SourceInquiryDialog
+        key={sourceInquiryDefinition?.id ?? 'no-source-inquiry'}
+        open={sourceInquiryDefinition !== null}
+        onOpenChange={(open) => {
+          if (!open) setSourceInquiryDefinition(null)
+        }}
+        definition={sourceInquiryDefinition}
+        client={activeDriver?.sink ?? null}
       />
       <MessageLogFilterPopover
         open={isMessageLogFilterDialogOpen}

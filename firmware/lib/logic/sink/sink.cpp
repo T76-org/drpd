@@ -4,6 +4,7 @@
  */
 
 #include "sink.hpp"
+#include "inquiry_descriptor.hpp"
 
 #include "../cc_bus_controller.hpp"
 
@@ -98,7 +99,26 @@ void Sink::loopCore1() {
             }
 
             Proto::ExtendedMessageType completedType = maybeType.value();
-            const auto result = _handleExtendedMessageFragment(messagePtr, completedType);
+            const auto inquiryDescriptor = sinkInquiryDescriptor(
+                _runtimeState.inquiryResult().status.type);
+            const bool inquiryExtended =
+                _runtimeState._state == SinkState::PE_SNK_Inquiry &&
+                inquiryDescriptor.has_value() &&
+                inquiryDescriptor->response.messageClass == InquiryMessageClass::Extended;
+            const auto result = inquiryExtended
+                ? _handleInquiryExtendedFragment(messagePtr)
+                : _handleExtendedMessageFragment(messagePtr, completedType);
+
+            if (inquiryExtended &&
+                (result == ExtendedFragmentResult::Malformed ||
+                 result == ExtendedFragmentResult::TooLarge)) {
+                _runtimeState.finishInquiry(
+                    result == ExtendedFragmentResult::TooLarge
+                        ? SinkInquiryOutcome::ResponseTooLarge
+                        : SinkInquiryOutcome::MalformedResponse);
+                _context.transitionTo(SinkState::PE_SNK_Ready);
+                continue;
+            }
 
             if (result == ExtendedFragmentResult::RecoveredMalformed) {
                 _context.reportWarning(
@@ -114,19 +134,23 @@ void Sink::loopCore1() {
             if (result == ExtendedFragmentResult::UnsupportedType) {
                 if (_runtimeState._state == SinkState::PE_SNK_Ready) {
                     _context.sendNotSupportedResponse();
+                } else if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
+                    // Let inquiry matcher abort and route unrelated traffic through Ready.
                 } else {
                     reset(SinkResetType::SoftReset);
                 }
-                continue;
+                if (_runtimeState._state != SinkState::PE_SNK_Inquiry) continue;
             }
 
             if (result == ExtendedFragmentResult::UnsupportedChunk) {
                 if (_runtimeState._state == SinkState::PE_SNK_Ready) {
                     _startChunkingNotSupportedTimer();
+                } else if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
+                    // Ready policy owns response after inquiry is aborted.
                 } else {
                     reset(SinkResetType::SoftReset);
                 }
-                continue;
+                if (_runtimeState._state != SinkState::PE_SNK_Inquiry) continue;
             }
 
             if (result == ExtendedFragmentResult::InProgress) {
@@ -357,6 +381,7 @@ void Sink::_processPendingInquiries() {
         return;
     }
     _inquiryQueued.store(false, std::memory_order_release);
+    _inquiryReassembly.reset();
     _runtimeState.beginInquiry(request);
     _context.transitionTo(SinkState::PE_SNK_Inquiry);
 }
