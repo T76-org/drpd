@@ -233,7 +233,6 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       sinkInfo: null,
       sinkPdoList: null,
       sinkEprEnabled: null,
-      sinkPpsStatusQueryEnabled: null,
       logSelection: {
         selectedKeys: [],
         anchorIndex: null,

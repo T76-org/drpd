@@ -61,7 +61,6 @@ const mockTransportState = vi.hoisted(() => ({
   sinkCurrentResponse: ['2'],
   sinkErrorResponse: ['0'],
   sinkEprEnabledResponse: ['OFF'],
-  sinkPpsStatusQueryEnabledResponse: ['OFF'],
   sinkInquiryStatusResponses: [
     ['NONE,0,GET_REVISION,0,0,0'],
     ['NOT_SUPPORTED,1,GET_REVISION,0,0,0'],
@@ -227,9 +226,6 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
       }
       if (command === 'SINK:EPR:EN?') {
         return mockTransportState.sinkEprEnabledResponse
-      }
-      if (command === 'SINK:PPS:STATUS:EN?') {
-        return mockTransportState.sinkPpsStatusQueryEnabledResponse
       }
       if (command === 'SINK:INQ:STAT?') {
         return mockTransportState.sinkInquiryStatusResponses.shift() ?? []
@@ -851,7 +847,6 @@ const resetMockTransportState = (): void => {
   mockTransportState.sinkCurrentResponse = ['2']
   mockTransportState.sinkErrorResponse = ['0']
   mockTransportState.sinkEprEnabledResponse = ['OFF']
-  mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
   mockTransportState.sinkInquiryStatusResponses = [
     ['NONE,0,GET_REVISION,0,0,0'],
     ['NOT_SUPPORTED,1,GET_REVISION,0,0,0'],
@@ -3175,7 +3170,7 @@ describe('RackView', () => {
     })
   })
 
-  it('refreshes and toggles Get_PPS_Status sink behaviour from the Mode menu', async () => {
+  it('does not expose the retired automatic Get_PPS_Status sink behaviour', async () => {
     const user = userEvent.setup()
     mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.13']
     saveRackDocument(buildBoundHydratedRackDocument())
@@ -3183,24 +3178,10 @@ describe('RackView', () => {
     render(<RackView />)
 
     await expectHydratedDrpdPanels()
-    mockTransportState.sinkPpsStatusQueryEnabledResponse = ['ON']
-
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
-    const checkbox = await screen.findByRole('menuitemcheckbox', {
-      name: 'Send Get_PPS_Status messages',
-    })
-
-    await waitFor(() => {
-      expect(checkbox).toHaveAttribute('aria-checked', 'true')
-    })
-
-    mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
-    await user.click(checkbox)
-
-    await waitFor(() => {
-      expect(mockTransportState.sentCommands).toContain('SINK:PPS:STATUS:EN OFF')
-    })
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Send Get_PPS_Status messages' })).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:PPS:STATUS:EN?')
   })
 
   it('sends Get revision from the nested Sink behaviour inquiry menu', async () => {
@@ -3250,9 +3231,6 @@ describe('RackView', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
 
     expect(await screen.findByRole('menuitemcheckbox', { name: 'Support EPR mode' })).toBeDisabled()
-    expect(await screen.findByRole('menuitemcheckbox', {
-      name: 'Send Get_PPS_Status messages',
-    })).toBeDisabled()
   })
 
   it('pulses Disabled then restores previous role for USB toggle shortcut', async () => {

@@ -1991,8 +1991,7 @@ export const RackView = ({
       if (
         changed.includes('analogMonitor') ||
         changed.includes('role') ||
-        changed.includes('sinkEprEnabled') ||
-        changed.includes('sinkPpsStatusQueryEnabled')
+        changed.includes('sinkEprEnabled')
       ) {
         setDeviceStates((states) =>
           states.map((state) =>
@@ -2766,23 +2765,6 @@ export const RackView = ({
     }
   }, [])
 
-  const handleSetActiveSinkPpsStatusQueryEnabled = useCallback(async (enabled: boolean) => {
-    const state = deviceStatesRef.current.find(
-      (entry) => entry.status === 'connected' && entry.drpdDriver,
-    )
-    const driver = state?.drpdDriver
-    if (!driver || driver.getState().role !== CCBusRole.SINK) {
-      return
-    }
-
-    try {
-      await driver.sink.setPpsStatusQueryEnabled(enabled)
-      await driver.refreshState()
-    } catch (error) {
-      setDeviceError(error instanceof Error ? error.message : String(error))
-    }
-  }, [])
-
   const handleRefreshActiveDeviceState = useCallback(async () => {
     const state = deviceStatesRef.current.find(
       (entry) => entry.status === 'connected' && entry.drpdDriver,
@@ -3139,16 +3121,6 @@ export const RackView = ({
               onSelect: () => setSourceInquiryDefinition(definition),
             })),
           },
-          {
-            id: 'send-get-pps-status-messages',
-            type: 'checkbox',
-            label: 'Send Get_PPS_Status messages',
-            checked: activeDriverState?.sinkPpsStatusQueryEnabled === true,
-            disabled: !activeDriver || !isSinkMode || !canUseSinkBehaviourSettings,
-            onCheckedChange: (checked) => {
-              void handleSetActiveSinkPpsStatusQueryEnabled(checked)
-            },
-          },
         ],
       },
       {
@@ -3169,7 +3141,6 @@ export const RackView = ({
       activeDriver,
       activeDriverState?.role,
       activeDriverState?.sinkEprEnabled,
-      activeDriverState?.sinkPpsStatusQueryEnabled,
       activeDriverState?.ccBusRoleStatus,
       activeDriverState?.sinkInfo?.negotiatedPdo?.type,
       canCycleUsbConnection,
@@ -3177,7 +3148,6 @@ export const RackView = ({
       handlePulseUsbConnection,
       handleSetActiveDeviceRole,
       handleSetActiveSinkEprEnabled,
-      handleSetActiveSinkPpsStatusQueryEnabled,
       isSinkMode,
       openGlobalSinkRequestDialog,
     ],
