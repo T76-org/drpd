@@ -268,6 +268,10 @@ const toDisplayRows = (
   return pageRows.map((row) => {
     if (row.entryKind === 'event') {
       previousEnd = null
+      const eventText = row.eventText ?? 'Event'
+      const messageType = eventText.startsWith('INQUIRY - ')
+        ? eventText.split(/\r?\n/, 1)[0].trim()
+        : eventText
       return {
         key: `${row.startTimestampUs.toString()}-${row.createdAtMs}-event`,
         selectionKey: buildCapturedLogSelectionKey(row),
@@ -280,7 +284,7 @@ const toDisplayRows = (
         duration: '',
         delta: '',
         messageId: '',
-        messageType: row.eventText ?? 'Event',
+        messageType,
         sender: '',
         receiver: '',
         sopType: '',

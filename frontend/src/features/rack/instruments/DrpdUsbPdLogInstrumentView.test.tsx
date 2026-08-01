@@ -1051,6 +1051,9 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     )
     await screen.findByText((content) => content.includes('INQUIRY - Test'))
     const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    expect(rows[1]).toHaveTextContent('INQUIRY - Test')
+    expect(rows[1]).not.toHaveTextContent('Line one')
+    expect(rows[1]).not.toHaveTextContent('Line two')
     await userEvent.click(rows[1] as HTMLElement)
     const eventKey = driver.logSelection.selectedKeys[0]
     expect(eventKey).toContain(':mark')
