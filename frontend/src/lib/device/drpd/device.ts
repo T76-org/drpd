@@ -662,14 +662,14 @@ export class DRPDDevice extends EventTarget {
   /**
    * Insert a manual mark into the captured-message log stream.
    */
-  public async markLog(): Promise<void> {
+  public async markLog(eventSummary = 'Mark'): Promise<void> {
     if (!this.logStore) {
       await this.ensureLogStoreOpen()
     }
     if (!this.logStore) {
       return
     }
-    await this.logSignificantEvent('mark', 'Mark', {
+    await this.logSignificantEvent('mark', eventSummary, {
       resetDisplayEpoch: false,
       allowWithoutLoggingStarted: true,
     })

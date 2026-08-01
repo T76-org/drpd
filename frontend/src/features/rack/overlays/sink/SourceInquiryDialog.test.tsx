@@ -114,6 +114,59 @@ describe('SourceInquiryDialog', () => {
     expect(client.sendInquiryRequest).toHaveBeenCalledTimes(2)
   })
 
+  it('surveys all advertised batteries and publishes one manufacturer identity event', async () => {
+    const definition = ACTIVE_SOURCE_INQUIRIES.find(
+      ({ type }) => type === SinkInquiryType.GET_MANUFACTURER_INFO,
+    )!
+    const statuses = [
+      { outcome: SinkInquiryOutcome.NONE, requestId: 0, type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED, responseClass: 0, responseType: 0, responseLength: 0 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED, responseClass: 0, responseType: 1, responseLength: 24 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED, responseClass: 0, responseType: 1, responseLength: 24 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.GET_MANUFACTURER_INFO, responseClass: 0, responseType: 7, responseLength: 8 },
+    ]
+    const scedb = new Uint8Array(24)
+    scedb[22] = 0x01
+    const responses = [
+      scedb,
+      new Uint8Array([0x34, 0x12, 0x78, 0x56, 0x41, 0x43, 0x4d, 0]),
+    ]
+    const publishLogEvent = vi.fn(async () => undefined)
+    const onOpenChange = vi.fn()
+    const view = render(
+      <SourceInquiryDialog
+        open
+        onOpenChange={onOpenChange}
+        definition={definition}
+        client={{
+          sendInquiryRequest: vi.fn(async () => undefined),
+          getInquiryStatus: vi.fn(async () => statuses.shift()!),
+          getInquiryResponse: vi.fn(async () => responses.shift()!),
+        }}
+        logOnly
+        publishLogEvent={publishLogEvent}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Get manufacturer info…' })
+    expect(dialog.querySelector('header')).not.toHaveTextContent('Ask for manufacturer identity')
+    expect(screen.getByText('Ask for manufacturer identity for the Port or a battery reference.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' }).parentElement).toBe(
+      screen.getByRole('button', { name: 'Send inquiry' }).parentElement,
+    )
+    fireEvent.change(screen.getByRole('combobox', { name: 'Target' }), {
+      target: { value: 'BATTERY' },
+    })
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Send inquiry' }))
+
+    await waitFor(() => expect(publishLogEvent).toHaveBeenCalledWith(
+      'INQUIRY - Battery manufacturer identity',
+      expect.stringContaining('Battery 0: VID 0x1234, PID 0x5678, manufacturer ACM.'),
+    ))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    view.unmount()
+  })
+
   it('discovers countries and fetches all sequentially with complete history', async () => {
     const countryDefinition = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_COUNTRY_INFO)!
     const statuses = [

@@ -4027,6 +4027,10 @@ export const RackView = ({
         onResponse={handleSourceInquiryResponse}
         logOnly={sourceInquiryDefinition != null &&
           LOG_ONLY_SOURCE_INQUIRY_TYPES.has(sourceInquiryDefinition.type)}
+        publishLogEvent={async (title, summary) => {
+          if (!activeDriver) return
+          await activeDriver.markLog(`${title}\n${summary}`)
+        }}
       />
       <Dialog
         open={pendingCaptureWarningInquiry !== null}
