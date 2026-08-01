@@ -738,3 +738,24 @@
 .messageCommentDeleteButton {
   margin-right: auto;
 }
+.inquiryCaptureWarningFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--space-12);
+}
+
+.inquiryCaptureWarningCheckbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-header-popup-hint);
+}
+
+.inquiryCaptureWarningButtons {
+  display: inline-flex;
+  gap: var(--space-6);
+}

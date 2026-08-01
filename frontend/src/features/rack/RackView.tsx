@@ -153,6 +153,8 @@ const SHOW_TIMESTRIP_STORAGE_KEY = 'drpd:display:show-timestrip'
 const CALIBRATION_WARNING_SUPPRESSED_STORAGE_KEY = 'drpd:calibration-warning-suppressed'
 const BMC_DECODER_CONFIGURATION_WARNING_SUPPRESSED_STORAGE_KEY =
   'drpd:bmc-decoder-configuration-warning-suppressed'
+const SOURCE_CAPABILITIES_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY =
+  'drpd:source-capabilities-capture-warning-suppressed'
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
@@ -957,6 +959,10 @@ export const RackView = ({
   const [isGlobalSinkDialogOpen, setIsGlobalSinkDialogOpen] = useState(false)
   const [sourceInquiryDefinition, setSourceInquiryDefinition] =
     useState<InquiryDefinition | null>(null)
+  const [isSourceCapabilitiesCaptureWarningOpen, setIsSourceCapabilitiesCaptureWarningOpen] =
+    useState(false)
+  const [suppressSourceCapabilitiesCaptureWarning, setSuppressSourceCapabilitiesCaptureWarning] =
+    useState(false)
   const [globalSinkPdoList, setGlobalSinkPdoList] = useState<SinkPdo[]>([])
   const [globalSinkSelectedIndex, setGlobalSinkSelectedIndex] = useState(0)
   const [globalSinkVoltageV, setGlobalSinkVoltageV] = useState('')
@@ -1650,6 +1656,28 @@ export const RackView = ({
   const selectedAnnotationTargetLabel =
     selectedAnnotatableMessage?.entryKind === 'event' ? 'mark' : 'message'
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
+  const sendSourceCapabilitiesInquiry = useCallback(() => {
+    if (!activeDriver) return
+    setDeviceError(null)
+    void activeDriver.sink
+      .sendInquiryRequest({ type: SinkInquiryType.GET_SOURCE_CAP })
+      .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+  }, [activeDriver])
+  const handleSelectSourceInquiry = useCallback((definition: InquiryDefinition) => {
+    if (definition.type !== SinkInquiryType.GET_SOURCE_CAP) {
+      setSourceInquiryDefinition(definition)
+      return
+    }
+    const warningSuppressed = window.localStorage.getItem(
+      SOURCE_CAPABILITIES_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY,
+    ) === 'true'
+    if (!isCaptureEnabled && !warningSuppressed) {
+      setSuppressSourceCapabilitiesCaptureWarning(false)
+      setIsSourceCapabilitiesCaptureWarningOpen(true)
+      return
+    }
+    sendSourceCapabilitiesInquiry()
+  }, [isCaptureEnabled, sendSourceCapabilitiesInquiry])
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const isGoodCrcHidden = !isGoodCrcShown
   const messageLogFilterOptions = useMemo(
@@ -3093,7 +3121,7 @@ export const RackView = ({
                 sprPpsContract:
                   activeDriverState?.sinkInfo?.negotiatedPdo?.type === SinkPdoType.SPR_PPS,
               }),
-              onSelect: () => setSourceInquiryDefinition(definition),
+              onSelect: () => handleSelectSourceInquiry(definition),
             })),
           },
           {
@@ -3139,6 +3167,7 @@ export const RackView = ({
       canCycleUsbConnection,
       canUseSinkBehaviourSettings,
       handlePulseUsbConnection,
+      handleSelectSourceInquiry,
       handleSetActiveDeviceRole,
       handleSetActiveSinkEprEnabled,
       isSinkMode,
@@ -3968,6 +3997,51 @@ export const RackView = ({
         client={activeDriver?.sink ?? null}
         onResponse={handleSourceInquiryResponse}
       />
+      <Dialog
+        open={isSourceCapabilitiesCaptureWarningOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsSourceCapabilitiesCaptureWarningOpen(false)
+            setSuppressSourceCapabilitiesCaptureWarning(false)
+          }
+        }}
+        title="Capture is off"
+        dismissible={false}
+        footer={
+          <div className={styles.inquiryCaptureWarningFooter}>
+            <label className={styles.inquiryCaptureWarningCheckbox}>
+              <input
+                type="checkbox"
+                checked={suppressSourceCapabilitiesCaptureWarning}
+                onChange={(event) =>
+                  setSuppressSourceCapabilitiesCaptureWarning(event.currentTarget.checked)}
+              />
+              <span>Do not show this again</span>
+            </label>
+            <div className={styles.inquiryCaptureWarningButtons}>
+              <DialogButton onClick={() => {
+                setIsSourceCapabilitiesCaptureWarningOpen(false)
+                setSuppressSourceCapabilitiesCaptureWarning(false)
+              }}>Cancel</DialogButton>
+              <DialogButton variant="primary" onClick={() => {
+                if (suppressSourceCapabilitiesCaptureWarning) {
+                  window.localStorage.setItem(
+                    SOURCE_CAPABILITIES_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY,
+                    'true',
+                  )
+                }
+                setIsSourceCapabilitiesCaptureWarningOpen(false)
+                setSuppressSourceCapabilitiesCaptureWarning(false)
+                sendSourceCapabilitiesInquiry()
+              }}>Send inquiry</DialogButton>
+            </div>
+          </div>
+        }
+      >
+        <p>
+          Capture is turned off. The Source Capabilities response will not appear in Message Log.
+        </p>
+      </Dialog>
       <MessageLogFilterPopover
         open={isMessageLogFilterDialogOpen}
         onOpenChange={setIsMessageLogFilterDialogOpen}
