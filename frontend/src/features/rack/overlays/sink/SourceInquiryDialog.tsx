@@ -482,7 +482,7 @@ export const SourceInquiryDialog = ({
         ? undefined
         : definition?.description}
       dialogStyle={{ width: definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
-        ? 'min(260px, calc(100vw - var(--space-32)))'
+        ? 'min(320px, calc(100vw - var(--space-32)))'
         : 'min(520px, calc(100vw - var(--space-32)))' }}
       footer={definition?.confirmation && !confirmed ? (
         <>
