@@ -56,6 +56,43 @@ describe('inquiry event presentation', () => {
     expect(event.title).toBe('INQUIRY - Source capabilities')
     expect(event.summary).toContain('- **PDO 1 (FIXED):**\n  - **Capability:**')
     expect(event.eventData[0].entries.at(-1)).toMatchObject({ key: 'Raw Logical Response' })
+    expect(event.eventData[1].title).toBe('PDO 1 — FIXED')
+    expect(event.eventData[1].entries.map(({ key }) => key)).toEqual(expect.arrayContaining([
+      'Dual-Role Power (bit 29)',
+      'Peak Current (bits 21:20)',
+      'Voltage (bits 19:10)',
+      'Maximum Current (bits 9:0)',
+      'Raw PDO',
+    ]))
+    expect(event.eventData.flatMap(({ entries }) => entries).map(({ value }) => value).join('\n')).not.toContain('"pdoType"')
+  })
+
+  it('provides field-level sections for every defined Source PDO layout', () => {
+    const words = [
+      (0b01 << 30) | (400 << 20) | (100 << 10) | 40,
+      (0b10 << 30) | (400 << 20) | (100 << 10) | 300,
+      (0b11 << 30) | (1 << 27) | (200 << 17) | (50 << 8) | 60,
+      (0b11 << 30) | (0b01 << 28) | (2 << 26) | (480 << 17) | (150 << 8) | 140,
+      (0b11 << 30) | (0b10 << 28) | (1 << 26) | (150 << 10) | 100,
+    ].map((word) => word >>> 0)
+    const raw = new Uint8Array(words.flatMap((word) => [word & 0xff, (word >>> 8) & 0xff, (word >>> 16) & 0xff, (word >>> 24) & 0xff]))
+    const request = { type: SinkInquiryType.GET_SOURCE_CAP } as const
+    const event = presentInquiryResponse(request, response(request, raw, 2, 0x01))
+    expect(event.eventData.map(({ title }) => title)).toEqual([
+      'Source Capabilities',
+      'PDO 1 — BATTERY',
+      'PDO 2 — VARIABLE',
+      'PDO 3 — SPR_PPS APDO',
+      'PDO 4 — EPR_AVS APDO',
+      'PDO 5 — SPR_AVS APDO',
+    ])
+    const keys = event.eventData.flatMap(({ entries }) => entries.map(({ key }) => key))
+    expect(keys).toEqual(expect.arrayContaining([
+      'Maximum Power (bits 9:0)',
+      'PPS Power Limited (bit 27)',
+      'PDP (bits 7:0)',
+      'Maximum Current at 20 V (bits 9:0)',
+    ]))
   })
 
   it('preserves country-code wire order and byte offsets', () => {

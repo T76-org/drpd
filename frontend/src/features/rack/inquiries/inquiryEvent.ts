@@ -103,7 +103,79 @@ const pdoSummary = (pdo: ParsedPDO): string => {
   return 'Reserved APDO subtype'
 }
 
-const jsonValue = (value: unknown): string => `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``
+const bitValue = (active: boolean, explanation: string): string =>
+  `\`${active ? '1b' : '0b'}\` — **${active ? 'Yes' : 'No'}**. ${explanation}`
+
+const pdoSection = (
+  pdo: ParsedPDO,
+  index: number,
+  rawBytes: Uint8Array,
+): LoggedEventDataSection => {
+  const entries: LoggedEventDataSection['entries'] = [
+    { key: 'PDO Type (bits 31:30)', value: `\`${binary(pdo.raw >>> 30, 2)}\` — **${pdo.pdoType === 'APDO' ? `${pdo.pdoType} (${pdo.apdoType})` : pdo.pdoType}**.` },
+  ]
+  if (pdo.pdoType === 'FIXED') {
+    entries.push(
+      { key: 'Dual-Role Power (bit 29)', value: bitValue(pdo.dualRolePower, 'The port can swap Source and Sink power roles.') },
+      { key: 'USB Suspend Supported (bit 28)', value: bitValue(pdo.usbSuspendSupportedOrHigherCapability, 'The Source supports USB suspend behavior.') },
+      { key: 'Unconstrained Power (bit 27)', value: bitValue(pdo.unconstrainedPower, 'The Source is not constrained by a limited energy supply.') },
+      { key: 'USB Communications Capable (bit 26)', value: bitValue(pdo.usbCommunicationsCapable, 'USB data communication is supported.') },
+      { key: 'Dual-Role Data (bit 25)', value: bitValue(pdo.dualRoleData, 'The port can swap UFP and DFP data roles.') },
+      { key: 'Unchunked Extended Messages (bit 24)', value: bitValue(pdo.unchunkedExtendedMessagesSupported, 'The Source supports unchunked Extended Messages.') },
+      { key: 'EPR Capable (bit 23)', value: bitValue(pdo.eprCapable, 'The Source advertises Extended Power Range capability.') },
+      { key: 'Reserved (bit 22)', value: `\`${(pdo.raw >>> 22) & 1}b\` — reserved.` },
+      { key: 'Peak Current (bits 21:20)', value: `\`${binary(pdo.peakCurrent ?? 0, 2)}\` — encoded peak-current capability code ${pdo.peakCurrent ?? 0}.` },
+      { key: 'Voltage (bits 19:10)', value: `**${(pdo.voltage50mV * 0.05).toFixed(2)} V**; raw \`${pdo.voltage50mV}\` in 50 mV units.` },
+      { key: 'Maximum Current (bits 9:0)', value: `**${(pdo.current10mA * 0.01).toFixed(2)} A**; raw \`${pdo.current10mA}\` in 10 mA units.` },
+    )
+  } else if (pdo.pdoType === 'VARIABLE') {
+    entries.push(
+      { key: 'Maximum Voltage (bits 29:20)', value: `**${(pdo.maximumVoltage50mV * 0.05).toFixed(2)} V**; raw \`${pdo.maximumVoltage50mV}\` in 50 mV units.` },
+      { key: 'Minimum Voltage (bits 19:10)', value: `**${(pdo.minimumVoltage50mV * 0.05).toFixed(2)} V**; raw \`${pdo.minimumVoltage50mV}\` in 50 mV units.` },
+      { key: 'Maximum Current (bits 9:0)', value: `**${(pdo.current10mA * 0.01).toFixed(2)} A**; raw \`${pdo.current10mA}\` in 10 mA units.` },
+    )
+  } else if (pdo.pdoType === 'BATTERY') {
+    entries.push(
+      { key: 'Maximum Voltage (bits 29:20)', value: `**${(pdo.maximumVoltage50mV * 0.05).toFixed(2)} V**; raw \`${pdo.maximumVoltage50mV}\` in 50 mV units.` },
+      { key: 'Minimum Voltage (bits 19:10)', value: `**${(pdo.minimumVoltage50mV * 0.05).toFixed(2)} V**; raw \`${pdo.minimumVoltage50mV}\` in 50 mV units.` },
+      { key: 'Maximum Power (bits 9:0)', value: `**${(pdo.power250mW * 0.25).toFixed(2)} W**; raw \`${pdo.power250mW}\` in 250 mW units.` },
+    )
+  } else {
+    entries.push({ key: 'APDO Type (bits 29:28)', value: `\`${binary(pdo.raw >>> 28, 2).slice(-2)}\` — **${pdo.apdoType}**.` })
+    if (pdo.apdoType === 'SPR_PPS') {
+      entries.push(
+        { key: 'PPS Power Limited (bit 27)', value: bitValue(pdo.ppsPowerLimited === true, 'The programmable output may be limited by the Source power budget.') },
+        { key: 'Reserved (bits 26:25)', value: `\`${binary((pdo.raw >>> 25) & 0x3, 2)}\` — reserved.` },
+        { key: 'Maximum Voltage (bits 24:17)', value: `**${(pdo.maximumVoltage100mV * 0.1).toFixed(1)} V**; raw \`${pdo.maximumVoltage100mV}\` in 100 mV units.` },
+        { key: 'Reserved (bit 16)', value: `\`${(pdo.raw >>> 16) & 1}b\` — reserved.` },
+        { key: 'Minimum Voltage (bits 15:8)', value: `**${(pdo.minimumVoltage100mV * 0.1).toFixed(1)} V**; raw \`${pdo.minimumVoltage100mV}\` in 100 mV units.` },
+        { key: 'Reserved (bit 7)', value: `\`${(pdo.raw >>> 7) & 1}b\` — reserved.` },
+        { key: 'Maximum Current (bits 6:0)', value: `**${(pdo.maximumCurrent50mA * 0.05).toFixed(2)} A**; raw \`${pdo.maximumCurrent50mA}\` in 50 mA units.` },
+      )
+    } else if (pdo.apdoType === 'EPR_AVS') {
+      entries.push(
+        { key: 'Peak Current (bits 27:26)', value: `\`${binary(pdo.peakCurrent ?? 0, 2)}\` — encoded peak-current capability code ${pdo.peakCurrent ?? 0}.` },
+        { key: 'Maximum Voltage (bits 25:17)', value: `**${(pdo.maximumVoltage100mV * 0.1).toFixed(1)} V**; raw \`${pdo.maximumVoltage100mV}\` in 100 mV units.` },
+        { key: 'Reserved (bit 16)', value: `\`${(pdo.raw >>> 16) & 1}b\` — reserved.` },
+        { key: 'Minimum Voltage (bits 15:8)', value: `**${(pdo.minimumVoltage100mV * 0.1).toFixed(1)} V**; raw \`${pdo.minimumVoltage100mV}\` in 100 mV units.` },
+        { key: 'PDP (bits 7:0)', value: `**${pdo.pdp1W} W**; raw \`${pdo.pdp1W}\` in 1 W units.` },
+      )
+    } else if (pdo.apdoType === 'SPR_AVS') {
+      entries.push(
+        { key: 'Peak Current (bits 27:26)', value: `\`${binary(pdo.peakCurrent ?? 0, 2)}\` — encoded peak-current capability code ${pdo.peakCurrent ?? 0}.` },
+        { key: 'Reserved (bits 25:20)', value: `\`${binary((pdo.raw >>> 20) & 0x3f, 6)}\` — reserved.` },
+        { key: 'Maximum Current at 15 V (bits 19:10)', value: `**${(pdo.maxCurrent15V10mA * 0.01).toFixed(2)} A**; raw \`${pdo.maxCurrent15V10mA}\` in 10 mA units.` },
+        { key: 'Maximum Current at 20 V (bits 9:0)', value: `**${(pdo.maxCurrent20V10mA * 0.01).toFixed(2)} A**; raw \`${pdo.maxCurrent20V10mA}\` in 10 mA units.` },
+      )
+    } else {
+      entries.push({ key: 'Reserved Payload (bits 27:0)', value: `\`0x${(pdo.raw & 0x0fffffff).toString(16).toUpperCase().padStart(7, '0')}\` — no defined APDO interpretation.` })
+    }
+  }
+  entries.push(
+    { key: 'Raw PDO', value: `\`${hex32(pdo.raw)}\`; little-endian bytes ${rawHexValue(rawBytes)}.` },
+  )
+  return { title: `PDO ${index + 1} — ${pdo.pdoType === 'APDO' ? `${pdo.apdoType} APDO` : pdo.pdoType}`, entries }
+}
 
 export const presentInquiryResponse = (request: SinkInquiryRequest, result: Extract<InquiryRunState, { phase: 'response' }>): InquiryEventResult => {
   decodeInquiryResponse(result.status, result.rawResponse, request)
@@ -121,12 +193,8 @@ export const presentInquiryResponse = (request: SinkInquiryRequest, result: Extr
       summary: [`- **Advertised source capabilities:** ${pdos.length} PDO${pdos.length === 1 ? '' : 's'}.`, ...pdos.flatMap((pdo, index) => [`- **PDO ${index + 1} (${pdo.pdoType}${pdo.pdoType === 'APDO' ? `/${pdo.apdoType}` : ''}):**`, `  - **Capability:** ${pdoSummary(pdo)}`])].join('\n'),
       eventData: [{ title: 'Source Capabilities', entries: [
         { key: 'PDO Count', value: `${pdos.length}` },
-        ...pdos.map((pdo, index) => ({
-          key: `PDO ${index + 1} — ${pdo.pdoType}${pdo.pdoType === 'APDO' ? `/${pdo.apdoType}` : ''}`,
-          value: `**${pdoSummary(pdo)}**\n\nRaw: \`${hex32(pdo.raw)}\`; bytes ${rawHexValue(raw.subarray(index * 4, index * 4 + 4))}.\n\n${jsonValue(pdo)}`,
-        })),
         rawEntry,
-      ] }],
+      ] }, ...pdos.map((pdo, index) => pdoSection(pdo, index, raw.subarray(index * 4, index * 4 + 4)))],
     }
   }
 
