@@ -184,9 +184,18 @@ export const runAuthenticationWorkflow = async (options: AuthenticationWorkflowO
     }
     const challengeRequest = { type: SinkInquiryType.CHALLENGE, slot, nonce: nonce.slice() } as SinkInquiryRequest
     const challenge = await execute('challenge', challengeRequest, { slot })
-    if (!challenge || challenge.phase !== 'response') { slotResult.failure = history[history.length - 1].failure; return { phase: 'stopped', slotMask: parsed.slotMask, slots, history } }
+    if (!challenge || challenge.phase !== 'response') {
+      slotResult.failure = history[history.length - 1].failure
+      if (slotResult.failure && await options.decide(slotResult.failure, history[history.length - 1]) === 'continue') continue
+      return { phase: 'stopped', slotMask: parsed.slotMask, slots, history }
+    }
     try { slotResult.challengeResponse = parseChallengeResponse(challenge.rawResponse, slot, parsed.slotMask) }
-    catch (failure) { slotResult.failure = failure as AuthenticationFailure; history[history.length - 1].failure = slotResult.failure; return { phase: 'stopped', slotMask: parsed.slotMask, slots, history } }
+    catch (failure) {
+      slotResult.failure = failure as AuthenticationFailure
+      history[history.length - 1].failure = slotResult.failure
+      if (await options.decide(slotResult.failure, history[history.length - 1]) === 'continue') continue
+      return { phase: 'stopped', slotMask: parsed.slotMask, slots, history }
+    }
     slotResult.verification = await options.verify({ slot, digest: slotResult.digest, certificateChain: slotResult.certificateChain, nonce, challengeResponse: slotResult.challengeResponse, slotMask: parsed.slotMask })
     if (slotResult.verification.failure) slotResult.failure = slotResult.verification.failure
   }

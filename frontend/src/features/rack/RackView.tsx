@@ -121,6 +121,10 @@ import {
   surveyPortPartnerSvids,
 } from './inquiries/vdmWorkflow'
 import {
+  SOURCE_AUTHENTICATION_EVENT_TITLE,
+  surveySourceAuthentication,
+} from './inquiries/authenticationSurvey'
+import {
   CalibrationManagementDialog,
   CalibrationSafetyDialog,
   CalibrationStartErrorDialog,
@@ -190,6 +194,7 @@ const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
   SinkInquiryType.GET_BATTERY_STATUS,
 ])
 const LOG_ONLY_SOURCE_INQUIRY_IDS = new Set([
+  'authenticate-source',
   'discover-identity',
   'discover-svids',
   'discover-modes',
@@ -1703,6 +1708,15 @@ export const RackView = ({
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const proceedWithLogOnlyInquiry = useCallback((definition: InquiryDefinition) => {
     if (!activeDriver) return
+    if (definition.id === 'authenticate-source') {
+      setDeviceError(null)
+      void surveySourceAuthentication(activeDriver.sink)
+        .then(({ summary }) => activeDriver.markLog(
+          `${SOURCE_AUTHENTICATION_EVENT_TITLE}\n${summary}`,
+        ))
+        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+      return
+    }
     const getStatusWarningSuppressed = window.localStorage.getItem(
       GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY,
     ) === 'true'

@@ -53,11 +53,10 @@ export interface InquiryDefinition<TParameters = Record<string, never>> {
 export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   {
     id: 'authenticate-source', type: SinkInquiryType.GET_DIGESTS,
-    label: 'Authenticate source…', description: 'Inspect USB Type-C Authentication digests, retrieve one selected certificate chain, and challenge the attached SOP Source with layered cryptographic, trust, and policy results.',
-    workflow: 'guided', parameters: [], sideEffects: [],
+    label: 'Authenticate source', description: 'Inspect every advertised USB Type-C Authentication slot, retrieve its certificate chain, and challenge the attached SOP Source.',
+    workflow: 'immediate', parameters: [], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: () => ({ type: SinkInquiryType.GET_DIGESTS }),
-    guided: { initialContext: {}, steps: [{ id: 'authentication-digests', label: 'Read certificate-chain digests', buildRequest: () => ({ type: SinkInquiryType.GET_DIGESTS }) }] },
     active: true,
   },
   {

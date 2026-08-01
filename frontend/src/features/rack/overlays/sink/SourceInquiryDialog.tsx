@@ -15,7 +15,6 @@ import {
   type SerialInquiryWorkflowStep,
   type SinkInquiryClient,
 } from '../../inquiries/runner'
-import { AuthenticationWorkflowPanel } from './AuthenticationWorkflowPanel'
 import {
   BATTERY_MANUFACTURER_IDENTITY_EVENT_TITLE,
   surveyBatteryManufacturerIdentity,
@@ -398,9 +397,7 @@ export const SourceInquiryDialog = ({
       {definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
         ? <p className={styles.manufacturerDescription}>{definition.description}</p>
         : null}
-      {definition?.id === 'authenticate-source' && client
-        ? <AuthenticationWorkflowPanel client={client} />
-        : (definition?.id === 'survey-port-partner-modes' || definition?.id.startsWith('survey-cable-')) && client
+      {definition?.id.startsWith('survey-cable-') && client
           ? <PortPartnerSurveyWorkflow client={client} plug={requestCablePlug(definition.buildRequest({}))} />
         : definition?.type === SinkInquiryType.GET_COUNTRY_INFO && client
           ? <CountryInformationWorkflow client={client} />

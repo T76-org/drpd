@@ -115,3 +115,35 @@ export const verifyUsbAuthentication = async (input: {
     return { cryptographic: 'failed', trust: 'not-checked', policy: 'not-checked', failure: { layer: 'cryptographic', message: error instanceof Error ? error.message : String(error) } }
   }
 }
+
+/**
+ * Verify all evidence that does not require a configured trust anchor.
+ * The returned chain omits its root, so this deliberately leaves trust and
+ * policy unevaluated even when the digest, returned chain, and challenge are
+ * cryptographically self-consistent.
+ */
+export const inspectUsbAuthenticationEvidence = async (input: {
+  slot: number
+  digest: Uint8Array
+  certificateChain: Uint8Array
+  nonce: Uint8Array
+  challengeResponse: Uint8Array
+}): Promise<AuthenticationVerification> => {
+  try {
+    if (!equal(await sha256(input.certificateChain), input.digest)) return { cryptographic: 'failed', trust: 'not-checked', policy: 'not-checked', failure: { layer: 'cryptographic', message: 'Certificate chain digest mismatch' } }
+    const { certificates } = splitUsbCertificateChain(input.certificateChain)
+    certificates.forEach((certificate, index) => validateProfile(certificate, index === certificates.length - 1))
+    for (let index = 1; index < certificates.length; index += 1) {
+      const issuer = certificates[index - 1]
+      if (certificates[index].issuer !== issuer.subject) return { cryptographic: 'failed', trust: 'not-checked', policy: 'not-checked', failure: { layer: 'cryptographic', message: 'Certificate issuer does not match wire-order issuer' } }
+      if (!await certificates[index].verify({ publicKey: issuer.publicKey })) return { cryptographic: 'failed', trust: 'not-checked', policy: 'not-checked', failure: { layer: 'cryptographic', message: 'Returned certificate signature chain verification failed' } }
+    }
+    const leaf = certificates[certificates.length - 1]
+    const request = new Uint8Array([0x10, 0x83, input.slot, 0, ...input.nonce])
+    const publicKey = await leaf.publicKey.export({ name: 'ECDSA', namedCurve: 'P-256' }, ['verify'])
+    if (!await verifyChallengeSignature(publicKey, request, input.challengeResponse)) return { cryptographic: 'failed', trust: 'not-checked', policy: 'not-checked', failure: { layer: 'cryptographic', message: 'Challenge signature verification failed' } }
+    return { cryptographic: 'verified', trust: 'not-checked', policy: 'not-checked' }
+  } catch (error) {
+    return { cryptographic: 'failed', trust: 'not-checked', policy: 'not-checked', failure: { layer: 'cryptographic', message: error instanceof Error ? error.message : String(error) } }
+  }
+}
