@@ -962,8 +962,10 @@ export const RackView = ({
   const [sourceInquiryDefinition, setSourceInquiryDefinition] =
     useState<InquiryDefinition | null>(null)
   const [pendingCaptureWarningInquiry, setPendingCaptureWarningInquiry] =
-    useState<SinkInquiryType | null>(null)
+    useState<InquiryDefinition | null>(null)
   const [suppressInquiryCaptureWarning, setSuppressInquiryCaptureWarning] = useState(false)
+  const [getStatusConfirmationDefinition, setGetStatusConfirmationDefinition] =
+    useState<InquiryDefinition | null>(null)
   const [globalSinkPdoList, setGlobalSinkPdoList] = useState<SinkPdo[]>([])
   const [globalSinkSelectedIndex, setGlobalSinkSelectedIndex] = useState(0)
   const [globalSinkVoltageV, setGlobalSinkVoltageV] = useState('')
@@ -1657,16 +1659,21 @@ export const RackView = ({
   const selectedAnnotationTargetLabel =
     selectedAnnotatableMessage?.entryKind === 'event' ? 'mark' : 'message'
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
-  const sendLogOnlyInquiry = useCallback((type: SinkInquiryType) => {
+  const proceedWithLogOnlyInquiry = useCallback((definition: InquiryDefinition) => {
     if (!activeDriver) return
+    if (definition.type === SinkInquiryType.GET_STATUS) {
+      setGetStatusConfirmationDefinition(definition)
+      return
+    }
     setDeviceError(null)
     void activeDriver.sink
-      .sendInquiry(type)
+      .sendInquiry(definition.type)
       .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
   }, [activeDriver])
   const handleSelectSourceInquiry = useCallback((definition: InquiryDefinition) => {
     if (definition.type !== SinkInquiryType.GET_SOURCE_CAP &&
-      definition.type !== SinkInquiryType.GET_SOURCE_CAP_EXTENDED) {
+      definition.type !== SinkInquiryType.GET_SOURCE_CAP_EXTENDED &&
+      definition.type !== SinkInquiryType.GET_STATUS) {
       setSourceInquiryDefinition(definition)
       return
     }
@@ -1677,11 +1684,11 @@ export const RackView = ({
       ) === 'true'
     if (!isCaptureEnabled && !warningSuppressed) {
       setSuppressInquiryCaptureWarning(false)
-      setPendingCaptureWarningInquiry(definition.type)
+      setPendingCaptureWarningInquiry(definition)
       return
     }
-    sendLogOnlyInquiry(definition.type)
-  }, [isCaptureEnabled, sendLogOnlyInquiry])
+    proceedWithLogOnlyInquiry(definition)
+  }, [isCaptureEnabled, proceedWithLogOnlyInquiry])
   const isGoodCrcShown = !messageLogFilters.messageTypes.exclude.includes(GOODCRC_MESSAGE_TYPE_LABEL)
   const isGoodCrcHidden = !isGoodCrcShown
   const messageLogFilterOptions = useMemo(
@@ -4028,7 +4035,7 @@ export const RackView = ({
                 setSuppressInquiryCaptureWarning(false)
               }}>Cancel</DialogButton>
               <DialogButton variant="primary" onClick={() => {
-                const inquiryType = pendingCaptureWarningInquiry
+                const inquiry = pendingCaptureWarningInquiry
                 if (suppressInquiryCaptureWarning) {
                   window.localStorage.setItem(
                     INQUIRY_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY,
@@ -4037,7 +4044,7 @@ export const RackView = ({
                 }
                 setPendingCaptureWarningInquiry(null)
                 setSuppressInquiryCaptureWarning(false)
-                if (inquiryType) sendLogOnlyInquiry(inquiryType)
+                if (inquiry) proceedWithLogOnlyInquiry(inquiry)
               }}>Request anyway</DialogButton>
             </div>
           </div>
@@ -4045,6 +4052,39 @@ export const RackView = ({
       >
         <p>
           Capture is turned off. The response to this request will not appear in Message Log.
+        </p>
+      </Dialog>
+      <Dialog
+        open={getStatusConfirmationDefinition !== null}
+        onOpenChange={(open) => {
+          if (!open) setGetStatusConfirmationDefinition(null)
+        }}
+        title={getStatusConfirmationDefinition?.confirmation?.title ?? 'Send Get_Status?'}
+        dismissible={false}
+        footer={
+          <>
+            <DialogButton
+              style={{ textTransform: 'none' }}
+              onClick={() => setGetStatusConfirmationDefinition(null)}
+            >Cancel</DialogButton>
+            <DialogButton
+              variant="primary"
+              style={{ textTransform: 'none' }}
+              onClick={() => {
+                if (!activeDriver) return
+                setDeviceError(null)
+                void activeDriver.sink
+                  .sendInquiry(SinkInquiryType.GET_STATUS)
+                  .catch((error) =>
+                    setDeviceError(error instanceof Error ? error.message : String(error)))
+                setGetStatusConfirmationDefinition(null)
+              }}
+            >{getStatusConfirmationDefinition?.confirmation?.confirmLabel ?? 'Send Inquiry'}</DialogButton>
+          </>
+        }
+      >
+        <p role="alert">
+          {getStatusConfirmationDefinition?.confirmation?.body}
         </p>
       </Dialog>
       <MessageLogFilterPopover

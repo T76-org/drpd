@@ -83,7 +83,7 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
     confirmation: {
       title: 'Send Get_Status?',
       body: 'Reading Status clears the Source’s latched OCP, OVP, and OTP event flags.',
-      confirmLabel: 'Send Get_Status',
+      confirmLabel: 'Send Inquiry',
     },
   },
   {

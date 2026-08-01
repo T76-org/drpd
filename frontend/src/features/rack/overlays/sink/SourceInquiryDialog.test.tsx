@@ -104,7 +104,7 @@ describe('SourceInquiryDialog', () => {
     view.rerender(<SourceInquiryDialog open onOpenChange={onOpenChange} definition={statusDefinition} client={client} />)
     expect(screen.getByRole('alert')).toHaveTextContent('OCP, OVP, and OTP')
     expect(client.sendInquiryRequest).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Send Get_Status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send Inquiry' }))
     await waitFor(() => expect(client.sendInquiryRequest).toHaveBeenCalledTimes(2))
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
