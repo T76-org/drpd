@@ -76,6 +76,7 @@ void SinkRuntimeState::reset() {
     for (auto &payload : _completedExtendedPayloads) {
         payload.reset();
     }
+    _completedInquiryExtendedPayload.reset();
 }
 
 SinkInquiryResult SinkRuntimeState::inquiryResult() const {
@@ -90,7 +91,9 @@ void SinkRuntimeState::beginInquiry(const SinkInquiryRequest& request) {
     _inquiryResult = SinkInquiryResult{};
     _inquiryResult.status.id = request.id;
     _inquiryResult.status.type = request.type;
+    _inquiryResult.parameters = request.parameters;
     _inquiryResult.status.outcome = SinkInquiryOutcome::Pending;
+    _completedInquiryExtendedPayload.reset();
     _unlockInquiryResult();
 }
 

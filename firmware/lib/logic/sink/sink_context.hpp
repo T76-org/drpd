@@ -361,7 +361,9 @@ namespace T76::DRPD::Logic {
          * @return True if sent; false if deferred by collision avoidance.
          */
         bool sendGetPPSStatus();
-        bool sendInquiryRequest(SinkInquiryType type);
+        bool sendInquiryRequest(const SinkInquiryRequest& request);
+        std::optional<SinkRuntimeState::ExtendedPayloadBuffer> takeInquiryExtendedPayload();
+        void handleMessageAsReady(const PHY::BMCDecodedMessage *message);
 
         /**
          * @brief Send local Manufacturer_Info for a Get_Manufacturer_Info request payload.

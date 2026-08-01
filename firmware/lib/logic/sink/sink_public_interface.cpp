@@ -5,6 +5,7 @@
 
 #include "sink.hpp"
 #include "sink_raw_pd_message.hpp"
+#include "inquiry_descriptor.hpp"
 
 #include <algorithm>
 #include <array>
@@ -18,6 +19,7 @@ void Sink::reset(SinkResetType resetType) {
     while (queue_try_remove(&_pendingInquiryQueue, &droppedInquiry)) {
     }
     _inquiryQueued.store(false, std::memory_order_release);
+    _inquiryReassembly.reset();
     _chunkingNotSupportedPending = false;
 
     if (_chunkingNotSupportedAlarmId != -1) {
@@ -121,22 +123,35 @@ SinkRequestStatus Sink::lastRequestStatus() const {
     return _runtimeState._lastRequestStatus;
 }
 
-SinkRequestResult Sink::requestInquiry(SinkInquiryType type) {
+SinkRequestResult Sink::requestInquiry(
+    SinkInquiryType type,
+    SinkInquiryParameters parameters) {
     if (!_enabled.load()) {
         return SinkRequestResult::failure("Sink is disabled");
     }
-    if (type != SinkInquiryType::GetRevision) {
+    const auto descriptor = sinkInquiryDescriptor(type);
+    if (!descriptor.has_value()) {
         return SinkRequestResult::failure("Unsupported inquiry type");
     }
-    if (_runtimeState._state != SinkState::PE_SNK_Ready ||
-        !_runtimeState._hasExplicitContract) {
+    if (_runtimeState._state != SinkState::PE_SNK_Ready) {
         return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
+    }
+    if (descriptor->requiresExplicitContract && !_runtimeState._hasExplicitContract) {
+        return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
+    }
+    const uint32_t selector = static_cast<uint32_t>(parameters.selector[0]) |
+        (static_cast<uint32_t>(parameters.selector[1]) << 8) |
+        (static_cast<uint32_t>(parameters.selector[2]) << 16) |
+        (static_cast<uint32_t>(parameters.selector[3]) << 24);
+    if (!inquiryParametersApplicable(
+            descriptor.value(), parameters.target, parameters.argument, selector)) {
+        return SinkRequestResult::failure("Inquiry parameters are not applicable to GET_REVISION");
     }
     if (_runtimeState.inquiryResult().status.outcome == SinkInquiryOutcome::Pending ||
         _inquiryQueued.exchange(true, std::memory_order_acq_rel)) {
         return SinkRequestResult::failure("A Sink inquiry is already active");
     }
-    const SinkInquiryRequest request{_nextInquiryId.fetch_add(1), type};
+    const SinkInquiryRequest request{_nextInquiryId.fetch_add(1), type, parameters};
     if (!queue_try_add(&_pendingInquiryQueue, &request)) {
         _inquiryQueued.store(false, std::memory_order_release);
         return SinkRequestResult::failure("Sink inquiry queue is full");

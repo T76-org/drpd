@@ -47,6 +47,18 @@ Run the Sink inquiry response matcher regression with:
 ```sh
 clang++ -std=c++20 -Wall -Wextra -Werror \
   firmware/tests/inquiry_matcher_test.cpp \
+  firmware/lib/logic/sink/inquiry_descriptor.cpp \
+  -DLOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES=512 \
+  -DLOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US=33000 \
   -o /tmp/drpd-inquiry-matcher-test
 /tmp/drpd-inquiry-matcher-test
+```
+
+Run active extended inquiry reassembly bounds/order/duplicate regression with:
+
+```sh
+clang++ -std=c++20 -Wall -Wextra -Werror \
+  firmware/tests/inquiry_reassembly_test.cpp \
+  -o /tmp/drpd-inquiry-reassembly-test
+/tmp/drpd-inquiry-reassembly-test
 ```

@@ -22,14 +22,23 @@ namespace T76::DRPD::Logic {
 
     enum class SinkInquiryType : uint32_t { GetRevision = 0 };
 
+    /** Fixed, queue-safe parameters shared by typed inquiry descriptors. */
+    struct SinkInquiryParameters {
+        uint32_t target = 0;
+        uint32_t argument = 0;
+        std::array<uint8_t, 4> selector = {};
+    };
+
     enum class SinkInquiryOutcome : uint32_t {
         None, Pending, Response, NotSupported, Rejected, Wait,
-        GoodCRCTimeout, ResponseTimeout, ProtocolError, Aborted
+        GoodCRCTimeout, ResponseTimeout, ProtocolError, MalformedResponse,
+        ResponseTooLarge, Aborted
     };
 
     struct SinkInquiryRequest {
         uint32_t id = 0;
         SinkInquiryType type = SinkInquiryType::GetRevision;
+        SinkInquiryParameters parameters;
     };
 
     struct SinkInquiryStatus {
@@ -43,6 +52,7 @@ namespace T76::DRPD::Logic {
 
     struct SinkInquiryResult {
         SinkInquiryStatus status;
+        SinkInquiryParameters parameters;
         std::array<uint8_t, LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES> response = {};
     };
 

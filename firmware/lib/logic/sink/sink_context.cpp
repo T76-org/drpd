@@ -5,6 +5,7 @@
 
 #include "sink_context.hpp"
 #include "sink_raw_pd_message.hpp"
+#include "inquiry_descriptor.hpp"
 
 #include <algorithm>
 #include <array>
@@ -752,20 +753,35 @@ bool SinkContext::sendGetPPSStatus() {
     return sendSinkInitiatedMessageAndAwaitGoodCRC(message);
 }
 
-bool SinkContext::sendInquiryRequest(SinkInquiryType type) {
-    if (type != SinkInquiryType::GetRevision) {
+bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
+    const auto descriptor = sinkInquiryDescriptor(request.type);
+    if (!descriptor.has_value()) {
         return false;
     }
-    const Proto::ControlMessage request;
-    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, request);
+    if (descriptor->requestClass != InquiryMessageClass::Control) {
+        return false;
+    }
+    const Proto::ControlMessage controlMessage;
+    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, controlMessage);
     auto &header = message.header();
-    header.rawMessageType(static_cast<uint32_t>(Proto::ControlMessageType::Get_Revision));
-    header.numDataObjects(0);
+    header.rawMessageType(descriptor->requestMessageType);
+    header.numDataObjects(descriptor->requestDataObjects);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     header.specRevision(specRevision());
     sendMessageAndAwaitGoodCRC(message);
     return true;
+}
+
+std::optional<SinkRuntimeState::ExtendedPayloadBuffer>
+SinkContext::takeInquiryExtendedPayload() {
+    auto payload = _runtimeState._completedInquiryExtendedPayload;
+    _runtimeState._completedInquiryExtendedPayload.reset();
+    return payload;
+}
+
+void SinkContext::handleMessageAsReady(const PHY::BMCDecodedMessage *message) {
+    _readySinkStateHandler.handleMessage(*this, message);
 }
 
 void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) {

@@ -280,6 +280,14 @@ export const SinkInquiryType = {
 export type SinkInquiryType =
   (typeof SinkInquiryType)[keyof typeof SinkInquiryType]
 
+/** Semantic request for Get_Revision; callers never construct a PD header. */
+export interface GetRevisionInquiryRequest {
+  type: typeof SinkInquiryType.GET_REVISION
+}
+
+/** Supported semantic Sink inquiry request union. */
+export type SinkInquiryRequest = GetRevisionInquiryRequest
+
 /** Sink inquiry protocol outcome token. */
 export const SinkInquiryOutcome = {
   NONE: 'NONE',
@@ -291,6 +299,8 @@ export const SinkInquiryOutcome = {
   GOODCRC_TIMEOUT: 'GOODCRC_TIMEOUT',
   RESPONSE_TIMEOUT: 'RESPONSE_TIMEOUT',
   PROTOCOL_ERROR: 'PROTOCOL_ERROR',
+  MALFORMED_RESPONSE: 'MALFORMED_RESPONSE',
+  RESPONSE_TOO_LARGE: 'RESPONSE_TOO_LARGE',
   ABORTED: 'ABORTED',
 } as const
 

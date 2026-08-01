@@ -62,6 +62,10 @@ const mockTransportState = vi.hoisted(() => ({
   sinkErrorResponse: ['0'],
   sinkEprEnabledResponse: ['OFF'],
   sinkPpsStatusQueryEnabledResponse: ['OFF'],
+  sinkInquiryStatusResponses: [
+    ['NONE,0,GET_REVISION,0,0,0'],
+    ['NOT_SUPPORTED,1,GET_REVISION,0,0,0'],
+  ] as string[][],
   timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
   hardwareRevisionResponse: ['R2605-A'],
@@ -226,6 +230,9 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
       }
       if (command === 'SINK:PPS:STATUS:EN?') {
         return mockTransportState.sinkPpsStatusQueryEnabledResponse
+      }
+      if (command === 'SINK:INQ:STAT?') {
+        return mockTransportState.sinkInquiryStatusResponses.shift() ?? []
       }
       return []
     }
@@ -845,6 +852,10 @@ const resetMockTransportState = (): void => {
   mockTransportState.sinkErrorResponse = ['0']
   mockTransportState.sinkEprEnabledResponse = ['OFF']
   mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
+  mockTransportState.sinkInquiryStatusResponses = [
+    ['NONE,0,GET_REVISION,0,0,0'],
+    ['NOT_SUPPORTED,1,GET_REVISION,0,0,0'],
+  ]
   mockTransportState.timestampResponse = ['1000']
   mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
   mockTransportState.hardwareRevisionResponse = ['R2605-A']
@@ -3190,6 +3201,40 @@ describe('RackView', () => {
     await waitFor(() => {
       expect(mockTransportState.sentCommands).toContain('SINK:PPS:STATUS:EN OFF')
     })
+  })
+
+  it('sends Get revision from the nested Sink behaviour inquiry menu', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    const sendInquiry = await screen.findByRole('menuitem', { name: 'Send inquiry to source' })
+    expect(sendInquiry).toBeEnabled()
+    fireEvent.pointerEnter(sendInquiry)
+    await user.click(await screen.findByRole('menuitem', { name: 'Get revision' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Get revision' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_REVISION')
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent('Not Supported')
+  })
+
+  it('disables source inquiries while Sink is unattached', async () => {
+    const user = userEvent.setup()
+    mockTransportState.roleStatusResponse = ['UNATTACHED']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    expect(await screen.findByRole('menuitem', { name: 'Send inquiry to source' })).toBeDisabled()
   })
 
   it('disables Sink behaviour settings before firmware 0.9.13', async () => {

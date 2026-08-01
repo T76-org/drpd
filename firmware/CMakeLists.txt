@@ -94,6 +94,7 @@ add_executable(drpd-firmware
         lib/logic/cc_bus_controller.cpp
         lib/logic/hardware_revision.cpp
         lib/logic/sink/message_sender.cpp
+        lib/logic/sink/inquiry_descriptor.cpp
         lib/logic/sink/sink_alarm_service.cpp
         lib/logic/sink/sink.cpp
         lib/logic/sink/sink_context.cpp

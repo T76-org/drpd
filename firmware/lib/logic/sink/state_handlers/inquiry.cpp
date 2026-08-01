@@ -1,7 +1,7 @@
 #include "inquiry.hpp"
 
 #include "../sink_context.hpp"
-#include "../inquiry_matcher.hpp"
+#include "../inquiry_descriptor.hpp"
 using namespace T76::DRPD::Logic;
 
 int64_t InquiryStateHandler::_onResponseTimeout(alarm_id_t, void *userData) {
@@ -37,8 +37,14 @@ void InquiryStateHandler::handleMessageSenderStateChange(
         return;
     }
     if (state == SinkMessageSenderState::GoodCRCReceived && _sent) {
+        const auto descriptor = sinkInquiryDescriptor(
+            context.runtimeState().inquiryResult().status.type);
+        if (!descriptor.has_value()) {
+            _finish(context, SinkInquiryOutcome::ProtocolError);
+            return;
+        }
         _responseTimeoutAlarmId = context.addAlarmInUs(
-            LOGIC_SINK_INQUIRY_RESPONSE_TIMEOUT_US, _onResponseTimeout, this, true);
+            descriptor->responseTimeoutUs, _onResponseTimeout, this, true);
     }
 }
 
@@ -61,15 +67,36 @@ void InquiryStateHandler::handleMessage(
     } else if (header.messageClass() == Proto::PDHeader::MessageClass::Data &&
                header.dataMessageType().has_value()) {
         rawType = static_cast<uint32_t>(header.dataMessageType().value());
+    } else if (header.messageClass() == Proto::PDHeader::MessageClass::Extended &&
+               header.extendedMessageType().has_value()) {
+        rawType = static_cast<uint32_t>(header.extendedMessageType().value());
     }
-    const InquiryMatch match = classifyGetRevisionResponse(
-        static_cast<uint32_t>(header.messageClass()), rawType, header.numDataObjects());
+    const auto resultSnapshot = context.runtimeState().inquiryResult();
+    const auto descriptor = sinkInquiryDescriptor(resultSnapshot.status.type);
+    if (!descriptor.has_value()) {
+        _finish(context, SinkInquiryOutcome::ProtocolError);
+        return;
+    }
+    const InquiryMatch match = matchInquiryResponse(
+        descriptor.value(), static_cast<uint32_t>(header.messageClass()),
+        rawType, header.numDataObjects());
+    if (match == InquiryMatch::Unrelated) {
+        _finish(context, SinkInquiryOutcome::Aborted);
+        context.handleMessageAsReady(message);
+        return;
+    }
     if (match == InquiryMatch::Response) {
-        const auto body = message->rawBody();
+        const auto extendedPayload = header.messageClass() ==
+                Proto::PDHeader::MessageClass::Extended
+            ? context.takeInquiryExtendedPayload()
+            : std::nullopt;
+        const auto body = extendedPayload.has_value()
+            ? extendedPayload->span()
+            : message->rawBody();
         context.runtimeState().finishInquiry(
             SinkInquiryOutcome::Response,
             static_cast<uint32_t>(header.messageClass()),
-            static_cast<uint32_t>(Proto::DataMessageType::Revision),
+            rawType,
             body);
         context.transitionTo(SinkState::PE_SNK_Ready);
         return;
@@ -100,7 +127,9 @@ void InquiryStateHandler::_trySend(SinkContext& context) {
             LOGIC_SINK_COLLISION_AVOIDANCE_RETRY_US, _onRetryTimeout, this, true);
         return;
     }
-    _sent = context.sendInquiryRequest(context.runtimeState().inquiryResult().status.type);
+    const auto result = context.runtimeState().inquiryResult();
+    _sent = context.sendInquiryRequest(SinkInquiryRequest{
+        result.status.id, result.status.type, result.parameters});
 }
 
 void InquiryStateHandler::_finish(SinkContext& context, SinkInquiryOutcome outcome) {
