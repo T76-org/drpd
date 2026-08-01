@@ -173,13 +173,6 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
     applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.DISCOVER_MODES, svid: values.svid as number }), active: true,
   } as InquiryDefinition<Record<string, unknown>>,
-  {
-    id: 'survey-port-partner-modes', type: SinkInquiryType.DISCOVER_IDENTITY,
-    label: 'Survey Port Partner modes…', description: 'UFP/Sink diagnostic workflow; SVID and Modes initiation is optional for a UFP and may be declined.', workflow: 'guided', parameters: [], sideEffects: [],
-    applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
-    buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY }),
-    guided: { initialContext: {}, steps: [{ id: 'identity', label: 'Discover identity', buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY }) }, { id: 'svids', label: 'Discover SVIDs', buildRequest: () => ({ type: SinkInquiryType.DISCOVER_SVIDS }) }] }, active: true,
-  },
 ]
 
 export const ACTIVE_SOURCE_INQUIRIES = SOURCE_INQUIRY_CATALOG.filter(

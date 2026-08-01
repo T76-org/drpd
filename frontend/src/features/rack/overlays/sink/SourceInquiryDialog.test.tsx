@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SinkInquiryOutcome, SinkInquiryType, type SinkInquiryRequest } from '../../../../lib/device'
-import { ACTIVE_SOURCE_INQUIRIES } from '../../inquiries/catalog'
+import { ACTIVE_CABLE_INQUIRIES, ACTIVE_SOURCE_INQUIRIES } from '../../inquiries/catalog'
 import { formatSinkInquiryOutcome } from '../../inquiries/presentation'
 import { SourceInquiryDialog } from './SourceInquiryDialog'
 
@@ -196,8 +196,8 @@ describe('SourceInquiryDialog', () => {
     expect(screen.getByText(/country-info-US · attempt 1 · response/)).toBeInTheDocument()
   })
 
-  it('guides Identity through terminated SVID pages to selected Modes', async () => {
-    const definition = ACTIVE_SOURCE_INQUIRIES.find(({ id }) => id === 'survey-port-partner-modes')!
+  it('guides cable Identity through terminated SVID pages to selected Modes', async () => {
+    const definition = ACTIVE_CABLE_INQUIRIES.find(({ id }) => id === 'survey-cable-SOP_PRIME')!
     const words = (...values: number[]) => new Uint8Array(values.flatMap((value) => [value & 0xff, value >>> 8 & 0xff, value >>> 16 & 0xff, value >>> 24 & 0xff]))
     const header = (svid: number, command: number) => (svid << 16) | (1 << 15) | (1 << 13) | (1 << 6) | command
     const identity = words(header(0xff00, 1), 1, 2, 3)

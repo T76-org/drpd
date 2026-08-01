@@ -3466,21 +3466,6 @@ describe('RackView', () => {
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ DISCOVER_IDENTITY')
   })
 
-  it('keeps the combined Port Partner modes survey as a guided dialog', async () => {
-    const user = userEvent.setup()
-    saveRackDocument(buildBoundHydratedRackDocument())
-    mockUSB([createUSBDevice()])
-    render(<RackView />)
-    await expectHydratedDrpdPanels()
-
-    await user.click(await screen.findByRole('button', { name: 'Mode' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Survey Port Partner modes…' }))
-
-    expect(await screen.findByRole('dialog', { name: 'Survey Port Partner modes…' })).toBeInTheDocument()
-  })
-
   it('closes Get manufacturer info after sending its parameterized request', async () => {
     const user = userEvent.setup()
     saveRackDocument(buildBoundHydratedRackDocument())
