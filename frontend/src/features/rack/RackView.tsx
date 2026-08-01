@@ -113,6 +113,12 @@ import {
   surveyBatteryStatus,
 } from './inquiries/batteryWorkflow'
 import {
+  PORT_PARTNER_IDENTITY_EVENT_TITLE,
+  PORT_PARTNER_SVIDS_EVENT_TITLE,
+  surveyPortPartnerIdentity,
+  surveyPortPartnerSvids,
+} from './inquiries/vdmWorkflow'
+import {
   CalibrationManagementDialog,
   CalibrationSafetyDialog,
   CalibrationStartErrorDialog,
@@ -181,6 +187,10 @@ const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
   SinkInquiryType.GET_BATTERY_CAP,
   SinkInquiryType.GET_BATTERY_STATUS,
 ])
+const LOG_ONLY_SOURCE_INQUIRY_IDS = new Set(['discover-identity', 'discover-svids'])
+const isLogOnlySourceInquiry = (definition: InquiryDefinition): boolean =>
+  LOG_ONLY_SOURCE_INQUIRY_TYPES.has(definition.type) ||
+  LOG_ONLY_SOURCE_INQUIRY_IDS.has(definition.id)
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
@@ -1726,13 +1736,31 @@ export const RackView = ({
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return
     }
+    if (definition.id === 'discover-identity') {
+      setDeviceError(null)
+      void surveyPortPartnerIdentity(activeDriver.sink)
+        .then(({ summary }) => activeDriver.markLog(
+          `${PORT_PARTNER_IDENTITY_EVENT_TITLE}\n${summary}`,
+        ))
+        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+      return
+    }
+    if (definition.id === 'discover-svids') {
+      setDeviceError(null)
+      void surveyPortPartnerSvids(activeDriver.sink)
+        .then(({ summary }) => activeDriver.markLog(
+          `${PORT_PARTNER_SVIDS_EVENT_TITLE}\n${summary}`,
+        ))
+        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+      return
+    }
     setDeviceError(null)
     void activeDriver.sink
       .sendInquiry(definition.type)
       .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
   }, [activeDriver])
   const handleSelectSourceInquiry = useCallback((definition: InquiryDefinition) => {
-    if (!LOG_ONLY_SOURCE_INQUIRY_TYPES.has(definition.type)) {
+    if (!isLogOnlySourceInquiry(definition)) {
       setSourceInquiryDefinition(definition)
       return
     }
@@ -4067,7 +4095,7 @@ export const RackView = ({
         client={activeDriver?.sink ?? null}
         onResponse={handleSourceInquiryResponse}
         logOnly={sourceInquiryDefinition != null &&
-          LOG_ONLY_SOURCE_INQUIRY_TYPES.has(sourceInquiryDefinition.type)}
+          isLogOnlySourceInquiry(sourceInquiryDefinition)}
         publishLogEvent={async (title, summary) => {
           if (!activeDriver) return
           await activeDriver.markLog(`${title}\n${summary}`)
