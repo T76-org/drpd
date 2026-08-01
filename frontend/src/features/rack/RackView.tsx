@@ -165,6 +165,7 @@ const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
   SinkInquiryType.GET_STATUS,
   SinkInquiryType.GET_SOURCE_INFO,
   SinkInquiryType.GET_REVISION,
+  SinkInquiryType.GET_MANUFACTURER_INFO,
 ])
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
@@ -1678,6 +1679,10 @@ export const RackView = ({
     if (definition.type === SinkInquiryType.GET_STATUS && !getStatusWarningSuppressed) {
       setSuppressGetStatusSideEffectWarning(false)
       setGetStatusConfirmationDefinition(definition)
+      return
+    }
+    if (definition.type === SinkInquiryType.GET_MANUFACTURER_INFO) {
+      setSourceInquiryDefinition(definition)
       return
     }
     setDeviceError(null)
@@ -4020,6 +4025,8 @@ export const RackView = ({
         definition={sourceInquiryDefinition}
         client={activeDriver?.sink ?? null}
         onResponse={handleSourceInquiryResponse}
+        logOnly={sourceInquiryDefinition != null &&
+          LOG_ONLY_SOURCE_INQUIRY_TYPES.has(sourceInquiryDefinition.type)}
       />
       <Dialog
         open={pendingCaptureWarningInquiry !== null}

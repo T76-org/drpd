@@ -402,12 +402,14 @@ export const SourceInquiryDialog = ({
   definition,
   client,
   onResponse,
+  logOnly = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   definition: InquiryDefinition | null
   client: SinkInquiryClient | null
   onResponse?: (definition: InquiryDefinition) => void | Promise<void>
+  logOnly?: boolean
 }) => {
   const [state, setState] = useState<InquiryRunState>({ phase: 'idle' })
   const [approvedDefinitionId, setApprovedDefinitionId] = useState<string | null>(null)
@@ -496,10 +498,25 @@ export const SourceInquiryDialog = ({
             : { countryCode }
           const validation = validateInquiryParameters(definition as InquiryDefinition<Record<string, unknown>>, values)
           if (!validation.valid) return
-          setSubmitted({
-            definitionId: definition.id,
-            request: (definition as InquiryDefinition<Record<string, unknown>>).buildRequest(values),
-          })
+          const nextRequest = (definition as InquiryDefinition<Record<string, unknown>>)
+            .buildRequest(values)
+          if (logOnly && client) {
+            setState({ phase: 'sending', type: nextRequest.type })
+            const send = client.sendInquiryRequest
+              ? client.sendInquiryRequest(nextRequest)
+              : client.sendInquiry
+                ? client.sendInquiry(nextRequest.type)
+                : Promise.reject(new Error('Sink inquiry transport is unavailable'))
+            void send
+              .then(() => handleOpenChange(false))
+              .catch((error) => setState({
+                phase: 'transportError',
+                type: nextRequest.type,
+                message: error instanceof Error ? error.message : String(error),
+              }))
+            return
+          }
+          setSubmitted({ definitionId: definition.id, request: nextRequest })
         }}>
           {definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ? <>
             <label>Target <select value={target} onChange={(event) => setTarget(event.target.value)}><option>PORT</option><option>BATTERY</option></select></label>
@@ -510,6 +527,7 @@ export const SourceInquiryDialog = ({
               ? <label>SVID <input aria-label="SVID" type="number" min="1" max="65535" value={svid} onChange={(event) => setSvid(event.target.value)} /></label>
             : <label>Country code <input aria-label="Country code" maxLength={2} value={countryCode} onChange={(event) => setCountryCode(event.target.value.toUpperCase())} /></label>}
           <DialogButton variant="primary" type="submit">{definition.type === SinkInquiryType.GET_COUNTRY_INFO ? 'Send selected country' : 'Send inquiry'}</DialogButton>
+          {state.phase === 'transportError' ? <p role="alert">Communication error: {state.message}</p> : null}
         </form>
       ) : null}
       {definition?.workflow !== 'immediate' && !request ? null : <>

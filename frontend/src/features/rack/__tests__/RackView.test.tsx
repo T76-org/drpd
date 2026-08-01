@@ -3222,6 +3222,44 @@ describe('RackView', () => {
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_REVISION')
   })
 
+  it('closes Get manufacturer info after sending its parameterized request', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get manufacturer info…' }))
+
+    const parameters = await screen.findByRole('dialog', { name: 'Get manufacturer info…' })
+    await user.click(within(parameters).getByRole('button', { name: 'Send inquiry' }))
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_MANUFACTURER_INFO PORT')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before Get manufacturer info parameters', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get manufacturer info…' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Get manufacturer info…' })).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_MANUFACTURER_INFO PORT')
+  })
+
   it('sends Get source capabilities without opening a result dialog when capture is on', async () => {
     const user = userEvent.setup()
     saveRackDocument(buildBoundHydratedRackDocument())
