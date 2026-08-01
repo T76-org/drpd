@@ -34,6 +34,13 @@ namespace T76::DRPD::Logic {
             const PHY::BMCEncodedMessage& message,
             SinkState returnState = SinkState::PE_SNK_Ready);
 
+        /** Exact SOP target of the response currently awaiting GoodCRC. */
+        [[nodiscard]] std::optional<Proto::SOP::SOPType> preparedSOPTarget() const {
+            return _pendingResponse.has_value()
+                ? std::optional<Proto::SOP::SOPType>(_pendingResponse->sopType())
+                : std::nullopt;
+        }
+
         /**
          * @brief Unexpected messages while awaiting GoodCRC are protocol errors.
          */

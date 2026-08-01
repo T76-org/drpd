@@ -164,7 +164,9 @@ namespace T76::DRPD::Logic {
         /**
          * @brief Complete receiver-side Soft_Reset handling after the PHY GoodCRC.
          */
-        void handleReceivedSoftReset(Proto::PDHeader::SpecRevision receivedRevision);
+        void handleReceivedSoftReset(
+            Proto::SOP::SOPType sopTarget,
+            Proto::PDHeader::SpecRevision receivedRevision);
 
         /**
          * @brief Cache latest SPR Source_Capabilities and notify listeners.
@@ -365,10 +367,18 @@ namespace T76::DRPD::Logic {
         bool sendInquiryRequest(const SinkInquiryRequest& request);
 
         /** Record the common Structured VDM version from a correlated Identity ACK. */
-        bool recordStructuredVDMIdentityACK(std::span<const uint8_t> payload);
+        bool recordStructuredVDMIdentityACK(
+            SinkInquirySOPTarget sopTarget, std::span<const uint8_t> payload);
+        [[nodiscard]] bool sopPrimeActiveCableIdentityKnown() const {
+            return _sopPrimeActiveCableIdentityKnown;
+        }
+        [[nodiscard]] bool sopDoublePrimeControllerKnown() const {
+            return _sopDoublePrimeControllerKnown;
+        }
 
         /** Clear attach-scoped Structured VDM negotiation after observing detach. */
         void resetStructuredVDMAttachment();
+        void resetCableProtocol();
         std::optional<SinkRuntimeState::ExtendedPayloadBuffer> takeInquiryExtendedPayload();
         void handleMessageAsReady(const PHY::BMCDecodedMessage *message);
         bool cacheInquiryResponse(
@@ -517,7 +527,9 @@ namespace T76::DRPD::Logic {
         SinkErrorCallback& _sinkErrorCallback;                           ///< Host error callback repeater.
         std::function<void(SinkTimeoutEvent)>& _enqueueTimeoutEventCallback; ///< Timeout event callback.
         uint8_t _hardResetCounter = 0;                              ///< Hard Resets sent during current attachment.
-        StructuredVDMVersionState _structuredVDMVersion;            ///< Common SVDM version for this attachment.
+        std::array<StructuredVDMVersionState, 3> _structuredVDMVersions; ///< Per-SOP attach-scoped SVDM versions.
+        bool _sopPrimeActiveCableIdentityKnown = false;
+        bool _sopDoublePrimeControllerKnown = false;
 
         /**
          * @brief Determine if cached SPR source capabilities advertise EPR support.

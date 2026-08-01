@@ -37,7 +37,8 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _messageSender(
         bmcEncoder,
         _alarmService,
-        std::bind(&Sink::_onMessageSenderStateChanged, this, std::placeholders::_1)),
+        std::bind(&Sink::_onMessageSenderStateChanged, this,
+            std::placeholders::_1, std::placeholders::_2)),
     _timeoutEventCallback(std::bind(&Sink::_enqueueTimeoutEvent, this, std::placeholders::_1)),
     _context(
         _runtimeState,

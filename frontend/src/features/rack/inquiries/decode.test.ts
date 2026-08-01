@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SinkInquiryOutcome, SinkInquiryType, type SinkInquiryStatus } from '../../../lib/device'
+import { SinkInquiryCablePlug, SinkInquiryOutcome, SinkInquiryType, type SinkInquiryStatus } from '../../../lib/device'
 import { decodeInquiryResponse } from './decode'
 
 const response = (
@@ -61,6 +61,59 @@ describe('decodeInquiryResponse', () => {
     )).toThrow('Response length does not match body')
   })
 
+  it('decodes cable Status as the two-byte SOP prime data block and retains the plug', () => {
+    const decoded = decodeInquiryResponse(
+      response(SinkInquiryType.GET_STATUS, 0, 0x02, 2),
+      new Uint8Array([71, 0b1]),
+      { type: SinkInquiryType.GET_STATUS, plug: SinkInquiryCablePlug.SOP_DOUBLE_PRIME },
+    )
+    expect(JSON.parse(decoded.summary)).toMatchObject({
+      plug: 'SOP_DOUBLE_PRIME',
+      internalTemp: 71,
+      flags: 1,
+      internalTemperatureRaw: 71,
+      internalTemperatureC: 71,
+      below2C: false,
+      flagsRaw: 1,
+      thermalShutdown: true,
+    })
+  })
+
+  it.each([
+    [0, null, false],
+    [1, null, true],
+    [2, 2, false],
+    [255, 255, false],
+  ])('preserves cable temperature meaning for raw %i', (raw, degreesC, below2C) => {
+    const decoded = decodeInquiryResponse(
+      response(SinkInquiryType.GET_STATUS, 0, 0x02, 2),
+      new Uint8Array([raw, 0]),
+      { type: SinkInquiryType.GET_STATUS, plug: SinkInquiryCablePlug.SOP_PRIME },
+    )
+    expect(JSON.parse(decoded.summary)).toMatchObject({
+      internalTemperatureRaw: raw,
+      internalTemperatureC: degreesC,
+      below2C,
+      thermalShutdown: false,
+    })
+  })
+
+  it.each([0x02, 0x80, 0xff])('rejects Cable Status reserved flags 0x%s', (flags) => {
+    expect(() => decodeInquiryResponse(
+      response(SinkInquiryType.GET_STATUS, 0, 0x02, 2),
+      new Uint8Array([30, flags]),
+      { type: SinkInquiryType.GET_STATUS, plug: SinkInquiryCablePlug.SOP_PRIME },
+    )).toThrow('reserved flag bits')
+  })
+
+  it('never falls back from cable Status to the six-byte SOP parser', () => {
+    expect(() => decodeInquiryResponse(
+      response(SinkInquiryType.GET_STATUS, 0, 0x02, 6),
+      new Uint8Array(6),
+      { type: SinkInquiryType.GET_STATUS, plug: SinkInquiryCablePlug.SOP_PRIME },
+    )).toThrow('Cable Status body must contain exactly 2 bytes')
+  })
+
   it.each([
     [0, 0x0c],
     [2, 0x0b],
@@ -71,15 +124,24 @@ describe('decodeInquiryResponse', () => {
     )).toThrow('Unexpected response class/type')
   })
 
-  it.each([26, 27])('decodes Manufacturer_Info across a %i-byte chunk boundary', (length) => {
-    const body = new Uint8Array(length).fill(0x41)
+  it('decodes Manufacturer_Info at its 26-byte maximum', () => {
+    const body = new Uint8Array(26).fill(0x41)
     body.set([0x34, 0x12, 0x78, 0x56])
-    body[length - 1] = 0
+    body[25] = 0
     const decoded = decodeInquiryResponse(
-      response(SinkInquiryType.GET_MANUFACTURER_INFO, 0, 0x07, length), body,
+      response(SinkInquiryType.GET_MANUFACTURER_INFO, 0, 0x07, 26), body,
       { type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' },
     )
     expect(decoded.summary).toContain('manufacturerString')
+  })
+
+  it('rejects Manufacturer_Info above its 26-byte maximum', () => {
+    const body = new Uint8Array(27).fill(0x41)
+    body[26] = 0
+    expect(() => decodeInquiryResponse(
+      response(SinkInquiryType.GET_MANUFACTURER_INFO, 0, 0x07, 27), body,
+      { type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' },
+    )).toThrow('5 to 26 bytes')
   })
 
   it('decodes and validates Country_Codes count, reserved byte, and pairs', () => {

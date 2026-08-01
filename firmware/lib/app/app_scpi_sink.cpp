@@ -6,6 +6,7 @@
 
 #include "app.hpp"
 #include "../logic/sink/inquiry_descriptor.hpp"
+#include "../logic/sink/cable_inquiry.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -232,36 +233,65 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
         _interpreter.addError(_scpiErrorIllegalParameterValue,
             "Illegal parameter value. " + std::string(reason));
     };
+    const auto parseCableTarget = [&inquiryParameters](const T76::SCPI::ParameterValue& value) {
+        if (value.type != T76::SCPI::ParameterType::String) return false;
+        std::string target = value.stringValue;
+        std::transform(target.begin(), target.end(), target.begin(), ::toupper);
+        const auto parsed = Logic::parseCableInquiryTarget(target);
+        if (!parsed.has_value()) return false;
+        inquiryParameters.sopTarget = parsed.value();
+        return true;
+    };
+    const bool cableTarget = params.size() >= 2 && parseCableTarget(params[1]);
+    if (cableTarget) {
+        std::optional<double> cableSvid = std::nullopt;
+        if (descriptor->type == Logic::SinkInquiryType::DiscoverModes &&
+            params.size() >= 3 && params[2].type == T76::SCPI::ParameterType::Number) {
+            cableSvid = params[2].numberValue;
+        }
+        if (!Logic::cableInquirySyntaxValid(
+                descriptor->type, params[1].stringValue, params.size(), cableSvid)) {
+            illegalParameters(
+                "Cable inquiry requires SOP_PRIME or SOP_DOUBLE_PRIME and, for DISCOVER_MODES, one decimal SVID 1..65535.");
+            return;
+        }
+    }
     if (descriptor->parameterKind == Logic::InquiryParameterKind::None) {
-        if (params.size() != 1) {
+        if (params.size() != (cableTarget ? 2u : 1u)) {
             illegalParameters("This inquiry takes no additional parameters.");
             return;
         }
     } else if (descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverIdentity ||
                descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverSVIDs) {
-        if (params.size() != 1) {
+        if (params.size() != (cableTarget ? 2u : 1u)) {
             illegalParameters("This discovery inquiry takes no additional parameters.");
             return;
         }
     } else if (descriptor->parameterKind == Logic::InquiryParameterKind::ManufacturerInfo) {
-        if (params.size() < 2 || params.size() > 3 ||
-            params[1].type != T76::SCPI::ParameterType::String) {
-            illegalParameters("GET_MANUFACTURER_INFO requires PORT or BATTERY target.");
-            return;
-        }
-        std::string target = params[1].stringValue;
-        std::transform(target.begin(), target.end(), target.begin(), ::toupper);
-        if (target == "PORT" && params.size() == 2) {
+        if (cableTarget && params.size() == 2) {
+            // Cable-plug Get_Manufacturer_Info always uses Target=Port/Cable Plug, Reference=0.
             inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Port);
-        } else if (target == "BATTERY" && params.size() == 3 &&
-                   std::isfinite(params[2].numberValue) &&
-                   params[2].numberValue >= 0 && params[2].numberValue <= 7 &&
-                   std::floor(params[2].numberValue) == params[2].numberValue) {
-            inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Battery);
-            inquiryParameters.argument = static_cast<uint32_t>(params[2].numberValue);
+            inquiryParameters.argument = 0;
         } else {
-            illegalParameters("Use PORT or BATTERY with an integer battery reference 0..7.");
-            return;
+            if (params.size() < 2 || params.size() > 3 ||
+                params[1].type != T76::SCPI::ParameterType::String) {
+                illegalParameters("GET_MANUFACTURER_INFO requires PORT or BATTERY target.");
+                return;
+            }
+            std::string target = params[1].stringValue;
+            std::transform(target.begin(), target.end(), target.begin(), ::toupper);
+            if (target == "PORT" && params.size() == 2) {
+                inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Port);
+            } else if (target == "BATTERY" && params.size() == 3 &&
+                       std::isfinite(params[2].numberValue) &&
+                       params[2].numberValue >= 0 && params[2].numberValue <= 7 &&
+                       std::floor(params[2].numberValue) == params[2].numberValue) {
+                inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Battery);
+                inquiryParameters.argument = static_cast<uint32_t>(params[2].numberValue);
+            } else {
+                illegalParameters("Use PORT or BATTERY with an integer battery reference 0..7.");
+                return;
+            }
         }
     } else if (descriptor->parameterKind == Logic::InquiryParameterKind::CountryCode) {
         if (params.size() != 2 || params[1].type != T76::SCPI::ParameterType::String ||
@@ -283,14 +313,17 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
         }
         inquiryParameters.argument = static_cast<uint32_t>(params[1].numberValue);
     } else if (descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverModes) {
-        if (params.size() != 2 || params[1].type != T76::SCPI::ParameterType::Number ||
-            !std::isfinite(params[1].numberValue) || params[1].numberValue < 1 ||
-            params[1].numberValue > 65535 ||
-            std::floor(params[1].numberValue) != params[1].numberValue) {
+        const size_t svidIndex = cableTarget ? 2 : 1;
+        if (params.size() != svidIndex + 1 ||
+            params[svidIndex].type != T76::SCPI::ParameterType::Number ||
+            !std::isfinite(params[svidIndex].numberValue) ||
+            params[svidIndex].numberValue < 1 ||
+            params[svidIndex].numberValue > 65535 ||
+            std::floor(params[svidIndex].numberValue) != params[svidIndex].numberValue) {
             illegalParameters("DISCOVER_MODES requires an integer SVID 1..65535.");
             return;
         }
-        inquiryParameters.argument = static_cast<uint32_t>(params[1].numberValue);
+        inquiryParameters.argument = static_cast<uint32_t>(params[svidIndex].numberValue);
     }
     const auto result = sink->requestInquiry(descriptor->type, inquiryParameters);
     if (!result) {

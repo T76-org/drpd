@@ -92,7 +92,7 @@ export class DRPDSink {
   /** Send a semantic inquiry request; the library owns PD and SCPI encoding. */
   public async sendInquiryRequest(request: SinkInquiryRequest): Promise<void> {
     if (request.type === SinkInquiryType.GET_MANUFACTURER_INFO) {
-      if (request.target !== 'PORT' && request.target !== 'BATTERY') throw new Error('Manufacturer target must be PORT or BATTERY')
+      if (request.target !== 'PORT' && request.target !== 'BATTERY' && request.target !== 'SOP_PRIME' && request.target !== 'SOP_DOUBLE_PRIME') throw new Error('Manufacturer target must be PORT, BATTERY, SOP_PRIME, or SOP_DOUBLE_PRIME')
       if (request.target === 'BATTERY') {
         if (!Number.isInteger(request.batteryReference) || request.batteryReference < 0 || request.batteryReference > 7) throw new Error('Battery reference must be an integer from 0 to 7')
         await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.target, request.batteryReference)
@@ -116,7 +116,12 @@ export class DRPDSink {
     }
     if (request.type === SinkInquiryType.DISCOVER_MODES) {
       if (!Number.isInteger(request.svid) || request.svid < 1 || request.svid > 0xffff) throw new Error('SVID must be an integer from 1 to 65535')
-      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.svid)
+      if (request.plug) await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.plug, request.svid)
+      else await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.svid)
+      return
+    }
+    if ('plug' in request && request.plug) {
+      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.plug)
       return
     }
     await this.sendInquiry(request.type)

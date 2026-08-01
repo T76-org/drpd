@@ -599,6 +599,18 @@ class BatteryReferenceKind(enum.Enum):
     HOT_SWAPPABLE = "HOT_SWAPPABLE"
 
 
+class CablePlug(enum.Enum):
+    """Explicit cable-message target; SOP fallback is forbidden."""
+
+    SOP_PRIME = "SOP_PRIME"
+    SOP_DOUBLE_PRIME = "SOP_DOUBLE_PRIME"
+
+
+def _validate_cable_plug(plug: CablePlug) -> None:
+    if not isinstance(plug, CablePlug):
+        raise ValueError("plug must be SOP_PRIME or SOP_DOUBLE_PRIME")
+
+
 def _validate_battery_reference(reference: int) -> None:
     if isinstance(reference, bool) or not isinstance(reference, int):
         raise ValueError("battery_reference must be an integer from 0 to 7")
@@ -805,6 +817,84 @@ class DiscoverModesInquiryRequest:
             raise ValueError("svid must be an integer from 1 to 65535")
 
 
+@dataclass(frozen=True)
+class CableStatusInquiryRequest:
+    """Request Status from an explicitly selected active-cable plug."""
+
+    plug: CablePlug
+    type: SinkInquiryType = field(default=SinkInquiryType.GET_STATUS, init=False)
+
+    def __post_init__(self) -> None:
+        _validate_cable_plug(self.plug)
+
+
+@dataclass(frozen=True)
+class CableRevisionInquiryRequest:
+    """Request Revision from an explicitly selected cable plug."""
+
+    plug: CablePlug
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_REVISION, init=False
+    )
+
+    def __post_init__(self) -> None:
+        _validate_cable_plug(self.plug)
+
+
+@dataclass(frozen=True)
+class CableManufacturerInfoInquiryRequest:
+    """Request cable-plug Manufacturer Info using Port/CablePlug target."""
+
+    plug: CablePlug
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_MANUFACTURER_INFO, init=False
+    )
+
+    def __post_init__(self) -> None:
+        _validate_cable_plug(self.plug)
+
+
+@dataclass(frozen=True)
+class CableDiscoverIdentityInquiryRequest:
+    """Discover Identity from an explicitly selected cable plug."""
+
+    plug: CablePlug
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.DISCOVER_IDENTITY, init=False
+    )
+
+    def __post_init__(self) -> None:
+        _validate_cable_plug(self.plug)
+
+
+@dataclass(frozen=True)
+class CableDiscoverSVIDsInquiryRequest:
+    """Discover optional SVIDs from an explicitly selected cable plug."""
+
+    plug: CablePlug
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.DISCOVER_SVIDS, init=False
+    )
+
+    def __post_init__(self) -> None:
+        _validate_cable_plug(self.plug)
+
+
+@dataclass(frozen=True)
+class CableDiscoverModesInquiryRequest:
+    """Discover optional Modes for a selected SVID and cable plug."""
+
+    plug: CablePlug
+    svid: int
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.DISCOVER_MODES, init=False
+    )
+
+    def __post_init__(self) -> None:
+        _validate_cable_plug(self.plug)
+        DiscoverModesInquiryRequest(self.svid)
+
+
 # New categories extend this discriminated union with bounded semantic
 # parameter dataclasses. Callers never construct PD headers directly.
 SinkInquiryRequest: TypeAlias = Union[
@@ -822,6 +912,12 @@ SinkInquiryRequest: TypeAlias = Union[
     DiscoverIdentityInquiryRequest,
     DiscoverSVIDsInquiryRequest,
     DiscoverModesInquiryRequest,
+    CableStatusInquiryRequest,
+    CableRevisionInquiryRequest,
+    CableManufacturerInfoInquiryRequest,
+    CableDiscoverIdentityInquiryRequest,
+    CableDiscoverSVIDsInquiryRequest,
+    CableDiscoverModesInquiryRequest,
 ]
 
 
@@ -1028,6 +1124,17 @@ class BatteryStatusInquiryData:
 
 
 @dataclass(frozen=True)
+class CableStatusInquiryData:
+    """Decoded two-byte SOP'/SOP'' Status Data Block."""
+
+    internal_temperature_raw: int
+    internal_temperature_c: int | None
+    below_2_c: bool
+    flags_raw: int
+    thermal_shutdown: bool
+
+
+@dataclass(frozen=True)
 class StructuredVDMHeaderData:
     """Validated Structured VDM ACK header."""
 
@@ -1085,6 +1192,7 @@ SinkInquiryDecodedData: TypeAlias = Union[
     CountryInfoInquiryData,
     BatteryCapabilitiesInquiryData,
     BatteryStatusInquiryData,
+    CableStatusInquiryData,
     DiscoverIdentityInquiryData,
     DiscoverSVIDsInquiryData,
     DiscoverModesInquiryData,

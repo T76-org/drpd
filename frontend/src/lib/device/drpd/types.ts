@@ -293,14 +293,23 @@ export const SinkInquiryType = {
 export type SinkInquiryType =
   (typeof SinkInquiryType)[keyof typeof SinkInquiryType]
 
+/** Explicit cable-plug address used by SOP'/SOP'' inquiries. */
+export const SinkInquiryCablePlug = {
+  SOP_PRIME: 'SOP_PRIME',
+  SOP_DOUBLE_PRIME: 'SOP_DOUBLE_PRIME',
+} as const
+export type SinkInquiryCablePlug =
+  (typeof SinkInquiryCablePlug)[keyof typeof SinkInquiryCablePlug]
+
 /** Semantic request for Get_Revision; callers never construct a PD header. */
 export type SinkInquiryRequest =
-  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO | typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS | typeof SinkInquiryType.DISCOVER_MODES> }
-  | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'PORT' }
+  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_STATUS | typeof SinkInquiryType.GET_REVISION | typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO | typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS | typeof SinkInquiryType.DISCOVER_IDENTITY | typeof SinkInquiryType.DISCOVER_SVIDS | typeof SinkInquiryType.DISCOVER_MODES> }
+  | { type: typeof SinkInquiryType.GET_STATUS | typeof SinkInquiryType.GET_REVISION | typeof SinkInquiryType.DISCOVER_IDENTITY | typeof SinkInquiryType.DISCOVER_SVIDS; plug?: SinkInquiryCablePlug }
+  | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'PORT' | SinkInquiryCablePlug }
   | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'BATTERY'; batteryReference: number }
   | { type: typeof SinkInquiryType.GET_COUNTRY_INFO; countryCode: string }
   | { type: typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS; batteryReference: number }
-  | { type: typeof SinkInquiryType.DISCOVER_MODES; svid: number }
+  | { type: typeof SinkInquiryType.DISCOVER_MODES; svid: number; plug?: SinkInquiryCablePlug }
 
 /** Sink inquiry protocol outcome token. */
 export const SinkInquiryOutcome = {

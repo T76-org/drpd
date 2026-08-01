@@ -25,12 +25,14 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <functional>
 #include <optional>
 #include <utility>
 
 #include "../../phy/bmc_encoder.hpp"
 #include "sink_alarm_service.hpp"
+#include "message_transport_state.hpp"
 
 
 namespace T76::DRPD::Logic {
@@ -45,7 +47,8 @@ namespace T76::DRPD::Logic {
     
     class SinkMessageSender {
     public:
-        using StateChangeCallback = std::function<void(SinkMessageSenderState)>;
+        using StateChangeCallback = std::function<void(
+            SinkMessageSenderState, Proto::SOP::SOPType)>;
 
         /** 
          * @brief Construct a new Sink Message Sender object
@@ -79,6 +82,7 @@ namespace T76::DRPD::Logic {
          * @brief Reset the transmitter MessageIDCounter and retry mechanism.
          */
         void resetMessageIdCounter();
+        void resetTarget(Proto::SOP::SOPType sopType);
 
         /**
          * @brief Send a message without awaiting GoodCRC response
@@ -95,7 +99,7 @@ namespace T76::DRPD::Logic {
          *
          * @param messageId The Message ID from the received GoodCRC
          */
-        void handleGoodCRCReceived(uint32_t messageId);
+        void handleGoodCRCReceived(Proto::SOP::SOPType sopType, uint32_t messageId);
 
         /**
          * @brief Stop awaiting GoodCRC for the current message without resetting MessageIDCounter.
@@ -117,10 +121,17 @@ namespace T76::DRPD::Logic {
     protected:
         PHY::BMCEncoder& _bmcEncoder;                                               ///< Reference to the BMC encoder
         SinkAlarmService& _alarmService;                                            ///< Sink-owned timer service.
-        uint32_t _nextMessageId = 0;                                                ///< Next Message ID to use for outgoing messages
-        std::optional<PHY::BMCEncodedMessage> _pendingMessage = std::nullopt;       ///< The message currently awaiting GoodCRC response
-        uint32_t _goodCRCRetryCount = 0;                                            ///< Current retry count for GoodCRC
-        alarm_id_t _goodCRCTimeoutAlarmId = -1;                                     ///< Alarm ID for GoodCRC timeout timer
+        struct TargetContext {
+            std::optional<PHY::BMCEncodedMessage> pendingMessage = std::nullopt;
+            alarm_id_t goodCRCTimeoutAlarmId = -1;
+        };
+        struct TimeoutCookie {
+            SinkMessageSender *sender = nullptr;
+            size_t targetIndex = 0;
+        };
+        std::array<TargetContext, 3> _targetContexts = {};
+        SinkMessageTransportState _transportState;
+        std::array<TimeoutCookie, 3> _timeoutCookies = {};
         StateChangeCallback _stateChangeCallback;                                   ///< Callback for state changes
 
         /** 
@@ -136,20 +147,21 @@ namespace T76::DRPD::Logic {
          * @brief Reset the GoodCRC timeout timer
          * 
          */
-        void _resetGoodCRCTimer();
+        void _resetGoodCRCTimer(size_t targetIndex);
 
         /** 
          * @brief Cancel the GoodCRC timeout timer
          * 
          */
-        void _cancelGoodCRCTimer();
+        void _cancelGoodCRCTimer(size_t targetIndex);
 
         /** 
          * @brief Notify the Sink logic of a state change
          * 
          * @param state The new state
          */
-        void _notifyStateChange(SinkMessageSenderState state);
+        void _notifyStateChange(
+            SinkMessageSenderState state, Proto::SOP::SOPType sopTarget);
 
     };
 

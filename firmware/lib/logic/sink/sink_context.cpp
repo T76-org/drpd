@@ -4,6 +4,7 @@
  */
 
 #include "sink_context.hpp"
+#include "cable_inquiry.hpp"
 #include "sink_raw_pd_message.hpp"
 #include "inquiry_descriptor.hpp"
 #include "inquiry_capability_selection.hpp"
@@ -188,8 +189,9 @@ void SinkContext::transitionTo(SinkState state) {
 
 void SinkContext::performReset(SinkResetType resetType) {
     const auto negotiatedRevision = _runtimeState._specRevision;
-    _structuredVDMVersion.updateAttachment(
-        _ccBusController.state() == CCBusState::Attached);
+    for (auto &version : _structuredVDMVersions) {
+        version.updateAttachment(_ccBusController.state() == CCBusState::Attached);
+    }
     if (resetType == SinkResetType::SoftReset) {
         reportError("Sink protocol error; initiating Soft Reset", resetType);
     } else if (resetType == SinkResetType::HardReset) {
@@ -213,8 +215,17 @@ void SinkContext::performReset(SinkResetType resetType) {
         }
     }
 
-    _messageSender.reset();
-    _runtimeState.resetStoredReceivedMessageId();
+    // USB PD 3.2 ss2.6/6.8.3.1: cable electronics detect Hard Reset and
+    // power-cycle, so Hard Reset resets cable protocol domains as well.
+    const bool resetCableProtocolState = resetType != SinkResetType::SoftReset;
+    if (resetType == SinkResetType::HardReset) resetCableProtocol();
+    if (resetCableProtocolState) {
+        _messageSender.reset();
+        _runtimeState.resetStoredReceivedMessageId();
+    } else {
+        _messageSender.resetTarget(Proto::SOP::SOPType::SOP);
+        _runtimeState.resetStoredReceivedMessageId(0);
+    }
 
     if (resetType == SinkResetType::HardReset &&
         _ccBusController.state() == CCBusState::Attached) {
@@ -227,7 +238,7 @@ void SinkContext::performReset(SinkResetType resetType) {
     if (_runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->reset(*this);
     }
-    _runtimeState.reset();
+    _runtimeState.reset(resetCableProtocolState);
 
     if (resetType == SinkResetType::SoftReset) {
         _runtimeState._specRevision = negotiatedRevision;
@@ -275,15 +286,34 @@ void SinkContext::resetHardResetCounter() {
     _hardResetCounter = 0;
 }
 
-void SinkContext::handleReceivedSoftReset(Proto::PDHeader::SpecRevision receivedRevision) {
-    _messageSender.reset();
-    _runtimeState.resetStoredReceivedMessageId();
+void SinkContext::handleReceivedSoftReset(
+    Proto::SOP::SOPType sopTarget,
+    Proto::PDHeader::SpecRevision receivedRevision) {
+    if (sopTarget != Proto::SOP::SOPType::SOP) {
+        const size_t targetIndex = sopTarget == Proto::SOP::SOPType::SOPPrime ? 1 : 2;
+        _messageSender.resetTarget(sopTarget);
+        _runtimeState.resetStoredReceivedMessageId(targetIndex);
+        if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
+            _runtimeState.finishInquiry(SinkInquiryOutcome::Aborted);
+        }
+        const Proto::ControlMessage accept;
+        PHY::BMCEncodedMessage response(sopTarget, accept);
+        response.header().rawMessageType(
+            static_cast<uint32_t>(Proto::ControlMessageType::Accept));
+        response.header().numDataObjects(0);
+        response.header().specRevision(Proto::negotiatedSpecRevision(receivedRevision));
+        _sendResponseStateHandler.prepareResponse(response, SinkState::PE_SNK_Ready);
+        transitionTo(SinkState::PE_SNK_Send_Response);
+        return;
+    }
+    _messageSender.resetTarget(Proto::SOP::SOPType::SOP);
+    _runtimeState.resetStoredReceivedMessageId(0);
 
     if (_runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->reset(*this);
     }
 
-    _runtimeState.reset();
+    _runtimeState.reset(false);
     _runtimeState._specRevision = Proto::negotiatedSpecRevision(receivedRevision);
 
     if (_ccBusController.state() != CCBusState::Attached) {
@@ -771,10 +801,13 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
         return false;
     }
 
+    const size_t sopIndex = static_cast<size_t>(request.parameters.sopTarget);
+    if (sopIndex >= _structuredVDMVersions.size()) return false;
+    const auto &vdmVersion = _structuredVDMVersions[sopIndex];
     const auto body = encodeInquiryBody(
         descriptor.value(), request.parameters.target,
         request.parameters.argument, selector,
-        _structuredVDMVersion.major, _structuredVDMVersion.minor);
+        vdmVersion.major, vdmVersion.minor);
     std::array<uint8_t, 4> rawBody = body.bytes;
     uint32_t dataObjects = descriptor->requestDataObjects;
     if (descriptor->requestClass == InquiryMessageClass::Extended) {
@@ -788,7 +821,14 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
     const SinkRawPDMessage rawMessage(
         std::span<const uint8_t>(rawBody.data(), dataObjects * 4),
         dataObjects, descriptor->requestMessageType);
-    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, rawMessage);
+    Proto::SOP::SOPType sopTarget = Proto::SOP::SOPType::SOP;
+    if (request.parameters.sopTarget != SinkInquirySOPTarget::SOP) {
+        const auto intent = cableHeaderIntent(request.parameters.sopTarget);
+        sopTarget = intent.targetIndex == 1
+            ? Proto::SOP::SOPType::SOPPrime
+            : Proto::SOP::SOPType::SOPDoublePrime;
+    }
+    PHY::BMCEncodedMessage message(sopTarget, rawMessage);
     auto &header = message.header();
     header.rawMessageType(descriptor->requestMessageType);
     header.numDataObjects(dataObjects);
@@ -800,19 +840,60 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
     return true;
 }
 
-bool SinkContext::recordStructuredVDMIdentityACK(std::span<const uint8_t> payload) {
+bool SinkContext::recordStructuredVDMIdentityACK(
+    SinkInquirySOPTarget sopTarget, std::span<const uint8_t> payload) {
     if (payload.size() < 4) return false;
     const uint32_t rawHeader = static_cast<uint32_t>(payload[0]) |
         (static_cast<uint32_t>(payload[1]) << 8) |
         (static_cast<uint32_t>(payload[2]) << 16) |
         (static_cast<uint32_t>(payload[3]) << 24);
-    return _structuredVDMVersion.recordIdentityACK(
+    const size_t sopIndex = static_cast<size_t>(sopTarget);
+    if (sopIndex >= _structuredVDMVersions.size()) return false;
+    const bool recorded = _structuredVDMVersions[sopIndex].recordIdentityACK(
         static_cast<uint8_t>((rawHeader >> 13) & 0x03u),
         static_cast<uint8_t>((rawHeader >> 11) & 0x03u));
+    if (!recorded) return false;
+    if (sopTarget == SinkInquirySOPTarget::SOPPrime) {
+        _sopPrimeActiveCableIdentityKnown = false;
+        _sopDoublePrimeControllerKnown = false;
+        if (payload.size() >= 8) {
+            const uint32_t idHeader = static_cast<uint32_t>(payload[4]) |
+                (static_cast<uint32_t>(payload[5]) << 8) |
+                (static_cast<uint32_t>(payload[6]) << 16) |
+                (static_cast<uint32_t>(payload[7]) << 24);
+            const bool activeCable = ((idHeader >> 27) & 0x7u) == 0x4u;
+            if (activeCable && payload.size() < 20) return false;
+            if (!activeCable) return true;
+            const uint32_t activeCableVDO1 = static_cast<uint32_t>(payload[16]) |
+                (static_cast<uint32_t>(payload[17]) << 8) |
+                (static_cast<uint32_t>(payload[18]) << 16) |
+                (static_cast<uint32_t>(payload[19]) << 24);
+            _sopPrimeActiveCableIdentityKnown = true;
+            _sopDoublePrimeControllerKnown =
+                ((activeCableVDO1 >> 3) & 0x1u) != 0;
+        }
+    }
+    return true;
 }
 
 void SinkContext::resetStructuredVDMAttachment() {
-    _structuredVDMVersion.updateAttachment(false);
+    for (auto &version : _structuredVDMVersions) version.updateAttachment(false);
+    _sopPrimeActiveCableIdentityKnown = false;
+    _sopDoublePrimeControllerKnown = false;
+}
+
+void SinkContext::resetCableProtocol() {
+    // USB PD 3.2 ss6.8.4: Cable Reset is equivalent to a cable power cycle.
+    _messageSender.resetTarget(Proto::SOP::SOPType::SOPPrime);
+    _messageSender.resetTarget(Proto::SOP::SOPType::SOPDoublePrime);
+    _runtimeState.resetStoredReceivedMessageId(1);
+    _runtimeState.resetStoredReceivedMessageId(2);
+    _structuredVDMVersions[1].updateAttachment(false);
+    _structuredVDMVersions[2].updateAttachment(false);
+    _structuredVDMVersions[1].updateAttachment(true);
+    _structuredVDMVersions[2].updateAttachment(true);
+    _sopPrimeActiveCableIdentityKnown = false;
+    _sopDoublePrimeControllerKnown = false;
 }
 
 std::optional<SinkRuntimeState::ExtendedPayloadBuffer>

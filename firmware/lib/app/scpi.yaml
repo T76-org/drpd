@@ -593,19 +593,22 @@ commands:
                     GET_SOURCE_CAP is available at all negotiated revisions. Other
                     category inquiries require PD 3.x; GET_PPS_STATUS additionally
                     requires an active SPR PPS contract. GET_STATUS reads and clears
-                    the Source's latched OCP, OVP, and OTP event indicators.
+                    the Source's latched OCP, OVP, and OTP event indicators. Cable-plug
+                    forms use an explicit SOP_PRIME or SOP_DOUBLE_PRIME second parameter;
+                    firmware never falls back to SOP. They require VCONN Source and a
+                    qualifying cable identity, which current Dr. PD firmware cannot provide.
     parameters:
       - name: type
         type: enum
         choices: ["GET_REVISION", "GET_SOURCE_CAP", "GET_SOURCE_CAP_EXTENDED", "GET_STATUS", "GET_SOURCE_INFO", "GET_PPS_STATUS", "GET_MANUFACTURER_INFO", "GET_COUNTRY_CODES", "GET_COUNTRY_INFO", "GET_BATTERY_CAP", "GET_BATTERY_STATUS", "DISCOVER_IDENTITY", "DISCOVER_SVIDS", "DISCOVER_MODES"]
         description: "Supported inquiry message type."
-      - name: target_or_country
+      - name: target_country_reference_or_svid
         type: string_or_number
-        description: 'PORT or BATTERY for GET_MANUFACTURER_INFO; uppercase ISO 3166 alpha-2 code for GET_COUNTRY_INFO; numeric battery reference or Discover Modes SVID.'
+        description: 'PORT or BATTERY for SOP GET_MANUFACTURER_INFO; SOP_PRIME or SOP_DOUBLE_PRIME for cable GET_REVISION, GET_STATUS, GET_MANUFACTURER_INFO, DISCOVER_IDENTITY, DISCOVER_SVIDS, or DISCOVER_MODES; uppercase ISO 3166 alpha-2 code for GET_COUNTRY_INFO; numeric battery reference or SOP Discover Modes SVID.'
         optional: true
-      - name: battery_reference
+      - name: battery_reference_or_cable_svid
         type: number
-        description: "Required 0..7 battery reference when target is BATTERY."
+        description: "Required 0..7 reference when target is BATTERY, or required decimal SVID 1..65535 after a cable target for DISCOVER_MODES."
         optional: true
     errors:
       -221:

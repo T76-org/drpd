@@ -163,7 +163,11 @@ struct SinkInquiryDescriptor {
 
 [[nodiscard]] constexpr bool inquiryResponsePayloadSizeValid(
     const SinkInquiryDescriptor& descriptor,
-    size_t payloadBytes) {
+    size_t payloadBytes,
+    bool cablePlug = false) {
+    if (descriptor.requestMessageType == 0x12 && cablePlug) {
+        return payloadBytes == 2;
+    }
     return payloadBytes >= descriptor.minimumResponseBytes &&
         payloadBytes <= descriptor.maximumResponseBytes;
 }

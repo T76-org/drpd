@@ -403,7 +403,8 @@ namespace T76::DRPD::Logic {
         void _sendExtendedChunkRequest(
             Proto::ExtendedMessageType type,
             uint16_t payloadSizeBytes,
-            uint8_t chunkNumber);
+            uint8_t chunkNumber,
+            Proto::SOP::SOPType sopTarget);
 
         /**
          * @brief Start ChunkingNotSupportedTimer before responding Not_Supported.
@@ -438,7 +439,8 @@ namespace T76::DRPD::Logic {
          * @brief Handle message sender state transitions.
          * @param state New sender state.
          */
-        void _onMessageSenderStateChanged(SinkMessageSenderState state);
+        void _onMessageSenderStateChanged(
+            SinkMessageSenderState state, Proto::SOP::SOPType sopTarget);
 
         /**
          * @brief Handle sender state transitions in Sink policy context.

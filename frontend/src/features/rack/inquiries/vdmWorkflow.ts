@@ -1,4 +1,4 @@
-import { SinkInquiryType } from '../../../lib/device'
+import { SinkInquiryType, type SinkInquiryCablePlug } from '../../../lib/device'
 import type { SerialInquiryWorkflowStep } from './runner'
 import { parseSVIDsVDO, readDataObjects } from '../../../lib/device/drpd/usb-pd/DataObjects'
 
@@ -25,10 +25,10 @@ export const deduplicateOrderedSvids = (pages: readonly (readonly number[])[]): 
   return result
 }
 
-export const buildDiscoverModesSteps = (svids: readonly number[]): SerialInquiryWorkflowStep[] => {
+export const buildDiscoverModesSteps = (svids: readonly number[], plug?: SinkInquiryCablePlug): SerialInquiryWorkflowStep[] => {
   const unique = deduplicateOrderedSvids([svids])
   if (unique.length > 12) throw new Error('Discover Modes fan-out exceeds limit of 12')
-  return unique.map((svid) => ({ id: `discover-modes-${svid.toString(16).padStart(4, '0')}`, request: { type: SinkInquiryType.DISCOVER_MODES, svid } }))
+  return unique.map((svid) => ({ id: `discover-modes-${svid.toString(16).padStart(4, '0')}`, request: { type: SinkInquiryType.DISCOVER_MODES, svid, ...(plug ? { plug } : {}) } }))
 }
 
 export const canRetryVdmSurveyStep = (attempts: number, nonRetryable = false, maxRetries = 2): boolean =>

@@ -6,8 +6,21 @@
 
 #include "message_sender.hpp"
 
+#include <algorithm>
+
 
 using namespace T76::DRPD::Logic;
+
+namespace {
+    std::optional<size_t> messageIdIndex(Proto::SOP::SOPType target) {
+        switch (target) {
+            case Proto::SOP::SOPType::SOP: return 0;
+            case Proto::SOP::SOPType::SOPPrime: return 1;
+            case Proto::SOP::SOPType::SOPDoublePrime: return 2;
+            default: return std::nullopt;
+        }
+    }
+}
 
 
 SinkMessageSender::SinkMessageSender(PHY::BMCEncoder& bmcEncoder,
@@ -15,121 +28,153 @@ SinkMessageSender::SinkMessageSender(PHY::BMCEncoder& bmcEncoder,
                                      StateChangeCallback stateChangeCallback)
     : _bmcEncoder(bmcEncoder),
       _alarmService(alarmService),
-      _stateChangeCallback(std::move(stateChangeCallback)) {}
+      _stateChangeCallback(std::move(stateChangeCallback)) {
+    for (size_t i = 0; i < _timeoutCookies.size(); ++i) {
+        _timeoutCookies[i] = TimeoutCookie{this, i};
+    }
+}
 
 void SinkMessageSender::sendMessage(const PHY::BMCEncodedMessage& message) {
+    const auto index = messageIdIndex(message.sopType());
+    if (!index.has_value()) return;
     // Set the Message ID on the outgoing message (USB-PD 3.2 spec: 3-bit counter)
-    _pendingMessage = message;
-    _pendingMessage.value().header().messageId(_nextMessageId);
+    auto &context = _targetContexts[index.value()];
+    context.pendingMessage = message;
+    context.pendingMessage.value().header().messageId(_transportState.begin(index.value()));
 
-    // Increment Message ID for next message (wrap around at 8 for 3-bit counter)
-    _nextMessageId = (_nextMessageId + 1) & 0x7;
-
-    _bmcEncoder.encodeAndSendMessage(*_pendingMessage);
+    _bmcEncoder.encodeAndSendMessage(*context.pendingMessage);
 }
 
 void SinkMessageSender::sendMessageAndAwaitGoodCRC(const PHY::BMCEncodedMessage& message) {
     // Cancel any existing GoodCRC timeout timer
-    _cancelGoodCRCTimer();
+    const auto index = messageIdIndex(message.sopType());
+    if (!index.has_value()) return;
+    auto &context = _targetContexts[index.value()];
+    _cancelGoodCRCTimer(index.value());
 
     // Reset retry count
-    _goodCRCRetryCount = 0;
 
     // Schedule the message for transmission
     sendMessage(message);
 
     // Set up a one-shot timer for the GoodCRC timeout
-    _resetGoodCRCTimer();
+    _resetGoodCRCTimer(index.value());
 }
 
 void SinkMessageSender::sendHardResetSignaling() {
-    reset();
+    resetTarget(Proto::SOP::SOPType::SOP);
     _bmcEncoder.sendHardResetSignaling();
 }
 
 void SinkMessageSender::resetMessageIdCounter() {
-    _nextMessageId = 0;
-    _goodCRCRetryCount = 0;
-    _pendingMessage.reset();
+    for (size_t i = 0; i < _targetContexts.size(); ++i) {
+        _cancelGoodCRCTimer(i);
+        _targetContexts[i] = TargetContext{};
+    }
+    _transportState.reset();
 }
 
-void SinkMessageSender::handleGoodCRCReceived(uint32_t messageId) {
-    if (!_pendingMessage.has_value()) {
+void SinkMessageSender::resetTarget(Proto::SOP::SOPType sopType) {
+    const auto index = messageIdIndex(sopType);
+    if (!index.has_value()) return;
+    _cancelGoodCRCTimer(index.value());
+    _targetContexts[index.value()] = TargetContext{};
+    _transportState.reset(index.value());
+}
+
+void SinkMessageSender::handleGoodCRCReceived(
+    Proto::SOP::SOPType sopType, uint32_t messageId) {
+    const auto index = messageIdIndex(sopType);
+    if (!index.has_value()) return;
+    auto &context = _targetContexts[index.value()];
+    if (!context.pendingMessage.has_value()) {
         return;
     }
 
-    if (_pendingMessage->header().messageId() != messageId) {
+    if (!_transportState.acknowledge(index.value(), static_cast<uint8_t>(messageId))) {
         return;
     }
 
-    _cancelGoodCRCTimer();
-    _pendingMessage.reset();
-    _goodCRCRetryCount = 0;
-    _notifyStateChange(SinkMessageSenderState::GoodCRCReceived);
+    _cancelGoodCRCTimer(index.value());
+    context.pendingMessage.reset();
+    _notifyStateChange(SinkMessageSenderState::GoodCRCReceived, sopType);
 }
 
 void SinkMessageSender::abandonPendingMessage() {
-    _cancelGoodCRCTimer();
-    _pendingMessage.reset();
-    _goodCRCRetryCount = 0;
+    for (size_t i = 0; i < _targetContexts.size(); ++i) {
+        _cancelGoodCRCTimer(i);
+        _targetContexts[i].pendingMessage.reset();
+        _transportState.abandon(i);
+    }
 }
 
 bool SinkMessageSender::hasPendingMessage() const {
-    return _pendingMessage.has_value();
+    return std::any_of(_targetContexts.begin(), _targetContexts.end(),
+        [](const auto& context) { return context.pendingMessage.has_value(); });
 }
 
 void SinkMessageSender::reset() {
     // Cancel any existing GoodCRC timeout timer
-    _cancelGoodCRCTimer();
+    for (size_t i = 0; i < _targetContexts.size(); ++i) _cancelGoodCRCTimer(i);
 
     resetMessageIdCounter();
 }
 
 int64_t SinkMessageSender::_onGoodCRCTimeout(alarm_id_t id, void *user_data) {
-    SinkMessageSender *sender = static_cast<SinkMessageSender*>(user_data);
+    auto *cookie = static_cast<TimeoutCookie*>(user_data);
+    SinkMessageSender *sender = cookie->sender;
+    auto &context = sender->_targetContexts[cookie->targetIndex];
+    if (!context.pendingMessage.has_value()) return 0;
 
     // Increment retry count
-    sender->_goodCRCRetryCount++;
+    const uint8_t retryCount = sender->_transportState.retry(cookie->targetIndex);
 
     // Check if we've exceeded the maximum retry count
-    if (sender->_goodCRCRetryCount >= LOGIC_SINK_GOODCRC_RETRIES) {
-        sender->_pendingMessage.reset();
-        sender->_goodCRCTimeoutAlarmId = -1;
-        sender->_notifyStateChange(SinkMessageSenderState::GoodCRCTimeout);
+    if (retryCount >= LOGIC_SINK_GOODCRC_RETRIES) {
+        context.pendingMessage.reset();
+        sender->_transportState.abandon(cookie->targetIndex);
+        context.goodCRCTimeoutAlarmId = -1;
+        const auto target = cookie->targetIndex == 1 ? Proto::SOP::SOPType::SOPPrime :
+            cookie->targetIndex == 2 ? Proto::SOP::SOPType::SOPDoublePrime :
+            Proto::SOP::SOPType::SOP;
+        sender->_notifyStateChange(SinkMessageSenderState::GoodCRCTimeout, target);
         return 0; // Don't reschedule
     }
 
     // Resend the pending message
-    if (sender->_pendingMessage.has_value()) {
-        sender->_bmcEncoder.encodeAndSendMessage(*sender->_pendingMessage);
-        sender->_resetGoodCRCTimer();
+    if (context.pendingMessage.has_value()) {
+        sender->_bmcEncoder.encodeAndSendMessage(*context.pendingMessage);
+        sender->_resetGoodCRCTimer(cookie->targetIndex);
     }
 
     return 0; // Don't reschedule (one-shot timer)
 }
 
-void SinkMessageSender::_resetGoodCRCTimer() {
+void SinkMessageSender::_resetGoodCRCTimer(size_t targetIndex) {
     // Cancel any existing timer
-    _cancelGoodCRCTimer();
+    _cancelGoodCRCTimer(targetIndex);
+    auto &context = _targetContexts[targetIndex];
 
     // Set up a one-shot timer for the GoodCRC timeout
-    _goodCRCTimeoutAlarmId = _alarmService.addAlarmInUs(
+    context.goodCRCTimeoutAlarmId = _alarmService.addAlarmInUs(
         LOGIC_SINK_GOODCRC_TIMEOUT_US,
         _onGoodCRCTimeout,
-        this,
+        &_timeoutCookies[targetIndex],
         true  // One-shot timer
     );
 }
 
-void SinkMessageSender::_cancelGoodCRCTimer() {
-    if (_goodCRCTimeoutAlarmId != -1) {
-        _alarmService.cancelAlarm(_goodCRCTimeoutAlarmId);
-        _goodCRCTimeoutAlarmId = -1;
+void SinkMessageSender::_cancelGoodCRCTimer(size_t targetIndex) {
+    auto &context = _targetContexts[targetIndex];
+    if (context.goodCRCTimeoutAlarmId != -1) {
+        _alarmService.cancelAlarm(context.goodCRCTimeoutAlarmId);
+        context.goodCRCTimeoutAlarmId = -1;
     }
 }
 
-void SinkMessageSender::_notifyStateChange(SinkMessageSenderState state) {
+void SinkMessageSender::_notifyStateChange(
+    SinkMessageSenderState state, Proto::SOP::SOPType sopTarget) {
     if (_stateChangeCallback) {
-        _stateChangeCallback(state);
+        _stateChangeCallback(state, sopTarget);
     }
 }

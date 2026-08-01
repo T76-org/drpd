@@ -1,4 +1,4 @@
-import { SinkInquiryType, type SinkInquiryRequest } from '../../../lib/device'
+import { SinkInquiryCablePlug, SinkInquiryType, type SinkInquiryRequest } from '../../../lib/device'
 
 export type InquiryWorkflow = 'immediate' | 'parameterized' | 'guided'
 
@@ -9,6 +9,8 @@ export interface InquiryApplicabilityContext {
   sprPpsContract?: boolean
   pdRevision3?: boolean
   canInitiateVdm?: boolean
+  cableTrafficReady?: boolean
+  sopDoublePrimeAvailable?: boolean
 }
 
 export type InquirySideEffect =
@@ -183,6 +185,26 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
 export const ACTIVE_SOURCE_INQUIRIES = SOURCE_INQUIRY_CATALOG.filter(
   (definition) => definition.active,
 )
+
+const cableApplicability = (plug: SinkInquiryCablePlug) => (context: InquiryApplicabilityContext): boolean =>
+  context.sinkMode && context.attached && context.cableTrafficReady === true &&
+  (plug !== SinkInquiryCablePlug.SOP_DOUBLE_PRIME || context.sopDoublePrimeAvailable === true)
+
+const cableDefinitionsFor = (plug: SinkInquiryCablePlug, label: string): InquiryDefinition[] => [
+  { id: `cable-status-${plug}`, type: SinkInquiryType.GET_STATUS, label: `${label}: Get status`, description: `Ask the ${label} cable controller for temperature and thermal status. Requires VCONN and a responsive electronically marked cable.`, workflow: 'immediate', parameters: [], sideEffects: [], applicability: cableApplicability(plug), buildRequest: () => ({ type: SinkInquiryType.GET_STATUS, plug }), active: true },
+  { id: `cable-revision-${plug}`, type: SinkInquiryType.GET_REVISION, label: `${label}: Get revision`, description: `Ask the ${label} cable controller for its USB PD revision. Requires VCONN and a responsive electronically marked cable.`, workflow: 'immediate', parameters: [], sideEffects: [], applicability: cableApplicability(plug), buildRequest: () => ({ type: SinkInquiryType.GET_REVISION, plug }), active: true },
+  { id: `cable-manufacturer-${plug}`, type: SinkInquiryType.GET_MANUFACTURER_INFO, label: `${label}: Get manufacturer info`, description: `Ask the ${label} cable controller for cable-plug manufacturer information (target Cable Plug, reference 0).`, workflow: 'immediate', parameters: [], sideEffects: [], applicability: cableApplicability(plug), buildRequest: () => ({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: plug }), active: true },
+  { id: `cable-identity-${plug}`, type: SinkInquiryType.DISCOVER_IDENTITY, label: `${label}: Discover identity`, description: `Discover the ${label} cable controller identity and cable type.`, workflow: 'immediate', parameters: [], sideEffects: [], applicability: cableApplicability(plug), buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY, plug }), active: true },
+  { id: `cable-svids-${plug}`, type: SinkInquiryType.DISCOVER_SVIDS, label: `${label}: Discover SVIDs`, description: `Discover ordered SVIDs supported by the ${label} cable controller.`, workflow: 'immediate', parameters: [], sideEffects: [], applicability: cableApplicability(plug), buildRequest: () => ({ type: SinkInquiryType.DISCOVER_SVIDS, plug }), active: true },
+  { id: `cable-modes-${plug}`, type: SinkInquiryType.DISCOVER_MODES, label: `${label}: Discover modes…`, description: `Discover one SVID's modes on the ${label} cable controller.`, workflow: 'parameterized', parameters: [{ kind: 'integer', name: 'svid', label: 'SVID', min: 1, max: 65535 }], sideEffects: [], applicability: cableApplicability(plug), buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.DISCOVER_MODES, plug, svid: values.svid as number }), active: true } as InquiryDefinition<Record<string, unknown>>,
+  { id: `survey-cable-${plug}`, type: SinkInquiryType.DISCOVER_IDENTITY, label: `${label}: Survey identity, SVIDs, and modes…`, description: `Inspect ${label}: Identity, continued SVID pages, then selected or all modes. Retry restarts discovery for this plug.`, workflow: 'guided', parameters: [], sideEffects: [], applicability: cableApplicability(plug), buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY, plug }), active: true },
+]
+
+/** Cable inquiries are deliberately separate from SOP Source/Port Partner inquiries. */
+export const ACTIVE_CABLE_INQUIRIES: readonly InquiryDefinition[] = [
+  ...cableDefinitionsFor(SinkInquiryCablePlug.SOP_PRIME, "SOP'"),
+  ...cableDefinitionsFor(SinkInquiryCablePlug.SOP_DOUBLE_PRIME, "SOP''"),
+]
 
 export interface InquiryParameterValidationResult {
   valid: boolean

@@ -6,6 +6,7 @@
 #include "sink.hpp"
 #include "sink_raw_pd_message.hpp"
 #include "inquiry_descriptor.hpp"
+#include "cable_inquiry.hpp"
 
 #include <algorithm>
 #include <array>
@@ -133,6 +134,26 @@ SinkRequestResult Sink::requestInquiry(
     if (!descriptor.has_value()) {
         return SinkRequestResult::failure("Unsupported inquiry type");
     }
+    if (parameters.sopTarget != SinkInquirySOPTarget::SOP) {
+        if (!cableInquiryTypeSupported(type))
+            return SinkRequestResult::failure("Inquiry is not defined for a cable-plug target");
+        if (parameters.sopTarget == SinkInquirySOPTarget::SOPDoublePrime &&
+            (!_context.sopPrimeActiveCableIdentityKnown() ||
+             !_context.sopDoublePrimeControllerKnown())) {
+            return SinkRequestResult::failure(
+                "SOP_DOUBLE_PRIME requires prior SOP_PRIME Identity proving an active cable with a second controller");
+        }
+        if (parameters.sopTarget == SinkInquirySOPTarget::SOPPrime &&
+            type != SinkInquiryType::DiscoverIdentity &&
+            !_context.sopPrimeActiveCableIdentityKnown()) {
+            return SinkRequestResult::failure(
+                "Cable inquiry requires prior SOP_PRIME Identity proving a suitable active cable");
+        }
+        // Current hardware/firmware never sources VCONN. Reject locally: sending
+        // SOP'/SOP'' without VCONN would falsely imply a reachable cable plug.
+        return SinkRequestResult::failure(
+            "Cable inquiry requires Dr. PD to be VCONN Source; VCONN sourcing is not supported");
+    }
     if (_runtimeState._state != SinkState::PE_SNK_Ready) {
         return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
     }
@@ -230,7 +251,8 @@ SinkErrorCallback Sink::sinkErrorOccurred() const {
 void Sink::_sendExtendedChunkRequest(
     Proto::ExtendedMessageType type,
     uint16_t payloadSizeBytes,
-    uint8_t chunkNumber) {
+    uint8_t chunkNumber,
+    Proto::SOP::SOPType sopTarget) {
     (void)payloadSizeBytes;
 
     Proto::PDExtendedHeader extHeader(0);
@@ -253,7 +275,7 @@ void Sink::_sendExtendedChunkRequest(
     );
 
     PHY::BMCEncodedMessage message(
-        Proto::SOP::SOPType::SOP,
+        preserveInquiryTarget(sopTarget),
         rawMessage
     );
 

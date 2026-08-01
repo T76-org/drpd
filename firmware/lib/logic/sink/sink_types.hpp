@@ -42,11 +42,19 @@ namespace T76::DRPD::Logic {
         Battery = 1,
     };
 
+    /** Explicit packet target for a host inquiry. Never inferred or downgraded. */
+    enum class SinkInquirySOPTarget : uint32_t {
+        SOP = 0,
+        SOPPrime,
+        SOPDoublePrime,
+    };
+
     /** Fixed, queue-safe parameters shared by typed inquiry descriptors. */
     struct SinkInquiryParameters {
         uint32_t target = 0;
         uint32_t argument = 0;
         std::array<uint8_t, 4> selector = {};
+        SinkInquirySOPTarget sopTarget = SinkInquirySOPTarget::SOP;
     };
 
     enum class SinkInquiryOutcome : uint32_t {

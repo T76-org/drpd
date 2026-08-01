@@ -114,7 +114,9 @@ void InquiryStateHandler::handleMessage(
         const auto body = extendedPayload.has_value()
             ? extendedPayload->span()
             : message->rawBody();
-        if (!inquiryResponsePayloadSizeValid(descriptor.value(), body.size()) ||
+        if (!inquiryResponsePayloadSizeValid(
+                descriptor.value(), body.size(),
+                resultSnapshot.parameters.sopTarget != SinkInquirySOPTarget::SOP) ||
             !inquiryResponseStructureValid(descriptor.value(), body)) {
             _finish(context, SinkInquiryOutcome::MalformedResponse);
             return;
@@ -128,7 +130,8 @@ void InquiryStateHandler::handleMessage(
             return;
         }
         if (resultSnapshot.status.type == SinkInquiryType::DiscoverIdentity &&
-            !context.recordStructuredVDMIdentityACK(body)) {
+            !context.recordStructuredVDMIdentityACK(
+                resultSnapshot.parameters.sopTarget, body)) {
             _finish(context, SinkInquiryOutcome::MalformedResponse);
             return;
         }

@@ -9,6 +9,7 @@ import {
   parseBatteryStatusDataObject,
   parseRevisionDataObject,
   parseSOPStatusDataBlock,
+  parseSOPPrimeStatusDataBlock,
   parseSourceCapabilitiesExtendedDataBlock,
   parseSourceInfoDataObject,
   readDataObjects,
@@ -65,8 +66,24 @@ export const decodeInquiryResponse = (
       decoded = parseSourceCapabilitiesExtendedDataBlock(rawBody)
       break
     case SinkInquiryType.GET_STATUS:
-      if (rawBody.length !== 6 && rawBody.length !== 7) throw new Error('Status body must contain exactly 6 or 7 bytes')
-      decoded = parseSOPStatusDataBlock(rawBody)
+      if (request?.type === SinkInquiryType.GET_STATUS && request.plug) {
+        if (rawBody.length !== 2) throw new Error('Cable Status body must contain exactly 2 bytes')
+        if ((rawBody[1] & 0xfe) !== 0) throw new Error('Cable Status reserved flag bits must be zero')
+        const cableStatus = parseSOPPrimeStatusDataBlock(rawBody)
+        const internalTemperatureRaw = cableStatus.internalTemp
+        decoded = {
+          ...cableStatus,
+          plug: request.plug,
+          internalTemperatureRaw,
+          internalTemperatureC: internalTemperatureRaw >= 2 ? internalTemperatureRaw : null,
+          below2C: internalTemperatureRaw === 1,
+          flagsRaw: cableStatus.flags,
+          thermalShutdown: (cableStatus.flags & 0x01) !== 0,
+        }
+      } else {
+        if (rawBody.length !== 6 && rawBody.length !== 7) throw new Error('Status body must contain exactly 6 or 7 bytes')
+        decoded = parseSOPStatusDataBlock(rawBody)
+      }
       break
     case SinkInquiryType.GET_SOURCE_INFO:
       decoded = parseSourceInfoDataObject(oneDataObject(rawBody, 'Source_Info'))
@@ -79,7 +96,7 @@ export const decodeInquiryResponse = (
       decoded = parseRevisionDataObject(oneDataObject(rawBody, 'Revision'))
       break
     case SinkInquiryType.GET_MANUFACTURER_INFO: {
-      if (rawBody.length < 5 || rawBody.length > 260) throw new Error('Manufacturer_Info body must contain VID, PID, and a null-terminated string')
+      if (rawBody.length < 5 || rawBody.length > 26) throw new Error('Manufacturer_Info body must contain 5 to 26 bytes')
       const terminator = rawBody.indexOf(0, 4)
       if (terminator < 4 || terminator !== rawBody.length - 1) throw new Error('Manufacturer_Info string must have one trailing null terminator')
       for (const byte of rawBody.subarray(4, terminator)) {
@@ -152,7 +169,8 @@ export const decodeInquiryResponse = (
       const rawVdos = words.slice(1)
       if (status.type === SinkInquiryType.DISCOVER_IDENTITY) {
         if (rawVdos.length < 3) throw new Error('Discover Identity ACK requires ID Header, Cert Stat, and Product VDOs')
-        decoded = { header, rawVdos, identity: parseDiscoverIdentityVDOs(rawVdos, 'SOP') }
+        const plug = request?.type === SinkInquiryType.DISCOVER_IDENTITY ? request.plug : undefined
+        decoded = { header, rawVdos, plug, identity: parseDiscoverIdentityVDOs(rawVdos, plug === 'SOP_DOUBLE_PRIME' ? 'SOP_DOUBLE_PRIME' : plug === 'SOP_PRIME' ? 'SOP_PRIME' : 'SOP') }
       } else if (status.type === SinkInquiryType.DISCOVER_SVIDS) {
         const ordered: number[] = []
         let terminated = false
@@ -164,10 +182,10 @@ export const decodeInquiryResponse = (
             else ordered.push(svid)
           }
         }
-        decoded = { header, rawVdos, orderedSvids: ordered, svids: [...new Set(ordered)], terminated, needsAnotherPage: ordered.length === 12 && !terminated }
+        decoded = { header, rawVdos, plug: request?.type === SinkInquiryType.DISCOVER_SVIDS ? request.plug : undefined, orderedSvids: ordered, svids: [...new Set(ordered)], terminated, needsAnotherPage: ordered.length === 12 && !terminated }
       } else {
         if (!request || request.type !== SinkInquiryType.DISCOVER_MODES) throw new Error('Discover Modes decoding requires selected SVID request')
-        decoded = { header, selectedSvid: request.svid, rawVdos, modeVdos: rawVdos }
+        decoded = { header, plug: request.plug, selectedSvid: request.svid, rawVdos, modeVdos: rawVdos }
       }
       break
     }

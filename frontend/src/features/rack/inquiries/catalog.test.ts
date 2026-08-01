@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { SinkInquiryType } from '../../../lib/device'
+import { SinkInquiryCablePlug, SinkInquiryType } from '../../../lib/device'
 import {
+  ACTIVE_CABLE_INQUIRIES,
   ACTIVE_SOURCE_INQUIRIES,
   SOURCE_INQUIRY_CATALOG,
   validateInquiryParameters,
@@ -8,6 +9,16 @@ import {
 } from './catalog'
 
 describe('source inquiry catalog', () => {
+  it('keeps cable actions unavailable until VCONN/cable state is proven', () => {
+    const prime = ACTIVE_CABLE_INQUIRIES.find(({ id }) => id === 'cable-status-SOP_PRIME')!
+    const doublePrime = ACTIVE_CABLE_INQUIRIES.find(({ id }) => id === 'cable-status-SOP_DOUBLE_PRIME')!
+    expect(prime.applicability({ sinkMode: true, attached: true })).toBe(false)
+    expect(prime.applicability({ sinkMode: true, attached: true, cableTrafficReady: true })).toBe(true)
+    expect(doublePrime.applicability({ sinkMode: true, attached: true, cableTrafficReady: true })).toBe(false)
+    expect(doublePrime.applicability({ sinkMode: true, attached: true, cableTrafficReady: true, sopDoublePrimeAvailable: true })).toBe(true)
+    expect(prime.buildRequest({})).toEqual({ type: SinkInquiryType.GET_STATUS, plug: SinkInquiryCablePlug.SOP_PRIME })
+  })
+
   it('contains unique definitions and exposes only implemented inquiries', () => {
     expect(new Set(SOURCE_INQUIRY_CATALOG.map(({ id }) => id)).size).toBe(
       SOURCE_INQUIRY_CATALOG.length,

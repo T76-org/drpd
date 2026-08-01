@@ -77,6 +77,8 @@ int main() {
     assert(inquiryStateApplicability(status, true, 1, false) == InquiryApplicability::RequiresSpecRevision);
     assert(status.warningFlags == InquiryWarningStatusReadClearsEvents);
     assert(inquiryResponsePayloadSizeValid(status, 7));
+    assert(inquiryResponsePayloadSizeValid(status, 2, true));
+    assert(!inquiryResponsePayloadSizeValid(status, 7, true));
     assert(inquiryResponsePayloadSizeValid(
         sinkInquiryDescriptor(SinkInquiryType::GetSourceCapabilitiesExtended).value(), 25));
     const auto pps = sinkInquiryDescriptor(SinkInquiryType::GetPPSStatus).value();
@@ -206,6 +208,17 @@ int main() {
     encoded = encodeInquiryBody(
         svids, 0, 0, 0, versionState.major, versionState.minor);
     assert(encoded.bytes == (std::array<uint8_t, 4>{0x02, 0xa8, 0x00, 0xff}));
+    std::array<StructuredVDMVersionState, 3> perTargetVersions;
+    for (auto& state : perTargetVersions) state.updateAttachment(true);
+    assert(perTargetVersions[0].recordIdentityACK(1, 0));
+    assert(perTargetVersions[1].major == 1 && perTargetVersions[1].minor == 1);
+    assert(perTargetVersions[2].major == 1 && perTargetVersions[2].minor == 1);
+    // Cable/Hard Reset power-cycle affects cable domains independently.
+    assert(perTargetVersions[1].recordIdentityACK(1, 0));
+    perTargetVersions[1].updateAttachment(false);
+    perTargetVersions[1].updateAttachment(true);
+    assert(perTargetVersions[1].minor == 1);
+    assert(perTargetVersions[0].minor == 0);
     const uint8_t modesAck[] = {0x43, 0xa8, 0x34, 0x12, 0x44, 0x33, 0x22, 0x11};
     const uint8_t modesHeaderOnlyAck[] = {0x43, 0xa8, 0x34, 0x12};
     assert(matchStructuredVDMResponse(modes, 0x1234, modesAck) == InquiryMatch::Response);

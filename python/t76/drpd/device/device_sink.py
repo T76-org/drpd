@@ -20,6 +20,14 @@ from t76.drpd.device.types import (
     BatteryInquiryFailureAction,
     BatteryStatusInquiryData,
     BatterySurveyResult,
+    CableDiscoverIdentityInquiryRequest,
+    CableDiscoverModesInquiryRequest,
+    CableDiscoverSVIDsInquiryRequest,
+    CableManufacturerInfoInquiryRequest,
+    CablePlug,
+    CableRevisionInquiryRequest,
+    CableStatusInquiryData,
+    CableStatusInquiryRequest,
     CountryCodesInquiryData,
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
@@ -380,8 +388,23 @@ class SinkInquiryRunner:
         max_svid_pages: int = 8,
         poll_interval_seconds: float = 0.01,
         max_polls: int = 1000,
+        _cable_plug: CablePlug | None = None,
     ) -> VDMDiscoveryWorkflowResult:
         """Diagnose SOP partner from UFP/Sink; SVIDs/Modes are optional."""
+        def identity_request() -> SinkInquiryRequest:
+            if _cable_plug is None:
+                return DiscoverIdentityInquiryRequest()
+            return CableDiscoverIdentityInquiryRequest(_cable_plug)
+
+        def svid_request() -> SinkInquiryRequest:
+            if _cable_plug is None:
+                return DiscoverSVIDsInquiryRequest()
+            return CableDiscoverSVIDsInquiryRequest(_cable_plug)
+
+        def modes_request(svid: int) -> SinkInquiryRequest:
+            if _cable_plug is None:
+                return DiscoverModesInquiryRequest(svid)
+            return CableDiscoverModesInquiryRequest(_cable_plug, svid)
         if not 0 <= max_retries <= 3:
             raise ValueError("max_retries must be between 0 and 3")
         if not 1 <= max_svids <= 64:
@@ -391,9 +414,11 @@ class SinkInquiryRunner:
         requested = None
         if selected_svids is not None:
             requested = tuple(
-                DiscoverModesInquiryRequest(svid).svid
+                svid
                 for svid in selected_svids
             )
+            for svid in requested:
+                modes_request(svid)
             if len(requested) > max_svids or len(set(requested)) != len(requested):
                 raise ValueError(
                     "selected_svids must contain unique values within max_svids"
@@ -402,7 +427,7 @@ class SinkInquiryRunner:
 
         async with self._lock:
             identity_results, stopped = await self._run_vdm_step_locked(
-                DiscoverIdentityInquiryRequest(), failure_action, max_retries,
+                identity_request(), failure_action, max_retries,
                 poll_interval_seconds, max_polls,
             )
             if stopped:
@@ -419,7 +444,7 @@ class SinkInquiryRunner:
                 discovered_list = []
                 for _page in range(max_svid_pages):
                     page_result = await self._run_locked(
-                        DiscoverSVIDsInquiryRequest(),
+                        svid_request(),
                         poll_interval_seconds,
                         max_polls,
                     )
@@ -441,7 +466,7 @@ class SinkInquiryRunner:
                         restarts += 1
                         restart_identity, stopped = (
                             await self._run_vdm_step_locked(
-                                DiscoverIdentityInquiryRequest(),
+                                identity_request(),
                                 VDMDiscoveryFailureAction.RETRY,
                                 max_retries,
                                 poll_interval_seconds,
@@ -491,7 +516,7 @@ class SinkInquiryRunner:
             mode_results: list[SinkInquiryResult] = []
             for svid in chosen:
                 step_results, stopped = await self._run_vdm_step_locked(
-                    DiscoverModesInquiryRequest(svid), failure_action,
+                    modes_request(svid), failure_action,
                     max_retries, poll_interval_seconds, max_polls,
                 )
                 mode_results.extend(step_results)
@@ -504,6 +529,32 @@ class SinkInquiryRunner:
                 chosen,
                 stopped,
             )
+
+    async def run_cable_vdm_discovery(
+        self,
+        plug: CablePlug,
+        selected_svids: tuple[int, ...] | None = None,
+        *,
+        failure_action: VDMDiscoveryFailureAction = (
+            VDMDiscoveryFailureAction.STOP
+        ),
+        max_retries: int = 1,
+        max_svids: int = 64,
+        max_svid_pages: int = 8,
+        poll_interval_seconds: float = 0.01,
+        max_polls: int = 1000,
+    ) -> VDMDiscoveryWorkflowResult:
+        """Discover one explicit cable plug; never falls back to SOP."""
+        return await self.run_vdm_discovery(
+            selected_svids,
+            failure_action=failure_action,
+            max_retries=max_retries,
+            max_svids=max_svids,
+            max_svid_pages=max_svid_pages,
+            poll_interval_seconds=poll_interval_seconds,
+            max_polls=max_polls,
+            _cable_plug=plug,
+        )
 
     async def _run_vdm_step_locked(
         self,
@@ -608,6 +659,21 @@ def _decode_inquiry_response(
         )
 
     if inquiry_type == SinkInquiryType.GET_STATUS:
+        if isinstance(request, CableStatusInquiryRequest):
+            if len(body) != 2:
+                raise ValueError("Cable Status body must be exactly 2 bytes")
+            if body[1] & 0xFE:
+                raise ValueError("Cable Status reserved flag bits must be zero")
+            temperature = body[0]
+            return CableStatusInquiryData(
+                internal_temperature_raw=temperature,
+                internal_temperature_c=(
+                    temperature if temperature >= 2 else None
+                ),
+                below_2_c=temperature == 1,
+                flags_raw=body[1],
+                thermal_shutdown=bool(body[1] & 0x01),
+            )
         if len(body) not in (6, 7):
             raise ValueError("Status body must be 6 or 7 bytes for SOP")
         events = body[3]
@@ -811,7 +877,10 @@ def _decode_inquiry_response(
         if command != expected_command:
             raise ValueError("Structured VDM ACK command does not match request")
         expected_svid = 0xFF00
-        if isinstance(request, DiscoverModesInquiryRequest):
+        if isinstance(
+            request,
+            (DiscoverModesInquiryRequest, CableDiscoverModesInquiryRequest),
+        ):
             expected_svid = request.svid
         if svid != expected_svid:
             raise ValueError("Structured VDM ACK SVID does not match request")
@@ -851,7 +920,10 @@ def _decode_inquiry_response(
             )
         if not payload_vdos:
             raise ValueError("Discover Modes ACK requires at least one Mode VDO")
-        assert isinstance(request, DiscoverModesInquiryRequest)
+        assert isinstance(
+            request,
+            (DiscoverModesInquiryRequest, CableDiscoverModesInquiryRequest),
+        )
         return DiscoverModesInquiryData(header, request.svid, payload_vdos)
 
     if len(body) != 4:
@@ -1109,6 +1181,24 @@ class DeviceSink:
         """Start an enum-compatible or semantic Sink-to-Source inquiry."""
         if isinstance(inquiry, SinkInquiryType):
             command = f"SINK:INQ {inquiry.value}"
+        elif isinstance(inquiry, CableDiscoverModesInquiryRequest):
+            command = (
+                f'SINK:INQ {inquiry.type.value},"{inquiry.plug.value}",'
+                f"{inquiry.svid}"
+            )
+        elif isinstance(
+            inquiry,
+            (
+                CableStatusInquiryRequest,
+                CableRevisionInquiryRequest,
+                CableManufacturerInfoInquiryRequest,
+                CableDiscoverIdentityInquiryRequest,
+                CableDiscoverSVIDsInquiryRequest,
+            ),
+        ):
+            command = (
+                f'SINK:INQ {inquiry.type.value},"{inquiry.plug.value}"'
+            )
         elif isinstance(inquiry, GetManufacturerInfoInquiryRequest):
             command = (
                 f'SINK:INQ {inquiry.type.value},"{inquiry.target.value}"'
