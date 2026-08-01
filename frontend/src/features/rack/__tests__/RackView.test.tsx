@@ -3327,6 +3327,41 @@ describe('RackView', () => {
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
   })
 
+  it('runs Get battery status as a log-only survey without opening a dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get battery status' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Get battery status' })).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before the battery status survey', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get battery status' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+  })
+
   it('closes Get manufacturer info after sending its parameterized request', async () => {
     const user = userEvent.setup()
     saveRackDocument(buildBoundHydratedRackDocument())

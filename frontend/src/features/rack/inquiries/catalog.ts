@@ -149,7 +149,7 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   } as InquiryDefinition<Record<string, unknown>>,
   {
     id: 'get-battery-status', type: SinkInquiryType.GET_BATTERY_STATUS,
-    label: 'Get battery status…', description: 'Ask for status of battery reference 0–7.',
+    label: 'Get battery status', description: 'Discover every advertised battery and collect its current status.',
     workflow: 'parameterized', parameters: [{ kind: 'integer', name: 'batteryReference', label: 'Battery reference', min: 0, max: 7 }], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference: values.batteryReference as number }), active: true,

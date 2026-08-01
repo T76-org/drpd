@@ -1,10 +1,11 @@
 import { SinkInquiryType } from '../../../lib/device'
-import { parseBatteryCapabilitiesDataBlock, parseSourceCapabilitiesExtendedDataBlock } from '../../../lib/device/drpd/usb-pd/DataObjects'
+import { parseBatteryCapabilitiesDataBlock, parseBatteryStatusDataObject, parseSourceCapabilitiesExtendedDataBlock, readDataObjects } from '../../../lib/device/drpd/usb-pd/DataObjects'
 import { decodeInquiryResponse } from './decode'
 import { formatSinkInquiryOutcome } from './presentation'
 import { withSinkInquiryLease, type InquiryRunState, type SerialInquiryWorkflowStep, type SinkInquiryClient } from './runner'
 
 export const BATTERY_CAPABILITIES_EVENT_TITLE = 'INQUIRY - Battery capabilities'
+export const BATTERY_STATUS_EVENT_TITLE = 'INQUIRY - Battery status'
 
 const bytesToHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')
@@ -81,6 +82,67 @@ export const surveyBatteryCapabilities = async (
         `design capacity ${formatCapacity(capabilities.batteryDesignCapacity)}, ` +
         `last full charge capacity ${formatCapacity(capabilities.batteryLastFullChargeCapacity)}, ` +
         `reference ${invalidReference ? 'invalid' : 'valid'}; raw ${bytesToHex(result.rawResponse)}.`,
+      )
+    } catch (error) {
+      lines.push(`Battery ${batteryReference} (${describeBatteryReference(batteryReference)}): malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
+    }
+  }
+  return { references, summary: lines.join('\n') }
+})
+
+/** Discover advertised batteries and query Battery_Status for each reference serially. */
+export const surveyBatteryStatus = async (
+  client: SinkInquiryClient,
+): Promise<BatteryCapabilitiesSurveyResult> => withSinkInquiryLease(client, async (run) => {
+  const discovery = await run({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED })
+  if (discovery.phase !== 'response') {
+    return {
+      references: [],
+      summary: `Battery discovery: ${describeFailure(discovery)}. No Battery_Status requests were sent.`,
+    }
+  }
+
+  let references: number[]
+  let fixedBatteries: number
+  let hotSwappableBatterySlots: number
+  try {
+    decodeInquiryResponse(discovery.status, discovery.rawResponse, discovery.request)
+    const extendedCapabilities = parseSourceCapabilitiesExtendedDataBlock(discovery.rawResponse)
+    fixedBatteries = extendedCapabilities.fixedBatteries
+    hotSwappableBatterySlots = extendedCapabilities.hotSwappableBatterySlots
+    references = batteryReferencesFromScedb(discovery.rawResponse)
+  } catch (error) {
+    return {
+      references: [],
+      summary: `Battery discovery: malformed response (${error instanceof Error ? error.message : String(error)}). Raw: ${bytesToHex(discovery.rawResponse) || '(empty)'}.`,
+    }
+  }
+
+  const lines = [
+    `Battery discovery: ${fixedBatteries} fixed, ${hotSwappableBatterySlots} hot-swappable; ${references.length} total (${references.join(', ') || 'none'}).`,
+    `Source_Capabilities_Extended raw: ${bytesToHex(discovery.rawResponse)}.`,
+  ]
+  for (const batteryReference of references) {
+    const request = { type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference } as const
+    const result = await run(request)
+    if (result.phase !== 'response') {
+      lines.push(`Battery ${batteryReference} (${describeBatteryReference(batteryReference)}): ${describeFailure(result)}.`)
+      continue
+    }
+    try {
+      decodeInquiryResponse(result.status, result.rawResponse, result.request)
+      const status = parseBatteryStatusDataObject(readDataObjects(result.rawResponse, 0, 1)[0])
+      const capacity = status.batteryPresentCapacity === 0xffff
+        ? 'unknown'
+        : status.batteryPresent
+          ? `${(status.batteryPresentCapacity / 10).toFixed(1)} Wh`
+          : 'battery not present'
+      const chargeState = ['charging', 'discharging', 'idle', 'reserved'][status.batteryChargingStatus]
+      lines.push(
+        `Battery ${batteryReference} (${describeBatteryReference(batteryReference)}): ` +
+        `present ${status.batteryPresent ? 'yes' : 'no'}, present capacity ${capacity}, ` +
+        `charge state ${chargeState}, reference ${status.invalidBatteryReference ? 'invalid' : 'valid'}; ` +
+        `raw ${bytesToHex(result.rawResponse)}.`,
       )
     } catch (error) {
       lines.push(`Battery ${batteryReference} (${describeBatteryReference(batteryReference)}): malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
