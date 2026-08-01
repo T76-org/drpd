@@ -101,8 +101,9 @@ export const decodeInquiryResponse = (
     case SinkInquiryType.GET_MANUFACTURER_INFO: {
       if (rawBody.length < 5 || rawBody.length > 26) throw new Error('Manufacturer_Info body must contain 5 to 26 bytes')
       const terminator = rawBody.indexOf(0, 4)
-      if (terminator < 4 || terminator !== rawBody.length - 1) throw new Error('Manufacturer_Info string must have one trailing null terminator')
-      for (const byte of rawBody.subarray(4, terminator)) {
+      if (terminator >= 4 && terminator !== rawBody.length - 1) throw new Error('Manufacturer_Info string must not contain bytes after its null terminator')
+      const stringEnd = terminator < 0 ? rawBody.length : terminator
+      for (const byte of rawBody.subarray(4, stringEnd)) {
         if (byte < 0x20 || byte > 0x7e) throw new Error('Manufacturer_Info string must be printable ASCII')
       }
       decoded = parseManufacturerInfoDataBlock(rawBody)

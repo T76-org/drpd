@@ -168,10 +168,20 @@ describe('decodeInquiryResponse', () => {
     )).toThrow('malformed')
   })
 
-  it('rejects malformed Manufacturer_Info ASCII and termination', () => {
+  it('accepts the Apple unterminated Manufacturer_Info interoperability quirk', () => {
+    const body = new Uint8Array([0xac, 0x05, 0x08, 0x73, ...new TextEncoder().encode('Macintosh')])
+    const decoded = decodeInquiryResponse(
+      response(SinkInquiryType.GET_MANUFACTURER_INFO, 0, 0x07, body.length),
+      body,
+      { type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' },
+    )
+    expect(decoded.summary).toContain('Macintosh')
+  })
+
+  it('rejects malformed Manufacturer_Info ASCII and bytes after termination', () => {
     const status = response(SinkInquiryType.GET_MANUFACTURER_INFO, 0, 0x07, 6)
     expect(() => decodeInquiryResponse(status, new Uint8Array([0, 0, 0, 0, 0x80, 0]))).toThrow('printable ASCII')
-    expect(() => decodeInquiryResponse(status, new Uint8Array([0, 0, 0, 0, 0x41, 0x42]))).toThrow('null terminator')
+    expect(() => decodeInquiryResponse(status, new Uint8Array([0, 0, 0, 0, 0, 0x42]))).toThrow('after its null terminator')
   })
 
   it('decodes battery capabilities with raw 0.1 Wh and converted Wh units', () => {

@@ -150,4 +150,20 @@ describe('inquiry event presentation', () => {
       value: expect.stringContaining('no fallback to SOP'),
     }))
   })
+
+  it('recovers and labels an unterminated Apple Manufacturer_Info string', () => {
+    const request = { type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' } as const
+    const raw = new Uint8Array([0xac, 0x05, 0x08, 0x73, ...new TextEncoder().encode('Macintosh')])
+    const event = presentInquiryResponse(request, response(request, raw, 0, 0x07))
+    expect(event.summary).toContain('Manufacturer:** Macintosh')
+    expect(event.summary).toContain('Interoperability warning')
+    expect(event.eventData[0].entries).toContainEqual(expect.objectContaining({
+      key: 'Interoperability Warning',
+      value: expect.stringContaining('omitted the required trailing null terminator'),
+    }))
+    expect(event.eventData[0].entries).toContainEqual(expect.objectContaining({
+      key: 'Manufacturer String (bytes 4–end)',
+      value: expect.stringContaining('unterminated printable ASCII'),
+    }))
+  })
 })
