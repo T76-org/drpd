@@ -100,6 +100,34 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
     buildRequest: () => ({ type: SinkInquiryType.GET_REVISION }),
     active: true,
   },
+  {
+    id: 'get-manufacturer-info', type: SinkInquiryType.GET_MANUFACTURER_INFO,
+    label: 'Get manufacturer info…', description: 'Ask for manufacturer identity for the Port or a battery reference.',
+    workflow: 'parameterized',
+    parameters: [
+      { kind: 'enum', name: 'target', label: 'Target', choices: ['PORT', 'BATTERY'] },
+      { kind: 'integer', name: 'batteryReference', label: 'Battery reference', min: 0, max: 7 },
+    ], sideEffects: [], applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: (values: Record<string, unknown>) => values.target === 'BATTERY'
+      ? { type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: values.batteryReference as number }
+      : { type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' },
+    active: true,
+  } as InquiryDefinition<Record<string, unknown>>,
+  {
+    id: 'get-country-codes', type: SinkInquiryType.GET_COUNTRY_CODES,
+    label: 'Get country codes', description: 'Ask the attached Source which country information records it supports.',
+    workflow: 'immediate', parameters: [], sideEffects: [], applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: () => ({ type: SinkInquiryType.GET_COUNTRY_CODES }), active: true,
+  },
+  {
+    id: 'get-country-information', type: SinkInquiryType.GET_COUNTRY_INFO,
+    label: 'Get country information…', description: 'Discover supported country codes, then request one selected record or all records.',
+    workflow: 'guided', parameters: [{ kind: 'country-code', name: 'countryCode', label: 'Country code' }], sideEffects: [],
+    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
+    buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: String(values.countryCode).toUpperCase() }),
+    guided: { initialContext: {}, steps: [{ id: 'country-codes', label: 'Discover country codes', buildRequest: () => ({ type: SinkInquiryType.GET_COUNTRY_CODES }) }] },
+    active: true,
+  } as InquiryDefinition<Record<string, unknown>>,
 ]
 
 export const ACTIVE_SOURCE_INQUIRIES = SOURCE_INQUIRY_CATALOG.filter(
@@ -126,8 +154,8 @@ export const validateInquiryParameters = (
       if (typeof value !== 'string' || !schema.choices.includes(value)) {
         errors[schema.name] = `${schema.label} must be one of: ${schema.choices.join(', ')}.`
       }
-    } else if (typeof value !== 'string' || !/^[A-Za-z]{2}$/.test(value)) {
-      errors[schema.name] = `${schema.label} must be a two-letter country code.`
+    } else if (typeof value !== 'string' || !/^[A-Z]{2}$/.test(value)) {
+      errors[schema.name] = `${schema.label} must be an uppercase ISO alpha-2 country code.`
     }
   }
   return { valid: Object.keys(errors).length === 0, errors }

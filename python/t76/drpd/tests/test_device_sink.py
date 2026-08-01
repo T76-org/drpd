@@ -19,13 +19,21 @@ from t76.drpd.device.device_sink_pdos import (
     VariablePDO,
 )
 from t76.drpd.device.types import (
+    CountryCodesInquiryData,
+    CountryInfoInquiryData,
+    CountryInquiryFailureAction,
     ExtendedSourceCapabilitiesInquiryData,
     GetExtendedSourceCapabilitiesInquiryRequest,
+    GetCountryCodesInquiryRequest,
+    GetCountryInfoInquiryRequest,
+    GetManufacturerInfoInquiryRequest,
     GetPPSStatusInquiryRequest,
     GetRevisionInquiryRequest,
     GetSourceCapabilitiesInquiryRequest,
     GetSourceInfoInquiryRequest,
     GetStatusInquiryRequest,
+    ManufacturerInfoInquiryData,
+    ManufacturerInfoTarget,
     PPSStatusInquiryData,
     RevisionInquiryData,
     SinkInquiryOutcome,
@@ -268,6 +276,52 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
                 self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
                     f"SINK:INQ {inquiry_type.value}"
                 )
+
+    async def test_semantic_inquiry_parameters_encode_without_pd_headers(self) -> None:
+        vectors = [
+            (
+                GetManufacturerInfoInquiryRequest(),
+                'SINK:INQ GET_MANUFACTURER_INFO,"PORT"',
+            ),
+            (
+                GetManufacturerInfoInquiryRequest(
+                    ManufacturerInfoTarget.BATTERY, 3
+                ),
+                'SINK:INQ GET_MANUFACTURER_INFO,"BATTERY",3',
+            ),
+            (
+                GetCountryInfoInquiryRequest("ca"),
+                'SINK:INQ GET_COUNTRY_INFO,"CA"',
+            ),
+            (
+                GetCountryCodesInquiryRequest(),
+                "SINK:INQ GET_COUNTRY_CODES",
+            ),
+        ]
+        for request, expected in vectors:
+            with self.subTest(request=request):
+                self.mock_internal.reset_mock()
+                await self.device_sink.send_inquiry(request)
+                self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+                    expected
+                )
+
+    async def test_semantic_inquiry_parameter_validation(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must be omitted"):
+            GetManufacturerInfoInquiryRequest(
+                ManufacturerInfoTarget.PORT, 0
+            )
+        for reference in (-1, 8):
+            with self.subTest(reference=reference):
+                with self.assertRaisesRegex(ValueError, "between 0 and 7"):
+                    GetManufacturerInfoInquiryRequest(
+                        ManufacturerInfoTarget.BATTERY, reference
+                    )
+        self.assertEqual(GetCountryInfoInquiryRequest("ca").country_code, "CA")
+        for code in ("C", "CAN", "C1", "ÇA"):
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(ValueError, "ASCII letters"):
+                    GetCountryInfoInquiryRequest(code)
 
     async def test_get_inquiry_status(self) -> None:
         self.mock_internal.query_ascii_values_and_check.return_value = [
@@ -663,6 +717,279 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result.raw_response, bytes([0xFA, 0, 60, 0x0A]))
         self.assertIsInstance(result.decoded, PPSStatusInquiryData)
+
+    async def test_manufacturer_and_country_success_vectors(self) -> None:
+        vectors = [
+            (
+                GetManufacturerInfoInquiryRequest(),
+                7,
+                b"\x34\x12\x78\x56Acme\x00",
+                ManufacturerInfoInquiryData,
+            ),
+            (
+                GetCountryCodesInquiryRequest(),
+                14,
+                b"\x02\x00CAUS",
+                CountryCodesInquiryData,
+            ),
+            (
+                GetCountryInfoInquiryRequest("ca"),
+                13,
+                b"CA\x00\x00\x01\x02",
+                CountryInfoInquiryData,
+            ),
+        ]
+        for request_id, vector in enumerate(vectors, start=1):
+            request, response_type, body, decoded_type = vector
+            with self.subTest(request=request):
+                self.mock_internal.query_ascii_values_and_check.side_effect = [
+                    [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                    [
+                        f"RESPONSE,{request_id},{request.type.value},0,"
+                        f"{response_type},{len(body)}"
+                    ],
+                ]
+                self.mock_internal.query_binary_value_and_check.return_value = list(
+                    body
+                )
+                runner = SinkInquiryRunner(self.device_sink)
+
+                result = await runner.run(request, poll_interval_seconds=0)
+
+                self.assertEqual(result.raw_response, body)
+                self.assertIsInstance(result.decoded, decoded_type)
+                if isinstance(request, GetCountryInfoInquiryRequest):
+                    assert isinstance(result.decoded, CountryInfoInquiryData)
+                    self.assertEqual(result.decoded.country_code, "CA")
+                    self.assertEqual(
+                        result.decoded.country_specific_data, b"\x01\x02"
+                    )
+
+    async def test_manufacturer_string_fields_and_ascii_validation(self) -> None:
+        bodies = [
+            b"\x34\x12\x78\x56\x00",
+            b"\x34\x12\x78\x56" + b"A" * 21 + b"\x00",
+        ]
+        for request_id, body in enumerate(bodies, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_MANUFACTURER_INFO,0,7,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetManufacturerInfoInquiryRequest(), poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, ManufacturerInfoInquiryData)
+
+        malformed = [
+            b"\x34\x12\x78\x56A",
+            b"\x34\x12\x78\x56\xff\x00",
+            b"\x34\x12\x78\x56A\x00B",
+        ]
+        for request_id, body in enumerate(malformed, start=10):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_MANUFACTURER_INFO,0,7,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    GetManufacturerInfoInquiryRequest(), poll_interval_seconds=0
+                )
+
+    async def test_country_boundaries_and_malformed_payloads(self) -> None:
+        valid_codes = [
+            b"\x01\x00CA",
+            bytes([12, 0]) + b"AA" + b"AB" + b"AC" + b"AD" + b"AE"
+            + b"AF" + b"AG" + b"AH" + b"AI" + b"AJ" + b"AK" + b"AL",
+        ]
+        for request_id, body in enumerate(valid_codes, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_COUNTRY_CODES,0,14,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetCountryCodesInquiryRequest(), poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, CountryCodesInquiryData)
+
+        valid_info = [b"CA\x00\x00", b"CA\x00\x00" + bytes(22)]
+        for request_id, body in enumerate(valid_info, start=20):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_COUNTRY_INFO,0,13,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetCountryInfoInquiryRequest("CA"), poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, CountryInfoInquiryData)
+
+        malformed = [
+            (GetCountryCodesInquiryRequest(), 14, b"\x01\x01CA"),
+            (GetCountryCodesInquiryRequest(), 14, b"\x02\x00CA"),
+            (GetCountryCodesInquiryRequest(), 14, b"\x01\x00C1"),
+            (GetCountryCodesInquiryRequest(), 14, b"\x02\x00CACA"),
+            (GetCountryInfoInquiryRequest("CA"), 13, b"CA\x01\x00"),
+            (GetCountryInfoInquiryRequest("CA"), 13, b"US\x00\x00"),
+        ]
+        for request_id, (request, response_type, body) in enumerate(
+            malformed, start=30
+        ):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},{request.type.value},0,"
+                    f"{response_type},{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    request, poll_interval_seconds=0
+                )
+
+    async def test_guided_country_workflow_retains_all_steps(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,3,GET_COUNTRY_INFO,0,13,5"],
+        ]
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x02\x00CAUS"),
+            list(b"CA\x00\x00A"),
+            list(b"US\x00\x00B"),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_country_information(
+            failure_action=CountryInquiryFailureAction.CONTINUE,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(len(workflow.country_info_results), 2)
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 3)
+
+    async def test_guided_country_workflow_stop_and_fanout_bounds(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["NOT_SUPPORTED,2,GET_COUNTRY_INFO,0,0,0"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            b"\x02\x00CAUS"
+        )
+
+        workflow = await self.device_sink.inquiry_runner.run_country_information(
+            failure_action=CountryInquiryFailureAction.STOP,
+            poll_interval_seconds=0,
+        )
+        self.assertTrue(workflow.stopped_early)
+        self.assertEqual(len(workflow.country_info_results), 1)
+
+        with self.assertRaisesRegex(ValueError, "max_countries"):
+            await self.device_sink.inquiry_runner.run_country_information(
+                max_countries=0
+            )
+
+    async def test_guided_country_workflow_retries_then_succeeds(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["WAIT,2,GET_COUNTRY_INFO,0,0,0"],
+            ["WAIT,2,GET_COUNTRY_INFO,0,0,0"],
+            ["RESPONSE,3,GET_COUNTRY_INFO,0,13,5"],
+        ]
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x01\x00CA"),
+            list(b"CA\x00\x00A"),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_country_information(
+            failure_action=CountryInquiryFailureAction.RETRY,
+            max_retries=1,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(
+            [result.status.outcome for result in workflow.country_info_results],
+            [SinkInquiryOutcome.WAIT, SinkInquiryOutcome.RESPONSE],
+        )
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 3)
+
+    async def test_country_workflow_blocks_ordinary_inquiry_interleaving(
+        self,
+    ) -> None:
+        first_status_entered = asyncio.Event()
+        release_first_status = asyncio.Event()
+        statuses = iter([
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,3,GET_REVISION,2,12,4"],
+        ])
+
+        async def status_side_effect(*_args):
+            response = next(statuses)
+            if not first_status_entered.is_set():
+                first_status_entered.set()
+                await release_first_status.wait()
+            return response
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = (
+            status_side_effect
+        )
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x01\x00CA"),
+            list(b"CA\x00\x00A"),
+            list(b"\x00\x00\x00\x31"),
+        ]
+        runner = self.device_sink.inquiry_runner
+
+        workflow_task = asyncio.create_task(
+            runner.run_country_information(poll_interval_seconds=0)
+        )
+        await first_status_entered.wait()
+        ordinary_task = asyncio.create_task(
+            runner.run(GetRevisionInquiryRequest(), poll_interval_seconds=0)
+        )
+        await asyncio.sleep(0)
+        self.mock_internal.write_ascii_and_check.assert_not_awaited()
+
+        release_first_status.set()
+        workflow, ordinary = await asyncio.gather(workflow_task, ordinary_task)
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertIsInstance(ordinary.decoded, RevisionInquiryData)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ GET_COUNTRY_CODES",
+                'SINK:INQ GET_COUNTRY_INFO,"CA"',
+                "SINK:INQ GET_REVISION",
+            ],
+        )
 
 
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):

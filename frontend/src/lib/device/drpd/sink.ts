@@ -17,12 +17,11 @@ import {
   parseSinkPdo,
   parseSinkStateResponse,
 } from './parsers'
-import { OnOffState } from './types'
+import { OnOffState, SinkInquiryType } from './types'
 import type {
   SinkInfo,
   SinkInquiryStatus,
   SinkInquiryRequest,
-  SinkInquiryType,
   SinkPdo,
   SinkRequestStatus,
   SinkState,
@@ -92,6 +91,24 @@ export class DRPDSink {
 
   /** Send a semantic inquiry request; the library owns PD and SCPI encoding. */
   public async sendInquiryRequest(request: SinkInquiryRequest): Promise<void> {
+    if (request.type === SinkInquiryType.GET_MANUFACTURER_INFO) {
+      if (request.target !== 'PORT' && request.target !== 'BATTERY') throw new Error('Manufacturer target must be PORT or BATTERY')
+      if (request.target === 'BATTERY') {
+        if (!Number.isInteger(request.batteryReference) || request.batteryReference < 0 || request.batteryReference > 7) throw new Error('Battery reference must be an integer from 0 to 7')
+        await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.target, request.batteryReference)
+      } else {
+        if ('batteryReference' in request) throw new Error('PORT manufacturer inquiry must not include a battery reference')
+        await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.target)
+      }
+      return
+    }
+    if (request.type === SinkInquiryType.GET_COUNTRY_INFO) {
+      if (typeof request.countryCode !== 'string') throw new Error('Country code must be ISO alpha-2')
+      const countryCode = request.countryCode.toUpperCase()
+      if (!/^[A-Z]{2}$/.test(countryCode)) throw new Error('Country code must be ISO alpha-2')
+      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), countryCode)
+      return
+    }
     await this.sendInquiry(request.type)
   }
 

@@ -8,6 +8,7 @@
 #include "../logic/sink/inquiry_descriptor.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <variant>
 
@@ -224,7 +225,46 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
         _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. Unsupported inquiry type.");
         return;
     }
-    const auto result = sink->requestInquiry(descriptor->type);
+    Logic::SinkInquiryParameters inquiryParameters;
+    const auto illegalParameters = [this](const char *reason) {
+        _interpreter.addError(_scpiErrorIllegalParameterValue,
+            "Illegal parameter value. " + std::string(reason));
+    };
+    if (descriptor->parameterKind == Logic::InquiryParameterKind::None) {
+        if (params.size() != 1) {
+            illegalParameters("This inquiry takes no additional parameters.");
+            return;
+        }
+    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::ManufacturerInfo) {
+        if (params.size() < 2 || params.size() > 3) {
+            illegalParameters("GET_MANUFACTURER_INFO requires PORT or BATTERY target.");
+            return;
+        }
+        std::string target = params[1].stringValue;
+        std::transform(target.begin(), target.end(), target.begin(), ::toupper);
+        if (target == "PORT" && params.size() == 2) {
+            inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Port);
+        } else if (target == "BATTERY" && params.size() == 3 &&
+                   std::isfinite(params[2].numberValue) &&
+                   params[2].numberValue >= 0 && params[2].numberValue <= 7 &&
+                   std::floor(params[2].numberValue) == params[2].numberValue) {
+            inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Battery);
+            inquiryParameters.argument = static_cast<uint32_t>(params[2].numberValue);
+        } else {
+            illegalParameters("Use PORT or BATTERY with an integer battery reference 0..7.");
+            return;
+        }
+    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::CountryCode) {
+        if (params.size() != 2 || params[1].stringValue.size() != 2 ||
+            params[1].stringValue[0] < 'A' || params[1].stringValue[0] > 'Z' ||
+            params[1].stringValue[1] < 'A' || params[1].stringValue[1] > 'Z') {
+            illegalParameters("GET_COUNTRY_INFO requires an uppercase ISO alpha-2 code.");
+            return;
+        }
+        inquiryParameters.selector[0] = static_cast<uint8_t>(params[1].stringValue[0]);
+        inquiryParameters.selector[1] = static_cast<uint8_t>(params[1].stringValue[1]);
+    }
+    const auto result = sink->requestInquiry(descriptor->type, inquiryParameters);
     if (!result) {
         _interpreter.addError(_scpiErrorSettingsConflict,
             "Settings conflict. " + std::string(result.error));

@@ -133,11 +133,11 @@ namespace T76::SCPI {
  * 
  * Command System:
  *   - Commands: 104 (1248 bytes)
- *   - Parameter descriptors: 624 bytes
- *   - String literals: 514 bytes
+ *   - Parameter descriptors: 656 bytes
+ *   - String literals: 571 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 18258 bytes (0.44% of 2MB)
+ *   - Code/Data (Flash): 18347 bytes (0.44% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
@@ -163,6 +163,9 @@ namespace T76::SCPI {
         "GET_STATUS",
         "GET_SOURCE_INFO",
         "GET_PPS_STATUS",
+        "GET_MANUFACTURER_INFO",
+        "GET_COUNTRY_CODES",
+        "GET_COUNTRY_INFO",
     };
 
     const char* const command_65_param_0_choices[] = {
@@ -385,8 +388,20 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 6,
+            .choiceCount = 9,
             .choices = command_56_param_0_choices
+        },
+        {
+            .type = ParameterType::String,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+        {
+            .type = ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
         },
     };
 
@@ -5949,110 +5964,110 @@ namespace T76::SCPI {
     // Command handlers and parameters
     template<>
     const Command<T76::DRPD::App> T76::SCPI::Interpreter<T76::DRPD::App>::_commands[] = {
-        { &T76::DRPD::App::_queryIDN, 0, nullptr }, // *IDN?
-        { &T76::DRPD::App::_resetInstrument, 0, nullptr }, // *RST
-        { &T76::DRPD::App::_querySystemError, 0, nullptr }, // SYSTem:ERRor?
-        { &T76::DRPD::App::_querySystemMemory, 0, nullptr }, // SYSTem:MEMory?
-        { &T76::DRPD::App::_querySystemSpeed, 0, nullptr }, // SYSTem:SPeed?
-        { &T76::DRPD::App::_querySystemUptime, 0, nullptr }, // SYSTem:UPTime?
-        { &T76::DRPD::App::_querySystemTimestamp, 0, nullptr }, // SYSTem:TIMEstamp?
-        { &T76::DRPD::App::_querySystemHardwareRevision, 0, nullptr }, // SYSTem:HW:REVision?
-        { &T76::DRPD::App::_enterFirmwareUpdater, 0, nullptr }, // SYSTem:FIRMware:UPDater
-        { &T76::DRPD::App::_queryBMCDecoderCCVrefVoltage, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
-        { &T76::DRPD::App::_setBMCDecoderCCVrefVoltage, 1, command_10_params }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
-        { &T76::DRPD::App::_resetBMCDecoderCCVrefVoltage, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
-        { &T76::DRPD::App::_queryBMCDecoderCCVrefPwmFrequency, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
-        { &T76::DRPD::App::_setBMCDecoderCCVrefPwmFrequency, 1, command_13_params }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
-        { &T76::DRPD::App::_resetBMCDecoderCCVrefPwmFrequency, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
-        { &T76::DRPD::App::_queryDeviceStatus, 0, nullptr }, // STATus:DEVice?
-        { &T76::DRPD::App::_measureAllAnalogValues, 0, nullptr }, // MEASure:ALL?
-        { &T76::DRPD::App::_measureAccumulatedValues, 0, nullptr }, // MEASure:ACCumulated?
-        { &T76::DRPD::App::_resetAccumulatedValues, 0, nullptr }, // MEASure:ACCumulated:RESET
-        { &T76::DRPD::App::_measureVBusVoltage, 0, nullptr }, // MEASure:VOLTage:VBUS?
-        { &T76::DRPD::App::_measureVBusCurrent, 0, nullptr }, // MEASure:CURRent:VBUS?
-        { &T76::DRPD::App::_measureRawVBusCurrent, 0, nullptr }, // MEASure:CURRent:VBUS:RAW?
-        { &T76::DRPD::App::_measureDUTCC1Voltage, 0, nullptr }, // MEASure:VOLTage:CC:DUT1?
-        { &T76::DRPD::App::_measureDUTCC2Voltage, 0, nullptr }, // MEASure:VOLTage:CC:DUT2?
-        { &T76::DRPD::App::_measureUSDSCC1Voltage, 0, nullptr }, // MEASure:VOLTage:CC:USDS1?
-        { &T76::DRPD::App::_measureUSDSCC2Voltage, 0, nullptr }, // MEASure:VOLTage:CC:USDS2?
-        { &T76::DRPD::App::_measureADCRefVoltage, 0, nullptr }, // MEASure:VOLTage:REF:ADC?
-        { &T76::DRPD::App::_measureCurrentRefVoltage, 0, nullptr }, // MEASure:VOLTage:REF:CURRent?
-        { &T76::DRPD::App::_measureGroundRefVoltage, 0, nullptr }, // MEASure:VOLTage:REF:GND?
-        { &T76::DRPD::App::_queryCCBusControllerRole, 0, nullptr }, // BUS:CC:ROLE?
-        { &T76::DRPD::App::_setCCBusControllerRole, 1, command_30_params }, // BUS:CC:ROLE
-        { &T76::DRPD::App::_queryCCBusControllerRoleStatus, 0, nullptr }, // BUS:CC:ROLE:STATus?
-        { &T76::DRPD::App::_queryCCBusCaptureCycleTime, 0, nullptr }, // BUS:CC:CAPture:CYCLETIME?
-        { &T76::DRPD::App::_queryCCBusCapturedMessageCount, 0, nullptr }, // BUS:CC:CAPture:COUNT?
-        { &T76::DRPD::App::_queryCCBusNextCapturedMessage, 0, nullptr }, // BUS:CC:CAPture:DATA?
-        { &T76::DRPD::App::_setCCBusMessageCaptureState, 1, command_35_params }, // BUS:CC:CAPture:EN
-        { &T76::DRPD::App::_queryCCBusMessageCaptureState, 0, nullptr }, // BUS:CC:CAPture:EN?
-        { &T76::DRPD::App::_clearCCBusCapturedMessages, 0, nullptr }, // BUS:CC:CAPture:CLEAR
-        { &T76::DRPD::App::_queryVBusStatus, 0, nullptr }, // BUS:VBUS:STATus?
-        { &T76::DRPD::App::_resetVBus, 0, nullptr }, // BUS:VBUS:RESET
-        { &T76::DRPD::App::_setVBusOVPThreshold, 1, command_40_params }, // BUS:VBUS:OVPThreshold
-        { &T76::DRPD::App::_queryVBusOVPThreshold, 0, nullptr }, // BUS:VBUS:OVPThreshold?
-        { &T76::DRPD::App::_setVBusOCPThreshold, 1, command_42_params }, // BUS:VBUS:OCPThreshold
-        { &T76::DRPD::App::_queryVBusOCPThreshold, 0, nullptr }, // BUS:VBUS:OCPThreshold?
-        { &T76::DRPD::App::_queryVBusCalibration, 0, nullptr }, // BUS:VBUS:CALibrate?
-        { &T76::DRPD::App::_setVBusCalibrationPoint, 1, command_45_params }, // BUS:VBUS:CALibrate
-        { &T76::DRPD::App::_setVBusCalibrationTablePoint, 2, command_46_params }, // BUS:VBUS:CALibrate:TABle
-        { &T76::DRPD::App::_resetVBusCalibration, 0, nullptr }, // BUS:VBUS:CALibrate:DEFault
-        { &T76::DRPD::App::_queryVBusCurrentCalibration, 0, nullptr }, // BUS:VBUS:CALibrate:CURRent?
-        { &T76::DRPD::App::_setVBusCurrentCalibrationPoint, 1, command_49_params }, // BUS:VBUS:CALibrate:CURRent
-        { &T76::DRPD::App::_setVBusCurrentCalibrationTablePoint, 2, command_50_params }, // BUS:VBUS:CALibrate:CURRent:TABle
-        { &T76::DRPD::App::_resetVBusCurrentCalibration, 0, nullptr }, // BUS:VBUS:CALibrate:CURRent:DEFault
-        { &T76::DRPD::App::_querySinkAvailablePDOCount, 0, nullptr }, // SINK:PDO:COUNT?
-        { &T76::DRPD::App::_querySinkRequestedPDOAtIndex, 1, command_53_params }, // SINK:PDO?
-        { &T76::DRPD::App::_setSinkPDO, 3, command_54_params }, // SINK:PDO
-        { &T76::DRPD::App::_querySinkRequestStatus, 0, nullptr }, // SINK:REQUEST:STATUS?
-        { &T76::DRPD::App::_setSinkInquiry, 1, command_56_params }, // SINK:INQuiry
-        { &T76::DRPD::App::_querySinkInquiryStatus, 0, nullptr }, // SINK:INQuiry:STATus?
-        { &T76::DRPD::App::_querySinkInquiryResponse, 0, nullptr }, // SINK:INQuiry:RESPonse?
-        { &T76::DRPD::App::_querySinkCapabilityCount, 0, nullptr }, // SINK:CAPability:SPR:COUNT?
-        { &T76::DRPD::App::_querySinkCapabilityPDO, 1, command_60_params }, // SINK:CAPability:SPR?
-        { &T76::DRPD::App::_setSinkCapabilityPDO, 2, command_61_params }, // SINK:CAPability:SPR
-        { &T76::DRPD::App::_querySinkEPRCapabilityCount, 0, nullptr }, // SINK:CAPability:EPR:COUNT?
-        { &T76::DRPD::App::_querySinkEPRCapabilityPDO, 1, command_63_params }, // SINK:CAPability:EPR?
-        { &T76::DRPD::App::_setSinkEPRCapabilityPDO, 2, command_64_params }, // SINK:CAPability:EPR
-        { &T76::DRPD::App::_setSinkEPREntryState, 1, command_65_params }, // SINK:EPR:EN
-        { &T76::DRPD::App::_querySinkEPREntryState, 0, nullptr }, // SINK:EPR:EN?
-        { &T76::DRPD::App::_setSinkPPSStatusQueryState, 1, command_67_params }, // SINK:PPS:STATUS:EN
-        { &T76::DRPD::App::_querySinkPPSStatusQueryState, 0, nullptr }, // SINK:PPS:STATUS:EN?
-        { &T76::DRPD::App::_querySinkStatus, 0, nullptr }, // SINK:STATUS?
-        { &T76::DRPD::App::_querySinkNegotiatedPDO, 0, nullptr }, // SINK:STATUS:PDO?
-        { &T76::DRPD::App::_querySinkNegotiatedVoltage, 0, nullptr }, // SINK:STATUS:VOLTAGE?
-        { &T76::DRPD::App::_querySinkNegotiatedCurrent, 0, nullptr }, // SINK:STATUS:CURRENT?
-        { &T76::DRPD::App::_querySinkErrorStatus, 0, nullptr }, // SINK:STATUS:ERROR?
-        { &T76::DRPD::App::_resetTriggerController, 0, nullptr }, // TRIGger:RESET
-        { &T76::DRPD::App::_queryTriggerControllerStatus, 0, nullptr }, // TRIGger:STATus?
-        { &T76::DRPD::App::_setTriggerEventType, 1, command_76_params }, // TRIGger:EVent:TYPE
-        { &T76::DRPD::App::_queryTriggerEventType, 0, nullptr }, // TRIGger:EVent:TYPE?
-        { &T76::DRPD::App::_setTriggerEventThreshold, 1, command_78_params }, // TRIGger:EVent:THRESHold
-        { &T76::DRPD::App::_queryTriggerEventThreshold, 0, nullptr }, // TRIGger:EVent:THRESHold?
-        { &T76::DRPD::App::_setTriggerEventSenderFilter, 1, command_80_params }, // TRIGger:EVent:SENDer
-        { &T76::DRPD::App::_queryTriggerEventSenderFilter, 0, nullptr }, // TRIGger:EVent:SENDer?
-        { &T76::DRPD::App::_setTriggerEventMessageTypeFilter, 2, command_82_params }, // TRIGger:EVent:MSGType:FILTer
-        { &T76::DRPD::App::_queryTriggerEventMessageTypeFilter, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer?
-        { &T76::DRPD::App::_clearTriggerEventMessageTypeFilter, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer:CLEAR
-        { &T76::DRPD::App::_setTriggerAutoRepeatState, 1, command_85_params }, // TRIGger:EVent:AUTOREPEAT
-        { &T76::DRPD::App::_queryTriggerAutoRepeatState, 0, nullptr }, // TRIGger:EVent:AUTOREPEAT?
-        { &T76::DRPD::App::_queryTriggerEventCount, 0, nullptr }, // TRIGger:EVent:COUNT?
-        { &T76::DRPD::App::_setSyncOutputMode, 1, command_88_params }, // TRIGger:SYNC:MODE
-        { &T76::DRPD::App::_querySyncOutputMode, 0, nullptr }, // TRIGger:SYNC:MODE?
-        { &T76::DRPD::App::_setSyncPulseWidth, 1, command_90_params }, // TRIGger:SYNC:PULSEwidth
-        { &T76::DRPD::App::_querySyncPulseWidth, 0, nullptr }, // TRIGger:SYNC:PULSEwidth?
-        { &T76::DRPD::App::_setVBusManagerState, 1, command_92_params }, // TEST:VBUSMAN:EN
-        { &T76::DRPD::App::_queryVBusManagerState, 0, nullptr }, // TEST:VBUSMAN:EN?
-        { &T76::DRPD::App::_setCC1Role, 1, command_94_params }, // TEST:CCROLE:CC1
-        { &T76::DRPD::App::_queryCC1Role, 0, nullptr }, // TEST:CCROLE:CC1?
-        { &T76::DRPD::App::_setCC2Role, 1, command_96_params }, // TEST:CCROLE:CC2
-        { &T76::DRPD::App::_queryCC2Role, 0, nullptr }, // TEST:CCROLE:CC2?
-        { &T76::DRPD::App::_setDUTChannel, 1, command_98_params }, // TEST:CCBUS:DUT:CHANNEL
-        { &T76::DRPD::App::_queryDUTChannel, 0, nullptr }, // TEST:CCBUS:DUT:CHANNEL?
-        { &T76::DRPD::App::_setUSDSChannel, 1, command_100_params }, // TEST:CCBUS:USDS:CHANNEL
-        { &T76::DRPD::App::_queryUSDSChannel, 0, nullptr }, // TEST:CCBUS:USDS:CHANNEL?
-        { &T76::DRPD::App::_setCCMuxState, 1, command_102_params }, // TEST:CCBUS:MUX
-        { &T76::DRPD::App::_queryCCMuxState, 0, nullptr }, // TEST:CCBUS:MUX?
+        { &T76::DRPD::App::_queryIDN, 0, 0, nullptr }, // *IDN?
+        { &T76::DRPD::App::_resetInstrument, 0, 0, nullptr }, // *RST
+        { &T76::DRPD::App::_querySystemError, 0, 0, nullptr }, // SYSTem:ERRor?
+        { &T76::DRPD::App::_querySystemMemory, 0, 0, nullptr }, // SYSTem:MEMory?
+        { &T76::DRPD::App::_querySystemSpeed, 0, 0, nullptr }, // SYSTem:SPeed?
+        { &T76::DRPD::App::_querySystemUptime, 0, 0, nullptr }, // SYSTem:UPTime?
+        { &T76::DRPD::App::_querySystemTimestamp, 0, 0, nullptr }, // SYSTem:TIMEstamp?
+        { &T76::DRPD::App::_querySystemHardwareRevision, 0, 0, nullptr }, // SYSTem:HW:REVision?
+        { &T76::DRPD::App::_enterFirmwareUpdater, 0, 0, nullptr }, // SYSTem:FIRMware:UPDater
+        { &T76::DRPD::App::_queryBMCDecoderCCVrefVoltage, 0, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage?
+        { &T76::DRPD::App::_setBMCDecoderCCVrefVoltage, 1, 1, command_10_params }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage
+        { &T76::DRPD::App::_resetBMCDecoderCCVrefVoltage, 0, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:VOLTage:RESet
+        { &T76::DRPD::App::_queryBMCDecoderCCVrefPwmFrequency, 0, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency?
+        { &T76::DRPD::App::_setBMCDecoderCCVrefPwmFrequency, 1, 1, command_13_params }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency
+        { &T76::DRPD::App::_resetBMCDecoderCCVrefPwmFrequency, 0, 0, nullptr }, // SYSTem:CONFiguration:PHY:BMCDecoder:CC:VREF:PWM:FREQuency:RESet
+        { &T76::DRPD::App::_queryDeviceStatus, 0, 0, nullptr }, // STATus:DEVice?
+        { &T76::DRPD::App::_measureAllAnalogValues, 0, 0, nullptr }, // MEASure:ALL?
+        { &T76::DRPD::App::_measureAccumulatedValues, 0, 0, nullptr }, // MEASure:ACCumulated?
+        { &T76::DRPD::App::_resetAccumulatedValues, 0, 0, nullptr }, // MEASure:ACCumulated:RESET
+        { &T76::DRPD::App::_measureVBusVoltage, 0, 0, nullptr }, // MEASure:VOLTage:VBUS?
+        { &T76::DRPD::App::_measureVBusCurrent, 0, 0, nullptr }, // MEASure:CURRent:VBUS?
+        { &T76::DRPD::App::_measureRawVBusCurrent, 0, 0, nullptr }, // MEASure:CURRent:VBUS:RAW?
+        { &T76::DRPD::App::_measureDUTCC1Voltage, 0, 0, nullptr }, // MEASure:VOLTage:CC:DUT1?
+        { &T76::DRPD::App::_measureDUTCC2Voltage, 0, 0, nullptr }, // MEASure:VOLTage:CC:DUT2?
+        { &T76::DRPD::App::_measureUSDSCC1Voltage, 0, 0, nullptr }, // MEASure:VOLTage:CC:USDS1?
+        { &T76::DRPD::App::_measureUSDSCC2Voltage, 0, 0, nullptr }, // MEASure:VOLTage:CC:USDS2?
+        { &T76::DRPD::App::_measureADCRefVoltage, 0, 0, nullptr }, // MEASure:VOLTage:REF:ADC?
+        { &T76::DRPD::App::_measureCurrentRefVoltage, 0, 0, nullptr }, // MEASure:VOLTage:REF:CURRent?
+        { &T76::DRPD::App::_measureGroundRefVoltage, 0, 0, nullptr }, // MEASure:VOLTage:REF:GND?
+        { &T76::DRPD::App::_queryCCBusControllerRole, 0, 0, nullptr }, // BUS:CC:ROLE?
+        { &T76::DRPD::App::_setCCBusControllerRole, 1, 1, command_30_params }, // BUS:CC:ROLE
+        { &T76::DRPD::App::_queryCCBusControllerRoleStatus, 0, 0, nullptr }, // BUS:CC:ROLE:STATus?
+        { &T76::DRPD::App::_queryCCBusCaptureCycleTime, 0, 0, nullptr }, // BUS:CC:CAPture:CYCLETIME?
+        { &T76::DRPD::App::_queryCCBusCapturedMessageCount, 0, 0, nullptr }, // BUS:CC:CAPture:COUNT?
+        { &T76::DRPD::App::_queryCCBusNextCapturedMessage, 0, 0, nullptr }, // BUS:CC:CAPture:DATA?
+        { &T76::DRPD::App::_setCCBusMessageCaptureState, 1, 1, command_35_params }, // BUS:CC:CAPture:EN
+        { &T76::DRPD::App::_queryCCBusMessageCaptureState, 0, 0, nullptr }, // BUS:CC:CAPture:EN?
+        { &T76::DRPD::App::_clearCCBusCapturedMessages, 0, 0, nullptr }, // BUS:CC:CAPture:CLEAR
+        { &T76::DRPD::App::_queryVBusStatus, 0, 0, nullptr }, // BUS:VBUS:STATus?
+        { &T76::DRPD::App::_resetVBus, 0, 0, nullptr }, // BUS:VBUS:RESET
+        { &T76::DRPD::App::_setVBusOVPThreshold, 1, 1, command_40_params }, // BUS:VBUS:OVPThreshold
+        { &T76::DRPD::App::_queryVBusOVPThreshold, 0, 0, nullptr }, // BUS:VBUS:OVPThreshold?
+        { &T76::DRPD::App::_setVBusOCPThreshold, 1, 1, command_42_params }, // BUS:VBUS:OCPThreshold
+        { &T76::DRPD::App::_queryVBusOCPThreshold, 0, 0, nullptr }, // BUS:VBUS:OCPThreshold?
+        { &T76::DRPD::App::_queryVBusCalibration, 0, 0, nullptr }, // BUS:VBUS:CALibrate?
+        { &T76::DRPD::App::_setVBusCalibrationPoint, 1, 1, command_45_params }, // BUS:VBUS:CALibrate
+        { &T76::DRPD::App::_setVBusCalibrationTablePoint, 2, 2, command_46_params }, // BUS:VBUS:CALibrate:TABle
+        { &T76::DRPD::App::_resetVBusCalibration, 0, 0, nullptr }, // BUS:VBUS:CALibrate:DEFault
+        { &T76::DRPD::App::_queryVBusCurrentCalibration, 0, 0, nullptr }, // BUS:VBUS:CALibrate:CURRent?
+        { &T76::DRPD::App::_setVBusCurrentCalibrationPoint, 1, 1, command_49_params }, // BUS:VBUS:CALibrate:CURRent
+        { &T76::DRPD::App::_setVBusCurrentCalibrationTablePoint, 2, 2, command_50_params }, // BUS:VBUS:CALibrate:CURRent:TABle
+        { &T76::DRPD::App::_resetVBusCurrentCalibration, 0, 0, nullptr }, // BUS:VBUS:CALibrate:CURRent:DEFault
+        { &T76::DRPD::App::_querySinkAvailablePDOCount, 0, 0, nullptr }, // SINK:PDO:COUNT?
+        { &T76::DRPD::App::_querySinkRequestedPDOAtIndex, 1, 1, command_53_params }, // SINK:PDO?
+        { &T76::DRPD::App::_setSinkPDO, 3, 3, command_54_params }, // SINK:PDO
+        { &T76::DRPD::App::_querySinkRequestStatus, 0, 0, nullptr }, // SINK:REQUEST:STATUS?
+        { &T76::DRPD::App::_setSinkInquiry, 3, 1, command_56_params }, // SINK:INQuiry
+        { &T76::DRPD::App::_querySinkInquiryStatus, 0, 0, nullptr }, // SINK:INQuiry:STATus?
+        { &T76::DRPD::App::_querySinkInquiryResponse, 0, 0, nullptr }, // SINK:INQuiry:RESPonse?
+        { &T76::DRPD::App::_querySinkCapabilityCount, 0, 0, nullptr }, // SINK:CAPability:SPR:COUNT?
+        { &T76::DRPD::App::_querySinkCapabilityPDO, 1, 1, command_60_params }, // SINK:CAPability:SPR?
+        { &T76::DRPD::App::_setSinkCapabilityPDO, 2, 2, command_61_params }, // SINK:CAPability:SPR
+        { &T76::DRPD::App::_querySinkEPRCapabilityCount, 0, 0, nullptr }, // SINK:CAPability:EPR:COUNT?
+        { &T76::DRPD::App::_querySinkEPRCapabilityPDO, 1, 1, command_63_params }, // SINK:CAPability:EPR?
+        { &T76::DRPD::App::_setSinkEPRCapabilityPDO, 2, 2, command_64_params }, // SINK:CAPability:EPR
+        { &T76::DRPD::App::_setSinkEPREntryState, 1, 1, command_65_params }, // SINK:EPR:EN
+        { &T76::DRPD::App::_querySinkEPREntryState, 0, 0, nullptr }, // SINK:EPR:EN?
+        { &T76::DRPD::App::_setSinkPPSStatusQueryState, 1, 1, command_67_params }, // SINK:PPS:STATUS:EN
+        { &T76::DRPD::App::_querySinkPPSStatusQueryState, 0, 0, nullptr }, // SINK:PPS:STATUS:EN?
+        { &T76::DRPD::App::_querySinkStatus, 0, 0, nullptr }, // SINK:STATUS?
+        { &T76::DRPD::App::_querySinkNegotiatedPDO, 0, 0, nullptr }, // SINK:STATUS:PDO?
+        { &T76::DRPD::App::_querySinkNegotiatedVoltage, 0, 0, nullptr }, // SINK:STATUS:VOLTAGE?
+        { &T76::DRPD::App::_querySinkNegotiatedCurrent, 0, 0, nullptr }, // SINK:STATUS:CURRENT?
+        { &T76::DRPD::App::_querySinkErrorStatus, 0, 0, nullptr }, // SINK:STATUS:ERROR?
+        { &T76::DRPD::App::_resetTriggerController, 0, 0, nullptr }, // TRIGger:RESET
+        { &T76::DRPD::App::_queryTriggerControllerStatus, 0, 0, nullptr }, // TRIGger:STATus?
+        { &T76::DRPD::App::_setTriggerEventType, 1, 1, command_76_params }, // TRIGger:EVent:TYPE
+        { &T76::DRPD::App::_queryTriggerEventType, 0, 0, nullptr }, // TRIGger:EVent:TYPE?
+        { &T76::DRPD::App::_setTriggerEventThreshold, 1, 1, command_78_params }, // TRIGger:EVent:THRESHold
+        { &T76::DRPD::App::_queryTriggerEventThreshold, 0, 0, nullptr }, // TRIGger:EVent:THRESHold?
+        { &T76::DRPD::App::_setTriggerEventSenderFilter, 1, 1, command_80_params }, // TRIGger:EVent:SENDer
+        { &T76::DRPD::App::_queryTriggerEventSenderFilter, 0, 0, nullptr }, // TRIGger:EVent:SENDer?
+        { &T76::DRPD::App::_setTriggerEventMessageTypeFilter, 2, 2, command_82_params }, // TRIGger:EVent:MSGType:FILTer
+        { &T76::DRPD::App::_queryTriggerEventMessageTypeFilter, 0, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer?
+        { &T76::DRPD::App::_clearTriggerEventMessageTypeFilter, 0, 0, nullptr }, // TRIGger:EVent:MSGType:FILTer:CLEAR
+        { &T76::DRPD::App::_setTriggerAutoRepeatState, 1, 1, command_85_params }, // TRIGger:EVent:AUTOREPEAT
+        { &T76::DRPD::App::_queryTriggerAutoRepeatState, 0, 0, nullptr }, // TRIGger:EVent:AUTOREPEAT?
+        { &T76::DRPD::App::_queryTriggerEventCount, 0, 0, nullptr }, // TRIGger:EVent:COUNT?
+        { &T76::DRPD::App::_setSyncOutputMode, 1, 1, command_88_params }, // TRIGger:SYNC:MODE
+        { &T76::DRPD::App::_querySyncOutputMode, 0, 0, nullptr }, // TRIGger:SYNC:MODE?
+        { &T76::DRPD::App::_setSyncPulseWidth, 1, 1, command_90_params }, // TRIGger:SYNC:PULSEwidth
+        { &T76::DRPD::App::_querySyncPulseWidth, 0, 0, nullptr }, // TRIGger:SYNC:PULSEwidth?
+        { &T76::DRPD::App::_setVBusManagerState, 1, 1, command_92_params }, // TEST:VBUSMAN:EN
+        { &T76::DRPD::App::_queryVBusManagerState, 0, 0, nullptr }, // TEST:VBUSMAN:EN?
+        { &T76::DRPD::App::_setCC1Role, 1, 1, command_94_params }, // TEST:CCROLE:CC1
+        { &T76::DRPD::App::_queryCC1Role, 0, 0, nullptr }, // TEST:CCROLE:CC1?
+        { &T76::DRPD::App::_setCC2Role, 1, 1, command_96_params }, // TEST:CCROLE:CC2
+        { &T76::DRPD::App::_queryCC2Role, 0, 0, nullptr }, // TEST:CCROLE:CC2?
+        { &T76::DRPD::App::_setDUTChannel, 1, 1, command_98_params }, // TEST:CCBUS:DUT:CHANNEL
+        { &T76::DRPD::App::_queryDUTChannel, 0, 0, nullptr }, // TEST:CCBUS:DUT:CHANNEL?
+        { &T76::DRPD::App::_setUSDSChannel, 1, 1, command_100_params }, // TEST:CCBUS:USDS:CHANNEL
+        { &T76::DRPD::App::_queryUSDSChannel, 0, 0, nullptr }, // TEST:CCBUS:USDS:CHANNEL?
+        { &T76::DRPD::App::_setCCMuxState, 1, 1, command_102_params }, // TEST:CCBUS:MUX
+        { &T76::DRPD::App::_queryCCMuxState, 0, 0, nullptr }, // TEST:CCBUS:MUX?
     };
 
     template<>

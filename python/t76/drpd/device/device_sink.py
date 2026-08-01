@@ -12,7 +12,16 @@ from typing import TYPE_CHECKING, Deque, Optional
 
 from t76.drpd.device.device_sink_pdos import DeviceSinkPDO
 from t76.drpd.device.types import (
+    CountryCodesInquiryData,
+    CountryInfoInquiryData,
+    CountryInquiryFailureAction,
+    CountryInquiryWorkflowResult,
     ExtendedSourceCapabilitiesInquiryData,
+    GetCountryCodesInquiryRequest,
+    GetCountryInfoInquiryRequest,
+    GetManufacturerInfoInquiryRequest,
+    ManufacturerInfoInquiryData,
+    ManufacturerInfoTarget,
     Mode,
     PPSStatusInquiryData,
     RevisionInquiryData,
@@ -83,6 +92,16 @@ class SinkInquiryRunner:
         max_polls: int = 1000,
     ) -> SinkInquiryResult:
         """Run one inquiry and return its correlated terminal result."""
+        self._validate_run_options(poll_interval_seconds, max_polls)
+
+        async with self._lock:
+            return await self._run_locked(
+                request, poll_interval_seconds, max_polls
+            )
+
+    def _validate_run_options(
+        self, poll_interval_seconds: float, max_polls: int
+    ) -> None:
         if not 0 <= poll_interval_seconds <= self.MAX_POLL_INTERVAL_SECONDS:
             raise ValueError(
                 "poll_interval_seconds must be between 0 and "
@@ -91,71 +110,171 @@ class SinkInquiryRunner:
         if not 1 <= max_polls <= self.MAX_POLLS:
             raise ValueError(f"max_polls must be between 1 and {self.MAX_POLLS}")
 
-        async with self._lock:
-            baseline = await self._sink.get_inquiry_status()
-            await self._sink.send_inquiry(request.type)
-            request_id: int | None = None
+    async def _run_locked(
+        self,
+        request: SinkInquiryRequest,
+        poll_interval_seconds: float,
+        max_polls: int,
+    ) -> SinkInquiryResult:
+        """Run one validated inquiry while caller holds the runner lock."""
+        baseline = await self._sink.get_inquiry_status()
+        await self._sink.send_inquiry(request)
+        request_id: int | None = None
 
-            for poll_index in range(max_polls):
-                status = await self._sink.get_inquiry_status()
+        for poll_index in range(max_polls):
+            status = await self._sink.get_inquiry_status()
 
-                if request_id is None and status.request_id == baseline.request_id:
-                    if poll_index + 1 < max_polls and poll_interval_seconds:
-                        await asyncio.sleep(poll_interval_seconds)
-                    continue
+            if request_id is None and status.request_id == baseline.request_id:
+                if poll_index + 1 < max_polls and poll_interval_seconds:
+                    await asyncio.sleep(poll_interval_seconds)
+                continue
 
-                if status.type != request.type:
-                    raise SinkInquirySupersededError(
-                        "Inquiry result type changed before this request completed"
-                    )
-
-                if request_id is None:
-                    request_id = status.request_id
-                elif status.request_id != request_id:
-                    raise SinkInquirySupersededError(
-                        f"Inquiry {request_id} was superseded by "
-                        f"inquiry {status.request_id}"
-                    )
-
-                if status.outcome == SinkInquiryOutcome.PENDING:
-                    if poll_index + 1 < max_polls and poll_interval_seconds:
-                        await asyncio.sleep(poll_interval_seconds)
-                    continue
-
-                raw_response = None
-                if status.outcome == SinkInquiryOutcome.RESPONSE:
-                    raw_response = await self._sink.get_inquiry_response()
-                    if len(raw_response) != status.response_length:
-                        raise ValueError(
-                            "Inquiry response length does not match status: "
-                            f"expected {status.response_length}, "
-                            f"got {len(raw_response)}"
-                        )
-
-                decoded = None
-                if raw_response is not None:
-                    decoded = _decode_inquiry_response(
-                        request.type, status, raw_response
-                    )
-
-                result = SinkInquiryResult(
-                    request, status, raw_response, decoded
+            if status.type != request.type:
+                raise SinkInquirySupersededError(
+                    "Inquiry result type changed before this request completed"
                 )
-                self._history.append(result)
-                return result
 
-            raise TimeoutError(
-                "Inquiry did not publish a correlated terminal result within "
-                f"{max_polls} polls"
+            if request_id is None:
+                request_id = status.request_id
+            elif status.request_id != request_id:
+                raise SinkInquirySupersededError(
+                    f"Inquiry {request_id} was superseded by "
+                    f"inquiry {status.request_id}"
+                )
+
+            if status.outcome == SinkInquiryOutcome.PENDING:
+                if poll_index + 1 < max_polls and poll_interval_seconds:
+                    await asyncio.sleep(poll_interval_seconds)
+                continue
+
+            raw_response = None
+            if status.outcome == SinkInquiryOutcome.RESPONSE:
+                raw_response = await self._sink.get_inquiry_response()
+                if len(raw_response) != status.response_length:
+                    raise ValueError(
+                        "Inquiry response length does not match status: "
+                        f"expected {status.response_length}, "
+                        f"got {len(raw_response)}"
+                    )
+
+            decoded = None
+            if raw_response is not None:
+                decoded = _decode_inquiry_response(request, status, raw_response)
+
+            result = SinkInquiryResult(request, status, raw_response, decoded)
+            self._history.append(result)
+            return result
+
+        raise TimeoutError(
+            "Inquiry did not publish a correlated terminal result within "
+            f"{max_polls} polls"
+        )
+
+    async def run_country_information(
+        self,
+        country_codes: tuple[str, ...] | None = None,
+        *,
+        failure_action: CountryInquiryFailureAction = (
+            CountryInquiryFailureAction.STOP
+        ),
+        max_retries: int = 1,
+        max_countries: int = 12,
+        poll_interval_seconds: float = 0.01,
+        max_polls: int = 1000,
+    ) -> CountryInquiryWorkflowResult:
+        """Enumerate country codes, then fetch selected or all country data."""
+        if not 0 <= max_retries <= 3:
+            raise ValueError("max_retries must be between 0 and 3")
+        if not 1 <= max_countries <= 12:
+            raise ValueError("max_countries must be between 1 and 12")
+
+        self._validate_run_options(poll_interval_seconds, max_polls)
+        async with self._lock:
+            return await self._run_country_information_locked(
+                country_codes,
+                failure_action,
+                max_retries,
+                max_countries,
+                poll_interval_seconds,
+                max_polls,
             )
+
+    async def _run_country_information_locked(
+        self,
+        country_codes: tuple[str, ...] | None,
+        failure_action: CountryInquiryFailureAction,
+        max_retries: int,
+        max_countries: int,
+        poll_interval_seconds: float,
+        max_polls: int,
+    ) -> CountryInquiryWorkflowResult:
+        """Run country discovery and fan-out while caller holds lock."""
+
+        codes_result = await self._run_locked(
+            GetCountryCodesInquiryRequest(),
+            poll_interval_seconds,
+            max_polls,
+        )
+        if codes_result.status.outcome != SinkInquiryOutcome.RESPONSE:
+            return CountryInquiryWorkflowResult(codes_result, (), True)
+        if not isinstance(codes_result.decoded, CountryCodesInquiryData):
+            raise ValueError("Country Codes response did not decode")
+
+        available = codes_result.decoded.country_codes
+        if country_codes is None:
+            selected = available
+        else:
+            selected = tuple(
+                GetCountryInfoInquiryRequest(code).country_code
+                for code in country_codes
+            )
+            unavailable = tuple(code for code in selected if code not in available)
+            if unavailable:
+                raise ValueError(
+                    "Requested country code was not advertised: "
+                    + ",".join(unavailable)
+                )
+        if len(selected) > max_countries:
+            raise ValueError(
+                f"Country workflow exceeds max_countries={max_countries}"
+            )
+
+        results: list[SinkInquiryResult] = []
+        stopped = False
+        for code in selected:
+            attempt = 0
+            while True:
+                result = await self._run_locked(
+                    GetCountryInfoInquiryRequest(code),
+                    poll_interval_seconds,
+                    max_polls,
+                )
+                results.append(result)
+                if result.status.outcome == SinkInquiryOutcome.RESPONSE:
+                    break
+                if failure_action == CountryInquiryFailureAction.RETRY:
+                    if attempt < max_retries:
+                        attempt += 1
+                        continue
+                    stopped = True
+                elif failure_action == CountryInquiryFailureAction.STOP:
+                    stopped = True
+                break
+            if stopped:
+                break
+
+        return CountryInquiryWorkflowResult(
+            codes_result, tuple(results), stopped
+        )
 
 
 def _decode_inquiry_response(
-    inquiry_type: SinkInquiryType,
+    request: SinkInquiryRequest,
     status: SinkInquiryStatus,
     body: bytes,
 ) -> SinkInquiryDecodedData:
     """Decode one validated logical response body."""
+    inquiry_type = request.type
     expected_metadata = {
         SinkInquiryType.GET_SOURCE_CAP: (2, 0x01),
         SinkInquiryType.GET_SOURCE_CAP_EXTENDED: (0, 0x01),
@@ -163,6 +282,9 @@ def _decode_inquiry_response(
         SinkInquiryType.GET_REVISION: (2, 0x0C),
         SinkInquiryType.GET_SOURCE_INFO: (2, 0x0B),
         SinkInquiryType.GET_PPS_STATUS: (0, 0x0C),
+        SinkInquiryType.GET_MANUFACTURER_INFO: (0, 0x07),
+        SinkInquiryType.GET_COUNTRY_CODES: (0, 0x0E),
+        SinkInquiryType.GET_COUNTRY_INFO: (0, 0x0D),
     }
     expected_class, expected_type = expected_metadata[inquiry_type]
     if (
@@ -235,6 +357,77 @@ def _decode_inquiry_response(
             over_voltage_event=bool(events & (1 << 3)),
             operating_in_current_limit=bool(events & (1 << 4)),
         )
+
+    if inquiry_type == SinkInquiryType.GET_MANUFACTURER_INFO:
+        if not 5 <= len(body) <= 26:
+            raise ValueError(
+                "Manufacturer_Info body must contain 5 to 26 bytes"
+            )
+        manufacturer_bytes = body[4:]
+        terminator = manufacturer_bytes.find(b"\x00")
+        if terminator < 0 or any(manufacturer_bytes[terminator + 1:]):
+            raise ValueError(
+                "Manufacturer_Info string must be null terminated"
+            )
+        text_bytes = manufacturer_bytes[:terminator]
+        try:
+            text = text_bytes.decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise ValueError(
+                "Manufacturer_Info string must contain ASCII bytes"
+            ) from exc
+        return ManufacturerInfoInquiryData(
+            vendor_id=int.from_bytes(body[0:2], "little"),
+            product_id=int.from_bytes(body[2:4], "little"),
+            manufacturer_string=text,
+            manufacturer_string_bytes=text_bytes,
+        )
+
+    if inquiry_type == SinkInquiryType.GET_COUNTRY_CODES:
+        if not 4 <= len(body) <= 26:
+            raise ValueError("Country_Codes body must contain 4 to 26 bytes")
+        count = body[0]
+        if body[1] != 0 or len(body) != 2 + count * 2:
+            raise ValueError(
+                "Country_Codes length/reserved fields do not match body"
+            )
+        codes: list[str] = []
+        for offset in range(2, len(body), 2):
+            pair = body[offset:offset + 2]
+            if any(byte < ord("A") or byte > ord("Z") for byte in pair):
+                raise ValueError(
+                    "Country_Codes entries must be uppercase ASCII letters"
+                )
+            code = pair.decode("ascii")
+            if code in codes:
+                raise ValueError("Country_Codes contains a duplicate entry")
+            codes.append(code)
+        return CountryCodesInquiryData(tuple(codes))
+
+    if inquiry_type == SinkInquiryType.GET_COUNTRY_INFO:
+        if not 4 <= len(body) <= 26:
+            raise ValueError("Country_Info body must contain 4 to 26 bytes")
+        if body[2:4] != b"\x00\x00":
+            raise ValueError("Country_Info reserved bytes must be zero")
+        try:
+            echoed_code = body[0:2].decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise ValueError("Country_Info code must be ASCII") from exc
+        if (
+            len(echoed_code) != 2
+            or not echoed_code.isalpha()
+            or echoed_code != echoed_code.upper()
+        ):
+            raise ValueError(
+                "Country_Info code must contain uppercase ASCII letters"
+            )
+        if not isinstance(request, GetCountryInfoInquiryRequest):
+            raise ValueError("Country_Info response has incompatible request")
+        if echoed_code != request.country_code:
+            raise ValueError(
+                "Country_Info response code does not match requested country"
+            )
+        return CountryInfoInquiryData(echoed_code, body[4:])
 
     if len(body) != 4:
         raise ValueError(f"{inquiry_type.value} body must be exactly 4 bytes")
@@ -485,11 +678,25 @@ class DeviceSink:
             current_ma=int(parts[3]),
         )
 
-    async def send_inquiry(self, inquiry_type: SinkInquiryType) -> None:
-        """Start a supported Sink-to-Source inquiry."""
-        await self._internal.write_ascii_and_check(
-            f"SINK:INQ {inquiry_type.value}"
-        )
+    async def send_inquiry(
+        self, inquiry: SinkInquiryType | SinkInquiryRequest
+    ) -> None:
+        """Start an enum-compatible or semantic Sink-to-Source inquiry."""
+        if isinstance(inquiry, SinkInquiryType):
+            command = f"SINK:INQ {inquiry.value}"
+        elif isinstance(inquiry, GetManufacturerInfoInquiryRequest):
+            command = (
+                f'SINK:INQ {inquiry.type.value},"{inquiry.target.value}"'
+            )
+            if inquiry.target == ManufacturerInfoTarget.BATTERY:
+                command += f",{inquiry.battery_reference}"
+        elif isinstance(inquiry, GetCountryInfoInquiryRequest):
+            command = (
+                f'SINK:INQ {inquiry.type.value},"{inquiry.country_code}"'
+            )
+        else:
+            command = f"SINK:INQ {inquiry.type.value}"
+        await self._internal.write_ascii_and_check(command)
 
     async def get_inquiry_status(self) -> SinkInquiryStatus:
         """Query the most recent Sink-to-Source inquiry status."""

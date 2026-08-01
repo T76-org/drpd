@@ -333,6 +333,13 @@ describe('DRPD command groups', () => {
 
     await group.sendInquiry(SinkInquiryType.GET_REVISION)
     await group.sendInquiryRequest({ type: SinkInquiryType.GET_SOURCE_CAP })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT' })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: 3 })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_COUNTRY_CODES })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: 'ca' })
+    await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: 8 })).rejects.toThrow('0 to 7')
+    await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT', batteryReference: 1 } as never)).rejects.toThrow('must not include')
+    await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'CABLE' } as never)).rejects.toThrow('PORT or BATTERY')
     await expect(group.getInquiryStatus()).resolves.toEqual({
       outcome: SinkInquiryOutcome.RESPONSE,
       requestId: 17,
@@ -350,6 +357,12 @@ describe('DRPD command groups', () => {
       command: 'SINK:INQ',
       params: [{ raw: 'GET_SOURCE_CAP' }],
     })
+    expect(transport.commands.slice(2)).toEqual([
+      { command: 'SINK:INQ', params: [{ raw: 'GET_MANUFACTURER_INFO' }, 'PORT'] },
+      { command: 'SINK:INQ', params: [{ raw: 'GET_MANUFACTURER_INFO' }, 'BATTERY', 3] },
+      { command: 'SINK:INQ', params: [{ raw: 'GET_COUNTRY_CODES' }] },
+      { command: 'SINK:INQ', params: [{ raw: 'GET_COUNTRY_INFO' }, 'CA'] },
+    ])
   })
 
   it('rejects malformed sink inquiry status responses', async () => {

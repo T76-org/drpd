@@ -759,14 +759,42 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
     if (!descriptor.has_value()) {
         return false;
     }
-    if (descriptor->requestClass != InquiryMessageClass::Control) {
+    const uint32_t selector = static_cast<uint32_t>(request.parameters.selector[0]) |
+        (static_cast<uint32_t>(request.parameters.selector[1]) << 8) |
+        (static_cast<uint32_t>(request.parameters.selector[2]) << 16) |
+        (static_cast<uint32_t>(request.parameters.selector[3]) << 24);
+    if (!inquiryParametersApplicable(
+            descriptor.value(), request.parameters.target,
+            request.parameters.argument, selector)) {
         return false;
     }
-    const Proto::ControlMessage controlMessage;
-    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, controlMessage);
+
+    const auto body = encodeInquiryBody(
+        descriptor.value(), request.parameters.target,
+        request.parameters.argument, selector);
+    std::array<uint8_t, 4> rawBody = body.bytes;
+    uint32_t dataObjects = descriptor->requestDataObjects;
+    if (descriptor->requestClass == InquiryMessageClass::Extended) {
+        Proto::PDExtendedHeader extHeader;
+        extHeader.dataSizeBytes(body.length);
+        extHeader.requestChunk(false);
+        // Sink policy advertises chunked-only Extended Message support; a
+        // one-fragment request is still Chunk Number 0 with Chunked set.
+        extHeader.chunked(true);
+        extHeader.chunkNumber(0);
+        rawBody = {static_cast<uint8_t>(extHeader.raw() & 0xff),
+            static_cast<uint8_t>((extHeader.raw() >> 8) & 0xff),
+            body.bytes[0], body.bytes[1]};
+        dataObjects = 1;
+    }
+    const SinkRawPDMessage rawMessage(
+        std::span<const uint8_t>(rawBody.data(), dataObjects * 4),
+        dataObjects, descriptor->requestMessageType);
+    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, rawMessage);
     auto &header = message.header();
     header.rawMessageType(descriptor->requestMessageType);
-    header.numDataObjects(descriptor->requestDataObjects);
+    header.numDataObjects(dataObjects);
+    header.extended(descriptor->requestClass == InquiryMessageClass::Extended);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     header.specRevision(specRevision());

@@ -31,6 +31,30 @@ const clientWithStatuses = (...statuses: SinkInquiryStatus[]): SinkInquiryClient
 })
 
 describe('runSinkInquiry', () => {
+  it('serializes transactions sharing one client', async () => {
+    let releaseFirst!: () => void
+    const statuses = [
+      status(SinkInquiryOutcome.NONE, 0), status(SinkInquiryOutcome.RESPONSE, 1),
+      status(SinkInquiryOutcome.RESPONSE, 1), status(SinkInquiryOutcome.RESPONSE, 2),
+    ]
+    let sends = 0
+    const client: SinkInquiryClient = {
+      sendInquiryRequest: vi.fn(async () => {
+        sends += 1
+        if (sends === 1) await new Promise<void>((resolve) => { releaseFirst = resolve })
+      }),
+      getInquiryStatus: vi.fn(async () => statuses.shift()!),
+      getInquiryResponse: vi.fn(async () => new Uint8Array()),
+    }
+    const first = runSinkInquiry(client, request, { wait: async () => undefined })
+    await vi.waitFor(() => expect(sends).toBe(1))
+    const second = runSinkInquiry(client, request, { wait: async () => undefined })
+    await Promise.resolve()
+    expect(sends).toBe(1)
+    releaseFirst()
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+    expect(sends).toBe(2)
+  })
   it('correlates request ID and returns exact raw response', async () => {
     const client = clientWithStatuses(
       status(SinkInquiryOutcome.NONE, 4),

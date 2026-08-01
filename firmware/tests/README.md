@@ -62,3 +62,13 @@ clang++ -std=c++20 -Wall -Wextra -Werror \
   -o /tmp/drpd-inquiry-reassembly-test
 /tmp/drpd-inquiry-reassembly-test
 ```
+
+Run trailing optional SCPI parameter arity regression with:
+
+```sh
+clang++ -std=c++20 -Wall -Wextra -Werror -I firmware/t76/scpi \
+  firmware/tests/scpi_optional_parameters_test.cpp \
+  firmware/t76/scpi/trie.cpp \
+  -o /tmp/drpd-scpi-optional-test
+/tmp/drpd-scpi-optional-test
+```
