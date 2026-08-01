@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Dialog, DialogButton } from '../../../../ui/overlays'
+import { Dialog, DialogButton, DialogForm, DialogFormRow } from '../../../../ui/overlays'
 import { validateInquiryParameters, type InquiryDefinition } from '../../inquiries/catalog'
 import { SinkInquiryType, type SinkInquiryCablePlug, type SinkInquiryRequest } from '../../../../lib/device'
 import { parseCountryCodesDataBlock } from '../../../../lib/device/drpd/usb-pd/DataObjects'
@@ -21,6 +21,7 @@ import {
   BATTERY_MANUFACTURER_IDENTITY_EVENT_TITLE,
   surveyBatteryManufacturerIdentity,
 } from '../../inquiries/manufacturerWorkflow'
+import styles from './SourceInquiryDialog.module.css'
 
 const bytesToHex = (bytes: Uint8Array): string => (
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(' ')
@@ -502,11 +503,11 @@ export const SourceInquiryDialog = ({
           >Send inquiry</DialogButton>
         </>
       ) : <DialogButton onClick={() => handleOpenChange(false)}>Close</DialogButton>}
-    >
-      {definition?.confirmation && !confirmed ? <p role="alert">{definition.confirmation.body}</p> : null}
-      {definition?.confirmation && !confirmed ? null : <>
+      >
+        {definition?.confirmation && !confirmed ? <p role="alert">{definition.confirmation.body}</p> : null}
+        {definition?.confirmation && !confirmed ? null : <>
       {definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
-        ? <p>{definition.description}</p>
+        ? <p className={styles.manufacturerDescription}>{definition.description}</p>
         : null}
       {definition?.id === 'authenticate-source' && client
         ? <AuthenticationWorkflowPanel client={client} />
@@ -518,7 +519,9 @@ export const SourceInquiryDialog = ({
           ? <CountryInformationWorkflow client={client} />
         : <>
       {definition && definition.workflow !== 'immediate' && !request ? (
-        <form id={definition.type === SinkInquiryType.GET_MANUFACTURER_INFO
+        <form className={definition.type === SinkInquiryType.GET_MANUFACTURER_INFO
+          ? styles.manufacturerForm
+          : undefined} id={definition.type === SinkInquiryType.GET_MANUFACTURER_INFO
           ? 'manufacturer-info-form'
           : undefined} onSubmit={(event) => {
           event.preventDefault()
@@ -566,10 +569,27 @@ export const SourceInquiryDialog = ({
             return
           }
           setSubmitted({ definitionId: definition.id, request: nextRequest })
-        }}>
-          {definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ? <>
-            <label>Target <select value={target} onChange={(event) => setTarget(event.target.value)}><option>PORT</option><option>BATTERY</option></select></label>
-          </> : definition.type === SinkInquiryType.GET_BATTERY_CAP || definition.type === SinkInquiryType.GET_BATTERY_STATUS
+          }}>
+            {definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ? <>
+              <DialogForm>
+                <DialogFormRow
+                  className={styles.manufacturerTargetRow}
+                  label="Target"
+                  htmlFor="manufacturer-info-target"
+                >
+                  <select
+                    id="manufacturer-info-target"
+                    className={styles.manufacturerTargetSelect}
+                    value={target}
+                    disabled={manufacturerWorkflowRunning}
+                    onChange={(event) => setTarget(event.target.value)}
+                  >
+                    <option>PORT</option>
+                    <option>BATTERY</option>
+                  </select>
+                </DialogFormRow>
+              </DialogForm>
+            </> : definition.type === SinkInquiryType.GET_BATTERY_CAP || definition.type === SinkInquiryType.GET_BATTERY_STATUS
             ? <label>Battery reference <input aria-label="Battery reference" type="number" min="0" max="7" value={batteryReference} onChange={(event) => setBatteryReference(event.target.value)} /></label>
             : definition.type === SinkInquiryType.DISCOVER_MODES
               ? <label>SVID <input aria-label="SVID" type="number" min="1" max="65535" value={svid} onChange={(event) => setSvid(event.target.value)} /></label>
