@@ -7,6 +7,7 @@
 #include "sink_raw_pd_message.hpp"
 #include "inquiry_descriptor.hpp"
 #include "cable_inquiry.hpp"
+#include "authentication_inquiry.hpp"
 
 #include <algorithm>
 #include <array>
@@ -153,6 +154,10 @@ SinkRequestResult Sink::requestInquiry(
         // SOP'/SOP'' without VCONN would falsely imply a reachable cable plug.
         return SinkRequestResult::failure(
             "Cable inquiry requires Dr. PD to be VCONN Source; VCONN sourcing is not supported");
+    }
+    if (descriptor->parameterKind == InquiryParameterKind::Authentication &&
+        !authenticationParametersValid(type, parameters)) {
+        return SinkRequestResult::failure("Invalid Type-C Authentication inquiry parameters");
     }
     if (_runtimeState._state != SinkState::PE_SNK_Ready) {
         return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");

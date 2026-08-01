@@ -91,6 +91,20 @@ export class DRPDSink {
 
   /** Send a semantic inquiry request; the library owns PD and SCPI encoding. */
   public async sendInquiryRequest(request: SinkInquiryRequest): Promise<void> {
+    if (request.type === SinkInquiryType.GET_CERTIFICATE) {
+      if (!Number.isInteger(request.slot) || request.slot < 0 || request.slot > 7) throw new Error('Certificate slot must be an integer from 0 to 7')
+      if (!Number.isInteger(request.offset) || request.offset < 0 || request.offset > 4095) throw new Error('Certificate offset must be an integer from 0 to 4095')
+      if (!Number.isInteger(request.length) || request.length < 1 || request.length > 256 || request.offset + request.length > 4096) throw new Error('Certificate length must be 1 to 256 and remain within the 4096-byte chain bound')
+      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.slot, request.offset, request.length)
+      return
+    }
+    if (request.type === SinkInquiryType.CHALLENGE) {
+      if (!Number.isInteger(request.slot) || request.slot < 0 || request.slot > 7) throw new Error('Challenge slot must be an integer from 0 to 7')
+      if (!(request.nonce instanceof Uint8Array) || request.nonce.length !== 32) throw new Error('Challenge nonce must contain exactly 32 bytes')
+      const nonceHex = Array.from(request.nonce, (byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase()
+      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.slot, nonceHex)
+      return
+    }
     if (request.type === SinkInquiryType.GET_MANUFACTURER_INFO) {
       if (request.target !== 'PORT' && request.target !== 'BATTERY' && request.target !== 'SOP_PRIME' && request.target !== 'SOP_DOUBLE_PRIME') throw new Error('Manufacturer target must be PORT, BATTERY, SOP_PRIME, or SOP_DOUBLE_PRIME')
       if (request.target === 'BATTERY') {

@@ -34,6 +34,7 @@ from t76.drpd.device.types import (
     CableRevisionInquiryRequest,
     CableStatusInquiryData,
     CableStatusInquiryRequest,
+    ChallengeInquiryRequest,
     CountryCodesInquiryData,
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
@@ -49,6 +50,8 @@ from t76.drpd.device.types import (
     GetBatteryStatusInquiryRequest,
     GetCountryCodesInquiryRequest,
     GetCountryInfoInquiryRequest,
+    GetCertificateInquiryRequest,
+    GetDigestsInquiryRequest,
     GetManufacturerInfoInquiryRequest,
     GetPPSStatusInquiryRequest,
     GetRevisionInquiryRequest,
@@ -295,6 +298,23 @@ class TestDeviceSinkPDORequest(unittest.IsolatedAsyncioTestCase):
 
 
 class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
+    async def test_authentication_requests_encode_semantic_parameters(self) -> None:
+        await self.device_sink.send_inquiry(GetDigestsInquiryRequest())
+        await self.device_sink.send_inquiry(GetCertificateInquiryRequest(2, 256, 128))
+        await self.device_sink.send_inquiry(ChallengeInquiryRequest(3, bytes([0xAB]) * 32))
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ GET_DIGESTS",
+                "SINK:INQ GET_CERTIFICATE,2,256,128",
+                f'SINK:INQ CHALLENGE,3,"{"AB" * 32}"',
+            ],
+        )
+        with self.assertRaises(ValueError):
+            GetCertificateInquiryRequest(0, 4095, 2)
+        with self.assertRaises(ValueError):
+            ChallengeInquiryRequest(0, bytes(31))
+
     """Tests for Sink-to-Source inquiry methods."""
 
     async def asyncSetUp(self) -> None:

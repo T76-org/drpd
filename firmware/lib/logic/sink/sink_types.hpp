@@ -35,6 +35,9 @@ namespace T76::DRPD::Logic {
         DiscoverIdentity,
         DiscoverSVIDs,
         DiscoverModes,
+        GetDigests,
+        GetCertificate,
+        Challenge,
     };
 
     enum class SinkInquiryTarget : uint32_t {
@@ -54,6 +57,7 @@ namespace T76::DRPD::Logic {
         uint32_t target = 0;
         uint32_t argument = 0;
         std::array<uint8_t, 4> selector = {};
+        std::array<uint8_t, 32> payload = {};
         SinkInquirySOPTarget sopTarget = SinkInquirySOPTarget::SOP;
     };
 

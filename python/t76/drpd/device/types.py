@@ -583,6 +583,9 @@ class SinkInquiryType(enum.Enum):
     DISCOVER_IDENTITY = "DISCOVER_IDENTITY"
     DISCOVER_SVIDS = "DISCOVER_SVIDS"
     DISCOVER_MODES = "DISCOVER_MODES"
+    GET_DIGESTS = "GET_DIGESTS"
+    GET_CERTIFICATE = "GET_CERTIFICATE"
+    CHALLENGE = "CHALLENGE"
 
 
 class ManufacturerInfoTarget(enum.Enum):
@@ -895,6 +898,46 @@ class CableDiscoverModesInquiryRequest:
         DiscoverModesInquiryRequest(self.svid)
 
 
+@dataclass(frozen=True)
+class GetDigestsInquiryRequest:
+    """Enumerate populated USB Type-C Authentication certificate slots."""
+
+    type: SinkInquiryType = field(default=SinkInquiryType.GET_DIGESTS, init=False)
+
+
+@dataclass(frozen=True)
+class GetCertificateInquiryRequest:
+    """Retrieve one bounded part of a selected authentication certificate chain."""
+
+    slot: int
+    offset: int
+    length: int
+    type: SinkInquiryType = field(default=SinkInquiryType.GET_CERTIFICATE, init=False)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.slot, bool) or not isinstance(self.slot, int) or not 0 <= self.slot <= 7:
+            raise ValueError("slot must be an integer from 0 to 7")
+        if isinstance(self.offset, bool) or not isinstance(self.offset, int) or not 0 <= self.offset <= 4095:
+            raise ValueError("offset must be an integer from 0 to 4095")
+        if isinstance(self.length, bool) or not isinstance(self.length, int) or not 1 <= self.length <= 256 or self.offset + self.length > 4096:
+            raise ValueError("length must be 1 to 256 and remain within the 4096-byte chain bound")
+
+
+@dataclass(frozen=True)
+class ChallengeInquiryRequest:
+    """Authenticate a selected slot using one caller-generated fresh nonce."""
+
+    slot: int
+    nonce: bytes
+    type: SinkInquiryType = field(default=SinkInquiryType.CHALLENGE, init=False)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.slot, bool) or not isinstance(self.slot, int) or not 0 <= self.slot <= 7:
+            raise ValueError("slot must be an integer from 0 to 7")
+        if not isinstance(self.nonce, bytes) or len(self.nonce) != 32:
+            raise ValueError("nonce must contain exactly 32 bytes")
+
+
 # New categories extend this discriminated union with bounded semantic
 # parameter dataclasses. Callers never construct PD headers directly.
 SinkInquiryRequest: TypeAlias = Union[
@@ -918,6 +961,9 @@ SinkInquiryRequest: TypeAlias = Union[
     CableDiscoverIdentityInquiryRequest,
     CableDiscoverSVIDsInquiryRequest,
     CableDiscoverModesInquiryRequest,
+    GetDigestsInquiryRequest,
+    GetCertificateInquiryRequest,
+    ChallengeInquiryRequest,
 ]
 
 
@@ -1135,6 +1181,40 @@ class CableStatusInquiryData:
 
 
 @dataclass(frozen=True)
+class AuthenticationDigestsInquiryData:
+    """Validated slot mask and SHA-256 digest values in slot order."""
+
+    slot_mask: int
+    digests: tuple[tuple[int, bytes], ...]
+
+
+@dataclass(frozen=True)
+class AuthenticationCertificateInquiryData:
+    """One correlated, progress-making certificate-chain part."""
+
+    slot: int
+    offset: int
+    certificate_part: bytes
+
+
+@dataclass(frozen=True)
+class AuthenticationChallengeInquiryData:
+    """Correlated CHALLENGE_AUTH transcript and little-endian signature."""
+
+    slot: int
+    signed_response: bytes
+    signature_little_endian: bytes
+
+
+@dataclass(frozen=True)
+class AuthenticationErrorInquiryData:
+    """Protocol ERROR body; never represents authenticated success."""
+
+    code: int
+    data: int
+
+
+@dataclass(frozen=True)
 class StructuredVDMHeaderData:
     """Validated Structured VDM ACK header."""
 
@@ -1193,6 +1273,10 @@ SinkInquiryDecodedData: TypeAlias = Union[
     BatteryCapabilitiesInquiryData,
     BatteryStatusInquiryData,
     CableStatusInquiryData,
+    AuthenticationDigestsInquiryData,
+    AuthenticationCertificateInquiryData,
+    AuthenticationChallengeInquiryData,
+    AuthenticationErrorInquiryData,
     DiscoverIdentityInquiryData,
     DiscoverSVIDsInquiryData,
     DiscoverModesInquiryData,

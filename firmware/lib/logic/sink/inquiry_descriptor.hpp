@@ -65,6 +65,7 @@ enum class InquiryParameterKind : uint8_t {
     DiscoverIdentity,
     DiscoverSVIDs,
     DiscoverModes,
+    Authentication,
 };
 
 struct EncodedInquiryBody {
@@ -198,6 +199,8 @@ struct SinkInquiryDescriptor {
             return target == 0 && argument == 0 && selector == 0;
         case InquiryParameterKind::DiscoverModes:
             return target == 0 && argument >= 1 && argument <= 0xffff && selector == 0;
+        case InquiryParameterKind::Authentication:
+            return true; // Full fixed-buffer validation is operation-specific.
     }
     return false;
 }

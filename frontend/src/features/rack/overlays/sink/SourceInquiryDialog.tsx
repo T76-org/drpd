@@ -16,6 +16,7 @@ import {
   type SerialInquiryWorkflowStep,
   type SinkInquiryClient,
 } from '../../inquiries/runner'
+import { AuthenticationWorkflowPanel } from './AuthenticationWorkflowPanel'
 
 const bytesToHex = (bytes: Uint8Array): string => (
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(' ')
@@ -474,7 +475,9 @@ export const SourceInquiryDialog = ({
     >
       {definition?.confirmation && !confirmed ? <p role="alert">{definition.confirmation.body}</p> : null}
       {definition?.confirmation && !confirmed ? null : <>
-      {definition?.id === 'survey-batteries' && client
+      {definition?.id === 'authenticate-source' && client
+        ? <AuthenticationWorkflowPanel client={client} />
+        : definition?.id === 'survey-batteries' && client
         ? <BatterySurveyWorkflow client={client} />
         : (definition?.id === 'survey-port-partner-modes' || definition?.id.startsWith('survey-cable-')) && client
           ? <PortPartnerSurveyWorkflow client={client} plug={requestCablePlug(definition.buildRequest({}))} />

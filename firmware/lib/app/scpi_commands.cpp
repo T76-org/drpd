@@ -133,11 +133,11 @@ namespace T76::SCPI {
  * 
  * Command System:
  *   - Commands: 104 (1248 bytes)
- *   - Parameter descriptors: 656 bytes
- *   - String literals: 654 bytes
+ *   - Parameter descriptors: 672 bytes
+ *   - String literals: 692 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 18430 bytes (0.44% of 2MB)
+ *   - Code/Data (Flash): 18484 bytes (0.44% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
@@ -171,6 +171,9 @@ namespace T76::SCPI {
         "DISCOVER_IDENTITY",
         "DISCOVER_SVIDS",
         "DISCOVER_MODES",
+        "GET_DIGESTS",
+        "GET_CERTIFICATE",
+        "CHALLENGE",
     };
 
     const char* const command_65_param_0_choices[] = {
@@ -393,8 +396,14 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 14,
+            .choiceCount = 17,
             .choices = command_56_param_0_choices
+        },
+        {
+            .type = ParameterType::StringOrNumber,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
         },
         {
             .type = ParameterType::StringOrNumber,
@@ -6025,7 +6034,7 @@ namespace T76::SCPI {
         { &T76::DRPD::App::_querySinkRequestedPDOAtIndex, 1, 1, command_53_params }, // SINK:PDO?
         { &T76::DRPD::App::_setSinkPDO, 3, 3, command_54_params }, // SINK:PDO
         { &T76::DRPD::App::_querySinkRequestStatus, 0, 0, nullptr }, // SINK:REQUEST:STATUS?
-        { &T76::DRPD::App::_setSinkInquiry, 3, 1, command_56_params }, // SINK:INQuiry
+        { &T76::DRPD::App::_setSinkInquiry, 4, 1, command_56_params }, // SINK:INQuiry
         { &T76::DRPD::App::_querySinkInquiryStatus, 0, 0, nullptr }, // SINK:INQuiry:STATus?
         { &T76::DRPD::App::_querySinkInquiryResponse, 0, 0, nullptr }, // SINK:INQuiry:RESPonse?
         { &T76::DRPD::App::_querySinkCapabilityCount, 0, 0, nullptr }, // SINK:CAPability:SPR:COUNT?
@@ -6079,6 +6088,6 @@ namespace T76::SCPI {
     const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_commandCount = 104;
 
     template<>
-    const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_maxParameterCount = 3;
+    const size_t T76::SCPI::Interpreter<T76::DRPD::App>::_maxParameterCount = 4;
 
 } // namespace

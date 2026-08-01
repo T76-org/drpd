@@ -7,6 +7,7 @@
 #include "app.hpp"
 #include "../logic/sink/inquiry_descriptor.hpp"
 #include "../logic/sink/cable_inquiry.hpp"
+#include "../logic/sink/authentication_inquiry.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -324,6 +325,54 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
             return;
         }
         inquiryParameters.argument = static_cast<uint32_t>(params[svidIndex].numberValue);
+    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::Authentication) {
+        const auto integerParameter = [&params](size_t index, double minimum, double maximum) {
+            return index < params.size() && params[index].type == T76::SCPI::ParameterType::Number &&
+                std::isfinite(params[index].numberValue) && params[index].numberValue >= minimum &&
+                params[index].numberValue <= maximum &&
+                std::floor(params[index].numberValue) == params[index].numberValue;
+        };
+        if (descriptor->type == Logic::SinkInquiryType::GetDigests) {
+            if (params.size() != 1) {
+                illegalParameters("GET_DIGESTS takes no parameters.");
+                return;
+            }
+        } else if (descriptor->type == Logic::SinkInquiryType::GetCertificate) {
+            if (params.size() != 4 || !integerParameter(1, 0, 7) ||
+                !integerParameter(2, 0, 4095) || !integerParameter(3, 1, 256) ||
+                params[2].numberValue + params[3].numberValue > 4096) {
+                illegalParameters("GET_CERTIFICATE requires slot 0..7, offset 0..4095, and length 1..256 within 4096 bytes.");
+                return;
+            }
+            inquiryParameters.target = static_cast<uint32_t>(params[1].numberValue);
+            inquiryParameters.argument = static_cast<uint32_t>(params[2].numberValue);
+            const uint16_t length = static_cast<uint16_t>(params[3].numberValue);
+            inquiryParameters.selector[0] = static_cast<uint8_t>(length & 0xff);
+            inquiryParameters.selector[1] = static_cast<uint8_t>(length >> 8);
+        } else {
+            if (params.size() != 3 || !integerParameter(1, 0, 7) ||
+                params[2].type != T76::SCPI::ParameterType::String ||
+                params[2].stringValue.size() != 64) {
+                illegalParameters("CHALLENGE requires slot 0..7 and exactly 64 hexadecimal nonce characters.");
+                return;
+            }
+            const auto nibble = [](char value) -> std::optional<uint8_t> {
+                if (value >= '0' && value <= '9') return static_cast<uint8_t>(value - '0');
+                if (value >= 'a' && value <= 'f') return static_cast<uint8_t>(value - 'a' + 10);
+                if (value >= 'A' && value <= 'F') return static_cast<uint8_t>(value - 'A' + 10);
+                return std::nullopt;
+            };
+            for (size_t i = 0; i < inquiryParameters.payload.size(); ++i) {
+                const auto high = nibble(params[2].stringValue[i * 2]);
+                const auto low = nibble(params[2].stringValue[i * 2 + 1]);
+                if (!high.has_value() || !low.has_value()) {
+                    illegalParameters("CHALLENGE nonce must contain only hexadecimal characters.");
+                    return;
+                }
+                inquiryParameters.payload[i] = static_cast<uint8_t>((high.value() << 4) | low.value());
+            }
+            inquiryParameters.target = static_cast<uint32_t>(params[1].numberValue);
+        }
     }
     const auto result = sink->requestInquiry(descriptor->type, inquiryParameters);
     if (!result) {

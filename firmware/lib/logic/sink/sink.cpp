@@ -102,6 +102,14 @@ void Sink::loopCore1() {
                 continue;
             }
 
+            const auto activeInquiry = _runtimeState.inquiryResult();
+            if (_runtimeState._state == SinkState::PE_SNK_Inquiry &&
+                activeInquiry.status.type == SinkInquiryType::Challenge &&
+                maybeType.value() == Proto::ExtendedMessageType::Security_Request) {
+                _runtimeState._currentStateHandler->handleMessage(_context, messagePtr);
+                continue;
+            }
+
             Proto::ExtendedMessageType completedType = maybeType.value();
             const auto inquiryDescriptor = sinkInquiryDescriptor(
                 _runtimeState.inquiryResult().status.type);

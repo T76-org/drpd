@@ -5,6 +5,7 @@
 
 #include "sink_context.hpp"
 #include "cable_inquiry.hpp"
+#include "authentication_inquiry.hpp"
 #include "sink_raw_pd_message.hpp"
 #include "inquiry_descriptor.hpp"
 #include "inquiry_capability_selection.hpp"
@@ -791,6 +792,9 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
     if (!descriptor.has_value()) {
         return false;
     }
+    if (descriptor->parameterKind == InquiryParameterKind::Authentication) {
+        return sendAuthenticationRequestChunk(request, 0);
+    }
     const uint32_t selector = static_cast<uint32_t>(request.parameters.selector[0]) |
         (static_cast<uint32_t>(request.parameters.selector[1]) << 8) |
         (static_cast<uint32_t>(request.parameters.selector[2]) << 16) |
@@ -833,6 +837,29 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
     header.rawMessageType(descriptor->requestMessageType);
     header.numDataObjects(dataObjects);
     header.extended(descriptor->requestClass == InquiryMessageClass::Extended);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(specRevision());
+    sendMessageAndAwaitGoodCRC(message);
+    return true;
+}
+
+bool SinkContext::sendAuthenticationRequestChunk(
+    const SinkInquiryRequest& request, uint8_t chunkNumber) {
+    const auto descriptor = sinkInquiryDescriptor(request.type);
+    if (!descriptor.has_value() ||
+        descriptor->parameterKind != InquiryParameterKind::Authentication ||
+        !authenticationParametersValid(request.type, request.parameters)) return false;
+    const auto logical = encodeAuthenticationRequest(request.type, request.parameters);
+    const auto frame = encodeAuthenticationChunk(logical, chunkNumber);
+    if (!frame.valid) return false;
+    const SinkRawPDMessage rawMessage(
+        std::span<const uint8_t>(frame.bytes.data(), frame.dataObjects * 4),
+        frame.dataObjects, static_cast<uint32_t>(Proto::ExtendedMessageType::Security_Request));
+    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, rawMessage);
+    auto &header = message.header();
+    header.extended(true);
+    header.extendedMessageType(Proto::ExtendedMessageType::Security_Request);
     header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
     header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
     header.specRevision(specRevision());

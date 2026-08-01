@@ -349,6 +349,9 @@ describe('DRPD command groups', () => {
     await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_IDENTITY, plug: SinkInquiryCablePlug.SOP_PRIME })
     await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_SVIDS, plug: SinkInquiryCablePlug.SOP_DOUBLE_PRIME })
     await group.sendInquiryRequest({ type: SinkInquiryType.DISCOVER_MODES, plug: SinkInquiryCablePlug.SOP_DOUBLE_PRIME, svid: 0xff01 })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_DIGESTS })
+    await group.sendInquiryRequest({ type: SinkInquiryType.GET_CERTIFICATE, slot: 2, offset: 256, length: 128 })
+    await group.sendInquiryRequest({ type: SinkInquiryType.CHALLENGE, slot: 3, nonce: new Uint8Array(32).fill(0xab) })
     await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'BATTERY', batteryReference: 8 })).rejects.toThrow('0 to 7')
     await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'PORT', batteryReference: 1 } as never)).rejects.toThrow('must not include')
     await expect(group.sendInquiryRequest({ type: SinkInquiryType.GET_MANUFACTURER_INFO, target: 'CABLE' } as never)).rejects.toThrow('PORT, BATTERY, SOP_PRIME, or SOP_DOUBLE_PRIME')
@@ -385,6 +388,9 @@ describe('DRPD command groups', () => {
       { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_IDENTITY' }, 'SOP_PRIME'] },
       { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_SVIDS' }, 'SOP_DOUBLE_PRIME'] },
       { command: 'SINK:INQ', params: [{ raw: 'DISCOVER_MODES' }, 'SOP_DOUBLE_PRIME', 0xff01] },
+      { command: 'SINK:INQ', params: [{ raw: 'GET_DIGESTS' }] },
+      { command: 'SINK:INQ', params: [{ raw: 'GET_CERTIFICATE' }, 2, 256, 128] },
+      { command: 'SINK:INQ', params: [{ raw: 'CHALLENGE' }, 3, 'AB'.repeat(32)] },
     ])
   })
 

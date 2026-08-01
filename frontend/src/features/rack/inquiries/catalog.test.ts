@@ -23,7 +23,9 @@ describe('source inquiry catalog', () => {
     expect(new Set(SOURCE_INQUIRY_CATALOG.map(({ id }) => id)).size).toBe(
       SOURCE_INQUIRY_CATALOG.length,
     )
-    expect(new Set(ACTIVE_SOURCE_INQUIRIES.map(({ type }) => type))).toEqual(new Set(Object.values(SinkInquiryType)))
+    const guidedOnly = new Set<string>([SinkInquiryType.GET_CERTIFICATE, SinkInquiryType.CHALLENGE])
+    expect(new Set(ACTIVE_SOURCE_INQUIRIES.map(({ type }) => type))).toEqual(new Set(Object.values(SinkInquiryType).filter((type) => !guidedOnly.has(type))))
+    expect(SOURCE_INQUIRY_CATALOG.find(({ id }) => id === 'authenticate-source')?.active).toBe(true)
     const definition = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_REVISION)!
     expect(ACTIVE_SOURCE_INQUIRIES.every(({ active }) => active)).toBe(true)
     expect(ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_MANUFACTURER_INFO)?.workflow).toBe('parameterized')

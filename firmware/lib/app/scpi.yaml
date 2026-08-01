@@ -600,15 +600,19 @@ commands:
     parameters:
       - name: type
         type: enum
-        choices: ["GET_REVISION", "GET_SOURCE_CAP", "GET_SOURCE_CAP_EXTENDED", "GET_STATUS", "GET_SOURCE_INFO", "GET_PPS_STATUS", "GET_MANUFACTURER_INFO", "GET_COUNTRY_CODES", "GET_COUNTRY_INFO", "GET_BATTERY_CAP", "GET_BATTERY_STATUS", "DISCOVER_IDENTITY", "DISCOVER_SVIDS", "DISCOVER_MODES"]
+        choices: ["GET_REVISION", "GET_SOURCE_CAP", "GET_SOURCE_CAP_EXTENDED", "GET_STATUS", "GET_SOURCE_INFO", "GET_PPS_STATUS", "GET_MANUFACTURER_INFO", "GET_COUNTRY_CODES", "GET_COUNTRY_INFO", "GET_BATTERY_CAP", "GET_BATTERY_STATUS", "DISCOVER_IDENTITY", "DISCOVER_SVIDS", "DISCOVER_MODES", "GET_DIGESTS", "GET_CERTIFICATE", "CHALLENGE"]
         description: "Supported inquiry message type."
       - name: target_country_reference_or_svid
         type: string_or_number
-        description: 'PORT or BATTERY for SOP GET_MANUFACTURER_INFO; SOP_PRIME or SOP_DOUBLE_PRIME for cable GET_REVISION, GET_STATUS, GET_MANUFACTURER_INFO, DISCOVER_IDENTITY, DISCOVER_SVIDS, or DISCOVER_MODES; uppercase ISO 3166 alpha-2 code for GET_COUNTRY_INFO; numeric battery reference or SOP Discover Modes SVID.'
+        description: 'PORT or BATTERY for SOP GET_MANUFACTURER_INFO; SOP_PRIME or SOP_DOUBLE_PRIME for cable inquiries; uppercase country code; numeric battery reference, SVID, or authentication slot 0..7.'
         optional: true
-      - name: battery_reference_or_cable_svid
+      - name: battery_reference_cable_svid_offset_or_nonce
+        type: string_or_number
+        description: "Battery reference, cable SVID, GET_CERTIFICATE offset, or CHALLENGE 64-character hexadecimal nonce."
+        optional: true
+      - name: certificate_length
         type: number
-        description: "Required 0..7 reference when target is BATTERY, or required decimal SVID 1..65535 after a cable target for DISCOVER_MODES."
+        description: "GET_CERTIFICATE length 1..256; offset plus length must not exceed 4096."
         optional: true
     errors:
       -221:
