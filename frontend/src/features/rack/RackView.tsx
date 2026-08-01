@@ -159,6 +159,12 @@ const LEGACY_SOURCE_CAPABILITIES_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY =
   'drpd:source-capabilities-capture-warning-suppressed'
 const GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY =
   'drpd:get-status-side-effect-warning-suppressed'
+const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
+  SinkInquiryType.GET_SOURCE_CAP,
+  SinkInquiryType.GET_SOURCE_CAP_EXTENDED,
+  SinkInquiryType.GET_STATUS,
+  SinkInquiryType.GET_SOURCE_INFO,
+])
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
@@ -1679,9 +1685,7 @@ export const RackView = ({
       .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
   }, [activeDriver])
   const handleSelectSourceInquiry = useCallback((definition: InquiryDefinition) => {
-    if (definition.type !== SinkInquiryType.GET_SOURCE_CAP &&
-      definition.type !== SinkInquiryType.GET_SOURCE_CAP_EXTENDED &&
-      definition.type !== SinkInquiryType.GET_STATUS) {
+    if (!LOG_ONLY_SOURCE_INQUIRY_TYPES.has(definition.type)) {
       setSourceInquiryDefinition(definition)
       return
     }
