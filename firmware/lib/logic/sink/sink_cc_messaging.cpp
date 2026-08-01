@@ -288,6 +288,20 @@ Sink::ExtendedFragmentResult Sink::_handleInquiryExtendedFragment(
     const uint16_t rawHeader = static_cast<uint16_t>(body[0]) |
         (static_cast<uint16_t>(body[1]) << 8);
     const Proto::PDExtendedHeader header(rawHeader);
+    const bool malformedPPSStatusDataSize = isRecoverableMalformedInquiryPPSStatus(
+        static_cast<uint32_t>(extendedType.value()), header.chunked(),
+        header.requestChunk(), header.dataSizeBytes(), header.chunkNumber(),
+        message->decodedHeader().numDataObjects(), body);
+    if (malformedPPSStatusDataSize) {
+        SinkRuntimeState::ExtendedPayloadBuffer payload;
+        payload.length = 4;
+        std::copy_n(body.begin() + 2, payload.length, payload.bytes.begin());
+        _runtimeState._completedInquiryExtendedPayload = payload;
+        _runtimeState._inquiryRecoveredMalformedPPSStatus = true;
+        _context.reportWarning(
+            "malformed PPS_Status declared Data Size 1; decoded 4-byte PPSSDB from packet payload");
+        return ExtendedFragmentResult::Complete;
+    }
     const auto result = _inquiryReassembly.accept(
         header.chunked(), header.requestChunk(), header.dataSizeBytes(),
         header.chunkNumber(), body.subspan(2));

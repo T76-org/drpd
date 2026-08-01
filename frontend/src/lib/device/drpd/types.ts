@@ -273,6 +273,11 @@ export type SinkRequestOutcome =
 
 /** Supported Sink-to-Source inquiry message types. */
 export const SinkInquiryType = {
+  GET_SOURCE_CAP: 'GET_SOURCE_CAP',
+  GET_SOURCE_CAP_EXTENDED: 'GET_SOURCE_CAP_EXTENDED',
+  GET_STATUS: 'GET_STATUS',
+  GET_SOURCE_INFO: 'GET_SOURCE_INFO',
+  GET_PPS_STATUS: 'GET_PPS_STATUS',
   GET_REVISION: 'GET_REVISION',
 } as const
 
@@ -281,12 +286,9 @@ export type SinkInquiryType =
   (typeof SinkInquiryType)[keyof typeof SinkInquiryType]
 
 /** Semantic request for Get_Revision; callers never construct a PD header. */
-export interface GetRevisionInquiryRequest {
-  type: typeof SinkInquiryType.GET_REVISION
-}
-
-/** Supported semantic Sink inquiry request union. */
-export type SinkInquiryRequest = GetRevisionInquiryRequest
+export type SinkInquiryRequest = {
+  [K in keyof typeof SinkInquiryType]: { type: (typeof SinkInquiryType)[K] }
+}[keyof typeof SinkInquiryType]
 
 /** Sink inquiry protocol outcome token. */
 export const SinkInquiryOutcome = {

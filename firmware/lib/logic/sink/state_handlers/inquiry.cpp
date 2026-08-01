@@ -2,6 +2,8 @@
 
 #include "../sink_context.hpp"
 #include "../inquiry_descriptor.hpp"
+#include <optional>
+#include <variant>
 using namespace T76::DRPD::Logic;
 
 int64_t InquiryStateHandler::_onResponseTimeout(alarm_id_t, void *userData) {
@@ -86,6 +88,17 @@ void InquiryStateHandler::handleMessage(
         return;
     }
     if (match == InquiryMatch::Response) {
+        const bool refreshesSourceCapabilities =
+            resultSnapshot.status.type == SinkInquiryType::GetSourceCapabilities;
+        const auto previousPDO = context.runtimeState()._negotiatedPDO;
+        const std::optional<uint32_t> previousRawPDO = previousPDO.has_value()
+            ? std::optional<uint32_t>(std::visit(
+                [](const auto& typedPDO) { return typedPDO.raw(); }, previousPDO.value()))
+            : std::nullopt;
+        const uint32_t previousVoltageMV = static_cast<uint32_t>(
+            context.runtimeState()._negotiatedVoltage);
+        const uint32_t previousCurrentMA = static_cast<uint32_t>(
+            context.runtimeState()._negotiatedCurrent);
         const auto extendedPayload = header.messageClass() ==
                 Proto::PDHeader::MessageClass::Extended
             ? context.takeInquiryExtendedPayload()
@@ -93,12 +106,27 @@ void InquiryStateHandler::handleMessage(
         const auto body = extendedPayload.has_value()
             ? extendedPayload->span()
             : message->rawBody();
+        if (!inquiryResponsePayloadSizeValid(descriptor.value(), body.size())) {
+            _finish(context, SinkInquiryOutcome::MalformedResponse);
+            return;
+        }
+        if (!context.cacheInquiryResponse(resultSnapshot.status.type, message, body)) {
+            _finish(context, SinkInquiryOutcome::MalformedResponse);
+            return;
+        }
         context.runtimeState().finishInquiry(
             SinkInquiryOutcome::Response,
             static_cast<uint32_t>(header.messageClass()),
             rawType,
-            body);
+            body,
+            descriptor->warningFlags |
+                (context.runtimeState()._inquiryRecoveredMalformedPPSStatus
+                    ? InquiryWarningRecoveredMalformedPPSStatus : InquiryWarningNone));
         context.transitionTo(SinkState::PE_SNK_Ready);
+        if (refreshesSourceCapabilities) {
+            context.requestAfterSourceCapabilitiesInquiry(
+                previousRawPDO, previousVoltageMV, previousCurrentMA);
+        }
         return;
     }
     if (match == InquiryMatch::NotSupported) _finish(context, SinkInquiryOutcome::NotSupported);

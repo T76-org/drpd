@@ -12,23 +12,24 @@ describe('source inquiry catalog', () => {
     expect(new Set(SOURCE_INQUIRY_CATALOG.map(({ id }) => id)).size).toBe(
       SOURCE_INQUIRY_CATALOG.length,
     )
-    expect(ACTIVE_SOURCE_INQUIRIES).toEqual([
-      expect.objectContaining({
-        id: 'get-revision',
-        type: SinkInquiryType.GET_REVISION,
-        workflow: 'immediate',
-        active: true,
-      }),
-    ])
-    const definition = ACTIVE_SOURCE_INQUIRIES[0]
-    expect(definition.parameters).toEqual([])
-    expect(definition.sideEffects).toEqual([])
+    expect(ACTIVE_SOURCE_INQUIRIES.map(({ type }) => type)).toEqual(Object.values(SinkInquiryType))
+    const definition = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_REVISION)!
+    expect(ACTIVE_SOURCE_INQUIRIES.every(({ workflow, active }) => workflow === 'immediate' && active)).toBe(true)
+    expect(ACTIVE_SOURCE_INQUIRIES.every(({ parameters }) => parameters.length === 0)).toBe(true)
     expect(definition.applicability({ sinkMode: true, attached: true })).toBe(true)
     expect(definition.applicability({ sinkMode: true, attached: false })).toBe(false)
     expect(definition.buildRequest({})).toEqual({ type: SinkInquiryType.GET_REVISION })
     expect(new Set(ACTIVE_SOURCE_INQUIRIES.map(({ type }) => type)).size).toBe(
       ACTIVE_SOURCE_INQUIRIES.length,
     )
+    const pps = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_PPS_STATUS)!
+    expect(pps.applicability({ sinkMode: true, attached: true, sprPpsContract: false })).toBe(false)
+    expect(pps.applicability({ sinkMode: true, attached: true, sprPpsContract: true, pdRevision3: true })).toBe(true)
+    expect(pps.applicability({ sinkMode: true, attached: true, sprPpsContract: true })).toBe(true)
+    expect(pps.applicability({ sinkMode: true, attached: true, sprPpsContract: true, pdRevision3: false })).toBe(false)
+    const status = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_STATUS)!
+    expect(status.sideEffects).toContain('clears-source-status-events')
+    expect(status.confirmation?.body).toContain('OCP, OVP, and OTP')
   })
 
   it('validates typed integer, enum, and country-code parameters', () => {

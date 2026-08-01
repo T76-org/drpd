@@ -7,7 +7,9 @@ Types and Enums for DRPD device communication.
 import enum
 
 from dataclasses import dataclass, field
-from typing import TypeAlias
+from typing import TypeAlias, Union
+
+from t76.drpd.message.data_objects import SourcePDO
 
 
 @dataclass
@@ -566,7 +568,39 @@ class SinkRequestStatus:
 class SinkInquiryType(enum.Enum):
     """Supported Sink-to-Source inquiry message types."""
 
+    GET_SOURCE_CAP = "GET_SOURCE_CAP"
+    GET_SOURCE_CAP_EXTENDED = "GET_SOURCE_CAP_EXTENDED"
+    GET_STATUS = "GET_STATUS"
     GET_REVISION = "GET_REVISION"
+    GET_SOURCE_INFO = "GET_SOURCE_INFO"
+    GET_PPS_STATUS = "GET_PPS_STATUS"
+
+
+@dataclass(frozen=True)
+class GetSourceCapabilitiesInquiryRequest:
+    """Request current SPR Source Capabilities."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_SOURCE_CAP, init=False
+    )
+
+
+@dataclass(frozen=True)
+class GetExtendedSourceCapabilitiesInquiryRequest:
+    """Request the PD 3.x Source Capabilities Extended data block."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_SOURCE_CAP_EXTENDED, init=False
+    )
+
+
+@dataclass(frozen=True)
+class GetStatusInquiryRequest:
+    """Request the PD 3.x Source Status data block."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_STATUS, init=False
+    )
 
 
 @dataclass(frozen=True)
@@ -579,9 +613,34 @@ class GetRevisionInquiryRequest:
     )
 
 
-# New inquiry categories turn this alias into a union of bounded semantic
+@dataclass(frozen=True)
+class GetSourceInfoInquiryRequest:
+    """Request the PD 3.x Source Info data object."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_SOURCE_INFO, init=False
+    )
+
+
+@dataclass(frozen=True)
+class GetPPSStatusInquiryRequest:
+    """Request PPS Status; firmware validates active SPR PPS applicability."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.GET_PPS_STATUS, init=False
+    )
+
+
+# New categories extend this discriminated union with bounded semantic
 # parameter dataclasses. Callers never construct PD headers directly.
-SinkInquiryRequest: TypeAlias = GetRevisionInquiryRequest
+SinkInquiryRequest: TypeAlias = Union[
+    GetSourceCapabilitiesInquiryRequest,
+    GetExtendedSourceCapabilitiesInquiryRequest,
+    GetStatusInquiryRequest,
+    GetRevisionInquiryRequest,
+    GetSourceInfoInquiryRequest,
+    GetPPSStatusInquiryRequest,
+]
 
 
 class SinkInquiryOutcome(enum.Enum):
@@ -623,12 +682,104 @@ class SinkInquiryStatus:
 
 
 @dataclass(frozen=True)
+class SourceCapabilitiesInquiryData:
+    """Decoded Source_Capabilities logical body."""
+
+    pdos: tuple[SourcePDO, ...]
+
+
+@dataclass(frozen=True)
+class ExtendedSourceCapabilitiesInquiryData:
+    """Decoded Source Capabilities Extended data block."""
+
+    payload_length: int
+    vendor_id: int
+    product_id: int
+    xid: int
+    firmware_version: int
+    hardware_version: int
+    voltage_regulation: int
+    holdup_time_ms: int
+    compliance: int
+    touch_current: int
+    peak_current: tuple[int, int, int]
+    touch_temperature: int
+    source_inputs: int
+    hot_swappable_battery_slots: int
+    fixed_batteries: int
+    spr_source_pdp_w: int
+    epr_source_pdp_w: int | None
+    has_epr_source_pdp: bool
+
+
+@dataclass(frozen=True)
+class SourceStatusInquiryData:
+    """Decoded SOP Status data block."""
+
+    payload_length: int
+    internal_temperature: int
+    present_input: int
+    present_battery_input: int
+    event_flags: int
+    temperature_status: int
+    power_status: int
+    power_state: int | None
+    has_power_state_change: bool
+    over_current_event: bool
+    over_temperature_event: bool
+    over_voltage_event: bool
+    operating_in_current_limit: bool
+
+
+@dataclass(frozen=True)
+class RevisionInquiryData:
+    """Decoded Revision Message data object."""
+
+    revision_major: int
+    revision_minor: int
+    version_major: int
+    version_minor: int
+
+
+@dataclass(frozen=True)
+class SourceInfoInquiryData:
+    """Decoded Source Info data object; PDP values are watts."""
+
+    port_type: int
+    port_maximum_pdp_w: int
+    port_present_pdp_w: int
+    port_reported_pdp_w: int
+
+
+@dataclass(frozen=True)
+class PPSStatusInquiryData:
+    """Decoded four-byte PPS Status data block."""
+
+    output_voltage_mv: int | None
+    output_current_ma: int | None
+    present_temperature_flag: int
+    operating_in_current_limit: bool
+    real_time_flags: int
+
+
+SinkInquiryDecodedData: TypeAlias = Union[
+    SourceCapabilitiesInquiryData,
+    ExtendedSourceCapabilitiesInquiryData,
+    SourceStatusInquiryData,
+    RevisionInquiryData,
+    SourceInfoInquiryData,
+    PPSStatusInquiryData,
+]
+
+
+@dataclass(frozen=True)
 class SinkInquiryResult:
     """Correlated terminal inquiry result retained by the host runner."""
 
     request: SinkInquiryRequest
     status: SinkInquiryStatus
     raw_response: bytes | None
+    decoded: SinkInquiryDecodedData | None = None
 
 
 class DiagnosticCCRole(enum.Enum):

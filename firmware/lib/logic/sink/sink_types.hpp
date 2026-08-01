@@ -20,7 +20,14 @@
 
 namespace T76::DRPD::Logic {
 
-    enum class SinkInquiryType : uint32_t { GetRevision = 0 };
+    enum class SinkInquiryType : uint32_t {
+        GetRevision = 0,
+        GetSourceCapabilities,
+        GetSourceCapabilitiesExtended,
+        GetStatus,
+        GetSourceInfo,
+        GetPPSStatus,
+    };
 
     /** Fixed, queue-safe parameters shared by typed inquiry descriptors. */
     struct SinkInquiryParameters {
@@ -48,6 +55,7 @@ namespace T76::DRPD::Logic {
         uint32_t responseClass = 0;
         uint32_t responseType = 0;
         uint32_t responseLength = 0;
+        uint32_t warningFlags = 0;
     };
 
     struct SinkInquiryResult {

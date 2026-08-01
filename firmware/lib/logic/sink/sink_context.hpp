@@ -364,6 +364,14 @@ namespace T76::DRPD::Logic {
         bool sendInquiryRequest(const SinkInquiryRequest& request);
         std::optional<SinkRuntimeState::ExtendedPayloadBuffer> takeInquiryExtendedPayload();
         void handleMessageAsReady(const PHY::BMCDecodedMessage *message);
+        bool cacheInquiryResponse(
+            SinkInquiryType type,
+            const PHY::BMCDecodedMessage *message,
+            std::span<const uint8_t> payload);
+        void requestAfterSourceCapabilitiesInquiry(
+            std::optional<uint32_t> previousRawPDO,
+            uint32_t previousVoltageMV,
+            uint32_t previousCurrentMA);
 
         /**
          * @brief Send local Manufacturer_Info for a Get_Manufacturer_Info request payload.

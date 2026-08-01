@@ -19,11 +19,22 @@ from t76.drpd.device.device_sink_pdos import (
     VariablePDO,
 )
 from t76.drpd.device.types import (
+    ExtendedSourceCapabilitiesInquiryData,
+    GetExtendedSourceCapabilitiesInquiryRequest,
+    GetPPSStatusInquiryRequest,
     GetRevisionInquiryRequest,
+    GetSourceCapabilitiesInquiryRequest,
+    GetSourceInfoInquiryRequest,
+    GetStatusInquiryRequest,
+    PPSStatusInquiryData,
+    RevisionInquiryData,
     SinkInquiryOutcome,
     SinkInquiryType,
     SinkRequestOutcome,
     SinkState,
+    SourceCapabilitiesInquiryData,
+    SourceInfoInquiryData,
+    SourceStatusInquiryData,
 )
 
 
@@ -249,6 +260,15 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
             "SINK:INQ GET_REVISION"
         )
 
+    async def test_send_inquiry_supports_every_source_information_token(self) -> None:
+        for inquiry_type in SinkInquiryType:
+            with self.subTest(inquiry_type=inquiry_type):
+                self.mock_internal.reset_mock()
+                await self.device_sink.send_inquiry(inquiry_type)
+                self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+                    f"SINK:INQ {inquiry_type.value}"
+                )
+
     async def test_get_inquiry_status(self) -> None:
         self.mock_internal.query_ascii_values_and_check.return_value = [
             "RESPONSE,17,GET_REVISION,1,12,6"
@@ -302,9 +322,9 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_inquiry_correlates_response_and_retains_history(self) -> None:
         self.mock_internal.query_ascii_values_and_check.side_effect = [
-            ["RESPONSE,7,GET_REVISION,1,12,4"],
+            ["RESPONSE,7,GET_REVISION,2,12,4"],
             ["PENDING,8,GET_REVISION,0,0,0"],
-            ["RESPONSE,8,GET_REVISION,1,12,4"],
+            ["RESPONSE,8,GET_REVISION,2,12,4"],
         ]
         self.mock_internal.query_binary_value_and_check.return_value = [
             1, 2, 3, 4
@@ -318,6 +338,7 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result.request, request)
         self.assertEqual(result.status.request_id, 8)
         self.assertEqual(result.raw_response, b"\x01\x02\x03\x04")
+        self.assertIsInstance(result.decoded, RevisionInquiryData)
         self.assertEqual(self.device_sink.inquiry_runner.history, (result,))
         self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
             "SINK:INQ GET_REVISION"
@@ -354,7 +375,7 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
     async def test_run_inquiry_rejects_mismatched_response_length(self) -> None:
         self.mock_internal.query_ascii_values_and_check.side_effect = [
             ["NONE,0,GET_REVISION,0,0,0"],
-            ["RESPONSE,1,GET_REVISION,1,12,4"],
+            ["RESPONSE,1,GET_REVISION,2,12,4"],
         ]
         self.mock_internal.query_binary_value_and_check.return_value = [1, 2]
 
@@ -423,6 +444,225 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(runner.history, (latest,))
+
+    async def test_runner_decodes_every_supported_success_body(self) -> None:
+        source_info_raw = (
+            (1 << 31) | (100 << 16) | (65 << 8) | 60
+        ).to_bytes(4, "little")
+        vectors = [
+            (
+                GetSourceCapabilitiesInquiryRequest(),
+                2,
+                0x01,
+                (0x0001912C).to_bytes(4, "little"),
+                SourceCapabilitiesInquiryData,
+            ),
+            (
+                GetExtendedSourceCapabilitiesInquiryRequest(),
+                0,
+                0x01,
+                bytes(range(25)),
+                ExtendedSourceCapabilitiesInquiryData,
+            ),
+            (
+                GetStatusInquiryRequest(),
+                0,
+                0x02,
+                bytes([30, 0x0A, 1, 0x1E, 0x04, 0x22, 0x11]),
+                SourceStatusInquiryData,
+            ),
+            (
+                GetRevisionInquiryRequest(),
+                2,
+                0x0C,
+                bytes([0, 0, 0x21, 0x32]),
+                RevisionInquiryData,
+            ),
+            (
+                GetSourceInfoInquiryRequest(),
+                2,
+                0x0B,
+                source_info_raw,
+                SourceInfoInquiryData,
+            ),
+            (
+                GetPPSStatusInquiryRequest(),
+                0,
+                0x0C,
+                bytes([0xFA, 0x00, 60, 0x0A]),
+                PPSStatusInquiryData,
+            ),
+        ]
+
+        for request_id, vector in enumerate(vectors, start=1):
+            request, response_class, response_type, body, decoded_type = vector
+            with self.subTest(request=request):
+                self.mock_internal.reset_mock()
+                self.mock_internal.query_ascii_values_and_check.side_effect = [
+                    [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                    [
+                        f"RESPONSE,{request_id},{request.type.value},"
+                        f"{response_class},{response_type},{len(body)}"
+                    ],
+                ]
+                self.mock_internal.query_binary_value_and_check.return_value = list(
+                    body
+                )
+                runner = SinkInquiryRunner(self.device_sink)
+
+                result = await runner.run(request, poll_interval_seconds=0)
+
+                self.assertEqual(result.raw_response, body)
+                self.assertIsInstance(result.decoded, decoded_type)
+                self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+                    f"SINK:INQ {request.type.value}"
+                )
+
+    async def test_decoded_success_fields_use_protocol_units(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_PPS_STATUS,0,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            0xFA, 0x00, 60, 0x0A
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetPPSStatusInquiryRequest(), poll_interval_seconds=0
+        )
+        self.assertIsInstance(result.decoded, PPSStatusInquiryData)
+        assert isinstance(result.decoded, PPSStatusInquiryData)
+        self.assertEqual(result.decoded.output_voltage_mv, 5000)
+        self.assertEqual(result.decoded.output_current_ma, 3000)
+        self.assertEqual(result.decoded.present_temperature_flag, 1)
+        self.assertTrue(result.decoded.operating_in_current_limit)
+
+    async def test_runner_rejects_wrong_response_metadata(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_STATUS,2,1,7"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [0] * 7
+
+        with self.assertRaisesRegex(ValueError, "metadata does not match"):
+            await self.device_sink.run_inquiry(
+                GetStatusInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_runner_rejects_malformed_bodies(self) -> None:
+        malformed = [
+            (GetSourceCapabilitiesInquiryRequest(), 2, 1, bytes(3)),
+            (GetExtendedSourceCapabilitiesInquiryRequest(), 0, 1, bytes(23)),
+            (GetExtendedSourceCapabilitiesInquiryRequest(), 0, 1, bytes(26)),
+            (GetStatusInquiryRequest(), 0, 2, bytes(5)),
+            (GetStatusInquiryRequest(), 0, 2, bytes(8)),
+            (GetRevisionInquiryRequest(), 2, 12, bytes(3)),
+            (GetSourceInfoInquiryRequest(), 2, 11, bytes(5)),
+            (GetPPSStatusInquiryRequest(), 0, 12, bytes(5)),
+        ]
+        for request_id, vector in enumerate(malformed, start=1):
+            request, response_class, response_type, body = vector
+            with self.subTest(request=request):
+                self.mock_internal.query_ascii_values_and_check.side_effect = [
+                    [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                    [
+                        f"RESPONSE,{request_id},{request.type.value},"
+                        f"{response_class},{response_type},{len(body)}"
+                    ],
+                ]
+                self.mock_internal.query_binary_value_and_check.return_value = list(
+                    body
+                )
+                runner = SinkInquiryRunner(self.device_sink)
+                with self.assertRaisesRegex(ValueError, "body must"):
+                    await runner.run(request, poll_interval_seconds=0)
+
+    async def test_pps_device_conflict_is_not_rewritten(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "NONE,0,GET_REVISION,0,0,0"
+        ]
+        self.mock_internal.write_ascii_and_check.side_effect = RuntimeError(
+            '-221,"Settings conflict. GET_PPS_STATUS requires SPR PPS"'
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "requires SPR PPS"):
+            await self.device_sink.run_inquiry(
+                GetPPSStatusInquiryRequest(), poll_interval_seconds=0
+            )
+        self.assertEqual(self.device_sink.inquiry_runner.history, ())
+
+    async def test_legacy_extended_capabilities_omits_epr_pdp_explicitly(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_SOURCE_CAP_EXTENDED,0,1,24"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            bytes(range(24))
+        )
+
+        result = await self.device_sink.run_inquiry(
+            GetExtendedSourceCapabilitiesInquiryRequest(),
+            poll_interval_seconds=0,
+        )
+        self.assertIsInstance(
+            result.decoded, ExtendedSourceCapabilitiesInquiryData
+        )
+        assert isinstance(result.decoded, ExtendedSourceCapabilitiesInquiryData)
+        self.assertEqual(result.decoded.payload_length, 24)
+        self.assertIsNone(result.decoded.epr_source_pdp_w)
+        self.assertFalse(result.decoded.has_epr_source_pdp)
+
+    async def test_extended_capabilities_masks_spr_pdp_reserved_bit(self) -> None:
+        body = bytearray(25)
+        body[23] = 0x80 | 65
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_SOURCE_CAP_EXTENDED,0,1,25"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(body)
+
+        result = await self.device_sink.run_inquiry(
+            GetExtendedSourceCapabilitiesInquiryRequest(),
+            poll_interval_seconds=0,
+        )
+        self.assertIsInstance(
+            result.decoded, ExtendedSourceCapabilitiesInquiryData
+        )
+        assert isinstance(result.decoded, ExtendedSourceCapabilitiesInquiryData)
+        self.assertEqual(result.decoded.spr_source_pdp_w, 65)
+
+    async def test_legacy_status_omits_power_state_explicitly(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_STATUS,0,2,6"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            30, 0x0A, 1, 0x1E, 0x04, 0x22
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetStatusInquiryRequest(), poll_interval_seconds=0
+        )
+        self.assertIsInstance(result.decoded, SourceStatusInquiryData)
+        assert isinstance(result.decoded, SourceStatusInquiryData)
+        self.assertEqual(result.decoded.payload_length, 6)
+        self.assertIsNone(result.decoded.power_state)
+        self.assertFalse(result.decoded.has_power_state_change)
+
+    async def test_recovered_pps_wire_quirk_is_logical_four_byte_body(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_PPS_STATUS,0,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            0xFA, 0x00, 60, 0x0A
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetPPSStatusInquiryRequest(), poll_interval_seconds=0
+        )
+        self.assertEqual(result.raw_response, bytes([0xFA, 0, 60, 0x0A]))
+        self.assertIsInstance(result.decoded, PPSStatusInquiryData)
 
 
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):

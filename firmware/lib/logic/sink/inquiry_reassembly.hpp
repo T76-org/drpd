@@ -24,6 +24,20 @@ enum class InquiryReassemblyResult : uint8_t {
     Duplicate,
 };
 
+/** Match known interoperable malformed PPS_Status encoding. */
+[[nodiscard]] constexpr bool isRecoverableMalformedInquiryPPSStatus(
+    uint32_t extendedType,
+    bool chunked,
+    bool requestChunk,
+    uint16_t dataSize,
+    uint8_t chunkNumber,
+    uint8_t numDataObjects,
+    std::span<const uint8_t> body) {
+    if (extendedType != 0x0c || !chunked || requestChunk || dataSize != 1 ||
+        chunkNumber != 0 || numDataObjects != 2 || body.size() != 8) return false;
+    return body[6] == 0 && body[7] == 0;
+}
+
 template <size_t MaxBytes>
 class InquiryExtendedReassembly {
 public:
@@ -46,12 +60,18 @@ public:
             return InquiryReassemblyResult::TooLarge;
         }
         if (!chunked) {
-            if (chunkNumber != 0 || fragment.size() != dataSize) {
+            if (chunkNumber != 0 || fragment.size() < dataSize) {
                 reset();
                 return InquiryReassemblyResult::Malformed;
             }
-            std::copy(fragment.begin(), fragment.end(), _bytes.begin());
-            _length = fragment.size();
+            for (size_t i = dataSize; i < fragment.size(); ++i) {
+                if (fragment[i] != 0) {
+                    reset();
+                    return InquiryReassemblyResult::Malformed;
+                }
+            }
+            std::copy_n(fragment.begin(), dataSize, _bytes.begin());
+            _length = dataSize;
             _active = false;
             return InquiryReassemblyResult::Complete;
         }

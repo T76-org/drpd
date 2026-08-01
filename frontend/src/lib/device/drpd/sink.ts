@@ -21,6 +21,7 @@ import { OnOffState } from './types'
 import type {
   SinkInfo,
   SinkInquiryStatus,
+  SinkInquiryRequest,
   SinkInquiryType,
   SinkPdo,
   SinkRequestStatus,
@@ -87,6 +88,11 @@ export class DRPDSink {
   /** Start a supported Sink-to-Source inquiry. */
   public async sendInquiry(type: SinkInquiryType): Promise<void> {
     await this.transport.sendCommand('SINK:INQ', scpiEnum(type))
+  }
+
+  /** Send a semantic inquiry request; the library owns PD and SCPI encoding. */
+  public async sendInquiryRequest(request: SinkInquiryRequest): Promise<void> {
+    await this.sendInquiry(request.type)
   }
 
   /** Query the most recent Sink-to-Source inquiry status. */

@@ -6,6 +6,7 @@
 #include "sink_context.hpp"
 #include "sink_raw_pd_message.hpp"
 #include "inquiry_descriptor.hpp"
+#include "inquiry_capability_selection.hpp"
 
 #include <algorithm>
 #include <array>
@@ -782,6 +783,76 @@ SinkContext::takeInquiryExtendedPayload() {
 
 void SinkContext::handleMessageAsReady(const PHY::BMCDecodedMessage *message) {
     _readySinkStateHandler.handleMessage(*this, message);
+}
+
+bool SinkContext::cacheInquiryResponse(
+    SinkInquiryType type,
+    const PHY::BMCDecodedMessage *message,
+    std::span<const uint8_t> payload) {
+    auto copyExtended = [payload](
+        std::optional<SinkRuntimeState::ExtendedPayloadBuffer>& destination) {
+        if (payload.size() > LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES) return false;
+        SinkRuntimeState::ExtendedPayloadBuffer value;
+        value.length = payload.size();
+        std::copy(payload.begin(), payload.end(), value.bytes.begin());
+        destination = value;
+        return true;
+    };
+    switch (type) {
+        case SinkInquiryType::GetSourceCapabilities: {
+            const auto header = message->decodedHeader();
+            Proto::SourceCapabilities capabilities(payload, header.numDataObjects());
+            if (capabilities.pdoCount() == 0) return false;
+            setSourceCapabilities(capabilities, header.specRevision());
+            return true;
+        }
+        case SinkInquiryType::GetSourceCapabilitiesExtended:
+            return copyExtended(_runtimeState._sourceCapabilitiesExtended);
+        case SinkInquiryType::GetStatus:
+            return copyExtended(_runtimeState._sourceStatus);
+        case SinkInquiryType::GetPPSStatus: {
+            Proto::PPSStatus status(payload);
+            if (!status.valid()) return false;
+            _runtimeState._ppsStatus = status;
+            return true;
+        }
+        case SinkInquiryType::GetRevision:
+        case SinkInquiryType::GetSourceInfo:
+            return true;
+    }
+    return false;
+}
+
+void SinkContext::requestAfterSourceCapabilitiesInquiry(
+    std::optional<uint32_t> previousRawPDO,
+    uint32_t previousVoltageMV,
+    uint32_t previousCurrentMA) {
+    std::array<uint32_t, 7> refreshedRawPDOs = {};
+    const size_t count = std::min(totalPDOCount(), refreshedRawPDOs.size());
+    for (size_t i = 0; i < count; ++i) {
+        const auto pdo = pdoAtIndex(i);
+        if (pdo.has_value()) {
+            refreshedRawPDOs[i] = std::visit(
+                [](const auto& typedPDO) { return typedPDO.raw(); }, pdo.value());
+        }
+    }
+    const auto selection = selectRefreshedCapability(
+        previousRawPDO, std::span<const uint32_t>(refreshedRawPDOs.data(), count));
+    if (selection.provenance == CapabilityRefreshSelectionProvenance::NoCapabilities) {
+        reportError("Source capability inquiry returned no requestable PDOs");
+        return;
+    }
+    if (selection.provenance == CapabilityRefreshSelectionProvenance::MatchedPreviousPDO) {
+        const auto result = requestPDO(
+            selection.index, previousVoltageMV, previousCurrentMA, true);
+        if (result) return;
+        reportWarning(
+            "refreshed Source_Capabilities matched prior PDO but prior contract values were invalid; using safe first-PDO fallback");
+    } else {
+        reportWarning(
+            "refreshed Source_Capabilities did not contain prior negotiated PDO; using safe first-PDO fallback");
+    }
+    (void)requestPDO(0, 0, 0, true);
 }
 
 void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) {

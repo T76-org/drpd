@@ -134,10 +134,10 @@ namespace T76::SCPI {
  * Command System:
  *   - Commands: 104 (1248 bytes)
  *   - Parameter descriptors: 624 bytes
- *   - String literals: 433 bytes
+ *   - String literals: 514 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 18177 bytes (0.43% of 2MB)
+ *   - Code/Data (Flash): 18258 bytes (0.44% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
@@ -158,6 +158,11 @@ namespace T76::SCPI {
 
     const char* const command_56_param_0_choices[] = {
         "GET_REVISION",
+        "GET_SOURCE_CAP",
+        "GET_SOURCE_CAP_EXTENDED",
+        "GET_STATUS",
+        "GET_SOURCE_INFO",
+        "GET_PPS_STATUS",
     };
 
     const char* const command_65_param_0_choices[] = {
@@ -380,7 +385,7 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 1,
+            .choiceCount = 6,
             .choices = command_56_param_0_choices
         },
     };

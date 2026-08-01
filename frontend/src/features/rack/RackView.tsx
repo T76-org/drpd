@@ -8,6 +8,7 @@ import {
   DRPDDeviceDefinition,
   OnOffState,
   SinkPdoType,
+  SinkInquiryType,
   TriggerEventType,
   TriggerSenderFilter,
   TriggerStatus,
@@ -1629,6 +1630,9 @@ export const RackView = ({
   )
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
+  const handleSourceInquiryResponse = useCallback((definition: InquiryDefinition) => {
+    if (definition.type === SinkInquiryType.GET_SOURCE_CAP) return activeDriver?.refreshState()
+  }, [activeDriver])
   const hasSelectedMessages = messageLogSelectionKeys.length > 0
   const selectedLogRow = useMemo(() => {
     if (messageLogSelectionKeys.length !== 1) return null
@@ -3100,6 +3104,16 @@ export const RackView = ({
             items: ACTIVE_SOURCE_INQUIRIES.map((definition) => ({
               id: `send-inquiry-${definition.id}`,
               label: definition.label,
+              meta: definition.type !== SinkInquiryType.GET_SOURCE_CAP &&
+                definition.type !== SinkInquiryType.GET_REVISION
+                ? 'Firmware validates PD 3.x at send time'
+                : undefined,
+              disabled: !definition.applicability({
+                sinkMode: isSinkMode,
+                attached: activeDriverState?.ccBusRoleStatus === CCBusRoleStatus.ATTACHED,
+                sprPpsContract:
+                  activeDriverState?.sinkInfo?.negotiatedPdo?.type === SinkPdoType.SPR_PPS,
+              }),
               onSelect: () => setSourceInquiryDefinition(definition),
             })),
           },
@@ -3134,6 +3148,8 @@ export const RackView = ({
       activeDriverState?.role,
       activeDriverState?.sinkEprEnabled,
       activeDriverState?.sinkPpsStatusQueryEnabled,
+      activeDriverState?.ccBusRoleStatus,
+      activeDriverState?.sinkInfo?.negotiatedPdo?.type,
       canCycleUsbConnection,
       canUseSinkBehaviourSettings,
       handlePulseUsbConnection,
@@ -3965,6 +3981,7 @@ export const RackView = ({
         }}
         definition={sourceInquiryDefinition}
         client={activeDriver?.sink ?? null}
+        onResponse={handleSourceInquiryResponse}
       />
       <MessageLogFilterPopover
         open={isMessageLogFilterDialogOpen}

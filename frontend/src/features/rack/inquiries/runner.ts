@@ -6,7 +6,9 @@ import {
 } from '../../../lib/device'
 
 export interface SinkInquiryClient {
-  sendInquiry: (type: SinkInquiryType) => Promise<void>
+  sendInquiryRequest?: (request: SinkInquiryRequest) => Promise<void>
+  /** @deprecated Compatibility for pre-semantic clients. */
+  sendInquiry?: (type: SinkInquiryType) => Promise<void>
   getInquiryStatus: () => Promise<SinkInquiryStatus>
   getInquiryResponse: () => Promise<Uint8Array>
 }
@@ -95,7 +97,9 @@ export const runSinkInquiry = async (
     const baseline = await client.getInquiryStatus()
     if (options.signal?.aborted) return cancelled()
     emit({ phase: 'sending', type })
-    await client.sendInquiry(type)
+    if (client.sendInquiryRequest) await client.sendInquiryRequest(request)
+    else if (client.sendInquiry) await client.sendInquiry(type)
+    else throw new Error('Inquiry client cannot send requests')
 
     let requestId: number | null = null
     const maxPolls = options.maxPolls ?? 100

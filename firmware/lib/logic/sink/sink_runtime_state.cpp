@@ -44,6 +44,8 @@ void SinkRuntimeState::reset() {
     _eprCapabilities.reset();
     _specRevision = Proto::PDHeader::SpecRevision::Rev3_x;
     _ppsStatus.reset();
+    _sourceCapabilitiesExtended.reset();
+    _sourceStatus.reset();
     _inquiryResult = previousInquiry;
     if (_inquiryResult.status.outcome == SinkInquiryOutcome::Pending) {
         _inquiryResult.status.outcome = SinkInquiryOutcome::Aborted;
@@ -77,6 +79,7 @@ void SinkRuntimeState::reset() {
         payload.reset();
     }
     _completedInquiryExtendedPayload.reset();
+    _inquiryRecoveredMalformedPPSStatus = false;
 }
 
 SinkInquiryResult SinkRuntimeState::inquiryResult() const {
@@ -94,6 +97,7 @@ void SinkRuntimeState::beginInquiry(const SinkInquiryRequest& request) {
     _inquiryResult.parameters = request.parameters;
     _inquiryResult.status.outcome = SinkInquiryOutcome::Pending;
     _completedInquiryExtendedPayload.reset();
+    _inquiryRecoveredMalformedPPSStatus = false;
     _unlockInquiryResult();
 }
 
@@ -101,7 +105,8 @@ void SinkRuntimeState::finishInquiry(
     SinkInquiryOutcome outcome,
     uint32_t responseClass,
     uint32_t responseType,
-    std::span<const uint8_t> response) {
+    std::span<const uint8_t> response,
+    uint32_t warningFlags) {
     _lockInquiryResult();
     const size_t responseLength = std::min(response.size(), _inquiryResult.response.size());
     if (responseLength > 0) {
@@ -110,6 +115,7 @@ void SinkRuntimeState::finishInquiry(
     _inquiryResult.status.responseClass = responseClass;
     _inquiryResult.status.responseType = responseType;
     _inquiryResult.status.responseLength = responseLength;
+    _inquiryResult.status.warningFlags = warningFlags;
     _inquiryResult.status.outcome = outcome;
     _unlockInquiryResult();
 }
