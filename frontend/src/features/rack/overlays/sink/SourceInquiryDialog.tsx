@@ -5,6 +5,7 @@ import { SinkInquiryType, type SinkInquiryRequest } from '../../../../lib/device
 import { parseCountryCodesDataBlock } from '../../../../lib/device/drpd/usb-pd/DataObjects'
 import { buildCountryInfoSteps } from '../../inquiries/countryWorkflow'
 import { batteryReferencesFromScedb, buildAllBatterySurveySteps, buildBatterySurveySteps } from '../../inquiries/batteryWorkflow'
+import { buildDiscoverModesSteps, canRetryVdmSurveyStep, deduplicateOrderedSvids, parseDiscoverSvidPage } from '../../inquiries/vdmWorkflow'
 import { formatSinkInquiryOutcome } from '../../inquiries/presentation'
 import { decodeInquiryResponse } from '../../inquiries/decode'
 import {
@@ -135,8 +136,145 @@ const CountryInformationWorkflow = ({ client }: { client: SinkInquiryClient }) =
       <DialogButton onClick={() => resume('stop')}>Stop</DialogButton>
     </div> : null}
     <h3>Inquiry history</h3>
-    <ol>{history.map((entry, index) => <li key={`${entry.stepId}-${entry.attempt}-${index}`}>{entry.stepId} · attempt {entry.attempt} · {entry.result.phase}</li>)}</ol>
+    <ol>{history.map((entry, index) => <li key={`${entry.stepId}-${entry.attempt}-${index}`}>{entry.stepId} · attempt {entry.attempt} · {entry.result.phase}{entry.result.phase === 'terminal' && entry.result.rawResponse ? ` · ${bytesToHex(entry.result.rawResponse)}` : ''}</li>)}</ol>
     {latestResponse?.phase === 'response' ? <p>Latest raw response body: <code>{bytesToHex(latestResponse.rawResponse)}</code></p> : null}
+    <p>Full packet decoding remains available in Message Log.</p>
+  </>
+}
+
+type VdmSurveyPending =
+  | { kind: 'discovery'; phase: 'identity' | 'svids'; pages: number[][]; pageIndex: number; nonRetryable?: boolean }
+  | { kind: 'modes'; steps: SerialInquiryWorkflowStep[]; index: number }
+
+const PortPartnerSurveyWorkflow = ({ client }: { client: SinkInquiryClient }) => {
+  const [history, setHistory] = useState<InquiryHistoryEntry[]>([])
+  const [svids, setSvids] = useState<number[] | null>(null)
+  const [selected, setSelected] = useState('')
+  const [running, setRunning] = useState(true)
+  const [pending, setPending] = useState<VdmSurveyPending | null>(null)
+  const [workflowError, setWorkflowError] = useState<string | null>(null)
+  const controllerRef = useRef<AbortController | null>(null)
+  const busyRef = useRef(true)
+  const maxRetries = 2
+  const appendAttempt = useCallback((stepId: string, result: InquiryRunState) => setHistory((current) => [
+    ...current,
+    { stepId, attempt: current.filter((entry) => entry.stepId === stepId).length + 1, result },
+  ].slice(-64)), [])
+
+  const discover = useCallback(async (startAtSvids = false, initialPages: number[][] = [], pageStart = 0) => {
+    if (!busyRef.current) busyRef.current = true
+    setRunning(true)
+    setWorkflowError(null)
+    let failed: VdmSurveyPending | null = null
+    const completedSvids: { value: number[] | null } = { value: null }
+    await withSinkInquiryLease(client, async (run) => {
+      if (!startAtSvids) {
+        const request = { type: SinkInquiryType.DISCOVER_IDENTITY } as const
+        let result = await run(request, { signal: controllerRef.current?.signal })
+        if (result.phase === 'response') {
+          try { decodeInquiryResponse(result.status, result.rawResponse, result.request) }
+          catch (error) { result = { phase: 'transportError', type: request.type, message: error instanceof Error ? error.message : String(error) } }
+        }
+        appendAttempt('discover-identity', result)
+        if (result.phase !== 'response') { failed = { kind: 'discovery', phase: 'identity', pages: [], pageIndex: 0 }; return }
+      }
+
+      const pages = [...initialPages]
+      for (let pageIndex = pageStart; pageIndex < 8; pageIndex += 1) {
+        const request = { type: SinkInquiryType.DISCOVER_SVIDS } as const
+        const stepId = `discover-svids-page-${pageIndex + 1}`
+        let result = await run(request, { signal: controllerRef.current?.signal })
+        let parsed: ReturnType<typeof parseDiscoverSvidPage> | null = null
+        if (result.phase === 'response') {
+          try {
+            decodeInquiryResponse(result.status, result.rawResponse, result.request)
+            parsed = parseDiscoverSvidPage(result.rawResponse)
+          } catch (error) { result = { phase: 'transportError', type: request.type, message: error instanceof Error ? error.message : String(error) } }
+        }
+        appendAttempt(stepId, result)
+        if (result.phase !== 'response' || !parsed) { failed = { kind: 'discovery', phase: 'svids', pages, pageIndex }; return }
+        pages.push(parsed.ordered)
+        if (parsed.complete) { completedSvids.value = deduplicateOrderedSvids(pages); return }
+      }
+      failed = { kind: 'discovery', phase: 'svids', pages, pageIndex: 8, nonRetryable: true }
+      setWorkflowError('Discover SVIDs exceeded the eight-page safety bound without a terminator.')
+    })
+    if (completedSvids.value) {
+      setSvids(completedSvids.value)
+      setSelected(completedSvids.value[0]?.toString() ?? '')
+      setPending(null)
+    } else if (failed) setPending(failed)
+    setRunning(false)
+    busyRef.current = false
+  }, [appendAttempt, client])
+
+  const runModes = useCallback(async (steps: SerialInquiryWorkflowStep[], startIndex: number) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setRunning(true)
+    let failed: VdmSurveyPending | null = null
+    await withSinkInquiryLease(client, async (run) => {
+      for (let index = startIndex; index < steps.length; index += 1) {
+        const step = steps[index]
+        let result = await run(step.request, { signal: controllerRef.current?.signal })
+        if (result.phase === 'response') {
+          try { decodeInquiryResponse(result.status, result.rawResponse, result.request) }
+          catch (error) { result = { phase: 'transportError', type: step.request.type, message: error instanceof Error ? error.message : String(error) } }
+        }
+        appendAttempt(step.id, result)
+        if (result.phase !== 'response') { failed = { kind: 'modes', steps, index }; return }
+      }
+    })
+    setPending(failed)
+    setRunning(false)
+    busyRef.current = false
+  }, [appendAttempt, client])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    controllerRef.current = controller
+    queueMicrotask(() => { if (!controller.signal.aborted) void discover() })
+    return () => controller.abort()
+  }, [discover])
+
+  const pendingStepId = pending?.kind === 'modes'
+    ? pending.steps[pending.index]?.id
+    : pending?.phase === 'identity' ? 'discover-identity' : `discover-svids-page-${(pending?.pageIndex ?? 0) + 1}`
+  const attempts = pendingStepId ? history.filter((entry) => entry.stepId === pendingStepId).length : 0
+  const resume = (action: 'retry' | 'continue' | 'stop') => {
+    if (!pending) return
+    if (action === 'stop') { setPending(null); return }
+    if (action === 'retry' && pending.kind === 'discovery' && pending.nonRetryable) return
+    if (pending.kind === 'modes') { void runModes(pending.steps, pending.index + (action === 'continue' ? 1 : 0)); return }
+    if (pending.phase === 'identity') { void discover(action === 'continue'); return }
+    if (action === 'continue') {
+      const discovered = deduplicateOrderedSvids(pending.pages)
+      setSvids(discovered); setSelected(discovered[0]?.toString() ?? ''); setPending(null)
+    } else void discover(false, [], 0)
+  }
+  const startModes = (values: number[]) => {
+    try { setWorkflowError(null); void runModes(buildDiscoverModesSteps(values), 0) }
+    catch (error) { setWorkflowError(error instanceof Error ? error.message : String(error)) }
+  }
+
+  return <>
+    {svids !== null && !running && !pending ? <>
+      <p>{svids.length > 0 ? `Discovered SVIDs: ${svids.map((value) => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`).join(', ')}` : 'No SVIDs were discovered.'}</p>
+      {svids.length > 0 ? <>
+        <label>SVID <select aria-label="Discovered SVID" value={selected} onChange={(event) => setSelected(event.target.value)}>{svids.map((value) => <option key={value} value={value}>{`0x${value.toString(16).toUpperCase().padStart(4, '0')}`}</option>)}</select></label>
+        <DialogButton onClick={() => startModes([Number(selected)])}>Discover selected SVID modes</DialogButton>
+        <DialogButton onClick={() => startModes(svids)}>Discover all SVID modes</DialogButton>
+      </> : null}
+    </> : null}
+    {running ? <div role="status">Discovering Port Partner identity, SVIDs, or modes…</div> : null}
+    {pending ? <div role="alert"><p>Step {pendingStepId} did not return a usable response.</p>
+      <DialogButton disabled={!canRetryVdmSurveyStep(attempts, pending.kind === 'discovery' && pending.nonRetryable === true, maxRetries)} onClick={() => resume('retry')}>Retry</DialogButton>
+      <DialogButton onClick={() => resume('continue')}>Continue</DialogButton>
+      <DialogButton onClick={() => resume('stop')}>Stop</DialogButton>
+    </div> : null}
+    {workflowError ? <p role="alert">{workflowError}</p> : null}
+    <h3>Inquiry history</h3>
+    <ol>{history.map((entry, index) => <li key={`${entry.stepId}-${entry.attempt}-${index}`}>{entry.stepId} · attempt {entry.attempt} · {entry.result.phase}{entry.result.phase === 'terminal' && entry.result.rawResponse ? ` · ${bytesToHex(entry.result.rawResponse)}` : ''}</li>)}</ol>
     <p>Full packet decoding remains available in Message Log.</p>
   </>
 }
@@ -248,7 +386,7 @@ const BatterySurveyWorkflow = ({ client }: { client: SinkInquiryClient }) => {
       <DialogButton onClick={() => resume('stop')}>Stop</DialogButton>
     </div> : null}
     <h3>Inquiry history</h3>
-    <ol>{history.map((entry, index) => <li key={`${entry.stepId}-${entry.attempt}-${index}`}>{entry.stepId} · attempt {entry.attempt} · {entry.result.phase}</li>)}</ol>
+    <ol>{history.map((entry, index) => <li key={`${entry.stepId}-${entry.attempt}-${index}`}>{entry.stepId} · attempt {entry.attempt} · {entry.result.phase}{entry.result.phase === 'terminal' && entry.result.rawResponse ? ` · ${bytesToHex(entry.result.rawResponse)}` : ''}</li>)}</ol>
     <p>Full packet decoding remains available in Message Log.</p>
   </>
 }
@@ -272,6 +410,7 @@ export const SourceInquiryDialog = ({
   const [target, setTarget] = useState('PORT')
   const [batteryReference, setBatteryReference] = useState('0')
   const [countryCode, setCountryCode] = useState('')
+  const [svid, setSvid] = useState('65280')
   const confirmed = definition?.confirmation == null || approvedDefinitionId === definition.id
   const request = useMemo(() => definition?.workflow === 'immediate'
     ? definition.buildRequest({})
@@ -333,6 +472,8 @@ export const SourceInquiryDialog = ({
       {definition?.confirmation && !confirmed ? null : <>
       {definition?.id === 'survey-batteries' && client
         ? <BatterySurveyWorkflow client={client} />
+        : definition?.id === 'survey-port-partner-modes' && client
+          ? <PortPartnerSurveyWorkflow client={client} />
         : definition?.type === SinkInquiryType.GET_COUNTRY_INFO && client
           ? <CountryInformationWorkflow client={client} />
         : <>
@@ -343,6 +484,8 @@ export const SourceInquiryDialog = ({
             ? { target, batteryReference: Number(batteryReference) }
             : definition.type === SinkInquiryType.GET_BATTERY_CAP || definition.type === SinkInquiryType.GET_BATTERY_STATUS
               ? { batteryReference: Number(batteryReference) }
+            : definition.type === SinkInquiryType.DISCOVER_MODES
+              ? { svid: Number(svid) }
             : { countryCode }
           const validation = validateInquiryParameters(definition as InquiryDefinition<Record<string, unknown>>, values)
           if (!validation.valid) return
@@ -356,6 +499,8 @@ export const SourceInquiryDialog = ({
             {target === 'BATTERY' ? <label>Battery reference <input type="number" min="0" max="7" value={batteryReference} onChange={(event) => setBatteryReference(event.target.value)} /></label> : null}
           </> : definition.type === SinkInquiryType.GET_BATTERY_CAP || definition.type === SinkInquiryType.GET_BATTERY_STATUS
             ? <label>Battery reference <input aria-label="Battery reference" type="number" min="0" max="7" value={batteryReference} onChange={(event) => setBatteryReference(event.target.value)} /></label>
+            : definition.type === SinkInquiryType.DISCOVER_MODES
+              ? <label>SVID <input aria-label="SVID" type="number" min="1" max="65535" value={svid} onChange={(event) => setSvid(event.target.value)} /></label>
             : <label>Country code <input aria-label="Country code" maxLength={2} value={countryCode} onChange={(event) => setCountryCode(event.target.value.toUpperCase())} /></label>}
           <DialogButton variant="primary" type="submit">{definition.type === SinkInquiryType.GET_COUNTRY_INFO ? 'Send selected country' : 'Send inquiry'}</DialogButton>
         </form>
@@ -371,6 +516,7 @@ export const SourceInquiryDialog = ({
           <dt>Raw response body</dt><dd><code>{bytesToHex(state.rawResponse) || '(empty)'}</code></dd>
         </dl>
       ) : null}
+      {state.phase === 'terminal' && state.rawResponse ? <p>Raw terminal response body: <code>{bytesToHex(state.rawResponse)}</code></p> : null}
       <p>Full packet decoding remains available in Message Log.</p>
       </>}
       </>}

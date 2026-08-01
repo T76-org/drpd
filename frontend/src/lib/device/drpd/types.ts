@@ -284,6 +284,9 @@ export const SinkInquiryType = {
   GET_COUNTRY_INFO: 'GET_COUNTRY_INFO',
   GET_BATTERY_CAP: 'GET_BATTERY_CAP',
   GET_BATTERY_STATUS: 'GET_BATTERY_STATUS',
+  DISCOVER_IDENTITY: 'DISCOVER_IDENTITY',
+  DISCOVER_SVIDS: 'DISCOVER_SVIDS',
+  DISCOVER_MODES: 'DISCOVER_MODES',
 } as const
 
 /** Supported Sink-to-Source inquiry message type value. */
@@ -292,11 +295,12 @@ export type SinkInquiryType =
 
 /** Semantic request for Get_Revision; callers never construct a PD header. */
 export type SinkInquiryRequest =
-  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO | typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS> }
+  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO | typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS | typeof SinkInquiryType.DISCOVER_MODES> }
   | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'PORT' }
   | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'BATTERY'; batteryReference: number }
   | { type: typeof SinkInquiryType.GET_COUNTRY_INFO; countryCode: string }
   | { type: typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS; batteryReference: number }
+  | { type: typeof SinkInquiryType.DISCOVER_MODES; svid: number }
 
 /** Sink inquiry protocol outcome token. */
 export const SinkInquiryOutcome = {
@@ -311,6 +315,8 @@ export const SinkInquiryOutcome = {
   PROTOCOL_ERROR: 'PROTOCOL_ERROR',
   MALFORMED_RESPONSE: 'MALFORMED_RESPONSE',
   RESPONSE_TOO_LARGE: 'RESPONSE_TOO_LARGE',
+  NAK: 'NAK',
+  BUSY: 'BUSY',
   ABORTED: 'ABORTED',
 } as const
 

@@ -19,7 +19,7 @@ export type InquiryRunState =
   | { phase: 'sending'; type: SinkInquiryType }
   | { phase: 'waiting'; type: SinkInquiryType; requestId: number | null }
   | { phase: 'response'; status: SinkInquiryStatus; rawResponse: Uint8Array; request: SinkInquiryRequest }
-  | { phase: 'terminal'; status: SinkInquiryStatus }
+  | { phase: 'terminal'; status: SinkInquiryStatus; rawResponse?: Uint8Array }
   | { phase: 'superseded'; expectedType: SinkInquiryType; status: SinkInquiryStatus }
   | { phase: 'transportError'; type: SinkInquiryType; message: string }
   | { phase: 'cancelled'; type: SinkInquiryType }
@@ -129,7 +129,14 @@ const runSinkInquiryUnlocked = async (
         return emit({ phase: 'response', status, rawResponse, request })
       }
       if (requestId !== null && isTerminalOutcome(status.outcome)) {
-        return emit({ phase: 'terminal', status })
+        let rawResponse: Uint8Array | undefined
+        if (status.responseLength > 0) {
+          rawResponse = await client.getInquiryResponse()
+          if (rawResponse.byteLength !== status.responseLength) {
+            throw new Error(`Inquiry terminal response length mismatch: expected ${status.responseLength}, got ${rawResponse.byteLength}`)
+          }
+        }
+        return emit({ phase: 'terminal', status, rawResponse })
       }
 
       emit({ phase: 'waiting', type, requestId })

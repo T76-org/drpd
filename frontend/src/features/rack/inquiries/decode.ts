@@ -12,6 +12,9 @@ import {
   parseSourceCapabilitiesExtendedDataBlock,
   parseSourceInfoDataObject,
   readDataObjects,
+  parseVDMHeader,
+  parseDiscoverIdentityVDOs,
+  parseSVIDsVDO,
 } from '../../../lib/device/drpd/usb-pd/DataObjects'
 
 export interface DecodedInquiryResponse { summary: string; messageTypeName: string }
@@ -28,6 +31,9 @@ const RESPONSE_TYPES: Record<SinkInquiryType, { responseClass: number; responseT
   [SinkInquiryType.GET_COUNTRY_INFO]: { responseClass: 0, responseType: 0x0d, name: 'Country_Info' },
   [SinkInquiryType.GET_BATTERY_CAP]: { responseClass: 0, responseType: 0x05, name: 'Battery_Capabilities' },
   [SinkInquiryType.GET_BATTERY_STATUS]: { responseClass: 2, responseType: 0x05, name: 'Battery_Status' },
+  [SinkInquiryType.DISCOVER_IDENTITY]: { responseClass: 2, responseType: 0x0f, name: 'Discover Identity ACK' },
+  [SinkInquiryType.DISCOVER_SVIDS]: { responseClass: 2, responseType: 0x0f, name: 'Discover SVIDs ACK' },
+  [SinkInquiryType.DISCOVER_MODES]: { responseClass: 2, responseType: 0x0f, name: 'Discover Modes ACK' },
 }
 
 const isUpperAlpha = (byte: number): boolean => byte >= 0x41 && byte <= 0x5a
@@ -127,6 +133,41 @@ export const decodeInquiryResponse = (
         presentCapacityMeaning: block.batteryPresentCapacity === 0xffff ? 'unknown' : !block.batteryPresent ? 'battery not present' : 'known',
         presentCapacityWh: block.batteryPresentCapacity === 0xffff || !block.batteryPresent ? null : block.batteryPresentCapacity / 10,
         chargeState: ['charging', 'discharging', 'idle', 'reserved'][block.batteryChargingStatus],
+      }
+      break
+    }
+    case SinkInquiryType.DISCOVER_IDENTITY:
+    case SinkInquiryType.DISCOVER_SVIDS:
+    case SinkInquiryType.DISCOVER_MODES: {
+      if (rawBody.length < 4 || rawBody.length > 28 || rawBody.length % 4 !== 0) throw new Error('Structured VDM body must contain 1 to 7 VDOs')
+      const minimumLength = status.type === SinkInquiryType.DISCOVER_IDENTITY ? 16 : 8
+      if (rawBody.length < minimumLength) throw new Error(`${RESPONSE_TYPES[status.type].name} body must contain ${minimumLength} to 28 bytes`)
+      const words = readDataObjects(rawBody, 0, rawBody.length / 4)
+      const header = parseVDMHeader(words[0])
+      const command = status.type === SinkInquiryType.DISCOVER_IDENTITY ? 1 : status.type === SinkInquiryType.DISCOVER_SVIDS ? 2 : 3
+      const expectedSvid = status.type === SinkInquiryType.DISCOVER_MODES && request?.type === SinkInquiryType.DISCOVER_MODES ? request.svid : 0xff00
+      if (header.vdmType !== 'STRUCTURED' || header.commandTypeName !== 'ACK' || header.command !== command || header.svid !== expectedSvid || header.objectPosition !== 0) throw new Error('Structured VDM ACK header does not correlate with request')
+      if ((words[0] & (1 << 5)) !== 0) throw new Error('Structured VDM reserved bit 5 must be zero')
+      if ((header.structuredVersionMajor ?? 3) > 1 || (header.structuredVersionMinor ?? 3) > 1) throw new Error('Unsupported Structured VDM version')
+      const rawVdos = words.slice(1)
+      if (status.type === SinkInquiryType.DISCOVER_IDENTITY) {
+        if (rawVdos.length < 3) throw new Error('Discover Identity ACK requires ID Header, Cert Stat, and Product VDOs')
+        decoded = { header, rawVdos, identity: parseDiscoverIdentityVDOs(rawVdos, 'SOP') }
+      } else if (status.type === SinkInquiryType.DISCOVER_SVIDS) {
+        const ordered: number[] = []
+        let terminated = false
+        for (const raw of rawVdos) {
+          const pair = parseSVIDsVDO(raw)
+          for (const svid of [pair.svid1, pair.svid0]) {
+            if (svid === 0) terminated = true
+            else if (terminated) throw new Error('Discover SVIDs contains a nonzero SVID after its zero terminator')
+            else ordered.push(svid)
+          }
+        }
+        decoded = { header, rawVdos, orderedSvids: ordered, svids: [...new Set(ordered)], terminated, needsAnotherPage: ordered.length === 12 && !terminated }
+      } else {
+        if (!request || request.type !== SinkInquiryType.DISCOVER_MODES) throw new Error('Discover Modes decoding requires selected SVID request')
+        decoded = { header, selectedSvid: request.svid, rawVdos, modeVdos: rawVdos }
       }
       break
     }

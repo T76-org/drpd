@@ -188,6 +188,8 @@ void SinkContext::transitionTo(SinkState state) {
 
 void SinkContext::performReset(SinkResetType resetType) {
     const auto negotiatedRevision = _runtimeState._specRevision;
+    _structuredVDMVersion.updateAttachment(
+        _ccBusController.state() == CCBusState::Attached);
     if (resetType == SinkResetType::SoftReset) {
         reportError("Sink protocol error; initiating Soft Reset", resetType);
     } else if (resetType == SinkResetType::HardReset) {
@@ -771,7 +773,8 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
 
     const auto body = encodeInquiryBody(
         descriptor.value(), request.parameters.target,
-        request.parameters.argument, selector);
+        request.parameters.argument, selector,
+        _structuredVDMVersion.major, _structuredVDMVersion.minor);
     std::array<uint8_t, 4> rawBody = body.bytes;
     uint32_t dataObjects = descriptor->requestDataObjects;
     if (descriptor->requestClass == InquiryMessageClass::Extended) {
@@ -795,6 +798,21 @@ bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
     header.specRevision(specRevision());
     sendMessageAndAwaitGoodCRC(message);
     return true;
+}
+
+bool SinkContext::recordStructuredVDMIdentityACK(std::span<const uint8_t> payload) {
+    if (payload.size() < 4) return false;
+    const uint32_t rawHeader = static_cast<uint32_t>(payload[0]) |
+        (static_cast<uint32_t>(payload[1]) << 8) |
+        (static_cast<uint32_t>(payload[2]) << 16) |
+        (static_cast<uint32_t>(payload[3]) << 24);
+    return _structuredVDMVersion.recordIdentityACK(
+        static_cast<uint8_t>((rawHeader >> 13) & 0x03u),
+        static_cast<uint8_t>((rawHeader >> 11) & 0x03u));
+}
+
+void SinkContext::resetStructuredVDMAttachment() {
+    _structuredVDMVersion.updateAttachment(false);
 }
 
 std::optional<SinkRuntimeState::ExtendedPayloadBuffer>
@@ -846,6 +864,9 @@ bool SinkContext::cacheInquiryResponse(
         case SinkInquiryType::GetCountryInfo:
         case SinkInquiryType::GetBatteryCapabilities:
         case SinkInquiryType::GetBatteryStatus:
+        case SinkInquiryType::DiscoverIdentity:
+        case SinkInquiryType::DiscoverSVIDs:
+        case SinkInquiryType::DiscoverModes:
             return true;
     }
     return false;

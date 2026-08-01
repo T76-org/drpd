@@ -580,6 +580,9 @@ class SinkInquiryType(enum.Enum):
     GET_COUNTRY_INFO = "GET_COUNTRY_INFO"
     GET_BATTERY_CAP = "GET_BATTERY_CAP"
     GET_BATTERY_STATUS = "GET_BATTERY_STATUS"
+    DISCOVER_IDENTITY = "DISCOVER_IDENTITY"
+    DISCOVER_SVIDS = "DISCOVER_SVIDS"
+    DISCOVER_MODES = "DISCOVER_MODES"
 
 
 class ManufacturerInfoTarget(enum.Enum):
@@ -768,6 +771,40 @@ class GetBatteryStatusInquiryRequest:
         )
 
 
+@dataclass(frozen=True)
+class DiscoverIdentityInquiryRequest:
+    """Diagnostic Identity request from current UFP/Sink to SOP partner."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.DISCOVER_IDENTITY, init=False
+    )
+
+
+@dataclass(frozen=True)
+class DiscoverSVIDsInquiryRequest:
+    """Optional UFP-initiated SVID discovery of the SOP Port Partner."""
+
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.DISCOVER_SVIDS, init=False
+    )
+
+
+@dataclass(frozen=True)
+class DiscoverModesInquiryRequest:
+    """Optional UFP-initiated Modes discovery for one partner SVID."""
+
+    svid: int
+    type: SinkInquiryType = field(
+        default=SinkInquiryType.DISCOVER_MODES, init=False
+    )
+
+    def __post_init__(self) -> None:
+        if isinstance(self.svid, bool) or not isinstance(self.svid, int):
+            raise ValueError("svid must be an integer from 1 to 65535")
+        if not 1 <= self.svid <= 0xFFFF:
+            raise ValueError("svid must be an integer from 1 to 65535")
+
+
 # New categories extend this discriminated union with bounded semantic
 # parameter dataclasses. Callers never construct PD headers directly.
 SinkInquiryRequest: TypeAlias = Union[
@@ -782,6 +819,9 @@ SinkInquiryRequest: TypeAlias = Union[
     GetCountryInfoInquiryRequest,
     GetBatteryCapabilitiesInquiryRequest,
     GetBatteryStatusInquiryRequest,
+    DiscoverIdentityInquiryRequest,
+    DiscoverSVIDsInquiryRequest,
+    DiscoverModesInquiryRequest,
 ]
 
 
@@ -800,6 +840,8 @@ class SinkInquiryOutcome(enum.Enum):
     MALFORMED_RESPONSE = "MALFORMED_RESPONSE"
     RESPONSE_TOO_LARGE = "RESPONSE_TOO_LARGE"
     ABORTED = "ABORTED"
+    NAK = "NAK"
+    BUSY = "BUSY"
 
     @classmethod
     def from_string(cls, outcome_str: str) -> "SinkInquiryOutcome":
@@ -985,6 +1027,52 @@ class BatteryStatusInquiryData:
     charging_state: BatteryChargingState
 
 
+@dataclass(frozen=True)
+class StructuredVDMHeaderData:
+    """Validated Structured VDM ACK header."""
+
+    raw: int
+    svid: int
+    version_major: int
+    version_minor: int
+    command: int
+
+
+@dataclass(frozen=True)
+class StructuredVDMNegativeResponseData:
+    """Validated raw NAK or BUSY Structured VDM header."""
+
+    header: StructuredVDMHeaderData
+    outcome: SinkInquiryOutcome
+
+
+@dataclass(frozen=True)
+class DiscoverIdentityInquiryData:
+    """Ordered raw Identity VDOs following the ACK header."""
+
+    header: StructuredVDMHeaderData
+    identity_vdos: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class DiscoverSVIDsInquiryData:
+    """Ordered raw SVID VDOs plus stable first-occurrence deduplication."""
+
+    header: StructuredVDMHeaderData
+    svid_vdos: tuple[int, ...]
+    svids: tuple[int, ...]
+    complete: bool
+
+
+@dataclass(frozen=True)
+class DiscoverModesInquiryData:
+    """Ordered raw Mode VDOs correlated to selected SVID."""
+
+    header: StructuredVDMHeaderData
+    svid: int
+    mode_vdos: tuple[int, ...]
+
+
 SinkInquiryDecodedData: TypeAlias = Union[
     SourceCapabilitiesInquiryData,
     ExtendedSourceCapabilitiesInquiryData,
@@ -997,6 +1085,10 @@ SinkInquiryDecodedData: TypeAlias = Union[
     CountryInfoInquiryData,
     BatteryCapabilitiesInquiryData,
     BatteryStatusInquiryData,
+    DiscoverIdentityInquiryData,
+    DiscoverSVIDsInquiryData,
+    DiscoverModesInquiryData,
+    StructuredVDMNegativeResponseData,
 ]
 
 
@@ -1042,6 +1134,25 @@ class BatterySurveyResult:
     battery_references: tuple[int, ...]
     inquiry_results: tuple[SinkInquiryResult, ...]
     used_extended_source_counts: bool
+    stopped_early: bool
+
+
+class VDMDiscoveryFailureAction(enum.Enum):
+    """Guided VDM discovery handling for NAK/BUSY/other non-ACK results."""
+
+    RETRY = "RETRY"
+    CONTINUE = "CONTINUE"
+    STOP = "STOP"
+
+
+@dataclass(frozen=True)
+class VDMDiscoveryWorkflowResult:
+    """Serialized Identity, SVID, and Modes discovery history."""
+
+    identity_results: tuple[SinkInquiryResult, ...]
+    svid_results: tuple[SinkInquiryResult, ...]
+    mode_results: tuple[SinkInquiryResult, ...]
+    selected_svids: tuple[int, ...]
     stopped_early: bool
 
 

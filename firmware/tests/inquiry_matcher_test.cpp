@@ -48,6 +48,9 @@ int main() {
         {SinkInquiryType::GetCountryInfo, "GET_COUNTRY_INFO", 0x07, InquiryMessageClass::Data, InquiryMessageClass::Extended, 0x0d, 4},
         {SinkInquiryType::GetBatteryCapabilities, "GET_BATTERY_CAP", 0x03, InquiryMessageClass::Extended, InquiryMessageClass::Extended, 0x05, 9},
         {SinkInquiryType::GetBatteryStatus, "GET_BATTERY_STATUS", 0x04, InquiryMessageClass::Extended, InquiryMessageClass::Data, 0x05, 4},
+        {SinkInquiryType::DiscoverIdentity, "DISCOVER_IDENTITY", 0x0f, InquiryMessageClass::Data, InquiryMessageClass::Data, 0x0f, 16},
+        {SinkInquiryType::DiscoverSVIDs, "DISCOVER_SVIDS", 0x0f, InquiryMessageClass::Data, InquiryMessageClass::Data, 0x0f, 8},
+        {SinkInquiryType::DiscoverModes, "DISCOVER_MODES", 0x0f, InquiryMessageClass::Data, InquiryMessageClass::Data, 0x0f, 8},
     };
     for (const auto& expected : golden) {
         const auto actual = sinkInquiryDescriptor(expected.type);
@@ -154,6 +157,63 @@ int main() {
     const uint8_t badBatteryStatusReserved[] = {1, 0, 0xff, 0xff};
     assert(!inquiryResponseStructureValid(batteryCap, badBatteryCapReserved));
     assert(!inquiryResponseStructureValid(batteryStatus, badBatteryStatusReserved));
+
+    const auto identity = sinkInquiryDescriptor(SinkInquiryType::DiscoverIdentity).value();
+    const auto svids = sinkInquiryDescriptor(SinkInquiryType::DiscoverSVIDs).value();
+    const auto modes = sinkInquiryDescriptor(SinkInquiryType::DiscoverModes).value();
+    encoded = encodeInquiryBody(identity, 0, 0, 0);
+    assert(encoded.length == 4 && encoded.bytes ==
+        (std::array<uint8_t, 4>{0x01, 0xa8, 0x00, 0xff}));
+    encoded = encodeInquiryBody(svids, 0, 0, 0);
+    assert(encoded.length == 4 && encoded.bytes ==
+        (std::array<uint8_t, 4>{0x02, 0xa8, 0x00, 0xff}));
+    assert(!inquiryParametersApplicable(modes, 0, 0, 0));
+    assert(!inquiryParametersApplicable(modes, 0, 65536, 0));
+    assert(inquiryParametersApplicable(modes, 0, 1, 0));
+    assert(inquiryParametersApplicable(modes, 0, 65535, 0));
+    encoded = encodeInquiryBody(modes, 0, 0x1234, 0);
+    assert(encoded.length == 4 && encoded.bytes ==
+        (std::array<uint8_t, 4>{0x03, 0xa8, 0x34, 0x12}));
+
+    const uint8_t identityAck[] = {0x41, 0xa8, 0x00, 0xff, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 10, 11, 12};
+    const uint8_t identityNak[] = {0x81, 0xa8, 0x00, 0xff};
+    const uint8_t identityBusy[] = {0xc1, 0xa8, 0x00, 0xff};
+    assert(matchStructuredVDMResponse(identity, 0, identityAck) == InquiryMatch::Response);
+    assert(matchStructuredVDMResponse(identity, 0, identityNak) == InquiryMatch::VDMNAK);
+    assert(matchStructuredVDMResponse(identity, 0, identityBusy) == InquiryMatch::VDMBusy);
+    const uint8_t identityAckV20[] = {0x41, 0xa0, 0x00, 0xff, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 10, 11, 12};
+    const uint8_t identityAckBadVersion[] = {0x41, 0xb0, 0x00, 0xff, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 10, 11, 12};
+    assert(matchStructuredVDMResponse(identity, 0, identityAckV20) == InquiryMatch::Response);
+    assert(matchStructuredVDMResponse(identity, 0, identityAckBadVersion) == InquiryMatch::ProtocolError);
+    StructuredVDMVersionState versionState;
+    versionState.updateAttachment(true);
+    assert(versionState.recordIdentityACK(1, 0));
+    assert(!versionState.recordIdentityACK(1, 1));
+    encoded = encodeInquiryBody(
+        svids, 0, 0, 0, versionState.major, versionState.minor);
+    assert(encoded.bytes == (std::array<uint8_t, 4>{0x02, 0xa0, 0x00, 0xff}));
+    // Protocol Hard/Soft Reset while still attached must preserve common version.
+    versionState.updateAttachment(true);
+    encoded = encodeInquiryBody(
+        modes, 0, 0x1234, 0, versionState.major, versionState.minor);
+    assert(encoded.bytes == (std::array<uint8_t, 4>{0x03, 0xa0, 0x34, 0x12}));
+    // Detach then new attachment restores the local highest supported version.
+    versionState.updateAttachment(false);
+    versionState.updateAttachment(true);
+    encoded = encodeInquiryBody(
+        svids, 0, 0, 0, versionState.major, versionState.minor);
+    assert(encoded.bytes == (std::array<uint8_t, 4>{0x02, 0xa8, 0x00, 0xff}));
+    const uint8_t modesAck[] = {0x43, 0xa8, 0x34, 0x12, 0x44, 0x33, 0x22, 0x11};
+    const uint8_t modesHeaderOnlyAck[] = {0x43, 0xa8, 0x34, 0x12};
+    assert(matchStructuredVDMResponse(modes, 0x1234, modesAck) == InquiryMatch::Response);
+    assert(matchStructuredVDMResponse(modes, 0x1234, modesHeaderOnlyAck) == InquiryMatch::ProtocolError);
+    assert(modesAck[4] == 0x44 && modesAck[5] == 0x33 && modesAck[6] == 0x22 && modesAck[7] == 0x11);
+    assert(matchStructuredVDMResponse(modes, 0x4321, modesAck) == InquiryMatch::Unrelated);
+    const uint8_t nakWithVDO[] = {0x83, 0xa8, 0x34, 0x12, 0, 0, 0, 0};
+    assert(matchStructuredVDMResponse(modes, 0x1234, nakWithVDO) == InquiryMatch::ProtocolError);
 
     const uint32_t refreshed[] = {0x00019096, 0x0002d0c8, 0xc0dc213c};
     auto selection = selectRefreshedCapability(0x0002d0c8, refreshed);

@@ -165,4 +165,31 @@ describe('SourceInquiryDialog', () => {
       SinkInquiryType.GET_SOURCE_CAP_EXTENDED, SinkInquiryType.GET_BATTERY_CAP, SinkInquiryType.GET_BATTERY_STATUS,
     ])
   })
+
+  it('guides Identity through terminated SVID pages to selected Modes', async () => {
+    const definition = ACTIVE_SOURCE_INQUIRIES.find(({ id }) => id === 'survey-port-partner-modes')!
+    const words = (...values: number[]) => new Uint8Array(values.flatMap((value) => [value & 0xff, value >>> 8 & 0xff, value >>> 16 & 0xff, value >>> 24 & 0xff]))
+    const header = (svid: number, command: number) => (svid << 16) | (1 << 15) | (1 << 13) | (1 << 6) | command
+    const identity = words(header(0xff00, 1), 1, 2, 3)
+    const svidPage = words(header(0xff00, 2), (0x1234 << 16) | 0xabcd, 0)
+    const modes = words(header(0x1234, 3), 0xdeadbeef)
+    const statuses = [
+      { outcome: SinkInquiryOutcome.NONE, requestId: 0, type: SinkInquiryType.DISCOVER_IDENTITY, responseClass: 0, responseType: 0, responseLength: 0 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.DISCOVER_IDENTITY, responseClass: 2, responseType: 0x0f, responseLength: 16 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.DISCOVER_IDENTITY, responseClass: 2, responseType: 0x0f, responseLength: 16 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.DISCOVER_SVIDS, responseClass: 2, responseType: 0x0f, responseLength: 12 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.DISCOVER_SVIDS, responseClass: 2, responseType: 0x0f, responseLength: 12 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 3, type: SinkInquiryType.DISCOVER_MODES, responseClass: 2, responseType: 0x0f, responseLength: 8 },
+    ]
+    const responses = [identity, svidPage, modes]
+    const sendInquiryRequest = vi.fn<(request: SinkInquiryRequest) => Promise<void>>().mockResolvedValue(undefined)
+    const client = { sendInquiryRequest, getInquiryStatus: vi.fn(async () => statuses.shift()!), getInquiryResponse: vi.fn(async () => responses.shift()!) }
+    render(<SourceInquiryDialog open onOpenChange={vi.fn()} definition={definition} client={client} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Discover selected SVID modes' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Discover selected SVID modes' }))
+    await waitFor(() => expect(sendInquiryRequest).toHaveBeenCalledTimes(3))
+    expect(sendInquiryRequest.mock.calls.map(([request]) => request.type)).toEqual([
+      SinkInquiryType.DISCOVER_IDENTITY, SinkInquiryType.DISCOVER_SVIDS, SinkInquiryType.DISCOVER_MODES,
+    ])
+  })
 })

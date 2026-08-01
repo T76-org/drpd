@@ -13,7 +13,7 @@ const request = { type: SinkInquiryType.GET_REVISION } as const
 const status = (
   outcome: SinkInquiryOutcome,
   requestId: number,
-  type = SinkInquiryType.GET_REVISION,
+  type: SinkInquiryType = SinkInquiryType.GET_REVISION,
   responseLength = 0,
 ): SinkInquiryStatus => ({
   outcome,
@@ -54,6 +54,17 @@ describe('runSinkInquiry', () => {
     releaseFirst()
     await expect(Promise.all([first, second])).resolves.toHaveLength(2)
     expect(sends).toBe(2)
+  })
+
+  it('fetches and preserves terminal NAK/BUSY response bodies', async () => {
+    const client = clientWithStatuses(
+      status(SinkInquiryOutcome.NONE, 1),
+      { ...status(SinkInquiryOutcome.NAK, 2, SinkInquiryType.DISCOVER_SVIDS, 4), responseClass: 2, responseType: 0x0f },
+    )
+    client.getInquiryResponse = vi.fn(async () => new Uint8Array([1, 2, 3, 4]))
+    await expect(runSinkInquiry(client, { type: SinkInquiryType.DISCOVER_SVIDS }, { wait: async () => undefined })).resolves.toMatchObject({
+      phase: 'terminal', rawResponse: new Uint8Array([1, 2, 3, 4]),
+    })
   })
   it('correlates request ID and returns exact raw response', async () => {
     const client = clientWithStatuses(

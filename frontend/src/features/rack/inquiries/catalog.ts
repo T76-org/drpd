@@ -8,6 +8,7 @@ export interface InquiryApplicabilityContext {
   explicitContract?: boolean
   sprPpsContract?: boolean
   pdRevision3?: boolean
+  canInitiateVdm?: boolean
 }
 
 export type InquirySideEffect =
@@ -150,6 +151,32 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
     buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED }),
     guided: { initialContext: {}, steps: [{ id: 'battery-discovery', label: 'Discover battery counts', buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED }) }] },
     active: true,
+  },
+  {
+    id: 'discover-identity', type: SinkInquiryType.DISCOVER_IDENTITY,
+    label: 'Discover identity', description: 'Diagnostic SOP Port Partner request sent while Dr. PD is a UFP/Sink; partner support is not guaranteed.', workflow: 'immediate', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
+    buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY }), active: true,
+  },
+  {
+    id: 'discover-svids', type: SinkInquiryType.DISCOVER_SVIDS,
+    label: 'Discover SVIDs', description: 'Diagnostic optional UFP request for ordered SOP Port Partner SVIDs.', workflow: 'immediate', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
+    buildRequest: () => ({ type: SinkInquiryType.DISCOVER_SVIDS }), active: true,
+  },
+  {
+    id: 'discover-modes', type: SinkInquiryType.DISCOVER_MODES,
+    label: 'Discover modes…', description: 'Diagnostic optional UFP request for modes of one SOP Port Partner SVID.', workflow: 'parameterized',
+    parameters: [{ kind: 'integer', name: 'svid', label: 'SVID', min: 1, max: 65535 }], sideEffects: [],
+    applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
+    buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.DISCOVER_MODES, svid: values.svid as number }), active: true,
+  } as InquiryDefinition<Record<string, unknown>>,
+  {
+    id: 'survey-port-partner-modes', type: SinkInquiryType.DISCOVER_IDENTITY,
+    label: 'Survey Port Partner modes…', description: 'UFP/Sink diagnostic workflow; SVID and Modes initiation is optional for a UFP and may be declined.', workflow: 'guided', parameters: [], sideEffects: [],
+    applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
+    buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY }),
+    guided: { initialContext: {}, steps: [{ id: 'identity', label: 'Discover identity', buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY }) }, { id: 'svids', label: 'Discover SVIDs', buildRequest: () => ({ type: SinkInquiryType.DISCOVER_SVIDS }) }] }, active: true,
   },
 ]
 

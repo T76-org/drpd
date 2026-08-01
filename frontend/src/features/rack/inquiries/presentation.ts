@@ -12,6 +12,7 @@ export const formatSinkInquiryOutcome = (outcome: SinkInquiryOutcome): string =>
   [SinkInquiryOutcome.PROTOCOL_ERROR]: 'Protocol error',
   [SinkInquiryOutcome.MALFORMED_RESPONSE]: 'Malformed response',
   [SinkInquiryOutcome.RESPONSE_TOO_LARGE]: 'Response too large',
+  [SinkInquiryOutcome.NAK]: 'VDM NAK',
+  [SinkInquiryOutcome.BUSY]: 'VDM Busy',
   [SinkInquiryOutcome.ABORTED]: 'Aborted',
 })[outcome]
-

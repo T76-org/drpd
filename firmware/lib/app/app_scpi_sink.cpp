@@ -52,6 +52,8 @@ const char *sinkInquiryOutcomeName(Logic::SinkInquiryOutcome outcome) {
         case Logic::SinkInquiryOutcome::MalformedResponse: return "MALFORMED_RESPONSE";
         case Logic::SinkInquiryOutcome::ResponseTooLarge: return "RESPONSE_TOO_LARGE";
         case Logic::SinkInquiryOutcome::Aborted: return "ABORTED";
+        case Logic::SinkInquiryOutcome::NAK: return "NAK";
+        case Logic::SinkInquiryOutcome::Busy: return "BUSY";
     }
     return "UNKNOWN";
 }
@@ -235,6 +237,12 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
             illegalParameters("This inquiry takes no additional parameters.");
             return;
         }
+    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverIdentity ||
+               descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverSVIDs) {
+        if (params.size() != 1) {
+            illegalParameters("This discovery inquiry takes no additional parameters.");
+            return;
+        }
     } else if (descriptor->parameterKind == Logic::InquiryParameterKind::ManufacturerInfo) {
         if (params.size() < 2 || params.size() > 3 ||
             params[1].type != T76::SCPI::ParameterType::String) {
@@ -274,6 +282,15 @@ void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) 
             return;
         }
         inquiryParameters.argument = static_cast<uint32_t>(params[1].numberValue);
+    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverModes) {
+        if (params.size() != 2 || params[1].type != T76::SCPI::ParameterType::Number ||
+            !std::isfinite(params[1].numberValue) || params[1].numberValue < 1 ||
+            params[1].numberValue > 65535 ||
+            std::floor(params[1].numberValue) != params[1].numberValue) {
+            illegalParameters("DISCOVER_MODES requires an integer SVID 1..65535.");
+            return;
+        }
+        inquiryParameters.argument = static_cast<uint32_t>(params[1].numberValue);
     }
     const auto result = sink->requestInquiry(descriptor->type, inquiryParameters);
     if (!result) {
@@ -304,7 +321,9 @@ void App::_querySinkInquiryResponse(const std::vector<T76::SCPI::ParameterValue>
         return;
     }
     const auto result = _ccBusController.sink()->lastInquiryResult();
-    if (result.status.outcome != Logic::SinkInquiryOutcome::Response) {
+    if (result.status.outcome != Logic::SinkInquiryOutcome::Response &&
+        result.status.outcome != Logic::SinkInquiryOutcome::NAK &&
+        result.status.outcome != Logic::SinkInquiryOutcome::Busy) {
         _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. No inquiry response is available.");
         return;
     }
