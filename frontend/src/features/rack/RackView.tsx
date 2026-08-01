@@ -157,6 +157,8 @@ const INQUIRY_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY =
   'drpd:inquiry-capture-warning-suppressed'
 const LEGACY_SOURCE_CAPABILITIES_CAPTURE_WARNING_SUPPRESSED_STORAGE_KEY =
   'drpd:source-capabilities-capture-warning-suppressed'
+const GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY =
+  'drpd:get-status-side-effect-warning-suppressed'
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
 const FIRMWARE_RELEASE_REPO = 'drpd'
@@ -966,6 +968,8 @@ export const RackView = ({
   const [suppressInquiryCaptureWarning, setSuppressInquiryCaptureWarning] = useState(false)
   const [getStatusConfirmationDefinition, setGetStatusConfirmationDefinition] =
     useState<InquiryDefinition | null>(null)
+  const [suppressGetStatusSideEffectWarning, setSuppressGetStatusSideEffectWarning] =
+    useState(false)
   const [globalSinkPdoList, setGlobalSinkPdoList] = useState<SinkPdo[]>([])
   const [globalSinkSelectedIndex, setGlobalSinkSelectedIndex] = useState(0)
   const [globalSinkVoltageV, setGlobalSinkVoltageV] = useState('')
@@ -1661,7 +1665,11 @@ export const RackView = ({
   const isCaptureEnabled = activeDriverState?.captureEnabled === OnOffState.ON
   const proceedWithLogOnlyInquiry = useCallback((definition: InquiryDefinition) => {
     if (!activeDriver) return
-    if (definition.type === SinkInquiryType.GET_STATUS) {
+    const getStatusWarningSuppressed = window.localStorage.getItem(
+      GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY,
+    ) === 'true'
+    if (definition.type === SinkInquiryType.GET_STATUS && !getStatusWarningSuppressed) {
+      setSuppressGetStatusSideEffectWarning(false)
       setGetStatusConfirmationDefinition(definition)
       return
     }
@@ -4017,7 +4025,6 @@ export const RackView = ({
           }
         }}
         title="Capture is off"
-        dismissible={false}
         footer={
           <div className={styles.inquiryCaptureWarningFooter}>
             <label className={styles.inquiryCaptureWarningCheckbox}>
@@ -4033,7 +4040,7 @@ export const RackView = ({
               <DialogButton onClick={() => {
                 setPendingCaptureWarningInquiry(null)
                 setSuppressInquiryCaptureWarning(false)
-              }}>Cancel</DialogButton>
+              }}>CANCEL</DialogButton>
               <DialogButton variant="primary" onClick={() => {
                 const inquiry = pendingCaptureWarningInquiry
                 if (suppressInquiryCaptureWarning) {
@@ -4045,7 +4052,7 @@ export const RackView = ({
                 setPendingCaptureWarningInquiry(null)
                 setSuppressInquiryCaptureWarning(false)
                 if (inquiry) proceedWithLogOnlyInquiry(inquiry)
-              }}>Request anyway</DialogButton>
+              }}>REQUEST ANYWAY</DialogButton>
             </div>
           </div>
         }
@@ -4057,30 +4064,51 @@ export const RackView = ({
       <Dialog
         open={getStatusConfirmationDefinition !== null}
         onOpenChange={(open) => {
-          if (!open) setGetStatusConfirmationDefinition(null)
+          if (!open) {
+            setGetStatusConfirmationDefinition(null)
+            setSuppressGetStatusSideEffectWarning(false)
+          }
         }}
         title={getStatusConfirmationDefinition?.confirmation?.title ?? 'Send Get_Status?'}
-        dismissible={false}
         footer={
-          <>
-            <DialogButton
-              style={{ textTransform: 'none' }}
-              onClick={() => setGetStatusConfirmationDefinition(null)}
-            >Cancel</DialogButton>
-            <DialogButton
-              variant="primary"
-              style={{ textTransform: 'none' }}
-              onClick={() => {
-                if (!activeDriver) return
-                setDeviceError(null)
-                void activeDriver.sink
-                  .sendInquiry(SinkInquiryType.GET_STATUS)
-                  .catch((error) =>
-                    setDeviceError(error instanceof Error ? error.message : String(error)))
-                setGetStatusConfirmationDefinition(null)
-              }}
-            >{getStatusConfirmationDefinition?.confirmation?.confirmLabel ?? 'Send Inquiry'}</DialogButton>
-          </>
+          <div className={styles.inquiryCaptureWarningFooter}>
+            <label className={styles.inquiryCaptureWarningCheckbox}>
+              <input
+                type="checkbox"
+                checked={suppressGetStatusSideEffectWarning}
+                onChange={(event) =>
+                  setSuppressGetStatusSideEffectWarning(event.currentTarget.checked)}
+              />
+              <span>Do not show this again</span>
+            </label>
+            <div className={styles.inquiryCaptureWarningButtons}>
+              <DialogButton
+                onClick={() => {
+                  setGetStatusConfirmationDefinition(null)
+                  setSuppressGetStatusSideEffectWarning(false)
+                }}
+              >CANCEL</DialogButton>
+              <DialogButton
+                variant="primary"
+                onClick={() => {
+                  if (!activeDriver) return
+                  if (suppressGetStatusSideEffectWarning) {
+                    window.localStorage.setItem(
+                      GET_STATUS_SIDE_EFFECT_WARNING_SUPPRESSED_STORAGE_KEY,
+                      'true',
+                    )
+                  }
+                  setDeviceError(null)
+                  void activeDriver.sink
+                    .sendInquiry(SinkInquiryType.GET_STATUS)
+                    .catch((error) =>
+                      setDeviceError(error instanceof Error ? error.message : String(error)))
+                  setGetStatusConfirmationDefinition(null)
+                  setSuppressGetStatusSideEffectWarning(false)
+                }}
+              >{getStatusConfirmationDefinition?.confirmation?.confirmLabel ?? 'SEND INQUIRY'}</DialogButton>
+            </div>
+          </div>
         }
       >
         <p role="alert">

@@ -3262,7 +3262,7 @@ describe('RackView', () => {
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
 
     await user.click(suppress)
-    await user.click(within(warning).getByRole('button', { name: 'Request anyway' }))
+    await user.click(within(warning).getByRole('button', { name: 'REQUEST ANYWAY' }))
     await waitFor(() => {
       expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
     })
@@ -3272,7 +3272,7 @@ describe('RackView', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('confirms Get status with sentence-case actions and closes after sending', async () => {
+  it('confirms Get status with uppercase actions, persists suppression, and closes after sending', async () => {
     const user = userEvent.setup()
     saveRackDocument(buildBoundHydratedRackDocument())
     mockUSB([createUSBDevice()])
@@ -3285,17 +3285,62 @@ describe('RackView', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
 
     const confirmation = await screen.findByRole('dialog', { name: 'Send Get_Status?' })
-    const cancel = within(confirmation).getByRole('button', { name: 'Cancel' })
-    const send = within(confirmation).getByRole('button', { name: 'Send Inquiry' })
-    expect(cancel).toHaveStyle({ textTransform: 'none' })
-    expect(send).toHaveStyle({ textTransform: 'none' })
+    const cancel = within(confirmation).getByRole('button', { name: 'CANCEL' })
+    const send = within(confirmation).getByRole('button', { name: 'SEND INQUIRY' })
+    const suppress = within(confirmation).getByLabelText(/do not show this again/i)
+    expect(cancel).toBeInTheDocument()
+    expect(suppress).not.toBeChecked()
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
 
+    await user.click(suppress)
     await user.click(send)
     await waitFor(() => {
       expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_STATUS')
     })
+    expect(window.localStorage.getItem(
+      'drpd:get-status-side-effect-warning-suppressed',
+    )).toBe('true')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands.filter(
+        (command) => command === 'SINK:INQ GET_STATUS',
+      )).toHaveLength(2)
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('cancels the capture and Get status warnings with Escape', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
+
+    mockTransportState.captureEnabledResponse = ['ON']
+    window.localStorage.setItem('drpd:inquiry-capture-warning-suppressed', 'true')
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+    expect(await screen.findByRole('dialog', { name: 'Send Get_Status?' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
   })
 
   it('shows the shared capture warning before the Get status confirmation', async () => {
@@ -3313,7 +3358,7 @@ describe('RackView', () => {
 
     const captureWarning = await screen.findByRole('dialog', { name: 'Capture is off' })
     expect(screen.queryByRole('dialog', { name: 'Send Get_Status?' })).not.toBeInTheDocument()
-    await user.click(within(captureWarning).getByRole('button', { name: 'Request anyway' }))
+    await user.click(within(captureWarning).getByRole('button', { name: 'REQUEST ANYWAY' }))
 
     expect(await screen.findByRole('dialog', { name: 'Send Get_Status?' })).toBeInTheDocument()
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
