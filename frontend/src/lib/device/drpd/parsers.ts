@@ -157,11 +157,12 @@ export const parseSingleBigInt = (values: string[], label: string): bigint => {
  * @returns Comma-separated fields.
  */
 export const parseCommaSeparated = (values: string[]): string[] => {
-  const combined = values.join(' ').trim()
-  if (!combined) {
+  if (!values.length) {
     return []
   }
-  return combined.split(',').map((part) => part.trim().replace(/^"|"$/g, ''))
+  const parts = values.length === 1 ? values[0].split(',') : values
+  const normalized = parts.map((part) => part.trim().replace(/^"|"$/g, ''))
+  return normalized.every((part) => !part) ? [] : normalized
 }
 
 /**

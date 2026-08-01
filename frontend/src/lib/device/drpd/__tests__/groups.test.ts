@@ -394,6 +394,22 @@ describe('DRPD command groups', () => {
     ])
   })
 
+  it('parses sink inquiry status fields tokenized by the transport', async () => {
+    const transport = new MockTransport()
+    transport.textResponses.set('SINK:INQ:STAT?', [
+      'RESPONSE', '17', 'GET_SOURCE_CAP', '1', '1', '4',
+    ])
+
+    await expect(new DRPDSink(transport).getInquiryStatus()).resolves.toEqual({
+      outcome: SinkInquiryOutcome.RESPONSE,
+      requestId: 17,
+      type: SinkInquiryType.GET_SOURCE_CAP,
+      responseClass: 1,
+      responseType: 1,
+      responseLength: 4,
+    })
+  })
+
   it('rejects malformed sink inquiry status responses', async () => {
     const transport = new MockTransport()
     const group = new DRPDSink(transport)
