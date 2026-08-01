@@ -4,6 +4,7 @@
  */
 
 #include "sink.hpp"
+#include "inquiry_descriptor.hpp"
 
 #include "../cc_bus_controller.hpp"
 
@@ -23,6 +24,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _eprModeExitStateHandler(),
     _eprModeEntryStateHandler(),
     _getPPSStatusStateHandler(),
+    _inquiryStateHandler(),
     _readySinkStateHandler(),
     _sendResponseStateHandler(),
     _sendSoftResetStateHandler(),
@@ -35,7 +37,8 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     _messageSender(
         bmcEncoder,
         _alarmService,
-        std::bind(&Sink::_onMessageSenderStateChanged, this, std::placeholders::_1)),
+        std::bind(&Sink::_onMessageSenderStateChanged, this,
+            std::placeholders::_1, std::placeholders::_2)),
     _timeoutEventCallback(std::bind(&Sink::_enqueueTimeoutEvent, this, std::placeholders::_1)),
     _context(
         _runtimeState,
@@ -48,6 +51,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
         _eprModeExitStateHandler,
         _eprModeEntryStateHandler,
         _getPPSStatusStateHandler,
+        _inquiryStateHandler,
         _readySinkStateHandler,
         _sendResponseStateHandler,
         _sendSoftResetStateHandler,
@@ -63,6 +67,7 @@ Sink::Sink(CCBusController& ccBusController, T76::DRPD::PHY::BMCDecoder& bmcDeco
     queue_init(&_messageQueue, sizeof(const PHY::BMCDecodedMessage*), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
     queue_init(&_timeoutEventQueue, sizeof(SinkTimeoutEvent), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
     queue_init(&_pendingRequestQueue, sizeof(PendingPDORequest), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
+    queue_init(&_pendingInquiryQueue, sizeof(SinkInquiryRequest), LOGIC_SINK_MESSAGE_QUEUE_LENGTH);
 
     reset();
 }
@@ -74,8 +79,12 @@ void Sink::initCore1() {
 void Sink::loopCore1() {
     _processPendingPolicyRequests();
     _processPendingRequests();
+    _processPendingInquiries();
 
     if (_ccBusResetPending.exchange(false, std::memory_order_acq_rel)) {
+        if (_ccBusDetachObserved.exchange(false, std::memory_order_acq_rel)) {
+            _context.resetStructuredVDMAttachment();
+        }
         reset();
     }
 
@@ -93,8 +102,35 @@ void Sink::loopCore1() {
                 continue;
             }
 
+            const auto activeInquiry = _runtimeState.inquiryResult();
+            if (_runtimeState._state == SinkState::PE_SNK_Inquiry &&
+                activeInquiry.status.type == SinkInquiryType::Challenge &&
+                maybeType.value() == Proto::ExtendedMessageType::Security_Request) {
+                _runtimeState._currentStateHandler->handleMessage(_context, messagePtr);
+                continue;
+            }
+
             Proto::ExtendedMessageType completedType = maybeType.value();
-            const auto result = _handleExtendedMessageFragment(messagePtr, completedType);
+            const auto inquiryDescriptor = sinkInquiryDescriptor(
+                _runtimeState.inquiryResult().status.type);
+            const bool inquiryExtended =
+                _runtimeState._state == SinkState::PE_SNK_Inquiry &&
+                inquiryDescriptor.has_value() &&
+                inquiryDescriptor->response.messageClass == InquiryMessageClass::Extended;
+            const auto result = inquiryExtended
+                ? _handleInquiryExtendedFragment(messagePtr)
+                : _handleExtendedMessageFragment(messagePtr, completedType);
+
+            if (inquiryExtended &&
+                (result == ExtendedFragmentResult::Malformed ||
+                 result == ExtendedFragmentResult::TooLarge)) {
+                _runtimeState.finishInquiry(
+                    result == ExtendedFragmentResult::TooLarge
+                        ? SinkInquiryOutcome::ResponseTooLarge
+                        : SinkInquiryOutcome::MalformedResponse);
+                _context.transitionTo(SinkState::PE_SNK_Ready);
+                continue;
+            }
 
             if (result == ExtendedFragmentResult::RecoveredMalformed) {
                 _context.reportWarning(
@@ -110,19 +146,23 @@ void Sink::loopCore1() {
             if (result == ExtendedFragmentResult::UnsupportedType) {
                 if (_runtimeState._state == SinkState::PE_SNK_Ready) {
                     _context.sendNotSupportedResponse();
+                } else if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
+                    // Let inquiry matcher abort and route unrelated traffic through Ready.
                 } else {
                     reset(SinkResetType::SoftReset);
                 }
-                continue;
+                if (_runtimeState._state != SinkState::PE_SNK_Inquiry) continue;
             }
 
             if (result == ExtendedFragmentResult::UnsupportedChunk) {
                 if (_runtimeState._state == SinkState::PE_SNK_Ready) {
                     _startChunkingNotSupportedTimer();
+                } else if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
+                    // Ready policy owns response after inquiry is aborted.
                 } else {
                     reset(SinkResetType::SoftReset);
                 }
-                continue;
+                if (_runtimeState._state != SinkState::PE_SNK_Inquiry) continue;
             }
 
             if (result == ExtendedFragmentResult::InProgress) {
@@ -177,6 +217,7 @@ Sink::~Sink() {
     queue_free(&_messageQueue);
     queue_free(&_timeoutEventQueue);
     queue_free(&_pendingRequestQueue);
+    queue_free(&_pendingInquiryQueue);
 }
 
 void Sink::enable() {
@@ -186,6 +227,7 @@ void Sink::enable() {
 
     reset();
     _ccBusResetPending.store(false, std::memory_order_release);
+    _ccBusDetachObserved.store(false, std::memory_order_release);
 
     // Register callbacks only after queue initialization.
     _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this,
@@ -216,7 +258,12 @@ void Sink::disable() {
     PendingPDORequest droppedRequest{};
     while (queue_try_remove(&_pendingRequestQueue, &droppedRequest)) {
     }
+    SinkInquiryRequest droppedInquiry{};
+    while (queue_try_remove(&_pendingInquiryQueue, &droppedInquiry)) {
+    }
+    _inquiryQueued.store(false, std::memory_order_release);
     _ccBusResetPending.store(false, std::memory_order_release);
+    _ccBusDetachObserved.store(false, std::memory_order_release);
     _eprExitPending.store(false, std::memory_order_release);
 
     reset();
@@ -231,6 +278,16 @@ void Sink::_processTimeoutEvents() {
     while (queue_try_remove(&_timeoutEventQueue, &event)) {
         if (!_enabled.load()) {
             continue;
+        }
+
+        if (event.type == SinkTimeoutEventType::InquiryResponseTimeout ||
+            event.type == SinkTimeoutEventType::InquirySinkTxOKRetryTimeout) {
+            const SinkInquiryStatus status = _runtimeState.inquiryResult().status;
+            if (_runtimeState._state != SinkState::PE_SNK_Inquiry ||
+                status.outcome != SinkInquiryOutcome::Pending ||
+                status.id != event.inquiryId) {
+                continue;
+            }
         }
 
         if (event.type == SinkTimeoutEventType::GoodCRCTimeout) {
@@ -278,10 +335,12 @@ void Sink::_startChunkingNotSupportedTimer() {
 }
 
 void Sink::_onCCBusStateChanged(CCBusState newState) {
-    (void)newState;
-
     if (!_enabled.load()) {
         return;
+    }
+
+    if (newState != CCBusState::Attached) {
+        _ccBusDetachObserved.store(true, std::memory_order_release);
     }
 
     _ccBusResetPending.store(true, std::memory_order_release);
@@ -326,4 +385,19 @@ void Sink::_processPendingPolicyRequests() {
     }
 
     _context.transitionTo(SinkState::PE_SNK_Send_EPR_Mode_Exit);
+}
+
+void Sink::_processPendingInquiries() {
+    if (!_enabled.load() || _ccBusResetPending.load(std::memory_order_acquire) ||
+        _runtimeState._state != SinkState::PE_SNK_Ready) {
+        return;
+    }
+    SinkInquiryRequest request{};
+    if (!queue_try_remove(&_pendingInquiryQueue, &request)) {
+        return;
+    }
+    _inquiryQueued.store(false, std::memory_order_release);
+    _inquiryReassembly.reset();
+    _runtimeState.beginInquiry(request);
+    _context.transitionTo(SinkState::PE_SNK_Inquiry);
 }

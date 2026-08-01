@@ -170,7 +170,6 @@ export class DRPDDevice extends EventTarget {
       sinkInfo: null,
       sinkPdoList: null,
       sinkEprEnabled: null,
-      sinkPpsStatusQueryEnabled: null,
       logSelection: {
         selectedKeys: [],
         anchorIndex: null,
@@ -877,7 +876,6 @@ export class DRPDDevice extends EventTarget {
     const hadSinkInfo = this.state.sinkInfo !== null
     const hadPdoList = this.state.sinkPdoList !== null
     const hadSinkEprEnabled = this.state.sinkEprEnabled !== null
-    const hadSinkPpsStatusQueryEnabled = this.state.sinkPpsStatusQueryEnabled !== null
     if (
       hadRole ||
       hadRoleStatus ||
@@ -887,8 +885,7 @@ export class DRPDDevice extends EventTarget {
       hadTrigger ||
       hadSinkInfo ||
       hadPdoList ||
-      hadSinkEprEnabled ||
-      hadSinkPpsStatusQueryEnabled
+      hadSinkEprEnabled
     ) {
     this.state = {
       role: null,
@@ -900,7 +897,6 @@ export class DRPDDevice extends EventTarget {
       sinkInfo: null,
       sinkPdoList: null,
       sinkEprEnabled: null,
-      sinkPpsStatusQueryEnabled: null,
       logSelection: {
         selectedKeys: [],
         anchorIndex: null,
@@ -934,9 +930,6 @@ export class DRPDDevice extends EventTarget {
       }
       if (hadSinkEprEnabled) {
         changed.push('sinkEprEnabled')
-      }
-      if (hadSinkPpsStatusQueryEnabled) {
-        changed.push('sinkPpsStatusQueryEnabled')
       }
       this.dispatchEvent(
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
@@ -979,7 +972,6 @@ export class DRPDDevice extends EventTarget {
       shouldQuerySink ? this.sink.getSinkInfo() : Promise.resolve(null),
       shouldQuerySink ? this.fetchSinkPdoList() : Promise.resolve(null),
       shouldQuerySink ? this.sink.getEprEnabled() : Promise.resolve(null),
-      shouldQuerySink ? this.sink.getPpsStatusQueryEnabled() : Promise.resolve(null),
     ])
 
     const [
@@ -991,7 +983,6 @@ export class DRPDDevice extends EventTarget {
       sinkInfoResult,
       pdoListResult,
       sinkEprEnabledResult,
-      sinkPpsStatusQueryEnabledResult,
     ] = results
 
     if (roleStatusResult.status === 'fulfilled') {
@@ -1080,27 +1071,15 @@ export class DRPDDevice extends EventTarget {
           new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: sinkEprEnabledResult.reason } }),
         )
       }
-      if (sinkPpsStatusQueryEnabledResult.status === 'fulfilled') {
-        if (updated.sinkPpsStatusQueryEnabled !== sinkPpsStatusQueryEnabledResult.value) {
-          updated.sinkPpsStatusQueryEnabled = sinkPpsStatusQueryEnabledResult.value
-          changed.push('sinkPpsStatusQueryEnabled')
-        }
-      } else {
-        this.dispatchEvent(
-          new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error: sinkPpsStatusQueryEnabledResult.reason } }),
-        )
-      }
     } else if (
       this.state.sinkInfo ||
       this.state.sinkPdoList ||
-      this.state.sinkEprEnabled !== null ||
-      this.state.sinkPpsStatusQueryEnabled !== null
+      this.state.sinkEprEnabled !== null
     ) {
       updated.sinkInfo = null
       updated.sinkPdoList = null
       updated.sinkEprEnabled = null
-      updated.sinkPpsStatusQueryEnabled = null
-      changed.push('sinkInfo', 'sinkPdoList', 'sinkEprEnabled', 'sinkPpsStatusQueryEnabled')
+      changed.push('sinkInfo', 'sinkPdoList', 'sinkEprEnabled')
     }
 
     if (!changed.length) {
@@ -1305,16 +1284,12 @@ export class DRPDDevice extends EventTarget {
     const previousSinkInfo = this.state.sinkInfo
     const previousSinkPdoList = this.state.sinkPdoList
     const previousSinkEprEnabled = this.state.sinkEprEnabled
-    const previousSinkPpsStatusQueryEnabled = this.state.sinkPpsStatusQueryEnabled
     this.state = {
       ...this.state,
       role,
       sinkInfo: shouldClearSink ? null : this.state.sinkInfo,
       sinkPdoList: shouldClearSink ? null : this.state.sinkPdoList,
       sinkEprEnabled: shouldClearSink ? null : this.state.sinkEprEnabled,
-      sinkPpsStatusQueryEnabled: shouldClearSink
-        ? null
-        : this.state.sinkPpsStatusQueryEnabled,
     }
     this.dispatchEvent(
       new CustomEvent(DRPDDevice.ROLE_CHANGED_EVENT, {
@@ -1326,8 +1301,7 @@ export class DRPDDevice extends EventTarget {
       (
         previousSinkInfo ||
         previousSinkPdoList ||
-        previousSinkEprEnabled !== null ||
-        previousSinkPpsStatusQueryEnabled !== null
+        previousSinkEprEnabled !== null
       )
     ) {
       if (previousSinkInfo) {
@@ -1348,7 +1322,7 @@ export class DRPDDevice extends EventTarget {
         new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
           detail: {
             state: this.getState(),
-            changed: ['role', 'sinkInfo', 'sinkPdoList', 'sinkEprEnabled', 'sinkPpsStatusQueryEnabled'],
+            changed: ['role', 'sinkInfo', 'sinkPdoList', 'sinkEprEnabled'],
           },
         }),
       )
@@ -1361,7 +1335,6 @@ export class DRPDDevice extends EventTarget {
     )
     if (role === 'SINK') {
       void this.refreshSinkEprEnabledFromDevice()
-      void this.refreshSinkPpsStatusQueryEnabledFromDevice()
     }
   }
 
@@ -1597,34 +1570,6 @@ export class DRPDDevice extends EventTarget {
         new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
       )
       this.logDebug(`refreshSinkEprEnabled: error=${String(error)}`)
-    }
-  }
-
-  /**
-   * Refresh sink PPS status query policy from the device.
-   */
-  protected async refreshSinkPpsStatusQueryEnabledFromDevice(): Promise<void> {
-    try {
-      if (this.state.role !== 'SINK') {
-        this.logDebug('refreshSinkPpsStatusQueryEnabled: skipped (role not SINK)')
-        return
-      }
-      const sinkPpsStatusQueryEnabled = await this.sink.getPpsStatusQueryEnabled()
-      if (this.state.sinkPpsStatusQueryEnabled === sinkPpsStatusQueryEnabled) {
-        return
-      }
-      this.state = { ...this.state, sinkPpsStatusQueryEnabled }
-      this.dispatchEvent(
-        new CustomEvent(DRPDDevice.STATE_UPDATED_EVENT, {
-          detail: { state: this.getState(), changed: ['sinkPpsStatusQueryEnabled'] },
-        }),
-      )
-      this.logDebug(`refreshSinkPpsStatusQueryEnabled: ${sinkPpsStatusQueryEnabled ? 'ON' : 'OFF'}`)
-    } catch (error) {
-      this.dispatchEvent(
-        new CustomEvent(DRPDDevice.STATE_ERROR_EVENT, { detail: { error } }),
-      )
-      this.logDebug(`refreshSinkPpsStatusQueryEnabled: error=${String(error)}`)
     }
   }
 

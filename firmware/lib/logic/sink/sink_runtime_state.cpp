@@ -6,6 +6,8 @@
 #include "sink_runtime_state.hpp"
 #include "sink_types.hpp"
 
+#include <algorithm>
+
 
 using namespace T76::DRPD::Logic;
 
@@ -22,7 +24,19 @@ SinkRuntimeState::SinkRuntimeState() :
     _state(SinkState::Unknown),
     _currentStateHandler(nullptr) {}
 
-void SinkRuntimeState::reset() {
+void SinkRuntimeState::_lockInquiryResult() const {
+    while (_inquiryResultLock.test_and_set(std::memory_order_acquire)) {
+        tight_loop_contents();
+    }
+}
+
+void SinkRuntimeState::_unlockInquiryResult() const {
+    _inquiryResultLock.clear(std::memory_order_release);
+}
+
+void SinkRuntimeState::reset(bool resetCableMessageIds) {
+    _lockInquiryResult();
+    const SinkInquiryResult previousInquiry = _inquiryResult;
     _state = SinkState::Unknown;
     _currentStateHandler = nullptr;
 
@@ -30,6 +44,14 @@ void SinkRuntimeState::reset() {
     _eprCapabilities.reset();
     _specRevision = Proto::PDHeader::SpecRevision::Rev3_x;
     _ppsStatus.reset();
+    _sourceCapabilitiesExtended.reset();
+    _sourceStatus.reset();
+    _inquiryResult = previousInquiry;
+    if (_inquiryResult.status.outcome == SinkInquiryOutcome::Pending) {
+        _inquiryResult.status.outcome = SinkInquiryOutcome::Aborted;
+        _inquiryResult.status.responseLength = 0;
+    }
+    _unlockInquiryResult();
     _sourceSupportsEpr = false;
 
     _hasExplicitContract = false;
@@ -38,7 +60,8 @@ void SinkRuntimeState::reset() {
     _eprEntryRefusedFallbackActive = false;
     _eprSourceExitRequested = false;
 
-    resetStoredReceivedMessageId();
+    if (resetCableMessageIds) resetStoredReceivedMessageId();
+    else resetStoredReceivedMessageId(0);
 
     _pendingRequestedPDO.reset();
     _pendingPDOIndex = 0;
@@ -56,20 +79,63 @@ void SinkRuntimeState::reset() {
     for (auto &payload : _completedExtendedPayloads) {
         payload.reset();
     }
+    _completedInquiryExtendedPayload.reset();
+    _inquiryRecoveredMalformedPPSStatus = false;
+}
+
+SinkInquiryResult SinkRuntimeState::inquiryResult() const {
+    _lockInquiryResult();
+    const SinkInquiryResult result = _inquiryResult;
+    _unlockInquiryResult();
+    return result;
+}
+
+void SinkRuntimeState::beginInquiry(const SinkInquiryRequest& request) {
+    _lockInquiryResult();
+    _inquiryResult = SinkInquiryResult{};
+    _inquiryResult.status.id = request.id;
+    _inquiryResult.status.type = request.type;
+    _inquiryResult.parameters = request.parameters;
+    _inquiryResult.status.outcome = SinkInquiryOutcome::Pending;
+    _completedInquiryExtendedPayload.reset();
+    _inquiryRecoveredMalformedPPSStatus = false;
+    _unlockInquiryResult();
+}
+
+void SinkRuntimeState::finishInquiry(
+    SinkInquiryOutcome outcome,
+    uint32_t responseClass,
+    uint32_t responseType,
+    std::span<const uint8_t> response,
+    uint32_t warningFlags) {
+    _lockInquiryResult();
+    const size_t responseLength = std::min(response.size(), _inquiryResult.response.size());
+    if (responseLength > 0) {
+        std::copy_n(response.begin(), responseLength, _inquiryResult.response.begin());
+    }
+    _inquiryResult.status.responseClass = responseClass;
+    _inquiryResult.status.responseType = responseType;
+    _inquiryResult.status.responseLength = responseLength;
+    _inquiryResult.status.warningFlags = warningFlags;
+    _inquiryResult.status.outcome = outcome;
+    _unlockInquiryResult();
 }
 
 void SinkRuntimeState::resetStoredReceivedMessageId() {
-    _hasStoredReceivedMessageId = false;
-    _storedReceivedMessageId = 0;
+    _receivedMessageIds.reset();
 }
 
-bool SinkRuntimeState::isDuplicateReceivedMessageId(uint8_t messageId) const {
-    return _hasStoredReceivedMessageId && _storedReceivedMessageId == messageId;
+void SinkRuntimeState::resetStoredReceivedMessageId(size_t targetIndex) {
+    _receivedMessageIds.clear(targetIndex);
 }
 
-void SinkRuntimeState::storeReceivedMessageId(uint8_t messageId) {
-    _hasStoredReceivedMessageId = true;
-    _storedReceivedMessageId = messageId;
+bool SinkRuntimeState::isDuplicateReceivedMessageId(
+    size_t targetIndex, uint8_t messageId) const {
+    return _receivedMessageIds.duplicate(targetIndex, messageId);
+}
+
+void SinkRuntimeState::storeReceivedMessageId(size_t targetIndex, uint8_t messageId) {
+    _receivedMessageIds.store(targetIndex, messageId);
 }
 
 std::optional<size_t> SinkRuntimeState::trackedTypeIndex(Proto::ExtendedMessageType type) {

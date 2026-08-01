@@ -29,6 +29,7 @@
 #include "message_sender.hpp"
 #include "sink_runtime_state.hpp"
 #include "sink_types.hpp"
+#include "inquiry_descriptor.hpp"
 
 #include "../../phy/bmc_decoder.hpp"
 #include "../../phy/bmc_encoder.hpp"
@@ -54,6 +55,7 @@ namespace T76::DRPD::Logic {
     class EPRModeExitStateHandler;
     class EPRModeEntryStateHandler;
     class GetPPSStatusStateHandler;
+    class InquiryStateHandler;
     class ReadySinkStateHandler;
     class SendResponseStateHandler;
     class SendSoftResetStateHandler;
@@ -105,6 +107,7 @@ namespace T76::DRPD::Logic {
             EPRModeExitStateHandler& eprModeExitStateHandler,
             EPRModeEntryStateHandler& eprModeEntryStateHandler,
             GetPPSStatusStateHandler& getPPSStatusStateHandler,
+            InquiryStateHandler& inquiryStateHandler,
             ReadySinkStateHandler& readySinkStateHandler,
             SendResponseStateHandler& sendResponseStateHandler,
             SendSoftResetStateHandler& sendSoftResetStateHandler,
@@ -161,7 +164,9 @@ namespace T76::DRPD::Logic {
         /**
          * @brief Complete receiver-side Soft_Reset handling after the PHY GoodCRC.
          */
-        void handleReceivedSoftReset(Proto::PDHeader::SpecRevision receivedRevision);
+        void handleReceivedSoftReset(
+            Proto::SOP::SOPType sopTarget,
+            Proto::PDHeader::SpecRevision receivedRevision);
 
         /**
          * @brief Cache latest SPR Source_Capabilities and notify listeners.
@@ -359,6 +364,33 @@ namespace T76::DRPD::Logic {
          * @return True if sent; false if deferred by collision avoidance.
          */
         bool sendGetPPSStatus();
+        bool sendInquiryRequest(const SinkInquiryRequest& request);
+        bool sendAuthenticationRequestChunk(
+            const SinkInquiryRequest& request, uint8_t chunkNumber);
+
+        /** Record the common Structured VDM version from a correlated Identity ACK. */
+        bool recordStructuredVDMIdentityACK(
+            SinkInquirySOPTarget sopTarget, std::span<const uint8_t> payload);
+        [[nodiscard]] bool sopPrimeActiveCableIdentityKnown() const {
+            return _sopPrimeActiveCableIdentityKnown;
+        }
+        [[nodiscard]] bool sopDoublePrimeControllerKnown() const {
+            return _sopDoublePrimeControllerKnown;
+        }
+
+        /** Clear attach-scoped Structured VDM negotiation after observing detach. */
+        void resetStructuredVDMAttachment();
+        void resetCableProtocol();
+        std::optional<SinkRuntimeState::ExtendedPayloadBuffer> takeInquiryExtendedPayload();
+        void handleMessageAsReady(const PHY::BMCDecodedMessage *message);
+        bool cacheInquiryResponse(
+            SinkInquiryType type,
+            const PHY::BMCDecodedMessage *message,
+            std::span<const uint8_t> payload);
+        void requestAfterSourceCapabilitiesInquiry(
+            std::optional<uint32_t> previousRawPDO,
+            uint32_t previousVoltageMV,
+            uint32_t previousCurrentMA);
 
         /**
          * @brief Send local Manufacturer_Info for a Get_Manufacturer_Info request payload.
@@ -483,6 +515,7 @@ namespace T76::DRPD::Logic {
         EPRModeExitStateHandler& _eprModeExitStateHandler;               ///< Handler for EPR Mode Exit.
         EPRModeEntryStateHandler& _eprModeEntryStateHandler;             ///< Handler for EPR Mode Entry.
         GetPPSStatusStateHandler& _getPPSStatusStateHandler;             ///< Handler for PPS status query.
+        InquiryStateHandler& _inquiryStateHandler;                       ///< Handler for host inquiries.
         ReadySinkStateHandler& _readySinkStateHandler;                   ///< Handler for Ready.
         SendResponseStateHandler& _sendResponseStateHandler;             ///< Handler for Ready responses.
         SendSoftResetStateHandler& _sendSoftResetStateHandler;           ///< Handler for Send Soft Reset.
@@ -496,6 +529,9 @@ namespace T76::DRPD::Logic {
         SinkErrorCallback& _sinkErrorCallback;                           ///< Host error callback repeater.
         std::function<void(SinkTimeoutEvent)>& _enqueueTimeoutEventCallback; ///< Timeout event callback.
         uint8_t _hardResetCounter = 0;                              ///< Hard Resets sent during current attachment.
+        std::array<StructuredVDMVersionState, 3> _structuredVDMVersions; ///< Per-SOP attach-scoped SVDM versions.
+        bool _sopPrimeActiveCableIdentityKnown = false;
+        bool _sopDoublePrimeControllerKnown = false;
 
         /**
          * @brief Determine if cached SPR source capabilities advertise EPR support.
