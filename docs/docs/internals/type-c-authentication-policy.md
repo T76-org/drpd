@@ -25,6 +25,13 @@ Unsupported versions, algorithms, encodings, reserved values, trailing bytes, or
 
 No trust anchor is bundled or inherited from the operating-system or Web PKI store. A chain is trusted only when its 32-byte `RootHash` matches an explicitly configured anchor for the selected policy. Merely being self-consistent, using slots 0–3, or claiming a USB-IF name is not trust.
 
+Two policy modes are supported:
+
+- `inspect` (the default) performs protocol and cryptographic verification but always reports trust and policy as `not evaluated`;
+- `require-configured-anchor` requires at least one caller-supplied anchor and reports success only when a permitted anchor and every configured identity constraint match.
+
+An anchor record contains a stable caller-defined identifier, the exact DER root certificate, an allowed-slot class (`usb-if`, slots 0–3; `private`, slots 4–7; or an explicit slot list), and optional allowed leaf VID/PID pairs. Its key is `SHA-256(root DER)`, compared byte-for-byte with the wire `RootHash`. A `usb-if` classification is caller configuration, not something inferred from a certificate name. A local denylist contains SHA-256 fingerprints of root, intermediate, or leaf DER certificates and takes precedence over every anchor allow. The USB ACD is decoded and reported; it affects allow/deny only when the selected anchor record contains explicit ACD constraints. Missing or unknown constrained claims deny rather than wildcard-match.
+
 Verification is offline and deterministic. Dr. PD does not fetch certificates, AIA resources, CRLs, OCSP responses, or anchors from the network. The returned chain omits the root certificate, so the configured anchor must contain the root certificate needed to verify the first returned certificate. Chain order is exactly the wire order; alternate-chain search is not performed.
 
 The verifier enforces the USB profile: certificate size and 4096-byte chain bounds, signature chain, Basic Constraints, Key Usage, critical USB-Auth Extended Key Usage `2.23.145.1.1`, leaf USB-IF ACD `2.23.145.1.2`, common-name VID/PID rules, and the slot/root constraints. Unknown critical extensions fail. Product certificate `notBefore` and `notAfter` values are parsed but, as directed by the USB Authentication 1.0 product profile, do not affect the verdict.
@@ -35,7 +42,7 @@ Revocation is not defined by the wire exchange and no online revocation check is
 
 Each challenge uses a newly generated 32-byte nonce from the host platform cryptographic random-number generator. A nonce belongs to one workflow run, one attachment generation, one source, and one certificate slot. It is never reused after retry, detach, reset, cancellation, or supersession.
 
-The verifier checks the response slot, slot mask, certificate-chain hash, the all-zero PD Source context hash, and the 64-byte little-endian `r || s` ECDSA signature over the exact 36-byte request followed by the first 104 bytes of the response. Verification uses the public key in the selected leaf certificate. Any mismatch is terminal for that attempt.
+The verifier requires the response slot to equal the selected slot and its bit to be set in the returned slot mask. Other mask bits may differ from the earlier `DIGESTS` response, but that change is reported. It also checks the certificate-chain hash, the all-zero PD Source context hash, and the 64-byte little-endian `r || s` ECDSA signature over the exact 36-byte request followed by the first 104 bytes of the response. Verification uses the public key in the selected leaf certificate. Any mismatch is terminal for that attempt.
 
 ## Workflow and bounds
 
@@ -44,11 +51,18 @@ The host owns the multistep workflow. Firmware performs exactly one atomic AMS p
 The runner:
 
 1. reads digests and chooses an explicitly selected populated slot;
-2. retrieves the certificate chain in bounded parts, requiring the returned slot and requested offset to correlate;
+2. retrieves the certificate chain in bounded parts, requiring the returned slot and request ID to correlate while retaining the requested offset in host workflow state;
 3. verifies total length, segment progress, chain digest, certificates, and configured trust anchor; then
 4. sends a fresh challenge and verifies the response.
 
-Certificate retrieval stops at 4096 bytes. Zero-progress, overlap, gaps, inconsistent repeated bytes, changing slot/digest, excessive parts, malformed lengths, detach, reset, timeout, or supersession terminate the run. Retry creates a new atomic request; challenge retry also creates a new nonce. “All slots” is bounded to the eight protocol slots and preserves separate history for every attempt.
+Certificate retrieval requests contiguous segments of at most 256 bytes. The first segment exposes the chain's little-endian total length; subsequent requested lengths are exactly `min(256, remaining)`, and each successful response must return exactly that length. Retrieval stops at 4096 bytes and at most 16 successful segments. A response cannot supply an offset, so overlap/gap protection comes from request-ID correlation, the retained requested offset, exact response length, and append-only assembly.
+
+Each atomic step permits at most three attempts, including `BUSY` and manual Retry. Retry creates a new request ID; challenge retry also creates a new nonce. Zero progress, inconsistent repeated evidence, changing slot/digest, malformed lengths, detach, reset, timeout, collision, or supersession ends that attempt and exposes the action rules below. “All slots” is bounded to the eight protocol slots and preserves separate history for every attempt.
+
+- **Retry** is available after a transport, responder `BUSY`, timeout, or retryable parse failure while the three-attempt budget remains.
+- **Continue** is available only in an all-slots survey. It records the current slot as failed or indeterminate and advances to the next selected slot. It never skips certificate or trust failure and then challenges that same slot.
+- **Stop** is always available before completion and records cancellation as the terminal workflow state.
+- Signature, chain, trust, denylist, policy, detach, reset, collision, and supersession failures are terminal for that slot. In a single-slot run only Stop/close remains; in an all-slots run Continue may inspect the next slot.
 
 Firmware applies operation-specific response deadlines from the authentication profile: 200 ms for potentially chunked digest and certificate responses, and 1200 ms for a potentially chunked challenge response. A complete unchunked response may use the shorter 40 ms and 1000 ms limits respectively only when transport can determine that form without weakening chunked interoperability.
 
