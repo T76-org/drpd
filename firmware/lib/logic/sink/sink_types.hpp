@@ -32,6 +32,9 @@ namespace T76::DRPD::Logic {
         GetCountryInfo,
         GetBatteryCapabilities,
         GetBatteryStatus,
+        DiscoverIdentity,
+        DiscoverSVIDs,
+        DiscoverModes,
     };
 
     enum class SinkInquiryTarget : uint32_t {
@@ -49,7 +52,7 @@ namespace T76::DRPD::Logic {
     enum class SinkInquiryOutcome : uint32_t {
         None, Pending, Response, NotSupported, Rejected, Wait,
         GoodCRCTimeout, ResponseTimeout, ProtocolError, MalformedResponse,
-        ResponseTooLarge, Aborted
+        ResponseTooLarge, Aborted, NAK, Busy
     };
 
     struct SinkInquiryRequest {

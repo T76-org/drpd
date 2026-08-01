@@ -597,11 +597,11 @@ commands:
     parameters:
       - name: type
         type: enum
-        choices: ["GET_REVISION", "GET_SOURCE_CAP", "GET_SOURCE_CAP_EXTENDED", "GET_STATUS", "GET_SOURCE_INFO", "GET_PPS_STATUS", "GET_MANUFACTURER_INFO", "GET_COUNTRY_CODES", "GET_COUNTRY_INFO", "GET_BATTERY_CAP", "GET_BATTERY_STATUS"]
+        choices: ["GET_REVISION", "GET_SOURCE_CAP", "GET_SOURCE_CAP_EXTENDED", "GET_STATUS", "GET_SOURCE_INFO", "GET_PPS_STATUS", "GET_MANUFACTURER_INFO", "GET_COUNTRY_CODES", "GET_COUNTRY_INFO", "GET_BATTERY_CAP", "GET_BATTERY_STATUS", "DISCOVER_IDENTITY", "DISCOVER_SVIDS", "DISCOVER_MODES"]
         description: "Supported inquiry message type."
       - name: target_or_country
         type: string_or_number
-        description: 'PORT or BATTERY for GET_MANUFACTURER_INFO; uppercase ISO 3166 alpha-2 code for GET_COUNTRY_INFO; numeric 0..7 reference for battery inquiries.'
+        description: 'PORT or BATTERY for GET_MANUFACTURER_INFO; uppercase ISO 3166 alpha-2 code for GET_COUNTRY_INFO; numeric battery reference or Discover Modes SVID.'
         optional: true
       - name: battery_reference
         type: number

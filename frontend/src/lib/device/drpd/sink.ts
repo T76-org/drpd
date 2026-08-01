@@ -114,6 +114,11 @@ export class DRPDSink {
       await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.batteryReference)
       return
     }
+    if (request.type === SinkInquiryType.DISCOVER_MODES) {
+      if (!Number.isInteger(request.svid) || request.svid < 1 || request.svid > 0xffff) throw new Error('SVID must be an integer from 1 to 65535')
+      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.svid)
+      return
+    }
     await this.sendInquiry(request.type)
   }
 

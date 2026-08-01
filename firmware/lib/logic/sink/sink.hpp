@@ -357,6 +357,7 @@ namespace T76::DRPD::Logic {
         SinkContext _context;                                    ///< Handler-facing context facade.
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
         std::atomic<bool> _ccBusResetPending = false;            ///< Core-0 state-change reset request latched for core 1.
+        std::atomic<bool> _ccBusDetachObserved = false;          ///< Detach edge preserved if state callbacks coalesce.
         std::atomic<bool> _eprExitPending = false;               ///< Core-0 request asking Core 1 to exit active EPR mode.
         std::atomic<uint32_t> _nextInquiryId = 1;                ///< Monotonic host inquiry identifier.
         std::atomic<bool> _inquiryQueued = false;                ///< Host inquiry awaits policy dispatch.

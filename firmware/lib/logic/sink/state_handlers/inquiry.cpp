@@ -79,9 +79,17 @@ void InquiryStateHandler::handleMessage(
         _finish(context, SinkInquiryOutcome::ProtocolError);
         return;
     }
-    const InquiryMatch match = matchInquiryResponse(
+    InquiryMatch match = matchInquiryResponse(
         descriptor.value(), static_cast<uint32_t>(header.messageClass()),
         rawType, header.numDataObjects());
+    const bool structuredDiscovery =
+        descriptor->parameterKind == InquiryParameterKind::DiscoverIdentity ||
+        descriptor->parameterKind == InquiryParameterKind::DiscoverSVIDs ||
+        descriptor->parameterKind == InquiryParameterKind::DiscoverModes;
+    if (match == InquiryMatch::Response && structuredDiscovery) {
+        match = matchStructuredVDMResponse(
+            descriptor.value(), resultSnapshot.parameters.argument, message->rawBody());
+    }
     if (match == InquiryMatch::Unrelated) {
         _finish(context, SinkInquiryOutcome::Aborted);
         context.handleMessageAsReady(message);
@@ -119,6 +127,11 @@ void InquiryStateHandler::handleMessage(
             _finish(context, SinkInquiryOutcome::MalformedResponse);
             return;
         }
+        if (resultSnapshot.status.type == SinkInquiryType::DiscoverIdentity &&
+            !context.recordStructuredVDMIdentityACK(body)) {
+            _finish(context, SinkInquiryOutcome::MalformedResponse);
+            return;
+        }
         if (!context.cacheInquiryResponse(resultSnapshot.status.type, message, body)) {
             _finish(context, SinkInquiryOutcome::MalformedResponse);
             return;
@@ -138,7 +151,14 @@ void InquiryStateHandler::handleMessage(
         }
         return;
     }
-    if (match == InquiryMatch::NotSupported) _finish(context, SinkInquiryOutcome::NotSupported);
+    if (match == InquiryMatch::VDMNAK || match == InquiryMatch::VDMBusy) {
+        context.runtimeState().finishInquiry(
+            match == InquiryMatch::VDMNAK ? SinkInquiryOutcome::NAK : SinkInquiryOutcome::Busy,
+            static_cast<uint32_t>(header.messageClass()), rawType, message->rawBody(),
+            descriptor->warningFlags);
+        context.transitionTo(SinkState::PE_SNK_Ready);
+    }
+    else if (match == InquiryMatch::NotSupported) _finish(context, SinkInquiryOutcome::NotSupported);
     else if (match == InquiryMatch::Rejected) _finish(context, SinkInquiryOutcome::Rejected);
     else if (match == InquiryMatch::Wait) _finish(context, SinkInquiryOutcome::Wait);
     else _finish(context, SinkInquiryOutcome::ProtocolError);

@@ -134,10 +134,10 @@ namespace T76::SCPI {
  * Command System:
  *   - Commands: 104 (1248 bytes)
  *   - Parameter descriptors: 656 bytes
- *   - String literals: 606 bytes
+ *   - String literals: 654 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 18382 bytes (0.44% of 2MB)
+ *   - Code/Data (Flash): 18430 bytes (0.44% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
@@ -168,6 +168,9 @@ namespace T76::SCPI {
         "GET_COUNTRY_INFO",
         "GET_BATTERY_CAP",
         "GET_BATTERY_STATUS",
+        "DISCOVER_IDENTITY",
+        "DISCOVER_SVIDS",
+        "DISCOVER_MODES",
     };
 
     const char* const command_65_param_0_choices[] = {
@@ -390,7 +393,7 @@ namespace T76::SCPI {
         {
             .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
-            .choiceCount = 11,
+            .choiceCount = 14,
             .choices = command_56_param_0_choices
         },
         {

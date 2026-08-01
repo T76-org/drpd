@@ -17,6 +17,8 @@ const response = (
 })
 
 describe('decodeInquiryResponse', () => {
+  const words = (...values: number[]) => new Uint8Array(values.flatMap((value) => [value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff]))
+  const vdmHeader = (svid: number, command: number, commandType = 1) => (svid << 16) | (1 << 15) | (1 << 13) | (commandType << 6) | command
   it.each([
     [SinkInquiryType.GET_SOURCE_CAP, 2, 0x01, 4, 'Source_Capabilities'],
     [SinkInquiryType.GET_SOURCE_CAP_EXTENDED, 0, 0x01, 24, 'Source_Capabilities_Extended'],
@@ -143,5 +145,43 @@ describe('decodeInquiryResponse', () => {
     expect(decoded.summary).toContain('"invalidBatteryReference": true')
     expect(decoded.summary).toContain(rawCapacity)
     expect(decoded.summary).toContain(convertedCapacity)
+  })
+
+  it('decodes Identity ACK with raw ordered VDOs', () => {
+    const body = words(vdmHeader(0xff00, 1), 1, 2, 3)
+    const decoded = decodeInquiryResponse(response(SinkInquiryType.DISCOVER_IDENTITY, 2, 0x0f, 16), body, { type: SinkInquiryType.DISCOVER_IDENTITY })
+    expect(decoded.summary).toContain('"rawVdos"')
+  })
+
+  it('deduplicates SVIDs deterministically while preserving ordered entries', () => {
+    const body = words(vdmHeader(0xff00, 2), (0x1234 << 16) | 0xabcd, (0xabcd << 16))
+    const decoded = decodeInquiryResponse(response(SinkInquiryType.DISCOVER_SVIDS, 2, 0x0f, 12), body, { type: SinkInquiryType.DISCOVER_SVIDS })
+    expect(decoded.summary).toContain('"orderedSvids": [\n    4660,\n    43981,\n    43981')
+    expect(decoded.summary).toContain('"svids": [\n    4660,\n    43981')
+  })
+
+  it.each([[2, 'NAK'], [3, 'BUSY']])('rejects non-ACK command type %i %s as a response body', (commandType) => {
+    const body = words(vdmHeader(0xff00, 2, commandType), 0)
+    expect(() => decodeInquiryResponse(response(SinkInquiryType.DISCOVER_SVIDS, 2, 0x0f, 8), body, { type: SinkInquiryType.DISCOVER_SVIDS })).toThrow('does not correlate')
+  })
+
+  it('correlates Discover Modes selected SVID', () => {
+    const body = words(vdmHeader(0x1234, 3), 0xdeadbeef)
+    expect(decodeInquiryResponse(response(SinkInquiryType.DISCOVER_MODES, 2, 0x0f, 8), body, { type: SinkInquiryType.DISCOVER_MODES, svid: 0x1234 }).summary).toContain('3735928559')
+    expect(() => decodeInquiryResponse(response(SinkInquiryType.DISCOVER_MODES, 2, 0x0f, 8), body, { type: SinkInquiryType.DISCOVER_MODES, svid: 0xabcd })).toThrow('does not correlate')
+  })
+
+  it.each([
+    [SinkInquiryType.DISCOVER_IDENTITY, vdmHeader(0xff00, 1), 12],
+    [SinkInquiryType.DISCOVER_SVIDS, vdmHeader(0xff00, 2), 4],
+    [SinkInquiryType.DISCOVER_MODES, vdmHeader(0x1234, 3), 4],
+  ] as const)('rejects undersized %s ACK body', (type, header, length) => {
+    const request = type === SinkInquiryType.DISCOVER_MODES ? { type, svid: 0x1234 } as const : { type } as const
+    expect(() => decodeInquiryResponse(response(type, 2, 0x0f, length), words(header, 1, 2).subarray(0, length), request)).toThrow('body must contain')
+  })
+
+  it('rejects reserved header bit 5 and nonzero SVID after terminator', () => {
+    expect(() => decodeInquiryResponse(response(SinkInquiryType.DISCOVER_SVIDS, 2, 0x0f, 8), words(vdmHeader(0xff00, 2) | 0x20, 0), { type: SinkInquiryType.DISCOVER_SVIDS })).toThrow('bit 5')
+    expect(() => decodeInquiryResponse(response(SinkInquiryType.DISCOVER_SVIDS, 2, 0x0f, 12), words(vdmHeader(0xff00, 2), 0, 0x12340000), { type: SinkInquiryType.DISCOVER_SVIDS })).toThrow('after its zero terminator')
   })
 })

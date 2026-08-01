@@ -29,6 +29,12 @@ from t76.drpd.device.types import (
     CountryCodesInquiryData,
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
+    DiscoverIdentityInquiryData,
+    DiscoverIdentityInquiryRequest,
+    DiscoverModesInquiryData,
+    DiscoverModesInquiryRequest,
+    DiscoverSVIDsInquiryData,
+    DiscoverSVIDsInquiryRequest,
     ExtendedSourceCapabilitiesInquiryData,
     GetExtendedSourceCapabilitiesInquiryRequest,
     GetBatteryCapabilitiesInquiryRequest,
@@ -52,7 +58,23 @@ from t76.drpd.device.types import (
     SourceCapabilitiesInquiryData,
     SourceInfoInquiryData,
     SourceStatusInquiryData,
+    StructuredVDMNegativeResponseData,
+    VDMDiscoveryFailureAction,
 )
+
+
+def _svdm_ack_header(
+    svid: int, command: int, minor: int = 0, command_type: int = 1
+) -> bytes:
+    raw = (
+        (svid << 16)
+        | (1 << 15)
+        | (1 << 13)
+        | (minor << 11)
+        | (command_type << 6)
+        | command
+    )
+    return raw.to_bytes(4, "little")
 
 
 class TestDeviceSinkModeValidation(unittest.IsolatedAsyncioTestCase):
@@ -1247,6 +1269,308 @@ class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(result.decoded.present_capacity_wh)
         self.assertTrue(result.decoded.invalid_battery_reference)
+
+    async def test_vdm_request_encoding_and_svid_bounds(self) -> None:
+        requests = [
+            DiscoverIdentityInquiryRequest(),
+            DiscoverSVIDsInquiryRequest(),
+            DiscoverModesInquiryRequest(0xFF01),
+        ]
+        for request in requests:
+            await self.device_sink.send_inquiry(request)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ DISCOVER_IDENTITY",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_MODES,65281",
+            ],
+        )
+        for invalid in (0, 65536, 1.0, True):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                DiscoverModesInquiryRequest(invalid)  # type: ignore[arg-type]
+
+    async def test_vdm_ack_decoders_preserve_vdo_order_and_dedup(self) -> None:
+        identity_vdos = (0x11223344, 0x55667788, 0x99AABBCC)
+        svid_vdos = (0x12345678, 0x12340000)
+        mode_vdos = (0x01020304, 0xA0B0C0D0)
+        vectors = [
+            (
+                DiscoverIdentityInquiryRequest(),
+                _svdm_ack_header(0xFF00, 1)
+                + b"".join(vdo.to_bytes(4, "little") for vdo in identity_vdos),
+                DiscoverIdentityInquiryData,
+            ),
+            (
+                DiscoverSVIDsInquiryRequest(),
+                _svdm_ack_header(0xFF00, 2)
+                + b"".join(vdo.to_bytes(4, "little") for vdo in svid_vdos),
+                DiscoverSVIDsInquiryData,
+            ),
+            (
+                DiscoverModesInquiryRequest(0x1234),
+                _svdm_ack_header(0x1234, 3)
+                + b"".join(vdo.to_bytes(4, "little") for vdo in mode_vdos),
+                DiscoverModesInquiryData,
+            ),
+        ]
+        decoded_results = []
+        for request_id, (request, body, decoded_type) in enumerate(
+            vectors, start=1
+        ):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},{request.type.value},2,15,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                request, poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, decoded_type)
+            decoded_results.append(result.decoded)
+
+        identity = decoded_results[0]
+        svids = decoded_results[1]
+        modes = decoded_results[2]
+        assert isinstance(identity, DiscoverIdentityInquiryData)
+        assert isinstance(svids, DiscoverSVIDsInquiryData)
+        assert isinstance(modes, DiscoverModesInquiryData)
+        self.assertEqual(identity.identity_vdos, identity_vdos)
+        self.assertEqual(svids.svid_vdos, svid_vdos)
+        self.assertEqual(svids.svids, (0x1234, 0x5678))
+        self.assertTrue(svids.complete)
+        self.assertEqual(modes.svid, 0x1234)
+        self.assertEqual(modes.mode_vdos, mode_vdos)
+
+    async def test_vdm_nak_and_busy_preserve_validated_raw_header(self) -> None:
+        for request_id, (outcome, command_type) in enumerate(
+            (("NAK", 2), ("BUSY", 3)), start=1
+        ):
+            body = _svdm_ack_header(
+                0xFF00, 1, command_type=command_type
+            )
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"{outcome},{request_id},DISCOVER_IDENTITY,2,15,4"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                DiscoverIdentityInquiryRequest(), poll_interval_seconds=0
+            )
+            self.assertEqual(result.status.outcome.value, outcome)
+            self.assertEqual(result.raw_response, body)
+            self.assertIsInstance(
+                result.decoded, StructuredVDMNegativeResponseData
+            )
+
+        ack_body = _svdm_ack_header(0xFF00, 1)
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["BUSY,2,DISCOVER_IDENTITY,2,15,4"],
+            ["NAK,3,DISCOVER_IDENTITY,2,15,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            ack_body
+        )
+        with self.assertRaisesRegex(ValueError, "terminal outcome"):
+            await SinkInquiryRunner(self.device_sink).run(
+                DiscoverIdentityInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_vdm_rejects_malformed_ack_headers_and_vdo_counts(self) -> None:
+        valid_header = int.from_bytes(_svdm_ack_header(0xFF00, 1), "little")
+        malformed = [
+            b"\x00" * 3,
+            (valid_header & ~(1 << 15)).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header | (1 << 5)).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header & ~(0x3 << 6)).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header ^ 0x03).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header | (2 << 13)).to_bytes(4, "little") + b"\x00" * 12,
+            (
+                (valid_header & ~(0x3 << 13) | (1 << 11)).to_bytes(
+                    4, "little"
+                )
+                + b"\x00" * 12
+            ),
+            _svdm_ack_header(0x1234, 1) + b"\x00" * 12,
+            _svdm_ack_header(0xFF00, 1) + b"\x00" * 8,
+        ]
+        for request_id, body in enumerate(malformed, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},DISCOVER_IDENTITY,2,15,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    DiscoverIdentityInquiryRequest(), poll_interval_seconds=0
+                )
+
+    async def test_vdm_workflow_continues_svid_pages_then_modes(self) -> None:
+        first_svids = tuple(range(0x1001, 0x100D))
+        first_svid_body = _svdm_ack_header(0xFF00, 2) + b"".join(
+            ((first_svids[index] << 16) | first_svids[index + 1]).to_bytes(
+                4, "little"
+            )
+            for index in range(0, 12, 2)
+        )
+        second_svid_body = (
+            _svdm_ack_header(0xFF00, 2)
+            + (0x100D << 16).to_bytes(4, "little")
+        )
+        identity_body = _svdm_ack_header(0xFF00, 1) + b"\x00" * 12
+        mode_body = _svdm_ack_header(0x100D, 3) + b"\x78\x56\x34\x12"
+        response_specs = [
+            ("DISCOVER_IDENTITY", identity_body),
+            ("DISCOVER_SVIDS", first_svid_body),
+            ("DISCOVER_SVIDS", second_svid_body),
+            ("DISCOVER_MODES", mode_body),
+        ]
+        statuses = []
+        previous_id = 0
+        previous_type = "GET_REVISION"
+        for request_id, (name, body) in enumerate(response_specs, start=1):
+            statuses.extend([
+                [f"{'NONE' if request_id == 1 else 'RESPONSE'},{previous_id},{previous_type},0,0,0"],
+                [f"RESPONSE,{request_id},{name},2,15,{len(body)}"],
+            ])
+            previous_id = request_id
+            previous_type = name
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(identity_body), list(first_svid_body), list(second_svid_body),
+            list(mode_body),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_vdm_discovery(
+            (0x100D,), poll_interval_seconds=0
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(workflow.selected_svids, (0x100D,))
+        self.assertEqual(len(workflow.svid_results), 2)
+        self.assertEqual(len(workflow.mode_results), 1)
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 4)
+
+    async def test_vdm_workflow_bounds_controls_and_correlation(self) -> None:
+        runner = self.device_sink.inquiry_runner
+        with self.assertRaisesRegex(ValueError, "unique"):
+            await runner.run_vdm_discovery((0x1234, 0x1234))
+        with self.assertRaisesRegex(ValueError, "max_svid_pages"):
+            await runner.run_vdm_discovery(max_svid_pages=0)
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["BUSY,1,DISCOVER_IDENTITY,0,0,0"],
+        ]
+        stopped = await runner.run_vdm_discovery(
+            failure_action=VDMDiscoveryFailureAction.STOP,
+            poll_interval_seconds=0,
+        )
+        self.assertTrue(stopped.stopped_early)
+        self.assertEqual(len(stopped.identity_results), 1)
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["BUSY,1,DISCOVER_IDENTITY,0,0,0"],
+            ["BUSY,2,DISCOVER_IDENTITY,0,0,0"],
+            ["BUSY,2,DISCOVER_IDENTITY,0,0,0"],
+            ["NAK,3,DISCOVER_IDENTITY,0,0,0"],
+        ]
+        retried = await runner.run_vdm_discovery(
+            failure_action=VDMDiscoveryFailureAction.RETRY,
+            max_retries=1,
+            poll_interval_seconds=0,
+        )
+        self.assertTrue(retried.stopped_early)
+        self.assertEqual(len(retried.identity_results), 2)
+        self.assertEqual(
+            [result.status.outcome for result in retried.identity_results],
+            [SinkInquiryOutcome.BUSY, SinkInquiryOutcome.NAK],
+        )
+
+    async def test_vdm_lost_continuation_restarts_identity_and_page_one(
+        self,
+    ) -> None:
+        identity_body = _svdm_ack_header(0xFF00, 1) + b"\x00" * 12
+        full_svid_body = _svdm_ack_header(0xFF00, 2) + b"".join(
+            ((0x2001 + index << 16) | (0x2002 + index)).to_bytes(
+                4, "little"
+            )
+            for index in range(0, 12, 2)
+        )
+        final_svid_body = (
+            _svdm_ack_header(0xFF00, 2)
+            + (0x3001 << 16).to_bytes(4, "little")
+        )
+        mode_body = _svdm_ack_header(0x3001, 3) + b"\x01\x00\x00\x00"
+        responses = [
+            ("RESPONSE", "DISCOVER_IDENTITY", 16),
+            ("RESPONSE", "DISCOVER_SVIDS", 28),
+            ("RESPONSE_TIMEOUT", "DISCOVER_SVIDS", 0),
+            ("RESPONSE", "DISCOVER_IDENTITY", 16),
+            ("RESPONSE", "DISCOVER_SVIDS", 8),
+            ("RESPONSE", "DISCOVER_MODES", 8),
+        ]
+        statuses = []
+        previous_id = 0
+        previous_type = "GET_REVISION"
+        previous_outcome = "NONE"
+        for request_id, (outcome, name, length) in enumerate(responses, start=1):
+            statuses.extend([
+                [
+                    f"{previous_outcome},{previous_id},{previous_type},"
+                    f"{2 if previous_outcome == 'RESPONSE' else 0},"
+                    f"{15 if previous_outcome == 'RESPONSE' else 0},0"
+                ],
+                [
+                    f"{outcome},{request_id},{name},"
+                    f"{2 if outcome == 'RESPONSE' else 0},"
+                    f"{15 if outcome == 'RESPONSE' else 0},{length}"
+                ],
+            ])
+            previous_id = request_id
+            previous_type = name
+            previous_outcome = outcome
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(identity_body),
+            list(full_svid_body),
+            list(identity_body),
+            list(final_svid_body),
+            list(mode_body),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_vdm_discovery(
+            (0x3001,),
+            failure_action=VDMDiscoveryFailureAction.RETRY,
+            max_retries=1,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(len(workflow.identity_results), 2)
+        self.assertEqual(len(workflow.svid_results), 3)
+        self.assertEqual(workflow.selected_svids, (0x3001,))
+        commands = [
+            call.args[0]
+            for call in self.mock_internal.write_ascii_and_check.await_args_list
+        ]
+        self.assertEqual(
+            commands,
+            [
+                "SINK:INQ DISCOVER_IDENTITY",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_IDENTITY",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_MODES,12289",
+            ],
+        )
 
 
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):

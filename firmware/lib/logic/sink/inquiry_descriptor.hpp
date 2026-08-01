@@ -31,6 +31,8 @@ enum class InquiryMatch : uint8_t {
     Wait,
     Unrelated,
     ProtocolError,
+    VDMNAK,
+    VDMBusy,
 };
 
 enum class InquiryCacheKind : uint8_t {
@@ -45,6 +47,7 @@ enum InquiryWarningFlags : uint32_t {
     InquiryWarningNone = 0,
     InquiryWarningStatusReadClearsEvents = 1u << 0,
     InquiryWarningRecoveredMalformedPPSStatus = 1u << 1,
+    InquiryWarningUFPDiagnosticDiscoverIdentity = 1u << 2,
 };
 
 enum class InquiryApplicability : uint8_t {
@@ -59,6 +62,9 @@ enum class InquiryParameterKind : uint8_t {
     ManufacturerInfo,
     CountryCode,
     BatteryReference,
+    DiscoverIdentity,
+    DiscoverSVIDs,
+    DiscoverModes,
 };
 
 struct EncodedInquiryBody {
@@ -69,6 +75,35 @@ struct EncodedInquiryBody {
 struct EncodedExtendedInquiryFrame {
     std::array<uint8_t, 4> bytes{};
     bool valid = false;
+};
+
+/** Attach-scoped Structured VDM version negotiated by Discover Identity. */
+struct StructuredVDMVersionState {
+    uint8_t major = 1; // Structured VDM 2.x encoding.
+    uint8_t minor = 1; // Structured VDM 2.1.
+    bool attachmentActive = false;
+
+    constexpr void updateAttachment(bool attached) {
+        if (!attached) {
+            major = 1;
+            minor = 1;
+            attachmentActive = false;
+        } else if (!attachmentActive) {
+            major = 1;
+            minor = 1;
+            attachmentActive = true;
+        }
+    }
+
+    constexpr bool recordIdentityACK(uint8_t responseMajor, uint8_t responseMinor) {
+        if (responseMajor > 1 || (responseMajor == 0 && responseMinor != 0) ||
+            (responseMajor == 1 && responseMinor > 1)) return false;
+        if (responseMajor > major ||
+            (responseMajor == major && responseMinor > minor)) return false;
+        major = responseMajor;
+        minor = responseMinor;
+        return true;
+    }
 };
 
 struct InquiryResponseDescriptor {
@@ -154,6 +189,11 @@ struct SinkInquiryDescriptor {
         }
         case InquiryParameterKind::BatteryReference:
             return target == 0 && argument <= 7 && selector == 0;
+        case InquiryParameterKind::DiscoverIdentity:
+        case InquiryParameterKind::DiscoverSVIDs:
+            return target == 0 && argument == 0 && selector == 0;
+        case InquiryParameterKind::DiscoverModes:
+            return target == 0 && argument >= 1 && argument <= 0xffff && selector == 0;
     }
     return false;
 }
@@ -163,7 +203,9 @@ struct SinkInquiryDescriptor {
     const SinkInquiryDescriptor& descriptor,
     uint32_t target,
     uint32_t argument,
-    uint32_t selector) {
+    uint32_t selector,
+    uint8_t structuredVDMVersionMajor = 1,
+    uint8_t structuredVDMVersionMinor = 1) {
     EncodedInquiryBody result;
     if (!inquiryParametersApplicable(descriptor, target, argument, selector)) return result;
     if (descriptor.parameterKind == InquiryParameterKind::ManufacturerInfo) {
@@ -178,8 +220,56 @@ struct SinkInquiryDescriptor {
     } else if (descriptor.parameterKind == InquiryParameterKind::BatteryReference) {
         result.bytes[0] = static_cast<uint8_t>(argument);
         result.length = 1;
+    } else if (descriptor.parameterKind == InquiryParameterKind::DiscoverIdentity ||
+               descriptor.parameterKind == InquiryParameterKind::DiscoverSVIDs ||
+               descriptor.parameterKind == InquiryParameterKind::DiscoverModes) {
+        const uint16_t svid = descriptor.parameterKind == InquiryParameterKind::DiscoverModes
+            ? static_cast<uint16_t>(argument) : 0xff00;
+        const uint8_t command = descriptor.parameterKind == InquiryParameterKind::DiscoverIdentity
+            ? 1 : descriptor.parameterKind == InquiryParameterKind::DiscoverSVIDs ? 2 : 3;
+        const uint32_t vdmHeader = (static_cast<uint32_t>(svid) << 16) |
+            0x00008000u | (static_cast<uint32_t>(structuredVDMVersionMajor) << 13) |
+            (static_cast<uint32_t>(structuredVDMVersionMinor) << 11) | command;
+        result.bytes = {static_cast<uint8_t>(vdmHeader & 0xff),
+            static_cast<uint8_t>((vdmHeader >> 8) & 0xff),
+            static_cast<uint8_t>((vdmHeader >> 16) & 0xff),
+            static_cast<uint8_t>((vdmHeader >> 24) & 0xff)};
+        result.length = 4;
     }
     return result;
+}
+
+/** Match and correlate a Structured VDM discovery response. */
+[[nodiscard]] constexpr InquiryMatch matchStructuredVDMResponse(
+    const SinkInquiryDescriptor& descriptor,
+    uint32_t argument,
+    std::span<const uint8_t> payload) {
+    const bool discovery = descriptor.parameterKind == InquiryParameterKind::DiscoverIdentity ||
+        descriptor.parameterKind == InquiryParameterKind::DiscoverSVIDs ||
+        descriptor.parameterKind == InquiryParameterKind::DiscoverModes;
+    if (!discovery || payload.size() < 4) return InquiryMatch::ProtocolError;
+    const uint32_t raw = static_cast<uint32_t>(payload[0]) |
+        (static_cast<uint32_t>(payload[1]) << 8) |
+        (static_cast<uint32_t>(payload[2]) << 16) |
+        (static_cast<uint32_t>(payload[3]) << 24);
+    const uint16_t expectedSVID = descriptor.parameterKind == InquiryParameterKind::DiscoverModes
+        ? static_cast<uint16_t>(argument) : 0xff00;
+    const uint8_t expectedCommand = descriptor.parameterKind == InquiryParameterKind::DiscoverIdentity
+        ? 1 : descriptor.parameterKind == InquiryParameterKind::DiscoverSVIDs ? 2 : 3;
+    if (static_cast<uint16_t>(raw >> 16) != expectedSVID || (raw & 0x8000u) == 0 ||
+        ((raw >> 8) & 0x07u) != 0 || (raw & 0x20u) != 0 ||
+        (raw & 0x1fu) != expectedCommand) return InquiryMatch::Unrelated;
+    const uint8_t versionMajor = static_cast<uint8_t>((raw >> 13) & 0x03u);
+    const uint8_t versionMinor = static_cast<uint8_t>((raw >> 11) & 0x03u);
+    if (versionMajor > 1 || (versionMajor == 0 && versionMinor != 0) ||
+        (versionMajor == 1 && versionMinor > 1)) return InquiryMatch::ProtocolError;
+    const uint8_t commandType = static_cast<uint8_t>((raw >> 6) & 0x03u);
+    if (commandType == 1) return inquiryResponsePayloadSizeValid(descriptor, payload.size())
+        ? InquiryMatch::Response : InquiryMatch::ProtocolError;
+    if (payload.size() != 4) return InquiryMatch::ProtocolError;
+    if (commandType == 2) return InquiryMatch::VDMNAK;
+    if (commandType == 3) return InquiryMatch::VDMBusy;
+    return InquiryMatch::ProtocolError;
 }
 
 /** Encode a single-chunk Extended request body including Extended Header. */

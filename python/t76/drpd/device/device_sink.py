@@ -24,6 +24,12 @@ from t76.drpd.device.types import (
     CountryInfoInquiryData,
     CountryInquiryFailureAction,
     CountryInquiryWorkflowResult,
+    DiscoverIdentityInquiryData,
+    DiscoverIdentityInquiryRequest,
+    DiscoverModesInquiryData,
+    DiscoverModesInquiryRequest,
+    DiscoverSVIDsInquiryData,
+    DiscoverSVIDsInquiryRequest,
     ExtendedSourceCapabilitiesInquiryData,
     GetCountryCodesInquiryRequest,
     GetCountryInfoInquiryRequest,
@@ -47,6 +53,10 @@ from t76.drpd.device.types import (
     SourceCapabilitiesInquiryData,
     SourceInfoInquiryData,
     SourceStatusInquiryData,
+    StructuredVDMHeaderData,
+    StructuredVDMNegativeResponseData,
+    VDMDiscoveryFailureAction,
+    VDMDiscoveryWorkflowResult,
 )
 from t76.drpd.message.data_objects import SourcePDO
 
@@ -158,7 +168,10 @@ class SinkInquiryRunner:
                 continue
 
             raw_response = None
-            if status.outcome == SinkInquiryOutcome.RESPONSE:
+            if (
+                status.outcome == SinkInquiryOutcome.RESPONSE
+                or status.response_length > 0
+            ):
                 raw_response = await self._sink.get_inquiry_response()
                 if len(raw_response) != status.response_length:
                     raise ValueError(
@@ -355,6 +368,169 @@ class SinkInquiryRunner:
                 references, tuple(results), used_counts, stopped
             )
 
+    async def run_vdm_discovery(
+        self,
+        selected_svids: tuple[int, ...] | None = None,
+        *,
+        failure_action: VDMDiscoveryFailureAction = (
+            VDMDiscoveryFailureAction.STOP
+        ),
+        max_retries: int = 1,
+        max_svids: int = 64,
+        max_svid_pages: int = 8,
+        poll_interval_seconds: float = 0.01,
+        max_polls: int = 1000,
+    ) -> VDMDiscoveryWorkflowResult:
+        """Diagnose SOP partner from UFP/Sink; SVIDs/Modes are optional."""
+        if not 0 <= max_retries <= 3:
+            raise ValueError("max_retries must be between 0 and 3")
+        if not 1 <= max_svids <= 64:
+            raise ValueError("max_svids must be between 1 and 64")
+        if not 1 <= max_svid_pages <= 8:
+            raise ValueError("max_svid_pages must be between 1 and 8")
+        requested = None
+        if selected_svids is not None:
+            requested = tuple(
+                DiscoverModesInquiryRequest(svid).svid
+                for svid in selected_svids
+            )
+            if len(requested) > max_svids or len(set(requested)) != len(requested):
+                raise ValueError(
+                    "selected_svids must contain unique values within max_svids"
+                )
+        self._validate_run_options(poll_interval_seconds, max_polls)
+
+        async with self._lock:
+            identity_results, stopped = await self._run_vdm_step_locked(
+                DiscoverIdentityInquiryRequest(), failure_action, max_retries,
+                poll_interval_seconds, max_polls,
+            )
+            if stopped:
+                return VDMDiscoveryWorkflowResult(
+                    identity_results, (), (), (), True
+                )
+            all_identity_results = list(identity_results)
+            all_svid_results: list[SinkInquiryResult] = []
+            discovered_list: list[int] = []
+            restarts = 0
+            while True:
+                complete = False
+                restart = False
+                discovered_list = []
+                for _page in range(max_svid_pages):
+                    page_result = await self._run_locked(
+                        DiscoverSVIDsInquiryRequest(),
+                        poll_interval_seconds,
+                        max_polls,
+                    )
+                    all_svid_results.append(page_result)
+                    if page_result.status.outcome != SinkInquiryOutcome.RESPONSE:
+                        if failure_action == VDMDiscoveryFailureAction.CONTINUE:
+                            complete = True
+                            break
+                        if failure_action == VDMDiscoveryFailureAction.STOP:
+                            return VDMDiscoveryWorkflowResult(
+                                tuple(all_identity_results),
+                                tuple(all_svid_results), (), (), True
+                            )
+                        if restarts >= max_retries:
+                            return VDMDiscoveryWorkflowResult(
+                                tuple(all_identity_results),
+                                tuple(all_svid_results), (), (), True
+                            )
+                        restarts += 1
+                        restart_identity, stopped = (
+                            await self._run_vdm_step_locked(
+                                DiscoverIdentityInquiryRequest(),
+                                VDMDiscoveryFailureAction.RETRY,
+                                max_retries,
+                                poll_interval_seconds,
+                                max_polls,
+                            )
+                        )
+                        all_identity_results.extend(restart_identity)
+                        if stopped:
+                            return VDMDiscoveryWorkflowResult(
+                                tuple(all_identity_results),
+                                tuple(all_svid_results), (), (), True
+                            )
+                        restart = True
+                        break
+                    decoded = page_result.decoded
+                    assert isinstance(decoded, DiscoverSVIDsInquiryData)
+                    for svid in decoded.svids:
+                        if svid not in discovered_list:
+                            discovered_list.append(svid)
+                    if len(discovered_list) > max_svids:
+                        raise ValueError(
+                            f"VDM discovery exceeds max_svids={max_svids}"
+                        )
+                    if decoded.complete:
+                        complete = True
+                        break
+                if restart:
+                    continue
+                if not complete:
+                    raise ValueError(
+                        "Discover SVIDs continuation exceeds max_svid_pages"
+                    )
+                break
+            identity_results = tuple(all_identity_results)
+            svid_results = tuple(all_svid_results)
+            discovered = tuple(discovered_list)
+            chosen = discovered if requested is None else requested
+            unavailable = tuple(svid for svid in chosen if svid not in discovered)
+            if unavailable:
+                raise ValueError(
+                    "Selected SVID was not discovered: "
+                    + ",".join(f"0x{svid:04X}" for svid in unavailable)
+                )
+            if len(chosen) > max_svids:
+                raise ValueError(f"VDM discovery exceeds max_svids={max_svids}")
+
+            mode_results: list[SinkInquiryResult] = []
+            for svid in chosen:
+                step_results, stopped = await self._run_vdm_step_locked(
+                    DiscoverModesInquiryRequest(svid), failure_action,
+                    max_retries, poll_interval_seconds, max_polls,
+                )
+                mode_results.extend(step_results)
+                if stopped:
+                    break
+            return VDMDiscoveryWorkflowResult(
+                identity_results,
+                svid_results,
+                tuple(mode_results),
+                chosen,
+                stopped,
+            )
+
+    async def _run_vdm_step_locked(
+        self,
+        request: SinkInquiryRequest,
+        failure_action: VDMDiscoveryFailureAction,
+        max_retries: int,
+        poll_interval_seconds: float,
+        max_polls: int,
+    ) -> tuple[tuple[SinkInquiryResult, ...], bool]:
+        """Run one workflow step with bounded terminal-outcome handling."""
+        results: list[SinkInquiryResult] = []
+        retries = 0
+        while True:
+            result = await self._run_locked(
+                request, poll_interval_seconds, max_polls
+            )
+            results.append(result)
+            if result.status.outcome == SinkInquiryOutcome.RESPONSE:
+                return tuple(results), False
+            if failure_action == VDMDiscoveryFailureAction.CONTINUE:
+                return tuple(results), False
+            if failure_action == VDMDiscoveryFailureAction.STOP:
+                return tuple(results), True
+            if retries >= max_retries:
+                return tuple(results), True
+            retries += 1
+
 
 def _decode_inquiry_response(
     request: SinkInquiryRequest,
@@ -375,6 +551,9 @@ def _decode_inquiry_response(
         SinkInquiryType.GET_COUNTRY_INFO: (0, 0x0D),
         SinkInquiryType.GET_BATTERY_CAP: (0, 0x05),
         SinkInquiryType.GET_BATTERY_STATUS: (2, 0x05),
+        SinkInquiryType.DISCOVER_IDENTITY: (2, 0x0F),
+        SinkInquiryType.DISCOVER_SVIDS: (2, 0x0F),
+        SinkInquiryType.DISCOVER_MODES: (2, 0x0F),
     }
     expected_class, expected_type = expected_metadata[inquiry_type]
     if (
@@ -586,6 +765,94 @@ def _decode_inquiry_response(
             battery_present=battery_present,
             charging_state=BatteryChargingState(charging_raw),
         )
+
+    if inquiry_type in (
+        SinkInquiryType.DISCOVER_IDENTITY,
+        SinkInquiryType.DISCOVER_SVIDS,
+        SinkInquiryType.DISCOVER_MODES,
+    ):
+        if not 4 <= len(body) <= 28 or len(body) % 4:
+            raise ValueError(
+                "Structured VDM response must contain 1 to 7 VDOs"
+            )
+        raw_vdos = tuple(
+            int.from_bytes(body[offset:offset + 4], "little")
+            for offset in range(0, len(body), 4)
+        )
+        raw_header = raw_vdos[0]
+        svid = (raw_header >> 16) & 0xFFFF
+        structured = (raw_header >> 15) & 0x01
+        version_major_raw = (raw_header >> 13) & 0x03
+        version_minor = (raw_header >> 11) & 0x03
+        object_position = (raw_header >> 8) & 0x07
+        command_type = (raw_header >> 6) & 0x03
+        reserved = (raw_header >> 5) & 0x01
+        command = raw_header & 0x1F
+        if not structured or reserved or object_position:
+            raise ValueError("Structured VDM ACK header fields are malformed")
+        expected_command_type = {
+            SinkInquiryOutcome.RESPONSE: 1,
+            SinkInquiryOutcome.NAK: 2,
+            SinkInquiryOutcome.BUSY: 3,
+        }.get(status.outcome)
+        if expected_command_type is None or command_type != expected_command_type:
+            raise ValueError(
+                "Structured VDM command type does not match terminal outcome"
+            )
+        if version_major_raw > 1 or version_minor > 1 or (
+            version_major_raw == 0 and version_minor != 0
+        ):
+            raise ValueError("Structured VDM ACK version is unsupported")
+        expected_command = {
+            SinkInquiryType.DISCOVER_IDENTITY: 1,
+            SinkInquiryType.DISCOVER_SVIDS: 2,
+            SinkInquiryType.DISCOVER_MODES: 3,
+        }[inquiry_type]
+        if command != expected_command:
+            raise ValueError("Structured VDM ACK command does not match request")
+        expected_svid = 0xFF00
+        if isinstance(request, DiscoverModesInquiryRequest):
+            expected_svid = request.svid
+        if svid != expected_svid:
+            raise ValueError("Structured VDM ACK SVID does not match request")
+        header = StructuredVDMHeaderData(
+            raw_header, svid, version_major_raw + 1, version_minor, command
+        )
+        if status.outcome in (
+            SinkInquiryOutcome.NAK, SinkInquiryOutcome.BUSY
+        ):
+            if len(raw_vdos) != 1:
+                raise ValueError("Structured VDM NAK/BUSY must be header-only")
+            return StructuredVDMNegativeResponseData(header, status.outcome)
+        payload_vdos = raw_vdos[1:]
+        if inquiry_type == SinkInquiryType.DISCOVER_IDENTITY:
+            if len(payload_vdos) < 3:
+                raise ValueError(
+                    "Discover Identity ACK requires at least three Identity VDOs"
+                )
+            return DiscoverIdentityInquiryData(header, payload_vdos)
+        if inquiry_type == SinkInquiryType.DISCOVER_SVIDS:
+            if not payload_vdos:
+                raise ValueError("Discover SVIDs ACK requires an SVID VDO")
+            ordered: list[int] = []
+            terminated = False
+            for raw_vdo in payload_vdos:
+                for candidate in ((raw_vdo >> 16) & 0xFFFF, raw_vdo & 0xFFFF):
+                    if candidate == 0:
+                        terminated = True
+                    elif terminated:
+                        raise ValueError(
+                            "Discover SVIDs contains data after terminator"
+                        )
+                    elif candidate not in ordered:
+                        ordered.append(candidate)
+            return DiscoverSVIDsInquiryData(
+                header, payload_vdos, tuple(ordered), terminated
+            )
+        if not payload_vdos:
+            raise ValueError("Discover Modes ACK requires at least one Mode VDO")
+        assert isinstance(request, DiscoverModesInquiryRequest)
+        return DiscoverModesInquiryData(header, request.svid, payload_vdos)
 
     if len(body) != 4:
         raise ValueError(f"{inquiry_type.value} body must be exactly 4 bytes")
@@ -859,6 +1126,8 @@ class DeviceSink:
             command = (
                 f"SINK:INQ {inquiry.type.value},{inquiry.battery_reference}"
             )
+        elif isinstance(inquiry, DiscoverModesInquiryRequest):
+            command = f"SINK:INQ {inquiry.type.value},{inquiry.svid}"
         else:
             command = f"SINK:INQ {inquiry.type.value}"
         await self._internal.write_ascii_and_check(command)

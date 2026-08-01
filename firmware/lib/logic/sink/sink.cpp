@@ -81,6 +81,9 @@ void Sink::loopCore1() {
     _processPendingInquiries();
 
     if (_ccBusResetPending.exchange(false, std::memory_order_acq_rel)) {
+        if (_ccBusDetachObserved.exchange(false, std::memory_order_acq_rel)) {
+            _context.resetStructuredVDMAttachment();
+        }
         reset();
     }
 
@@ -215,6 +218,7 @@ void Sink::enable() {
 
     reset();
     _ccBusResetPending.store(false, std::memory_order_release);
+    _ccBusDetachObserved.store(false, std::memory_order_release);
 
     // Register callbacks only after queue initialization.
     _bmcDecoder.messageReceivedCallbackCore1(std::bind(&Sink::_onMessageReceived, this,
@@ -250,6 +254,7 @@ void Sink::disable() {
     }
     _inquiryQueued.store(false, std::memory_order_release);
     _ccBusResetPending.store(false, std::memory_order_release);
+    _ccBusDetachObserved.store(false, std::memory_order_release);
     _eprExitPending.store(false, std::memory_order_release);
 
     reset();
@@ -321,10 +326,12 @@ void Sink::_startChunkingNotSupportedTimer() {
 }
 
 void Sink::_onCCBusStateChanged(CCBusState newState) {
-    (void)newState;
-
     if (!_enabled.load()) {
         return;
+    }
+
+    if (newState != CCBusState::Attached) {
+        _ccBusDetachObserved.store(true, std::memory_order_release);
     }
 
     _ccBusResetPending.store(true, std::memory_order_release);

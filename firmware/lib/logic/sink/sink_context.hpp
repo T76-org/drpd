@@ -29,6 +29,7 @@
 #include "message_sender.hpp"
 #include "sink_runtime_state.hpp"
 #include "sink_types.hpp"
+#include "inquiry_descriptor.hpp"
 
 #include "../../phy/bmc_decoder.hpp"
 #include "../../phy/bmc_encoder.hpp"
@@ -362,6 +363,12 @@ namespace T76::DRPD::Logic {
          */
         bool sendGetPPSStatus();
         bool sendInquiryRequest(const SinkInquiryRequest& request);
+
+        /** Record the common Structured VDM version from a correlated Identity ACK. */
+        bool recordStructuredVDMIdentityACK(std::span<const uint8_t> payload);
+
+        /** Clear attach-scoped Structured VDM negotiation after observing detach. */
+        void resetStructuredVDMAttachment();
         std::optional<SinkRuntimeState::ExtendedPayloadBuffer> takeInquiryExtendedPayload();
         void handleMessageAsReady(const PHY::BMCDecodedMessage *message);
         bool cacheInquiryResponse(
@@ -510,6 +517,7 @@ namespace T76::DRPD::Logic {
         SinkErrorCallback& _sinkErrorCallback;                           ///< Host error callback repeater.
         std::function<void(SinkTimeoutEvent)>& _enqueueTimeoutEventCallback; ///< Timeout event callback.
         uint8_t _hardResetCounter = 0;                              ///< Hard Resets sent during current attachment.
+        StructuredVDMVersionState _structuredVDMVersion;            ///< Common SVDM version for this attachment.
 
         /**
          * @brief Determine if cached SPR source capabilities advertise EPR support.
