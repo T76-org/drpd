@@ -6,7 +6,6 @@
  */
 
 export * from './analogMonitor'
-export * from './authentication'
 export * from './capture'
 export * from './ccBus'
 export * from './device'

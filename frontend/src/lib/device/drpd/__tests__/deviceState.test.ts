@@ -152,6 +152,7 @@ describe('DRPDDevice state updates', () => {
     transport.textResponses.set('STAT:DEV?', ['2'])
     transport.textResponses.set('BUS:CC:ROLE?', ['SINK'])
     transport.textResponses.set('SINK:EPR:EN?', ['ON'])
+    transport.textResponses.set('SINK:PPS:STATUS:EN?', ['ON'])
 
     const device = new DRPDDevice(transport)
     const roleChanges: CCBusRole[] = []
@@ -172,8 +173,9 @@ describe('DRPDDevice state updates', () => {
 
     expect(device.getState().role).toBe(CCBusRole.SINK)
     expect(device.getState().sinkEprEnabled).toBe(true)
+    expect(device.getState().sinkPpsStatusQueryEnabled).toBe(true)
     expect(roleChanges).toEqual([CCBusRole.SINK])
-    expect(stateUpdates).toEqual([['role'], ['sinkEprEnabled']])
+    expect(stateUpdates).toEqual([['role'], ['sinkEprEnabled'], ['sinkPpsStatusQueryEnabled']])
   })
 
   it('emits error event when role fetch fails', async () => {
@@ -265,6 +267,7 @@ describe('DRPDDevice state updates', () => {
     transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
     transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
     transport.textResponses.set('SINK:EPR:EN?', ['ON'])
+    transport.textResponses.set('SINK:PPS:STATUS:EN?', ['ON'])
     transport.textResponses.set('STAT:DEV?', ['0'])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
 
@@ -314,13 +317,15 @@ describe('DRPDDevice state updates', () => {
         },
       ],
       sinkEprEnabled: true,
+      sinkPpsStatusQueryEnabled: true,
     })
     expect(device.getState().analogMonitor?.vbus).toBe(5)
     expect(device.getState().analogMonitor?.ibus).toBe(0.1)
     expect(transport.callCounts.get('STAT:DEV?')).toBe(1)
-    expect(transport.callCounts.get('SINK:PPS:STATUS:EN?')).toBeUndefined()
+    expect(transport.callCounts.get('SINK:PPS:STATUS:EN?')).toBe(1)
     transport.textResponses.set('BUS:CC:ROLE?', ['OBSERVER'])
     await device.refreshState()
+    expect(device.getState().sinkPpsStatusQueryEnabled).toBeNull()
     device.handleDisconnect()
   })
 
@@ -367,6 +372,7 @@ describe('DRPDDevice state updates', () => {
     transport.textResponses.set('SINK:PDO:COUNT?', ['1'])
     transport.textResponses.set('SINK:PDO?', ['FIXED,5.00,3.00'])
     transport.textResponses.set('SINK:EPR:EN?', ['OFF'])
+    transport.textResponses.set('SINK:PPS:STATUS:EN?', ['OFF'])
     transport.textResponses.set('STAT:DEV?', ['0'])
     transport.textResponses.set('BUS:CC:CAP:COUNT?', ['0'])
 

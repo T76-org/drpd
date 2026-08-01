@@ -587,50 +587,6 @@ commands:
         description: "The device is not currently operating in Sink role."
     handler:      _querySinkRequestStatus
 
-  - syntax:       "SINK:INQuiry"
-    description:  |
-                    Start a supported Sink-to-Source inquiry as a serialized SOP AMS.
-                    GET_SOURCE_CAP is available at all negotiated revisions. Other
-                    category inquiries require PD 3.x; GET_PPS_STATUS additionally
-                    requires an active SPR PPS contract. GET_STATUS reads and clears
-                    the Source's latched OCP, OVP, and OTP event indicators. Cable-plug
-                    forms use an explicit SOP_PRIME or SOP_DOUBLE_PRIME second parameter;
-                    firmware never falls back to SOP. They require VCONN Source and a
-                    qualifying cable identity, which current Dr. PD firmware cannot provide.
-    parameters:
-      - name: type
-        type: enum
-        choices: ["GET_REVISION", "GET_SOURCE_CAP", "GET_SOURCE_CAP_EXTENDED", "GET_STATUS", "GET_SOURCE_INFO", "GET_PPS_STATUS", "GET_MANUFACTURER_INFO", "GET_COUNTRY_CODES", "GET_COUNTRY_INFO", "GET_BATTERY_CAP", "GET_BATTERY_STATUS", "DISCOVER_IDENTITY", "DISCOVER_SVIDS", "DISCOVER_MODES", "GET_DIGESTS", "GET_CERTIFICATE", "CHALLENGE"]
-        description: "Supported inquiry message type."
-      - name: target_country_reference_or_svid
-        type: string_or_number
-        description: 'PORT or BATTERY for SOP GET_MANUFACTURER_INFO; SOP_PRIME or SOP_DOUBLE_PRIME for cable inquiries; uppercase country code; numeric battery reference, SVID, or authentication slot 0..7.'
-        optional: true
-      - name: battery_reference_cable_svid_offset_or_nonce
-        type: string_or_number
-        description: "Battery reference, cable SVID, GET_CERTIFICATE offset, or CHALLENGE 64-character hexadecimal nonce."
-        optional: true
-      - name: certificate_length
-        type: number
-        description: "GET_CERTIFICATE length 1..256; offset plus length must not exceed 4096."
-        optional: true
-    errors:
-      -221:
-        message: "Settings conflict"
-        description: "Sink is not Ready with an explicit contract, or another inquiry is active."
-      -224:
-        message: "Illegal parameter value"
-        description: "The inquiry type is unsupported."
-    handler: _setSinkInquiry
-
-  - syntax:       "SINK:INQuiry:STATus?"
-    description:  "Return OUTCOME,request_id,type,response_class,response_type,response_length."
-    handler: _querySinkInquiryStatus
-
-  - syntax:       "SINK:INQuiry:RESPonse?"
-    description:  "Return the raw response payload as an IEEE 488.2 arbitrary block."
-    handler: _querySinkInquiryResponse
-
   - syntax:       "SINK:CAPability:SPR:COUNT?"
     description:  "Query the number of configured local SPR Sink capability PDOs."
     handler:      _querySinkCapabilityCount
@@ -773,7 +729,6 @@ commands:
                     - PE_SNK_SELECT_CAPABILITY
                     - PE_SNK_TRANSITION_SINK
                     - PE_SNK_READY
-                    - PE_SNK_INQUIRY
                     - PE_SNK_SEND_EPR_MODE_ENTRY
                     - PE_SNK_EPR_MODE_WAIT_FOR_RESPONSE
                     - PE_SNK_SEND_EPR_MODE_EXIT

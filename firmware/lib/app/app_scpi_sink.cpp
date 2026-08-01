@@ -5,12 +5,8 @@
  */
 
 #include "app.hpp"
-#include "../logic/sink/inquiry_descriptor.hpp"
-#include "../logic/sink/cable_inquiry.hpp"
-#include "../logic/sink/authentication_inquiry.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdio>
 #include <variant>
 
@@ -37,26 +33,6 @@ const char *sinkRequestOutcomeName(Logic::SinkRequestOutcome outcome) {
             return "TIMEOUT";
     }
 
-    return "UNKNOWN";
-}
-
-const char *sinkInquiryOutcomeName(Logic::SinkInquiryOutcome outcome) {
-    switch (outcome) {
-        case Logic::SinkInquiryOutcome::None: return "NONE";
-        case Logic::SinkInquiryOutcome::Pending: return "PENDING";
-        case Logic::SinkInquiryOutcome::Response: return "RESPONSE";
-        case Logic::SinkInquiryOutcome::NotSupported: return "NOT_SUPPORTED";
-        case Logic::SinkInquiryOutcome::Rejected: return "REJECTED";
-        case Logic::SinkInquiryOutcome::Wait: return "WAIT";
-        case Logic::SinkInquiryOutcome::GoodCRCTimeout: return "GOODCRC_TIMEOUT";
-        case Logic::SinkInquiryOutcome::ResponseTimeout: return "RESPONSE_TIMEOUT";
-        case Logic::SinkInquiryOutcome::ProtocolError: return "PROTOCOL_ERROR";
-        case Logic::SinkInquiryOutcome::MalformedResponse: return "MALFORMED_RESPONSE";
-        case Logic::SinkInquiryOutcome::ResponseTooLarge: return "RESPONSE_TOO_LARGE";
-        case Logic::SinkInquiryOutcome::Aborted: return "ABORTED";
-        case Logic::SinkInquiryOutcome::NAK: return "NAK";
-        case Logic::SinkInquiryOutcome::Busy: return "BUSY";
-    }
     return "UNKNOWN";
 }
 
@@ -210,212 +186,6 @@ void App::_querySinkRequestStatus(const std::vector<T76::SCPI::ParameterValue> &
     response += ",";
     response += std::to_string(status.currentMA);
     _sendTransportTextResponse(response, true);
-}
-
-void App::_setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &params) {
-    if (_ccBusController.role() != Logic::CCBusRole::Sink) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
-        return;
-    }
-    Logic::Sink *sink = _ccBusController.sink();
-    if (sink == nullptr) {
-        _interpreter.addError(_scpiErrorExecutionError, "Execution error. Unable to access sink policy engine.");
-        return;
-    }
-    std::string type = params[0].stringValue;
-    std::transform(type.begin(), type.end(), type.begin(), ::toupper);
-    const auto descriptor = Logic::sinkInquiryDescriptor(type);
-    if (!descriptor.has_value()) {
-        _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value. Unsupported inquiry type.");
-        return;
-    }
-    Logic::SinkInquiryParameters inquiryParameters;
-    const auto illegalParameters = [this](const char *reason) {
-        _interpreter.addError(_scpiErrorIllegalParameterValue,
-            "Illegal parameter value. " + std::string(reason));
-    };
-    const auto parseCableTarget = [&inquiryParameters](const T76::SCPI::ParameterValue& value) {
-        if (value.type != T76::SCPI::ParameterType::String) return false;
-        std::string target = value.stringValue;
-        std::transform(target.begin(), target.end(), target.begin(), ::toupper);
-        const auto parsed = Logic::parseCableInquiryTarget(target);
-        if (!parsed.has_value()) return false;
-        inquiryParameters.sopTarget = parsed.value();
-        return true;
-    };
-    const bool cableTarget = params.size() >= 2 && parseCableTarget(params[1]);
-    if (cableTarget) {
-        std::optional<double> cableSvid = std::nullopt;
-        if (descriptor->type == Logic::SinkInquiryType::DiscoverModes &&
-            params.size() >= 3 && params[2].type == T76::SCPI::ParameterType::Number) {
-            cableSvid = params[2].numberValue;
-        }
-        if (!Logic::cableInquirySyntaxValid(
-                descriptor->type, params[1].stringValue, params.size(), cableSvid)) {
-            illegalParameters(
-                "Cable inquiry requires SOP_PRIME or SOP_DOUBLE_PRIME and, for DISCOVER_MODES, one decimal SVID 1..65535.");
-            return;
-        }
-    }
-    if (descriptor->parameterKind == Logic::InquiryParameterKind::None) {
-        if (params.size() != (cableTarget ? 2u : 1u)) {
-            illegalParameters("This inquiry takes no additional parameters.");
-            return;
-        }
-    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverIdentity ||
-               descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverSVIDs) {
-        if (params.size() != (cableTarget ? 2u : 1u)) {
-            illegalParameters("This discovery inquiry takes no additional parameters.");
-            return;
-        }
-    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::ManufacturerInfo) {
-        if (cableTarget && params.size() == 2) {
-            // Cable-plug Get_Manufacturer_Info always uses Target=Port/Cable Plug, Reference=0.
-            inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Port);
-            inquiryParameters.argument = 0;
-        } else {
-            if (params.size() < 2 || params.size() > 3 ||
-                params[1].type != T76::SCPI::ParameterType::String) {
-                illegalParameters("GET_MANUFACTURER_INFO requires PORT or BATTERY target.");
-                return;
-            }
-            std::string target = params[1].stringValue;
-            std::transform(target.begin(), target.end(), target.begin(), ::toupper);
-            if (target == "PORT" && params.size() == 2) {
-                inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Port);
-            } else if (target == "BATTERY" && params.size() == 3 &&
-                       std::isfinite(params[2].numberValue) &&
-                       params[2].numberValue >= 0 && params[2].numberValue <= 7 &&
-                       std::floor(params[2].numberValue) == params[2].numberValue) {
-                inquiryParameters.target = static_cast<uint32_t>(Logic::SinkInquiryTarget::Battery);
-                inquiryParameters.argument = static_cast<uint32_t>(params[2].numberValue);
-            } else {
-                illegalParameters("Use PORT or BATTERY with an integer battery reference 0..7.");
-                return;
-            }
-        }
-    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::CountryCode) {
-        if (params.size() != 2 || params[1].type != T76::SCPI::ParameterType::String ||
-            params[1].stringValue.size() != 2 ||
-            params[1].stringValue[0] < 'A' || params[1].stringValue[0] > 'Z' ||
-            params[1].stringValue[1] < 'A' || params[1].stringValue[1] > 'Z') {
-            illegalParameters("GET_COUNTRY_INFO requires an uppercase ISO alpha-2 code.");
-            return;
-        }
-        inquiryParameters.selector[0] = static_cast<uint8_t>(params[1].stringValue[0]);
-        inquiryParameters.selector[1] = static_cast<uint8_t>(params[1].stringValue[1]);
-    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::BatteryReference) {
-        if (params.size() != 2 || params[1].type != T76::SCPI::ParameterType::Number ||
-            !std::isfinite(params[1].numberValue) || params[1].numberValue < 0 ||
-            params[1].numberValue > 7 ||
-            std::floor(params[1].numberValue) != params[1].numberValue) {
-            illegalParameters("Battery inquiry requires an integer reference 0..7.");
-            return;
-        }
-        inquiryParameters.argument = static_cast<uint32_t>(params[1].numberValue);
-    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::DiscoverModes) {
-        const size_t svidIndex = cableTarget ? 2 : 1;
-        if (params.size() != svidIndex + 1 ||
-            params[svidIndex].type != T76::SCPI::ParameterType::Number ||
-            !std::isfinite(params[svidIndex].numberValue) ||
-            params[svidIndex].numberValue < 1 ||
-            params[svidIndex].numberValue > 65535 ||
-            std::floor(params[svidIndex].numberValue) != params[svidIndex].numberValue) {
-            illegalParameters("DISCOVER_MODES requires an integer SVID 1..65535.");
-            return;
-        }
-        inquiryParameters.argument = static_cast<uint32_t>(params[svidIndex].numberValue);
-    } else if (descriptor->parameterKind == Logic::InquiryParameterKind::Authentication) {
-        const auto integerParameter = [&params](size_t index, double minimum, double maximum) {
-            return index < params.size() && params[index].type == T76::SCPI::ParameterType::Number &&
-                std::isfinite(params[index].numberValue) && params[index].numberValue >= minimum &&
-                params[index].numberValue <= maximum &&
-                std::floor(params[index].numberValue) == params[index].numberValue;
-        };
-        if (descriptor->type == Logic::SinkInquiryType::GetDigests) {
-            if (params.size() != 1) {
-                illegalParameters("GET_DIGESTS takes no parameters.");
-                return;
-            }
-        } else if (descriptor->type == Logic::SinkInquiryType::GetCertificate) {
-            if (params.size() != 4 || !integerParameter(1, 0, 7) ||
-                !integerParameter(2, 0, 4095) || !integerParameter(3, 1, 256) ||
-                params[2].numberValue + params[3].numberValue > 4096) {
-                illegalParameters("GET_CERTIFICATE requires slot 0..7, offset 0..4095, and length 1..256 within 4096 bytes.");
-                return;
-            }
-            inquiryParameters.target = static_cast<uint32_t>(params[1].numberValue);
-            inquiryParameters.argument = static_cast<uint32_t>(params[2].numberValue);
-            const uint16_t length = static_cast<uint16_t>(params[3].numberValue);
-            inquiryParameters.selector[0] = static_cast<uint8_t>(length & 0xff);
-            inquiryParameters.selector[1] = static_cast<uint8_t>(length >> 8);
-        } else {
-            if (params.size() != 3 || !integerParameter(1, 0, 7) ||
-                params[2].type != T76::SCPI::ParameterType::String ||
-                params[2].stringValue.size() != 64) {
-                illegalParameters("CHALLENGE requires slot 0..7 and exactly 64 hexadecimal nonce characters.");
-                return;
-            }
-            const auto nibble = [](char value) -> std::optional<uint8_t> {
-                if (value >= '0' && value <= '9') return static_cast<uint8_t>(value - '0');
-                if (value >= 'a' && value <= 'f') return static_cast<uint8_t>(value - 'a' + 10);
-                if (value >= 'A' && value <= 'F') return static_cast<uint8_t>(value - 'A' + 10);
-                return std::nullopt;
-            };
-            for (size_t i = 0; i < inquiryParameters.payload.size(); ++i) {
-                const auto high = nibble(params[2].stringValue[i * 2]);
-                const auto low = nibble(params[2].stringValue[i * 2 + 1]);
-                if (!high.has_value() || !low.has_value()) {
-                    illegalParameters("CHALLENGE nonce must contain only hexadecimal characters.");
-                    return;
-                }
-                inquiryParameters.payload[i] = static_cast<uint8_t>((high.value() << 4) | low.value());
-            }
-            inquiryParameters.target = static_cast<uint32_t>(params[1].numberValue);
-        }
-    }
-    const auto result = sink->requestInquiry(descriptor->type, inquiryParameters);
-    if (!result) {
-        _interpreter.addError(_scpiErrorSettingsConflict,
-            "Settings conflict. " + std::string(result.error));
-    }
-}
-
-void App::_querySinkInquiryStatus(const std::vector<T76::SCPI::ParameterValue>&) {
-    if (_ccBusController.role() != Logic::CCBusRole::Sink || _ccBusController.sink() == nullptr) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
-        return;
-    }
-    const auto status = _ccBusController.sink()->lastInquiryResult().status;
-    std::string response = sinkInquiryOutcomeName(status.outcome);
-    response += "," + std::to_string(status.id);
-    const auto descriptor = Logic::sinkInquiryDescriptor(status.type);
-    response += "," + std::string(descriptor.has_value() ? descriptor->token : "UNKNOWN") +
-        "," + std::to_string(status.responseClass);
-    response += "," + std::to_string(status.responseType);
-    response += "," + std::to_string(status.responseLength);
-    _sendTransportTextResponse(response, true);
-}
-
-void App::_querySinkInquiryResponse(const std::vector<T76::SCPI::ParameterValue>&) {
-    if (_ccBusController.role() != Logic::CCBusRole::Sink || _ccBusController.sink() == nullptr) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. Not in sink mode.");
-        return;
-    }
-    const auto result = _ccBusController.sink()->lastInquiryResult();
-    if (result.status.outcome != Logic::SinkInquiryOutcome::Response &&
-        result.status.outcome != Logic::SinkInquiryOutcome::NAK &&
-        result.status.outcome != Logic::SinkInquiryOutcome::Busy) {
-        _interpreter.addError(_scpiErrorSettingsConflict, "Settings conflict. No inquiry response is available.");
-        return;
-    }
-    std::vector<uint8_t> block;
-    const std::string preamble = _interpreter.abdPreamble(result.status.responseLength);
-    block.insert(block.end(), preamble.begin(), preamble.end());
-    block.insert(block.end(), result.response.begin(),
-        result.response.begin() + result.status.responseLength);
-    block.push_back('\n');
-    _sendTransportBinaryResponse(block);
 }
 
 void App::_querySinkCapabilityCount(const std::vector<T76::SCPI::ParameterValue> &params) {
@@ -677,9 +447,6 @@ void App::_querySinkStatus(const std::vector<T76::SCPI::ParameterValue> &params)
             break;
         case Logic::SinkState::PE_SNK_Get_PPS_Status:
             _sendTransportTextResponse("PE_SNK_GET_PPS_STATUS", true);
-            break;
-        case Logic::SinkState::PE_SNK_Inquiry:
-            _sendTransportTextResponse("PE_SNK_INQUIRY", true);
             break;
         case Logic::SinkState::PE_SNK_EPR_Keepalive:
             _sendTransportTextResponse("PE_SNK_EPR_KEEPALIVE", true);

@@ -12,82 +12,12 @@
 #pragma once
 
 #include <cstddef>
-#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>
 
 
 namespace T76::DRPD::Logic {
-
-    enum class SinkInquiryType : uint32_t {
-        GetRevision = 0,
-        GetSourceCapabilities,
-        GetSourceCapabilitiesExtended,
-        GetStatus,
-        GetSourceInfo,
-        GetPPSStatus,
-        GetManufacturerInfo,
-        GetCountryCodes,
-        GetCountryInfo,
-        GetBatteryCapabilities,
-        GetBatteryStatus,
-        DiscoverIdentity,
-        DiscoverSVIDs,
-        DiscoverModes,
-        GetDigests,
-        GetCertificate,
-        Challenge,
-    };
-
-    enum class SinkInquiryTarget : uint32_t {
-        Port = 0,
-        Battery = 1,
-    };
-
-    /** Explicit packet target for a host inquiry. Never inferred or downgraded. */
-    enum class SinkInquirySOPTarget : uint32_t {
-        SOP = 0,
-        SOPPrime,
-        SOPDoublePrime,
-    };
-
-    /** Fixed, queue-safe parameters shared by typed inquiry descriptors. */
-    struct SinkInquiryParameters {
-        uint32_t target = 0;
-        uint32_t argument = 0;
-        std::array<uint8_t, 4> selector = {};
-        std::array<uint8_t, 32> payload = {};
-        SinkInquirySOPTarget sopTarget = SinkInquirySOPTarget::SOP;
-    };
-
-    enum class SinkInquiryOutcome : uint32_t {
-        None, Pending, Response, NotSupported, Rejected, Wait,
-        GoodCRCTimeout, ResponseTimeout, ProtocolError, MalformedResponse,
-        ResponseTooLarge, Aborted, NAK, Busy
-    };
-
-    struct SinkInquiryRequest {
-        uint32_t id = 0;
-        SinkInquiryType type = SinkInquiryType::GetRevision;
-        SinkInquiryParameters parameters;
-    };
-
-    struct SinkInquiryStatus {
-        SinkInquiryOutcome outcome = SinkInquiryOutcome::None;
-        uint32_t id = 0;
-        SinkInquiryType type = SinkInquiryType::GetRevision;
-        uint32_t responseClass = 0;
-        uint32_t responseType = 0;
-        uint32_t responseLength = 0;
-        uint32_t warningFlags = 0;
-    };
-
-    struct SinkInquiryResult {
-        SinkInquiryStatus status;
-        SinkInquiryParameters parameters;
-        std::array<uint8_t, LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES> response = {};
-    };
 
     /**
      * @brief Sink information change notifications for higher-level consumers.
@@ -155,7 +85,6 @@ namespace T76::DRPD::Logic {
         PE_SNK_Hard_Reset,                  ///< Hard reset processing.
         PE_SNK_Transition_To_Default,       ///< Transition to default state.
         PE_SNK_Send_Response,               ///< Send Ready-originated response and wait for GoodCRC.
-        PE_SNK_Inquiry,                     ///< Host-requested Source inquiry.
 
         Error,                              ///< Error/fault state.
     };
@@ -207,9 +136,7 @@ namespace T76::DRPD::Logic {
         EPRKeepaliveResponseTimeout,
         EPRSourceWatchdogTimeout,
         ChunkingNotSupportedTimeout,
-        SinkTxOKRetryTimeout,
-        InquiryResponseTimeout,
-        InquirySinkTxOKRetryTimeout
+        SinkTxOKRetryTimeout
     };
 
     /**
@@ -217,7 +144,6 @@ namespace T76::DRPD::Logic {
      */
     struct SinkTimeoutEvent {
         SinkTimeoutEventType type;
-        uint32_t inquiryId = 0; ///< Inquiry generation for inquiry-owned timers.
     };
 
     /**

@@ -13,19 +13,11 @@ import {
   parseSingleInt,
   parseSingleScaledMilliInt,
   parseSinkRequestStatus,
-  parseSinkInquiryStatus,
   parseSinkPdo,
   parseSinkStateResponse,
 } from './parsers'
-import { OnOffState, SinkInquiryType } from './types'
-import type {
-  SinkInfo,
-  SinkInquiryStatus,
-  SinkInquiryRequest,
-  SinkPdo,
-  SinkRequestStatus,
-  SinkState,
-} from './types'
+import { OnOffState } from './types'
+import type { SinkInfo, SinkPdo, SinkRequestStatus, SinkState } from './types'
 
 /**
  * Sink command group for DRPD devices.
@@ -82,74 +74,6 @@ export class DRPDSink {
   public async getRequestStatus(): Promise<SinkRequestStatus> {
     const response = await this.transport.queryText('SINK:REQUEST:STATUS?')
     return parseSinkRequestStatus(response)
-  }
-
-  /** Start a supported Sink-to-Source inquiry. */
-  public async sendInquiry(type: SinkInquiryType): Promise<void> {
-    await this.transport.sendCommand('SINK:INQ', scpiEnum(type))
-  }
-
-  /** Send a semantic inquiry request; the library owns PD and SCPI encoding. */
-  public async sendInquiryRequest(request: SinkInquiryRequest): Promise<void> {
-    if (request.type === SinkInquiryType.GET_CERTIFICATE) {
-      if (!Number.isInteger(request.slot) || request.slot < 0 || request.slot > 7) throw new Error('Certificate slot must be an integer from 0 to 7')
-      if (!Number.isInteger(request.offset) || request.offset < 0 || request.offset > 4095) throw new Error('Certificate offset must be an integer from 0 to 4095')
-      if (!Number.isInteger(request.length) || request.length < 1 || request.length > 256 || request.offset + request.length > 4096) throw new Error('Certificate length must be 1 to 256 and remain within the 4096-byte chain bound')
-      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.slot, request.offset, request.length)
-      return
-    }
-    if (request.type === SinkInquiryType.CHALLENGE) {
-      if (!Number.isInteger(request.slot) || request.slot < 0 || request.slot > 7) throw new Error('Challenge slot must be an integer from 0 to 7')
-      if (!(request.nonce instanceof Uint8Array) || request.nonce.length !== 32) throw new Error('Challenge nonce must contain exactly 32 bytes')
-      const nonceHex = Array.from(request.nonce, (byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase()
-      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.slot, nonceHex)
-      return
-    }
-    if (request.type === SinkInquiryType.GET_MANUFACTURER_INFO) {
-      if (request.target !== 'PORT' && request.target !== 'BATTERY' && request.target !== 'SOP_PRIME' && request.target !== 'SOP_DOUBLE_PRIME') throw new Error('Manufacturer target must be PORT, BATTERY, SOP_PRIME, or SOP_DOUBLE_PRIME')
-      if (request.target === 'BATTERY') {
-        if (!Number.isInteger(request.batteryReference) || request.batteryReference < 0 || request.batteryReference > 7) throw new Error('Battery reference must be an integer from 0 to 7')
-        await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.target, request.batteryReference)
-      } else {
-        if ('batteryReference' in request) throw new Error('PORT manufacturer inquiry must not include a battery reference')
-        await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.target)
-      }
-      return
-    }
-    if (request.type === SinkInquiryType.GET_COUNTRY_INFO) {
-      if (typeof request.countryCode !== 'string') throw new Error('Country code must be ISO alpha-2')
-      const countryCode = request.countryCode.toUpperCase()
-      if (!/^[A-Z]{2}$/.test(countryCode)) throw new Error('Country code must be ISO alpha-2')
-      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), countryCode)
-      return
-    }
-    if (request.type === SinkInquiryType.GET_BATTERY_CAP || request.type === SinkInquiryType.GET_BATTERY_STATUS) {
-      if (!Number.isInteger(request.batteryReference) || request.batteryReference < 0 || request.batteryReference > 7) throw new Error('Battery reference must be an integer from 0 to 7')
-      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.batteryReference)
-      return
-    }
-    if (request.type === SinkInquiryType.DISCOVER_MODES) {
-      if (!Number.isInteger(request.svid) || request.svid < 1 || request.svid > 0xffff) throw new Error('SVID must be an integer from 1 to 65535')
-      if (request.plug) await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.plug, request.svid)
-      else await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.svid)
-      return
-    }
-    if ('plug' in request && request.plug) {
-      await this.transport.sendCommand('SINK:INQ', scpiEnum(request.type), request.plug)
-      return
-    }
-    await this.sendInquiry(request.type)
-  }
-
-  /** Query the most recent Sink-to-Source inquiry status. */
-  public async getInquiryStatus(): Promise<SinkInquiryStatus> {
-    const response = await this.transport.queryText('SINK:INQ:STAT?')
-    return parseSinkInquiryStatus(response)
-  }
-
-  /** Fetch the raw response bytes for the most recent inquiry. */
-  public async getInquiryResponse(): Promise<Uint8Array> {
-    return await this.transport.queryBinary('SINK:INQ:RESP?')
   }
 
   /**

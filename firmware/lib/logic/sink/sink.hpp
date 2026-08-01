@@ -49,7 +49,6 @@
 
 #include "message_sender.hpp"
 #include "sink_alarm_service.hpp"
-#include "inquiry_reassembly.hpp"
 #include "sink_context.hpp"
 #include "sink_runtime_state.hpp"
 #include "state_handler.hpp"
@@ -71,7 +70,6 @@
 #include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
-#include "state_handlers/inquiry.hpp"
 #include "state_handlers/ready.hpp"
 #include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
@@ -227,10 +225,6 @@ namespace T76::DRPD::Logic {
          * @return Last request status snapshot.
          */
         [[nodiscard]] SinkRequestStatus lastRequestStatus() const;
-        SinkRequestResult requestInquiry(
-            SinkInquiryType type,
-            SinkInquiryParameters parameters = {});
-        [[nodiscard]] SinkInquiryResult lastInquiryResult() const;
 
         /**
          * @brief Set whether local policy allows automatic EPR entry.
@@ -308,7 +302,6 @@ namespace T76::DRPD::Logic {
             UnsupportedType,    ///< Message type not supported.
             UnsupportedChunk,   ///< Unsupported message chunk needs delayed Not_Supported.
             RecoveredMalformed, ///< Known malformed encoding was safely recovered.
-            TooLarge,           ///< Declared inquiry response exceeds bounded storage.
             Malformed           ///< Fragment/header invalid.
         };
 
@@ -324,7 +317,6 @@ namespace T76::DRPD::Logic {
         queue_t _messageQueue;                                   ///< Queue of decoded message pointers.
         queue_t _timeoutEventQueue;                              ///< Queue of timer timeout events.
         queue_t _pendingRequestQueue;                            ///< Queue of host PDO requests for core-1 dispatch.
-        queue_t _pendingInquiryQueue;                            ///< Queue of host inquiry requests for core-1 dispatch.
 
         CCBusController& _ccBusController;                       ///< CC bus controller dependency.
         T76::DRPD::PHY::BMCDecoder& _bmcDecoder;                ///< Decoder for incoming PD messages.
@@ -338,7 +330,6 @@ namespace T76::DRPD::Logic {
         EPRModeExitStateHandler _eprModeExitStateHandler;        ///< EPR mode exit state handler.
         EPRModeEntryStateHandler _eprModeEntryStateHandler;      ///< EPR mode entry state handler.
         GetPPSStatusStateHandler _getPPSStatusStateHandler;      ///< PPS status query state handler.
-        InquiryStateHandler _inquiryStateHandler;                ///< Host inquiry state handler.
         ReadySinkStateHandler _readySinkStateHandler;            ///< Ready state handler.
         SendResponseStateHandler _sendResponseStateHandler;      ///< Ready response state handler.
         SendSoftResetStateHandler _sendSoftResetStateHandler;    ///< Send Soft Reset state handler.
@@ -357,13 +348,9 @@ namespace T76::DRPD::Logic {
         SinkContext _context;                                    ///< Handler-facing context facade.
         std::atomic<bool> _enabled = false;                      ///< True when callbacks are subscribed.
         std::atomic<bool> _ccBusResetPending = false;            ///< Core-0 state-change reset request latched for core 1.
-        std::atomic<bool> _ccBusDetachObserved = false;          ///< Detach edge preserved if state callbacks coalesce.
         std::atomic<bool> _eprExitPending = false;               ///< Core-0 request asking Core 1 to exit active EPR mode.
-        std::atomic<uint32_t> _nextInquiryId = 1;                ///< Monotonic host inquiry identifier.
-        std::atomic<bool> _inquiryQueued = false;                ///< Host inquiry awaits policy dispatch.
         alarm_id_t _chunkingNotSupportedAlarmId = -1;            ///< Delay before Not_Supported for unsupported chunks.
         bool _chunkingNotSupportedPending = false;               ///< True while delayed Not_Supported is still applicable.
-        InquiryExtendedReassembly<LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES> _inquiryReassembly;
 
         /**
          * @brief Handle CC bus state changes.
@@ -386,8 +373,6 @@ namespace T76::DRPD::Logic {
         ExtendedFragmentResult _handleExtendedMessageFragment(
             const T76::DRPD::PHY::BMCDecodedMessage *message,
             Proto::ExtendedMessageType &completedType);
-        ExtendedFragmentResult _handleInquiryExtendedFragment(
-            const T76::DRPD::PHY::BMCDecodedMessage *message);
 
         /**
          * @brief Apply protocol message-discarding rules before handling a received SOP.
@@ -403,8 +388,7 @@ namespace T76::DRPD::Logic {
         void _sendExtendedChunkRequest(
             Proto::ExtendedMessageType type,
             uint16_t payloadSizeBytes,
-            uint8_t chunkNumber,
-            Proto::SOP::SOPType sopTarget);
+            uint8_t chunkNumber);
 
         /**
          * @brief Start ChunkingNotSupportedTimer before responding Not_Supported.
@@ -433,14 +417,12 @@ namespace T76::DRPD::Logic {
          * @brief Drain host policy requests and dispatch in core-1 policy context.
          */
         void _processPendingPolicyRequests();
-        void _processPendingInquiries();
 
         /**
          * @brief Handle message sender state transitions.
          * @param state New sender state.
          */
-        void _onMessageSenderStateChanged(
-            SinkMessageSenderState state, Proto::SOP::SOPType sopTarget);
+        void _onMessageSenderStateChanged(SinkMessageSenderState state);
 
         /**
          * @brief Handle sender state transitions in Sink policy context.
