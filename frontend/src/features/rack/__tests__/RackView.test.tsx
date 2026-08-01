@@ -3225,7 +3225,25 @@ describe('RackView', () => {
     expect(screen.queryByRole('dialog', { name: 'Capture is off' })).not.toBeInTheDocument()
   })
 
-  it('warns before Get source capabilities when capture is off and can suppress future warnings', async () => {
+  it('sends Get extended source capabilities without opening a result dialog when capture is on', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get extended source capabilities' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('reuses the capture-off warning for log-only inquiries and can suppress future warnings', async () => {
     const user = userEvent.setup()
     mockTransportState.captureEnabledResponse = ['OFF']
     saveRackDocument(buildBoundHydratedRackDocument())
@@ -3236,20 +3254,20 @@ describe('RackView', () => {
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Get source capabilities' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get extended source capabilities' }))
 
     const warning = await screen.findByRole('dialog', { name: 'Capture is off' })
     const suppress = within(warning).getByLabelText(/do not show this again/i)
     expect(suppress).not.toBeChecked()
-    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP')
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
 
     await user.click(suppress)
     await user.click(within(warning).getByRole('button', { name: 'Request anyway' }))
     await waitFor(() => {
-      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP')
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
     })
     expect(window.localStorage.getItem(
-      'drpd:source-capabilities-capture-warning-suppressed',
+      'drpd:inquiry-capture-warning-suppressed',
     )).toBe('true')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
