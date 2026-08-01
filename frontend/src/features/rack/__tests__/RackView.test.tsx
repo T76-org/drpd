@@ -3345,6 +3345,22 @@ describe('RackView', () => {
     expect(screen.queryByRole('dialog', { name: 'Get battery status' })).not.toBeInTheDocument()
   })
 
+  it('does not offer the redundant combined battery survey', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+
+    expect(screen.queryByRole('menuitem', { name: 'Survey batteries…' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Get battery capabilities' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Get battery status' })).toBeInTheDocument()
+  })
+
   it('shows the shared capture warning before the battery status survey', async () => {
     const user = userEvent.setup()
     mockTransportState.captureEnabledResponse = ['OFF']

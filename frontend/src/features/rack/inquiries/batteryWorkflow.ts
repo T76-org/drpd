@@ -2,7 +2,7 @@ import { SinkInquiryType } from '../../../lib/device'
 import { parseBatteryCapabilitiesDataBlock, parseBatteryStatusDataObject, parseSourceCapabilitiesExtendedDataBlock, readDataObjects } from '../../../lib/device/drpd/usb-pd/DataObjects'
 import { decodeInquiryResponse } from './decode'
 import { formatSinkInquiryOutcome } from './presentation'
-import { withSinkInquiryLease, type InquiryRunState, type SerialInquiryWorkflowStep, type SinkInquiryClient } from './runner'
+import { withSinkInquiryLease, type InquiryRunState, type SinkInquiryClient } from './runner'
 
 export const BATTERY_CAPABILITIES_EVENT_TITLE = 'INQUIRY - Battery capabilities'
 export const BATTERY_STATUS_EVENT_TITLE = 'INQUIRY - Battery status'
@@ -160,17 +160,3 @@ export const batteryReferencesFromScedb = (body: Uint8Array): number[] => {
     ...Array.from({ length: block.hotSwappableBatterySlots }, (_, index) => index + 4),
   ]
 }
-
-/** Build strict Cap→Status pairs for explicit references; invalid-reference results remain visible. */
-export const buildBatterySurveySteps = (references: readonly number[]): SerialInquiryWorkflowStep[] => {
-  if (references.length > 8 || new Set(references).size !== references.length || references.some((reference) => !Number.isInteger(reference) || reference < 0 || reference > 7)) {
-    throw new Error('Battery survey references must be unique integers from 0 to 7')
-  }
-  return references.flatMap((batteryReference) => [
-    { id: `battery-${batteryReference}-capabilities`, request: { type: SinkInquiryType.GET_BATTERY_CAP, batteryReference } },
-    { id: `battery-${batteryReference}-status`, request: { type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference } },
-  ])
-}
-
-export const buildAllBatterySurveySteps = (): SerialInquiryWorkflowStep[] =>
-  buildBatterySurveySteps([0, 1, 2, 3, 4, 5, 6, 7])
