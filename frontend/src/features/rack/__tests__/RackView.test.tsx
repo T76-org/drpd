@@ -3414,6 +3414,41 @@ describe('RackView', () => {
     expect(screen.queryByRole('dialog', { name: 'Discover SVIDs' })).not.toBeInTheDocument()
   })
 
+  it('runs Discover modes as a log-only survey without opening a result dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Discover modes' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ DISCOVER_SVIDS')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Discover modes' })).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before Discover modes', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Discover modes' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ DISCOVER_SVIDS')
+  })
+
   it('shows the shared capture warning before Port Partner discovery events', async () => {
     const user = userEvent.setup()
     mockTransportState.captureEnabledResponse = ['OFF']

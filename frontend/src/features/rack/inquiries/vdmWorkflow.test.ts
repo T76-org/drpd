@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SinkInquiryOutcome, SinkInquiryType } from '../../../lib/device'
-import { buildDiscoverModesSteps, canRetryVdmSurveyStep, deduplicateOrderedSvids, parseDiscoverSvidPage, surveyPortPartnerIdentity, surveyPortPartnerSvids } from './vdmWorkflow'
+import { buildDiscoverModesSteps, canRetryVdmSurveyStep, deduplicateOrderedSvids, parseDiscoverSvidPage, surveyPortPartnerIdentity, surveyPortPartnerModes, surveyPortPartnerSvids } from './vdmWorkflow'
 
 const words = (...values: number[]) => new Uint8Array(values.flatMap((value) => [value & 0xff, value >>> 8 & 0xff, value >>> 16 & 0xff, value >>> 24 & 0xff]))
 
@@ -83,5 +83,36 @@ describe('Port Partner VDM workflow helpers', () => {
 
     expect((await surveyPortPartnerIdentity(unsupportedClient(SinkInquiryType.DISCOVER_IDENTITY))).summary).toBe('Discover Identity: Not Supported.')
     expect((await surveyPortPartnerSvids(unsupportedClient(SinkInquiryType.DISCOVER_SVIDS))).summary).toContain('Page 1: Not Supported.')
+  })
+
+  it('discovers SVIDs then collects modes for every SVID', async () => {
+    const svidHeader = (0xff00 << 16) | (1 << 15) | (1 << 13) | (1 << 6) | 2
+    const svidBody = words(svidHeader, (0x1234 << 16) | 0x5678, 0)
+    const modesHeader = (0x1234 << 16) | (1 << 15) | (1 << 13) | (1 << 6) | 3
+    const modesBody = words(modesHeader, 0xdeadbeef, 0x01020304)
+    const statuses = [
+      { outcome: SinkInquiryOutcome.NONE, requestId: 0, type: SinkInquiryType.DISCOVER_SVIDS, responseClass: 0, responseType: 0, responseLength: 0 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.DISCOVER_SVIDS, responseClass: 2, responseType: 0x0f, responseLength: 12 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.DISCOVER_SVIDS, responseClass: 2, responseType: 0x0f, responseLength: 12 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.DISCOVER_MODES, responseClass: 2, responseType: 0x0f, responseLength: 12 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 2, type: SinkInquiryType.DISCOVER_MODES, responseClass: 2, responseType: 0x0f, responseLength: 12 },
+      { outcome: SinkInquiryOutcome.NOT_SUPPORTED, requestId: 3, type: SinkInquiryType.DISCOVER_MODES, responseClass: 0, responseType: 0, responseLength: 0 },
+    ]
+    const responses = [svidBody, modesBody]
+    const sent: string[] = []
+    const result = await surveyPortPartnerModes({
+      sendInquiryRequest: vi.fn(async (request) => {
+        sent.push(request.type === SinkInquiryType.DISCOVER_MODES
+          ? `${request.type}:${request.svid.toString(16)}`
+          : request.type)
+      }),
+      getInquiryStatus: vi.fn(async () => statuses.shift()!),
+      getInquiryResponse: vi.fn(async () => responses.shift()!),
+    })
+
+    expect(sent).toEqual(['DISCOVER_SVIDS', 'DISCOVER_MODES:1234', 'DISCOVER_MODES:5678'])
+    expect(result.summary).toContain('Discovered 2 unique SVIDs: 0x1234, 0x5678.')
+    expect(result.summary).toContain('0x1234: 2 mode VDOs (0xDEADBEEF, 0x01020304)')
+    expect(result.summary).toContain('0x5678: Not Supported.')
   })
 })

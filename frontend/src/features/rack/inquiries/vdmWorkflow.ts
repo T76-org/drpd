@@ -6,6 +6,7 @@ import { parseSVIDsVDO, readDataObjects } from '../../../lib/device/drpd/usb-pd/
 
 export const PORT_PARTNER_IDENTITY_EVENT_TITLE = 'INQUIRY - Port Partner identity'
 export const PORT_PARTNER_SVIDS_EVENT_TITLE = 'INQUIRY - Port Partner SVIDs'
+export const PORT_PARTNER_MODES_EVENT_TITLE = 'INQUIRY - Port Partner modes'
 
 const bytesToHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')
@@ -74,6 +75,70 @@ export const surveyPortPartnerSvids = async (
   const discovered = deduplicateOrderedSvids(pages)
   lines.unshift(`Discovered ${discovered.length} unique SVIDs before the eight-page safety bound: ${discovered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'none'}.`)
   lines.push('Discovery stopped without a terminating SVID after eight pages.')
+  return { summary: lines.join('\n') }
+})
+
+/** Discover all bounded SOP Port Partner SVID pages, then query Modes for every unique SVID. */
+export const surveyPortPartnerModes = async (
+  client: SinkInquiryClient,
+): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
+  const pages: number[][] = []
+  const discoveryLines: string[] = []
+  let discoveryComplete = false
+  for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
+    const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS })
+    if (result.phase !== 'response') {
+      discoveryLines.push(`SVID page ${pageIndex + 1}: ${describeFailure(result)}.`)
+      break
+    }
+    try {
+      decodeInquiryResponse(result.status, result.rawResponse, result.request)
+      const parsed = parseDiscoverSvidPage(result.rawResponse)
+      pages.push(parsed.ordered)
+      discoveryLines.push(`SVID page ${pageIndex + 1}: ${parsed.ordered.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'no SVIDs'}; raw ${bytesToHex(result.rawResponse)}.`)
+      if (parsed.complete) {
+        discoveryComplete = true
+        break
+      }
+    } catch (error) {
+      discoveryLines.push(`SVID page ${pageIndex + 1}: malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
+      break
+    }
+  }
+
+  const svids = deduplicateOrderedSvids(pages)
+  const lines = [
+    `Discovered ${svids.length} unique SVIDs${discoveryComplete ? '' : ' before incomplete discovery'}: ${svids.map((svid) => `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`).join(', ') || 'none'}.`,
+    ...discoveryLines,
+  ]
+  if (!discoveryComplete && discoveryLines.length === 8) {
+    lines.push('SVID discovery reached the eight-page safety bound without a terminator.')
+  }
+  if (svids.length === 0) {
+    lines.push('No Discover Modes requests were sent.')
+    return { summary: lines.join('\n') }
+  }
+
+  for (const svid of svids) {
+    const request = { type: SinkInquiryType.DISCOVER_MODES, svid } as const
+    const result = await run(request)
+    const formattedSvid = `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`
+    if (result.phase !== 'response') {
+      lines.push(`${formattedSvid}: ${describeFailure(result)}.`)
+      continue
+    }
+    try {
+      decodeInquiryResponse(result.status, result.rawResponse, result.request)
+      const modeVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+      lines.push(
+        `${formattedSvid}: ${modeVdos.length} mode VDO${modeVdos.length === 1 ? '' : 's'} ` +
+        `(${modeVdos.map((vdo) => `0x${vdo.toString(16).toUpperCase().padStart(8, '0')}`).join(', ') || 'none'}); ` +
+        `raw ${bytesToHex(result.rawResponse)}.`,
+      )
+    } catch (error) {
+      lines.push(`${formattedSvid}: malformed response (${error instanceof Error ? error.message : String(error)}); raw ${bytesToHex(result.rawResponse) || '(empty)'}.`)
+    }
+  }
   return { summary: lines.join('\n') }
 })
 

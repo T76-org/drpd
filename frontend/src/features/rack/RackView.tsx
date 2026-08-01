@@ -114,8 +114,10 @@ import {
 } from './inquiries/batteryWorkflow'
 import {
   PORT_PARTNER_IDENTITY_EVENT_TITLE,
+  PORT_PARTNER_MODES_EVENT_TITLE,
   PORT_PARTNER_SVIDS_EVENT_TITLE,
   surveyPortPartnerIdentity,
+  surveyPortPartnerModes,
   surveyPortPartnerSvids,
 } from './inquiries/vdmWorkflow'
 import {
@@ -187,7 +189,11 @@ const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
   SinkInquiryType.GET_BATTERY_CAP,
   SinkInquiryType.GET_BATTERY_STATUS,
 ])
-const LOG_ONLY_SOURCE_INQUIRY_IDS = new Set(['discover-identity', 'discover-svids'])
+const LOG_ONLY_SOURCE_INQUIRY_IDS = new Set([
+  'discover-identity',
+  'discover-svids',
+  'discover-modes',
+])
 const isLogOnlySourceInquiry = (definition: InquiryDefinition): boolean =>
   LOG_ONLY_SOURCE_INQUIRY_TYPES.has(definition.type) ||
   LOG_ONLY_SOURCE_INQUIRY_IDS.has(definition.id)
@@ -1750,6 +1756,15 @@ export const RackView = ({
       void surveyPortPartnerSvids(activeDriver.sink)
         .then(({ summary }) => activeDriver.markLog(
           `${PORT_PARTNER_SVIDS_EVENT_TITLE}\n${summary}`,
+        ))
+        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+      return
+    }
+    if (definition.id === 'discover-modes') {
+      setDeviceError(null)
+      void surveyPortPartnerModes(activeDriver.sink)
+        .then(({ summary }) => activeDriver.markLog(
+          `${PORT_PARTNER_MODES_EVENT_TITLE}\n${summary}`,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return

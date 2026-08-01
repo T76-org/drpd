@@ -168,7 +168,7 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   },
   {
     id: 'discover-modes', type: SinkInquiryType.DISCOVER_MODES,
-    label: 'Discover modes…', description: 'Diagnostic optional UFP request for modes of one SOP Port Partner SVID.', workflow: 'parameterized',
+    label: 'Discover modes', description: 'Discover every Port Partner SVID, then collect modes for each.', workflow: 'parameterized',
     parameters: [{ kind: 'integer', name: 'svid', label: 'SVID', min: 1, max: 65535 }], sideEffects: [],
     applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.DISCOVER_MODES, svid: values.svid as number }), active: true,
