@@ -4033,7 +4033,7 @@ export const RackView = ({
                 setIsSourceCapabilitiesCaptureWarningOpen(false)
                 setSuppressSourceCapabilitiesCaptureWarning(false)
                 sendSourceCapabilitiesInquiry()
-              }}>Send inquiry</DialogButton>
+              }}>Request anyway</DialogButton>
             </div>
           </div>
         }

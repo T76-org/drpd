@@ -3244,7 +3244,7 @@ describe('RackView', () => {
     expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP')
 
     await user.click(suppress)
-    await user.click(within(warning).getByRole('button', { name: 'Send inquiry' }))
+    await user.click(within(warning).getByRole('button', { name: 'Request anyway' }))
     await waitFor(() => {
       expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP')
     })
