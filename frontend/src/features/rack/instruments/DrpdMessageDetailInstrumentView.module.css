@@ -86,6 +86,23 @@
   --detail-section-border: color-mix(in srgb, #6b5b95 42%, var(--color-border-panel));
 }
 
+.section[data-section-id='event'] {
+  --detail-section-surface: color-mix(in srgb, #5f6670 12%, var(--color-surface-panel));
+  --detail-section-border: color-mix(in srgb, #5f6670 42%, var(--color-border-panel));
+}
+
+.eventTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.eventSummary {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 :global(:root[data-high-contrast='true']) .section {
   --detail-section-surface: var(--color-surface-panel);
   --detail-section-border: var(--color-text-primary);

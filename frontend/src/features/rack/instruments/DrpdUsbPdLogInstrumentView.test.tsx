@@ -1033,6 +1033,36 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(driver.logSelection.activeIndex).toBe(1)
   })
 
+  it('selects the same event row by mouse and keyboard navigation', async () => {
+    const event = buildEvent(1, 'INQUIRY - Test\nLine one\nLine two', 'mark')
+    const driver = new TestLogDriver([buildMessage(0, 1), event])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    const { container } = render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+    await screen.findByText((content) => content.includes('INQUIRY - Test'))
+    const rows = Array.from(container.querySelectorAll('[class*="dataRow"]'))
+    await userEvent.click(rows[1] as HTMLElement)
+    const eventKey = driver.logSelection.selectedKeys[0]
+    expect(eventKey).toContain(':mark')
+
+    const viewport = screen.getByTestId('drpd-usbpd-log-viewport')
+    await userEvent.click(viewport)
+    await userEvent.keyboard('{Escape}')
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(driver.logSelection.selectedKeys).toEqual([eventKey])
+  })
+
   it('clears selection when escape is pressed while the viewport has focus', async () => {
     const driver = new TestLogDriver([
       buildMessage(0, 1),

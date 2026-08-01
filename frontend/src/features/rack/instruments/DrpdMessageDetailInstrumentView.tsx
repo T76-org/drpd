@@ -68,8 +68,9 @@ type MessageDetailSection = {
 type LoadedSelection =
   | { kind: 'none' }
   | {
-      kind: 'mark'
-      sections: MessageDetailSection[]
+      kind: 'event'
+      title: string
+      summary: string | null
       comment: string | null
       commentCreatedAtMs: number | null
     }
@@ -94,6 +95,33 @@ type LoadedSelection =
       commentCreatedAtMs: number | null
     }
 
+const formatEventTypeLabel = (eventType: LoggedCapturedMessage['eventType']): string => {
+  if (!eventType) return 'Event'
+  return eventType
+    .split('_')
+    .map((word) => word.length > 0 ? `${word[0].toUpperCase()}${word.slice(1)}` : word)
+    .join(' ')
+}
+
+export const parseLoggedEventDetails = (
+  row: Pick<LoggedCapturedMessage, 'eventType' | 'eventText'>,
+): { title: string; summary: string | null } => {
+  const fallbackTitle = formatEventTypeLabel(row.eventType)
+  const normalizedText = row.eventText?.replace(/\r\n?/g, '\n').trim() ?? ''
+  if (!normalizedText) {
+    return { title: fallbackTitle, summary: 'No event details available.' }
+  }
+  const lines = normalizedText.split('\n')
+  if (lines.length > 1) {
+    const title = lines.shift()?.trim() || fallbackTitle
+    const summary = lines.join('\n').trim()
+    return { title, summary: summary || null }
+  }
+  if (normalizedText.toLocaleLowerCase() === fallbackTitle.toLocaleLowerCase()) {
+    return { title: fallbackTitle, summary: null }
+  }
+  return { title: fallbackTitle, summary: normalizedText }
+}
 type MessageByteSegment = {
   kind: 'sop' | 'header' | 'extendedHeader' | 'body' | 'crc32'
   bytes: Uint8Array
@@ -614,17 +642,14 @@ export const DrpdMessageDetailInstrumentView = ({
         return
       }
       if (row.entryKind === 'event') {
+        const details = parseLoggedEventDetails(row)
         setLoadedSelectionKey(activeSelectionKey)
-        setLoadedSelection(
-          row.eventType === 'mark'
-            ? {
-                kind: 'mark',
-                sections: [],
-                comment: row.comment?.trim() || null,
-                commentCreatedAtMs: row.commentCreatedAtMs ?? null,
-              }
-            : { kind: 'none' },
-        )
+        setLoadedSelection({
+          kind: 'event',
+          ...details,
+          comment: row.comment?.trim() || null,
+          commentCreatedAtMs: row.commentCreatedAtMs ?? null,
+        })
         return
       }
       const useWallClock = row.wallClockUs !== null
@@ -736,8 +761,16 @@ export const DrpdMessageDetailInstrumentView = ({
           {visibleSelection.kind === 'invalid' ||
           visibleSelection.kind === 'reset' ||
           visibleSelection.kind === 'message' ||
-          visibleSelection.kind === 'mark' ? (
+          visibleSelection.kind === 'event' ? (
             <div className={styles.sectionsContainer}>
+              {visibleSelection.kind === 'event' ? (
+                <section className={styles.section} data-section-id="event" aria-label="Event details">
+                  <h3 className={styles.eventTitle}>{visibleSelection.title}</h3>
+                  {visibleSelection.summary ? (
+                    <p className={styles.eventSummary}>{visibleSelection.summary}</p>
+                  ) : null}
+                </section>
+              ) : null}
               {visibleSelection.comment ? (
                 <section className={styles.section} data-section-id="comment" aria-label="Comment">
                   <h3 className={styles.sectionHeading}>
@@ -771,7 +804,7 @@ export const DrpdMessageDetailInstrumentView = ({
                   ) : null}
                 </section>
               ) : null}
-              {visibleSelection.sections.map((section) => {
+              {'sections' in visibleSelection ? visibleSelection.sections.map((section) => {
                 const isExpanded = !collapsedSectionIds.includes(section.id)
                 return (
                   <section className={styles.section} data-section-id={section.id} key={section.id}>
@@ -811,7 +844,7 @@ export const DrpdMessageDetailInstrumentView = ({
                     ) : null}
                   </section>
                 )
-              })}
+              }) : null}
             </div>
           ) : null}
         </section>

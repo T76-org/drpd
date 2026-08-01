@@ -189,6 +189,74 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(screen.queryByRole('button', { name: /base information/i })).toBeNull()
   })
 
+  it('renders a multiline inquiry event with its title and preserved summary', async () => {
+    const row = buildMessageRow({
+      entryKind: 'event',
+      eventType: 'mark',
+      eventText: 'INQUIRY - Battery status\nBattery 0: Present\nBattery 1: Not Supported',
+      startTimestampUs: 1_020n,
+      endTimestampUs: 1_020n,
+      createdAtMs: 1_700_000_000_120,
+    })
+    render(<DrpdMessageDetailInstrumentView
+      instrument={buildInstrument()}
+      displayName="MESSAGE DETAIL"
+      deviceState={buildDeviceState({ selectedKeys: ['event:1020:1700000000120:mark'], anchorIndex: 0, activeIndex: 0 }, [row])}
+      isEditMode={false}
+    />)
+
+    const details = await screen.findByRole('region', { name: 'Event details' })
+    expect(within(details).getByRole('heading', { name: 'INQUIRY - Battery status' })).toBeInTheDocument()
+    expect(details.querySelector('p')?.textContent).toBe('Battery 0: Present\nBattery 1: Not Supported')
+  })
+
+  it('renders single-line firmware events and empty event fallback text', async () => {
+    const firmware = buildMessageRow({
+      entryKind: 'event', eventType: 'cc_role_changed', eventText: 'CC role changed to SINK',
+      startTimestampUs: 1_030n, endTimestampUs: 1_030n, createdAtMs: 1_700_000_000_130,
+    })
+    const empty = buildMessageRow({
+      entryKind: 'event', eventType: null, eventText: ' \r\n ',
+      startTimestampUs: 1_040n, endTimestampUs: 1_040n, createdAtMs: 1_700_000_000_140,
+    })
+    const deviceState = buildDeviceState(
+      { selectedKeys: ['event:1030:1700000000130:cc_role_changed'], anchorIndex: 0, activeIndex: 0 },
+      [firmware, empty],
+    )
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+    render(<DrpdMessageDetailInstrumentView instrument={buildInstrument()} displayName="MESSAGE DETAIL" deviceState={deviceState} isEditMode={false} />)
+
+    expect(await screen.findByRole('heading', { name: 'Cc Role Changed' })).toBeInTheDocument()
+    expect(screen.getByText('CC role changed to SINK')).toBeInTheDocument()
+
+    act(() => driver.setLogSelectionState({
+      selectedKeys: ['event:1040:1700000000140:unknown'], anchorIndex: 1, activeIndex: 1,
+    }))
+    expect(await screen.findByRole('heading', { name: 'Event' })).toBeInTheDocument()
+    expect(screen.getByText('No event details available.')).toBeInTheDocument()
+  })
+
+  it('switches cleanly between event and packet detail views', async () => {
+    const packet = buildMessageRow()
+    const event = buildMessageRow({
+      entryKind: 'event', eventType: 'capture_changed', eventText: 'Capture turned on',
+      startTimestampUs: 1_050n, endTimestampUs: 1_050n, createdAtMs: 1_700_000_000_150,
+    })
+    const deviceState = buildDeviceState(
+      { selectedKeys: ['event:1050:1700000000150:capture_changed'], anchorIndex: 1, activeIndex: 1 },
+      [packet, event],
+    )
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+    render(<DrpdMessageDetailInstrumentView instrument={buildInstrument()} displayName="MESSAGE DETAIL" deviceState={deviceState} isEditMode={false} />)
+
+    expect(await screen.findByRole('region', { name: 'Event details' })).toBeInTheDocument()
+    act(() => driver.setLogSelectionState({
+      selectedKeys: ['message:1000:1005:1700000000000'], anchorIndex: 0, activeIndex: 0,
+    }))
+    expect(await screen.findByRole('button', { name: /base information/i })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Event details' })).not.toBeInTheDocument()
+  })
+
   it('refreshes and hides an emptied comment after a log update event', async () => {
     const row = buildMessageRow({ comment: 'Before' })
     const driver = new TestSelectionDriver({ selectedKeys: ['message:1000:1005:1700000000000'], anchorIndex: 0, activeIndex: 0 }, [row])
