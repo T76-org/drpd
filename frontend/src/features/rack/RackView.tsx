@@ -107,6 +107,10 @@ import {
   surveyCountryInformation,
 } from './inquiries/countryWorkflow'
 import {
+  BATTERY_CAPABILITIES_EVENT_TITLE,
+  surveyBatteryCapabilities,
+} from './inquiries/batteryWorkflow'
+import {
   CalibrationManagementDialog,
   CalibrationSafetyDialog,
   CalibrationStartErrorDialog,
@@ -172,6 +176,7 @@ const LOG_ONLY_SOURCE_INQUIRY_TYPES = new Set<SinkInquiryType>([
   SinkInquiryType.GET_MANUFACTURER_INFO,
   SinkInquiryType.GET_COUNTRY_CODES,
   SinkInquiryType.GET_COUNTRY_INFO,
+  SinkInquiryType.GET_BATTERY_CAP,
 ])
 const TIMESTRIP_INSTRUMENT_IDENTIFIER = 'com.mta.drpd.timestrip'
 const FIRMWARE_RELEASE_OWNER = 'T76-org'
@@ -1696,6 +1701,15 @@ export const RackView = ({
       void surveyCountryInformation(activeDriver.sink)
         .then(({ summary }) => activeDriver.markLog(
           `${COUNTRY_INFORMATION_EVENT_TITLE}\n${summary}`,
+        ))
+        .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
+      return
+    }
+    if (definition.type === SinkInquiryType.GET_BATTERY_CAP) {
+      setDeviceError(null)
+      void surveyBatteryCapabilities(activeDriver.sink)
+        .then(({ summary }) => activeDriver.markLog(
+          `${BATTERY_CAPABILITIES_EVENT_TITLE}\n${summary}`,
         ))
         .catch((error) => setDeviceError(error instanceof Error ? error.message : String(error)))
       return

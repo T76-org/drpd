@@ -142,7 +142,7 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   } as InquiryDefinition<Record<string, unknown>>,
   {
     id: 'get-battery-capabilities', type: SinkInquiryType.GET_BATTERY_CAP,
-    label: 'Get battery capabilities…', description: 'Ask for capabilities of battery reference 0–7.',
+    label: 'Get battery capabilities', description: 'Discover every advertised battery and collect its capabilities.',
     workflow: 'parameterized', parameters: [{ kind: 'integer', name: 'batteryReference', label: 'Battery reference', min: 0, max: 7 }], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_BATTERY_CAP, batteryReference: values.batteryReference as number }), active: true,
