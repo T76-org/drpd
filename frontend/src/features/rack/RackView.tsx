@@ -1707,8 +1707,7 @@ export const RackView = ({
       return
     }
     if (definition.workflow !== 'immediate' &&
-      (definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ||
-        definition.type === SinkInquiryType.DISCOVER_MODES)) {
+      definition.type === SinkInquiryType.GET_MANUFACTURER_INFO) {
       setSourceInquiryDefinition(definition)
       return
     }

@@ -157,6 +157,10 @@ describe('Port Partner VDM workflow helpers', () => {
       'Modes for SVID 0x5678',
     ])
     expect(result.eventData![1].entries.find((entry) => entry.key === 'Mode 2 VDO')?.value).toContain('0x01020304')
+    expect(result.eventData![1].entries.find((entry) => entry.key === 'Mode 1 Binary (bits 31:0)')?.value).toContain('1101 1110 1010 1101 1011 1110 1110 1111')
+    expect(result.eventData![1].entries.find((entry) => entry.key === 'Mode 1 Octets')?.value).toContain('bits 31:24 = `DE`')
+    expect(result.eventData![1].entries.find((entry) => entry.key === 'Mode 1 Nibbles')?.value).toContain('bits 31:28 = `0xD`')
+    expect(result.eventData![1].entries.find((entry) => entry.key === 'Mode 1 Interpretation')?.value).toContain('without inventing vendor-specific semantics')
     expect(result.eventData![2].entries).toContainEqual({ key: 'Outcome', value: 'Not Supported' })
   })
 

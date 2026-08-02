@@ -21,6 +21,7 @@ const bytesToHex = (bytes: Uint8Array): string =>
 
 const hex16 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
 const hex32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
+const hexByte = (value: number): string => value.toString(16).toUpperCase().padStart(2, '0')
 const rawHex = (bytes: Uint8Array): string => `\`${bytesToHex(bytes) || '(empty)'}\``
 const detail = (value: string, explanation: string): string => `${value}\n\n_${explanation}_`
 const bits = (value: number, width: number): string => `\`0b${value.toString(2).padStart(width, '0')}\``
@@ -39,6 +40,29 @@ const vconnPowerMeaning = (code: number): string => ['1 W', '1.5 W', '2 W', '3 W
 const enabledMeanings = (value: number, meanings: string[]): string => {
   const enabled = meanings.filter((_, bit) => (value & (1 << bit)) !== 0)
   return enabled.length ? enabled.join('; ') : 'No capabilities asserted'
+}
+
+const svidName = (svid: number): string => {
+  if (svid === 0xff00) return 'USB-IF'
+  if (svid === 0xff01) return 'DisplayPort'
+  if (svid === 0x8087) return 'Intel / Thunderbolt'
+  return 'Vendor-defined'
+}
+
+const modeVdoEntries = (svid: number, vdo: number, index: number): LoggedEventDataSection['entries'] => {
+  const rawBytes = new Uint8Array([vdo & 0xff, (vdo >>> 8) & 0xff, (vdo >>> 16) & 0xff, (vdo >>> 24) & 0xff])
+  const binary = (vdo >>> 0).toString(2).padStart(32, '0').match(/.{1,4}/g)?.join(' ') ?? ''
+  return [
+    { key: `Mode ${index + 1} VDO`, value: detail(`\`${hex32(vdo)}\``, `Mode ${index + 1} for ${hex16(svid)} (${svidName(svid)}). Raw little-endian bytes: ${rawHex(rawBytes)}.`) },
+    { key: `Mode ${index + 1} Binary (bits 31:0)`, value: `\`${binary}\` — grouped into eight 4-bit nibbles, most-significant first.` },
+    { key: `Mode ${index + 1} Octets`, value: `bits 31:24 = \`${hexByte((vdo >>> 24) & 0xff)}\`; bits 23:16 = \`${hexByte((vdo >>> 16) & 0xff)}\`; bits 15:8 = \`${hexByte((vdo >>> 8) & 0xff)}\`; bits 7:0 = \`${hexByte(vdo & 0xff)}\`.` },
+    { key: `Mode ${index + 1} Nibbles`, value: Array.from({ length: 8 }, (_, nibble) => {
+      const lowBit = nibble * 4
+      const highBit = lowBit + 3
+      return `bits ${highBit}:${lowBit} = \`0x${((vdo >>> lowBit) & 0xf).toString(16).toUpperCase()}\``
+    }).reverse().join('; ') + '.' },
+    { key: `Mode ${index + 1} Interpretation`, value: `The field-level meaning is defined by SVID **${hex16(svid)} (${svidName(svid)})**, not by USB Power Delivery. Dr. PD preserves the complete value and exposes byte, bit, and nibble boundaries without inventing vendor-specific semantics.` },
+  ]
 }
 
 const isUfpVdo = (vdo: ParsedDiscoverIdentity['productTypeVDOs'][number]): vdo is ParsedUFPVDO =>
@@ -156,10 +180,7 @@ export const surveySinglePortPartnerModes = async (
           { key: 'Selected SVID', value: `**${formattedSvid}**` },
           ...vdmHeaderEntries(result.rawResponse),
           { key: 'Mode Count', value: `${modeVdos.length}` },
-          ...modeVdos.map((vdo, index) => ({
-            key: `Mode ${index + 1} VDO`,
-            value: detail(`\`${hex32(vdo)}\``, `Raw mode-specific value; interpretation is defined by SVID ${formattedSvid}.`),
-          })),
+          ...modeVdos.flatMap((vdo, index) => modeVdoEntries(svid, vdo, index)),
           { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Modes ACK logical response body.') },
         ],
       }],
@@ -356,7 +377,7 @@ export const surveyPortPartnerModes = async (
         { key: 'Selected SVID', value: `**${formattedSvid}**` },
         ...vdmHeaderEntries(result.rawResponse),
         { key: 'Mode Count', value: `${modeVdos.length}` },
-        ...modeVdos.map((vdo, index) => ({ key: `Mode ${index + 1} VDO`, value: detail(`\`${hex32(vdo)}\``, `Raw mode-specific value returned in VDO ${index + 1}; interpretation is defined by SVID ${formattedSvid}.`) })),
+        ...modeVdos.flatMap((vdo, index) => modeVdoEntries(svid, vdo, index)),
         { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Modes ACK logical response body.') },
       ] })
     } catch (error) {
