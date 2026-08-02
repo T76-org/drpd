@@ -4,7 +4,11 @@
  */
 
 #include "sink_context.hpp"
+#include "cable_inquiry.hpp"
+#include "authentication_inquiry.hpp"
 #include "sink_raw_pd_message.hpp"
+#include "inquiry_descriptor.hpp"
+#include "inquiry_capability_selection.hpp"
 
 #include <algorithm>
 #include <array>
@@ -16,6 +20,7 @@
 #include "state_handlers/epr_mode_exit.hpp"
 #include "state_handlers/epr_mode_entry.hpp"
 #include "state_handlers/get_pps_status.hpp"
+#include "state_handlers/inquiry.hpp"
 #include "state_handlers/ready.hpp"
 #include "state_handlers/send_response.hpp"
 #include "state_handlers/send_soft_reset.hpp"
@@ -49,6 +54,7 @@ SinkContext::SinkContext(
     EPRModeExitStateHandler& eprModeExitStateHandler,
     EPRModeEntryStateHandler& eprModeEntryStateHandler,
     GetPPSStatusStateHandler& getPPSStatusStateHandler,
+    InquiryStateHandler& inquiryStateHandler,
     ReadySinkStateHandler& readySinkStateHandler,
     SendResponseStateHandler& sendResponseStateHandler,
     SendSoftResetStateHandler& sendSoftResetStateHandler,
@@ -72,6 +78,7 @@ SinkContext::SinkContext(
     _eprModeExitStateHandler(eprModeExitStateHandler),
     _eprModeEntryStateHandler(eprModeEntryStateHandler),
     _getPPSStatusStateHandler(getPPSStatusStateHandler),
+    _inquiryStateHandler(inquiryStateHandler),
     _readySinkStateHandler(readySinkStateHandler),
     _sendResponseStateHandler(sendResponseStateHandler),
     _sendSoftResetStateHandler(sendSoftResetStateHandler),
@@ -161,6 +168,10 @@ void SinkContext::transitionTo(SinkState state) {
             _runtimeState._currentStateHandler = &_getPPSStatusStateHandler;
             break;
 
+        case SinkState::PE_SNK_Inquiry:
+            _runtimeState._currentStateHandler = &_inquiryStateHandler;
+            break;
+
         case SinkState::PE_SNK_EPR_Keepalive:
             _runtimeState._currentStateHandler = &_eprKeepaliveStateHandler;
             break;
@@ -179,6 +190,9 @@ void SinkContext::transitionTo(SinkState state) {
 
 void SinkContext::performReset(SinkResetType resetType) {
     const auto negotiatedRevision = _runtimeState._specRevision;
+    for (auto &version : _structuredVDMVersions) {
+        version.updateAttachment(_ccBusController.state() == CCBusState::Attached);
+    }
     if (resetType == SinkResetType::SoftReset) {
         reportError("Sink protocol error; initiating Soft Reset", resetType);
     } else if (resetType == SinkResetType::HardReset) {
@@ -202,8 +216,17 @@ void SinkContext::performReset(SinkResetType resetType) {
         }
     }
 
-    _messageSender.reset();
-    _runtimeState.resetStoredReceivedMessageId();
+    // USB PD 3.2 ss2.6/6.8.3.1: cable electronics detect Hard Reset and
+    // power-cycle, so Hard Reset resets cable protocol domains as well.
+    const bool resetCableProtocolState = resetType != SinkResetType::SoftReset;
+    if (resetType == SinkResetType::HardReset) resetCableProtocol();
+    if (resetCableProtocolState) {
+        _messageSender.reset();
+        _runtimeState.resetStoredReceivedMessageId();
+    } else {
+        _messageSender.resetTarget(Proto::SOP::SOPType::SOP);
+        _runtimeState.resetStoredReceivedMessageId(0);
+    }
 
     if (resetType == SinkResetType::HardReset &&
         _ccBusController.state() == CCBusState::Attached) {
@@ -216,7 +239,7 @@ void SinkContext::performReset(SinkResetType resetType) {
     if (_runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->reset(*this);
     }
-    _runtimeState.reset();
+    _runtimeState.reset(resetCableProtocolState);
 
     if (resetType == SinkResetType::SoftReset) {
         _runtimeState._specRevision = negotiatedRevision;
@@ -264,15 +287,34 @@ void SinkContext::resetHardResetCounter() {
     _hardResetCounter = 0;
 }
 
-void SinkContext::handleReceivedSoftReset(Proto::PDHeader::SpecRevision receivedRevision) {
-    _messageSender.reset();
-    _runtimeState.resetStoredReceivedMessageId();
+void SinkContext::handleReceivedSoftReset(
+    Proto::SOP::SOPType sopTarget,
+    Proto::PDHeader::SpecRevision receivedRevision) {
+    if (sopTarget != Proto::SOP::SOPType::SOP) {
+        const size_t targetIndex = sopTarget == Proto::SOP::SOPType::SOPPrime ? 1 : 2;
+        _messageSender.resetTarget(sopTarget);
+        _runtimeState.resetStoredReceivedMessageId(targetIndex);
+        if (_runtimeState._state == SinkState::PE_SNK_Inquiry) {
+            _runtimeState.finishInquiry(SinkInquiryOutcome::Aborted);
+        }
+        const Proto::ControlMessage accept;
+        PHY::BMCEncodedMessage response(sopTarget, accept);
+        response.header().rawMessageType(
+            static_cast<uint32_t>(Proto::ControlMessageType::Accept));
+        response.header().numDataObjects(0);
+        response.header().specRevision(Proto::negotiatedSpecRevision(receivedRevision));
+        _sendResponseStateHandler.prepareResponse(response, SinkState::PE_SNK_Ready);
+        transitionTo(SinkState::PE_SNK_Send_Response);
+        return;
+    }
+    _messageSender.resetTarget(Proto::SOP::SOPType::SOP);
+    _runtimeState.resetStoredReceivedMessageId(0);
 
     if (_runtimeState._currentStateHandler) {
         _runtimeState._currentStateHandler->reset(*this);
     }
 
-    _runtimeState.reset();
+    _runtimeState.reset(false);
     _runtimeState._specRevision = Proto::negotiatedSpecRevision(receivedRevision);
 
     if (_ccBusController.state() != CCBusState::Attached) {
@@ -743,6 +785,231 @@ bool SinkContext::sendGetPPSStatus() {
     header.specRevision(specRevision());
 
     return sendSinkInitiatedMessageAndAwaitGoodCRC(message);
+}
+
+bool SinkContext::sendInquiryRequest(const SinkInquiryRequest& request) {
+    const auto descriptor = sinkInquiryDescriptor(request.type);
+    if (!descriptor.has_value()) {
+        return false;
+    }
+    if (descriptor->parameterKind == InquiryParameterKind::Authentication) {
+        return sendAuthenticationRequestChunk(request, 0);
+    }
+    const uint32_t selector = static_cast<uint32_t>(request.parameters.selector[0]) |
+        (static_cast<uint32_t>(request.parameters.selector[1]) << 8) |
+        (static_cast<uint32_t>(request.parameters.selector[2]) << 16) |
+        (static_cast<uint32_t>(request.parameters.selector[3]) << 24);
+    if (!inquiryParametersApplicable(
+            descriptor.value(), request.parameters.target,
+            request.parameters.argument, selector)) {
+        return false;
+    }
+
+    const size_t sopIndex = static_cast<size_t>(request.parameters.sopTarget);
+    if (sopIndex >= _structuredVDMVersions.size()) return false;
+    const auto &vdmVersion = _structuredVDMVersions[sopIndex];
+    const auto body = encodeInquiryBody(
+        descriptor.value(), request.parameters.target,
+        request.parameters.argument, selector,
+        vdmVersion.major, vdmVersion.minor);
+    std::array<uint8_t, 4> rawBody = body.bytes;
+    uint32_t dataObjects = descriptor->requestDataObjects;
+    if (descriptor->requestClass == InquiryMessageClass::Extended) {
+        const auto frame = encodeExtendedInquiryFrame(
+            descriptor.value(), request.parameters.target,
+            request.parameters.argument, selector);
+        if (!frame.valid) return false;
+        rawBody = frame.bytes;
+        dataObjects = 1;
+    }
+    const SinkRawPDMessage rawMessage(
+        std::span<const uint8_t>(rawBody.data(), dataObjects * 4),
+        dataObjects, descriptor->requestMessageType);
+    Proto::SOP::SOPType sopTarget = Proto::SOP::SOPType::SOP;
+    if (request.parameters.sopTarget != SinkInquirySOPTarget::SOP) {
+        const auto intent = cableHeaderIntent(request.parameters.sopTarget);
+        sopTarget = intent.targetIndex == 1
+            ? Proto::SOP::SOPType::SOPPrime
+            : Proto::SOP::SOPType::SOPDoublePrime;
+    }
+    PHY::BMCEncodedMessage message(sopTarget, rawMessage);
+    auto &header = message.header();
+    header.rawMessageType(descriptor->requestMessageType);
+    header.numDataObjects(dataObjects);
+    header.extended(descriptor->requestClass == InquiryMessageClass::Extended);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(specRevision());
+    sendMessageAndAwaitGoodCRC(message);
+    return true;
+}
+
+bool SinkContext::sendAuthenticationRequestChunk(
+    const SinkInquiryRequest& request, uint8_t chunkNumber) {
+    const auto descriptor = sinkInquiryDescriptor(request.type);
+    if (!descriptor.has_value() ||
+        descriptor->parameterKind != InquiryParameterKind::Authentication ||
+        !authenticationParametersValid(request.type, request.parameters)) return false;
+    const auto logical = encodeAuthenticationRequest(request.type, request.parameters);
+    const auto frame = encodeAuthenticationChunk(logical, chunkNumber);
+    if (!frame.valid) return false;
+    const SinkRawPDMessage rawMessage(
+        std::span<const uint8_t>(frame.bytes.data(), frame.dataObjects * 4),
+        frame.dataObjects, static_cast<uint32_t>(Proto::ExtendedMessageType::Security_Request));
+    PHY::BMCEncodedMessage message(Proto::SOP::SOPType::SOP, rawMessage);
+    auto &header = message.header();
+    header.extended(true);
+    header.extendedMessageType(Proto::ExtendedMessageType::Security_Request);
+    header.portDataRole(Proto::PDHeader::PortDataRole::UFP);
+    header.portPowerRole(Proto::PDHeader::PortPowerRole::Sink);
+    header.specRevision(specRevision());
+    sendMessageAndAwaitGoodCRC(message);
+    return true;
+}
+
+bool SinkContext::recordStructuredVDMIdentityACK(
+    SinkInquirySOPTarget sopTarget, std::span<const uint8_t> payload) {
+    if (payload.size() < 4) return false;
+    const uint32_t rawHeader = static_cast<uint32_t>(payload[0]) |
+        (static_cast<uint32_t>(payload[1]) << 8) |
+        (static_cast<uint32_t>(payload[2]) << 16) |
+        (static_cast<uint32_t>(payload[3]) << 24);
+    const size_t sopIndex = static_cast<size_t>(sopTarget);
+    if (sopIndex >= _structuredVDMVersions.size()) return false;
+    const bool recorded = _structuredVDMVersions[sopIndex].recordIdentityACK(
+        static_cast<uint8_t>((rawHeader >> 13) & 0x03u),
+        static_cast<uint8_t>((rawHeader >> 11) & 0x03u));
+    if (!recorded) return false;
+    if (sopTarget == SinkInquirySOPTarget::SOPPrime) {
+        _sopPrimeActiveCableIdentityKnown = false;
+        _sopDoublePrimeControllerKnown = false;
+        if (payload.size() >= 8) {
+            const uint32_t idHeader = static_cast<uint32_t>(payload[4]) |
+                (static_cast<uint32_t>(payload[5]) << 8) |
+                (static_cast<uint32_t>(payload[6]) << 16) |
+                (static_cast<uint32_t>(payload[7]) << 24);
+            const bool activeCable = ((idHeader >> 27) & 0x7u) == 0x4u;
+            if (activeCable && payload.size() < 20) return false;
+            if (!activeCable) return true;
+            const uint32_t activeCableVDO1 = static_cast<uint32_t>(payload[16]) |
+                (static_cast<uint32_t>(payload[17]) << 8) |
+                (static_cast<uint32_t>(payload[18]) << 16) |
+                (static_cast<uint32_t>(payload[19]) << 24);
+            _sopPrimeActiveCableIdentityKnown = true;
+            _sopDoublePrimeControllerKnown =
+                ((activeCableVDO1 >> 3) & 0x1u) != 0;
+        }
+    }
+    return true;
+}
+
+void SinkContext::resetStructuredVDMAttachment() {
+    for (auto &version : _structuredVDMVersions) version.updateAttachment(false);
+    _sopPrimeActiveCableIdentityKnown = false;
+    _sopDoublePrimeControllerKnown = false;
+}
+
+void SinkContext::resetCableProtocol() {
+    // USB PD 3.2 ss6.8.4: Cable Reset is equivalent to a cable power cycle.
+    _messageSender.resetTarget(Proto::SOP::SOPType::SOPPrime);
+    _messageSender.resetTarget(Proto::SOP::SOPType::SOPDoublePrime);
+    _runtimeState.resetStoredReceivedMessageId(1);
+    _runtimeState.resetStoredReceivedMessageId(2);
+    _structuredVDMVersions[1].updateAttachment(false);
+    _structuredVDMVersions[2].updateAttachment(false);
+    _structuredVDMVersions[1].updateAttachment(true);
+    _structuredVDMVersions[2].updateAttachment(true);
+    _sopPrimeActiveCableIdentityKnown = false;
+    _sopDoublePrimeControllerKnown = false;
+}
+
+std::optional<SinkRuntimeState::ExtendedPayloadBuffer>
+SinkContext::takeInquiryExtendedPayload() {
+    auto payload = _runtimeState._completedInquiryExtendedPayload;
+    _runtimeState._completedInquiryExtendedPayload.reset();
+    return payload;
+}
+
+void SinkContext::handleMessageAsReady(const PHY::BMCDecodedMessage *message) {
+    _readySinkStateHandler.handleMessage(*this, message);
+}
+
+bool SinkContext::cacheInquiryResponse(
+    SinkInquiryType type,
+    const PHY::BMCDecodedMessage *message,
+    std::span<const uint8_t> payload) {
+    auto copyExtended = [payload](
+        std::optional<SinkRuntimeState::ExtendedPayloadBuffer>& destination) {
+        if (payload.size() > LOGIC_SINK_MAX_EXTENDED_PAYLOAD_BYTES) return false;
+        SinkRuntimeState::ExtendedPayloadBuffer value;
+        value.length = payload.size();
+        std::copy(payload.begin(), payload.end(), value.bytes.begin());
+        destination = value;
+        return true;
+    };
+    switch (type) {
+        case SinkInquiryType::GetSourceCapabilities: {
+            const auto header = message->decodedHeader();
+            Proto::SourceCapabilities capabilities(payload, header.numDataObjects());
+            if (capabilities.pdoCount() == 0) return false;
+            setSourceCapabilities(capabilities, header.specRevision());
+            return true;
+        }
+        case SinkInquiryType::GetSourceCapabilitiesExtended:
+            return copyExtended(_runtimeState._sourceCapabilitiesExtended);
+        case SinkInquiryType::GetStatus:
+            return copyExtended(_runtimeState._sourceStatus);
+        case SinkInquiryType::GetPPSStatus: {
+            Proto::PPSStatus status(payload);
+            if (!status.valid()) return false;
+            _runtimeState._ppsStatus = status;
+            return true;
+        }
+        case SinkInquiryType::GetRevision:
+        case SinkInquiryType::GetSourceInfo:
+        case SinkInquiryType::GetManufacturerInfo:
+        case SinkInquiryType::GetCountryCodes:
+        case SinkInquiryType::GetCountryInfo:
+        case SinkInquiryType::GetBatteryCapabilities:
+        case SinkInquiryType::GetBatteryStatus:
+        case SinkInquiryType::DiscoverIdentity:
+        case SinkInquiryType::DiscoverSVIDs:
+        case SinkInquiryType::DiscoverModes:
+            return true;
+    }
+    return false;
+}
+
+void SinkContext::requestAfterSourceCapabilitiesInquiry(
+    std::optional<uint32_t> previousRawPDO,
+    uint32_t previousVoltageMV,
+    uint32_t previousCurrentMA) {
+    std::array<uint32_t, 7> refreshedRawPDOs = {};
+    const size_t count = std::min(totalPDOCount(), refreshedRawPDOs.size());
+    for (size_t i = 0; i < count; ++i) {
+        const auto pdo = pdoAtIndex(i);
+        if (pdo.has_value()) {
+            refreshedRawPDOs[i] = std::visit(
+                [](const auto& typedPDO) { return typedPDO.raw(); }, pdo.value());
+        }
+    }
+    const auto selection = selectRefreshedCapability(
+        previousRawPDO, std::span<const uint32_t>(refreshedRawPDOs.data(), count));
+    if (selection.provenance == CapabilityRefreshSelectionProvenance::NoCapabilities) {
+        reportError("Source capability inquiry returned no requestable PDOs");
+        return;
+    }
+    if (selection.provenance == CapabilityRefreshSelectionProvenance::MatchedPreviousPDO) {
+        const auto result = requestPDO(
+            selection.index, previousVoltageMV, previousCurrentMA, true);
+        if (result) return;
+        reportWarning(
+            "refreshed Source_Capabilities matched prior PDO but prior contract values were invalid; using safe first-PDO fallback");
+    } else {
+        reportWarning(
+            "refreshed Source_Capabilities did not contain prior negotiated PDO; using safe first-PDO fallback");
+    }
+    (void)requestPDO(0, 0, 0, true);
 }
 
 void SinkContext::sendManufacturerInfo(std::span<const uint8_t> requestPayload) {

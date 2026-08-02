@@ -44,7 +44,7 @@ The USB-PD protocol includes some special types of power contracts that allow fo
 Dr. PD is fully compatible with both PPS and AVS. If your source supports PPS or AVS contracts, you can use them to test the source's behavior under different voltage and current conditions, and to perform energy measurements at different power levels without triggering the source's protection mechanisms.
 
 :::tip[Requesting PPS status information]
-In PPS mode, Dr. PD can send a `Get_PPS_Status` message to an attached source in order to request information about the current PPS contract, such as the voltage and current levels that are currently being delivered. This feature is off by default because it can add a significant amount of chatter to the message log, but you can enable it by selecting Mode → Sink behaviour → Send Get_PPS_Status messages from the menu.
+With an active PPS contract, select **Mode → Sink behaviour → Send inquiry to source → Get PPS status** to request the voltage, current, and operating status reported by the attached Source. This sends one explicit `Get_PPS_Status` inquiry.
 :::
 
 ## Enabling support for EPR

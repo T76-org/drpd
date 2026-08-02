@@ -4,16 +4,88 @@ Copyright (c) 2025 MTA, Inc.
 Unit tests for the DeviceSink class.
 """
 
+import asyncio
 import unittest
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
-from t76.drpd.device.device_sink import DeviceSink
+from t76.drpd.device.device_sink import (
+    DeviceSink,
+    SinkInquiryRunner,
+    SinkInquirySupersededError,
+)
 from t76.drpd.device.device_sink_pdos import (
     BatteryPDO,
     FixedPDO,
     VariablePDO,
 )
-from t76.drpd.device.types import SinkRequestOutcome, SinkState
+from t76.drpd.device.types import (
+    BatteryCapabilitiesInquiryData,
+    BatteryCapacityMeaning,
+    BatteryChargingState,
+    BatteryInquiryFailureAction,
+    BatteryReferenceKind,
+    BatteryStatusInquiryData,
+    CableDiscoverIdentityInquiryRequest,
+    CableDiscoverModesInquiryRequest,
+    CableDiscoverSVIDsInquiryRequest,
+    CableManufacturerInfoInquiryRequest,
+    CablePlug,
+    CableRevisionInquiryRequest,
+    CableStatusInquiryData,
+    CableStatusInquiryRequest,
+    ChallengeInquiryRequest,
+    CountryCodesInquiryData,
+    CountryInfoInquiryData,
+    CountryInquiryFailureAction,
+    DiscoverIdentityInquiryData,
+    DiscoverIdentityInquiryRequest,
+    DiscoverModesInquiryData,
+    DiscoverModesInquiryRequest,
+    DiscoverSVIDsInquiryData,
+    DiscoverSVIDsInquiryRequest,
+    ExtendedSourceCapabilitiesInquiryData,
+    GetExtendedSourceCapabilitiesInquiryRequest,
+    GetBatteryCapabilitiesInquiryRequest,
+    GetBatteryStatusInquiryRequest,
+    GetCountryCodesInquiryRequest,
+    GetCountryInfoInquiryRequest,
+    GetCertificateInquiryRequest,
+    GetDigestsInquiryRequest,
+    GetManufacturerInfoInquiryRequest,
+    GetPPSStatusInquiryRequest,
+    GetRevisionInquiryRequest,
+    GetSourceCapabilitiesInquiryRequest,
+    GetSourceInfoInquiryRequest,
+    GetStatusInquiryRequest,
+    ManufacturerInfoInquiryData,
+    ManufacturerInfoTarget,
+    PPSStatusInquiryData,
+    RevisionInquiryData,
+    SinkInquiryOutcome,
+    SinkInquiryType,
+    SinkRequestOutcome,
+    SinkState,
+    SourceCapabilitiesInquiryData,
+    SourceInfoInquiryData,
+    SourceStatusInquiryData,
+    StructuredVDMNegativeResponseData,
+    VDMDiscoveryFailureAction,
+)
+
+
+def _svdm_ack_header(
+    svid: int, command: int, minor: int = 0, command_type: int = 1
+) -> bytes:
+    raw = (
+        (svid << 16)
+        | (1 << 15)
+        | (1 << 13)
+        | (minor << 11)
+        | (command_type << 6)
+        | command
+    )
+    return raw.to_bytes(4, "little")
 
 
 class TestDeviceSinkModeValidation(unittest.IsolatedAsyncioTestCase):
@@ -225,6 +297,1445 @@ class TestDeviceSinkPDORequest(unittest.IsolatedAsyncioTestCase):
             await self.device_sink.set_pdo(index=0, voltage_mv=5000, current_ma=3000)
 
 
+class TestDeviceSinkInquiry(unittest.IsolatedAsyncioTestCase):
+    async def test_authentication_requests_encode_semantic_parameters(self) -> None:
+        await self.device_sink.send_inquiry(GetDigestsInquiryRequest())
+        await self.device_sink.send_inquiry(GetCertificateInquiryRequest(2, 256, 128))
+        await self.device_sink.send_inquiry(ChallengeInquiryRequest(3, bytes([0xAB]) * 32))
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ GET_DIGESTS",
+                "SINK:INQ GET_CERTIFICATE,2,256,128",
+                f'SINK:INQ CHALLENGE,3,"{"AB" * 32}"',
+            ],
+        )
+        with self.assertRaises(ValueError):
+            GetCertificateInquiryRequest(0, 4095, 2)
+        with self.assertRaises(ValueError):
+            ChallengeInquiryRequest(0, bytes(31))
+
+    """Tests for Sink-to-Source inquiry methods."""
+
+    async def asyncSetUp(self) -> None:
+        self.mock_internal = AsyncMock()
+        self.device_sink = DeviceSink(self.mock_internal)
+
+    async def test_send_inquiry(self) -> None:
+        await self.device_sink.send_inquiry(SinkInquiryType.GET_REVISION)
+        self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+            "SINK:INQ GET_REVISION"
+        )
+
+    async def test_send_inquiry_supports_every_source_information_token(self) -> None:
+        for inquiry_type in SinkInquiryType:
+            with self.subTest(inquiry_type=inquiry_type):
+                self.mock_internal.reset_mock()
+                await self.device_sink.send_inquiry(inquiry_type)
+                self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+                    f"SINK:INQ {inquiry_type.value}"
+                )
+
+    async def test_semantic_inquiry_parameters_encode_without_pd_headers(self) -> None:
+        vectors = [
+            (
+                GetManufacturerInfoInquiryRequest(),
+                'SINK:INQ GET_MANUFACTURER_INFO,"PORT"',
+            ),
+            (
+                GetManufacturerInfoInquiryRequest(
+                    ManufacturerInfoTarget.BATTERY, 3
+                ),
+                'SINK:INQ GET_MANUFACTURER_INFO,"BATTERY",3',
+            ),
+            (
+                GetCountryInfoInquiryRequest("ca"),
+                'SINK:INQ GET_COUNTRY_INFO,"CA"',
+            ),
+            (
+                GetCountryCodesInquiryRequest(),
+                "SINK:INQ GET_COUNTRY_CODES",
+            ),
+        ]
+        for request, expected in vectors:
+            with self.subTest(request=request):
+                self.mock_internal.reset_mock()
+                await self.device_sink.send_inquiry(request)
+                self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+                    expected
+                )
+
+    async def test_semantic_inquiry_parameter_validation(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must be omitted"):
+            GetManufacturerInfoInquiryRequest(
+                ManufacturerInfoTarget.PORT, 0
+            )
+        for reference in (-1, 8):
+            with self.subTest(reference=reference):
+                with self.assertRaisesRegex(ValueError, "between 0 and 7"):
+                    GetManufacturerInfoInquiryRequest(
+                        ManufacturerInfoTarget.BATTERY, reference
+                    )
+        self.assertEqual(GetCountryInfoInquiryRequest("ca").country_code, "CA")
+        for code in ("C", "CAN", "C1", "ÇA"):
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(ValueError, "ASCII letters"):
+                    GetCountryInfoInquiryRequest(code)
+
+    async def test_get_inquiry_status(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "RESPONSE,17,GET_REVISION,1,12,6"
+        ]
+        status = await self.device_sink.get_inquiry_status()
+        self.assertEqual(status.outcome, SinkInquiryOutcome.RESPONSE)
+        self.assertEqual(status.request_id, 17)
+        self.assertEqual(status.type, SinkInquiryType.GET_REVISION)
+        self.assertEqual(status.response_class, 1)
+        self.assertEqual(status.response_type, 12)
+        self.assertEqual(status.response_length, 6)
+
+    async def test_get_inquiry_status_rejects_malformed_response(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "RESPONSE,17,GET_REVISION"
+        ]
+        with self.assertRaisesRegex(ValueError, "must contain 6 fields"):
+            await self.device_sink.get_inquiry_status()
+
+    async def test_get_inquiry_status_rejects_unknown_tokens(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "MADE_UP,17,GET_REVISION,1,12,6"
+        ]
+        with self.assertRaisesRegex(ValueError, "Unknown sink inquiry outcome"):
+            await self.device_sink.get_inquiry_status()
+
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "RESPONSE,17,UNKNOWN,1,12,6"
+        ]
+        with self.assertRaisesRegex(ValueError, "Unknown sink inquiry type"):
+            await self.device_sink.get_inquiry_status()
+
+    async def test_get_inquiry_status_parses_every_outcome(self) -> None:
+        for outcome in SinkInquiryOutcome:
+            with self.subTest(outcome=outcome):
+                self.mock_internal.query_ascii_values_and_check.return_value = [
+                    f"{outcome.value},17,GET_REVISION,0,0,0"
+                ]
+                status = await self.device_sink.get_inquiry_status()
+                self.assertEqual(status.outcome, outcome)
+
+    async def test_get_inquiry_response_normalizes_bytes(self) -> None:
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            0x12, 0x34, 0xAB
+        ]
+        response = await self.device_sink.get_inquiry_response()
+        self.assertEqual(response, b"\x12\x34\xab")
+        self.mock_internal.query_binary_value_and_check.assert_awaited_once_with(
+            "SINK:INQ:RESP?"
+        )
+
+    async def test_run_inquiry_correlates_response_and_retains_history(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["RESPONSE,7,GET_REVISION,2,12,4"],
+            ["PENDING,8,GET_REVISION,0,0,0"],
+            ["RESPONSE,8,GET_REVISION,2,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            1, 2, 3, 4
+        ]
+
+        request = GetRevisionInquiryRequest()
+        result = await self.device_sink.run_inquiry(
+            request, poll_interval_seconds=0
+        )
+
+        self.assertIs(result.request, request)
+        self.assertEqual(result.status.request_id, 8)
+        self.assertEqual(result.raw_response, b"\x01\x02\x03\x04")
+        self.assertIsInstance(result.decoded, RevisionInquiryData)
+        self.assertEqual(self.device_sink.inquiry_runner.history, (result,))
+        self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+            "SINK:INQ GET_REVISION"
+        )
+
+    async def test_run_inquiry_does_not_fetch_body_for_terminal_error(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["RESPONSE,2,GET_REVISION,1,12,4"],
+            ["NOT_SUPPORTED,3,GET_REVISION,0,0,0"],
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetRevisionInquiryRequest(), poll_interval_seconds=0
+        )
+
+        self.assertEqual(result.status.outcome, SinkInquiryOutcome.NOT_SUPPORTED)
+        self.assertIsNone(result.raw_response)
+        self.mock_internal.query_binary_value_and_check.assert_not_awaited()
+
+    async def test_run_inquiry_detects_superseded_id(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["RESPONSE,2,GET_REVISION,1,12,4"],
+            ["PENDING,3,GET_REVISION,0,0,0"],
+            ["PENDING,4,GET_REVISION,0,0,0"],
+        ]
+
+        with self.assertRaisesRegex(
+            SinkInquirySupersededError, "superseded"
+        ):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_run_inquiry_rejects_mismatched_response_length(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_REVISION,2,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [1, 2]
+
+        with self.assertRaisesRegex(ValueError, "expected 4, got 2"):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_runner_serializes_concurrent_callers(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["WAIT,2,GET_REVISION,0,0,0"],
+        ]
+
+        first, second = await asyncio.gather(
+            self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            ),
+            self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), poll_interval_seconds=0
+            ),
+        )
+
+        self.assertEqual(first.status.request_id, 1)
+        self.assertEqual(second.status.request_id, 2)
+        self.assertEqual(
+            [entry.status.request_id for entry in
+             self.device_sink.inquiry_runner.history],
+            [1, 2],
+        )
+
+    async def test_run_inquiry_times_out_when_id_never_advances(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "NONE,0,GET_REVISION,0,0,0"
+        ]
+
+        with self.assertRaisesRegex(TimeoutError, "within 2 polls"):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(),
+                poll_interval_seconds=0,
+                max_polls=2,
+            )
+
+    async def test_runner_bounds_configuration(self) -> None:
+        with self.assertRaisesRegex(ValueError, "history_limit"):
+            SinkInquiryRunner(self.device_sink, history_limit=0)
+        with self.assertRaisesRegex(ValueError, "max_polls"):
+            await self.device_sink.run_inquiry(
+                GetRevisionInquiryRequest(), max_polls=0
+            )
+
+    async def test_runner_history_is_bounded(self) -> None:
+        runner = SinkInquiryRunner(self.device_sink, history_limit=1)
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_REVISION,0,0,0"],
+            ["WAIT,2,GET_REVISION,0,0,0"],
+        ]
+
+        await runner.run(GetRevisionInquiryRequest(), poll_interval_seconds=0)
+        latest = await runner.run(
+            GetRevisionInquiryRequest(), poll_interval_seconds=0
+        )
+
+        self.assertEqual(runner.history, (latest,))
+
+    async def test_runner_decodes_every_supported_success_body(self) -> None:
+        source_info_raw = (
+            (1 << 31) | (100 << 16) | (65 << 8) | 60
+        ).to_bytes(4, "little")
+        vectors = [
+            (
+                GetSourceCapabilitiesInquiryRequest(),
+                2,
+                0x01,
+                (0x0001912C).to_bytes(4, "little"),
+                SourceCapabilitiesInquiryData,
+            ),
+            (
+                GetExtendedSourceCapabilitiesInquiryRequest(),
+                0,
+                0x01,
+                bytes(range(25)),
+                ExtendedSourceCapabilitiesInquiryData,
+            ),
+            (
+                GetStatusInquiryRequest(),
+                0,
+                0x02,
+                bytes([30, 0x0A, 1, 0x1E, 0x04, 0x22, 0x11]),
+                SourceStatusInquiryData,
+            ),
+            (
+                GetRevisionInquiryRequest(),
+                2,
+                0x0C,
+                bytes([0, 0, 0x21, 0x32]),
+                RevisionInquiryData,
+            ),
+            (
+                GetSourceInfoInquiryRequest(),
+                2,
+                0x0B,
+                source_info_raw,
+                SourceInfoInquiryData,
+            ),
+            (
+                GetPPSStatusInquiryRequest(),
+                0,
+                0x0C,
+                bytes([0xFA, 0x00, 60, 0x0A]),
+                PPSStatusInquiryData,
+            ),
+        ]
+
+        for request_id, vector in enumerate(vectors, start=1):
+            request, response_class, response_type, body, decoded_type = vector
+            with self.subTest(request=request):
+                self.mock_internal.reset_mock()
+                self.mock_internal.query_ascii_values_and_check.side_effect = [
+                    [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                    [
+                        f"RESPONSE,{request_id},{request.type.value},"
+                        f"{response_class},{response_type},{len(body)}"
+                    ],
+                ]
+                self.mock_internal.query_binary_value_and_check.return_value = list(
+                    body
+                )
+                runner = SinkInquiryRunner(self.device_sink)
+
+                result = await runner.run(request, poll_interval_seconds=0)
+
+                self.assertEqual(result.raw_response, body)
+                self.assertIsInstance(result.decoded, decoded_type)
+                self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+                    f"SINK:INQ {request.type.value}"
+                )
+
+    async def test_decoded_success_fields_use_protocol_units(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_PPS_STATUS,0,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            0xFA, 0x00, 60, 0x0A
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetPPSStatusInquiryRequest(), poll_interval_seconds=0
+        )
+        self.assertIsInstance(result.decoded, PPSStatusInquiryData)
+        assert isinstance(result.decoded, PPSStatusInquiryData)
+        self.assertEqual(result.decoded.output_voltage_mv, 5000)
+        self.assertEqual(result.decoded.output_current_ma, 3000)
+        self.assertEqual(result.decoded.present_temperature_flag, 1)
+        self.assertTrue(result.decoded.operating_in_current_limit)
+
+    async def test_runner_rejects_wrong_response_metadata(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_STATUS,2,1,7"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [0] * 7
+
+        with self.assertRaisesRegex(ValueError, "metadata does not match"):
+            await self.device_sink.run_inquiry(
+                GetStatusInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_runner_rejects_malformed_bodies(self) -> None:
+        malformed = [
+            (GetSourceCapabilitiesInquiryRequest(), 2, 1, bytes(3)),
+            (GetExtendedSourceCapabilitiesInquiryRequest(), 0, 1, bytes(23)),
+            (GetExtendedSourceCapabilitiesInquiryRequest(), 0, 1, bytes(26)),
+            (GetStatusInquiryRequest(), 0, 2, bytes(5)),
+            (GetStatusInquiryRequest(), 0, 2, bytes(8)),
+            (GetRevisionInquiryRequest(), 2, 12, bytes(3)),
+            (GetSourceInfoInquiryRequest(), 2, 11, bytes(5)),
+            (GetPPSStatusInquiryRequest(), 0, 12, bytes(5)),
+        ]
+        for request_id, vector in enumerate(malformed, start=1):
+            request, response_class, response_type, body = vector
+            with self.subTest(request=request):
+                self.mock_internal.query_ascii_values_and_check.side_effect = [
+                    [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                    [
+                        f"RESPONSE,{request_id},{request.type.value},"
+                        f"{response_class},{response_type},{len(body)}"
+                    ],
+                ]
+                self.mock_internal.query_binary_value_and_check.return_value = list(
+                    body
+                )
+                runner = SinkInquiryRunner(self.device_sink)
+                with self.assertRaisesRegex(ValueError, "body must"):
+                    await runner.run(request, poll_interval_seconds=0)
+
+    async def test_pps_device_conflict_is_not_rewritten(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "NONE,0,GET_REVISION,0,0,0"
+        ]
+        self.mock_internal.write_ascii_and_check.side_effect = RuntimeError(
+            '-221,"Settings conflict. GET_PPS_STATUS requires SPR PPS"'
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "requires SPR PPS"):
+            await self.device_sink.run_inquiry(
+                GetPPSStatusInquiryRequest(), poll_interval_seconds=0
+            )
+        self.assertEqual(self.device_sink.inquiry_runner.history, ())
+
+    async def test_legacy_extended_capabilities_omits_epr_pdp_explicitly(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_SOURCE_CAP_EXTENDED,0,1,24"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            bytes(range(24))
+        )
+
+        result = await self.device_sink.run_inquiry(
+            GetExtendedSourceCapabilitiesInquiryRequest(),
+            poll_interval_seconds=0,
+        )
+        self.assertIsInstance(
+            result.decoded, ExtendedSourceCapabilitiesInquiryData
+        )
+        assert isinstance(result.decoded, ExtendedSourceCapabilitiesInquiryData)
+        self.assertEqual(result.decoded.payload_length, 24)
+        self.assertIsNone(result.decoded.epr_source_pdp_w)
+        self.assertFalse(result.decoded.has_epr_source_pdp)
+
+    async def test_extended_capabilities_masks_spr_pdp_reserved_bit(self) -> None:
+        body = bytearray(25)
+        body[23] = 0x80 | 65
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_SOURCE_CAP_EXTENDED,0,1,25"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(body)
+
+        result = await self.device_sink.run_inquiry(
+            GetExtendedSourceCapabilitiesInquiryRequest(),
+            poll_interval_seconds=0,
+        )
+        self.assertIsInstance(
+            result.decoded, ExtendedSourceCapabilitiesInquiryData
+        )
+        assert isinstance(result.decoded, ExtendedSourceCapabilitiesInquiryData)
+        self.assertEqual(result.decoded.spr_source_pdp_w, 65)
+
+    async def test_legacy_status_omits_power_state_explicitly(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_STATUS,0,2,6"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            30, 0x0A, 1, 0x1E, 0x04, 0x22
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetStatusInquiryRequest(), poll_interval_seconds=0
+        )
+        self.assertIsInstance(result.decoded, SourceStatusInquiryData)
+        assert isinstance(result.decoded, SourceStatusInquiryData)
+        self.assertEqual(result.decoded.payload_length, 6)
+        self.assertIsNone(result.decoded.power_state)
+        self.assertFalse(result.decoded.has_power_state_change)
+
+    async def test_recovered_pps_wire_quirk_is_logical_four_byte_body(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_PPS_STATUS,0,12,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = [
+            0xFA, 0x00, 60, 0x0A
+        ]
+
+        result = await self.device_sink.run_inquiry(
+            GetPPSStatusInquiryRequest(), poll_interval_seconds=0
+        )
+        self.assertEqual(result.raw_response, bytes([0xFA, 0, 60, 0x0A]))
+        self.assertIsInstance(result.decoded, PPSStatusInquiryData)
+
+    async def test_manufacturer_and_country_success_vectors(self) -> None:
+        vectors = [
+            (
+                GetManufacturerInfoInquiryRequest(),
+                7,
+                b"\x34\x12\x78\x56Acme\x00",
+                ManufacturerInfoInquiryData,
+            ),
+            (
+                GetCountryCodesInquiryRequest(),
+                14,
+                b"\x02\x00CAUS",
+                CountryCodesInquiryData,
+            ),
+            (
+                GetCountryInfoInquiryRequest("ca"),
+                13,
+                b"CA\x00\x00\x01\x02",
+                CountryInfoInquiryData,
+            ),
+        ]
+        for request_id, vector in enumerate(vectors, start=1):
+            request, response_type, body, decoded_type = vector
+            with self.subTest(request=request):
+                self.mock_internal.query_ascii_values_and_check.side_effect = [
+                    [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                    [
+                        f"RESPONSE,{request_id},{request.type.value},0,"
+                        f"{response_type},{len(body)}"
+                    ],
+                ]
+                self.mock_internal.query_binary_value_and_check.return_value = list(
+                    body
+                )
+                runner = SinkInquiryRunner(self.device_sink)
+
+                result = await runner.run(request, poll_interval_seconds=0)
+
+                self.assertEqual(result.raw_response, body)
+                self.assertIsInstance(result.decoded, decoded_type)
+                if isinstance(request, GetCountryInfoInquiryRequest):
+                    assert isinstance(result.decoded, CountryInfoInquiryData)
+                    self.assertEqual(result.decoded.country_code, "CA")
+                    self.assertEqual(
+                        result.decoded.country_specific_data, b"\x01\x02"
+                    )
+
+    async def test_manufacturer_string_fields_and_ascii_validation(self) -> None:
+        bodies = [
+            b"\x34\x12\x78\x56\x00",
+            b"\x34\x12\x78\x56" + b"A" * 21 + b"\x00",
+        ]
+        for request_id, body in enumerate(bodies, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_MANUFACTURER_INFO,0,7,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetManufacturerInfoInquiryRequest(), poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, ManufacturerInfoInquiryData)
+
+        malformed = [
+            b"\x34\x12\x78\x56A",
+            b"\x34\x12\x78\x56\xff\x00",
+            b"\x34\x12\x78\x56A\x00B",
+        ]
+        for request_id, body in enumerate(malformed, start=10):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_MANUFACTURER_INFO,0,7,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    GetManufacturerInfoInquiryRequest(), poll_interval_seconds=0
+                )
+
+    async def test_country_boundaries_and_malformed_payloads(self) -> None:
+        valid_codes = [
+            b"\x01\x00CA",
+            bytes([12, 0]) + b"AA" + b"AB" + b"AC" + b"AD" + b"AE"
+            + b"AF" + b"AG" + b"AH" + b"AI" + b"AJ" + b"AK" + b"AL",
+        ]
+        for request_id, body in enumerate(valid_codes, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_COUNTRY_CODES,0,14,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetCountryCodesInquiryRequest(), poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, CountryCodesInquiryData)
+
+        valid_info = [b"CA\x00\x00", b"CA\x00\x00" + bytes(22)]
+        for request_id, body in enumerate(valid_info, start=20):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},GET_COUNTRY_INFO,0,13,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetCountryInfoInquiryRequest("CA"), poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, CountryInfoInquiryData)
+
+        malformed = [
+            (GetCountryCodesInquiryRequest(), 14, b"\x01\x01CA"),
+            (GetCountryCodesInquiryRequest(), 14, b"\x02\x00CA"),
+            (GetCountryCodesInquiryRequest(), 14, b"\x01\x00C1"),
+            (GetCountryCodesInquiryRequest(), 14, b"\x02\x00CACA"),
+            (GetCountryInfoInquiryRequest("CA"), 13, b"CA\x01\x00"),
+            (GetCountryInfoInquiryRequest("CA"), 13, b"US\x00\x00"),
+        ]
+        for request_id, (request, response_type, body) in enumerate(
+            malformed, start=30
+        ):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},{request.type.value},0,"
+                    f"{response_type},{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    request, poll_interval_seconds=0
+                )
+
+    async def test_guided_country_workflow_retains_all_steps(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,3,GET_COUNTRY_INFO,0,13,5"],
+        ]
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x02\x00CAUS"),
+            list(b"CA\x00\x00A"),
+            list(b"US\x00\x00B"),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_country_information(
+            failure_action=CountryInquiryFailureAction.CONTINUE,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(len(workflow.country_info_results), 2)
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 3)
+
+    async def test_guided_country_workflow_stop_and_fanout_bounds(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,6"],
+            ["NOT_SUPPORTED,2,GET_COUNTRY_INFO,0,0,0"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            b"\x02\x00CAUS"
+        )
+
+        workflow = await self.device_sink.inquiry_runner.run_country_information(
+            failure_action=CountryInquiryFailureAction.STOP,
+            poll_interval_seconds=0,
+        )
+        self.assertTrue(workflow.stopped_early)
+        self.assertEqual(len(workflow.country_info_results), 1)
+
+        with self.assertRaisesRegex(ValueError, "max_countries"):
+            await self.device_sink.inquiry_runner.run_country_information(
+                max_countries=0
+            )
+
+    async def test_guided_country_workflow_retries_then_succeeds(self) -> None:
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["WAIT,2,GET_COUNTRY_INFO,0,0,0"],
+            ["WAIT,2,GET_COUNTRY_INFO,0,0,0"],
+            ["RESPONSE,3,GET_COUNTRY_INFO,0,13,5"],
+        ]
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x01\x00CA"),
+            list(b"CA\x00\x00A"),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_country_information(
+            failure_action=CountryInquiryFailureAction.RETRY,
+            max_retries=1,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(
+            [result.status.outcome for result in workflow.country_info_results],
+            [SinkInquiryOutcome.WAIT, SinkInquiryOutcome.RESPONSE],
+        )
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 3)
+
+    async def test_country_workflow_blocks_ordinary_inquiry_interleaving(
+        self,
+    ) -> None:
+        first_status_entered = asyncio.Event()
+        release_first_status = asyncio.Event()
+        statuses = iter([
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["RESPONSE,1,GET_COUNTRY_CODES,0,14,4"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,2,GET_COUNTRY_INFO,0,13,5"],
+            ["RESPONSE,3,GET_REVISION,2,12,4"],
+        ])
+
+        async def status_side_effect(*_args):
+            response = next(statuses)
+            if not first_status_entered.is_set():
+                first_status_entered.set()
+                await release_first_status.wait()
+            return response
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = (
+            status_side_effect
+        )
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x01\x00CA"),
+            list(b"CA\x00\x00A"),
+            list(b"\x00\x00\x00\x31"),
+        ]
+        runner = self.device_sink.inquiry_runner
+
+        workflow_task = asyncio.create_task(
+            runner.run_country_information(poll_interval_seconds=0)
+        )
+        await first_status_entered.wait()
+        ordinary_task = asyncio.create_task(
+            runner.run(GetRevisionInquiryRequest(), poll_interval_seconds=0)
+        )
+        await asyncio.sleep(0)
+        self.mock_internal.write_ascii_and_check.assert_not_awaited()
+
+        release_first_status.set()
+        workflow, ordinary = await asyncio.gather(workflow_task, ordinary_task)
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertIsInstance(ordinary.decoded, RevisionInquiryData)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ GET_COUNTRY_CODES",
+                'SINK:INQ GET_COUNTRY_INFO,"CA"',
+                "SINK:INQ GET_REVISION",
+            ],
+        )
+
+    async def test_battery_request_encoding_and_reference_meaning(self) -> None:
+        fixed = GetBatteryCapabilitiesInquiryRequest(3)
+        hot = GetBatteryStatusInquiryRequest(4)
+        self.assertEqual(fixed.reference_kind, BatteryReferenceKind.FIXED)
+        self.assertEqual(fixed.slot_index, 3)
+        self.assertEqual(hot.reference_kind, BatteryReferenceKind.HOT_SWAPPABLE)
+        self.assertEqual(hot.slot_index, 0)
+
+        await self.device_sink.send_inquiry(fixed)
+        await self.device_sink.send_inquiry(hot)
+
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            ["SINK:INQ GET_BATTERY_CAP,3", "SINK:INQ GET_BATTERY_STATUS,4"],
+        )
+        for invalid in (-1, 8, 1.0, True):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                GetBatteryCapabilitiesInquiryRequest(invalid)  # type: ignore[arg-type]
+
+    async def test_battery_capabilities_exact_units_and_sentinels(self) -> None:
+        bodies = [
+            b"\x34\x12\x78\x56\x10\x00\x08\x00\x00",
+            b"\x00\x00\x00\x00\x00\x00\xff\xff\x01",
+        ]
+        for request_id, body in enumerate(bodies, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"RESPONSE,{request_id},GET_BATTERY_CAP,0,5,9"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                GetBatteryCapabilitiesInquiryRequest(0),
+                poll_interval_seconds=0,
+            )
+            assert isinstance(result.decoded, BatteryCapabilitiesInquiryData)
+            if request_id == 1:
+                self.assertEqual(result.decoded.vendor_id, 0x1234)
+                self.assertEqual(result.decoded.product_id, 0x5678)
+                self.assertEqual(
+                    result.decoded.design_capacity.watt_hours, Decimal("1.6")
+                )
+                self.assertEqual(
+                    result.decoded.last_full_charge_capacity.watt_hours,
+                    Decimal("0.8"),
+                )
+                self.assertTrue(result.decoded.battery_present)
+            else:
+                self.assertTrue(result.decoded.invalid_battery_reference)
+                self.assertFalse(result.decoded.battery_present)
+                self.assertEqual(
+                    result.decoded.design_capacity.meaning,
+                    BatteryCapacityMeaning.BATTERY_NOT_PRESENT,
+                )
+                self.assertEqual(
+                    result.decoded.last_full_charge_capacity.meaning,
+                    BatteryCapacityMeaning.UNKNOWN,
+                )
+
+    async def test_battery_status_exact_units_and_wire_flags(self) -> None:
+        raw = (0x1234 << 16) | (1 << 8) | (1 << 9) | (1 << 10)
+        body = raw.to_bytes(4, "little")
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_BATTERY_STATUS,2,5,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(body)
+
+        result = await SinkInquiryRunner(self.device_sink).run(
+            GetBatteryStatusInquiryRequest(7), poll_interval_seconds=0
+        )
+
+        assert isinstance(result.decoded, BatteryStatusInquiryData)
+        self.assertEqual(result.decoded.present_capacity_raw_tenths_wh, 0x1234)
+        self.assertEqual(
+            result.decoded.present_capacity_meaning,
+            BatteryCapacityMeaning.VALUE,
+        )
+        self.assertEqual(result.decoded.present_capacity_wh, Decimal("466.0"))
+        self.assertTrue(result.decoded.invalid_battery_reference)
+        self.assertTrue(result.decoded.battery_present)
+        self.assertEqual(
+            result.decoded.charging_state, BatteryChargingState.DISCHARGING
+        )
+
+    async def test_battery_response_shape_and_reserved_bits(self) -> None:
+        malformed = [
+            (GetBatteryCapabilitiesInquiryRequest(0), 0, 5, b"\x00" * 8),
+            (
+                GetBatteryCapabilitiesInquiryRequest(0),
+                0,
+                5,
+                b"\x00" * 8 + b"\x02",
+            ),
+            (GetBatteryStatusInquiryRequest(0), 2, 5, b"\x01\x00\x00\x00"),
+            (GetBatteryStatusInquiryRequest(0), 2, 5, b"\x00" * 5),
+            (
+                GetBatteryStatusInquiryRequest(0),
+                2,
+                5,
+                ((1 << 9) | (3 << 10)).to_bytes(4, "little"),
+            ),
+            (
+                GetBatteryStatusInquiryRequest(0),
+                2,
+                5,
+                (1 << 10).to_bytes(4, "little"),
+            ),
+        ]
+        for request_id, vector in enumerate(malformed, start=1):
+            request, response_class, response_type, body = vector
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},{request.type.value},"
+                    f"{response_class},{response_type},{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    request, poll_interval_seconds=0
+                )
+
+    async def test_battery_survey_uses_scedb_counts_and_serial_history(
+        self,
+    ) -> None:
+        statuses = []
+        types = [
+            ("GET_BATTERY_CAP", 0, 5, 9),
+            ("GET_BATTERY_STATUS", 2, 5, 4),
+            ("GET_BATTERY_CAP", 0, 5, 9),
+            ("GET_BATTERY_STATUS", 2, 5, 4),
+        ]
+        previous_type = "GET_REVISION"
+        for request_id, (name, response_class, response_type, length) in enumerate(
+            types, start=1
+        ):
+            statuses.extend([
+                [
+                    f"{'NONE' if request_id == 1 else 'RESPONSE'},"
+                    f"{request_id - 1},{previous_type},0,0,0"
+                ],
+                [
+                    f"RESPONSE,{request_id},{name},{response_class},"
+                    f"{response_type},{length}"
+                ],
+            ])
+            previous_type = name
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(b"\x01\x00\x02\x00\x10\x00\x08\x00\x00"),
+            list(((10 << 16) | (1 << 9)).to_bytes(4, "little")),
+            list(b"\x03\x00\x04\x00\x20\x00\x18\x00\x00"),
+            list(((20 << 16) | (1 << 9) | (2 << 10)).to_bytes(4, "little")),
+        ]
+        scedb = ExtendedSourceCapabilitiesInquiryData(
+            25, 0, 0, 0, 0, 0, 0, 0, 0, 0, (0, 0, 0), 0, 0, 1, 1, 0, 0,
+            True,
+        )
+
+        survey = await self.device_sink.inquiry_runner.run_battery_survey(
+            extended_source_capabilities=scedb,
+            poll_interval_seconds=0,
+        )
+
+        self.assertEqual(survey.battery_references, (0, 4))
+        self.assertTrue(survey.used_extended_source_counts)
+        self.assertFalse(survey.stopped_early)
+        self.assertEqual(len(survey.inquiry_results), 4)
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 4)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ GET_BATTERY_CAP,0",
+                "SINK:INQ GET_BATTERY_STATUS,0",
+                "SINK:INQ GET_BATTERY_CAP,4",
+                "SINK:INQ GET_BATTERY_STATUS,4",
+            ],
+        )
+
+    async def test_battery_survey_bounds_and_failure_controls(self) -> None:
+        runner = self.device_sink.inquiry_runner
+        with self.assertRaisesRegex(ValueError, "unique"):
+            await runner.run_battery_survey((0, 0))
+        with self.assertRaisesRegex(ValueError, "at least one"):
+            await runner.run_battery_survey(())
+        oversized_counts = ExtendedSourceCapabilitiesInquiryData(
+            25, 0, 0, 0, 0, 0, 0, 0, 0, 0, (0, 0, 0), 0, 0, 5, 0, 0, 0,
+            True,
+        )
+        with self.assertRaisesRegex(ValueError, "counts exceed"):
+            await runner.run_battery_survey(
+                extended_source_capabilities=oversized_counts
+            )
+
+        zero_counts = ExtendedSourceCapabilitiesInquiryData(
+            25, 0, 0, 0, 0, 0, 0, 0, 0, 0, (0, 0, 0), 0, 0, 0, 0, 0, 0,
+            True,
+        )
+        empty = await runner.run_battery_survey(
+            extended_source_capabilities=zero_counts
+        )
+        self.assertEqual(empty.battery_references, ())
+        self.assertEqual(empty.inquiry_results, ())
+        self.assertTrue(empty.used_extended_source_counts)
+        self.assertFalse(empty.stopped_early)
+        self.mock_internal.write_ascii_and_check.assert_not_awaited()
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_BATTERY_CAP,0,0,0"],
+            ["NOT_SUPPORTED,1,GET_BATTERY_CAP,0,0,0"],
+            ["RESPONSE,2,GET_BATTERY_STATUS,2,5,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            ((1 << 9) | (2 << 10)).to_bytes(4, "little")
+        )
+        survey = await runner.run_battery_survey(
+            (0,),
+            failure_action=BatteryInquiryFailureAction.CONTINUE,
+            poll_interval_seconds=0,
+        )
+        self.assertFalse(survey.stopped_early)
+        self.assertEqual(len(survey.inquiry_results), 2)
+
+    async def test_battery_status_unknown_capacity_preserves_raw(self) -> None:
+        raw = (0xFFFF << 16) | (1 << 8)
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["RESPONSE,1,GET_BATTERY_STATUS,2,5,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            raw.to_bytes(4, "little")
+        )
+
+        result = await SinkInquiryRunner(self.device_sink).run(
+            GetBatteryStatusInquiryRequest(7), poll_interval_seconds=0
+        )
+
+        assert isinstance(result.decoded, BatteryStatusInquiryData)
+        self.assertEqual(result.decoded.present_capacity_raw_tenths_wh, 0xFFFF)
+        self.assertEqual(
+            result.decoded.present_capacity_meaning,
+            BatteryCapacityMeaning.UNKNOWN,
+        )
+        self.assertIsNone(result.decoded.present_capacity_wh)
+        self.assertTrue(result.decoded.invalid_battery_reference)
+
+    async def test_vdm_request_encoding_and_svid_bounds(self) -> None:
+        requests = [
+            DiscoverIdentityInquiryRequest(),
+            DiscoverSVIDsInquiryRequest(),
+            DiscoverModesInquiryRequest(0xFF01),
+        ]
+        for request in requests:
+            await self.device_sink.send_inquiry(request)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                "SINK:INQ DISCOVER_IDENTITY",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_MODES,65281",
+            ],
+        )
+        for invalid in (0, 65536, 1.0, True):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                DiscoverModesInquiryRequest(invalid)  # type: ignore[arg-type]
+
+    async def test_vdm_ack_decoders_preserve_vdo_order_and_dedup(self) -> None:
+        identity_vdos = (0x11223344, 0x55667788, 0x99AABBCC)
+        svid_vdos = (0x12345678, 0x12340000)
+        mode_vdos = (0x01020304, 0xA0B0C0D0)
+        vectors = [
+            (
+                DiscoverIdentityInquiryRequest(),
+                _svdm_ack_header(0xFF00, 1)
+                + b"".join(vdo.to_bytes(4, "little") for vdo in identity_vdos),
+                DiscoverIdentityInquiryData,
+            ),
+            (
+                DiscoverSVIDsInquiryRequest(),
+                _svdm_ack_header(0xFF00, 2)
+                + b"".join(vdo.to_bytes(4, "little") for vdo in svid_vdos),
+                DiscoverSVIDsInquiryData,
+            ),
+            (
+                DiscoverModesInquiryRequest(0x1234),
+                _svdm_ack_header(0x1234, 3)
+                + b"".join(vdo.to_bytes(4, "little") for vdo in mode_vdos),
+                DiscoverModesInquiryData,
+            ),
+        ]
+        decoded_results = []
+        for request_id, (request, body, decoded_type) in enumerate(
+            vectors, start=1
+        ):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},{request.type.value},2,15,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                request, poll_interval_seconds=0
+            )
+            self.assertIsInstance(result.decoded, decoded_type)
+            decoded_results.append(result.decoded)
+
+        identity = decoded_results[0]
+        svids = decoded_results[1]
+        modes = decoded_results[2]
+        assert isinstance(identity, DiscoverIdentityInquiryData)
+        assert isinstance(svids, DiscoverSVIDsInquiryData)
+        assert isinstance(modes, DiscoverModesInquiryData)
+        self.assertEqual(identity.identity_vdos, identity_vdos)
+        self.assertEqual(svids.svid_vdos, svid_vdos)
+        self.assertEqual(svids.svids, (0x1234, 0x5678))
+        self.assertTrue(svids.complete)
+        self.assertEqual(modes.svid, 0x1234)
+        self.assertEqual(modes.mode_vdos, mode_vdos)
+
+    async def test_vdm_nak_and_busy_preserve_validated_raw_header(self) -> None:
+        for request_id, (outcome, command_type) in enumerate(
+            (("NAK", 2), ("BUSY", 3)), start=1
+        ):
+            body = _svdm_ack_header(
+                0xFF00, 1, command_type=command_type
+            )
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"{outcome},{request_id},DISCOVER_IDENTITY,2,15,4"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                DiscoverIdentityInquiryRequest(), poll_interval_seconds=0
+            )
+            self.assertEqual(result.status.outcome.value, outcome)
+            self.assertEqual(result.raw_response, body)
+            self.assertIsInstance(
+                result.decoded, StructuredVDMNegativeResponseData
+            )
+
+        ack_body = _svdm_ack_header(0xFF00, 1)
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["BUSY,2,DISCOVER_IDENTITY,2,15,4"],
+            ["NAK,3,DISCOVER_IDENTITY,2,15,4"],
+        ]
+        self.mock_internal.query_binary_value_and_check.return_value = list(
+            ack_body
+        )
+        with self.assertRaisesRegex(ValueError, "terminal outcome"):
+            await SinkInquiryRunner(self.device_sink).run(
+                DiscoverIdentityInquiryRequest(), poll_interval_seconds=0
+            )
+
+    async def test_vdm_rejects_malformed_ack_headers_and_vdo_counts(self) -> None:
+        valid_header = int.from_bytes(_svdm_ack_header(0xFF00, 1), "little")
+        malformed = [
+            b"\x00" * 3,
+            (valid_header & ~(1 << 15)).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header | (1 << 5)).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header & ~(0x3 << 6)).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header ^ 0x03).to_bytes(4, "little") + b"\x00" * 12,
+            (valid_header | (2 << 13)).to_bytes(4, "little") + b"\x00" * 12,
+            (
+                (valid_header & ~(0x3 << 13) | (1 << 11)).to_bytes(
+                    4, "little"
+                )
+                + b"\x00" * 12
+            ),
+            _svdm_ack_header(0x1234, 1) + b"\x00" * 12,
+            _svdm_ack_header(0xFF00, 1) + b"\x00" * 8,
+        ]
+        for request_id, body in enumerate(malformed, start=1):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [
+                    f"RESPONSE,{request_id},DISCOVER_IDENTITY,2,15,"
+                    f"{len(body)}"
+                ],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    DiscoverIdentityInquiryRequest(), poll_interval_seconds=0
+                )
+
+    async def test_vdm_workflow_continues_svid_pages_then_modes(self) -> None:
+        first_svids = tuple(range(0x1001, 0x100D))
+        first_svid_body = _svdm_ack_header(0xFF00, 2) + b"".join(
+            ((first_svids[index] << 16) | first_svids[index + 1]).to_bytes(
+                4, "little"
+            )
+            for index in range(0, 12, 2)
+        )
+        second_svid_body = (
+            _svdm_ack_header(0xFF00, 2)
+            + (0x100D << 16).to_bytes(4, "little")
+        )
+        identity_body = _svdm_ack_header(0xFF00, 1) + b"\x00" * 12
+        mode_body = _svdm_ack_header(0x100D, 3) + b"\x78\x56\x34\x12"
+        response_specs = [
+            ("DISCOVER_IDENTITY", identity_body),
+            ("DISCOVER_SVIDS", first_svid_body),
+            ("DISCOVER_SVIDS", second_svid_body),
+            ("DISCOVER_MODES", mode_body),
+        ]
+        statuses = []
+        previous_id = 0
+        previous_type = "GET_REVISION"
+        for request_id, (name, body) in enumerate(response_specs, start=1):
+            statuses.extend([
+                [f"{'NONE' if request_id == 1 else 'RESPONSE'},{previous_id},{previous_type},0,0,0"],
+                [f"RESPONSE,{request_id},{name},2,15,{len(body)}"],
+            ])
+            previous_id = request_id
+            previous_type = name
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(identity_body), list(first_svid_body), list(second_svid_body),
+            list(mode_body),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_vdm_discovery(
+            (0x100D,), poll_interval_seconds=0
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(workflow.selected_svids, (0x100D,))
+        self.assertEqual(len(workflow.svid_results), 2)
+        self.assertEqual(len(workflow.mode_results), 1)
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 4)
+
+    async def test_vdm_workflow_bounds_controls_and_correlation(self) -> None:
+        runner = self.device_sink.inquiry_runner
+        with self.assertRaisesRegex(ValueError, "unique"):
+            await runner.run_vdm_discovery((0x1234, 0x1234))
+        with self.assertRaisesRegex(ValueError, "max_svid_pages"):
+            await runner.run_vdm_discovery(max_svid_pages=0)
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["NONE,0,GET_REVISION,0,0,0"],
+            ["BUSY,1,DISCOVER_IDENTITY,0,0,0"],
+        ]
+        stopped = await runner.run_vdm_discovery(
+            failure_action=VDMDiscoveryFailureAction.STOP,
+            poll_interval_seconds=0,
+        )
+        self.assertTrue(stopped.stopped_early)
+        self.assertEqual(len(stopped.identity_results), 1)
+
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["BUSY,1,DISCOVER_IDENTITY,0,0,0"],
+            ["BUSY,2,DISCOVER_IDENTITY,0,0,0"],
+            ["BUSY,2,DISCOVER_IDENTITY,0,0,0"],
+            ["NAK,3,DISCOVER_IDENTITY,0,0,0"],
+        ]
+        retried = await runner.run_vdm_discovery(
+            failure_action=VDMDiscoveryFailureAction.RETRY,
+            max_retries=1,
+            poll_interval_seconds=0,
+        )
+        self.assertTrue(retried.stopped_early)
+        self.assertEqual(len(retried.identity_results), 2)
+        self.assertEqual(
+            [result.status.outcome for result in retried.identity_results],
+            [SinkInquiryOutcome.BUSY, SinkInquiryOutcome.NAK],
+        )
+
+    async def test_vdm_lost_continuation_restarts_identity_and_page_one(
+        self,
+    ) -> None:
+        identity_body = _svdm_ack_header(0xFF00, 1) + b"\x00" * 12
+        full_svid_body = _svdm_ack_header(0xFF00, 2) + b"".join(
+            ((0x2001 + index << 16) | (0x2002 + index)).to_bytes(
+                4, "little"
+            )
+            for index in range(0, 12, 2)
+        )
+        final_svid_body = (
+            _svdm_ack_header(0xFF00, 2)
+            + (0x3001 << 16).to_bytes(4, "little")
+        )
+        mode_body = _svdm_ack_header(0x3001, 3) + b"\x01\x00\x00\x00"
+        responses = [
+            ("RESPONSE", "DISCOVER_IDENTITY", 16),
+            ("RESPONSE", "DISCOVER_SVIDS", 28),
+            ("RESPONSE_TIMEOUT", "DISCOVER_SVIDS", 0),
+            ("RESPONSE", "DISCOVER_IDENTITY", 16),
+            ("RESPONSE", "DISCOVER_SVIDS", 8),
+            ("RESPONSE", "DISCOVER_MODES", 8),
+        ]
+        statuses = []
+        previous_id = 0
+        previous_type = "GET_REVISION"
+        previous_outcome = "NONE"
+        for request_id, (outcome, name, length) in enumerate(responses, start=1):
+            statuses.extend([
+                [
+                    f"{previous_outcome},{previous_id},{previous_type},"
+                    f"{2 if previous_outcome == 'RESPONSE' else 0},"
+                    f"{15 if previous_outcome == 'RESPONSE' else 0},0"
+                ],
+                [
+                    f"{outcome},{request_id},{name},"
+                    f"{2 if outcome == 'RESPONSE' else 0},"
+                    f"{15 if outcome == 'RESPONSE' else 0},{length}"
+                ],
+            ])
+            previous_id = request_id
+            previous_type = name
+            previous_outcome = outcome
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(identity_body),
+            list(full_svid_body),
+            list(identity_body),
+            list(final_svid_body),
+            list(mode_body),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_vdm_discovery(
+            (0x3001,),
+            failure_action=VDMDiscoveryFailureAction.RETRY,
+            max_retries=1,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(len(workflow.identity_results), 2)
+        self.assertEqual(len(workflow.svid_results), 3)
+        self.assertEqual(workflow.selected_svids, (0x3001,))
+        commands = [
+            call.args[0]
+            for call in self.mock_internal.write_ascii_and_check.await_args_list
+        ]
+        self.assertEqual(
+            commands,
+            [
+                "SINK:INQ DISCOVER_IDENTITY",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_IDENTITY",
+                "SINK:INQ DISCOVER_SVIDS",
+                "SINK:INQ DISCOVER_MODES,12289",
+            ],
+        )
+
+    async def test_cable_requests_encode_explicit_plug_without_fallback(
+        self,
+    ) -> None:
+        requests = [
+            CableStatusInquiryRequest(CablePlug.SOP_PRIME),
+            CableRevisionInquiryRequest(CablePlug.SOP_DOUBLE_PRIME),
+            CableManufacturerInfoInquiryRequest(CablePlug.SOP_PRIME),
+            CableDiscoverIdentityInquiryRequest(CablePlug.SOP_PRIME),
+            CableDiscoverSVIDsInquiryRequest(CablePlug.SOP_DOUBLE_PRIME),
+            CableDiscoverModesInquiryRequest(CablePlug.SOP_PRIME, 0xFF01),
+        ]
+        for request in requests:
+            await self.device_sink.send_inquiry(request)
+        self.assertEqual(
+            [call.args[0] for call in self.mock_internal.write_ascii_and_check.await_args_list],
+            [
+                'SINK:INQ GET_STATUS,"SOP_PRIME"',
+                'SINK:INQ GET_REVISION,"SOP_DOUBLE_PRIME"',
+                'SINK:INQ GET_MANUFACTURER_INFO,"SOP_PRIME"',
+                'SINK:INQ DISCOVER_IDENTITY,"SOP_PRIME"',
+                'SINK:INQ DISCOVER_SVIDS,"SOP_DOUBLE_PRIME"',
+                'SINK:INQ DISCOVER_MODES,"SOP_PRIME",65281',
+            ],
+        )
+        self.assertTrue(all("SOP_" in call.args[0] for call in (
+            self.mock_internal.write_ascii_and_check.await_args_list
+        )))
+        with self.assertRaisesRegex(ValueError, "plug must"):
+            CableStatusInquiryRequest("SOP")  # type: ignore[arg-type]
+
+    async def test_cable_status_temperature_and_shutdown_decode(self) -> None:
+        vectors = [
+            (b"\x00\x00", None, False, False),
+            (b"\x01\x01", None, True, True),
+            (b"\x1e\x00", 30, False, False),
+        ]
+        for request_id, (body, temperature, below_two, shutdown) in enumerate(
+            vectors, start=1
+        ):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"RESPONSE,{request_id},GET_STATUS,0,2,2"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            result = await SinkInquiryRunner(self.device_sink).run(
+                CableStatusInquiryRequest(CablePlug.SOP_PRIME),
+                poll_interval_seconds=0,
+            )
+            assert isinstance(result.decoded, CableStatusInquiryData)
+            self.assertEqual(result.decoded.internal_temperature_c, temperature)
+            self.assertEqual(result.decoded.below_2_c, below_two)
+            self.assertEqual(result.decoded.thermal_shutdown, shutdown)
+            assert isinstance(result.request, CableStatusInquiryRequest)
+            self.assertEqual(result.request.plug, CablePlug.SOP_PRIME)
+
+        malformed = (b"\x1e", b"\x1e\x02", b"\x1e\x00\x00")
+        for request_id, body in enumerate(malformed, start=10):
+            self.mock_internal.query_ascii_values_and_check.side_effect = [
+                [f"NONE,{request_id - 1},GET_REVISION,0,0,0"],
+                [f"RESPONSE,{request_id},GET_STATUS,0,2,{len(body)}"],
+            ]
+            self.mock_internal.query_binary_value_and_check.return_value = list(body)
+            with self.assertRaises(ValueError):
+                await SinkInquiryRunner(self.device_sink).run(
+                    CableStatusInquiryRequest(CablePlug.SOP_PRIME),
+                    poll_interval_seconds=0,
+                )
+
+    async def test_sop_double_prime_relies_on_firmware_prerequisite(self) -> None:
+        runner = self.device_sink.inquiry_runner
+        self.mock_internal.query_ascii_values_and_check.return_value = [
+            "NONE,0,GET_REVISION,0,0,0"
+        ]
+        self.mock_internal.write_ascii_and_check.side_effect = RuntimeError(
+            "Execution error: SOP_DOUBLE_PRIME controller is not known"
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "controller is not known"):
+            await runner.run(
+                CableRevisionInquiryRequest(CablePlug.SOP_DOUBLE_PRIME),
+                poll_interval_seconds=0,
+            )
+        self.mock_internal.query_ascii_values_and_check.assert_awaited_once()
+        self.mock_internal.write_ascii_and_check.assert_awaited_once_with(
+            'SINK:INQ GET_REVISION,"SOP_DOUBLE_PRIME"'
+        )
+        self.assertEqual(runner.history, ())
+
+    async def test_cable_vdm_workflow_retains_plug_and_serial_history(
+        self,
+    ) -> None:
+        identity_body = _svdm_ack_header(0xFF00, 1) + b"\x00" * 12
+        svid_body = _svdm_ack_header(0xFF00, 2) + (
+            0x1234 << 16
+        ).to_bytes(4, "little")
+        mode_body = _svdm_ack_header(0x1234, 3) + b"\x01\x00\x00\x00"
+        specs = [
+            ("DISCOVER_IDENTITY", identity_body),
+            ("DISCOVER_SVIDS", svid_body),
+            ("DISCOVER_MODES", mode_body),
+        ]
+        statuses = []
+        previous_type = "GET_REVISION"
+        for request_id, (name, body) in enumerate(specs, start=1):
+            statuses.extend([
+                [
+                    f"{'NONE' if request_id == 1 else 'RESPONSE'},"
+                    f"{request_id - 1},{previous_type},0,0,0"
+                ],
+                [f"RESPONSE,{request_id},{name},2,15,{len(body)}"],
+            ])
+            previous_type = name
+        self.mock_internal.query_ascii_values_and_check.side_effect = statuses
+        self.mock_internal.query_binary_value_and_check.side_effect = [
+            list(identity_body), list(svid_body), list(mode_body),
+        ]
+
+        workflow = await self.device_sink.inquiry_runner.run_cable_vdm_discovery(
+            CablePlug.SOP_PRIME,
+            poll_interval_seconds=0,
+        )
+
+        self.assertFalse(workflow.stopped_early)
+        self.assertEqual(workflow.selected_svids, (0x1234,))
+        requests = [result.request for result in (
+            workflow.identity_results
+            + workflow.svid_results
+            + workflow.mode_results
+        )]
+        self.assertTrue(all(
+            getattr(request, "plug", None) == CablePlug.SOP_PRIME
+            for request in requests
+        ))
+        self.assertEqual(len(self.device_sink.inquiry_runner.history), 3)
+
+
 class TestDeviceSinkParityMethods(unittest.IsolatedAsyncioTestCase):
     """Tests for newer sink SCPI parity methods."""
 
@@ -396,6 +1907,17 @@ class TestDeviceSinkStatusQueries(unittest.IsolatedAsyncioTestCase):
         status = await self.device_sink.get_status()
 
         self.assertEqual(status, SinkState.PE_SNK_TRANSITION_SINK)
+
+    async def test_get_status_pe_snk_inquiry(self) -> None:
+        """Test getting PE_SNK_INQUIRY status."""
+        self.mock_internal.query_ascii_values_and_check.side_effect = [
+            ["SINK"],
+            ["PE_SNK_INQUIRY"],
+        ]
+
+        status = await self.device_sink.get_status()
+
+        self.assertEqual(status, SinkState.PE_SNK_INQUIRY)
 
     async def test_get_status_error(self) -> None:
         """Test getting ERROR status."""
