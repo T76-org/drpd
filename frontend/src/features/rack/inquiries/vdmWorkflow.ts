@@ -2,7 +2,15 @@ import { SinkInquiryType, type LoggedEventDataSection, type SinkInquiryCablePlug
 import { formatSinkInquiryOutcome } from './presentation'
 import { decodeInquiryResponse } from './decode'
 import { withSinkInquiryLease, type InquiryRunState, type SerialInquiryWorkflowStep, type SinkInquiryClient } from './runner'
-import { parseDiscoverIdentityVDOs, parseSVIDsVDO, parseVDMHeader, readDataObjects } from '../../../lib/device/drpd/usb-pd/DataObjects'
+import {
+  parseDiscoverIdentityVDOs,
+  parseSVIDsVDO,
+  parseVDMHeader,
+  readDataObjects,
+  type ParsedDFPVDO,
+  type ParsedDiscoverIdentity,
+  type ParsedUFPVDO,
+} from '../../../lib/device/drpd/usb-pd/DataObjects'
 
 export const PORT_PARTNER_IDENTITY_EVENT_TITLE = 'INQUIRY - Port Partner identity'
 export const PORT_PARTNER_SVIDS_EVENT_TITLE = 'INQUIRY - Port Partner SVIDs'
@@ -15,6 +23,64 @@ const hex16 = (value: number): string => `0x${value.toString(16).toUpperCase().p
 const hex32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
 const rawHex = (bytes: Uint8Array): string => `\`${bytesToHex(bytes) || '(empty)'}\``
 const detail = (value: string, explanation: string): string => `${value}\n\n_${explanation}_`
+const bits = (value: number, width: number): string => `\`0b${value.toString(2).padStart(width, '0')}\``
+const yesNo = (value: boolean): string => value ? '**Yes**' : '**No**'
+
+const usbSpeedMeaning = (code: number): string => [
+  'USB 2.0 only; no SuperSpeed support',
+  'USB 3.2 Gen 1',
+  'USB 3.2 / USB4 Gen 2',
+  'USB4 Gen 3',
+  'USB4 Gen 4',
+][code] ?? 'Reserved encoding'
+
+const vconnPowerMeaning = (code: number): string => ['1 W', '1.5 W', '2 W', '3 W', '4 W', '5 W', '6 W'][code] ?? 'Reserved encoding'
+
+const enabledMeanings = (value: number, meanings: string[]): string => {
+  const enabled = meanings.filter((_, bit) => (value & (1 << bit)) !== 0)
+  return enabled.length ? enabled.join('; ') : 'No capabilities asserted'
+}
+
+const isUfpVdo = (vdo: ParsedDiscoverIdentity['productTypeVDOs'][number]): vdo is ParsedUFPVDO =>
+  'deviceCapability' in vdo
+
+const isDfpVdo = (vdo: ParsedDiscoverIdentity['productTypeVDOs'][number]): vdo is ParsedDFPVDO =>
+  'hostCapability' in vdo
+
+const productTypeVdoEntries = (
+  vdo: ParsedDiscoverIdentity['productTypeVDOs'][number],
+  index: number,
+): LoggedEventDataSection['entries'] => {
+  const prefix = `Product Type VDO ${index + 1}`
+  const raw = { key: `${prefix} Raw`, value: detail(`\`${hex32(vdo.raw)}\``, 'Complete 32-bit VDO value before field interpretation.') }
+  if (isUfpVdo(vdo)) {
+    return [
+      raw,
+      { key: `${prefix} Type`, value: '**UFP VDO** — capabilities of the Upstream-Facing Port.' },
+      { key: 'UFP VDO Version (bits 31:29)', value: `${bits(vdo.vdoVersion, 3)} — ${vdo.vdoVersion === 0b011 ? 'Version 1.3' : 'reserved encoding'}.` },
+      { key: 'Reserved (bit 28)', value: `${bits((vdo.raw >>> 28) & 1, 1)} — must be zero.` },
+      { key: 'Device Capability (bits 27:24)', value: `${bits(vdo.deviceCapability, 4)} — ${enabledMeanings(vdo.deviceCapability, ['USB 2.0 Device capable', 'USB 2.0 Billboard-only Device capable', 'USB 3.2 Device capable', 'USB4 Device capable'])}.` },
+      { key: 'Reserved (bits 23:11)', value: `${bits((vdo.raw >>> 11) & 0x1fff, 13)} — must be zero.` },
+      { key: 'VCONN Power (bits 10:8)', value: `${bits(vdo.vconnPower, 3)} — ${vconnPowerMeaning(vdo.vconnPower)} required.` },
+      { key: 'VCONN Required (bit 7)', value: `${bits(vdo.vconnRequired ? 1 : 0, 1)} — ${yesNo(vdo.vconnRequired)}.` },
+      { key: 'VBUS Required (bit 6)', value: `${bits((vdo.raw >>> 6) & 1, 1)} — ${yesNo(vdo.vbusRequired)}; this field is active-low.` },
+      { key: 'Alternate Modes (bits 5:3)', value: `${bits(vdo.alternateModes, 3)} — ${enabledMeanings(vdo.alternateModes, ['TBT3 Alternate Mode', 'Alternate Modes that reconfigure the USB Type-C connector (except TBT3)', 'Alternate Modes that do not reconfigure the USB Type-C connector'])}.` },
+      { key: 'USB Highest Speed (bits 2:0)', value: `${bits(vdo.usbHighestSpeed, 3)} — **${usbSpeedMeaning(vdo.usbHighestSpeed)}**.` },
+    ]
+  }
+  if (isDfpVdo(vdo)) {
+    return [
+      raw,
+      { key: `${prefix} Type`, value: '**DFP VDO** — capabilities of the Downstream-Facing Port.' },
+      { key: 'DFP VDO Version (bits 31:29)', value: `${bits(vdo.vdoVersion, 3)} — ${vdo.vdoVersion === 0b010 ? 'Version 1.2' : 'reserved encoding'}.` },
+      { key: 'Reserved (bits 28:27)', value: `${bits((vdo.raw >>> 27) & 0x3, 2)} — must be zero.` },
+      { key: 'Host Capability (bits 26:24)', value: `${bits(vdo.hostCapability, 3)} — ${enabledMeanings(vdo.hostCapability, ['USB 2.0 Host capable', 'USB 3.2 Host capable', 'USB4 Host capable'])}.` },
+      { key: 'Reserved (bits 23:5)', value: `${bits((vdo.raw >>> 5) & 0x7ffff, 19)} — must be zero.` },
+      { key: 'Port Number (bits 4:0)', value: `\`${vdo.portNumber}\` — port identifier reported by the DFP.` },
+    ]
+  }
+  return [raw, { key: `${prefix} Decoding`, value: 'Decoded product-type fields are retained by the cable-specific identity parser; this value is not a UFP or DFP VDO.' }]
+}
 const cableTargetEntries = (plug?: SinkInquiryCablePlug): LoggedEventDataSection['entries'] => plug
   ? [{ key: 'Target', value: `**${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'}** — explicitly addressed; no fallback to SOP.` }]
   : []
@@ -147,7 +213,7 @@ export const surveyPortPartnerIdentity = async (
           { key: 'ID Header VDO (VDO 1)', value: detail(`\`${hex32(id.raw)}\``, `VID ${hex16(id.usbVendorId)}; USB host capable: ${id.usbHostCapable}; USB device capable: ${id.usbDeviceCapable}; modal operation supported: ${id.modalOperationSupported}; UFP product type bits 29:27 = ${id.sopProductTypeUfpOrCable}; DFP product type bits 25:23 = ${id.sopProductTypeDfp}; connector type bits 22:21 = ${id.connectorType}.`) },
           { key: 'Cert Stat VDO (VDO 2)', value: detail(`\`${hex32(cert.raw)}\``, `XID: **${hex32(cert.xid)}**.`) },
           { key: 'Product VDO (VDO 3)', value: detail(`\`${hex32(product.raw)}\``, `PID: **${hex16(product.usbProductId)}**; bcdDevice: ${hex16(product.bcdDevice)}.`) },
-          ...identity.productTypeVDOs.map((vdo, index) => ({ key: `Product Type VDO ${index + 1}`, value: `\`${hex32(vdo.raw)}\`\n\n\`\`\`json\n${JSON.stringify(vdo, null, 2)}\n\`\`\`` })),
+          ...identity.productTypeVDOs.flatMap(productTypeVdoEntries),
           ...(identity.padVDOs.length ? [{ key: 'Pad VDOs', value: identity.padVDOs.map(hex32).join(', ') }] : []),
           ...(identity.rawVDOs.length ? [{ key: 'Unparsed VDOs', value: identity.rawVDOs.map(hex32).join(', ') }] : []),
           { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Identity ACK logical response body.') },

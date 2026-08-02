@@ -56,6 +56,28 @@ describe('Port Partner VDM workflow helpers', () => {
     expect(result.eventData![0].entries.find((entry) => entry.key === 'Raw Logical Response')?.value).toContain('41 A0 00 FF')
   })
 
+  it('renders Apple UFP and DFP product type VDOs as explained bitfields instead of JSON', async () => {
+    const header = (0xff00 << 16) | (1 << 15) | (1 << 13) | (1 << 6) | 1
+    const body = words(header, 0xd50005ac, 0, 0x73082170, 0x0d00003b, 0x07000000, 0)
+    const statuses = [
+      { outcome: SinkInquiryOutcome.NONE, requestId: 0, type: SinkInquiryType.DISCOVER_IDENTITY, responseClass: 0, responseType: 0, responseLength: 0 },
+      { outcome: SinkInquiryOutcome.RESPONSE, requestId: 1, type: SinkInquiryType.DISCOVER_IDENTITY, responseClass: 2, responseType: 0x0f, responseLength: body.length },
+    ]
+    const result = await surveyPortPartnerIdentity({
+      sendInquiryRequest: vi.fn(async () => undefined),
+      getInquiryStatus: vi.fn(async () => statuses.shift()!),
+      getInquiryResponse: vi.fn(async () => body),
+    })
+    const entries = result.eventData![0].entries
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'Product Type VDO 1 Type', value: expect.stringContaining('UFP VDO') }))
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'Device Capability (bits 27:24)', value: expect.stringContaining('USB4 Device capable') }))
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'Alternate Modes (bits 5:3)', value: expect.stringContaining('TBT3 Alternate Mode') }))
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'Product Type VDO 2 Type', value: expect.stringContaining('DFP VDO') }))
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'Host Capability (bits 26:24)', value: expect.stringContaining('USB4 Host capable') }))
+    expect(entries).toContainEqual(expect.objectContaining({ key: 'Port Number (bits 4:0)', value: expect.stringContaining('`0`') }))
+    expect(entries.map((entry) => entry.value).join('\n')).not.toContain('```json')
+  })
+
   it('collects all SVID pages in order and retains page raw bytes', async () => {
     const header = (0xff00 << 16) | (1 << 15) | (1 << 13) | (1 << 6) | 2
     const first = words(header, 0x00010002, 0x00030004, 0x00050006, 0x00070008, 0x0009000a, 0x000b000c)

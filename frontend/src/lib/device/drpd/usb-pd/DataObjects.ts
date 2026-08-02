@@ -1294,6 +1294,8 @@ export const parseDiscoverIdentityVDOs = (vdos: number[], sopKind: SOPKind): Par
   const isSopPrime = sopKind === 'SOP_PRIME' || sopKind === 'SOP_DOUBLE_PRIME'
   const productType = idHeader ? idHeader.sopProductTypeUfpOrCable : 0
   const dfpType = idHeader ? idHeader.sopProductTypeDfp : 0
+  let parsedUfpVdo = false
+  let parsedDfpVdo = false
 
   let index = 0
   while (index < remaining.length) {
@@ -1325,13 +1327,15 @@ export const parseDiscoverIdentityVDOs = (vdos: number[], sopKind: SOPKind): Par
         continue
       }
     } else {
-      if (productType === 0b001 || productType === 0b010) {
+      if (!parsedUfpVdo && (productType === 0b001 || productType === 0b010)) {
         productTypeVDOs.push(parseUFPVDO(raw))
+        parsedUfpVdo = true
         index += 1
         continue
       }
-      if (dfpType === 0b001 || dfpType === 0b010 || dfpType === 0b011) {
+      if (!parsedDfpVdo && (dfpType === 0b001 || dfpType === 0b010 || dfpType === 0b011)) {
         productTypeVDOs.push(parseDFPVDO(raw))
+        parsedDfpVdo = true
         index += 1
         continue
       }
