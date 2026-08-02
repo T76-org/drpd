@@ -53,11 +53,10 @@ export interface InquiryDefinition<TParameters = Record<string, never>> {
 export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   {
     id: 'authenticate-source', type: SinkInquiryType.GET_DIGESTS,
-    label: 'Authenticate source…', description: 'Inspect USB Type-C Authentication digests, retrieve one selected certificate chain, and challenge the attached SOP Source with layered cryptographic, trust, and policy results.',
-    workflow: 'guided', parameters: [], sideEffects: [],
+    label: 'Authenticate source', description: 'Inspect every advertised USB Type-C Authentication slot, retrieve its certificate chain, and challenge the attached SOP Source.',
+    workflow: 'immediate', parameters: [], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: () => ({ type: SinkInquiryType.GET_DIGESTS }),
-    guided: { initialContext: {}, steps: [{ id: 'authentication-digests', label: 'Read certificate-chain digests', buildRequest: () => ({ type: SinkInquiryType.GET_DIGESTS }) }] },
     active: true,
   },
   {
@@ -83,7 +82,7 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
     confirmation: {
       title: 'Send Get_Status?',
       body: 'Reading Status clears the Source’s latched OCP, OVP, and OTP event flags.',
-      confirmLabel: 'Send Get_Status',
+      confirmLabel: 'SEND INQUIRY',
     },
   },
   {
@@ -133,7 +132,7 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   },
   {
     id: 'get-country-information', type: SinkInquiryType.GET_COUNTRY_INFO,
-    label: 'Get country information…', description: 'Discover supported country codes, then request one selected record or all records.',
+    label: 'Get country information', description: 'Discover supported country codes, then request every advertised record.',
     workflow: 'guided', parameters: [{ kind: 'country-code', name: 'countryCode', label: 'Country code' }], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_COUNTRY_INFO, countryCode: String(values.countryCode).toUpperCase() }),
@@ -142,27 +141,18 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   } as InquiryDefinition<Record<string, unknown>>,
   {
     id: 'get-battery-capabilities', type: SinkInquiryType.GET_BATTERY_CAP,
-    label: 'Get battery capabilities…', description: 'Ask for capabilities of battery reference 0–7.',
+    label: 'Get battery capabilities', description: 'Discover every advertised battery and collect its capabilities.',
     workflow: 'parameterized', parameters: [{ kind: 'integer', name: 'batteryReference', label: 'Battery reference', min: 0, max: 7 }], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_BATTERY_CAP, batteryReference: values.batteryReference as number }), active: true,
   } as InquiryDefinition<Record<string, unknown>>,
   {
     id: 'get-battery-status', type: SinkInquiryType.GET_BATTERY_STATUS,
-    label: 'Get battery status…', description: 'Ask for status of battery reference 0–7.',
+    label: 'Get battery status', description: 'Discover every advertised battery and collect its current status.',
     workflow: 'parameterized', parameters: [{ kind: 'integer', name: 'batteryReference', label: 'Battery reference', min: 0, max: 7 }], sideEffects: [],
     applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.GET_BATTERY_STATUS, batteryReference: values.batteryReference as number }), active: true,
   } as InquiryDefinition<Record<string, unknown>>,
-  {
-    id: 'survey-batteries', type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED,
-    label: 'Survey batteries…', description: 'Discover advertised battery references, then query capabilities and status sequentially.',
-    workflow: 'guided', parameters: [], sideEffects: [],
-    applicability: ({ sinkMode, attached, pdRevision3 }) => sinkMode && attached && pdRevision3 !== false,
-    buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED }),
-    guided: { initialContext: {}, steps: [{ id: 'battery-discovery', label: 'Discover battery counts', buildRequest: () => ({ type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED }) }] },
-    active: true,
-  },
   {
     id: 'discover-identity', type: SinkInquiryType.DISCOVER_IDENTITY,
     label: 'Discover identity', description: 'Diagnostic SOP Port Partner request sent while Dr. PD is a UFP/Sink; partner support is not guaranteed.', workflow: 'immediate', parameters: [], sideEffects: [],
@@ -177,18 +167,11 @@ export const SOURCE_INQUIRY_CATALOG: readonly InquiryDefinition[] = [
   },
   {
     id: 'discover-modes', type: SinkInquiryType.DISCOVER_MODES,
-    label: 'Discover modes…', description: 'Diagnostic optional UFP request for modes of one SOP Port Partner SVID.', workflow: 'parameterized',
+    label: 'Discover modes', description: 'Discover every Port Partner SVID, then collect modes for each.', workflow: 'parameterized',
     parameters: [{ kind: 'integer', name: 'svid', label: 'SVID', min: 1, max: 65535 }], sideEffects: [],
     applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
     buildRequest: (values: Record<string, unknown>) => ({ type: SinkInquiryType.DISCOVER_MODES, svid: values.svid as number }), active: true,
   } as InquiryDefinition<Record<string, unknown>>,
-  {
-    id: 'survey-port-partner-modes', type: SinkInquiryType.DISCOVER_IDENTITY,
-    label: 'Survey Port Partner modes…', description: 'UFP/Sink diagnostic workflow; SVID and Modes initiation is optional for a UFP and may be declined.', workflow: 'guided', parameters: [], sideEffects: [],
-    applicability: ({ sinkMode, attached, canInitiateVdm }) => sinkMode && attached && canInitiateVdm !== false,
-    buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY }),
-    guided: { initialContext: {}, steps: [{ id: 'identity', label: 'Discover identity', buildRequest: () => ({ type: SinkInquiryType.DISCOVER_IDENTITY }) }, { id: 'svids', label: 'Discover SVIDs', buildRequest: () => ({ type: SinkInquiryType.DISCOVER_SVIDS }) }] }, active: true,
-  },
 ]
 
 export const ACTIVE_SOURCE_INQUIRIES = SOURCE_INQUIRY_CATALOG.filter(

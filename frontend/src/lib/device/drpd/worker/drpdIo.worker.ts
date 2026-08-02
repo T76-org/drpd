@@ -564,7 +564,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
               args[1] as never,
             )
           case 'markLog':
-            await session.device.markLog()
+            await session.device.markLog(
+              args[0] as string | undefined,
+              args[1] as LoggedCapturedMessage['eventData'],
+            )
             return null
           case 'markLogAt':
             await session.device.markLogAt(args[0] as LoggedCapturedMessage)

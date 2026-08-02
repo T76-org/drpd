@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Dialog, DialogButton } from '../../../../ui/overlays'
+import { Dialog, DialogButton, DialogForm, DialogFormRow } from '../../../../ui/overlays'
 import { validateInquiryParameters, type InquiryDefinition } from '../../inquiries/catalog'
-import { SinkInquiryType, type SinkInquiryCablePlug, type SinkInquiryRequest } from '../../../../lib/device'
+import { SinkInquiryType, type LoggedEventDataSection, type SinkInquiryCablePlug, type SinkInquiryRequest } from '../../../../lib/device'
 import { parseCountryCodesDataBlock } from '../../../../lib/device/drpd/usb-pd/DataObjects'
 import { buildCountryInfoSteps } from '../../inquiries/countryWorkflow'
-import { batteryReferencesFromScedb, buildAllBatterySurveySteps, buildBatterySurveySteps } from '../../inquiries/batteryWorkflow'
 import { buildDiscoverModesSteps, canRetryVdmSurveyStep, deduplicateOrderedSvids, parseDiscoverSvidPage } from '../../inquiries/vdmWorkflow'
 import { formatSinkInquiryOutcome } from '../../inquiries/presentation'
 import { decodeInquiryResponse } from '../../inquiries/decode'
@@ -16,7 +15,12 @@ import {
   type SerialInquiryWorkflowStep,
   type SinkInquiryClient,
 } from '../../inquiries/runner'
-import { AuthenticationWorkflowPanel } from './AuthenticationWorkflowPanel'
+import {
+  BATTERY_MANUFACTURER_IDENTITY_EVENT_TITLE,
+  surveyBatteryManufacturerIdentity,
+} from '../../inquiries/manufacturerWorkflow'
+import { runSingleInquiryEvent, type InquiryEventResult } from '../../inquiries/inquiryEvent'
+import styles from './SourceInquiryDialog.module.css'
 
 const bytesToHex = (bytes: Uint8Array): string => (
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(' ')
@@ -284,130 +288,24 @@ const PortPartnerSurveyWorkflow = ({ client, plug }: { client: SinkInquiryClient
   </>
 }
 
-const BatterySurveyWorkflow = ({ client }: { client: SinkInquiryClient }) => {
-  const [history, setHistory] = useState<InquiryHistoryEntry[]>([])
-  const [references, setReferences] = useState<number[] | null>(null)
-  const [manualReference, setManualReference] = useState('0')
-  const [inputError, setInputError] = useState<string | null>(null)
-  const [running, setRunning] = useState(true)
-  const [pending, setPending] = useState<{ steps: SerialInquiryWorkflowStep[]; index: number } | null>(null)
-  const controllerRef = useRef<AbortController | null>(null)
-  const busyRef = useRef(true)
-  const maxRetries = 2
-
-  const append = useCallback((entry: InquiryHistoryEntry) => setHistory((current) => [...current, entry].slice(-64)), [])
-  const runSteps = useCallback(async (steps: SerialInquiryWorkflowStep[], start: number) => {
-    if (busyRef.current) return
-    busyRef.current = true
-    setRunning(true)
-    let failed = false
-    await withSinkInquiryLease(client, async (run) => { for (let index = start; index < steps.length; index += 1) {
-      const step = steps[index]
-      const attempt = history.filter(({ stepId }) => stepId === step.id).length + 1
-      let result = await run(step.request, { signal: controllerRef.current?.signal })
-      if (result.phase === 'response') {
-        try { decodeInquiryResponse(result.status, result.rawResponse, result.request) }
-        catch (error) { result = { phase: 'transportError', type: step.request.type, message: error instanceof Error ? error.message : String(error) } }
-      }
-      append({ stepId: step.id, attempt, result })
-      if (result.phase !== 'response') {
-        failed = true
-        setPending({ steps, index })
-        setRunning(false)
-        busyRef.current = false
-        return
-      }
-    } })
-    if (failed) return
-    setPending(null)
-    setRunning(false)
-    busyRef.current = false
-  }, [append, client, history])
-
-  const discover = useCallback(async () => {
-    const request = { type: SinkInquiryType.GET_SOURCE_CAP_EXTENDED } as const
-    const result = await runSinkInquiry(client, request, { signal: controllerRef.current?.signal })
-    setRunning(false)
-    busyRef.current = false
-    const appendDiscovery = (discoveryResult: InquiryRunState) => setHistory((current) => [
-      ...current,
-      { stepId: 'battery-discovery', attempt: current.filter(({ stepId }) => stepId === 'battery-discovery').length + 1, result: discoveryResult },
-    ].slice(-64))
-    if (result.phase === 'response') {
-      try {
-        decodeInquiryResponse(result.status, result.rawResponse, result.request)
-        setReferences(batteryReferencesFromScedb(result.rawResponse))
-        appendDiscovery(result)
-        setPending(null)
-        return
-      } catch (error) {
-        const malformed: InquiryRunState = { phase: 'transportError', type: request.type, message: error instanceof Error ? error.message : String(error) }
-        appendDiscovery(malformed)
-      }
-    } else appendDiscovery(result)
-    setPending({ steps: [{ id: 'battery-discovery', request }], index: 0 })
-  }, [client])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    controllerRef.current = controller
-    queueMicrotask(() => { if (!controller.signal.aborted) void discover() })
-    return () => controller.abort()
-  }, [discover])
-
-  const pendingId = pending?.steps[pending.index]?.id
-  const attempts = pendingId ? history.filter(({ stepId }) => stepId === pendingId).length : 0
-  const resume = (action: 'retry' | 'continue' | 'stop') => {
-    if (!pending) return
-    if (action === 'stop') { setPending(null); return }
-    if (pendingId === 'battery-discovery') {
-      if (action === 'continue') { setReferences([]); setPending(null); return }
-      busyRef.current = true; setRunning(true); void discover(); return
-    }
-    void runSteps(pending.steps, pending.index + (action === 'continue' ? 1 : 0))
-  }
-  const startSurvey = (referencesToSurvey: readonly number[]) => {
-    try {
-      setInputError(null)
-      void runSteps(buildBatterySurveySteps(referencesToSurvey), 0)
-    } catch (error) {
-      setInputError(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  return <>
-    {references !== null && !running && !pending ? <>
-      <p>{references.length > 0 ? `SCEDB advertised references: ${references.join(', ')}` : 'No usable SCEDB battery counts; choose a manual reference or probe all eight.'}</p>
-      {references.length > 0 ? <DialogButton onClick={() => startSurvey(references)}>Survey advertised batteries</DialogButton> : null}
-      <label>Battery reference <input aria-label="Survey battery reference" type="number" min="0" max="7" value={manualReference} onChange={(event) => setManualReference(event.target.value)} /></label>
-      <DialogButton onClick={() => startSurvey([Number(manualReference)])}>Survey selected battery</DialogButton>
-      <DialogButton onClick={() => void runSteps(buildAllBatterySurveySteps(), 0)}>Survey all eight references</DialogButton>
-      {inputError ? <p role="alert">{inputError}</p> : null}
-    </> : null}
-    {running ? <div role="status">Discovering or surveying batteries…</div> : null}
-    {pending ? <div role="alert"><p>Step {pendingId} did not return a usable response.</p>
-      <DialogButton disabled={attempts > maxRetries} onClick={() => resume('retry')}>Retry</DialogButton>
-      <DialogButton onClick={() => resume('continue')}>Continue</DialogButton>
-      <DialogButton onClick={() => resume('stop')}>Stop</DialogButton>
-    </div> : null}
-    <h3>Inquiry history</h3>
-    <ol>{history.map((entry, index) => <li key={`${entry.stepId}-${entry.attempt}-${index}`}>{entry.stepId} · attempt {entry.attempt} · {entry.result.phase}{entry.result.phase === 'terminal' && entry.result.rawResponse ? ` · ${bytesToHex(entry.result.rawResponse)}` : ''}</li>)}</ol>
-    <p>Full packet decoding remains available in Message Log.</p>
-  </>
-}
-
 export const SourceInquiryDialog = ({
   open,
   onOpenChange,
   definition,
   client,
   onResponse,
+  logOnly = false,
+  publishLogEvent,
+  executeInquiryEvent,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   definition: InquiryDefinition | null
   client: SinkInquiryClient | null
   onResponse?: (definition: InquiryDefinition) => void | Promise<void>
+  logOnly?: boolean
+  publishLogEvent?: (title: string, summary: string, eventData?: LoggedEventDataSection[]) => Promise<void>
+  executeInquiryEvent?: (request: SinkInquiryRequest) => Promise<InquiryEventResult>
 }) => {
   const [state, setState] = useState<InquiryRunState>({ phase: 'idle' })
   const [approvedDefinitionId, setApprovedDefinitionId] = useState<string | null>(null)
@@ -416,14 +314,21 @@ export const SourceInquiryDialog = ({
   const [batteryReference, setBatteryReference] = useState('0')
   const [countryCode, setCountryCode] = useState('')
   const [svid, setSvid] = useState('65280')
+  const [manufacturerWorkflowRunning, setManufacturerWorkflowRunning] = useState(false)
+  const [manufacturerWorkflowProgress, setManufacturerWorkflowProgress] = useState<string | null>(null)
   const confirmed = definition?.confirmation == null || approvedDefinitionId === definition.id
   const request = useMemo(() => definition?.workflow === 'immediate'
     ? definition.buildRequest({})
     : submitted && submitted.definitionId === definition?.id ? submitted.request : null,
   [definition, submitted])
+  const manufacturerParameterForm = definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO &&
+    definition.workflow !== 'immediate' && !request
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen) setApprovedDefinitionId(null)
+    if (!nextOpen) {
+      setApprovedDefinitionId(null)
+      setManufacturerWorkflowProgress(null)
+    }
     onOpenChange(nextOpen)
   }
 
@@ -462,8 +367,12 @@ export const SourceInquiryDialog = ({
       open={open}
       onOpenChange={handleOpenChange}
       title={definition?.confirmation && !confirmed ? definition.confirmation.title : (definition?.label ?? 'Source inquiry')}
-      description={definition?.description}
-      dialogStyle={{ width: 'min(520px, calc(100vw - var(--space-32)))' }}
+      description={definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
+        ? undefined
+        : definition?.description}
+      dialogStyle={{ width: definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
+        ? 'min(320px, calc(100vw - var(--space-32)))'
+        : 'min(520px, calc(100vw - var(--space-32)))' }}
       footer={definition?.confirmation && !confirmed ? (
         <>
           <DialogButton onClick={() => handleOpenChange(false)}>Cancel</DialogButton>
@@ -471,21 +380,37 @@ export const SourceInquiryDialog = ({
             {definition.confirmation.confirmLabel}
           </DialogButton>
         </>
+      ) : manufacturerParameterForm ? (
+        <>
+          <DialogButton
+            disabled={manufacturerWorkflowRunning}
+            onClick={() => handleOpenChange(false)}
+          >Cancel</DialogButton>
+          <DialogButton
+            variant="primary"
+            type="submit"
+            form="manufacturer-info-form"
+            disabled={manufacturerWorkflowRunning}
+          >Send inquiry</DialogButton>
+        </>
       ) : <DialogButton onClick={() => handleOpenChange(false)}>Close</DialogButton>}
-    >
-      {definition?.confirmation && !confirmed ? <p role="alert">{definition.confirmation.body}</p> : null}
-      {definition?.confirmation && !confirmed ? null : <>
-      {definition?.id === 'authenticate-source' && client
-        ? <AuthenticationWorkflowPanel client={client} />
-        : definition?.id === 'survey-batteries' && client
-        ? <BatterySurveyWorkflow client={client} />
-        : (definition?.id === 'survey-port-partner-modes' || definition?.id.startsWith('survey-cable-')) && client
+      >
+        {definition?.confirmation && !confirmed ? <p role="alert">{definition.confirmation.body}</p> : null}
+        {definition?.confirmation && !confirmed ? null : <>
+      {definition?.type === SinkInquiryType.GET_MANUFACTURER_INFO
+        ? <p className={styles.manufacturerDescription}>{definition.description}</p>
+        : null}
+      {definition?.id.startsWith('survey-cable-') && client
           ? <PortPartnerSurveyWorkflow client={client} plug={requestCablePlug(definition.buildRequest({}))} />
         : definition?.type === SinkInquiryType.GET_COUNTRY_INFO && client
           ? <CountryInformationWorkflow client={client} />
         : <>
       {definition && definition.workflow !== 'immediate' && !request ? (
-        <form onSubmit={(event) => {
+        <form className={definition.type === SinkInquiryType.GET_MANUFACTURER_INFO
+          ? styles.manufacturerForm
+          : undefined} id={definition.type === SinkInquiryType.GET_MANUFACTURER_INFO
+          ? 'manufacturer-info-form'
+          : undefined} onSubmit={(event) => {
           event.preventDefault()
           const values = definition.type === SinkInquiryType.GET_MANUFACTURER_INFO
             ? { target, batteryReference: Number(batteryReference) }
@@ -496,20 +421,68 @@ export const SourceInquiryDialog = ({
             : { countryCode }
           const validation = validateInquiryParameters(definition as InquiryDefinition<Record<string, unknown>>, values)
           if (!validation.valid) return
-          setSubmitted({
-            definitionId: definition.id,
-            request: (definition as InquiryDefinition<Record<string, unknown>>).buildRequest(values),
-          })
-        }}>
-          {definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ? <>
-            <label>Target <select value={target} onChange={(event) => setTarget(event.target.value)}><option>PORT</option><option>BATTERY</option></select></label>
-            {target === 'BATTERY' ? <label>Battery reference <input type="number" min="0" max="7" value={batteryReference} onChange={(event) => setBatteryReference(event.target.value)} /></label> : null}
-          </> : definition.type === SinkInquiryType.GET_BATTERY_CAP || definition.type === SinkInquiryType.GET_BATTERY_STATUS
+          const nextRequest = (definition as InquiryDefinition<Record<string, unknown>>)
+            .buildRequest(values)
+          if (logOnly && client) {
+            if (definition.type === SinkInquiryType.GET_MANUFACTURER_INFO && target === 'BATTERY') {
+              setManufacturerWorkflowRunning(true)
+              setManufacturerWorkflowProgress('Discovering available batteries…')
+              void surveyBatteryManufacturerIdentity(client, setManufacturerWorkflowProgress)
+                .then(async ({ summary, eventData }) => {
+                  await publishLogEvent?.(BATTERY_MANUFACTURER_IDENTITY_EVENT_TITLE, summary, eventData)
+                  handleOpenChange(false)
+                })
+                .catch((error) => setState({
+                  phase: 'transportError',
+                  type: SinkInquiryType.GET_MANUFACTURER_INFO,
+                  message: error instanceof Error ? error.message : String(error),
+                }))
+                .finally(() => setManufacturerWorkflowRunning(false))
+              return
+            }
+            setState({ phase: 'sending', type: nextRequest.type })
+            void (executeInquiryEvent?.(nextRequest) ?? runSingleInquiryEvent(client, nextRequest))
+              .then(async ({ title, summary, eventData }) => {
+                await publishLogEvent?.(title, summary, eventData)
+                handleOpenChange(false)
+              })
+              .catch((error) => setState({
+                phase: 'transportError',
+                type: nextRequest.type,
+                message: error instanceof Error ? error.message : String(error),
+              }))
+            return
+          }
+          setSubmitted({ definitionId: definition.id, request: nextRequest })
+          }}>
+            {definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ? <>
+              <DialogForm>
+                <DialogFormRow
+                  className={styles.manufacturerTargetRow}
+                  label="Target"
+                  htmlFor="manufacturer-info-target"
+                >
+                  <select
+                    id="manufacturer-info-target"
+                    className={styles.manufacturerTargetSelect}
+                    value={target}
+                    disabled={manufacturerWorkflowRunning}
+                    onChange={(event) => setTarget(event.target.value)}
+                  >
+                    <option>PORT</option>
+                    <option>BATTERY</option>
+                  </select>
+                </DialogFormRow>
+              </DialogForm>
+            </> : definition.type === SinkInquiryType.GET_BATTERY_CAP || definition.type === SinkInquiryType.GET_BATTERY_STATUS
             ? <label>Battery reference <input aria-label="Battery reference" type="number" min="0" max="7" value={batteryReference} onChange={(event) => setBatteryReference(event.target.value)} /></label>
             : definition.type === SinkInquiryType.DISCOVER_MODES
               ? <label>SVID <input aria-label="SVID" type="number" min="1" max="65535" value={svid} onChange={(event) => setSvid(event.target.value)} /></label>
             : <label>Country code <input aria-label="Country code" maxLength={2} value={countryCode} onChange={(event) => setCountryCode(event.target.value.toUpperCase())} /></label>}
-          <DialogButton variant="primary" type="submit">{definition.type === SinkInquiryType.GET_COUNTRY_INFO ? 'Send selected country' : 'Send inquiry'}</DialogButton>
+          {definition.type === SinkInquiryType.GET_MANUFACTURER_INFO ? null :
+            <DialogButton variant="primary" type="submit">{definition.type === SinkInquiryType.GET_COUNTRY_INFO ? 'Send selected country' : 'Send inquiry'}</DialogButton>}
+          {manufacturerWorkflowProgress ? <p role="status">{manufacturerWorkflowProgress}</p> : null}
+          {state.phase === 'transportError' ? <p role="alert">Communication error: {state.message}</p> : null}
         </form>
       ) : null}
       {definition?.workflow !== 'immediate' && !request ? null : <>

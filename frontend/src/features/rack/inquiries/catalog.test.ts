@@ -41,6 +41,7 @@ describe('source inquiry catalog', () => {
     const status = ACTIVE_SOURCE_INQUIRIES.find(({ type }) => type === SinkInquiryType.GET_STATUS)!
     expect(status.sideEffects).toContain('clears-source-status-events')
     expect(status.confirmation?.body).toContain('OCP, OVP, and OTP')
+    expect(status.confirmation?.confirmLabel).toBe('SEND INQUIRY')
   })
 
   it('validates typed integer, enum, and country-code parameters', () => {

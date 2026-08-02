@@ -6,5 +6,6 @@
  */
 
 export * from './types'
+export * from './eventData'
 export * from './schema'
 export * from './sqliteWasmStore'

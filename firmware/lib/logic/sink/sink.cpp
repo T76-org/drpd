@@ -388,8 +388,12 @@ void Sink::_processPendingPolicyRequests() {
 }
 
 void Sink::_processPendingInquiries() {
+    const SinkState stableState = _runtimeState._state;
+    const bool ready = stableState == SinkState::PE_SNK_Ready;
+    const bool eprReady = stableState == SinkState::PE_SNK_EPR_Keepalive &&
+        _eprKeepaliveStateHandler.canSuspendForInquiry();
     if (!_enabled.load() || _ccBusResetPending.load(std::memory_order_acquire) ||
-        _runtimeState._state != SinkState::PE_SNK_Ready) {
+        (!ready && !eprReady) || _messageSender.hasPendingMessage()) {
         return;
     }
     SinkInquiryRequest request{};
@@ -398,6 +402,7 @@ void Sink::_processPendingInquiries() {
     }
     _inquiryQueued.store(false, std::memory_order_release);
     _inquiryReassembly.reset();
+    _inquiryStateHandler.prepareReturnState(stableState);
     _runtimeState.beginInquiry(request);
     _context.transitionTo(SinkState::PE_SNK_Inquiry);
 }

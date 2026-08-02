@@ -930,7 +930,12 @@ SinkContext::takeInquiryExtendedPayload() {
     return payload;
 }
 
-void SinkContext::handleMessageAsReady(const PHY::BMCDecodedMessage *message) {
+void SinkContext::handleMessageAsStableState(
+    SinkState state, const PHY::BMCDecodedMessage *message) {
+    if (state == SinkState::PE_SNK_EPR_Keepalive) {
+        _eprKeepaliveStateHandler.handleMessage(*this, message);
+        return;
+    }
     _readySinkStateHandler.handleMessage(*this, message);
 }
 
@@ -952,6 +957,20 @@ bool SinkContext::cacheInquiryResponse(
             const auto header = message->decodedHeader();
             Proto::SourceCapabilities capabilities(payload, header.numDataObjects());
             if (capabilities.pdoCount() == 0) return false;
+            if (_runtimeState._eprModeActive) {
+                if (!_runtimeState._eprCapabilities.has_value() ||
+                    !_runtimeState._eprCapabilities->matchesSPRSourceCapabilities(capabilities)) {
+                    return false;
+                }
+                // Get_Source_Cap remains legal and informational in EPR Mode.
+                // Refresh the SPR mirror without discarding the active EPR
+                // capability set or disturbing the current EPR contract.
+                _runtimeState._specRevision = Proto::negotiatedSpecRevision(
+                    header.specRevision());
+                _runtimeState._sourceCapabilities = capabilities;
+                _runtimeState._sourceSupportsEpr = _sourceEPRCapable();
+                return true;
+            }
             setSourceCapabilities(capabilities, header.specRevision());
             return true;
         }

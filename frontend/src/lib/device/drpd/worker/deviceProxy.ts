@@ -526,8 +526,11 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
   /**
    * Insert a manual mark into the worker-owned message log.
    */
-  public async markLog(): Promise<void> {
-    await this.callDevice('markLog')
+  public async markLog(
+    eventSummary = 'Mark',
+    eventData?: LoggedCapturedMessage['eventData'],
+  ): Promise<void> {
+    await this.callDevice('markLog', eventSummary, eventData)
   }
 
   /** Insert a manual mark after a persisted log row. */

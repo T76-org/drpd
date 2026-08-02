@@ -24,6 +24,7 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
     entry_kind TEXT NOT NULL DEFAULT 'message',
     event_type TEXT,
     event_text TEXT,
+    event_data TEXT,
     event_wall_clock_ms INTEGER,
     flagged INTEGER NOT NULL DEFAULT 0,
     comment TEXT,
@@ -64,4 +65,4 @@ export const LOG_SCHEMA_STATEMENTS: string[] = [
 /**
  * Schema version used by the logging store.
  */
-export const LOG_SCHEMA_VERSION = 8
+export const LOG_SCHEMA_VERSION = 9

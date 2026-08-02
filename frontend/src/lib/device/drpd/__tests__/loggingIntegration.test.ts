@@ -1022,7 +1022,11 @@ describe('DRPD logging integration', () => {
     })
 
     expect(device.isLoggingEnabled()).toBe(false)
-    await device.markLog()
+    const eventData = [{
+      title: 'Power',
+      entries: [{ key: 'Voltage', value: '**20 V**' }],
+    }]
+    await device.markLog('Mark', eventData)
 
     const rows = await device.queryCapturedMessages({
       startTimestampUs: 0n,
@@ -1034,6 +1038,7 @@ describe('DRPD logging integration', () => {
     expect(rows[0].entryKind).toBe('event')
     expect(rows[0].eventType).toBe('mark')
     expect(rows[0].eventText).toBe('Mark')
+    expect(rows[0].eventData).toEqual(eventData)
     expect(device.isLoggingEnabled()).toBe(false)
     expect(addedKinds).toEqual(['event'])
   })

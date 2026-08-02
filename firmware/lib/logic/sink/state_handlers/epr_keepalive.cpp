@@ -378,3 +378,7 @@ void EPRKeepaliveStateHandler::reset(SinkContext& context) {
     _waitingForKeepaliveAck = false;
     _unbindContext();
 }
+
+bool EPRKeepaliveStateHandler::canSuspendForInquiry() const {
+    return !_waitingForKeepaliveAck;
+}

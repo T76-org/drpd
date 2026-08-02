@@ -69,6 +69,32 @@ describe('parseMessageLogImportJson', () => {
     expect(otherEventRow.comment).toBeNull()
     expect(otherEventRow.commentCreatedAtMs).toBeNull()
   })
+
+  it('round-trips optional structured event data and rejects malformed entries', () => {
+    const eventData = [{
+      title: 'Power',
+      entries: [
+        { key: 'Voltage', value: '**20 V**' },
+        { key: 'Result', value: '<strong>Accepted</strong>' },
+      ],
+    }]
+    const serialized = {
+      ...serializeMessageLogRow(buildRow()),
+      entryKind: 'event',
+      eventType: 'mark',
+      eventText: 'Inquiry result',
+      eventData,
+    }
+
+    const [row] = parseMessageLogImportJson(JSON.stringify([serialized]))
+    expect(row.eventData).toEqual(eventData)
+    expect(serializeMessageLogRow(row).eventData).toEqual(eventData)
+
+    expect(() => parseMessageLogImportJson(JSON.stringify([{
+      ...serialized,
+      eventData: [{ title: 'Bad', entries: [{ key: 'Value', value: 42 }] }],
+    }]))).toThrow('row 1.eventData[0].entries[0].value must be a string')
+  })
   it('imports selected-array JSON rows', () => {
     const [row] = parseMessageLogImportJson(JSON.stringify([serializeMessageLogRow(buildRow())]))
 

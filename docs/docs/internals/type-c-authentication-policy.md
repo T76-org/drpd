@@ -5,7 +5,7 @@ sidebar_position: 20
 
 # Type-C authentication policy
 
-This document fixes the security and trust boundary for the **Authenticate source…** workflow before its implementation. The workflow is an inspection tool. It reports evidence and a policy verdict; it never changes the active power contract or silently treats protocol success as trust.
+This document fixes the security and trust boundary for the automated **Authenticate source** inquiry. The inquiry is an inspection tool. It reports evidence for every advertised certificate slot; it never changes the active power contract or silently treats protocol success as trust.
 
 ## Normative profile
 
@@ -25,10 +25,9 @@ Unsupported versions, algorithms, encodings, reserved values, trailing bytes, or
 
 No trust anchor is bundled or inherited from the operating-system or Web PKI store. A chain is trusted only when its 32-byte `RootHash` matches an explicitly configured anchor for the selected policy. Merely being self-consistent, using slots 0–3, or claiming a USB-IF name is not trust.
 
-Two policy modes are supported:
+The frontend inquiry operates in `inspect` mode. It performs all protocol and cryptographic checks possible with the returned chain and challenge, but always reports trust and policy as `not evaluated` because the Source does not return its root certificate and the inquiry does not prompt for or assume a trust anchor.
 
-- `inspect` (the default) performs protocol and cryptographic verification but always reports trust and policy as `not evaluated`;
-- `require-configured-anchor` requires at least one caller-supplied anchor and reports success only when a permitted anchor and every configured identity constraint match.
+The lower-level verifier can apply caller-supplied anchors, but that is not part of this automated menu action. No trust anchor is bundled, inferred, or inherited from the operating-system or Web PKI store.
 
 An anchor record contains a stable caller-defined identifier, the exact DER root certificate, an allowed-slot class (`usb-if`, slots 0–3; `private`, slots 4–7; or an explicit slot list), and optional allowed leaf VID/PID pairs. Its key is `SHA-256(root DER)`, compared byte-for-byte with the wire `RootHash`. A `usb-if` classification is caller configuration, not something inferred from a certificate name. A local denylist contains SHA-256 fingerprints of root, intermediate, or leaf DER certificates and takes precedence over every anchor allow. The USB ACD is decoded and reported; it affects allow/deny only when the selected anchor record contains explicit ACD constraints. Missing or unknown constrained claims deny rather than wildcard-match.
 
@@ -50,19 +49,14 @@ The host owns the multistep workflow. Firmware performs exactly one atomic AMS p
 
 The runner:
 
-1. reads digests and chooses an explicitly selected populated slot;
+1. reads digests and selects every populated slot, bounded to the eight protocol slots;
 2. retrieves the certificate chain in bounded parts, requiring the returned slot and request ID to correlate while retaining the requested offset in host workflow state;
 3. verifies total length, segment progress, chain digest, certificates, and configured trust anchor; then
 4. sends a fresh challenge and verifies the response.
 
 Certificate retrieval first requests the 36-byte chain header so it cannot overrun a short chain whose length is not yet known. It then requests contiguous segments of exactly `min(256, remaining)`, and each successful response must return exactly that length. Retrieval stops at 4096 bytes and at most 17 successful requests: one header plus at most 16 data requests. A response cannot supply an offset, so overlap/gap protection comes from request-ID correlation, the retained requested offset, exact response length, and append-only assembly.
 
-Each atomic step permits at most three attempts, including `BUSY` and manual Retry. Thus certificate retrieval permits at most 51 atomic attempts for its 17 successful requests. Retry creates a new request ID; challenge retry also creates a new nonce. Zero progress, inconsistent repeated evidence, changing slot/digest, malformed lengths, detach, reset, timeout, collision, or supersession ends that attempt and exposes the action rules below. “All slots” is bounded to the eight protocol slots and preserves separate history for every attempt.
-
-- **Retry** is available after a transport, responder `BUSY`, timeout, or retryable parse failure while the three-attempt budget remains.
-- **Continue** is available only in an all-slots survey. It records the current slot as failed or indeterminate and advances to the next selected slot. It never skips certificate or trust failure and then challenges that same slot.
-- **Stop** is always available before completion and records cancellation as the terminal workflow state.
-- Signature, chain, trust, denylist, policy, detach, reset, collision, and supersession failures are terminal for that slot. In a single-slot run only Stop/close remains; in an all-slots run Continue may inspect the next slot.
+Each atomic step permits at most three attempts, including `BUSY`. Thus certificate retrieval permits at most 51 atomic attempts for its 17 successful requests. Each retry creates a new request ID; challenge retry also creates a new nonce. After the retry budget is exhausted, the runner records the current slot as failed or indeterminate and continues with the next populated slot. A failure never skips certificate validation and then challenges that same slot. Digest discovery failure, detach, reset, cancellation, collision, or supersession stops the workflow.
 
 Firmware applies operation-specific response deadlines from the authentication profile: 200 ms for potentially chunked digest and certificate responses, and 1200 ms for a potentially chunked challenge response. A complete unchunked response may use the shorter 40 ms and 1000 ms limits respectively only when transport can determine that form without weakening chunked interoperability.
 

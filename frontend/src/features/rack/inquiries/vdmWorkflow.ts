@@ -1,6 +1,393 @@
-import { SinkInquiryType, type SinkInquiryCablePlug } from '../../../lib/device'
-import type { SerialInquiryWorkflowStep } from './runner'
-import { parseSVIDsVDO, readDataObjects } from '../../../lib/device/drpd/usb-pd/DataObjects'
+import { SinkInquiryType, type LoggedEventDataSection, type SinkInquiryCablePlug } from '../../../lib/device'
+import { formatSinkInquiryOutcome } from './presentation'
+import { decodeInquiryResponse } from './decode'
+import { withSinkInquiryLease, type InquiryRunState, type SerialInquiryWorkflowStep, type SinkInquiryClient } from './runner'
+import {
+  parseDiscoverIdentityVDOs,
+  parseSVIDsVDO,
+  parseVDMHeader,
+  readDataObjects,
+  type ParsedDFPVDO,
+  type ParsedDiscoverIdentity,
+  type ParsedUFPVDO,
+} from '../../../lib/device/drpd/usb-pd/DataObjects'
+
+export const PORT_PARTNER_IDENTITY_EVENT_TITLE = 'INQUIRY - Port Partner identity'
+export const PORT_PARTNER_SVIDS_EVENT_TITLE = 'INQUIRY - Port Partner SVIDs'
+export const PORT_PARTNER_MODES_EVENT_TITLE = 'INQUIRY - Port Partner modes'
+
+const bytesToHex = (bytes: Uint8Array): string =>
+  Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')
+
+const hex16 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(4, '0')}`
+const hex32 = (value: number): string => `0x${value.toString(16).toUpperCase().padStart(8, '0')}`
+const hexByte = (value: number): string => value.toString(16).toUpperCase().padStart(2, '0')
+const rawHex = (bytes: Uint8Array): string => `\`${bytesToHex(bytes) || '(empty)'}\``
+const detail = (value: string, explanation: string): string => `${value}\n\n_${explanation}_`
+const bits = (value: number, width: number): string => `\`0b${value.toString(2).padStart(width, '0')}\``
+const yesNo = (value: boolean): string => value ? '**Yes**' : '**No**'
+
+const usbSpeedMeaning = (code: number): string => [
+  'USB 2.0 only; no SuperSpeed support',
+  'USB 3.2 Gen 1',
+  'USB 3.2 / USB4 Gen 2',
+  'USB4 Gen 3',
+  'USB4 Gen 4',
+][code] ?? 'Reserved encoding'
+
+const vconnPowerMeaning = (code: number): string => ['1 W', '1.5 W', '2 W', '3 W', '4 W', '5 W', '6 W'][code] ?? 'Reserved encoding'
+
+const enabledMeanings = (value: number, meanings: string[]): string => {
+  const enabled = meanings.filter((_, bit) => (value & (1 << bit)) !== 0)
+  return enabled.length ? enabled.join('; ') : 'No capabilities asserted'
+}
+
+const svidName = (svid: number): string => {
+  if (svid === 0xff00) return 'USB-IF'
+  if (svid === 0xff01) return 'DisplayPort'
+  if (svid === 0x8087) return 'Intel / Thunderbolt'
+  return 'Vendor-defined'
+}
+
+const modeVdoEntries = (svid: number, vdo: number, index: number): LoggedEventDataSection['entries'] => {
+  const rawBytes = new Uint8Array([vdo & 0xff, (vdo >>> 8) & 0xff, (vdo >>> 16) & 0xff, (vdo >>> 24) & 0xff])
+  const binary = (vdo >>> 0).toString(2).padStart(32, '0').match(/.{1,4}/g)?.join(' ') ?? ''
+  return [
+    { key: `Mode ${index + 1} VDO`, value: detail(`\`${hex32(vdo)}\``, `Mode ${index + 1} for ${hex16(svid)} (${svidName(svid)}). Raw little-endian bytes: ${rawHex(rawBytes)}.`) },
+    { key: `Mode ${index + 1} Binary (bits 31:0)`, value: `\`${binary}\` — grouped into eight 4-bit nibbles, most-significant first.` },
+    { key: `Mode ${index + 1} Octets`, value: `bits 31:24 = \`${hexByte((vdo >>> 24) & 0xff)}\`; bits 23:16 = \`${hexByte((vdo >>> 16) & 0xff)}\`; bits 15:8 = \`${hexByte((vdo >>> 8) & 0xff)}\`; bits 7:0 = \`${hexByte(vdo & 0xff)}\`.` },
+    { key: `Mode ${index + 1} Nibbles`, value: Array.from({ length: 8 }, (_, nibble) => {
+      const lowBit = nibble * 4
+      const highBit = lowBit + 3
+      return `bits ${highBit}:${lowBit} = \`0x${((vdo >>> lowBit) & 0xf).toString(16).toUpperCase()}\``
+    }).reverse().join('; ') + '.' },
+    { key: `Mode ${index + 1} Interpretation`, value: `The field-level meaning is defined by SVID **${hex16(svid)} (${svidName(svid)})**, not by USB Power Delivery. Dr. PD preserves the complete value and exposes byte, bit, and nibble boundaries without inventing vendor-specific semantics.` },
+  ]
+}
+
+const isUfpVdo = (vdo: ParsedDiscoverIdentity['productTypeVDOs'][number]): vdo is ParsedUFPVDO =>
+  'deviceCapability' in vdo
+
+const isDfpVdo = (vdo: ParsedDiscoverIdentity['productTypeVDOs'][number]): vdo is ParsedDFPVDO =>
+  'hostCapability' in vdo
+
+const productTypeVdoEntries = (
+  vdo: ParsedDiscoverIdentity['productTypeVDOs'][number],
+  index: number,
+): LoggedEventDataSection['entries'] => {
+  const prefix = `Product Type VDO ${index + 1}`
+  const raw = { key: `${prefix} Raw`, value: detail(`\`${hex32(vdo.raw)}\``, 'Complete 32-bit VDO value before field interpretation.') }
+  if (isUfpVdo(vdo)) {
+    return [
+      raw,
+      { key: `${prefix} Type`, value: '**UFP VDO** — capabilities of the Upstream-Facing Port.' },
+      { key: 'UFP VDO Version (bits 31:29)', value: `${bits(vdo.vdoVersion, 3)} — ${vdo.vdoVersion === 0b011 ? 'Version 1.3' : 'reserved encoding'}.` },
+      { key: 'Reserved (bit 28)', value: `${bits((vdo.raw >>> 28) & 1, 1)} — must be zero.` },
+      { key: 'Device Capability (bits 27:24)', value: `${bits(vdo.deviceCapability, 4)} — ${enabledMeanings(vdo.deviceCapability, ['USB 2.0 Device capable', 'USB 2.0 Billboard-only Device capable', 'USB 3.2 Device capable', 'USB4 Device capable'])}.` },
+      { key: 'Reserved (bits 23:11)', value: `${bits((vdo.raw >>> 11) & 0x1fff, 13)} — must be zero.` },
+      { key: 'VCONN Power (bits 10:8)', value: `${bits(vdo.vconnPower, 3)} — ${vconnPowerMeaning(vdo.vconnPower)} required.` },
+      { key: 'VCONN Required (bit 7)', value: `${bits(vdo.vconnRequired ? 1 : 0, 1)} — ${yesNo(vdo.vconnRequired)}.` },
+      { key: 'VBUS Required (bit 6)', value: `${bits((vdo.raw >>> 6) & 1, 1)} — ${yesNo(vdo.vbusRequired)}; this field is active-low.` },
+      { key: 'Alternate Modes (bits 5:3)', value: `${bits(vdo.alternateModes, 3)} — ${enabledMeanings(vdo.alternateModes, ['TBT3 Alternate Mode', 'Alternate Modes that reconfigure the USB Type-C connector (except TBT3)', 'Alternate Modes that do not reconfigure the USB Type-C connector'])}.` },
+      { key: 'USB Highest Speed (bits 2:0)', value: `${bits(vdo.usbHighestSpeed, 3)} — **${usbSpeedMeaning(vdo.usbHighestSpeed)}**.` },
+    ]
+  }
+  if (isDfpVdo(vdo)) {
+    return [
+      raw,
+      { key: `${prefix} Type`, value: '**DFP VDO** — capabilities of the Downstream-Facing Port.' },
+      { key: 'DFP VDO Version (bits 31:29)', value: `${bits(vdo.vdoVersion, 3)} — ${vdo.vdoVersion === 0b010 ? 'Version 1.2' : 'reserved encoding'}.` },
+      { key: 'Reserved (bits 28:27)', value: `${bits((vdo.raw >>> 27) & 0x3, 2)} — must be zero.` },
+      { key: 'Host Capability (bits 26:24)', value: `${bits(vdo.hostCapability, 3)} — ${enabledMeanings(vdo.hostCapability, ['USB 2.0 Host capable', 'USB 3.2 Host capable', 'USB4 Host capable'])}.` },
+      { key: 'Reserved (bits 23:5)', value: `${bits((vdo.raw >>> 5) & 0x7ffff, 19)} — must be zero.` },
+      { key: 'Port Number (bits 4:0)', value: `\`${vdo.portNumber}\` — port identifier reported by the DFP.` },
+    ]
+  }
+  return [raw, { key: `${prefix} Decoding`, value: 'Decoded product-type fields are retained by the cable-specific identity parser; this value is not a UFP or DFP VDO.' }]
+}
+const cableTargetEntries = (plug?: SinkInquiryCablePlug): LoggedEventDataSection['entries'] => plug
+  ? [{ key: 'Target', value: `**${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'}** — explicitly addressed; no fallback to SOP.` }]
+  : []
+
+const vdmHeaderEntries = (raw: Uint8Array): LoggedEventDataSection['entries'] => {
+  const word = readDataObjects(raw, 0, 1)[0]
+  const header = parseVDMHeader(word)
+  return [
+    { key: 'VDM Header (bytes 0–3)', value: detail(`\`${hex32(word)}\``, `Raw little-endian bytes: ${rawHex(raw.subarray(0, 4))}.`) },
+    { key: 'SVID (bits 31:16)', value: `**${hex16(header.svid)}**` },
+    { key: 'VDM Type (bit 15)', value: `\`1\` — ${header.vdmType}.` },
+    { key: 'Structured VDM Version (bits 14:11)', value: `${header.structuredVersionMajor}.${header.structuredVersionMinor}` },
+    { key: 'Object Position (bits 10:8)', value: `\`${header.objectPosition}\`` },
+    { key: 'Command Type (bits 7:6)', value: `\`${header.commandType}\` — **${header.commandTypeName}**.` },
+    { key: 'Reserved (bit 5)', value: `\`${(word >>> 5) & 1}\` — must be zero.` },
+    { key: 'Command (bits 4:0)', value: `\`${header.command}\` — **${header.commandName}**.` },
+  ]
+}
+
+const failedSection = (title: string, outcome: string, raw?: Uint8Array, error?: string, plug?: SinkInquiryCablePlug): LoggedEventDataSection => ({
+  title,
+  entries: [
+    { key: 'Outcome', value: outcome },
+    ...cableTargetEntries(plug),
+    ...(error ? [{ key: 'Decode Error', value: error }] : []),
+    ...(raw ? [{ key: 'Raw Logical Response', value: detail(rawHex(raw), 'Complete logical response body; no fabricated USB-PD header or CRC is included.') }] : []),
+  ],
+})
+
+const describeFailure = (result: InquiryRunState): string => {
+  if (result.phase === 'terminal') return formatSinkInquiryOutcome(result.status.outcome)
+  if (result.phase === 'transportError') return `Communication error: ${result.message}`
+  if (result.phase === 'superseded') return `Superseded by request ${result.status.requestId}`
+  if (result.phase === 'cancelled') return 'Cancelled'
+  return `Incomplete (${result.phase})`
+}
+
+export interface VdmDiscoverySurveyResult {
+  summary: string
+  eventData?: LoggedEventDataSection[]
+}
+
+/** Query and decode one SVID's modes, retaining the explicit SOP target. */
+export const surveySinglePortPartnerModes = async (
+  client: SinkInquiryClient,
+  svid: number,
+  plug?: SinkInquiryCablePlug,
+): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
+  const formattedSvid = hex16(svid)
+  const result = await run({ type: SinkInquiryType.DISCOVER_MODES, svid, ...(plug ? { plug } : {}) })
+  const target = plug ? `${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'} cable` : 'Port Partner'
+  if (result.phase !== 'response') {
+    const outcome = describeFailure(result)
+    return {
+      summary: `- **${target} modes for SVID ${formattedSvid}:**\n  - **Outcome:** ${outcome}.`,
+      eventData: [failedSection(`Modes for SVID ${formattedSvid}`, outcome, undefined, undefined, plug)],
+    }
+  }
+  try {
+    decodeInquiryResponse(result.status, result.rawResponse, result.request)
+    const modeVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+    return {
+      summary: [
+        `- **${target} modes for SVID ${formattedSvid}:**`,
+        '  - **Outcome:** Response decoded successfully.',
+        `  - **Mode count:** ${modeVdos.length}`,
+        ...modeVdos.map((vdo, index) => `  - **Mode ${index + 1} VDO:** ${hex32(vdo)}`),
+      ].join('\n'),
+      eventData: [{
+        title: `Modes for SVID ${formattedSvid}`,
+        entries: [
+          { key: 'Target', value: `**${target}** — explicitly addressed; no fallback to SOP.` },
+          { key: 'Selected SVID', value: `**${formattedSvid}**` },
+          ...vdmHeaderEntries(result.rawResponse),
+          { key: 'Mode Count', value: `${modeVdos.length}` },
+          ...modeVdos.flatMap((vdo, index) => modeVdoEntries(svid, vdo, index)),
+          { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Modes ACK logical response body.') },
+        ],
+      }],
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      summary: `- **${target} modes for SVID ${formattedSvid}:**\n  - **Outcome:** Malformed response (${message}).`,
+      eventData: [failedSection(`Modes for SVID ${formattedSvid}`, 'Malformed response.', result.rawResponse, message, plug)],
+    }
+  }
+})
+
+/** Discover and decode the SOP Port Partner identity into one event-ready summary. */
+export const surveyPortPartnerIdentity = async (
+  client: SinkInquiryClient,
+  plug?: SinkInquiryCablePlug,
+): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
+  const result = await run({ type: SinkInquiryType.DISCOVER_IDENTITY, ...(plug ? { plug } : {}) })
+  const subject = plug ? `${plug === 'SOP_PRIME' ? 'SOP′' : 'SOP″'} cable` : 'Port Partner'
+  if (result.phase !== 'response') {
+    const outcome = describeFailure(result)
+    return { summary: `- **${subject} identity:**\n  - **Outcome:** ${outcome}.`, eventData: [failedSection(`${subject} Identity`, outcome, undefined, undefined, plug)] }
+  }
+  try {
+    decodeInquiryResponse(result.status, result.rawResponse, result.request)
+    const words = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4)
+    const identity = parseDiscoverIdentityVDOs(
+      words.slice(1),
+      plug === 'SOP_PRIME' ? 'SOP_PRIME' : plug === 'SOP_DOUBLE_PRIME' ? 'SOP_DOUBLE_PRIME' : 'SOP',
+    )
+    const id = identity.idHeader!
+    const cert = identity.certStat!
+    const product = identity.product!
+    return {
+      summary: [
+        `- **${subject} identity:**`,
+        '  - **Outcome:** Response decoded successfully.',
+        `  - **VID:** ${hex16(id.usbVendorId)}`,
+        `  - **PID:** ${hex16(product.usbProductId)}`,
+        `  - **XID:** ${hex32(cert.xid)}`,
+        `  - **Product type:** UFP ${id.sopProductTypeUfpOrCable}; DFP ${id.sopProductTypeDfp}`,
+        `  - **Modal operation supported:** ${id.modalOperationSupported ? 'Yes' : 'No'}`,
+      ].join('\n'),
+      eventData: [{
+        title: `${subject} Identity`,
+        entries: [
+          { key: 'Outcome', value: 'Response decoded successfully.' },
+          ...cableTargetEntries(plug),
+          ...vdmHeaderEntries(result.rawResponse),
+          { key: 'ID Header VDO (VDO 1)', value: detail(`\`${hex32(id.raw)}\``, `VID ${hex16(id.usbVendorId)}; USB host capable: ${id.usbHostCapable}; USB device capable: ${id.usbDeviceCapable}; modal operation supported: ${id.modalOperationSupported}; UFP product type bits 29:27 = ${id.sopProductTypeUfpOrCable}; DFP product type bits 25:23 = ${id.sopProductTypeDfp}; connector type bits 22:21 = ${id.connectorType}.`) },
+          { key: 'Cert Stat VDO (VDO 2)', value: detail(`\`${hex32(cert.raw)}\``, `XID: **${hex32(cert.xid)}**.`) },
+          { key: 'Product VDO (VDO 3)', value: detail(`\`${hex32(product.raw)}\``, `PID: **${hex16(product.usbProductId)}**; bcdDevice: ${hex16(product.bcdDevice)}.`) },
+          ...identity.productTypeVDOs.flatMap(productTypeVdoEntries),
+          ...(identity.padVDOs.length ? [{ key: 'Pad VDOs', value: identity.padVDOs.map(hex32).join(', ') }] : []),
+          ...(identity.rawVDOs.length ? [{ key: 'Unparsed VDOs', value: identity.rawVDOs.map(hex32).join(', ') }] : []),
+          { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Identity ACK logical response body.') },
+        ],
+      }],
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return {
+      summary: `- **${subject} identity:**\n  - **Outcome:** Malformed response (${message}).`,
+      eventData: [failedSection(`${subject} Identity`, 'Malformed response.', result.rawResponse, message, plug)],
+    }
+  }
+})
+
+/** Discover all SOP Port Partner SVID pages, bounded to eight requests. */
+export const surveyPortPartnerSvids = async (
+  client: SinkInquiryClient,
+  plug?: SinkInquiryCablePlug,
+): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
+  const pages: number[][] = []
+  const eventData: LoggedEventDataSection[] = []
+  let ending = 'Discovery complete.'
+  for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
+    const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS, ...(plug ? { plug } : {}) })
+    if (result.phase !== 'response') {
+      const outcome = describeFailure(result)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome, undefined, undefined, plug))
+      ending = `Discovery stopped on page ${pageIndex + 1}: ${outcome}.`
+      break
+    }
+    try {
+      decodeInquiryResponse(result.status, result.rawResponse, result.request)
+      const parsed = parseDiscoverSvidPage(result.rawResponse)
+      pages.push(parsed.ordered)
+      const rawVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+      eventData.push({ title: `SVID Discovery Page ${pageIndex + 1}`, entries: [
+        { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...cableTargetEntries(plug),
+        ...vdmHeaderEntries(result.rawResponse),
+        ...rawVdos.map((vdo, index) => ({ key: `SVID VDO ${index + 1}`, value: detail(`\`${hex32(vdo)}\``, `First discovered SVID: ${hex16(parseSVIDsVDO(vdo).svid1)}; second discovered SVID: ${hex16(parseSVIDsVDO(vdo).svid0)}.`) })),
+        { key: 'Ordered SVIDs', value: parsed.ordered.map((svid) => `\`${hex16(svid)}\``).join(', ') || 'None.' },
+        { key: 'Terminator', value: parsed.complete ? 'Zero terminator or short terminal page observed.' : 'Not observed; another page is required.' },
+        { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover SVIDs ACK logical response body.') },
+      ] })
+      if (parsed.complete) {
+        ending = `Discovery completed on page ${pageIndex + 1}.`
+        break
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message, plug))
+      ending = `Discovery stopped on malformed page ${pageIndex + 1}.`
+      break
+    }
+  }
+  const discovered = deduplicateOrderedSvids(pages)
+  if (eventData.length === 8 && pages.length === 8 && !eventData.some((section) => section.entries.some((entry) => entry.key === 'Terminator' && entry.value.startsWith('Zero')))) ending = 'Discovery stopped at the eight-page safety bound without a terminator.'
+  const pageBySvid = new Map<number, number>()
+  pages.forEach((page, index) => page.forEach((svid) => { if (!pageBySvid.has(svid)) pageBySvid.set(svid, index + 1) }))
+  return {
+    summary: [
+      `- **Discovered SVIDs:** ${discovered.length} unique (${discovered.map(hex16).join(', ') || 'none'}).`,
+      ...discovered.flatMap((svid, index) => [`- **SVID ${hex16(svid)}:**`, `  - **Discovery order:** ${index + 1}`, `  - **Response page:** ${pageBySvid.get(svid)}`]),
+      `- **Discovery status:** ${ending}`,
+    ].join('\n'),
+    eventData,
+  }
+})
+
+/** Discover all bounded SOP Port Partner SVID pages, then query Modes for every unique SVID. */
+export const surveyPortPartnerModes = async (
+  client: SinkInquiryClient,
+  plug?: SinkInquiryCablePlug,
+): Promise<VdmDiscoverySurveyResult> => withSinkInquiryLease(client, async (run) => {
+  const pages: number[][] = []
+  const eventData: LoggedEventDataSection[] = []
+  let discoveryComplete = false
+  let discoveryOutcome = 'Incomplete discovery.'
+  for (let pageIndex = 0; pageIndex < 8; pageIndex += 1) {
+    const result = await run({ type: SinkInquiryType.DISCOVER_SVIDS, ...(plug ? { plug } : {}) })
+    if (result.phase !== 'response') {
+      const outcome = describeFailure(result)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, outcome, undefined, undefined, plug))
+      discoveryOutcome = `Stopped on page ${pageIndex + 1}: ${outcome}.`
+      break
+    }
+    try {
+      decodeInquiryResponse(result.status, result.rawResponse, result.request)
+      const parsed = parseDiscoverSvidPage(result.rawResponse)
+      pages.push(parsed.ordered)
+      const rawVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+      eventData.push({ title: `SVID Discovery Page ${pageIndex + 1}`, entries: [
+        { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...cableTargetEntries(plug),
+        ...vdmHeaderEntries(result.rawResponse),
+        ...rawVdos.map((vdo, index) => ({ key: `SVID VDO ${index + 1}`, value: `\`${hex32(vdo)}\`` })),
+        { key: 'Ordered SVIDs', value: parsed.ordered.map((svid) => `\`${hex16(svid)}\``).join(', ') || 'None.' },
+        { key: 'Terminator', value: parsed.complete ? 'Observed.' : 'Not observed.' },
+        { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover SVIDs ACK logical response body.') },
+      ] })
+      if (parsed.complete) {
+        discoveryComplete = true
+        discoveryOutcome = `Completed on page ${pageIndex + 1}.`
+        break
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      eventData.push(failedSection(`SVID Discovery Page ${pageIndex + 1}`, 'Malformed response.', result.rawResponse, message, plug))
+      discoveryOutcome = `Stopped on malformed page ${pageIndex + 1}.`
+      break
+    }
+  }
+
+  const svids = deduplicateOrderedSvids(pages)
+  if (!discoveryComplete && pages.length === 8) discoveryOutcome = 'Stopped at the eight-page safety bound without a terminator.'
+  const lines = [`- **SVID discovery:** ${svids.length} unique (${svids.map(hex16).join(', ') || 'none'}).`, `  - **Status:** ${discoveryOutcome}`]
+  if (svids.length === 0) {
+    lines.push('- **Discover Modes:** No requests were sent.')
+    return { summary: lines.join('\n'), eventData }
+  }
+
+  for (const svid of svids) {
+    const request = { type: SinkInquiryType.DISCOVER_MODES, svid, ...(plug ? { plug } : {}) } as const
+    const result = await run(request)
+    const formattedSvid = `0x${svid.toString(16).toUpperCase().padStart(4, '0')}`
+    if (result.phase !== 'response') {
+      const outcome = describeFailure(result)
+      lines.push(`- **SVID ${formattedSvid}:**`, `  - **Outcome:** ${outcome}.`)
+      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, outcome, undefined, undefined, plug))
+      continue
+    }
+    try {
+      decodeInquiryResponse(result.status, result.rawResponse, result.request)
+      const modeVdos = readDataObjects(result.rawResponse, 0, result.rawResponse.length / 4).slice(1)
+      lines.push(`- **SVID ${formattedSvid}:**`, '  - **Outcome:** Response decoded successfully.', `  - **Mode count:** ${modeVdos.length}`, ...modeVdos.map((vdo, index) => `  - **Mode ${index + 1} VDO:** ${hex32(vdo)}`))
+      eventData.push({ title: `Modes for SVID ${formattedSvid}`, entries: [
+        { key: 'Outcome', value: 'Response decoded successfully.' },
+        ...cableTargetEntries(plug),
+        { key: 'Selected SVID', value: `**${formattedSvid}**` },
+        ...vdmHeaderEntries(result.rawResponse),
+        { key: 'Mode Count', value: `${modeVdos.length}` },
+        ...modeVdos.flatMap((vdo, index) => modeVdoEntries(svid, vdo, index)),
+        { key: 'Raw Logical Response', value: detail(rawHex(result.rawResponse), 'Complete Discover Modes ACK logical response body.') },
+      ] })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      lines.push(`- **SVID ${formattedSvid}:**`, `  - **Outcome:** Malformed response (${message}).`)
+      eventData.push(failedSection(`Modes for SVID ${formattedSvid}`, 'Malformed response.', result.rawResponse, message, plug))
+    }
+  }
+  return { summary: lines.join('\n'), eventData }
+})
 
 export const parseDiscoverSvidPage = (body: Uint8Array): { ordered: number[]; complete: boolean } => {
   if (body.length < 4 || body.length > 28 || body.length % 4 !== 0) throw new Error('Discover SVIDs body must contain 1 to 7 VDOs')
