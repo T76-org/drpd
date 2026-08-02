@@ -1766,6 +1766,43 @@ describe('DrpdTimeStripInstrumentView', () => {
     expect(screen.queryByTestId('drpd-timestrip-analog-hover')).toBeNull()
   })
 
+  it('pages past the analog query limit to load the newest visible samples', async () => {
+    window.localStorage.setItem('drpd:timestrip:zoom-denominator', '400000000')
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240)
+    const queryCapturedMessages = vi.fn(async () => [])
+    const analogRows = Array.from({ length: 8_001 }, (_, index) => buildAnalogSample({
+      timestampUs: BigInt(index * 50_000),
+      vbusV: index === 8_000 ? 20 : 10,
+      ibusA: index === 8_000 ? 2 : 1,
+      createdAtMs: index,
+    }))
+    const queryAnalogSamples = vi.fn(async (query: {
+      startTimestampUs: bigint
+      endTimestampUs: bigint
+      sortOrder?: 'asc' | 'desc'
+      limit?: number
+    }) => {
+      const rows = analogRows
+        .filter((row) => row.timestampUs >= query.startTimestampUs && row.timestampUs <= query.endTimestampUs)
+        .sort((left, right) => {
+          const cmp = left.timestampUs < right.timestampUs ? -1 : left.timestampUs > right.timestampUs ? 1 : 0
+          return query.sortOrder === 'desc' ? -cmp : cmp
+        })
+      return typeof query.limit === 'number' ? rows.slice(0, query.limit) : rows
+    })
+
+    renderTimestrip(buildDeviceState(queryCapturedMessages, queryAnalogSamples))
+
+    await waitFor(() => {
+      expect(queryAnalogSamples).toHaveBeenCalledWith(expect.objectContaining({
+        startTimestampUs: 399_950_001n,
+        sortOrder: 'asc',
+        limit: 8000,
+      }))
+    })
+  })
+
   it('keeps the analog hover overlay under the pointer when scrolling', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(500)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(240)
