@@ -382,7 +382,13 @@ namespace T76::DRPD::Logic {
         void resetStructuredVDMAttachment();
         void resetCableProtocol();
         std::optional<SinkRuntimeState::ExtendedPayloadBuffer> takeInquiryExtendedPayload();
-        void handleMessageAsReady(const PHY::BMCDecodedMessage *message);
+        /**
+         * @brief Route unrelated traffic after an inquiry to the restored stable handler.
+         * @param state Stable SPR Ready or EPR Keepalive state.
+         * @param message Received message to process under normal policy.
+         */
+        void handleMessageAsStableState(
+            SinkState state, const PHY::BMCDecodedMessage *message);
         bool cacheInquiryResponse(
             SinkInquiryType type,
             const PHY::BMCDecodedMessage *message,

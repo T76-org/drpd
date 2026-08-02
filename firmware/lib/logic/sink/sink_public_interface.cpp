@@ -159,7 +159,8 @@ SinkRequestResult Sink::requestInquiry(
         !authenticationParametersValid(type, parameters)) {
         return SinkRequestResult::failure("Invalid Type-C Authentication inquiry parameters");
     }
-    if (_runtimeState._state != SinkState::PE_SNK_Ready) {
+    if (_runtimeState._state != SinkState::PE_SNK_Ready &&
+        _runtimeState._state != SinkState::PE_SNK_EPR_Keepalive) {
         return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
     }
     const bool hasPPSContract = _runtimeState._negotiatedPDO.has_value() &&

@@ -8,6 +8,12 @@
 #include <variant>
 using namespace T76::DRPD::Logic;
 
+void InquiryStateHandler::prepareReturnState(SinkState state) {
+    _returnState = state == SinkState::PE_SNK_EPR_Keepalive
+        ? SinkState::PE_SNK_EPR_Keepalive
+        : SinkState::PE_SNK_Ready;
+}
+
 int64_t InquiryStateHandler::_onResponseTimeout(alarm_id_t, void *userData) {
     auto *handler = static_cast<InquiryStateHandler *>(userData);
     handler->_responseTimeoutAlarmId = -1;
@@ -123,8 +129,9 @@ void InquiryStateHandler::handleMessage(
             descriptor.value(), resultSnapshot.parameters.argument, message->rawBody());
     }
     if (match == InquiryMatch::Unrelated) {
+        const SinkState returnState = _returnState;
         _finish(context, SinkInquiryOutcome::Aborted);
-        context.handleMessageAsReady(message);
+        context.handleMessageAsStableState(returnState, message);
         return;
     }
     if (match == InquiryMatch::Response) {
@@ -189,8 +196,9 @@ void InquiryStateHandler::handleMessage(
             descriptor->warningFlags |
                 (context.runtimeState()._inquiryRecoveredMalformedPPSStatus
                     ? InquiryWarningRecoveredMalformedPPSStatus : InquiryWarningNone));
-        context.transitionTo(SinkState::PE_SNK_Ready);
-        if (refreshesSourceCapabilities) {
+        _returnToStableState(context);
+        if (refreshesSourceCapabilities &&
+            !context.runtimeState()._eprModeActive) {
             context.requestAfterSourceCapabilitiesInquiry(
                 previousRawPDO, previousVoltageMV, previousCurrentMA);
         }
@@ -201,7 +209,7 @@ void InquiryStateHandler::handleMessage(
             match == InquiryMatch::VDMNAK ? SinkInquiryOutcome::NAK : SinkInquiryOutcome::Busy,
             static_cast<uint32_t>(header.messageClass()), rawType, message->rawBody(),
             descriptor->warningFlags);
-        context.transitionTo(SinkState::PE_SNK_Ready);
+        _returnToStableState(context);
     }
     else if (match == InquiryMatch::NotSupported) _finish(context, SinkInquiryOutcome::NotSupported);
     else if (match == InquiryMatch::Rejected) _finish(context, SinkInquiryOutcome::Rejected);
@@ -221,6 +229,7 @@ void InquiryStateHandler::reset(SinkContext& context) {
     _sent = false;
     _requestId = 0;
     _authenticationChunkState.reset();
+    _returnState = SinkState::PE_SNK_Ready;
     _unbindContext();
 }
 
@@ -237,5 +246,9 @@ void InquiryStateHandler::_trySend(SinkContext& context) {
 
 void InquiryStateHandler::_finish(SinkContext& context, SinkInquiryOutcome outcome) {
     context.runtimeState().finishInquiry(outcome);
-    context.transitionTo(SinkState::PE_SNK_Ready);
+    _returnToStableState(context);
+}
+
+void InquiryStateHandler::_returnToStableState(SinkContext& context) {
+    context.transitionTo(_returnState);
 }

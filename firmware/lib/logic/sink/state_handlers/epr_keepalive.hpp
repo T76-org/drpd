@@ -66,6 +66,12 @@ namespace T76::DRPD::Logic {
          */
         void reset(SinkContext& context) override;
 
+        /**
+         * @brief Return whether keepalive traffic is idle enough to run a host inquiry.
+         * @return True when no EPR_KeepAlive_Ack response is outstanding.
+         */
+        [[nodiscard]] bool canSuspendForInquiry() const;
+
     protected:
         alarm_id_t _keepaliveIntervalAlarmId = -1; ///< Sink keepalive interval timer
         alarm_id_t _keepaliveResponseAlarmId = -1; ///< SenderResponse timer for EPR_KeepAlive_Ack.
