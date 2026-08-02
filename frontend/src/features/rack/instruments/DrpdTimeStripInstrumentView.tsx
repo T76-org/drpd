@@ -43,6 +43,7 @@ const LOG_START_TIMESTAMP_US = 0n
 const LOG_END_TIMESTAMP_US = (2n ** 63n) - 1n
 const DIGITAL_QUERY_LIMIT = 5000
 const ANALOG_QUERY_LIMIT = 8000
+const ANALOG_QUERY_MAX_PAGES = 32
 const DIGITAL_QUERY_OVERSCAN_PX = 1024
 const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
 const MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS = 16_000_000
@@ -1527,7 +1528,7 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       try {
-        const [previousRows, visibleRows, nextRows] = await Promise.all([
+        const [previousRows, nextRows] = await Promise.all([
           range.startTimestampUs > LOG_START_TIMESTAMP_US
             ? driver.queryAnalogSamples({
               startTimestampUs: LOG_START_TIMESTAMP_US,
@@ -1537,13 +1538,6 @@ export const DrpdTimeStripInstrumentView = ({
               limit: 1,
             })
             : Promise.resolve([]),
-          driver.queryAnalogSamples({
-            startTimestampUs: range.startTimestampUs,
-            endTimestampUs: range.endTimestampUs,
-            timeBasis: range.timeBasis,
-            sortOrder: 'asc',
-            limit: ANALOG_QUERY_LIMIT,
-          }),
           range.endTimestampUs < LOG_END_TIMESTAMP_US
             ? driver.queryAnalogSamples({
               startTimestampUs: range.endTimestampUs + 1n,
@@ -1554,13 +1548,45 @@ export const DrpdTimeStripInstrumentView = ({
             })
             : Promise.resolve([]),
         ])
+        const visibleRows: LoggedAnalogSample[] = []
+        let pageStartTimestampUs = range.startTimestampUs
+        let coveredRequestedRange = false
+        for (let page = 0; page < ANALOG_QUERY_MAX_PAGES; page += 1) {
+          const pageRows = await driver.queryAnalogSamples({
+            startTimestampUs: pageStartTimestampUs,
+            endTimestampUs: range.endTimestampUs,
+            timeBasis: range.timeBasis,
+            sortOrder: 'asc',
+            limit: ANALOG_QUERY_LIMIT,
+          })
+          if (!isActive) {
+            return
+          }
+          visibleRows.push(...pageRows)
+          if (pageRows.length < ANALOG_QUERY_LIMIT) {
+            coveredRequestedRange = true
+            break
+          }
+          const lastTimestampUs = getAnalogSampleBasisTimestampUs(
+            pageRows.at(-1)!,
+            timelineRange.basis.kind === 'wallClock',
+          )
+          if (lastTimestampUs === null || lastTimestampUs < pageStartTimestampUs) {
+            break
+          }
+          pageStartTimestampUs = lastTimestampUs + 1n
+          if (pageStartTimestampUs > range.endTimestampUs) {
+            coveredRequestedRange = true
+            break
+          }
+        }
         if (!isActive) {
           return
         }
         const coveredRange = getAnalogCoveredRange(
           range,
           visibleRows,
-          visibleRows.length >= ANALOG_QUERY_LIMIT,
+          !coveredRequestedRange,
           timelineRange.basis.kind === 'wallClock',
         )
         analogLoadedRangesRef.current = mergeLoadedAnalogRange(
