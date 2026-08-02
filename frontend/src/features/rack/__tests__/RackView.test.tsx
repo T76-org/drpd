@@ -61,7 +61,10 @@ const mockTransportState = vi.hoisted(() => ({
   sinkCurrentResponse: ['2'],
   sinkErrorResponse: ['0'],
   sinkEprEnabledResponse: ['OFF'],
-  sinkPpsStatusQueryEnabledResponse: ['OFF'],
+  sinkInquiryStatusResponses: [
+    ['NONE,0,GET_REVISION,0,0,0'],
+    ['NOT_SUPPORTED,1,GET_REVISION,0,0,0'],
+  ] as string[][],
   timestampResponse: ['1000'],
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
   hardwareRevisionResponse: ['R2605-A'],
@@ -224,8 +227,8 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
       if (command === 'SINK:EPR:EN?') {
         return mockTransportState.sinkEprEnabledResponse
       }
-      if (command === 'SINK:PPS:STATUS:EN?') {
-        return mockTransportState.sinkPpsStatusQueryEnabledResponse
+      if (command === 'SINK:INQ:STAT?') {
+        return mockTransportState.sinkInquiryStatusResponses.shift() ?? []
       }
       return []
     }
@@ -844,7 +847,10 @@ const resetMockTransportState = (): void => {
   mockTransportState.sinkCurrentResponse = ['2']
   mockTransportState.sinkErrorResponse = ['0']
   mockTransportState.sinkEprEnabledResponse = ['OFF']
-  mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
+  mockTransportState.sinkInquiryStatusResponses = [
+    ['NONE,0,GET_REVISION,0,0,0'],
+    ['NOT_SUPPORTED,1,GET_REVISION,0,0,0'],
+  ]
   mockTransportState.timestampResponse = ['1000']
   mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
   mockTransportState.hardwareRevisionResponse = ['R2605-A']
@@ -3164,7 +3170,7 @@ describe('RackView', () => {
     })
   })
 
-  it('refreshes and toggles Get_PPS_Status sink behaviour from the Mode menu', async () => {
+  it('does not expose the retired automatic Get_PPS_Status sink behaviour', async () => {
     const user = userEvent.setup()
     mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,0.9.13']
     saveRackDocument(buildBoundHydratedRackDocument())
@@ -3172,24 +3178,567 @@ describe('RackView', () => {
     render(<RackView />)
 
     await expectHydratedDrpdPanels()
-    mockTransportState.sinkPpsStatusQueryEnabledResponse = ['ON']
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Send Get_PPS_Status messages' })).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:PPS:STATUS:EN?')
+  })
+
+  it('does not expose cable inquiries in the sink behaviour menu', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await expectHydratedDrpdPanels()
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+
+    expect(screen.queryByRole('menuitem', { name: 'Inspect cable…' })).not.toBeInTheDocument()
+  })
+
+  it('sends Get revision without opening a result dialog when capture is on', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
 
     await user.click(await screen.findByRole('button', { name: 'Mode' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
-    const checkbox = await screen.findByRole('menuitemcheckbox', {
-      name: 'Send Get_PPS_Status messages',
-    })
+    const sendInquiry = await screen.findByRole('menuitem', { name: 'Send inquiry to source' })
+    expect(sendInquiry).toBeEnabled()
+    fireEvent.pointerEnter(sendInquiry)
+    expect(screen.queryByText('Firmware validates PD 3.x at send time')).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('menuitem', { name: 'Get revision' }))
 
     await waitFor(() => {
-      expect(checkbox).toHaveAttribute('aria-checked', 'true')
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_REVISION')
     })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 
-    mockTransportState.sinkPpsStatusQueryEnabledResponse = ['OFF']
-    await user.click(checkbox)
+  it('shows the shared capture warning before Get revision when capture is off', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get revision' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_REVISION')
+  })
+
+  it('sends Get country codes without opening a result dialog when capture is on', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get country codes' }))
 
     await waitFor(() => {
-      expect(mockTransportState.sentCommands).toContain('SINK:PPS:STATUS:EN OFF')
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_COUNTRY_CODES')
     })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before Get country codes when capture is off', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get country codes' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_COUNTRY_CODES')
+  })
+
+  it('runs Get country information as a log-only survey without opening a dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get country information' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_COUNTRY_CODES')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Get country information' })).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before the country information survey', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get country information' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_COUNTRY_CODES')
+  })
+
+  it('runs Get battery capabilities as a log-only survey without opening a dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get battery capabilities' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Get battery capabilities' })).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before the battery capabilities survey', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get battery capabilities' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+  })
+
+  it('runs Get battery status as a log-only survey without opening a dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get battery status' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Get battery status' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer the redundant combined battery survey', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+
+    expect(screen.queryByRole('menuitem', { name: 'Survey batteries…' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Get battery capabilities' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Get battery status' })).toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before the battery status survey', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get battery status' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+  })
+
+  it('runs Authenticate source as a log-only survey without opening a dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Authenticate source' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_DIGESTS')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Authenticate source' })).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before Authenticate source', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Authenticate source' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_DIGESTS')
+  })
+
+  it('runs Discover Identity as log only without opening a result dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Discover identity' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ DISCOVER_IDENTITY')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Discover identity' })).not.toBeInTheDocument()
+  })
+
+  it('runs Discover SVIDs as log only without opening a result dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Discover SVIDs' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ DISCOVER_SVIDS')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Discover SVIDs' })).not.toBeInTheDocument()
+  })
+
+  it('runs Discover modes as a log-only survey without opening a result dialog', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Discover modes' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ DISCOVER_SVIDS')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Discover modes' })).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before Discover modes', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Discover modes' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ DISCOVER_SVIDS')
+  })
+
+  it('shows the shared capture warning before Port Partner discovery events', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Discover identity' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ DISCOVER_IDENTITY')
+  })
+
+  it('closes Get manufacturer info after sending its parameterized request', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get manufacturer info…' }))
+
+    const parameters = await screen.findByRole('dialog', { name: 'Get manufacturer info…' })
+    await user.click(within(parameters).getByRole('button', { name: 'Send inquiry' }))
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_MANUFACTURER_INFO PORT')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows the shared capture warning before Get manufacturer info parameters', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get manufacturer info…' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Get manufacturer info…' })).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_MANUFACTURER_INFO PORT')
+  })
+
+  it('sends Get source capabilities without opening a result dialog when capture is on', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get source capabilities' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP')
+    })
+    expect(screen.queryByRole('dialog', { name: 'Get source capabilities' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Capture is off' })).not.toBeInTheDocument()
+  })
+
+  it('sends Get extended source capabilities without opening a result dialog when capture is on', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get extended source capabilities' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_CAP_EXTENDED')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('sends Get source information without opening a result dialog when capture is on', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get source information' }))
+
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_INFO')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('reuses the capture-off warning for log-only inquiries and can suppress future warnings', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get source information' }))
+
+    const warning = await screen.findByRole('dialog', { name: 'Capture is off' })
+    const suppress = within(warning).getByLabelText(/do not show this again/i)
+    expect(suppress).not.toBeChecked()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_SOURCE_INFO')
+
+    await user.click(suppress)
+    await user.click(within(warning).getByRole('button', { name: 'REQUEST ANYWAY' }))
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_SOURCE_INFO')
+    })
+    expect(window.localStorage.getItem(
+      'drpd:inquiry-capture-warning-suppressed',
+    )).toBe('true')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('confirms Get status with uppercase actions, persists suppression, and closes after sending', async () => {
+    const user = userEvent.setup()
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+
+    const confirmation = await screen.findByRole('dialog', { name: 'Send Get_Status?' })
+    const cancel = within(confirmation).getByRole('button', { name: 'CANCEL' })
+    const send = within(confirmation).getByRole('button', { name: 'SEND INQUIRY' })
+    const suppress = within(confirmation).getByLabelText(/do not show this again/i)
+    expect(cancel).toBeInTheDocument()
+    expect(suppress).not.toBeChecked()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
+
+    await user.click(suppress)
+    await user.click(send)
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands).toContain('SINK:INQ GET_STATUS')
+    })
+    expect(window.localStorage.getItem(
+      'drpd:get-status-side-effect-warning-suppressed',
+    )).toBe('true')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+    await waitFor(() => {
+      expect(mockTransportState.sentCommands.filter(
+        (command) => command === 'SINK:INQ GET_STATUS',
+      )).toHaveLength(2)
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('cancels the capture and Get status warnings with Escape', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+    expect(await screen.findByRole('dialog', { name: 'Capture is off' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
+
+    mockTransportState.captureEnabledResponse = ['ON']
+    window.localStorage.setItem('drpd:inquiry-capture-warning-suppressed', 'true')
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+    expect(await screen.findByRole('dialog', { name: 'Send Get_Status?' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
+  })
+
+  it('shows the shared capture warning before the Get status confirmation', async () => {
+    const user = userEvent.setup()
+    mockTransportState.captureEnabledResponse = ['OFF']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Send inquiry to source' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Get status' }))
+
+    const captureWarning = await screen.findByRole('dialog', { name: 'Capture is off' })
+    expect(screen.queryByRole('dialog', { name: 'Send Get_Status?' })).not.toBeInTheDocument()
+    await user.click(within(captureWarning).getByRole('button', { name: 'REQUEST ANYWAY' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Send Get_Status?' })).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('SINK:INQ GET_STATUS')
+  })
+
+  it('disables source inquiries while Sink is unattached', async () => {
+    const user = userEvent.setup()
+    mockTransportState.roleStatusResponse = ['UNATTACHED']
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+    await expectHydratedDrpdPanels()
+
+    await user.click(await screen.findByRole('button', { name: 'Mode' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
+    expect(await screen.findByRole('menuitem', { name: 'Send inquiry to source' })).toBeDisabled()
   })
 
   it('disables Sink behaviour settings before firmware 0.9.13', async () => {
@@ -3205,9 +3754,6 @@ describe('RackView', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Sink behaviour' }))
 
     expect(await screen.findByRole('menuitemcheckbox', { name: 'Support EPR mode' })).toBeDisabled()
-    expect(await screen.findByRole('menuitemcheckbox', {
-      name: 'Send Get_PPS_Status messages',
-    })).toBeDisabled()
   })
 
   it('pulses Disabled then restores previous role for USB toggle shortcut', async () => {

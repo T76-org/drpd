@@ -29,6 +29,9 @@ import type {
   LoggedCapturedMessage,
   OnOffState,
   SinkInfo,
+  SinkInquiryStatus,
+  SinkInquiryRequest,
+  SinkInquiryType,
   SinkPdo,
   SinkRequestStatus,
   TriggerEventType,
@@ -115,6 +118,10 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     getPpsStatusQueryEnabled: () => Promise<boolean>
     setPpsStatusQueryEnabled: (enabled: boolean) => Promise<void>
     getRequestStatus: () => Promise<SinkRequestStatus>
+    sendInquiry: (type: SinkInquiryType) => Promise<void>
+    sendInquiryRequest: (request: SinkInquiryRequest) => Promise<void>
+    getInquiryStatus: () => Promise<SinkInquiryStatus>
+    getInquiryResponse: () => Promise<Uint8Array>
     getSprCapabilityCount: () => Promise<number>
     getSprCapabilityPdo: (index: number) => Promise<number>
     setSprCapabilityPdo: (index: number, rawPdo: number) => Promise<void>
@@ -226,7 +233,6 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
       sinkInfo: null,
       sinkPdoList: null,
       sinkEprEnabled: null,
-      sinkPpsStatusQueryEnabled: null,
       logSelection: {
         selectedKeys: [],
         anchorIndex: null,
@@ -326,6 +332,16 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
         await this.callGroup('sink', 'setPpsStatusQueryEnabled', enabled)
       },
       getRequestStatus: async () => (await this.callGroup('sink', 'getRequestStatus')) as SinkRequestStatus,
+      sendInquiry: async (type) => {
+        await this.callGroup('sink', 'sendInquiry', type)
+      },
+      sendInquiryRequest: async (request) => {
+        await this.callGroup('sink', 'sendInquiryRequest', request)
+      },
+      getInquiryStatus: async () =>
+        (await this.callGroup('sink', 'getInquiryStatus')) as SinkInquiryStatus,
+      getInquiryResponse: async () =>
+        (await this.callGroup('sink', 'getInquiryResponse')) as Uint8Array,
       getSprCapabilityCount: async () => (await this.callGroup('sink', 'getSprCapabilityCount')) as number,
       getSprCapabilityPdo: async (index) =>
         (await this.callGroup('sink', 'getSprCapabilityPdo', index)) as number,
@@ -510,8 +526,11 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
   /**
    * Insert a manual mark into the worker-owned message log.
    */
-  public async markLog(): Promise<void> {
-    await this.callDevice('markLog')
+  public async markLog(
+    eventSummary = 'Mark',
+    eventData?: LoggedCapturedMessage['eventData'],
+  ): Promise<void> {
+    await this.callDevice('markLog', eventSummary, eventData)
   }
 
   /** Insert a manual mark after a persisted log row. */

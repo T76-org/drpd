@@ -23,6 +23,7 @@ import type {
   WorkerToMainMessage,
 } from './protocol'
 import { deserializeWorkerError, serializeWorkerError } from './serialization'
+import { dispatchSinkInquiryRpc } from './sinkInquiryRpc'
 
 const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope ///< Dedicated worker global scope.
 
@@ -563,7 +564,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
               args[1] as never,
             )
           case 'markLog':
-            await session.device.markLog()
+            await session.device.markLog(
+              args[0] as string | undefined,
+              args[1] as LoggedCapturedMessage['eventData'],
+            )
             return null
           case 'markLogAt':
             await session.device.markLogAt(args[0] as LoggedCapturedMessage)
@@ -667,6 +671,10 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         throw new Error(`Unsupported capture method: ${method}`)
       }
       if (target === 'sink') {
+        const inquiryResult = await dispatchSinkInquiryRpc(session.device.sink, method, args)
+        if (inquiryResult.handled) {
+          return inquiryResult.value
+        }
         if (method === 'getAvailablePdoCount') {
           return await session.device.sink.getAvailablePdoCount()
         }

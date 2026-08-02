@@ -18,6 +18,18 @@ Connect your source device to Port 1 (the left port) using a USB-C cable of your
 
 In sink mode, Dr. PD takes note of the contracts that the source offers, and allows you to establish a new contract with the source by selecting one of the offered contracts from the Sink power contract selection dialog (**Mode → Choose power contract...**). This allows you to test the behavior of the source under different power conditions, and to perform energy measurements at different power levels.
 
+## Sending inquiries to the source
+
+While Dr. PD is attached as a sink, select **Mode → Sink behaviour → Send inquiry to source** to ask the source for information such as its capabilities, status, revision, manufacturer information, country information, battery information, supported USB modes, or Type-C authentication data. The available inquiries depend on the negotiated USB-PD revision and active power contract.
+
+Each selection starts one explicit inquiry. The source may return the requested information, reject the request, report that it is not supported, or fail to respond. Dr. PD records the request, response, and final outcome in the Message Log; keep capture enabled if you want to inspect or export that evidence. These inquiries normally leave the active power contract unchanged.
+
+:::caution
+
+Some inquiries have protocol-defined side effects. In particular, **Get status** clears the source's latched overcurrent, overvoltage, and overtemperature event indicators after reading them. Dr. PD asks for confirmation before sending an inquiry with a known side effect.
+
+:::
+
 ## Drawing power from the source
 
 In sink mode, you can use the banana connectors to monitor the VBUS voltage with an external voltmeter, and to draw current from the source using an external load—for example, to perform energy measurements or test the source's protection mechanisms.
@@ -44,7 +56,7 @@ The USB-PD protocol includes some special types of power contracts that allow fo
 Dr. PD is fully compatible with both PPS and AVS. If your source supports PPS or AVS contracts, you can use them to test the source's behavior under different voltage and current conditions, and to perform energy measurements at different power levels without triggering the source's protection mechanisms.
 
 :::tip[Requesting PPS status information]
-In PPS mode, Dr. PD can send a `Get_PPS_Status` message to an attached source in order to request information about the current PPS contract, such as the voltage and current levels that are currently being delivered. This feature is off by default because it can add a significant amount of chatter to the message log, but you can enable it by selecting Mode → Sink behaviour → Send Get_PPS_Status messages from the menu.
+With an active PPS contract, select **Mode → Sink behaviour → Send inquiry to source → Get PPS status** to request the voltage, current, and operating status reported by the attached Source. This sends one explicit `Get_PPS_Status` inquiry.
 :::
 
 ## Enabling support for EPR

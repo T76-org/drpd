@@ -22,6 +22,8 @@ import type {
   LoggedCapturedEntryKind,
   LoggedCapturedEventType,
   LoggedCapturedMessage,
+  LoggedEventDataEntry,
+  LoggedEventDataSection,
 } from './logging/types'
 
 /**
@@ -220,6 +222,7 @@ export const SinkState = {
   PE_SNK_GIVE_SINK_CAP: 'PE_SNK_GIVE_SINK_CAP',
   PE_SNK_GET_SOURCE_CAP: 'PE_SNK_GET_SOURCE_CAP',
   PE_SNK_GET_PPS_STATUS: 'PE_SNK_GET_PPS_STATUS',
+  PE_SNK_INQUIRY: 'PE_SNK_INQUIRY',
   PE_SNK_EPR_KEEPALIVE: 'PE_SNK_EPR_KEEPALIVE',
   PE_SNK_HARD_RESET: 'PE_SNK_HARD_RESET',
   PE_SNK_TRANSITION_TO_DEFAULT: 'PE_SNK_TRANSITION_TO_DEFAULT',
@@ -269,6 +272,73 @@ export const SinkRequestOutcome = {
  */
 export type SinkRequestOutcome =
   (typeof SinkRequestOutcome)[keyof typeof SinkRequestOutcome]
+
+/** Supported Sink-to-Source inquiry message types. */
+export const SinkInquiryType = {
+  GET_SOURCE_CAP: 'GET_SOURCE_CAP',
+  GET_SOURCE_CAP_EXTENDED: 'GET_SOURCE_CAP_EXTENDED',
+  GET_STATUS: 'GET_STATUS',
+  GET_SOURCE_INFO: 'GET_SOURCE_INFO',
+  GET_PPS_STATUS: 'GET_PPS_STATUS',
+  GET_REVISION: 'GET_REVISION',
+  GET_MANUFACTURER_INFO: 'GET_MANUFACTURER_INFO',
+  GET_COUNTRY_CODES: 'GET_COUNTRY_CODES',
+  GET_COUNTRY_INFO: 'GET_COUNTRY_INFO',
+  GET_BATTERY_CAP: 'GET_BATTERY_CAP',
+  GET_BATTERY_STATUS: 'GET_BATTERY_STATUS',
+  DISCOVER_IDENTITY: 'DISCOVER_IDENTITY',
+  DISCOVER_SVIDS: 'DISCOVER_SVIDS',
+  DISCOVER_MODES: 'DISCOVER_MODES',
+  GET_DIGESTS: 'GET_DIGESTS',
+  GET_CERTIFICATE: 'GET_CERTIFICATE',
+  CHALLENGE: 'CHALLENGE',
+} as const
+
+/** Supported Sink-to-Source inquiry message type value. */
+export type SinkInquiryType =
+  (typeof SinkInquiryType)[keyof typeof SinkInquiryType]
+
+/** Explicit cable-plug address used by SOP'/SOP'' inquiries. */
+export const SinkInquiryCablePlug = {
+  SOP_PRIME: 'SOP_PRIME',
+  SOP_DOUBLE_PRIME: 'SOP_DOUBLE_PRIME',
+} as const
+export type SinkInquiryCablePlug =
+  (typeof SinkInquiryCablePlug)[keyof typeof SinkInquiryCablePlug]
+
+/** Semantic request for Get_Revision; callers never construct a PD header. */
+export type SinkInquiryRequest =
+  | { type: Exclude<SinkInquiryType, typeof SinkInquiryType.GET_STATUS | typeof SinkInquiryType.GET_REVISION | typeof SinkInquiryType.GET_MANUFACTURER_INFO | typeof SinkInquiryType.GET_COUNTRY_INFO | typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS | typeof SinkInquiryType.DISCOVER_IDENTITY | typeof SinkInquiryType.DISCOVER_SVIDS | typeof SinkInquiryType.DISCOVER_MODES | typeof SinkInquiryType.GET_CERTIFICATE | typeof SinkInquiryType.CHALLENGE> }
+  | { type: typeof SinkInquiryType.GET_STATUS | typeof SinkInquiryType.GET_REVISION | typeof SinkInquiryType.DISCOVER_IDENTITY | typeof SinkInquiryType.DISCOVER_SVIDS; plug?: SinkInquiryCablePlug }
+  | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'PORT' | SinkInquiryCablePlug }
+  | { type: typeof SinkInquiryType.GET_MANUFACTURER_INFO; target: 'BATTERY'; batteryReference: number }
+  | { type: typeof SinkInquiryType.GET_COUNTRY_INFO; countryCode: string }
+  | { type: typeof SinkInquiryType.GET_BATTERY_CAP | typeof SinkInquiryType.GET_BATTERY_STATUS; batteryReference: number }
+  | { type: typeof SinkInquiryType.DISCOVER_MODES; svid: number; plug?: SinkInquiryCablePlug }
+  | { type: typeof SinkInquiryType.GET_CERTIFICATE; slot: number; offset: number; length: number }
+  | { type: typeof SinkInquiryType.CHALLENGE; slot: number; nonce: Uint8Array }
+
+/** Sink inquiry protocol outcome token. */
+export const SinkInquiryOutcome = {
+  NONE: 'NONE',
+  PENDING: 'PENDING',
+  RESPONSE: 'RESPONSE',
+  NOT_SUPPORTED: 'NOT_SUPPORTED',
+  REJECTED: 'REJECTED',
+  WAIT: 'WAIT',
+  GOODCRC_TIMEOUT: 'GOODCRC_TIMEOUT',
+  RESPONSE_TIMEOUT: 'RESPONSE_TIMEOUT',
+  PROTOCOL_ERROR: 'PROTOCOL_ERROR',
+  MALFORMED_RESPONSE: 'MALFORMED_RESPONSE',
+  RESPONSE_TOO_LARGE: 'RESPONSE_TOO_LARGE',
+  NAK: 'NAK',
+  BUSY: 'BUSY',
+  ABORTED: 'ABORTED',
+} as const
+
+/** Sink inquiry protocol outcome value. */
+export type SinkInquiryOutcome =
+  (typeof SinkInquiryOutcome)[keyof typeof SinkInquiryOutcome]
 
 /**
  * CC channel selection.
@@ -617,6 +687,22 @@ export interface SinkRequestStatus {
   currentMa: number | null
 }
 
+/** Most recent Sink-to-Source inquiry status reported by firmware. */
+export interface SinkInquiryStatus {
+  ///< Protocol outcome.
+  outcome: SinkInquiryOutcome
+  ///< Firmware-assigned request identifier.
+  requestId: number
+  ///< Inquiry message type.
+  type: SinkInquiryType
+  ///< Numeric USB-PD response message class.
+  responseClass: number
+  ///< Numeric USB-PD response message type.
+  responseType: number
+  ///< Raw response payload length in bytes.
+  responseLength: number
+}
+
 /**
  * Captured CC bus message.
  */
@@ -719,8 +805,6 @@ export interface DRPDDeviceState {
   sinkPdoList: SinkPdo[] | null
   ///< Sink EPR entry policy, or null if unknown.
   sinkEprEnabled: boolean | null
-  ///< Sink PPS status query policy, or null if unknown.
-  sinkPpsStatusQueryEnabled: boolean | null
   ///< Current message-log selection state.
   logSelection: DRPDLogSelectionState
 }
@@ -758,4 +842,6 @@ export type {
   LoggedCapturedEntryKind,
   LoggedCapturedEventType,
   LoggedCapturedMessage,
+  LoggedEventDataEntry,
+  LoggedEventDataSection,
 }

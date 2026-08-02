@@ -1,4 +1,5 @@
 import type { LoggedCapturedMessage } from '../../lib/device'
+import { parseLoggedEventData } from '../../lib/device/drpd/logging/eventData'
 
 const REQUIRED_FIELDS = [
   'entryKind',
@@ -50,6 +51,7 @@ export const serializeMessageLogRow = (row: LoggedCapturedMessage): Record<strin
   entryKind: row.entryKind,
   eventType: row.eventType,
   eventText: row.eventText,
+  eventData: row.eventData ?? null,
   eventWallClockMs: row.eventWallClockMs,
   flagged: row.flagged === true,
   comment: row.comment ?? null,
@@ -96,6 +98,9 @@ const normalizeCapturedMessage = (value: unknown, index: number): LoggedCaptured
     entryKind,
     eventType,
     eventText: readNullableString(value.eventText, `${label}.eventText`),
+    eventData: entryKind === 'event'
+      ? parseLoggedEventData(value.eventData, `${label}.eventData`)
+      : null,
     eventWallClockMs: readNullableNumber(value.eventWallClockMs, `${label}.eventWallClockMs`),
     flagged: isAnnotatable && readOptionalBoolean(value.flagged, `${label}.flagged`),
     comment: isAnnotatable

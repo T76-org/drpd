@@ -227,6 +227,9 @@ namespace T76::DRPD {
         void _querySinkEPRCapabilityPDO(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSinkEPRCapabilityPDO(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkRequestStatus(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setSinkInquiry(const std::vector<T76::SCPI::ParameterValue> &);
+        void _querySinkInquiryStatus(const std::vector<T76::SCPI::ParameterValue> &);
+        void _querySinkInquiryResponse(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &);
         void _querySinkEPREntryState(const std::vector<T76::SCPI::ParameterValue> &);
         void _setSinkPPSStatusQueryState(const std::vector<T76::SCPI::ParameterValue> &);

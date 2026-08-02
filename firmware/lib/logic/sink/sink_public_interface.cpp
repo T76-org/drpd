@@ -5,6 +5,9 @@
 
 #include "sink.hpp"
 #include "sink_raw_pd_message.hpp"
+#include "inquiry_descriptor.hpp"
+#include "cable_inquiry.hpp"
+#include "authentication_inquiry.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,6 +17,11 @@
 namespace T76::DRPD::Logic {
 
 void Sink::reset(SinkResetType resetType) {
+    SinkInquiryRequest droppedInquiry{};
+    while (queue_try_remove(&_pendingInquiryQueue, &droppedInquiry)) {
+    }
+    _inquiryQueued.store(false, std::memory_order_release);
+    _inquiryReassembly.reset();
     _chunkingNotSupportedPending = false;
 
     if (_chunkingNotSupportedAlarmId != -1) {
@@ -117,6 +125,83 @@ SinkRequestStatus Sink::lastRequestStatus() const {
     return _runtimeState._lastRequestStatus;
 }
 
+SinkRequestResult Sink::requestInquiry(
+    SinkInquiryType type,
+    SinkInquiryParameters parameters) {
+    if (!_enabled.load()) {
+        return SinkRequestResult::failure("Sink is disabled");
+    }
+    const auto descriptor = sinkInquiryDescriptor(type);
+    if (!descriptor.has_value()) {
+        return SinkRequestResult::failure("Unsupported inquiry type");
+    }
+    if (parameters.sopTarget != SinkInquirySOPTarget::SOP) {
+        if (!cableInquiryTypeSupported(type))
+            return SinkRequestResult::failure("Inquiry is not defined for a cable-plug target");
+        if (parameters.sopTarget == SinkInquirySOPTarget::SOPDoublePrime &&
+            (!_context.sopPrimeActiveCableIdentityKnown() ||
+             !_context.sopDoublePrimeControllerKnown())) {
+            return SinkRequestResult::failure(
+                "SOP_DOUBLE_PRIME requires prior SOP_PRIME Identity proving an active cable with a second controller");
+        }
+        if (parameters.sopTarget == SinkInquirySOPTarget::SOPPrime &&
+            type != SinkInquiryType::DiscoverIdentity &&
+            !_context.sopPrimeActiveCableIdentityKnown()) {
+            return SinkRequestResult::failure(
+                "Cable inquiry requires prior SOP_PRIME Identity proving a suitable active cable");
+        }
+        // Current hardware/firmware never sources VCONN. Reject locally: sending
+        // SOP'/SOP'' without VCONN would falsely imply a reachable cable plug.
+        return SinkRequestResult::failure(
+            "Cable inquiry requires Dr. PD to be VCONN Source; VCONN sourcing is not supported");
+    }
+    if (descriptor->parameterKind == InquiryParameterKind::Authentication &&
+        !authenticationParametersValid(type, parameters)) {
+        return SinkRequestResult::failure("Invalid Type-C Authentication inquiry parameters");
+    }
+    if (_runtimeState._state != SinkState::PE_SNK_Ready &&
+        _runtimeState._state != SinkState::PE_SNK_EPR_Keepalive) {
+        return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
+    }
+    const bool hasPPSContract = _runtimeState._negotiatedPDO.has_value() &&
+        std::holds_alternative<Proto::SPRPPSAPDO>(*_runtimeState._negotiatedPDO);
+    switch (inquiryStateApplicability(
+        descriptor.value(), _runtimeState._hasExplicitContract,
+        static_cast<uint8_t>(_runtimeState._specRevision), hasPPSContract)) {
+        case InquiryApplicability::RequiresExplicitContract:
+            return SinkRequestResult::failure("Sink must have an explicit contract and be Ready");
+        case InquiryApplicability::RequiresSpecRevision:
+            return SinkRequestResult::failure("Inquiry is not supported by the negotiated PD revision");
+        case InquiryApplicability::RequiresPPSContract:
+            return SinkRequestResult::failure("Inquiry requires an active SPR PPS contract");
+        case InquiryApplicability::Applicable:
+            break;
+    }
+    const uint32_t selector = static_cast<uint32_t>(parameters.selector[0]) |
+        (static_cast<uint32_t>(parameters.selector[1]) << 8) |
+        (static_cast<uint32_t>(parameters.selector[2]) << 16) |
+        (static_cast<uint32_t>(parameters.selector[3]) << 24);
+    if (!inquiryParametersApplicable(
+            descriptor.value(), parameters.target, parameters.argument, selector)) {
+        return SinkRequestResult::failure("Inquiry parameters are not applicable to this message type");
+    }
+    if (_runtimeState.inquiryResult().status.outcome == SinkInquiryOutcome::Pending ||
+        _inquiryQueued.exchange(true, std::memory_order_acq_rel)) {
+        return SinkRequestResult::failure("A Sink inquiry is already active");
+    }
+    const SinkInquiryRequest request{_nextInquiryId.fetch_add(1), type, parameters};
+    if (!queue_try_add(&_pendingInquiryQueue, &request)) {
+        _inquiryQueued.store(false, std::memory_order_release);
+        return SinkRequestResult::failure("Sink inquiry queue is full");
+    }
+    _runtimeState.beginInquiry(request);
+    return SinkRequestResult::ok();
+}
+
+SinkInquiryResult Sink::lastInquiryResult() const {
+    return _runtimeState.inquiryResult();
+}
+
 void Sink::eprEntryEnabled(bool enabled) {
     _context.setEPREntryEnabled(enabled);
 
@@ -172,7 +257,8 @@ SinkErrorCallback Sink::sinkErrorOccurred() const {
 void Sink::_sendExtendedChunkRequest(
     Proto::ExtendedMessageType type,
     uint16_t payloadSizeBytes,
-    uint8_t chunkNumber) {
+    uint8_t chunkNumber,
+    Proto::SOP::SOPType sopTarget) {
     (void)payloadSizeBytes;
 
     Proto::PDExtendedHeader extHeader(0);
@@ -195,7 +281,7 @@ void Sink::_sendExtendedChunkRequest(
     );
 
     PHY::BMCEncodedMessage message(
-        Proto::SOP::SOPType::SOP,
+        preserveInquiryTarget(sopTarget),
         rawMessage
     );
 

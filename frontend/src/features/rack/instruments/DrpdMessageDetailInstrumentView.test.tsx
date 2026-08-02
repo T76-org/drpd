@@ -189,6 +189,115 @@ describe('DrpdMessageDetailInstrumentView', () => {
     expect(screen.queryByRole('button', { name: /base information/i })).toBeNull()
   })
 
+  it('renders a multiline inquiry event with its title and preserved summary', async () => {
+    const row = buildMessageRow({
+      entryKind: 'event',
+      eventType: 'mark',
+      eventText: 'INQUIRY - Battery status\n- Battery 0: **Present**\n- Battery 1: Not Supported\n<script>alert(1)</script>',
+      eventData: [
+        {
+          title: 'Battery 0',
+          entries: [
+            { key: 'State', value: '**Present**' },
+            { key: 'Capacity', value: '<strong>20 Wh</strong><script>alert(1)</script>' },
+            { key: 'Unsafe link', value: '<a href="javascript:alert(1)" onclick="alert(2)">Blocked URL</a>' },
+          ],
+        },
+        {
+          title: 'Battery 1',
+          entries: [{ key: 'State', value: '<em>Not Supported</em>' }],
+        },
+      ],
+      startTimestampUs: 1_020n,
+      endTimestampUs: 1_020n,
+      createdAtMs: 1_700_000_000_120,
+    })
+    render(<DrpdMessageDetailInstrumentView
+      instrument={buildInstrument()}
+      displayName="MESSAGE DETAIL"
+      deviceState={buildDeviceState({ selectedKeys: ['event:1020:1700000000120:mark'], anchorIndex: 0, activeIndex: 0 }, [row])}
+      isEditMode={false}
+    />)
+
+    const details = await screen.findByRole('region', { name: 'Event details' })
+    const eventToggle = within(details).getByRole('button', { name: 'Event' })
+    expect(eventToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(details).getByRole('rowheader', { name: 'Title' })).toBeInTheDocument()
+    expect(within(details).getByText('INQUIRY - Battery status')).toBeInTheDocument()
+    const detailsLabel = within(details).getByRole('rowheader', { name: 'Details' })
+    expect(detailsLabel).toBeInTheDocument()
+    const detailsCell = detailsLabel.parentElement?.querySelector('td')
+    expect(detailsCell).toHaveTextContent('Battery 0: Present Battery 1: Not Supported')
+    expect(detailsCell?.querySelector('strong')?.textContent).toBe('Present')
+    expect(detailsCell?.querySelectorAll('li')).toHaveLength(2)
+    expect(detailsCell?.querySelector('script')).toBeNull()
+    const additionalData = screen.getByRole('region', { name: 'Additional Data' })
+    const additionalToggle = within(additionalData).getByRole('button', { name: 'Additional Data' })
+    expect(additionalToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(additionalData).getByRole('heading', { name: 'Battery 0' })).toBeInTheDocument()
+    expect(within(additionalData).getByRole('heading', { name: 'Battery 1' })).toBeInTheDocument()
+    expect(within(additionalData).getByText('20 Wh').tagName).toBe('STRONG')
+    expect(within(additionalData).getByText('Not Supported').tagName).toBe('EM')
+    expect(additionalData.querySelector('script')).toBeNull()
+    const unsafeLink = within(additionalData).getByText('Blocked URL')
+    expect(unsafeLink.tagName).toBe('A')
+    expect(unsafeLink).not.toHaveAttribute('href')
+    expect(unsafeLink).not.toHaveAttribute('onclick')
+    await userEvent.click(additionalToggle)
+    expect(additionalToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(additionalData).queryByRole('heading', { name: 'Battery 0' })).not.toBeInTheDocument()
+    await userEvent.click(eventToggle)
+    expect(eventToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(details).queryByRole('rowheader', { name: 'Title' })).not.toBeInTheDocument()
+  })
+
+  it('renders single-line firmware events and empty event fallback text', async () => {
+    const firmware = buildMessageRow({
+      entryKind: 'event', eventType: 'cc_role_changed', eventText: 'CC role changed to SINK',
+      startTimestampUs: 1_030n, endTimestampUs: 1_030n, createdAtMs: 1_700_000_000_130,
+    })
+    const empty = buildMessageRow({
+      entryKind: 'event', eventType: null, eventText: ' \r\n ',
+      startTimestampUs: 1_040n, endTimestampUs: 1_040n, createdAtMs: 1_700_000_000_140,
+    })
+    const deviceState = buildDeviceState(
+      { selectedKeys: ['event:1030:1700000000130:cc_role_changed'], anchorIndex: 0, activeIndex: 0 },
+      [firmware, empty],
+    )
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+    render(<DrpdMessageDetailInstrumentView instrument={buildInstrument()} displayName="MESSAGE DETAIL" deviceState={deviceState} isEditMode={false} />)
+
+    expect(await screen.findByText('Cc Role Changed')).toBeInTheDocument()
+    expect(screen.getByText('CC role changed to SINK')).toBeInTheDocument()
+
+    act(() => driver.setLogSelectionState({
+      selectedKeys: ['event:1040:1700000000140:unknown'], anchorIndex: 1, activeIndex: 1,
+    }))
+    expect(await screen.findByText('No event details available.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Event' })).toBeInTheDocument()
+  })
+
+  it('switches cleanly between event and packet detail views', async () => {
+    const packet = buildMessageRow()
+    const event = buildMessageRow({
+      entryKind: 'event', eventType: 'capture_changed', eventText: 'Capture turned on',
+      startTimestampUs: 1_050n, endTimestampUs: 1_050n, createdAtMs: 1_700_000_000_150,
+    })
+    const deviceState = buildDeviceState(
+      { selectedKeys: ['event:1050:1700000000150:capture_changed'], anchorIndex: 1, activeIndex: 1 },
+      [packet, event],
+    )
+    const driver = deviceState.drpdDriver as unknown as TestSelectionDriver
+    render(<DrpdMessageDetailInstrumentView instrument={buildInstrument()} displayName="MESSAGE DETAIL" deviceState={deviceState} isEditMode={false} />)
+
+    expect(await screen.findByRole('region', { name: 'Event details' })).toBeInTheDocument()
+    act(() => driver.setLogSelectionState({
+      selectedKeys: ['message:1000:1005:1700000000000'], anchorIndex: 0, activeIndex: 0,
+    }))
+    expect(await screen.findByRole('button', { name: /base information/i })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Event details' })).not.toBeInTheDocument()
+  })
+
   it('refreshes and hides an emptied comment after a log update event', async () => {
     const row = buildMessageRow({ comment: 'Before' })
     const driver = new TestSelectionDriver({ selectedKeys: ['message:1000:1005:1700000000000'], anchorIndex: 0, activeIndex: 0 }, [row])

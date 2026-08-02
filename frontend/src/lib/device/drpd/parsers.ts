@@ -14,6 +14,8 @@ import {
   OnOffState,
   SinkPdoType,
   SinkRequestOutcome,
+  SinkInquiryOutcome,
+  SinkInquiryType,
   SinkState,
   TestCcRole,
   TriggerEventType,
@@ -33,6 +35,7 @@ import type {
   SinkInfo,
   SinkPdo,
   SinkRequestStatus,
+  SinkInquiryStatus,
   TriggerMessageTypeFilter,
   VBusInfo,
 } from './types'
@@ -154,11 +157,12 @@ export const parseSingleBigInt = (values: string[], label: string): bigint => {
  * @returns Comma-separated fields.
  */
 export const parseCommaSeparated = (values: string[]): string[] => {
-  const combined = values.join(' ').trim()
-  if (!combined) {
+  if (!values.length) {
     return []
   }
-  return combined.split(',').map((part) => part.trim().replace(/^"|"$/g, ''))
+  const parts = values.length === 1 ? values[0].split(',') : values
+  const normalized = parts.map((part) => part.trim().replace(/^"|"$/g, ''))
+  return normalized.every((part) => !part) ? [] : normalized
 }
 
 /**
@@ -406,6 +410,8 @@ export const parseSinkState = (value: string): SinkState => {
       return SinkState.PE_SNK_GET_SOURCE_CAP
     case SinkState.PE_SNK_GET_PPS_STATUS:
       return SinkState.PE_SNK_GET_PPS_STATUS
+    case SinkState.PE_SNK_INQUIRY:
+      return SinkState.PE_SNK_INQUIRY
     case SinkState.PE_SNK_EPR_KEEPALIVE:
       return SinkState.PE_SNK_EPR_KEEPALIVE
     case SinkState.PE_SNK_HARD_RESET:
@@ -749,6 +755,45 @@ export const parseSinkRequestStatus = (
     index: parseIntValue(parts[1], 'sink request PDO index'),
     voltageMv: parseIntValue(parts[2], 'sink request voltage'),
     currentMa: parseIntValue(parts[3], 'sink request current'),
+  }
+}
+
+/** Parse a SINK:INQuiry:STATus? response. */
+export const parseSinkInquiryStatus = (values: string[]): SinkInquiryStatus => {
+  const parts = parseCommaSeparated(values)
+  if (parts.length !== 6) {
+    throw new Error(
+      `Invalid sink inquiry status response: expected 6 fields, got ${parts.length}`,
+    )
+  }
+
+  const outcome = Object.values(SinkInquiryOutcome).find(
+    (value) => value === parts[0].toUpperCase(),
+  )
+  if (!outcome) {
+    throw new Error(`Invalid sink inquiry outcome: ${parts[0]}`)
+  }
+  const type = Object.values(SinkInquiryType).find(
+    (value) => value === parts[2].toUpperCase(),
+  )
+  if (!type) {
+    throw new Error(`Invalid sink inquiry type: ${parts[2]}`)
+  }
+
+  const requestId = parseIntValue(parts[1], 'sink inquiry request ID')
+  const responseClass = parseIntValue(parts[3], 'sink inquiry response class')
+  const responseType = parseIntValue(parts[4], 'sink inquiry response type')
+  const responseLength = parseIntValue(parts[5], 'sink inquiry response length')
+  if (requestId < 0 || responseClass < 0 || responseType < 0 || responseLength < 0) {
+    throw new Error('Sink inquiry numeric fields must be non-negative')
+  }
+  return {
+    outcome,
+    requestId,
+    type,
+    responseClass,
+    responseType,
+    responseLength,
   }
 }
 

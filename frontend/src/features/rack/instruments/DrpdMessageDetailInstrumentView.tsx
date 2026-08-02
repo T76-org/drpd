@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
 import {
   buildCapturedLogSelectionKey,
   decodeLoggedCapturedMessageWithContext,
@@ -68,8 +70,10 @@ type MessageDetailSection = {
 type LoadedSelection =
   | { kind: 'none' }
   | {
-      kind: 'mark'
-      sections: MessageDetailSection[]
+      kind: 'event'
+      title: string
+      summary: string | null
+      additionalData: LoggedCapturedMessage['eventData']
       comment: string | null
       commentCreatedAtMs: number | null
     }
@@ -94,6 +98,33 @@ type LoadedSelection =
       commentCreatedAtMs: number | null
     }
 
+const formatEventTypeLabel = (eventType: LoggedCapturedMessage['eventType']): string => {
+  if (!eventType) return 'Event'
+  return eventType
+    .split('_')
+    .map((word) => word.length > 0 ? `${word[0].toUpperCase()}${word.slice(1)}` : word)
+    .join(' ')
+}
+
+export const parseLoggedEventDetails = (
+  row: Pick<LoggedCapturedMessage, 'eventType' | 'eventText'>,
+): { title: string; summary: string | null } => {
+  const fallbackTitle = formatEventTypeLabel(row.eventType)
+  const normalizedText = row.eventText?.replace(/\r\n?/g, '\n').trim() ?? ''
+  if (!normalizedText) {
+    return { title: fallbackTitle, summary: 'No event details available.' }
+  }
+  const lines = normalizedText.split('\n')
+  if (lines.length > 1) {
+    const title = lines.shift()?.trim() || fallbackTitle
+    const summary = lines.join('\n').trim()
+    return { title, summary: summary || null }
+  }
+  if (normalizedText.toLocaleLowerCase() === fallbackTitle.toLocaleLowerCase()) {
+    return { title: fallbackTitle, summary: null }
+  }
+  return { title: fallbackTitle, summary: normalizedText }
+}
 type MessageByteSegment = {
   kind: 'sop' | 'header' | 'extendedHeader' | 'body' | 'crc32'
   bytes: Uint8Array
@@ -527,6 +558,8 @@ export const DrpdMessageDetailInstrumentView = ({
   const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null)
   const [loadedSelection, setLoadedSelection] = useState<LoadedSelection>({ kind: 'none' })
   const [annotationRevision, setAnnotationRevision] = useState(0)
+  const [isEventCollapsed, setIsEventCollapsed] = useState(false)
+  const [isAdditionalDataCollapsed, setIsAdditionalDataCollapsed] = useState(false)
   const [isCommentCollapsed, setIsCommentCollapsed] = useState(false)
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<(keyof HumanReadableMetadataRoot)[]>(
     () => (readStoredCollapsedSectionIds(instrument.id) ?? []) as (keyof HumanReadableMetadataRoot)[],
@@ -614,17 +647,15 @@ export const DrpdMessageDetailInstrumentView = ({
         return
       }
       if (row.entryKind === 'event') {
+        const details = parseLoggedEventDetails(row)
         setLoadedSelectionKey(activeSelectionKey)
-        setLoadedSelection(
-          row.eventType === 'mark'
-            ? {
-                kind: 'mark',
-                sections: [],
-                comment: row.comment?.trim() || null,
-                commentCreatedAtMs: row.commentCreatedAtMs ?? null,
-              }
-            : { kind: 'none' },
-        )
+        setLoadedSelection({
+          kind: 'event',
+          ...details,
+          additionalData: row.eventData ?? null,
+          comment: row.comment?.trim() || null,
+          commentCreatedAtMs: row.commentCreatedAtMs ?? null,
+        })
         return
       }
       const useWallClock = row.wallClockUs !== null
@@ -736,8 +767,111 @@ export const DrpdMessageDetailInstrumentView = ({
           {visibleSelection.kind === 'invalid' ||
           visibleSelection.kind === 'reset' ||
           visibleSelection.kind === 'message' ||
-          visibleSelection.kind === 'mark' ? (
+          visibleSelection.kind === 'event' ? (
             <div className={styles.sectionsContainer}>
+              {visibleSelection.kind === 'event' ? (
+                <>
+                <section className={styles.section} data-section-id="event" aria-label="Event details">
+                  <h3 className={styles.sectionHeading}>
+                    <button
+                      type="button"
+                      className={styles.sectionToggle}
+                      aria-expanded={!isEventCollapsed}
+                      onClick={() => setIsEventCollapsed((current) => !current)}
+                    >
+                      <span
+                        className={`${styles.sectionArrow} ${!isEventCollapsed ? styles.sectionArrowExpanded : ''}`}
+                        aria-hidden="true"
+                      >
+                        ▶
+                      </span>
+                      <span className={styles.sectionHeadingText}>Event</span>
+                    </button>
+                  </h3>
+                  {!isEventCollapsed ? (
+                    <div className={styles.sectionContent}>
+                      <table className={styles.metadataTable}>
+                        <tbody className={styles.metadataTableBody}>
+                          <tr className={styles.metadataRow}>
+                            <th className={styles.metadataLabelCell} scope="row">
+                              <span className={styles.metadataLabelText}>Title</span>
+                            </th>
+                            <td className={styles.metadataValueCell}>
+                              <span className={styles.scalarValue}>{visibleSelection.title}</span>
+                            </td>
+                          </tr>
+                          {visibleSelection.summary ? (
+                            <tr className={styles.metadataRow}>
+                              <th className={styles.metadataLabelCell} scope="row">
+                                <span className={styles.metadataLabelText}>Details</span>
+                              </th>
+                              <td className={styles.metadataValueCell}>
+                                <div className={`${styles.scalarValue} ${styles.eventSummary}`}>
+                                  <ReactMarkdown skipHtml>{visibleSelection.summary}</ReactMarkdown>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </section>
+                {visibleSelection.additionalData && visibleSelection.additionalData.length > 0 ? (
+                  <section
+                    className={styles.section}
+                    data-section-id="additionalData"
+                    aria-label="Additional Data"
+                  >
+                    <h3 className={styles.sectionHeading}>
+                      <button
+                        type="button"
+                        className={styles.sectionToggle}
+                        aria-expanded={!isAdditionalDataCollapsed}
+                        onClick={() => setIsAdditionalDataCollapsed((current) => !current)}
+                      >
+                        <span
+                          className={`${styles.sectionArrow} ${!isAdditionalDataCollapsed ? styles.sectionArrowExpanded : ''}`}
+                          aria-hidden="true"
+                        >
+                          ▶
+                        </span>
+                        <span className={styles.sectionHeadingText}>Additional Data</span>
+                      </button>
+                    </h3>
+                    {!isAdditionalDataCollapsed ? (
+                      <div className={`${styles.sectionContent} ${styles.additionalDataContent}`}>
+                        {visibleSelection.additionalData.map((dataSection, sectionIndex) => (
+                          <section className={styles.additionalDataSection} key={`${sectionIndex}:${dataSection.title}`}>
+                            <h4 className={styles.additionalDataHeading}>{dataSection.title}</h4>
+                            <table className={styles.metadataTable}>
+                              <tbody className={styles.metadataTableBody}>
+                                {dataSection.entries.map((entry, entryIndex) => (
+                                  <tr className={styles.metadataRow} key={`${entryIndex}:${entry.key}`}>
+                                    <th className={styles.metadataLabelCell} scope="row">
+                                      <span className={styles.metadataLabelText}>{entry.key}</span>
+                                    </th>
+                                    <td className={styles.metadataValueCell}>
+                                      <div className={`${styles.scalarValue} ${styles.structuredEventValue}`}>
+                                        <ReactMarkdown
+                                          rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                                        >
+                                          {entry.value}
+                                        </ReactMarkdown>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </section>
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
+                </>
+              ) : null}
               {visibleSelection.comment ? (
                 <section className={styles.section} data-section-id="comment" aria-label="Comment">
                   <h3 className={styles.sectionHeading}>
@@ -771,7 +905,7 @@ export const DrpdMessageDetailInstrumentView = ({
                   ) : null}
                 </section>
               ) : null}
-              {visibleSelection.sections.map((section) => {
+              {'sections' in visibleSelection ? visibleSelection.sections.map((section) => {
                 const isExpanded = !collapsedSectionIds.includes(section.id)
                 return (
                   <section className={styles.section} data-section-id={section.id} key={section.id}>
@@ -811,7 +945,7 @@ export const DrpdMessageDetailInstrumentView = ({
                     ) : null}
                   </section>
                 )
-              })}
+              }) : null}
             </div>
           ) : null}
         </section>

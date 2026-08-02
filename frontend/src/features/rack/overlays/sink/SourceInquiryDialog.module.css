@@ -1,0 +1,30 @@
+.manufacturerDescription {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.manufacturerForm {
+  display: grid;
+  gap: var(--space-10);
+  min-width: 0;
+}
+
+.manufacturerTargetRow {
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: baseline;
+}
+
+.manufacturerTargetRow > label {
+  padding-top: 0;
+}
+
+.manufacturerTargetSelect {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: var(--border-thin) solid var(--color-border-panel);
+  padding: var(--space-4) var(--space-6);
+  color: var(--color-text-primary);
+  background: var(--color-surface-panel);
+  font-size: var(--font-size-header-popup-input);
+}
