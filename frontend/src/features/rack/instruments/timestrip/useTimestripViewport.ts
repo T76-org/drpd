@@ -186,6 +186,12 @@ export const useTimestripViewport = (
     onScrollLeftChanged?.(nextScrollLeftPx)
     publishScrollLeft(nextScrollLeftPx, true)
   }, [logicalScrollLeftToDom, markProgrammaticScroll, onScrollLeftChanged, publishScrollLeft, viewportRef])
+  const presentLogicalLeft = useCallback((logicalScrollLeftPx: number) => {
+    const nextScrollLeftPx = Math.max(0, logicalScrollLeftPx)
+    logicalScrollLeftRef.current = nextScrollLeftPx
+    hasLogicalScrollLeftRef.current = true
+    onScrollLeftChanged?.(nextScrollLeftPx)
+  }, [onScrollLeftChanged])
   const syncD3ZoomTransform = useCallback((viewport: HTMLDivElement, nextZoomDenominator: number) => {
     const behavior = d3ZoomBehaviorRef.current
     if (!behavior) {
@@ -544,6 +550,7 @@ export const useTimestripViewport = (
     domTimelineWidthPx,
     domScrollLeftToLogical,
     logicalScrollLeftToDom,
+    presentLogicalLeft,
     scrollToLogicalLeft,
   }
 }

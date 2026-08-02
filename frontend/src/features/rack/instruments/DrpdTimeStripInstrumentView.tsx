@@ -48,8 +48,10 @@ const DIGITAL_QUERY_OVERSCAN_PX = 1024
 const ANALOG_QUERY_OVERSCAN_PX = DIGITAL_QUERY_OVERSCAN_PX
 const MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS = 16_000_000
 const LIVE_FOLLOW_VIEWPORT_FRACTION = 0.5
-const LIVE_FOLLOW_INTERVAL_MS = 125
+const LIVE_DATA_COMMIT_INTERVAL_MS = 50
 const LIVE_FOLLOW_MAX_STEP_VIEWPORTS = 0.75
+const LIVE_FOLLOW_MAX_STEP_INTERVAL_MS = 125
+const ZOOM_PRESENTATION_SETTLE_MS = 120
 const RANGE_SELECTION_DRAG_THRESHOLD_PX = 4
 const readThemeName = () => {
   if (typeof document === 'undefined') {
@@ -582,11 +584,16 @@ export const DrpdTimeStripInstrumentView = ({
 }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const canvasLayerRef = useRef<HTMLDivElement | null>(null)
+  const captureMarkerOverlayRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<TimestripCanvasRenderer | null>(null)
   const centeredSelectionKeyRef = useRef<string | null>(null)
   const liveFollowFrameRef = useRef<number | null>(null)
   const liveFollowImmediateRef = useRef(true)
   const lastLiveFollowCommitMsRef = useRef(0)
+  const lastLiveFollowFrameMsRef = useRef(0)
+  const presentationScrollLeftRef = useRef(0)
+  const presentationZoomDenominatorRef = useRef(1_000_000)
+  const zoomSettleTimeoutRef = useRef<number | null>(null)
   const isLiveFollowPausedByUserRef = useRef(false)
   const userNavigationRevisionRef = useRef(0)
   const scrollHoverUpdateRef = useRef<((logicalScrollLeftPx: number) => void) | null>(null)
@@ -606,6 +613,7 @@ export const DrpdTimeStripInstrumentView = ({
   const [themeName, setThemeName] = useState(readThemeName)
   const [theme, setTheme] = useState(() => readTimestripTheme(readThemeName()))
   const [digitalEntries, setDigitalEntries] = useState<TimestripDigitalEntry[]>([])
+  const digitalEntriesRef = useRef<TimestripDigitalEntry[]>([])
   const [digitalDataRevision, setDigitalDataRevision] = useState(0)
   const [analogSamples, setAnalogSamples] = useState<TimestripAnalogSample[]>([])
   const analogSamplesRef = useRef<TimestripAnalogSample[]>([])
@@ -658,10 +666,16 @@ export const DrpdTimeStripInstrumentView = ({
     canZoomOut,
     timelineWidthPx,
     domTimelineWidthPx,
+    presentLogicalLeft,
     scrollToLogicalLeft,
   } = useTimestripViewport(viewportRef, viewportDurationNs, {
     onUserNavigation: handleTimestripUserNavigation,
     onScrollLeftChanged: (nextScrollLeftPx) => {
+      presentationScrollLeftRef.current = nextScrollLeftPx
+      rendererRef.current?.setPresentationViewport({
+        scrollLeftPx: nextScrollLeftPx,
+        zoomDenominator: presentationZoomDenominatorRef.current,
+      })
       scrollHoverUpdateRef.current?.(nextScrollLeftPx)
     },
     tailPaddingViewportFraction:
@@ -670,6 +684,29 @@ export const DrpdTimeStripInstrumentView = ({
         : 1 - LIVE_FOLLOW_VIEWPORT_FRACTION,
     minTailPaddingZoomDenominator: MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS,
   })
+  useEffect(() => {
+    presentationScrollLeftRef.current = scrollLeftPx
+  }, [scrollLeftPx])
+  useEffect(() => {
+    presentationZoomDenominatorRef.current = zoomDenominator
+    rendererRef.current?.setPresentationViewport({ scrollLeftPx, zoomDenominator })
+    if (zoomSettleTimeoutRef.current !== null) {
+      window.clearTimeout(zoomSettleTimeoutRef.current)
+    }
+    zoomSettleTimeoutRef.current = window.setTimeout(() => {
+      zoomSettleTimeoutRef.current = null
+      rendererRef.current?.commitPresentationViewport({
+        scrollLeftPx: presentationScrollLeftRef.current,
+        zoomDenominator: presentationZoomDenominatorRef.current,
+      })
+    }, ZOOM_PRESENTATION_SETTLE_MS)
+    return () => {
+      if (zoomSettleTimeoutRef.current !== null) {
+        window.clearTimeout(zoomSettleTimeoutRef.current)
+        zoomSettleTimeoutRef.current = null
+      }
+    }
+  }, [scrollLeftPx, zoomDenominator])
   const isLiveFollowAvailable = zoomDenominator >= MIN_LIVE_FOLLOW_ZOOM_DENOMINATOR_NS
   const latestFollowWorldNs = captureMarkerWorldNs ?? latestDatumWorldNs
   const maxScrollLeftPx = Math.max(0, timelineWidthPx - viewportWidthPx)
@@ -1004,6 +1041,7 @@ export const DrpdTimeStripInstrumentView = ({
     }
   }, [rangeSelection])
   const commitDigitalEntries = useCallback((nextEntries: TimestripDigitalEntry[]) => {
+    digitalEntriesRef.current = nextEntries
     setDigitalEntries(nextEntries)
     setDigitalDataRevision((revision) => revision + 1)
   }, [])
@@ -1104,20 +1142,6 @@ export const DrpdTimeStripInstrumentView = ({
       driver.removeEventListener(DRPDDevice.CAPTURE_STATUS_CHANGED_EVENT, handleCaptureStatusChanged)
     }
   }, [deviceState?.drpdDriver])
-
-  useEffect(() => {
-    if (!captureEnabled || timelineRange.basis.kind !== 'wallClock') {
-      return undefined
-    }
-    const tick = () => {
-      setCaptureProgressWallClockUs(Date.now() * 1000)
-    }
-    tick()
-    const interval = window.setInterval(tick, 250)
-    return () => {
-      window.clearInterval(interval)
-    }
-  }, [captureEnabled, timelineRange.basis.kind])
 
   useEffect(() => {
     const driver = deviceState?.drpdDriver
@@ -1388,11 +1412,8 @@ export const DrpdTimeStripInstrumentView = ({
   ])
 
   useEffect(() => {
-    if (
-      !isLiveFollowing ||
-      latestFollowTargetScrollLeftPx === null ||
-      viewportWidthPx <= 0
-    ) {
+    const hasAnimatedCaptureMarker = captureEnabled && timelineRange.basis.kind === 'wallClock'
+    if ((!isLiveFollowing && !hasAnimatedCaptureMarker) || viewportWidthPx <= 0) {
       if (liveFollowFrameRef.current !== null) {
         window.cancelAnimationFrame(liveFollowFrameRef.current)
         liveFollowFrameRef.current = null
@@ -1402,23 +1423,72 @@ export const DrpdTimeStripInstrumentView = ({
 
     let isActive = true
     const tick = (timestampMs: number) => {
-      if (!isActive || isLiveFollowPausedByUserRef.current) {
+      if (!isActive) {
         return
       }
+      const frameCaptureProgressWallClockUs = Date.now() * 1000
+      const frameCaptureMarkerWorldNs = hasAnimatedCaptureMarker
+        ? Number((
+            BigInt(Math.floor(frameCaptureProgressWallClockUs)) -
+            BigInt(Math.floor(timelineRange.basis.originWallClockUs))
+          ) * 1000n)
+        : captureMarkerWorldNs
+      const frameLatestWorldNs = latestDatumWorldNs === null
+        ? frameCaptureMarkerWorldNs
+        : frameCaptureMarkerWorldNs === null
+          ? latestDatumWorldNs
+          : Math.max(latestDatumWorldNs, frameCaptureMarkerWorldNs)
+      const frameMaxScrollLeftPx = Math.max(
+        0,
+        Math.max(timelineWidthPx, (frameLatestWorldNs ?? 0) / zoomDenominator + viewportWidthPx * 0.5) - viewportWidthPx,
+      )
+      const frameTargetScrollLeftPx = frameLatestWorldNs === null
+        ? null
+        : Math.max(
+            0,
+            Math.min(
+              frameMaxScrollLeftPx,
+              frameLatestWorldNs / zoomDenominator - viewportWidthPx * LIVE_FOLLOW_VIEWPORT_FRACTION,
+            ),
+          )
+      const previousFrameMs = lastLiveFollowFrameMsRef.current || timestampMs
+      const frameElapsedMs = Math.max(0, timestampMs - previousFrameMs)
+      lastLiveFollowFrameMsRef.current = timestampMs
       const elapsedMs = timestampMs - lastLiveFollowCommitMsRef.current
       const immediate = liveFollowImmediateRef.current
-      if (immediate || elapsedMs >= LIVE_FOLLOW_INTERVAL_MS) {
-        const delta = latestFollowTargetScrollLeftPx - scrollLeftPx
-        if (Math.abs(delta) > 1) {
-          const maxStepPx = Math.max(1, viewportWidthPx * LIVE_FOLLOW_MAX_STEP_VIEWPORTS)
-          const nextScrollLeft = immediate || Math.abs(delta) <= maxStepPx
-            ? latestFollowTargetScrollLeftPx
-            : scrollLeftPx + Math.sign(delta) * maxStepPx
+      let nextScrollLeft = presentationScrollLeftRef.current
+      if (isLiveFollowing && !isLiveFollowPausedByUserRef.current && frameTargetScrollLeftPx !== null) {
+        const delta = frameTargetScrollLeftPx - presentationScrollLeftRef.current
+        if (Math.abs(delta) > 0.001) {
+          const maxStepPx = Math.max(
+            1,
+            viewportWidthPx * LIVE_FOLLOW_MAX_STEP_VIEWPORTS * frameElapsedMs / LIVE_FOLLOW_MAX_STEP_INTERVAL_MS,
+          )
+          nextScrollLeft = immediate || Math.abs(delta) <= maxStepPx
+            ? frameTargetScrollLeftPx
+            : presentationScrollLeftRef.current + Math.sign(delta) * maxStepPx
+          presentationScrollLeftRef.current = nextScrollLeft
+          presentLogicalLeft(nextScrollLeft)
+        }
+      }
+      if (frameCaptureMarkerWorldNs !== null && Number.isFinite(frameCaptureMarkerWorldNs)) {
+        const markerX = frameCaptureMarkerWorldNs / zoomDenominator - nextScrollLeft
+        const marker = captureMarkerOverlayRef.current
+        if (marker) {
+          marker.style.transform = `translate3d(${markerX}px, 0, 0)`
+          marker.style.visibility = markerX >= 0 && markerX <= viewportWidthPx ? 'visible' : 'hidden'
+        }
+      }
+      if (immediate || elapsedMs >= LIVE_DATA_COMMIT_INTERVAL_MS) {
+        if (hasAnimatedCaptureMarker) {
+          setCaptureProgressWallClockUs(frameCaptureProgressWallClockUs)
+        }
+        if (isLiveFollowing && !isLiveFollowPausedByUserRef.current) {
           scrollToLogicalLeft(nextScrollLeft, 'follow')
         }
-        liveFollowImmediateRef.current = false
         lastLiveFollowCommitMsRef.current = timestampMs
       }
+      liveFollowImmediateRef.current = false
       liveFollowFrameRef.current = window.requestAnimationFrame(tick)
     }
 
@@ -1432,10 +1502,16 @@ export const DrpdTimeStripInstrumentView = ({
     }
   }, [
     isLiveFollowing,
-    latestFollowTargetScrollLeftPx,
-    scrollLeftPx,
+    captureEnabled,
+    captureMarkerWorldNs,
+    latestDatumWorldNs,
+    presentLogicalLeft,
     scrollToLogicalLeft,
+    timelineRange.basis.kind,
+    timelineRange.basis.originWallClockUs,
+    timelineWidthPx,
     viewportWidthPx,
+    zoomDenominator,
   ])
 
   useEffect(() => {
@@ -1665,7 +1741,7 @@ export const DrpdTimeStripInstrumentView = ({
       kind: 'message' | 'event' | 'analog'
       row: LoggedCapturedMessage | LoggedAnalogSample
     }> = []
-    let pendingAddedFrame: number | null = null
+    let pendingAddedTimeout: number | null = null
     const processAdded = (detail: {
       kind: 'message' | 'event' | 'analog'
       row: LoggedCapturedMessage | LoggedAnalogSample
@@ -1771,7 +1847,7 @@ export const DrpdTimeStripInstrumentView = ({
           return
         }
         const nextSamples = applyAnalogBreaks(
-          insertAnalogSampleSorted(analogSamples, sample),
+          insertAnalogSampleSorted(analogSamplesRef.current, sample),
           analogBreakWorldNsRef.current,
         )
         commitAnalogSamples(nextSamples)
@@ -1784,7 +1860,7 @@ export const DrpdTimeStripInstrumentView = ({
           ...analogBreakWorldNsRef.current,
           captureBreakWorldNs,
         ].sort((left, right) => left - right)
-        commitAnalogSamples(applyAnalogBreaks(analogSamples, analogBreakWorldNsRef.current))
+        commitAnalogSamples(applyAnalogBreaks(analogSamplesRef.current, analogBreakWorldNsRef.current))
       }
       const loadedRange = digitalQueryRangeRef.current
       if (
@@ -1808,11 +1884,11 @@ export const DrpdTimeStripInstrumentView = ({
       if (!entry) {
         return
       }
-      const nextEntries = insertDigitalEntrySorted(digitalEntries, entry)
+      const nextEntries = insertDigitalEntrySorted(digitalEntriesRef.current, entry)
       commitDigitalEntries(nextEntries)
     }
     const flushAddedRows = () => {
-      pendingAddedFrame = null
+      pendingAddedTimeout = null
       const rows = pendingAddedRows.splice(0)
       for (const detail of rows) {
         processAdded(detail)
@@ -1828,10 +1904,10 @@ export const DrpdTimeStripInstrumentView = ({
         return
       }
       pendingAddedRows.push({ kind: detail.kind, row })
-      if (pendingAddedFrame !== null) {
+      if (pendingAddedTimeout !== null) {
         return
       }
-      pendingAddedFrame = window.requestAnimationFrame(flushAddedRows)
+      pendingAddedTimeout = window.setTimeout(flushAddedRows, LIVE_DATA_COMMIT_INTERVAL_MS)
     }
 
     const handleDeleted = (event: Event) => {
@@ -1862,19 +1938,17 @@ export const DrpdTimeStripInstrumentView = ({
     driver.addEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
     driver.addEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     return () => {
-      if (pendingAddedFrame !== null) {
-        window.cancelAnimationFrame(pendingAddedFrame)
+      if (pendingAddedTimeout !== null) {
+        window.clearTimeout(pendingAddedTimeout)
         flushAddedRows()
       }
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_ADDED_EVENT, handleAdded)
       driver.removeEventListener(DRPDDevice.LOG_ENTRY_DELETED_EVENT, handleDeleted)
     }
   }, [
-    analogSamples,
     commitAnalogSamples,
     commitDigitalEntries,
     deviceState?.drpdDriver,
-    digitalEntries,
     hasLogTimelineRange,
     timelineRange.durationNs,
     timelineRange.basis.originTimestampUs,
@@ -2025,6 +2099,7 @@ export const DrpdTimeStripInstrumentView = ({
           />
           {shouldShowCaptureMarker ? (
             <div
+              ref={captureMarkerOverlayRef}
               className={styles.captureMarkerOverlay}
               data-testid="drpd-timestrip-capture-marker"
               style={{

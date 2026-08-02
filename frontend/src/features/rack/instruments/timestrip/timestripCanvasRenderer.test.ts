@@ -8,6 +8,7 @@ const buildCanvasContext = () => ({
   beginPath: vi.fn(),
   clearRect: vi.fn(),
   clip: vi.fn(),
+  drawImage: vi.fn(),
   fillRect: vi.fn(),
   fillText: vi.fn(),
   lineTo: vi.fn(),
@@ -64,7 +65,8 @@ describe('TimestripCanvasRenderer', () => {
     expect(canvases[0].style.height).toBe('120px')
     expect(canvases[0].width).toBe(1024)
     expect(canvases[0].height).toBe(240)
-    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 512, 120)
+    expect(context.clearRect).toHaveBeenCalledWith(0, 0, 1024, 240)
+    expect(context.drawImage).toHaveBeenCalledTimes(1)
 
     renderer.dispose()
   })
@@ -91,7 +93,7 @@ describe('TimestripCanvasRenderer', () => {
 
     expect(frameCallbacks).toHaveLength(1)
     frameCallbacks.shift()?.(0)
-    expect(context.clearRect).toHaveBeenCalledTimes(1)
+    expect(context.drawImage).toHaveBeenCalledTimes(1)
 
     renderer.dispose()
   })
@@ -183,7 +185,44 @@ describe('TimestripCanvasRenderer', () => {
     }))
     renderNextFrame()
 
-    expect(context.clearRect).toHaveBeenCalledTimes(7)
+    expect(context.drawImage).toHaveBeenCalledTimes(7)
+
+    renderer.dispose()
+  })
+
+  it('composites motion from cache and rebuilds exactly when presentation settles', () => {
+    const visibleContext = buildCanvasContext()
+    const cacheContext = buildCanvasContext()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockImplementationOnce(() => visibleContext as unknown as CanvasRenderingContext2D)
+      .mockImplementationOnce(() => cacheContext as unknown as CanvasRenderingContext2D)
+    const canvasLayer = document.createElement('div')
+    const frameCallbacks: FrameRequestCallback[] = []
+    const renderer = new TimestripCanvasRenderer({
+      canvasLayer,
+      requestAnimationFrame: (callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      },
+      cancelAnimationFrame: vi.fn(),
+    })
+    const renderNextFrame = () => frameCallbacks.shift()?.(0)
+
+    renderer.setViewport(buildViewport({ scrollLeftPx: 500 }))
+    renderNextFrame()
+    expect(cacheContext.clearRect).toHaveBeenCalledTimes(1)
+
+    renderer.setPresentationViewport({ scrollLeftPx: 520 })
+    renderNextFrame()
+    renderer.setPresentationViewport({ scrollLeftPx: 540, zoomDenominator: 900 })
+    renderNextFrame()
+
+    expect(cacheContext.clearRect).toHaveBeenCalledTimes(1)
+    expect(visibleContext.drawImage).toHaveBeenCalledTimes(3)
+
+    renderer.commitPresentationViewport({ scrollLeftPx: 540, zoomDenominator: 900 })
+    renderNextFrame()
+    expect(cacheContext.clearRect).toHaveBeenCalledTimes(2)
 
     renderer.dispose()
   })
