@@ -49,3 +49,13 @@ Reduce or remove the load first. Then check:
 Review [Dr. PD's protection mechanisms](../how-to/protection-mechanisms) and set limits appropriate for the device under test. Dr. PD's hardcoded hardware-protection limits are not substitutes for test-specific limits.
 
 For setup and safety guidance, see [Operating Dr. PD as a sink](../how-to/operating-as-sink).
+
+## Legacy USB-A Chargers Not Recognized / No USB-PD Traffic Detected
+
+Connecting a legacy USB-A power adapter or charger to Port A yields no response, and Dr. PD does not detect a connected device or display power delivery messages.
+
+Dr. PD relies on dedicated Configuration Channel (CC) lines to detect power source attachments and negotiate USB Power Delivery (USB-PD) contracts. Legacy USB-A power sources supply standard VBUS power without CC lines and do not support USB-PD protocol negotiation. Consequently, Dr. PD cannot establish a communication channel or trigger automated sink capabilities over a traditional USB-A connection.
+
+To analyze USB Power Delivery messaging and automated sink profiles (SPR, EPR, PPS, or AVS), connect a native USB Type-C charger or source using a full-featured USB-C to USB-C cable.
+
+If you only need to measure static VBUS voltage and current draw from a USB-A source, ensure a compatible USB-A to USB-C adapter/cable is used, and note that protocol decoding features will remain inactive.
