@@ -61,7 +61,7 @@ const manufacturerSection = (reference: number, raw: Uint8Array): LoggedEventDat
       { key: 'Manufacturer String (bytes 4–end)', value: detailedValue(`**${identity.manufacturerString || '(empty)'}**`, `${nullTerminated ? 'Null-terminated' : 'Unterminated'} printable ASCII. Raw bytes${nullTerminated ? ' including terminator' : ''}: ${rawHexValue(identity.manufacturerStringBytes)}.`) },
       ...(!nullTerminated ? [{ key: 'Interoperability Warning', value: 'The Source omitted the required trailing null terminator. Dr. PD recovered the printable ASCII string using the declared Manufacturer_Info Data Size; raw bytes are preserved unchanged.' }] : []),
       { key: 'Battery Reference Validity', value: 'Advertised reference; Manufacturer_Info has no Invalid Battery Reference bit.' },
-      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete Manufacturer_Info logical response body; no fabricated USB-PD header or CRC is included.') },
+      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete Manufacturer_Info response payload. The outer USB-PD packet header and CRC are not included.') },
     ],
   }
 }

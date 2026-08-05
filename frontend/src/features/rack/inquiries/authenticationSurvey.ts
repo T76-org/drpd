@@ -79,7 +79,7 @@ const buildDiscoverySection = (result: AuthenticationWorkflowResult): LoggedEven
         { key: 'Slot Mask (byte 3)', value: detailedValue(`**${hex8(result.slotMask)}**`, `Bits 7:0 identify populated digest slots: ${populated.join(', ') || 'none'}.`) },
         { key: 'Advertised Slots', value: populated.length === 0 ? 'None.' : populated.map((slot) => `\`${slot}\``).join(', ') },
       ]),
-      ...(raw ? [{ key: 'Raw Logical Response', value: detailedValue(rawHex(raw), 'Complete DIGESTS logical response body; no fabricated USB-PD header or CRC is included.') }] : []),
+      ...(raw ? [{ key: 'Raw Logical Response', value: detailedValue(rawHex(raw), 'Complete DIGESTS response payload. The outer USB-PD packet header and CRC are not included.') }] : []),
     ],
   }
 }

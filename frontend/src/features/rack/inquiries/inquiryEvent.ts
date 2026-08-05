@@ -190,7 +190,7 @@ export const presentInquiryResponse = (request: SinkInquiryRequest, result: Extr
   const title = inquiryEventTitle(request)
   const plug = requestPlug(request)
   const targetEntry = plug ? [{ key: 'Target', value: `**${cablePlugLabel(plug)}** — explicitly addressed; no fallback to SOP.` }] : []
-  const rawEntry = { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete logical response body; no fabricated USB-PD header or CRC is included.') }
+  const rawEntry = { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete response payload. The outer USB-PD packet header and CRC are not included.') }
 
   if (request.type === SinkInquiryType.GET_SOURCE_CAP) {
     const words = readDataObjects(raw, 0, raw.length / 4)

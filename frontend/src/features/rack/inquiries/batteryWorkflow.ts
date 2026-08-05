@@ -82,7 +82,7 @@ export const buildBatteryDiscoverySection = (
   entries.push(block.eprSourcePdpRating === null
     ? { key: 'EPR Source PDP (byte 24)', value: 'Not present in this legacy 24-byte data block.' }
     : { key: 'EPR Source PDP (byte 24)', value: detailedValue(`${block.eprSourcePdpRating} W`, `Raw: \`${hex8(raw[24] ?? 0)}\`.`) })
-  entries.push({ key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete Source Capabilities Extended logical response body; no fabricated USB-PD header or CRC is included.') })
+  entries.push({ key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete Source Capabilities Extended response payload. The outer USB-PD packet header and CRC are not included.') })
   return { title: 'Source Capabilities Extended', entries }
 }
 
@@ -136,7 +136,7 @@ const buildBatteryCapabilitiesSection = (
       { key: 'Battery Type (byte 8)', value: detailedValue(`\`${hex8(block.batteryType)}\` (${binary(block.batteryType, 8)})`, 'Battery Type bitfield returned by the source.') },
       { key: 'Invalid Battery Reference (bit 0)', value: `${binary(block.batteryType & 0x01, 1)} — **${invalidReference ? 'invalid' : 'valid'} battery reference**.` },
       { key: 'Reserved (bits 7:1)', value: `${binary(reserved, 7)} — must be zero.` },
-      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete 9-byte Battery_Capabilities logical response body; no fabricated USB-PD header or CRC is included.') },
+      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete 9-byte Battery_Capabilities response payload. The outer USB-PD packet header and CRC are not included.') },
     ],
   }
 }
@@ -342,7 +342,7 @@ const buildBatteryStatusSection = (
       { key: 'Invalid Battery Reference (bit 8)', value: `${binary(status.invalidBatteryReference ? 1 : 0, 1)} — **${status.invalidBatteryReference ? 'invalid' : 'valid'} battery reference**.` },
       { key: 'Reserved (bits 7:0)', value: `${binary(rawObject & 0xff, 8)} — must be zero.` },
       { key: 'Raw Data Object', value: detailedValue(`\`${hex32(rawObject)}\``, 'Battery Status Data Object interpreted in host numeric order.') },
-      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete 4-byte Battery_Status logical response body; no fabricated USB-PD header or CRC is included.') },
+      { key: 'Raw Logical Response', value: detailedValue(rawHexValue(raw), 'Complete 4-byte Battery_Status response payload. The outer USB-PD packet header and CRC are not included.') },
     ],
   }
 }

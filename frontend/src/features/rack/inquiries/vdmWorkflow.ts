@@ -130,7 +130,7 @@ const failedSection = (title: string, outcome: string, raw?: Uint8Array, error?:
     { key: 'Outcome', value: outcome },
     ...cableTargetEntries(plug),
     ...(error ? [{ key: 'Decode Error', value: error }] : []),
-    ...(raw ? [{ key: 'Raw Logical Response', value: detail(rawHex(raw), 'Complete logical response body; no fabricated USB-PD header or CRC is included.') }] : []),
+    ...(raw ? [{ key: 'Raw Logical Response', value: detail(rawHex(raw), 'Complete response payload. The outer USB-PD packet header and CRC are not included.') }] : []),
   ],
 })
 

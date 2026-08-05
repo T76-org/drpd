@@ -32,7 +32,7 @@ const countryCodesSection = (raw: Uint8Array, codes: string[]): LoggedEventDataS
     { key: 'Country Count (byte 0)', value: `**${codes.length}** — raw \`0x${(raw[0] ?? 0).toString(16).toUpperCase().padStart(2, '0')}\`.` },
     { key: 'Reserved (byte 1)', value: `\`0x${(raw[1] ?? 0).toString(16).toUpperCase().padStart(2, '0')}\` — must be zero.` },
     { key: 'Country Codes (bytes 2–end)', value: codes.map((code, index) => `\`${code}\` at bytes ${2 + index * 2}–${3 + index * 2} (${rawHexValue(raw.subarray(2 + index * 2, 4 + index * 2))})`).join('\n\n') || 'None.' },
-    { key: 'Raw Logical Response', value: `${rawHexValue(raw)}\n\n_Complete Country_Codes logical response body; no fabricated USB-PD header or CRC is included._` },
+    { key: 'Raw Logical Response', value: `${rawHexValue(raw)}\n\n_Complete Country_Codes response payload. The outer USB-PD packet header and CRC are not included._` },
   ],
 })
 
@@ -60,7 +60,7 @@ const countryInfoSection = (requestedCode: string, raw: Uint8Array): LoggedEvent
       { key: 'Echoed Country Code (bytes 0–1)', value: `**${info.countryCode ?? '(invalid)'}** — raw ${rawHexValue(raw.subarray(0, 2))}.` },
       { key: 'Reserved (bytes 2–3)', value: `${rawHexValue(raw.subarray(2, 4))} — both bytes must be zero.` },
       { key: 'Country-Specific Data (bytes 4–end)', value: `ASCII preview: **${info.countrySpecificDataAscii || '(empty)'}**\n\nRaw: ${rawHexValue(info.countrySpecificData)}.` },
-      { key: 'Raw Logical Response', value: `${rawHexValue(raw)}\n\n_Complete Country_Info logical response body; no fabricated USB-PD header or CRC is included._` },
+      { key: 'Raw Logical Response', value: `${rawHexValue(raw)}\n\n_Complete Country_Info response payload. The outer USB-PD packet header and CRC are not included._` },
     ],
   }
 }
