@@ -43,36 +43,36 @@ Downloadable hardware schematics in PDF and KiCAD format are available in the [h
 
 Click on the images below to view them in full size.
 
-<table width="660">
+<table width="810">
   <tr>
-    <td width="220" align="center"><a href="./media/front.png"><img src="./media/front.png" alt="Dr. PD front panel" width="200"></a></td>
-    <td width="220" align="center"><a href="./media/back.jpg"><img src="./media/back.jpg" alt="Dr. PD back panel" width="200"></a></td>
-    <td width="220" align="center"><a href="./media/drpd-main-ui.png"><img src="./media/drpd-main-ui.png" alt="Dr. PD main interface" width="200"></a></td>
+    <td width="270" align="center"><a href="./media/front.png"><img src="./media/front.png" alt="Dr. PD front panel" width="250"></a></td>
+    <td width="270" align="center"><a href="./media/back.jpg"><img src="./media/back.jpg" alt="Dr. PD back panel" width="250"></a></td>
+    <td width="270" align="center"><a href="./media/drpd-main-ui.png"><img src="./media/drpd-main-ui.png" alt="Dr. PD main interface" width="250"></a></td>
   </tr>
   <tr>
-    <td width="220" align="left" valign="top"><sub><strong>Front panel</strong></sub></td>
-    <td width="220" align="left" valign="top"><sub><strong>Back panel</strong></sub></td>
-    <td width="220" align="left" valign="top"><sub>The <strong>Main interface</strong> runs in your browser and shows live analog measurement, message capture, and analysis.</sub></td>
+    <td width="270" align="left" valign="top"><sub><strong>Front panel</strong></sub></td>
+    <td width="270" align="left" valign="top"><sub><strong>Back panel</strong></sub></td>
+    <td width="270" align="left" valign="top"><sub>The <strong>Main interface</strong> runs in your browser and shows live analog measurement, message capture, and analysis.</sub></td>
   </tr>
   <tr>
-    <td width="220" align="center"><a href="./media/drpd-message-detail.png"><img src="./media/drpd-message-detail.png" alt="USB-PD message details" width="200"></a></td>
-    <td width="220" align="center"><a href="./media/drpd-sink-inquiry.png"><img src="./media/drpd-sink-inquiry.png" alt="Sink inquiry workflow" width="200"></a></td>
-    <td width="220" align="center"><a href="./media/drpd-source-debugging.png"><img src="./media/drpd-source-debugging.png" alt="Source debugging workflow" width="200"></a></td>
+    <td width="270" align="center"><a href="./media/drpd-message-detail.png"><img src="./media/drpd-message-detail.png" alt="USB-PD message details" width="250"></a></td>
+    <td width="270" align="center"><a href="./media/drpd-sink-inquiry.png"><img src="./media/drpd-sink-inquiry.png" alt="Sink inquiry workflow" width="250"></a></td>
+    <td width="270" align="center"><a href="./media/drpd-source-debugging.png"><img src="./media/drpd-source-debugging.png" alt="Source debugging workflow" width="250"></a></td>
   </tr>
   <tr>
-    <td width="220" align="left" valign="top"><sub>The <strong>Message Detail</strong> breaks down each message into its constituent fields, timing data, CRC checks, and specification references.</sub></td>
-    <td width="220" align="left" valign="top"><sub>In <strong>Sink Mode</strong>, Dr. PD can interrogate the source by sending arbitrary messages to it.</sub></td>
-    <td width="220" align="left" valign="top"><sub><strong>Source debugging:</strong> Dr. PD can correlate protocol traffic, electrical activity, errors, and recovery attempts to help troubleshoot connectivity between sources and sinks.</sub></td>
+    <td width="270" align="left" valign="top"><sub>The <strong>Message Detail</strong> breaks down each message into its constituent fields, timing data, CRC checks, and specification references.</sub></td>
+    <td width="270" align="left" valign="top"><sub>In <strong>Sink Mode</strong>, Dr. PD can interrogate the source by sending arbitrary messages to it.</sub></td>
+    <td width="270" align="left" valign="top"><sub><strong>Source debugging:</strong> Dr. PD can correlate protocol traffic, electrical activity, errors, and recovery attempts to help troubleshoot connectivity between sources and sinks.</sub></td>
   </tr>
   <tr>
-    <td width="220" align="center"><a href="./media/drpd-source-malformed-response.png"><img src="./media/drpd-source-malformed-response.png" alt="Malformed source response analysis" width="200"></a></td>
-    <td width="220" align="center"><a href="./media/drpd-filter-ui.png"><img src="./media/drpd-filter-ui.png" alt="Message log filters" width="200"></a></td>
-    <td width="220" align="center"><a href="./media/drpd-trigger-setup-ui.png"><img src="./media/drpd-trigger-setup-ui.png" alt="Capture trigger setup" width="200"></a></td>
+    <td width="270" align="center"><a href="./media/drpd-source-malformed-response.png"><img src="./media/drpd-source-malformed-response.png" alt="Malformed source response analysis" width="250"></a></td>
+    <td width="270" align="center"><a href="./media/drpd-filter-ui.png"><img src="./media/drpd-filter-ui.png" alt="Message log filters" width="250"></a></td>
+    <td width="270" align="center"><a href="./media/drpd-trigger-setup-ui.png"><img src="./media/drpd-trigger-setup-ui.png" alt="Capture trigger setup" width="250"></a></td>
   </tr>
   <tr>
-    <td width="220" align="left" valign="top"><sub><strong>Response analysis:</strong> Here, Dr. PD has discovered that the connected source sent a non-compliant response.</sub></td>
-    <td width="220" align="left" valign="top"><sub><strong>Message log filters</strong><br>Filter by message type, sender, receiver, SOP type, CRC, and flags.</sub></td>
-    <td width="220" align="left" valign="top"><sub><strong>Capture trigger setup</strong><br>Trigger on protocol stages, message types, thresholds, or synchronized pulses.</sub></td>
+    <td width="270" align="left" valign="top"><sub><strong>Response analysis:</strong> Here, Dr. PD has discovered that the connected source sent a non-compliant response.</sub></td>
+    <td width="270" align="left" valign="top"><sub><strong>Message log filters</strong><br>Filter by message type, sender, receiver, SOP type, CRC, and flags.</sub></td>
+    <td width="270" align="left" valign="top"><sub><strong>Capture trigger setup</strong><br>Trigger on protocol stages, message types, thresholds, or synchronized pulses.</sub></td>
   </tr>
 </table>
 
