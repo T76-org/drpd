@@ -1033,6 +1033,117 @@ describe('DrpdUsbPdLogInstrumentView', () => {
     expect(driver.logSelection.activeIndex).toBe(1)
   })
 
+  it.each([
+    ['Control', { ctrlKey: true }],
+    ['Command', { metaKey: true }],
+  ])('selects every virtualized row with %s+A', async (_modifier, modifier) => {
+    const driver = new TestLogDriver(
+      Array.from({ length: 500 }, (_, index) => buildMessage(index, 1)),
+    )
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+    const table = await screen.findByRole('table', { name: 'USB-PD message log' })
+    expect(table).toHaveAttribute('aria-rowcount', '500')
+    expect(table.querySelectorAll('tbody tr').length).toBeLessThan(500)
+    const viewport = screen.getByTestId('drpd-usbpd-log-viewport')
+
+    fireEvent.keyDown(viewport, { key: 'a', ...modifier })
+
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toHaveLength(500)
+      expect(driver.logSelection.anchorIndex).toBe(0)
+      expect(driver.logSelection.activeIndex).toBe(499)
+    })
+  })
+
+  it('selects only matching rows when Message Log filters are active', async () => {
+    const driver = new TestLogDriver([
+      buildMessage(0, 1),
+      buildMessage(1, 3),
+      buildMessage(2, 4),
+      buildMessage(3, 6),
+    ])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+    await screen.findByText('PS RDY')
+    act(() => {
+      window.dispatchEvent(new CustomEvent('drpd-message-log-filters-changed', {
+        detail: {
+          filters: {
+            messageTypes: { include: ['Accept'], exclude: [] },
+            senders: { include: [], exclude: [] },
+            receivers: { include: [], exclude: [] },
+            sopTypes: { include: [], exclude: [] },
+            crcValid: { include: [], exclude: [] },
+            flagged: { include: [], exclude: [] },
+          },
+        },
+      }))
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('PS RDY')).not.toBeInTheDocument()
+    })
+
+    fireEvent.keyDown(screen.getByTestId('drpd-usbpd-log-viewport'), {
+      key: 'a',
+      ctrlKey: true,
+    })
+
+    await waitFor(() => {
+      expect(driver.logSelection.selectedKeys).toEqual([
+        buildCapturedLogSelectionKey(driver.rows[1]),
+      ])
+      expect(driver.logSelection.anchorIndex).toBe(0)
+      expect(driver.logSelection.activeIndex).toBe(0)
+    })
+  })
+
+  it('preserves native Select All behavior for editable descendants', async () => {
+    const driver = new TestLogDriver([buildMessage(0, 1), buildMessage(1, 3)])
+    const deviceState: RackDeviceState = {
+      record: buildDeviceRecord(),
+      status: 'connected',
+      drpdDriver: driver as unknown as RackDeviceState['drpdDriver'],
+    }
+    render(
+      <DrpdUsbPdLogInstrumentView
+        instrument={buildInstrument()}
+        displayName="USB-PD Log"
+        deviceState={deviceState}
+        isEditMode={false}
+      />,
+    )
+    await screen.findByText('Accept')
+    const viewport = screen.getByTestId('drpd-usbpd-log-viewport')
+    const input = document.createElement('input')
+    viewport.appendChild(input)
+
+    expect(fireEvent.keyDown(input, { key: 'a', ctrlKey: true })).toBe(true)
+    expect(driver.logSelection.selectedKeys).toHaveLength(0)
+  })
+
   it('selects the same event row by mouse and keyboard navigation', async () => {
     const event = buildEvent(1, 'INQUIRY - Test\nLine one\nLine two', 'mark')
     const driver = new TestLogDriver([buildMessage(0, 1), event])
