@@ -212,6 +212,20 @@ const getSelectionKeyTimestampUs = (selectionKey: string): bigint | null => {
   return match ? BigInt(match[1]) : null
 }
 
+/**
+ * Return whether a keyboard event originated in a control that owns native text selection.
+ *
+ * @param target - Keyboard event target.
+ * @returns True when Select All should remain with an editable control.
+ */
+const isEditableKeyboardTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Element)) {
+    return false
+  }
+  return target.matches('input, textarea, select') ||
+    target.closest('[contenteditable]:not([contenteditable="false"])') !== null
+}
+
 export const resolveFirstLogSelectionIndex = async (
   selectionKeys: readonly string[],
   rowCount: number,
@@ -1419,6 +1433,27 @@ export const DrpdUsbPdLogInstrumentView = ({
       return
     }
     const key = event.key
+    const isSelectAll = key.toLowerCase() === 'a' &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey
+    if (isSelectAll && !isEditableKeyboardTarget(event.target)) {
+      if (displayedTotalRows <= 0) {
+        return
+      }
+      event.preventDefault()
+      enqueueSelectionTask(async () => {
+        const selectedKeys = hasActiveFilters
+          ? filteredDisplayRows.map((row) => row.selectionKey)
+          : await driver.resolveLogSelectionKeysForIndexRange(0, displayedTotalRows - 1)
+        await persistSelection({
+          selectedKeys,
+          anchorIndex: 0,
+          activeIndex: displayedTotalRows - 1,
+        })
+      })
+      return
+    }
     if (key === 'Escape') {
       if (selection.selectedKeys.length === 0) {
         return
