@@ -216,6 +216,39 @@ describe('decodeLoggedCapturedMessage', () => {
     expect(decoded.metadata.headerData.getEntry('messageHeader')).not.toBeUndefined()
   })
 
+  it('retains a zero-size extended data chunk as invalid', () => {
+    const row = buildMessageRow({
+      rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
+      rawDecodedData: Uint8Array.from([
+        0x86, 0x90, 0x00, 0x80, 0x00, 0x00, 0xf6, 0x6a, 0x18, 0x49,
+      ]),
+      messageKind: 'EXTENDED',
+      messageType: 6,
+      messageId: 0,
+    })
+
+    const decoded = decodeLoggedCapturedMessage(row)
+
+    expect(decoded.kind).toBe('invalid')
+    if (decoded.kind !== 'invalid') return
+    expect(decoded.reason).toBe('Extended message data chunk declares Data Size 0')
+    expect(decoded.metadata.technicalData.getEntry('messageBytes')?.type).toBe('ByteData')
+  })
+
+  it('accepts a zero-size Request Chunk header for contextual decoding', () => {
+    const row = buildMessageRow({
+      rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
+      rawDecodedData: Uint8Array.from([
+        0xa6, 0x9b, 0x00, 0x8c, 0x00, 0x00, 0xb5, 0xa7, 0x7e, 0x30,
+      ]),
+      messageKind: 'EXTENDED',
+      messageType: 6,
+      messageId: 5,
+    })
+
+    expect(decodeLoggedCapturedMessage(row).kind).toBe('message')
+  })
+
   it('builds best-effort metadata for truncated invalid rows with a parseable header', () => {
     const row = buildMessageRow({
       decodeResult: 4,

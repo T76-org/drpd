@@ -13,7 +13,7 @@ const sampleRequest = Uint8Array.from([
 ])
 const sampleAccept = Uint8Array.from([0x18, 0x18, 0x18, 0x11, 0xa3, 0x03, 0x6f, 0xac, 0xfa, 0x5d])
 
-const sampleExtended = Uint8Array.from([0x18, 0x18, 0x18, 0x11, 0x01, 0x80, 0x12, 0x9c])
+const sampleExtended = Uint8Array.from([0x18, 0x18, 0x18, 0x11, 0x01, 0x80, 0x00, 0x9c])
 
 describe('usb-pd parser', () => {
   it('parses SOP\' GoodCRC control messages', () => {
@@ -191,7 +191,7 @@ describe('usb-pd parser', () => {
     expect(message.header.extendedHeader?.chunked).toBe(true)
     expect(message.header.extendedHeader?.chunkNumber).toBe(3)
     expect(message.header.extendedHeader?.requestChunk).toBe(true)
-    expect(message.header.extendedHeader?.dataSize).toBe(0x12)
+    expect(message.header.extendedHeader?.dataSize).toBe(0)
     expect(Array.from(message.humanReadableMetadata.headerData.keys())).toEqual([
       'messageHeader',
       'extendedMessageHeader',
@@ -231,12 +231,12 @@ describe('usb-pd parser', () => {
     expect(extendedMessageHeader?.getEntry('extendedMessageHeaderRaw')?.Label).toBe(
       'Extended Message Header Raw',
     )
-    expect(extendedMessageHeader?.getEntry('extendedMessageHeaderRaw')?.value).toBe('0x9C12')
+    expect(extendedMessageHeader?.getEntry('extendedMessageHeaderRaw')?.value).toBe('0x9C00')
     expect(extendedMessageHeader?.getEntry('chunked')?.value).toBe('Chunked (1b)')
     expect(extendedMessageHeader?.getEntry('chunkNumber')?.value).toBe('3')
     expect(extendedMessageHeader?.getEntry('requestChunk')?.value).toBe('Chunk Request (1b)')
     expect(extendedMessageHeader?.getEntry('reservedBit9')?.value).toBe('0b0')
-    expect(extendedMessageHeader?.getEntry('dataSize')?.value).toBe('18 bytes')
+    expect(extendedMessageHeader?.getEntry('dataSize')?.value).toBe('0 bytes')
   })
 
   it('copies pulse widths into parsed messages', () => {

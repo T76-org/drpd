@@ -6,7 +6,7 @@
  */
 
 import type { LoggedCapturedMessage } from './logging'
-import { Header } from './usb-pd/header'
+import { getExtendedMessageHeaderError, Header } from './usb-pd/header'
 import { HumanReadableField, type HumanReadableMetadataRoot } from './usb-pd/humanReadableField'
 import { parseUSBPDMessage } from './usb-pd/parser'
 import {
@@ -47,6 +47,10 @@ const parseRowPacket = (row: LoggedCapturedMessage): ParsedRowPacket => {
   const payload = buildRowPayload(row)
   const sop = new SOP(payload.subarray(0, row.rawSop.length))
   const header = new Header(payload, sop)
+  const extendedHeaderError = getExtendedMessageHeaderError(header.extendedHeader)
+  if (extendedHeaderError) {
+    throw new Error(extendedHeaderError)
+  }
   return { row, payload, sop, header }
 }
 

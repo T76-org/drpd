@@ -120,6 +120,36 @@ describe('message log labels', () => {
     expect(getLogSopLabel(row)).toBe('Hard Reset')
     expect(getLogCrcLabel(row)).toBe('N/A')
   })
+
+  it('shows the beta capture malformed zero-size data chunk as invalid', () => {
+    const row = buildSourceCapabilitiesExportRow(4, {
+      rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
+      rawDecodedData: Uint8Array.from([
+        0x86, 0x90, 0x00, 0x80, 0x00, 0x00, 0xf6, 0x6a, 0x18, 0x49,
+      ]),
+      messageKind: 'EXTENDED',
+      messageType: 6,
+      messageId: 0,
+    })
+
+    expect(getLogMessageTypeLabel(row)).toBe('Malformed: Get Manufacturer Info')
+    expect(getLogCrcLabel(row)).toBe('Invalid')
+  })
+
+  it('identifies the beta reply as a chunk request without marking its CRC invalid', () => {
+    const row = buildSourceCapabilitiesExportRow(5, {
+      rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
+      rawDecodedData: Uint8Array.from([
+        0xa6, 0x9b, 0x00, 0x8c, 0x00, 0x00, 0xb5, 0xa7, 0x7e, 0x30,
+      ]),
+      messageKind: 'EXTENDED',
+      messageType: 6,
+      messageId: 5,
+    })
+
+    expect(getLogMessageTypeLabel(row)).toBe('Chunk request: Get Manufacturer Info')
+    expect(getLogCrcLabel(row)).toBe('Valid')
+  })
 })
 
 describe('buildSelectedMessageLogCsv', () => {

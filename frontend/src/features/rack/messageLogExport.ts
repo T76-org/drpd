@@ -3,12 +3,13 @@ import {
   decodeLoggedCapturedMessage,
   type LoggedCapturedMessage,
 } from '../../lib/device'
+import { getExtendedMessageHeaderError, Header } from '../../lib/device/drpd/usb-pd/header'
 import {
   CONTROL_MESSAGE_TYPES,
   DATA_MESSAGE_TYPES,
   EXTENDED_MESSAGE_TYPES,
 } from '../../lib/device/drpd/usb-pd/message'
-import { decodeSOPKind } from '../../lib/device/drpd/usb-pd/sop'
+import { decodeSOPKind, SOP } from '../../lib/device/drpd/usb-pd/sop'
 import type { SOPKind } from '../../lib/device/drpd/usb-pd/types'
 import { formatWallClock } from './messageLogFormat'
 
@@ -62,7 +63,11 @@ export const getLogMessageTypeLabel = (row: LoggedCapturedMessage): string => {
         : row.messageKind === 'EXTENDED'
           ? EXTENDED_MESSAGE_TYPES[row.messageType]
           : undefined
-  return mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
+  const inferredType = mapping?.name.replaceAll('_', ' ') ?? `${row.messageKind} ${row.messageType}`
+  if (getLoggedRowStructuralError(row)) {
+    return `Malformed: ${inferredType}`
+  }
+  return isLoggedRowChunkRequest(row) ? `Chunk request: ${inferredType}` : inferredType
 }
 
 const getLogEndpointLabels = (row: LoggedCapturedMessage): { sender: string; receiver: string } => {
@@ -130,7 +135,34 @@ export const getLogCrcLabel = (row: LoggedCapturedMessage): string => {
   if (getLogResetSignalLabel(row)) {
     return 'N/A'
   }
-  return row.decodeResult === 0 && !row.parseError ? 'Valid' : 'Invalid'
+  return row.decodeResult === 0 && !row.parseError && !getLoggedRowStructuralError(row)
+    ? 'Valid'
+    : 'Invalid'
+}
+
+const getLoggedRowStructuralError = (row: LoggedCapturedMessage): string | null => {
+  try {
+    const payload = new Uint8Array(row.rawSop.length + row.rawDecodedData.length)
+    payload.set(row.rawSop, 0)
+    payload.set(row.rawDecodedData, row.rawSop.length)
+    const sop = new SOP(row.rawSop)
+    const header = new Header(payload, sop)
+    return getExtendedMessageHeaderError(header.extendedHeader)
+  } catch {
+    return null
+  }
+}
+
+const isLoggedRowChunkRequest = (row: LoggedCapturedMessage): boolean => {
+  try {
+    const payload = new Uint8Array(row.rawSop.length + row.rawDecodedData.length)
+    payload.set(row.rawSop, 0)
+    payload.set(row.rawDecodedData, row.rawSop.length)
+    const header = new Header(payload, new SOP(row.rawSop))
+    return header.extendedHeader?.requestChunk === true
+  } catch {
+    return false
+  }
 }
 
 const getStringMetadataValue = (value: { type: string; value: unknown } | undefined): string =>

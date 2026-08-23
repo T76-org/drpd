@@ -22,6 +22,28 @@ export const readUint16LE = (payload: Uint8Array, offset: number): number => {
 }
 
 /**
+ * Validate relationships between fields in an Extended Message Header.
+ *
+ * @param fields - Parsed Extended Message Header fields.
+ * @returns A diagnostic when Request Chunk and Data Size contradict each other.
+ */
+export const getExtendedMessageHeaderError = (
+  fields: ExtendedMessageHeaderFields | null,
+): string | null => {
+  if (!fields?.chunked) {
+    return null
+  }
+
+  if (fields.requestChunk && fields.dataSize !== 0) {
+    return `Extended Request Chunk must declare Data Size 0, received ${fields.dataSize}`
+  }
+  if (!fields.requestChunk && fields.dataSize === 0) {
+    return 'Extended message data chunk declares Data Size 0'
+  }
+  return null
+}
+
+/**
  * USB-PD message header parser.
  */
 export class Header {
