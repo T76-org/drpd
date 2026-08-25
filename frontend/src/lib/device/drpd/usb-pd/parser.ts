@@ -1,4 +1,4 @@
-import { getExtendedMessageHeaderError, Header } from './header'
+import { Header } from './header'
 import {
   CONTROL_MESSAGE_TYPES,
   DATA_MESSAGE_TYPES,
@@ -66,10 +66,6 @@ export const parseUSBPDMessage = (
   const sopBytes = decodedData.subarray(0, SOP_LENGTH)
   const sop = new SOP(sopBytes)
   const header = new Header(decodedData, sop)
-  const extendedHeaderError = getExtendedMessageHeaderError(header.extendedHeader)
-  if (extendedHeaderError) {
-    throw new Error(extendedHeaderError)
-  }
   const messageKind: MessageKind = header.messageHeader.messageKind
   const messageTypeNumber = header.messageHeader.messageTypeNumber
 

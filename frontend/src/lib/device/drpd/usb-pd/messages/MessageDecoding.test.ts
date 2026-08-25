@@ -1020,6 +1020,50 @@ describe('USB-PD extended message decoding', () => {
     expect(summary?.value).toContain('- Reference: 2')
   })
 
+  it('recovers a zero-size Get_Manufacturer_Info request from its physical data bytes', () => {
+    const message = parseUSBPDMessage(Uint8Array.from([
+      0x18, 0x18, 0x18, 0x11,
+      0x86, 0x9c,
+      0x00, 0x80,
+      0x00, 0x00,
+      0xf7, 0x87, 0xe8, 0x8c,
+    ]))
+
+    expect(message).toBeInstanceOf(GetManufacturerInfoMessage)
+    const decoded = message as GetManufacturerInfoMessage
+    expect(decoded.dataSize).toBe(0)
+    expect(decoded.manufacturerInfoTarget).toBe(0)
+    expect(decoded.manufacturerInfoRef).toBe(0)
+    expect(decoded.parseErrors).toEqual([
+      'Extended Header declares Data Size 0; recovered the required two-byte request block from the packet payload.',
+    ])
+    expect(decoded.humanReadableMetadata.baseInformation.getEntry('protocolWarning')?.value).toContain(
+      'recovered the required two-byte request block',
+    )
+  })
+
+  it('annotates another zero-size extended data message without rejecting its headers', () => {
+    const header = makeMessageHeader({
+      extended: true,
+      numberOfDataObjects: 1,
+      messageTypeNumber: 0x02,
+    })
+    const extHeader = makeExtendedHeader({ chunked: true, dataSize: 0 })
+    const message = parseUSBPDMessage(buildMessage(
+      SOP,
+      header,
+      [0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+      extHeader,
+    ))
+
+    expect(message).toBeInstanceOf(StatusMessage)
+    expect(message.humanReadableMetadata.baseInformation.getEntry('protocolWarning')?.value).toContain(
+      'Data Size 0',
+    )
+    expect(message.humanReadableMetadata.headerData.getEntry('extendedMessageHeader')
+      ?.getEntry('dataSize')?.value).toBe('0 bytes')
+  })
+
   it('decodes Manufacturer_Info', () => {
     const midb = Uint8Array.from([0x34, 0x12, 0x78, 0x56, 0x41, 0x43, 0x4d, 0x45, 0x00])
     const header = makeMessageHeader({

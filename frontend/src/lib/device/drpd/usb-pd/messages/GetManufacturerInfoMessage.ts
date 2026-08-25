@@ -1,5 +1,8 @@
 import { ExtendedMessage } from '../messageBase'
 import { HumanReadableField } from '../humanReadableField'
+import { isRecoverableZeroSizeGetManufacturerInfo } from '../header'
+
+const RECOVERED_DATA_SIZE = 2
 
 /**
  * Get_Manufacturer_Info extended message.
@@ -44,10 +47,17 @@ export class GetManufacturerInfoMessage extends ExtendedMessage {
     this.chunkNumber = extended?.chunkNumber ?? 0
     this.requestChunk = extended?.requestChunk ?? false
     this.rawPayload = payload.subarray(this.payloadOffset)
-    const dataEnd = this.payloadOffset + this.dataSize
+    const recoveredZeroSize = isRecoverableZeroSizeGetManufacturerInfo(header, payload)
+    const effectiveDataSize = recoveredZeroSize ? RECOVERED_DATA_SIZE : this.dataSize
+    const dataEnd = this.payloadOffset + effectiveDataSize
+    if (recoveredZeroSize) {
+      this.parseErrors.push(
+        'Extended Header declares Data Size 0; recovered the required two-byte request block from the packet payload.',
+      )
+    }
     if (payload.length < dataEnd) {
       this.parseErrors.push(
-        `Get_Manufacturer_Info expected ${this.dataSize} bytes but only ${payload.length - this.payloadOffset} available`,
+        `Get_Manufacturer_Info expected ${effectiveDataSize} bytes but only ${payload.length - this.payloadOffset} available`,
       )
     }
     const dataBlock = payload.subarray(this.payloadOffset, Math.min(dataEnd, payload.length))
@@ -94,6 +104,20 @@ export class GetManufacturerInfoMessage extends ExtendedMessage {
         'Concise description of the manufacturer information target and reference requested by this Get_Manufacturer_Info message.',
       ),
     )
+    if (this.parseErrors.length > 0) {
+      const sharedWarning = metadata.baseInformation.getEntry('protocolWarning')
+      const sharedWarningText = sharedWarning?.type === 'String' && typeof sharedWarning.value === 'string'
+        ? sharedWarning.value
+        : ''
+      metadata.baseInformation.setEntry(
+        'protocolWarning',
+        HumanReadableField.string(
+          [sharedWarningText, ...this.parseErrors].filter(Boolean).join(' '),
+          'Protocol Warning',
+          'Non-conforming message detail and any data Dr.PD recovered from physically present packet bytes.',
+        ),
+      )
+    }
 
     const getManufacturerInfoDataBlock = HumanReadableField.orderedDictionary(
       'Get Manufacturer Info Data Block',
