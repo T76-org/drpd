@@ -1,5 +1,5 @@
 import type { MessageKind } from './types'
-import { Header } from './header'
+import { getExtendedMessageHeaderError, Header } from './header'
 import { SOP } from './sop'
 import { HumanReadableField, type HumanReadableMetadataRoot } from './humanReadableField'
 
@@ -733,4 +733,26 @@ export class DataMessage extends Message {}
 /**
  * Base class for USB-PD extended messages.
  */
-export class ExtendedMessage extends Message {}
+export class ExtendedMessage extends Message {
+  /**
+   * Human-readable metadata including recoverable Extended Header diagnostics.
+   *
+   * @returns Standard message metadata annotated when the declared length is non-conforming.
+   */
+  public override get humanReadableMetadata(): HumanReadableMetadataRoot {
+    const metadata = super.humanReadableMetadata
+    const warning = getExtendedMessageHeaderError(this.header.extendedHeader)
+    if (warning) {
+      metadata.baseInformation.insertEntryAt(
+        2,
+        'protocolWarning',
+        HumanReadableField.string(
+          `${warning}. Dr.PD decoded the remaining fields on a best-effort basis.`,
+          'Protocol Warning',
+          'Non-conforming Extended Message Header relationship that did not prevent best-effort decoding.',
+        ),
+      )
+    }
+    return metadata
+  }
+}

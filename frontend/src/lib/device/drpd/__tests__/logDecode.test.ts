@@ -216,11 +216,11 @@ describe('decodeLoggedCapturedMessage', () => {
     expect(decoded.metadata.headerData.getEntry('messageHeader')).not.toBeUndefined()
   })
 
-  it('retains a zero-size extended data chunk as invalid', () => {
+  it('recovers the beta Get Manufacturer Info payload while retaining a protocol warning', () => {
     const row = buildMessageRow({
       rawSop: Uint8Array.from([0x18, 0x18, 0x18, 0x11]),
       rawDecodedData: Uint8Array.from([
-        0x86, 0x90, 0x00, 0x80, 0x00, 0x00, 0xf6, 0x6a, 0x18, 0x49,
+        0x86, 0x9c, 0x00, 0x80, 0x00, 0x00, 0xf7, 0x87, 0xe8, 0x8c,
       ]),
       messageKind: 'EXTENDED',
       messageType: 6,
@@ -229,10 +229,19 @@ describe('decodeLoggedCapturedMessage', () => {
 
     const decoded = decodeLoggedCapturedMessage(row)
 
-    expect(decoded.kind).toBe('invalid')
-    if (decoded.kind !== 'invalid') return
-    expect(decoded.reason).toBe('Extended message data chunk declares Data Size 0')
-    expect(decoded.metadata.technicalData.getEntry('messageBytes')?.type).toBe('ByteData')
+    expect(decoded.kind).toBe('message')
+    if (decoded.kind !== 'message') return
+    const metadata = decoded.message.humanReadableMetadata
+    expect(metadata.baseInformation.getEntry('messageType')?.value).toBe('Get_Manufacturer_Info')
+    expect(metadata.baseInformation.getEntry('protocolWarning')?.value).toContain(
+      'Data Size 0',
+    )
+    expect(metadata.baseInformation.getEntry('protocolWarning')?.value).toContain(
+      'recovered the required two-byte request block',
+    )
+    const dataBlock = metadata.messageSpecificData.getEntry('getManufacturerInfoDataBlock')
+    expect(dataBlock?.getEntry('manufacturerInfoTarget')?.value).toBe('0')
+    expect(dataBlock?.getEntry('manufacturerInfoRef')?.value).toBe('0')
   })
 
   it('accepts a zero-size Request Chunk header for contextual decoding', () => {

@@ -44,6 +44,32 @@ export const getExtendedMessageHeaderError = (
 }
 
 /**
+ * Identify the observed recoverable Get_Manufacturer_Info encoding whose
+ * Extended Header declares zero bytes while its sole Data Object physically
+ * contains the required two-byte request block.
+ *
+ * @param header - Parsed USB-PD headers.
+ * @param payload - Complete decoded packet including SOP and CRC bytes.
+ * @returns Whether the packet can be decoded with a protocol warning.
+ */
+export const isRecoverableZeroSizeGetManufacturerInfo = (
+  header: Header,
+  payload: Uint8Array,
+): boolean => {
+  const fields = header.extendedHeader
+  return (
+    header.messageHeader.messageKind === 'EXTENDED' &&
+    header.messageHeader.messageTypeNumber === 0x06 &&
+    header.messageHeader.numberOfDataObjects === 1 &&
+    fields?.chunked === true &&
+    fields.chunkNumber === 0 &&
+    fields.requestChunk === false &&
+    fields.dataSize === 0 &&
+    payload.length >= SOP_LENGTH + MESSAGE_HEADER_LENGTH + EXTENDED_HEADER_LENGTH + 2 + 4
+  )
+}
+
+/**
  * USB-PD message header parser.
  */
 export class Header {
