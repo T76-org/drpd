@@ -47,6 +47,8 @@ SINK_PDO_NEGOTIATION_TIMEOUT_SECONDS = 5
 CURRENT_CALIBRATION_INTERVAL_MA = 500
 MAX_CURRENT_CALIBRATION_MA = 6000
 PICO_SDK_PICOTOOL_ROOT = Path.home() / ".pico-sdk" / "picotool"
+DRPD_FLASH_START_ADDRESS = 0x10000000
+DRPD_FLASH_SIZE_BYTES = 4 * 1024 * 1024
 DEFAULT_FIRMWARE_CACHE_DIR = (
     Path(tempfile.gettempdir()) / "drpd-firmware-cache"
 )
@@ -708,10 +710,17 @@ def flash_uf2(uf2_path: Path, explicit_picotool: Path | None) -> None:
 
 
 def erase_device_flash(explicit_picotool: Path | None) -> None:
-    """Erase all flash while keeping the device available to picotool."""
+    """Erase DRPD flash while keeping the device available to picotool."""
+    flash_end_address = DRPD_FLASH_START_ADDRESS + DRPD_FLASH_SIZE_BYTES
     run_picotool_command(
         explicit_picotool,
-        ["erase", "-a", "-F"],
+        [
+            "erase",
+            "--range",
+            f"0x{DRPD_FLASH_START_ADDRESS:08x}",
+            f"0x{flash_end_address:08x}",
+            "-F",
+        ],
         "picotool erase",
     )
 

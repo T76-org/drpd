@@ -6,6 +6,7 @@ from pathlib import Path
 import importlib.util
 import sys
 import unittest
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -20,6 +21,26 @@ assert spec.loader is not None
 calibration_script = importlib.util.module_from_spec(spec)
 sys.modules["drpd_calibration_script"] = calibration_script
 spec.loader.exec_module(calibration_script)
+
+
+class TestFirmwarePreparation(unittest.TestCase):
+    """Verify picotool commands used to prepare firmware."""
+
+    @patch.object(calibration_script, "run_picotool_command")
+    def test_erase_uses_explicit_drpd_flash_range(self, run_command) -> None:
+        calibration_script.erase_device_flash(None)
+
+        run_command.assert_called_once_with(
+            None,
+            [
+                "erase",
+                "--range",
+                "0x10000000",
+                "0x10400000",
+                "-F",
+            ],
+            "picotool erase",
+        )
 
 
 class TestCurrentCalibrationAutofill(unittest.TestCase):

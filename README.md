@@ -6,6 +6,8 @@ Dr. PD is a fully-featured USB Power Delivery (USB-PD) analyzer and programmable
 
 > [!NOTE]
 > **Dr. PD will be available for crowdfunding soon through Crowd Supply.** Visit our [prelaunch page](https://www.crowdsupply.com/t76-org/dr-pd) to sign up and receive updates on the project, including the crowdfunding launch.
+>
+> Have any questions? [Drop us a note](mailto:hello@t76.org)!
 
 ## Features
 
