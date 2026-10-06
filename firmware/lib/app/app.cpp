@@ -8,6 +8,7 @@
 #include "app.hpp"
 
 #include <algorithm>
+#include <utility>
 
 #include <FreeRTOS.h>
 #include <hardware/watchdog.h>
@@ -187,7 +188,7 @@ void App::_sendWinUSBFrame(WinUSBFrameType type, uint8_t tag, const std::vector<
     frame[11] = static_cast<uint8_t>((payloadLength >> 24) & 0xff);
     std::copy(payload.begin(), payload.end(), frame.begin() + static_cast<std::ptrdiff_t>(_winUSBFrameHeaderSize));
 
-    _usbInterface.sendWinUSBBulkData(frame);
+    _usbInterface.sendWinUSBBulkData(std::move(frame));
 }
 
 void App::_drainWinUSBRxBuffer() {
