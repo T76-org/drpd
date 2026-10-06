@@ -1,0 +1,38 @@
+/* Keep the shared body grid constrained between the title and Close button. */
+:global(div):has(> .body) { min-height: 0; }
+.body { height: 100%; min-height: 0; overflow: auto; }
+.tableScroll { overflow-x: auto; }
+.fields { width: 100%; min-width: 32rem; border-collapse: collapse; text-align: left; }
+.fields th, .fields td { padding: 0.5rem 0.65rem; border-bottom: var(--border-thin) solid var(--color-border-panel); vertical-align: top; overflow-wrap: anywhere; }
+.fields th { font-weight: 500; }
+.fields thead th { color: var(--text-muted); font-size: var(--font-size-header-popup-label); }
+.fields th:first-child { width: 42%; }
+.fields .section th { padding-top: 0.75rem; font-weight: 600; background: var(--color-surface-panel-accent); }
+/* Blue/yellow remain distinct in colorblind mode; light themes need darker ink. */
+.statusPanel {
+  --cable-waiting-ink: #e8cd73;
+  --cable-detected-ink: #93c7e5;
+  --cable-status-ink: var(--color-text-primary);
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: var(--border-thin) solid var(--cable-status-ink);
+  border-left-width: 0.25rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--cable-status-ink) 6%, var(--color-surface-panel));
+  color: var(--color-text-primary);
+}
+.statusPanel[data-state='waiting'] { --cable-status-ink: var(--cable-waiting-ink); }
+.statusPanel[data-state='detected'] { --cable-status-ink: var(--cable-detected-ink); }
+.statusHeadline { font-weight: 600; color: var(--cable-status-ink); }
+:global(:root[data-theme='light']) .statusPanel {
+  --cable-waiting-ink: #705600;
+  --cable-detected-ink: #285f80;
+}
+:global(:root[data-high-contrast='true']) .statusPanel {
+  --cable-waiting-ink: #ffe066;
+  --cable-detected-ink: #a9d8ff;
+}
+:global(:root[data-theme='light'][data-high-contrast='true']) .statusPanel {
+  --cable-waiting-ink: #614600;
+  --cable-detected-ink: #0047ab;
+}

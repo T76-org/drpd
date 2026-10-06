@@ -106,6 +106,9 @@ void App::_queryCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue>
         case Logic::CCBusRole::Observer:
             _sendTransportTextResponse("OBSERVER,", false);
             break;
+        case Logic::CCBusRole::CableTest:
+            _sendTransportTextResponse("CABLE_TEST,", false);
+            break;
         case Logic::CCBusRole::Sink:
             _sendTransportTextResponse("SINK,", false);
             break;
@@ -176,6 +179,12 @@ void App::_setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &
         _ccBusController.role(Logic::CCBusRole::Observer);
     } else if (roleStr == "SINK") {
         _ccBusController.role(Logic::CCBusRole::Sink);
+    } else if (roleStr == "CABLE_TEST") {
+        if (_hardwareRevisionConfig.revision() != Logic::HardwareRevision::R2605A) {
+            _interpreter.addError(_scpiErrorExecutionError, "Cable Test requires R2605-A");
+            return;
+        }
+        _ccBusController.role(Logic::CCBusRole::CableTest);
     } else {
         _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");
         return;
@@ -282,4 +291,18 @@ void App::_clearCCBusCapturedMessages(const std::vector<T76::SCPI::ParameterValu
     _captureRecords.clear();
     _clearPendingSyncTriggerEvents();
     deviceStatus(DeviceStatusFlag::CaptureStatusChanged);
+}
+
+void App::_queryCableTest(const std::vector<T76::SCPI::ParameterValue>&) {
+    const auto result = _ccBusController.cableTestResult();
+    std::string response = std::to_string(result.generation) + "," +
+        Logic::CableTestController::outcomeName(result.outcome) + "," +
+        std::to_string(result.vconnContact) + "," + (result.goodCRC ? "1" : "0") +
+        "," + std::to_string(result.revision) + ",";
+    constexpr char hex[] = "0123456789ABCDEF";
+    for (size_t i = 0; i < result.length; ++i) {
+        response += hex[result.body[i] >> 4];
+        response += hex[result.body[i] & 15];
+    }
+    _sendTransportTextResponse(response);
 }

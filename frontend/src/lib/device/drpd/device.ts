@@ -67,6 +67,7 @@ const FIRMWARE_EVENT_CC_BUS_ROLE_OBSERVER = 7
 const FIRMWARE_EVENT_CC_BUS_ROLE_SINK = 8
 const FIRMWARE_EVENT_SINK_ERRORS = 9
 const FIRMWARE_EVENT_SYNC_TRIGGER = 10
+const FIRMWARE_EVENT_CC_BUS_ROLE_CABLE_TEST = 12
 const FIRMWARE_EVENT_SINK_WARNING = 11
 
 /**
@@ -2176,7 +2177,8 @@ export class DRPDDevice extends EventTarget {
     if (
       event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_DISABLED ||
       event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_OBSERVER ||
-      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_SINK
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_SINK ||
+      event.eventType === FIRMWARE_EVENT_CC_BUS_ROLE_CABLE_TEST
     ) {
       return { eventType: 'cc_role_changed', eventText: event.eventText }
     }

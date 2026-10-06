@@ -142,6 +142,41 @@ Verify exact wire-order product chain against one explicit offline anchor.
 
 
 
+## `t76.drpd.device.cable_test`
+
+**Source:** `python/t76/drpd/device/cable_test.py`
+
+Coherent identity-only Cable Test snapshots for single-ended Port 1 tests.
+
+### `t76.drpd.device.cable_test.CableTestResult`
+
+**Kind:** dataclass
+
+**Decorators:** `dataclass(frozen=True)`
+
+Insertion evidence and owned raw Vendor_Defined identity response.
+
+
+#### Fields
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `generation` | int | — |
+| `outcome` | str | — |
+| `vconn_contact` | int | — |
+| `good_crc` | bool | — |
+| `revision` | int | — |
+| `body` | bytes | — |
+
+
+
+#### Public methods
+
+| Method | Declaration | Summary |
+| --- | --- | --- |
+| `from_values` | `def from_values(cls, values: list[str]) -> 'CableTestResult'` | Validate and decode one atomic CABLE:TEST? response. |
+
+
 ## `t76.drpd.device.device`
 
 **Source:** `python/t76/drpd/device/device.py`
@@ -395,6 +430,7 @@ Represents the device mode-related commands for a DRPD device.
 | `get` | `async def get(self) -> Mode` | Get the current mode of the device. |
 | `set` | `async def set(self, mode: Mode) -> None` | Set the mode of the device. |
 | `get_status` | `async def get_status(self) -> CCBusState` | Get the current status of the device mode. |
+| `get_cable_test_result` | `async def get_cable_test_result(self) -> CableTestResult` | Read cable identity evidence and renew the three-second host lease. |
 
 
 ## `t76.drpd.device.device_sink`
@@ -1371,6 +1407,7 @@ Represents the mode of the device.
 | `DISABLED` | — | 'DISABLED' |
 | `OBSERVER` | — | 'OBSERVER' |
 | `SINK` | — | 'SINK' |
+| `CABLE_TEST` | — | 'CABLE_TEST' |
 
 
 

@@ -1,0 +1,69 @@
+---
+title: Read a cable e-marker
+sidebar_position: 6
+---
+
+# Read a cable e-marker
+
+Cable Test reads the identity advertised by an electronically marked USB-C cable.
+It supports Dr. PD hardware revision R2605-A and both plug orientations.
+
+1. Connect Dr. PD's host USB port to your computer and pair it in Chrome or Edge.
+2. Leave the cable's far end unplugged. Select **Mode → Cable Test**.
+3. Plug either end into **Port 1 (DUT)**. Discovery starts automatically.
+4. Read the identity and capability fields. Expand the raw identity response to
+   inspect the complete Vendor Data Objects.
+5. Close the dialog to return Dr. PD to **Disabled**.
+
+The firmware detects the cable's Ra termination, powers the corresponding VCONN
+contact and sends a structured Vendor_Defined Discover Identity request to SOP′
+on the other CC contact. It isolates Port 2 and the VBUS paths. After discovery,
+it removes VCONN and resumes termination monitoring. Unplugging the cable clears
+all identity fields. A lost host polling lease stops Cable Test after three seconds.
+The mode is transient and cannot restore as Cable Test after reboot.
+
+The dialog shows all decoded identity fields, including vendor/product identifiers,
+certification XID, passive/active cable type, revisions, advertised current/voltage,
+USB speed and other cable VDO fields. These are the cable's claims, not measured
+performance or a certification verdict. An XID of zero does not prove certification.
+
+## Interpret absence and failure honestly
+
+- **“no cable present or cable damaged”**: no usable Ra evidence. A healthy unmarked
+  cable with its far end unplugged can look identical to an empty port.
+- **Termination detected, e-marker not responding**: Ra was detected but no matching
+  GoodCRC was received after bounded retries. A damaged marker, communication
+  fault or inadequate VCONN power can cause this result.
+- **PD responder detected, no identity**: delivery was acknowledged with GoodCRC,
+  but no valid identity response followed.
+- **Invalid identity, NAK or VCONN power fault**: the dialog reports the specific
+  evidence and leaves identity fields empty.
+
+The available VCONN circuit is designed for low-current e-markers (documentation
+specifies approximately 5 mA), so this does not guarantee compatibility with every
+active cable. Testing both ends and orientations can expose an asymmetric cable
+fault; it does not provide continuity testing of every conductor.
+
+## Automate the test
+
+Set `BUS:CC:ROLE CABLE_TEST`, poll `CABLE:TEST?` at least once per second, and always
+finish with `BUS:CC:ROLE DISABLED`. The query returns one coherent snapshot:
+`generation,outcome,vconnContact,goodCRC,revision,hexResponseBody`. The hex body
+includes the structured VDM header. Generation changes when results are invalidated.
+See [CABLE commands](../programming-guide/controlling-dr-pd-over-scpi/reference/cable).
+
+```python
+import asyncio
+from t76.drpd.device.types import Mode
+
+async def read_identity(device):
+    try:
+        await device.mode.set(Mode.CABLE_TEST)
+        for _ in range(20):
+            result = await device.mode.get_cable_test_result()
+            if result.outcome not in ("WAITING", "DISCOVERING"):
+                return result
+            await asyncio.sleep(0.25)
+    finally:
+        await device.mode.set(Mode.DISABLED)
+```

@@ -135,6 +135,7 @@ class Mode(enum.Enum):
     DISABLED = "DISABLED"
     OBSERVER = "OBSERVER"
     SINK = "SINK"
+    CABLE_TEST = "CABLE_TEST"
 
     @classmethod
     def from_string(cls, mode_str: str) -> 'Mode':

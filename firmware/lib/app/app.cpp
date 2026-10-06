@@ -447,6 +447,10 @@ StatusLedMode App::_statusLedMode() {
         case Logic::CCBusRole::Disabled:
             return StatusLedMode::Disabled;
 
+        case Logic::CCBusRole::CableTest:
+            return state == Logic::CCBusState::Attached
+                ? StatusLedMode::ObserverAttached : StatusLedMode::ObserverNotAttached;
+
         case Logic::CCBusRole::Observer:
             return state == Logic::CCBusState::Attached
                 ? StatusLedMode::ObserverAttached
@@ -561,6 +565,8 @@ uint32_t App::_ccBusRoleCaptureEventType(Logic::CCBusRole role) const {
             return _captureEventCCBusRoleDisabled;
         case Logic::CCBusRole::Observer:
             return _captureEventCCBusRoleObserver;
+        case Logic::CCBusRole::CableTest:
+            return _captureEventCCBusRoleCableTest;
         case Logic::CCBusRole::Sink:
             return _captureEventCCBusRoleSink;
         default:
@@ -574,6 +580,8 @@ std::string_view App::_ccBusRoleCaptureEventText(Logic::CCBusRole role) const {
             return "CC role changed to DISABLED";
         case Logic::CCBusRole::Observer:
             return "CC role changed to OBSERVER";
+        case Logic::CCBusRole::CableTest:
+            return "CC role changed to CABLE_TEST";
         case Logic::CCBusRole::Sink:
             return "CC role changed to SINK";
         default:

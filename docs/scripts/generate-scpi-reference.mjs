@@ -24,6 +24,7 @@ const namespaceMetadata = new Map([
   ['STATus', {slug: 'status', title: 'STATus Commands', sidebarPosition: 30}],
   ['MEASure', {slug: 'measure', title: 'MEASure Commands', sidebarPosition: 40}],
   ['BUS', {slug: 'bus', title: 'BUS Commands', sidebarPosition: 50}],
+  ['CABLE', {slug: 'cable', title: 'CABLE Commands', sidebarPosition: 55}],
   ['SINK', {slug: 'sink', title: 'SINK Commands', sidebarPosition: 60}],
   ['TRIGger', {slug: 'trigger', title: 'TRIGger Commands', sidebarPosition: 70}],
   ['TEST', {slug: 'test', title: 'TEST Commands', sidebarPosition: 80}],

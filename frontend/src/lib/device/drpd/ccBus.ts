@@ -5,6 +5,7 @@
  * DRPD CC bus command group.
  */
 
+import { parseCableTestResult, type CableTestResult } from './cableTest'
 import { scpiEnum } from '../../transport/usbtmc'
 import type { DRPDTransport } from './transport'
 import {
@@ -45,6 +46,11 @@ export class DRPDCCBus {
    */
   public async setRole(role: CCBusRole): Promise<void> {
     await this.transport.sendCommand('BUS:CC:ROLE', scpiEnum(role))
+  }
+
+  /** Read coherent cable identity and renew the three-second host lease. */
+  public async getCableTestResult(): Promise<CableTestResult> {
+    return parseCableTestResult(await this.transport.queryText('CABLE:TEST?'))
   }
 
   /**

@@ -35,16 +35,27 @@ void CCBusController::init() {
 
 void CCBusController::initCore1() {
     _sink.initCore1();
+    _cableTest.initCore1();
 }
 
 void CCBusController::loopCore1() {
-    _sink.loopCore1();
+    _cableTest.loopCore1();
+    if (_role != CCBusRole::CableTest) _sink.loopCore1();
 }
 
 void CCBusController::role(CCBusRole role) {
+    _cableTest.enabled(false);
+    _updateState(CCBusState::Unattached);
+    _ccBusManager.muxActive(false);
     _updateRole(role);
 
     switch(_role) {
+        case CCBusRole::CableTest:
+            _sink.disable();
+            _vbusManager.enabled(false, false);
+            _cableTest.enabled(true);
+            break;
+
         case CCBusRole::Observer:
             _sink.disable();
 
@@ -141,7 +152,8 @@ void CCBusController::applyPersistentConfig(const T76::DRPD::CCBusPersistentConf
 
 T76::DRPD::CCBusPersistentConfig CCBusController::exportPersistentConfig() const {
     return T76::DRPD::CCBusPersistentConfig{
-        .role = static_cast<uint32_t>(_role),
+        .role = static_cast<uint32_t>(_role == CCBusRole::CableTest ?
+            CCBusRole::Disabled : _role),
     };
 }
 
@@ -281,7 +293,15 @@ float CCBusController::_channelVoltage(CCBusPort port, PHY::CCChannel channel) c
 
 void CCBusController::_loop() {
     _analogMonitor.readCCLineValues();
-
+    if (_role == CCBusRole::CableTest) {
+        const auto result = _cableTest.snapshot();
+        if (result.outcome == CableTestOutcome::Disabled && !_cableTest.requested()) {
+            role(CCBusRole::Disabled);
+            return;
+        }
+        _updateState(result.vconnContact ? CCBusState::Attached : CCBusState::Unattached);
+        return;
+    }
     switch(_role) {
         case CCBusRole::Observer:
             _loopObserverMode();

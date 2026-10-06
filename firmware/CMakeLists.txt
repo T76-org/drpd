@@ -92,6 +92,7 @@ add_executable(drpd-firmware
         lib/app/scpi_commands.cpp
         lib/app/status_led.cpp
         lib/logic/cc_bus_controller.cpp
+        lib/logic/cable_test_controller.cpp
         lib/logic/hardware_revision.cpp
         lib/logic/sink/message_sender.cpp
         lib/logic/sink/inquiry_descriptor.cpp

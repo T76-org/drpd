@@ -10,6 +10,7 @@ function(add_drpd_header_test target source)
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
 
+add_drpd_header_test(cable_test_policy_test cable_test_policy_test.cpp)
 add_drpd_header_test(cable_inquiry_test cable_inquiry_test.cpp)
 add_drpd_header_test(message_transport_state_test message_transport_state_test.cpp)
 add_drpd_header_test(received_message_id_state_test received_message_id_state_test.cpp)

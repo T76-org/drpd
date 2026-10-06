@@ -46,6 +46,7 @@ export const CCBusRole = {
   DISABLED: 'DISABLED',
   OBSERVER: 'OBSERVER',
   SINK: 'SINK',
+  CABLE_TEST: 'CABLE_TEST',
 } as const
 
 /**

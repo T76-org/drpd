@@ -24,6 +24,7 @@ import type {
 } from './protocol'
 import { deserializeWorkerError, serializeWorkerError } from './serialization'
 import { dispatchSinkInquiryRpc } from './sinkInquiryRpc'
+import { dispatchCCBusRpc } from './ccBusRpc'
 
 const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope ///< Dedicated worker global scope.
 
@@ -654,13 +655,8 @@ const handleWorkerRpc = async (request: WorkerRpcRequest): Promise<unknown> => {
         throw new Error(`Unsupported analogMonitor method: ${method}`)
       }
       if (target === 'ccBus') {
-        if (method === 'getRole') {
-          return await session.device.ccBus.getRole()
-        }
-        if (method === 'setRole') {
-          await session.device.ccBus.setRole(args[0] as never)
-          return null
-        }
+        const result = await dispatchCCBusRpc(session.device.ccBus, method, args)
+        if (result.handled) return result.value
         throw new Error(`Unsupported ccBus method: ${method}`)
       }
       if (target === 'capture') {

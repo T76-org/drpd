@@ -30,6 +30,7 @@
 #include "../phy/vbus_manager.hpp"
 
 #include "sink/sink.hpp"
+#include "cable_test_controller.hpp"
 
 
 namespace T76::DRPD::Logic {
@@ -42,6 +43,7 @@ namespace T76::DRPD::Logic {
         Disabled,
         Observer,
         Sink,
+        CableTest,
     };
 
     /**
@@ -119,7 +121,8 @@ namespace T76::DRPD::Logic {
             _sourceChannel(PHY::CCChannel::CC1),
             _sinkPort(CCBusPort::USDS),
             _sinkChannel(PHY::CCChannel::CC1),
-            _sink(*this, _bmcDecoder, _bmcEncoder)
+            _sink(*this, _bmcDecoder, _bmcEncoder),
+            _cableTest(analogMonitor, ccRoleManager, ccBusManager, bmcDecoder, bmcEncoder)
         {
             _sink.sinkInfoChanged(
                 std::bind(&CCBusController::_repeatSinkInfoChanged, this, std::placeholders::_1)
@@ -141,6 +144,11 @@ namespace T76::DRPD::Logic {
          * @brief Initialize CC bus controller resources that must be created on Core 1.
          */
         void initCore1();
+
+        /** Read cable discovery and renew host lease.
+         * @return Current insertion evidence and identity.
+         */
+        CableTestResult cableTestResult() { return _cableTest.result(); }
 
         /**
          * @brief Run one Core-1 iteration for CC policy components.
@@ -362,7 +370,8 @@ namespace T76::DRPD::Logic {
         SinkErrorCallback _sinkErrorCallback;                 ///< Callback for Sink errors.
         std::atomic_flag _callbacksLock = ATOMIC_FLAG_INIT;   ///< Cross-core callback registry lock.
 
-        Sink _sink;                             ///< Sink instance for managing sink state.
+        Sink _sink;
+        CableTestController _cableTest; ///< Transient single-ended cable discovery.                             ///< Sink instance for managing sink state.
 
         /**
          * @brief Utility method to determine if a source is present based on voltage
