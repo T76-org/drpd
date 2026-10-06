@@ -5083,7 +5083,7 @@ const upsertPairedDeviceDocument = (
 ): RackDocument => replacePairedDevices(document, upsertDevice(document.pairedDevices ?? [], record))
 
 /**
- * Build a rack device record from a selected USB device.
+ * Build a rack device record from a selected USB device, enabling capture for new Dr. PDs.
  *
  * @param definition - Matching device definition.
  * @param device - Selected USB device.
@@ -5101,7 +5101,10 @@ const buildRackDeviceRecord = (
     vendorId: device.vendorId,
     productId: device.productId,
     serialNumber: serial,
-    productName: device.productName ?? undefined
+    productName: device.productName ?? undefined,
+    ...(definition.identifier === 'com.mta.drpd'
+      ? { config: { captureEnabled: OnOffState.ON } }
+      : {}),
   }
 }
 
@@ -5141,7 +5144,7 @@ const mergeExistingRackDeviceRecord = (
     ...existing,
     ...record,
     displayName: existing.displayName,
-    config: existing.config ?? record.config,
+    config: existing.config,
   }
 }
 

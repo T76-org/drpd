@@ -5,6 +5,7 @@ import {
   buildCapturedLogSelectionKey,
   DRPDDevice,
   DRPDDeviceDefinition,
+  OnOffState,
   type LoggedCapturedMessage,
 } from '../../../lib/device'
 import type { BeforeInstallPromptEvent } from '../../../lib/pwa/usePWAInstallPrompt'
@@ -1884,7 +1885,17 @@ describe('RackView', () => {
 
   it('enables capture from the top header capture context menu', async () => {
     mockTransportState.captureEnabledResponse = ['OFF']
-    saveRackDocument(buildHydratedRackDocument())
+    const document = buildHydratedRackDocument()
+    document.pairedDevices = [{
+      id: 'com.mta.drpd:DRPD-TEST-001',
+      identifier: 'com.mta.drpd',
+      displayName: 'Dr. PD #DRPD-TEST-001',
+      vendorId: 0x2e8a,
+      productId: 0x000a,
+      serialNumber: 'DRPD-TEST-001',
+      config: { captureEnabled: OnOffState.OFF },
+    }]
+    saveRackDocument(document)
     mockUSB([createUSBDevice()])
     render(<RackView />)
     await pairNewDeviceFromMenu()
@@ -2461,6 +2472,7 @@ describe('RackView', () => {
   })
 
   it('connects and persists a device added by the user', async () => {
+    mockTransportState.captureEnabledResponse = ['OFF']
     saveRackDocument(buildHydratedRackDocument())
     const { requestDevice } = mockUSB([createUSBDevice()])
     render(<RackView />)
@@ -2474,10 +2486,39 @@ describe('RackView', () => {
     ) as RackDocument
     expect(stored.pairedDevices?.[0]?.serialNumber).toBe('DRPD-TEST-001')
     expect(stored.pairedDevices?.[0]?.displayName).toBe('Dr. PD #DRPD-TEST-001')
+    expect(stored.pairedDevices?.[0]?.config).toEqual({ captureEnabled: OnOffState.ON })
+    expect(mockTransportState.sentCommands).toContain('BUS:CC:CAP:EN ON')
     await openApplicationSubmenu('Devices')
     expect(await screen.findByRole('menuitem', { name: 'Dr. PD #DRPD-TEST-001' }))
       .toBeInTheDocument()
   })
+
+  it.each([undefined, { captureEnabled: OnOffState.OFF }])(
+    'preserves existing capture configuration when pairing again: %j',
+    async (config) => {
+      mockTransportState.captureEnabledResponse = ['OFF']
+      const document = buildHydratedRackDocument()
+      document.pairedDevices = [{
+        id: 'com.mta.drpd:DRPD-TEST-001',
+        identifier: 'com.mta.drpd',
+        displayName: 'Dr. PD',
+        vendorId: 0x2e8a,
+        productId: 0x000a,
+        serialNumber: 'DRPD-TEST-001',
+        config,
+      }]
+      saveRackDocument(document)
+      mockUSB([createUSBDevice()])
+      render(<RackView />)
+      await pairNewDeviceFromMenu()
+      await expectHydratedDrpdPanels()
+      const stored = JSON.parse(
+        window.localStorage.getItem('drpd:rack:document') ?? '{}',
+      ) as RackDocument
+      expect(stored.pairedDevices?.[0]?.config).toEqual(config)
+      expect(mockTransportState.sentCommands).not.toContain('BUS:CC:CAP:EN ON')
+    },
+  )
 
   it('renames a paired device from the device submenu', async () => {
     saveRackDocument(buildHydratedRackDocument())
