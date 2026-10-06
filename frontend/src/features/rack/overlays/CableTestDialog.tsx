@@ -66,21 +66,11 @@ interface IdentityTableSection {
   title: string
   rows: IdentityTableRow[]
 }
-/** Explain evidence without claiming that silence proves a missing marker. */
-const cableTestMessage = (result: CableTestResult | null): string => {
-  switch (result?.outcome) {
-    case 'IDENTITY': return 'E-marker identity received. Capabilities below are reported by the cable.'
-    case 'DISCOVERING': return 'Cable termination detected. Reading e-marker identity…'
-    case 'NO_RESPONSE': return 'Cable termination detected, but e-marker is not responding. Cable damage or insufficient VCONN power is also possible.'
-    case 'RESPONSE_TIMEOUT': return 'PD responder detected (GoodCRC), but no identity received.'
-    case 'NAK': return 'PD responder declined the identity request.'
-    case 'MALFORMED': return 'PD responder returned an invalid cable identity.'
-    case 'POWER_FAULT': return 'Cable termination detected, but VCONN did not reach the required voltage.'
-    case 'UNSUPPORTED_CONNECTION': return 'Unexpected CC termination. Leave the far end unplugged; cable may be damaged or unsupported.'
-    case 'DISABLED': return 'Cable Test stopped. Device is Disabled.'
-    default: return 'no cable present or cable damaged'
-  }
-}
+/** Report an e-marker only when its identity or PD response confirms it. */
+const cableTestMessage = (result: CableTestResult | null): { headline: string; instruction?: string } =>
+  result?.outcome === 'IDENTITY' || result?.goodCRC
+    ? { headline: 'E-marked cable detected.' }
+    : { headline: 'No cable detected, damaged cable, or cable without an e-marker.', instruction: 'Ensure that the cable is not connected to any device and plug it into Port 1.' }
 /** Show a continuously updated identity-only test for one connected Dr. PD. */
 export const CableTestDialog = ({ client, onClose, onError }: {
   client: CableTestClient
@@ -148,14 +138,12 @@ export const CableTestDialog = ({ client, onClose, onError }: {
     }
     return Array.from(grouped, ([title, rows]) => ({ title, rows }))
   }, [result])
+  const message = cableTestMessage(result)
   return <Dialog open title="Cable Test" onOpenChange={(open) => { if (!open) onClose() }}
     dialogStyle={{ width: 'min(54rem, calc(100vw - 2rem))', maxWidth: 'calc(100vw - 2rem)' }}
-    description="Plug the cable into Port 1 (DUT). Leave the far end unplugged. Either plug orientation is supported."
     footer={<DialogButton onClick={onClose}>Close</DialogButton>}>
     <div className={styles.body}>
-      <p role="status">{error || cableTestMessage(result)}</p>
-      {error ? <p>Test stopped. If communication was lost, firmware disables Cable Test when its host lease expires.</p> : null}
-      <p className={styles.hint}>An unmarked cable can look identical to an empty port. This test reads e-marker data; it does not measure cable performance.</p>
+      <p role="status" className={styles.statusPanel} data-state={error ? 'error' : message.instruction ? 'waiting' : 'detected'}>{error || <><strong className={styles.statusHeadline}>{message.headline}</strong>{message.instruction ? ` ${message.instruction}` : null}</>}</p>
       <div className={styles.tableScroll}>
         <table className={styles.fields} aria-label="Cable identity">
           <thead><tr><th scope="col">Field</th><th scope="col">Human-readable result</th><th scope="col">Raw value</th></tr></thead>
@@ -169,7 +157,6 @@ export const CableTestDialog = ({ client, onClose, onError }: {
           </tbody>)}
         </table>
       </div>
-      {result?.vconnContact ? <p>VCONN contact: CC{result.vconnContact}. Communication: CC{result.vconnContact === 1 ? 2 : 1}. GoodCRC: {result.goodCRC ? 'received' : 'not received'}.</p> : null}
       {result?.outcome === 'IDENTITY' ? <details><summary>Raw identity response (SOP′, PD {result.revision === 1 ? '2.0' : '3.x'})</summary>
         <code>{Array.from(result.body, (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(' ')}</code>
       </details> : null}
