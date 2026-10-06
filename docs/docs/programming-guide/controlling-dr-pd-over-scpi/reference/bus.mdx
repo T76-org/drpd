@@ -75,13 +75,13 @@ BUS:CC:ROLE
 | Long form | `BUS:CC:ROLE` |
 | Short form | `BUS:CC:ROLE` |
 
-Set and persist the CC bus controller role. The factory default role is OBSERVER.
+Set the CC bus role. CABLE_TEST requires R2605-A and persists as DISABLED; other roles persist normally.
 
 ### Parameters
 
 | Name | Type | Values/default | Description |
 | --- | --- | --- | --- |
-| `role` | enum | `DISABLED`, `OBSERVER`, `SINK` | The desired role for the CC bus controller. |
+| `role` | enum | `DISABLED`, `OBSERVER`, `SINK`, `CABLE_TEST` | The desired role for the CC bus controller. |
 
 ### Response
 
@@ -91,7 +91,8 @@ No SCPI data response. Successful command execution completes without a payload.
 
 | Code | Message | Meaning |
 | --- | --- | --- |
-| `-224` | Illegal parameter value | The role value was not one of DISABLED, OBSERVER, or SINK. |
+| `-224` | Illegal parameter value | The role value was unsupported. |
+| `-200` | Cable Test requires R2605-A | Extracted from handler implementation. |
 | `-104` | Data type error | The role parameter was missing or was not parsed as a valid enumerated value. |
 
 ### Source

@@ -1,0 +1,12 @@
+.body { max-height: 65vh; overflow: auto; }
+.hint { color: var(--text-muted); font-size: var(--font-size-header-popup-hint); }
+.tableScroll { overflow-x: auto; }
+.fields { width: 100%; min-width: 32rem; border-collapse: collapse; text-align: left; }
+.fields th, .fields td { padding: 0.5rem 0.65rem; border-bottom: var(--border-thin) solid var(--color-border-panel); vertical-align: top; overflow-wrap: anywhere; }
+.fields th { font-weight: 500; }
+.fields thead th { color: var(--text-muted); font-size: var(--font-size-header-popup-label); }
+.fields th:first-child { width: 42%; }
+.fields td:nth-child(3) { width: 21%; }
+.fields .section th { padding-top: 0.75rem; font-weight: 600; background: var(--color-surface-panel-accent); }
+.raw { font-family: monospace; white-space: nowrap; }
+.body code { overflow-wrap: anywhere; }

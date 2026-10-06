@@ -5,6 +5,7 @@ The Device class enables communication with DRPD devices
 over USB using SCPI commands.
 """
 
+from .cable_test import CableTestResult
 from .device_internal import DeviceInternal
 from .types import Mode, CCBusState
 
@@ -62,3 +63,14 @@ class DeviceMode:
             raise ValueError("Failed to retrieve status from device.")
 
         return CCBusState.from_string(result[0])
+
+    async def get_cable_test_result(self) -> CableTestResult:
+        """Read cable identity evidence and renew the three-second host lease.
+
+        Start with ``mode.set(Mode.CABLE_TEST)`` and always return to
+        ``Mode.DISABLED`` in a finally block. Poll at least once per second.
+        No Ra cannot distinguish an empty port from an unmarked cable.
+        """
+        values = await self._internal.query_ascii_values_and_check(
+            "CABLE:TEST?", DeviceInternal.parse_scpi_string)
+        return CableTestResult.from_values(list(values))

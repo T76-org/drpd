@@ -230,11 +230,11 @@ commands:
     handler:      _queryCCBusControllerRole
 
   - syntax:       "BUS:CC:ROLE"
-    description:  "Set and persist the CC bus controller role. The factory default role is OBSERVER."
+    description:  "Set the CC bus role. CABLE_TEST requires R2605-A and persists as DISABLED; other roles persist normally."
     parameters:
       - name:        role
         type:        enum
-        choices:     ["DISABLED", "OBSERVER", "SINK"]
+        choices:     ["DISABLED", "OBSERVER", "SINK", "CABLE_TEST"]
         description: "The desired role for the CC bus controller."
     errors:
       -104:
@@ -242,8 +242,12 @@ commands:
         description: "The role parameter was missing or was not parsed as a valid enumerated value."
       -224:
         message:     "Illegal parameter value"
-        description: "The role value was not one of DISABLED, OBSERVER, or SINK."
+        description: "The role value was unsupported."
     handler:      _setCCBusControllerRole
+
+  - syntax:       "CABLE:TEST?"
+    description:  "Read coherent Cable Test snapshot and renew its three-second host lease. Returns generation,outcome,VCONN contact (0/1/2),GoodCRC seen (0/1),PD header revision (1=2.0 or 2=3.x),hex response body including VDM header. Outcomes: DISABLED, WAITING, DISCOVERING, IDENTITY, NO_RESPONSE, RESPONSE_TIMEOUT, NAK, MALFORMED, POWER_FAULT, UNSUPPORTED_CONNECTION. No Ra cannot distinguish an unmarked cable from empty/damaged."
+    handler:      _queryCableTest
 
   - syntax:       "BUS:CC:ROLE:STATus?"
     description:  "Query the CC bus controller role status. Returns one of: UNATTACHED, SOURCE_FOUND, ATTACHED"

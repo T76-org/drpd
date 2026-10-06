@@ -147,6 +147,9 @@ namespace T76::DRPD::PHY {
          */
         void sendHardResetSignaling();
 
+        /** Cancel current/queued transmission on core 1 without sending reset signaling. */
+        void cancelTransmission();
+
         /** 
          * @brief Send a GoodCRC response for the given decoded message.
          * 

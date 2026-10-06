@@ -197,6 +197,8 @@ export const parseCCBusRole = (value: string): CCBusRole => {
       return CCBusRole.OBSERVER
     case CCBusRole.SINK:
       return CCBusRole.SINK
+    case CCBusRole.CABLE_TEST:
+      return CCBusRole.CABLE_TEST
     default:
       throw new Error(`Invalid CC bus role: ${value}`)
   }

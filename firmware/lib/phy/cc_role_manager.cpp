@@ -28,7 +28,7 @@ bool CCRoleManager::activate() {
     gpio_put(PHY_CC_ROLE_MANAGER_CC1_ROLE_SEL_1_PIN, 0);
     gpio_set_dir(PHY_CC_ROLE_MANAGER_CC1_ROLE_SEL_1_PIN, GPIO_OUT);
 
-    gpio_set_function(PHY_CC_ROLE_MANAGER_CC1_ROLE_SEL_0_PIN, GPIO_FUNC_SIO);
+    gpio_set_function(PHY_CC_ROLE_MANAGER_CC1_ROLE_SEL_2_PIN, GPIO_FUNC_SIO);
     gpio_init(PHY_CC_ROLE_MANAGER_CC1_ROLE_SEL_2_PIN);
     gpio_put(PHY_CC_ROLE_MANAGER_CC1_ROLE_SEL_2_PIN, 0);
     gpio_set_dir(PHY_CC_ROLE_MANAGER_CC1_ROLE_SEL_2_PIN, GPIO_OUT);
@@ -48,7 +48,7 @@ bool CCRoleManager::activate() {
     gpio_put(PHY_CC_ROLE_MANAGER_CC2_ROLE_SEL_1_PIN, 0);
     gpio_set_dir(PHY_CC_ROLE_MANAGER_CC2_ROLE_SEL_1_PIN, GPIO_OUT);
 
-    gpio_set_function(PHY_CC_ROLE_MANAGER_CC2_ROLE_SEL_0_PIN, GPIO_FUNC_SIO);
+    gpio_set_function(PHY_CC_ROLE_MANAGER_CC2_ROLE_SEL_2_PIN, GPIO_FUNC_SIO);
     gpio_init(PHY_CC_ROLE_MANAGER_CC2_ROLE_SEL_2_PIN);
     gpio_put(PHY_CC_ROLE_MANAGER_CC2_ROLE_SEL_2_PIN, 0);
     gpio_set_dir(PHY_CC_ROLE_MANAGER_CC2_ROLE_SEL_2_PIN, GPIO_OUT);

@@ -202,7 +202,7 @@ void BMCEncoder::encodeAndSendMessage(const BMCEncodedMessage& message) {
     }
 }
 
-void BMCEncoder::sendHardResetSignaling() {
+void BMCEncoder::cancelTransmission() {
     if (_dmaChannel != -1) {
         dma_channel_abort(_dmaChannel);
     }
@@ -216,6 +216,10 @@ void BMCEncoder::sendHardResetSignaling() {
     while (queue_try_remove(&_messageQueue, &discarded)) {
     }
 
+}
+
+void BMCEncoder::sendHardResetSignaling() {
+    cancelTransmission();
     const BitPacker hardReset = hardResetSignalingBits();
     (void)queue_try_add(&_messageQueue, &hardReset);
 }

@@ -70,8 +70,8 @@ namespace T76::DRPD::PHY {
         CCRole cc2Role();
 
     protected:
-        CCRole _cc1Role; ///< Current role of CC1
-        CCRole _cc2Role; ///< Current role of CC2
+        CCRole _cc1Role = CCRole::Off; ///< Current role of CC1
+        CCRole _cc2Role = CCRole::Off; ///< Current role of CC2
 
         /**
          * @brief Set the GPIO pins for the specified CC role.

@@ -97,6 +97,7 @@ import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
 import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
 import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopover'
 import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
+import { CableTestDialog } from './overlays/CableTestDialog'
 import { SourceInquiryDialog } from './overlays/sink/SourceInquiryDialog'
 import {
   ACTIVE_CABLE_INQUIRIES,
@@ -619,6 +620,8 @@ const formatHeaderRoleLabel = (role: CCBusRole | null): string => {
       return 'Observer'
     case CCBusRole.SINK:
       return 'Sink'
+    case CCBusRole.CABLE_TEST:
+      return 'Cable Test'
     default:
       return '--'
   }
@@ -1669,6 +1672,7 @@ export const RackView = ({
     () => (currentRack && !showTimestrip ? hideTimestripInstrument(currentRack) : currentRack),
     [currentRack, showTimestrip],
   )
+  const [cableTestDevice, setCableTestDevice] = useState<{ driver: DRPDDriverRuntime; id: string } | null>(null)
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
   const handleSourceInquiryResponse = useCallback((definition: InquiryDefinition) => {
@@ -3210,6 +3214,14 @@ export const RackView = ({
         },
       },
       {
+        id: 'mode-cable-test',
+        label: 'Cable Test...',
+        disabled: !activeDriver || activeConnectedDeviceState?.record.hardwareRevision !== 'R2605-A',
+        onSelect: () => {
+          if (activeDriver && activeConnectedDeviceState?.record.hardwareRevision === 'R2605-A') setCableTestDevice({ driver: activeDriver, id: activeConnectedDeviceState.record.id })
+        },
+      },
+      {
         id: 'mode-separator-power-contract',
         type: 'separator',
       },
@@ -3299,6 +3311,7 @@ export const RackView = ({
       activeDriverState?.ccBusRoleStatus,
       activeDriverState?.sinkInfo?.negotiatedPdo?.type,
       canCycleUsbConnection,
+      activeConnectedDeviceState,
       canUseSinkBehaviourSettings,
       handlePulseUsbConnection,
       handleSelectInquiry,
@@ -4121,6 +4134,12 @@ export const RackView = ({
           })
         }}
       />
+      {cableTestDevice ? <CableTestDialog key={cableTestDevice.id} client={cableTestDevice.driver}
+        onError={setDeviceError} onClose={() => {
+          const id = cableTestDevice.id
+          setCableTestDevice(null)
+          void handleUpdateDeviceConfig(id, (current) => ({ ...current, role: CCBusRole.DISABLED, sinkRequest: undefined }))
+        }} /> : null}
       <SourceInquiryDialog
         key={sourceInquiryDefinition?.id ?? 'no-source-inquiry'}
         open={sourceInquiryDefinition !== null}
@@ -4604,7 +4623,7 @@ const HeaderVbusMetrics = ({
       isObserverMode ? aggregateObserverConnected : role !== CCBusRole.DISABLED && !isSinkMode
     )
   const isFrontPanelPort1Disabled = !driver || role === CCBusRole.DISABLED
-  const isFrontPanelPort2Disabled = isFrontPanelPort1Disabled || isSinkMode
+  const isFrontPanelPort2Disabled = isFrontPanelPort1Disabled || isSinkMode || role === CCBusRole.CABLE_TEST
   const frontPanelFlow = aggregateObserverConnected
     ? 'monitor'
     : isFrontPanelDisabled

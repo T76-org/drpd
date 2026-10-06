@@ -5,6 +5,7 @@
  * Main-thread proxy for a DRPDDevice instance owned by the DRPD worker.
  */
 
+import type { CableTestResult } from '../cableTest'
 import { DebugLogRegistry } from '../../../debugLogger'
 import type {
   AccumulatedMeasurements,
@@ -93,7 +94,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     setVBusCurrentCalibrationTablePoint: (targetMa: number, rawCurrentA: number) => Promise<void>
     resetVBusCurrentCalibrationToDefaults: () => Promise<void>
   } ///< Analog monitor command-group proxy.
-  public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void> } ///< CC bus command-group proxy.
+  public readonly ccBus: { getRole: () => Promise<CCBusRole>; setRole: (role: CCBusRole) => Promise<void>; getCableTestResult: () => Promise<CableTestResult> } ///< CC bus command-group proxy.
   public readonly capture: { setCaptureEnabled: (enabled: OnOffState) => Promise<void> } ///< Capture command-group proxy.
   public readonly system: {
     identify: () => Promise<DeviceIdentity>
@@ -283,6 +284,7 @@ export class DRPDWorkerDeviceProxy extends EventTarget {
     }
     this.ccBus = {
       getRole: async () => (await this.callGroup('ccBus', 'getRole')) as CCBusRole,
+      getCableTestResult: async () => (await this.callGroup('ccBus', 'getCableTestResult')) as CableTestResult,
       setRole: async (role) => {
         await this.callGroup('ccBus', 'setRole', role)
       },

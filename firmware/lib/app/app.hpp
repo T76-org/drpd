@@ -175,6 +175,10 @@ namespace T76::DRPD {
         void _measureAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &);
         void _resetAccumulatedValues(const std::vector<T76::SCPI::ParameterValue> &);
 
+        /** Query coherent cable-test evidence and identity.
+         * @param params Parsed command parameters (none).
+         */
+        void _queryCableTest(const std::vector<T76::SCPI::ParameterValue>& params);
         void _queryCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &);
         void _setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryCCBusControllerRoleStatus(const std::vector<T76::SCPI::ParameterValue> &);
@@ -471,6 +475,7 @@ namespace T76::DRPD {
         static constexpr uint32_t _captureEventCCBusRoleSink = 8; ///< Firmware event ID for CC bus sink role.
         static constexpr uint32_t _captureEventSinkError = 9; ///< Firmware event ID for Sink errors.
         static constexpr uint32_t _captureEventSyncTrigger = 10; ///< Firmware event ID for sync trigger events.
+        static constexpr uint32_t _captureEventCCBusRoleCableTest = 12; ///< Cable Test mode event.
         static constexpr uint32_t _captureEventSinkWarning = 11; ///< Firmware event ID for recoverable Sink warnings.
 
         std::atomic<uint32_t> _deviceStatusRegister{0};

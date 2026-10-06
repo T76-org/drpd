@@ -1,0 +1,59 @@
+---
+sidebar_position: 55
+sidebar_label: CABLE
+---
+
+# CABLE Commands
+
+:::info[Generated reference]
+This page is generated from `firmware/lib/app/scpi.yaml`. Do not edit it by hand; update the catalog or generator instead.
+:::
+
+## Common parser errors
+
+These parser-level errors can apply before a command handler runs.
+
+| Code | Message | Meaning |
+| --- | --- | --- |
+| `-100` | Command error | Malformed command syntax or command not recognized by the SCPI interpreter. |
+| `-102` | Syntax error | Unexpected token or separator in command input. |
+| `-104` | Data type error | Parameter could not be parsed as required type. |
+| `-109` | Missing parameter | Required parameter was omitted. |
+| `-222` | Data out of range | Numeric parameter was outside supported range. |
+| `-224` | Illegal parameter value | Parameter parsed correctly but value was not accepted for this command. |
+
+## `CABLE:TEST?`
+
+**Type:** Query
+
+**Syntax:**
+
+```scpi
+CABLE:TEST?
+```
+
+### Accepted forms
+
+| Form | Syntax |
+| --- | --- |
+| Long form | `CABLE:TEST?` |
+| Short form | `CABLE:TEST?` |
+
+Read coherent Cable Test snapshot and renew its three-second host lease. Returns generation,outcome,VCONN contact (0/1/2),GoodCRC seen (0/1),PD header revision (1=2.0 or 2=3.x),hex response body including VDM header. Outcomes: DISABLED, WAITING, DISCOVERING, IDENTITY, NO_RESPONSE, RESPONSE_TIMEOUT, NAK, MALFORMED, POWER_FAULT, UNSUPPORTED_CONNECTION. No Ra cannot distinguish an unmarked cable from empty/damaged.
+
+### Parameters
+
+No parameters.
+
+### Response
+
+Returns query-specific data described above.
+
+### Command-specific errors
+
+No command-specific errors documented. Common SCPI parser errors may still apply.
+
+### Source
+
+- Catalog handler: `_queryCableTest`
+- Handler source: `firmware/lib/app/app_scpi_bus.cpp`
