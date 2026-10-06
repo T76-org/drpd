@@ -131,7 +131,7 @@ describe('RackView responsive header CSS', () => {
     expect(rackViewCss).toMatch(/\.headerBananaJack\s*\{[^}]*border:[^;]*solid var\(--header-banana-jack-color\);[^}]*background:\s*transparent;/s)
     expect(rackViewCss).not.toMatch(/\.headerBananaJack\[data-polarity='positive'\]\s*\{/)
     expect(rackViewCss).not.toMatch(/\.headerBananaJack\[data-polarity='negative'\]\s*\{/)
-    expect(rackViewCss).toMatch(/\.headerFrontPanelPortRail\s*\{[^}]*height:\s*calc\(16px \* var\(--rack-header-scale\)\);/s)
+    expect(rackViewCss).toMatch(/\.headerFrontPanelPortRail\s*\{[^}]*height:\s*calc\(20px \* var\(--rack-header-scale\)\);/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanelPortRailLine\s*\{[^}]*stroke-width:\s*1\.5;/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanelPortRailLine\s*\{[^}]*stroke-dasharray:\s*0 4;/s)
     expect(rackViewCss).toMatch(/\.headerFrontPanel\[data-port-rail-route='ports'\]\s+\.headerFrontPanelPortRailLine\[data-port-rail-route='banana'\]/s)
