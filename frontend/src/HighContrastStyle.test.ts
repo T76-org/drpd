@@ -53,7 +53,11 @@ describe('high contrast semantic palette', () => {
     expect(messageLogCss).not.toMatch(
       /data-high-contrast='true'\]\) \.eventRow\s*\{[^}]*border-left:/s,
     )
-    expect(messageLogCss.match(/--event-row-accent:/g)).toHaveLength(8)
+    for (const category of [
+      'Capture', 'Role', 'Status', 'Mark', 'SinkErrors', 'SinkWarning', 'SyncTrigger', 'Ovp', 'Ocp',
+    ]) {
+      expect(messageLogCss).toMatch(new RegExp(`\\.eventRow${category}\\s*\\{[^}]*--event-row-accent:`, 's'))
+    }
   })
 
   it('defines a separate colourblind palette for metrics, events, and Timestrip traces', () => {
