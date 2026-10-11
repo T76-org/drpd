@@ -180,10 +180,6 @@ void App::_setCCBusControllerRole(const std::vector<T76::SCPI::ParameterValue> &
     } else if (roleStr == "SINK") {
         _ccBusController.role(Logic::CCBusRole::Sink);
     } else if (roleStr == "CABLE_TEST") {
-        if (_hardwareRevisionConfig.revision() != Logic::HardwareRevision::R2605A) {
-            _interpreter.addError(_scpiErrorExecutionError, "Cable Test requires R2605-A");
-            return;
-        }
         _ccBusController.role(Logic::CCBusRole::CableTest);
     } else {
         _interpreter.addError(_scpiErrorIllegalParameterValue, "Illegal parameter value");

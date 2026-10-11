@@ -3501,6 +3501,21 @@ describe('RackView', () => {
     }
   })
 
+  it.each(['R2603-A', 'R2605-A'])('allows Cable Test on connected %s hardware', async (revision) => {
+    mockTransportState.hardwareRevisionResponse = [revision]
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await expectHydratedDrpdPanels()
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
+    const item = await screen.findByRole('menuitem', { name: 'Cable Test...' })
+    expect(item).not.toBeDisabled()
+    await userEvent.click(item)
+    expect(await screen.findByRole('dialog', { name: 'Cable Test' })).toBeInTheDocument()
+    await waitFor(() => expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE CABLE_TEST'))
+  })
+
   it('disables Cycle USB Connection in Disabled mode while keeping Disabled selectable', async () => {
     mockTransportState.roleResponse = ['DISABLED']
     saveRackDocument(buildBoundHydratedRackDocument())

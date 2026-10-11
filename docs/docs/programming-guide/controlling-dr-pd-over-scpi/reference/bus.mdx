@@ -75,7 +75,7 @@ BUS:CC:ROLE
 | Long form | `BUS:CC:ROLE` |
 | Short form | `BUS:CC:ROLE` |
 
-Set the CC bus role. CABLE_TEST requires R2605-A and persists as DISABLED; other roles persist normally.
+Set the CC bus role. CABLE_TEST persists as DISABLED; other roles persist normally.
 
 ### Parameters
 
@@ -92,7 +92,6 @@ No SCPI data response. Successful command execution completes without a payload.
 | Code | Message | Meaning |
 | --- | --- | --- |
 | `-224` | Illegal parameter value | The role value was unsupported. |
-| `-200` | Cable Test requires R2605-A | Extracted from handler implementation. |
 | `-104` | Data type error | The role parameter was missing or was not parsed as a valid enumerated value. |
 
 ### Source
