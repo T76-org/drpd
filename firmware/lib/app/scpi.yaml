@@ -230,7 +230,7 @@ commands:
     handler:      _queryCCBusControllerRole
 
   - syntax:       "BUS:CC:ROLE"
-    description:  "Set the CC bus role. CABLE_TEST requires R2605-A and persists as DISABLED; other roles persist normally."
+    description:  "Set the CC bus role. CABLE_TEST persists as DISABLED; other roles persist normally."
     parameters:
       - name:        role
         type:        enum

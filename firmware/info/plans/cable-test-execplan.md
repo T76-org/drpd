@@ -2,7 +2,7 @@
 
 ## Purpose and approved scope
 
-Single-ended e-marker identity discovery on Port 1 of R2605-A. Far end stays
+Single-ended e-marker identity discovery on Port 1 of Dr. PD. Far end stays
 unplugged. Both orientations supported. Mode > Cable Test opens a dialog; close
 returns Disabled. Identity only; no SVID/mode discovery. User authorized implementation
 and live validation on connected Dr. PD (USB serial 2D784F584994A97E).
@@ -95,3 +95,19 @@ lint pass. A five-minute sustained Chrome run remained at successful identity
 without a read failure. Screenshot: `/tmp/drpd-cable-stable-session.jpg`.
 The lease fix must not be asserted as the proven cause of the earlier malformed
 response. The user's existing dialog was left open for continued observation.
+
+## Earlier hardware compatibility review (2026-10-11)
+
+Exported KiCad XML netlists for R2601-B, R2603-A, and R2605-A confirm the same
+GPIO14/15 VCONN enables through Q401/Q402 to U403/U404, with MOSFET drains on
+DUT CC1/CC2. Both role muxes have floating channel 0 and the same default-Rp
+resistor paths and select GPIOs. CC routing and sensing are present on all three.
+R2605-A adds shared 100-ohm R423 before both VCONN switch sources; earlier
+revisions connect those sources directly to +5V. R2601-B is a historical prototype
+and reports as legacy R2603-A under the current revision detector.
+
+The existing hardware-selected BMC encoder uses DualPinLegacy on earlier boards;
+CableTestController uses that encoder without replacing its mode. Removed the
+R2605-A-only SCPI/menu restriction and updated the current support documentation.
+No older board was physically exercised: schematic/firmware compatibility is
+established, while physical cable discovery and signal quality remain unqualified.

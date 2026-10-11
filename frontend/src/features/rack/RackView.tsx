@@ -3216,9 +3216,9 @@ export const RackView = ({
       {
         id: 'mode-cable-test',
         label: 'Cable Test...',
-        disabled: !activeDriver || activeConnectedDeviceState?.record.hardwareRevision !== 'R2605-A',
+        disabled: !activeDriver,
         onSelect: () => {
-          if (activeDriver && activeConnectedDeviceState?.record.hardwareRevision === 'R2605-A') setCableTestDevice({ driver: activeDriver, id: activeConnectedDeviceState.record.id })
+          if (activeDriver && activeConnectedDeviceState) setCableTestDevice({ driver: activeDriver, id: activeConnectedDeviceState.record.id })
         },
       },
       {
