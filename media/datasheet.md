@@ -18,7 +18,7 @@ Date: 2026-03-27
 
 **Full protocol compatibility.** Dr. PD supports standard power delivery (SPR), extended power range (EPR), and programmable power supply modes (PPS/AVS); enabling analysis and testing of modern USB-Power Delivery implementations up to 240 W. The instrument is designed to handle the full spectrum of USB-PD revisions and power profiles, supporting a wide range of commercial USB-C devices from low-power accessories to high-power computing and industrial applications.
 
-**Sophisticated triggering capabilities.** The built-in trigger system allows users to capture and annotate specific protocol events, voltage transitions, or current thresholds with nanosecond accuracy. Triggers can be based on message types, device attach/detach events, power level changes, or external signals. The trigger system enables efficient identification of anomalies and data collection during extended monitoring sessions. This fine-grained control ensures that critical moments are never missed even in complex, long-duration power delivery scenarios.
+**Sophisticated triggering capabilities.** The built-in trigger system allows users to capture and annotate specific protocol events, voltage transitions, or current thresholds with microsecond accuracy. Triggers can be based on message types, device attach/detach events, power level changes, or external signals. The trigger system enables efficient identification of anomalies and data collection during extended monitoring sessions. This fine-grained control ensures that critical moments are never missed even in complex, long-duration power delivery scenarios.
 
 ### Key features
 
@@ -28,7 +28,7 @@ Date: 2026-03-27
 - **PPS / EPR support up to 48V / 5A / 240W:** analyze and test modern USB-PD implementations
 - **Real-time control software:** runs in Chrome or Edge on Windows, macOS, Linux, and Android. No drivers or installation required; just open the web app and connect the device.
 - **First-class automation support:** Python and JavaScript host libraries for integration, plus support for industry-standard SCPI and USBTMC command interfaces
-- **Open-source hardware, firmware, and software:** repairable, modifiable, and transparent design with schematics and source code available on GitHub under permissive licenses
+- **Open-source hardware, firmware, and software:** repairable, modifiable, and transparent design with schematics and source code available on GitHub under GPLv3
 
 ---
 
@@ -45,12 +45,12 @@ Date: 2026-03-27
 | Timestamp resolution | 1 µs |
 | Sampling frequency | 200 MHz edge timing, 10 s/S for voltage/current |
 | Triggering | Preamble start, message start, header start, message complete, message type, sender, protocol errors |
-| External sync | Pulse high, pulse low, invert, pull-down. Latency max +20µs relative to event* |
+| External sync | Pulse high, pulse low, invert, pull-down. Latency typically less than 30 µs relative to event; varies with communication complexity and trigger event* |
 | Protection | Programmable overvoltage and overcurrent. Independent protection for pass-through USB-C connection and banana connectors. ESD protection on all ports* |
 | Operating temperature | 0ºC to 55ºC (32ºF to 131ºF) |
 | Storage temperature | -20ºC to 70ºC (-4ºF to 158ºF) |
 | Humidity | 5% to 90% RH non-condensing |
-| Dimensions and weight | 35 mm x 135mm x 50 mm (5.3 in x 5.3 in x 2 in), 300 g (10.6 oz)* |
+| Dimensions and weight | 135 mm x 135 mm x 50 mm (5.3 in x 5.3 in x 2 in), 300 g (10.6 oz)* |
 
 _* Preliminary typical specifications at 25ºC / 50% RH non-condensing. Subject to change._
 
