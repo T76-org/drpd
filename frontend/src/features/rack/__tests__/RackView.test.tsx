@@ -70,6 +70,7 @@ const mockTransportState = vi.hoisted(() => ({
   idnResponse: ['MTA Inc.,Dr. PD,ABC,1.0'],
   hardwareRevisionResponse: ['R2605-A'],
   captureCountResponse: ['0'],
+  cableTestResponse: ['1', 'WAITING', '0', '0', '2', ''] as string[],
   sentCommands: [] as string[],
 }))
 
@@ -230,6 +231,9 @@ vi.mock('../../../lib/transport/drpdUsb', () => {
       }
       if (command === 'SINK:INQ:STAT?') {
         return mockTransportState.sinkInquiryStatusResponses.shift() ?? []
+      }
+      if (command === 'CABLE:TEST?') {
+        return mockTransportState.cableTestResponse
       }
       return []
     }
@@ -856,6 +860,7 @@ const resetMockTransportState = (): void => {
   mockTransportState.idnResponse = ['MTA Inc.,Dr. PD,ABC,1.0']
   mockTransportState.hardwareRevisionResponse = ['R2605-A']
   mockTransportState.captureCountResponse = ['0']
+  mockTransportState.cableTestResponse = ['1', 'WAITING', '0', '0', '2', '']
   mockTransportState.sentCommands = []
 }
 
@@ -871,6 +876,7 @@ beforeEach(() => {
   mockFirmwareUpdaterState.interfaceNumber = null
   mockFirmwareUpdaterState.shouldFailUpdate = false
   vi.stubGlobal('localStorage', createStorage())
+  vi.stubGlobal('sessionStorage', createStorage())
   vi.stubGlobal('fetch', vi.fn(async () => buildFetchResponse([])))
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
@@ -3509,11 +3515,91 @@ describe('RackView', () => {
 
     await expectHydratedDrpdPanels()
     await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
-    const item = await screen.findByRole('menuitem', { name: 'Cable Test...' })
+    const item = await screen.findByRole('menuitem', { name: /Cable Test/ })
     expect(item).not.toBeDisabled()
     await userEvent.click(item)
     expect(await screen.findByRole('dialog', { name: 'Cable Test' })).toBeInTheDocument()
+    expect(screen.queryByTestId('cable-test-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('cable-test-rail')).not.toBeInTheDocument()
     await waitFor(() => expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE CABLE_TEST'))
+  })
+
+  it('caches Cable Test identity for the header i and shortcut without restarting the role', async () => {
+    mockTransportState.cableTestResponse = [
+      '7',
+      'IDENTITY',
+      '1',
+      '1',
+      '2',
+      '41A800FF0000601C000000000000000043260A00',
+    ]
+    saveRackDocument(buildBoundHydratedRackDocument())
+    mockUSB([createUSBDevice()])
+    render(<RackView />)
+
+    await expectHydratedDrpdPanels()
+    expect(screen.queryByRole('button', { name: 'Cable test results' })).not.toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Cable Test/ }))
+    const liveDialog = await screen.findByRole('dialog', { name: 'Cable Test' })
+    expect(screen.queryByTestId('cable-test-rail')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('E-marked cable detected.')).toBeInTheDocument())
+    await userEvent.click(within(liveDialog).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: 'Cable Test' })).not.toBeInTheDocument()
+
+    const infoButton = await screen.findByRole('button', { name: 'Cable test results' })
+    mockTransportState.sentCommands = []
+    await userEvent.click(infoButton)
+    const cachedPanel = await screen.findByTestId('cable-test-panel')
+    expect(cachedPanel).toHaveAttribute('data-mode', 'cached')
+    expect(screen.getByTestId('cable-test-rail')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Cable Test' })).not.toBeInTheDocument()
+    expect(screen.getByText('5 A')).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('BUS:CC:ROLE CABLE_TEST')
+
+    await userEvent.click(within(cachedPanel).getByRole('button', { name: 'Retest' }))
+    expect(await screen.findByRole('dialog', { name: 'Cable Test' })).toBeInTheDocument()
+    expect(screen.queryByTestId('cable-test-rail')).not.toBeInTheDocument()
+    await waitFor(() => expect(mockTransportState.sentCommands).toContain('BUS:CC:ROLE CABLE_TEST'))
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Cable Test' })).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: 'Cable Test' })).not.toBeInTheDocument()
+
+    mockTransportState.sentCommands = []
+    await userEvent.click(await screen.findByRole('button', { name: 'Cable test results' }))
+    expect(await screen.findByTestId('cable-test-panel')).toHaveAttribute('data-mode', 'cached')
+    await userEvent.click(within(screen.getByTestId('cable-test-panel')).getAllByRole('button', { name: 'Close' })[0])
+    expect(screen.queryByTestId('cable-test-panel')).not.toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'I' })
+    expect(await screen.findByTestId('cable-test-panel')).toHaveAttribute('data-mode', 'cached')
+    expect(screen.getByTestId('cable-test-rail')).toBeInTheDocument()
+    expect(mockTransportState.sentCommands).not.toContain('BUS:CC:ROLE CABLE_TEST')
+  })
+
+  it('clears cached Cable Test results when the USB device disconnects', async () => {
+    mockTransportState.cableTestResponse = [
+      '7',
+      'IDENTITY',
+      '1',
+      '1',
+      '2',
+      '41A800FF0000601C000000000000000043260A00',
+    ]
+    saveRackDocument(buildBoundHydratedRackDocument())
+    const device = createUSBDevice()
+    const { dispatchDisconnect } = mockUSB([device])
+    render(<RackView />)
+
+    await expectHydratedDrpdPanels()
+    await userEvent.click(await screen.findByRole('button', { name: 'Mode' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Cable Test/ }))
+    await waitFor(() => expect(screen.getByText('E-marked cable detected.')).toBeInTheDocument())
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Cable Test' })).getByRole('button', { name: 'Close' }))
+    expect(await screen.findByRole('button', { name: 'Cable test results' })).toBeInTheDocument()
+
+    dispatchDisconnect(device)
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Cable test results' })).not.toBeInTheDocument(),
+    )
   })
 
   it('disables Cycle USB Connection in Disabled mode while keeping Disabled selectable', async () => {
