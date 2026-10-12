@@ -5,6 +5,7 @@ export type RackShortcutId =
   | 'switch-disabled'
   | 'choose-power-contract'
   | 'toggle-capture'
+  | 'open-cable-test'
   | 'reset-accumulator'
   | 'clear-log'
   | 'add-marker'
@@ -57,6 +58,12 @@ export const RACK_SHORTCUTS: RackShortcutDefinition[] = [
     key: 'C',
     label: 'Toggle capture',
     description: 'Turn CC capture on or off.',
+  },
+  {
+    id: 'open-cable-test',
+    key: 'I',
+    label: 'Cable Test',
+    description: 'Open cached Cable Test results, or start a live Cable Test when none are cached.',
   },
   {
     id: 'reset-accumulator',
@@ -165,6 +172,9 @@ export const matchRackShortcut = (event: KeyboardEvent): RackShortcutId | null =
     case 'c':
     case 'C':
       return 'toggle-capture'
+    case 'i':
+    case 'I':
+      return 'open-cable-test'
     case 'z':
     case 'Z':
       return 'reset-accumulator'

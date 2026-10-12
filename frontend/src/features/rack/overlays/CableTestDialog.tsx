@@ -3,7 +3,7 @@
  * Session start/stop serialize per device, including React remounts. Every exit
  * requests Disabled; stale responses after exit are discarded.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CCBusRole, type CableTestResult } from '../../../lib/device'
 import {
   buildDiscoverIdentityMetadata, parseDiscoverIdentityVDOs, readDataObjects,
@@ -133,17 +133,35 @@ const cableTestMessage = (result: CableTestResult | null): { headline: string; i
     ? { headline: 'E-marked cable detected.' }
     : { headline: 'No cable detected, damaged cable, or cable without an e-marker.', instruction: 'Ensure that the cable is not connected to any device and plug it into Port 1.' }
 /** Show a continuously updated identity-only test for one connected Dr. PD. */
-export const CableTestDialog = ({ client, onClose, onError }: {
+export const CableTestDialog = ({
+  client,
+  onClose,
+  onError,
+  onIdentity,
+  onIdentityLost,
+}: {
   client: CableTestClient
   onClose: () => void
   onError: (message: string) => void
+  onIdentity?: (result: CableTestResult) => void
+  onIdentityLost?: () => void
 }) => {
   const [result, setResult] = useState<CableTestResult | null>(null)
   const [error, setError] = useState('')
+  const hadIdentityRef = useRef(false)
+  const onIdentityRef = useRef(onIdentity)
+  const onIdentityLostRef = useRef(onIdentityLost)
+
+  useEffect(() => {
+    onIdentityRef.current = onIdentity
+    onIdentityLostRef.current = onIdentityLost
+  }, [onIdentity, onIdentityLost])
+
   useEffect(() => {
     let cancelled = false
     let started = false
     let timer: ReturnType<typeof setTimeout> | undefined
+    hadIdentityRef.current = false
     /** Stop only after this session's start has settled. */
     const stop = () => serialize(client, async () => {
       if (!started) return
@@ -157,6 +175,16 @@ export const CableTestDialog = ({ client, onClose, onError }: {
         const snapshot = await serialize(client, () => client.ccBus.getCableTestResult())
         if (cancelled) return
         setResult(snapshot)
+        if (snapshot.outcome === 'IDENTITY') {
+          hadIdentityRef.current = true
+          onIdentityRef.current?.(snapshot)
+        } else if (
+          hadIdentityRef.current &&
+          (snapshot.outcome === 'WAITING' || snapshot.outcome === 'DISCOVERING' || snapshot.outcome === 'DISABLED')
+        ) {
+          hadIdentityRef.current = false
+          onIdentityLostRef.current?.()
+        }
         if (snapshot.outcome !== 'DISABLED') timer = setTimeout(() => { void poll() }, 250)
       } catch (cause) {
         if (cancelled) return
@@ -205,7 +233,6 @@ export const CableTestDialog = ({ client, onClose, onError }: {
   const message = cableTestMessage(result)
   return <Dialog open title="Cable Test" onOpenChange={(open) => { if (!open) onClose() }}
     dialogStyle={{ width: 'min(54rem, calc(100vw - 2rem))', maxWidth: 'calc(100vw - 2rem)',
-      height: 'min(38rem, calc(100dvh - 2rem))', maxHeight: 'calc(100dvh - 2rem)',
       gridTemplateRows: 'auto minmax(0, 1fr) auto', overflow: 'hidden' }}
     footer={<DialogButton onClick={onClose}>Close</DialogButton>}>
     <div className={styles.body}>
