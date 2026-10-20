@@ -5,6 +5,7 @@
  */
 
 #include "vbus_manager.hpp"
+#include <cmath>
 
 
 using namespace T76::DRPD::PHY;
@@ -175,7 +176,7 @@ bool VBusManager::_timerCallback(repeating_timer_t *rt) {
             manager->_state = VBusState::OverVoltage;
             manager->_fault = true;
             manager->enabled(false, false); // Disable VBUS on fault (will trigger notification)
-        } else if (current > manager->_ocpThreshold) {
+        } else if (std::abs(current) > manager->_ocpThreshold) {
             manager->_lastOcpEventTimestampUs = time_us_64();
             manager->_state = VBusState::OverCurrent;
             manager->_fault = true;
