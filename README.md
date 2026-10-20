@@ -37,7 +37,7 @@ You can find out more about its features in the [online datasheet](./media/datas
 
 You can access the full documentation for Dr. PD [on the T76 website](https://t76.org/drpd/docs). The documentation includes a user manual, hardware and firmware design files, and software API references.
 
-Downloadable hardware schematics in PDF and KiCAD format are available in the [hardware folder](./hardware) of this repository. The current hardware version is [R2605-A](./hardware/R2605-A).
+Downloadable hardware schematics in PDF and KiCAD format are available in the [hardware folder](./hardware) of this repository. The current hardware version is [R2608-A](./hardware/R2608-A).
 
 **Interactive online schematics and PCB layout** are available in [the docs](https://t76.org/drpd/docs/category/internals), which also contain a detailed, step-by-step description of the hardware design.
 
