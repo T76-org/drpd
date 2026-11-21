@@ -212,6 +212,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.headerUsbCPortRow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
 .headerUsbCPort {
   width: calc(26px * var(--rack-header-scale));
   height: calc(12px * var(--rack-header-scale));
@@ -224,8 +232,38 @@
   background: color-mix(in srgb, #fff 94%, var(--color-surface-header));
 }
 
+.headerCableTestInfoButton {
+  appearance: none;
+  position: absolute;
+  /* Badge the port corner; keep upward offset small so it stays clear of the "1" label. */
+  top: 0;
+  right: 0;
+  z-index: 1;
+  transform: translate(40%, -20%);
+  width: calc(11px * var(--rack-header-scale));
+  height: calc(11px * var(--rack-header-scale));
+  margin: 0;
+  padding: 0;
+  border: var(--border-thin) solid var(--color-brand-cyan);
+  border-radius: 50%;
+  background: #000;
+  color: #fff;
+  font-size: calc(9px * var(--rack-header-scale));
+  font-weight: var(--font-weight-semibold);
+  font-style: italic;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.headerCableTestInfoButton:hover {
+  background: #111;
+}
+
 .headerUsbCPort[data-connected='true'] {
-  border-color: color-mix(in srgb, var(--color-status-success) 74%, var(--color-border-divider));
+  border-color: var(--color-status-success);
   background: color-mix(in srgb, #fff 94%, var(--color-surface-header));
   box-shadow: inset 0 0 0 var(--border-thin) color-mix(in srgb, var(--color-status-success) 32%, transparent);
 }
@@ -602,6 +640,34 @@
   display: flex;
   flex-direction: column;
   padding: var(--space-0);
+}
+
+.contentRow {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.cableTestRail {
+  flex: 0 0 250px;
+  width: 250px;
+  max-width: 250px;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.contentMain {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .notice {

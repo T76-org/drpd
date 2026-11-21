@@ -21,6 +21,7 @@ import {
   normalizeLoggingConfig,
   uploadDRPDFirmwareUF2,
   type DRPDLoggingConfig,
+  type CableTestResult,
   type DRPDDriverRuntime,
   type LoggedCapturedMessage,
   buildUSBFilters,
@@ -97,7 +98,13 @@ import { VbusConfigurePopover } from './overlays/vbus/VbusConfigurePopover'
 import { prepareVbusConfigureDialog } from './overlays/vbus/vbusConfigureDialogState'
 import { TriggerConfigurePopover } from './overlays/trigger/TriggerConfigurePopover'
 import { SinkRequestPopover } from './overlays/sink/SinkRequestPopover'
+import {
+  clearCableTestCache,
+  readCableTestCache,
+  writeCableTestCache,
+} from './cableTestCache'
 import { CableTestDialog } from './overlays/CableTestDialog'
+import { CableTestPanel } from './overlays/CableTestPanel'
 import { SourceInquiryDialog } from './overlays/sink/SourceInquiryDialog'
 import {
   ACTIVE_CABLE_INQUIRIES,
@@ -519,6 +526,8 @@ const HeaderFrontPanelVisual = ({
   portRailDirection,
   role,
   roleStatus,
+  cableTestCacheAvailable,
+  onOpenCachedCableTest,
 }: {
   disabled: boolean
   bananaDisabled: boolean
@@ -532,6 +541,8 @@ const HeaderFrontPanelVisual = ({
   portRailDirection: 'idle' | 'port-1-to-port-2' | 'port-2-to-port-1' | 'port-1-to-banana' | 'banana-to-port-1'
   role: CCBusRole | null
   roleStatus: CCBusRoleStatus | null
+  cableTestCacheAvailable: boolean
+  onOpenCachedCableTest?: () => void
 }) => (
   <div
     className={styles.headerFrontPanel}
@@ -546,19 +557,33 @@ const HeaderFrontPanelVisual = ({
     data-port-rail-route={portRailRoute}
     data-port-rail-direction={portRailDirection}
   >
-    <div className={styles.headerFrontPanelDeviceRow} aria-hidden="true">
+    <div className={styles.headerFrontPanelDeviceRow}>
       <div className={styles.headerFrontPanelDevice} data-device="usb-c-1">
-        <span className={styles.headerFrontPanelLabel}>1</span>
-        <span
-          className={styles.headerUsbCPort}
-          data-port="1"
-          data-connected={port1Connected ? 'true' : 'false'}
-          data-disabled={port1Disabled ? 'true' : 'false'}
-        >
-          <span className={styles.headerUsbCSlot} />
+        <span className={styles.headerFrontPanelLabel} aria-hidden="true">1</span>
+        <span className={styles.headerUsbCPortRow}>
+          {cableTestCacheAvailable ? (
+            <button
+              type="button"
+              className={styles.headerCableTestInfoButton}
+              aria-label="Cable test results"
+              title="Cable test results"
+              onClick={onOpenCachedCableTest}
+            >
+              i
+            </button>
+          ) : null}
+          <span
+            className={styles.headerUsbCPort}
+            data-port="1"
+            data-connected={port1Connected ? 'true' : 'false'}
+            data-disabled={port1Disabled ? 'true' : 'false'}
+            aria-hidden="true"
+          >
+            <span className={styles.headerUsbCSlot} />
+          </span>
         </span>
       </div>
-      <div className={styles.headerFrontPanelDevice} data-device="usb-c-2">
+      <div className={styles.headerFrontPanelDevice} data-device="usb-c-2" aria-hidden="true">
         <span className={styles.headerFrontPanelLabel}>2</span>
         <span
           className={styles.headerUsbCPort}
@@ -569,7 +594,7 @@ const HeaderFrontPanelVisual = ({
           <span className={styles.headerUsbCSlot} />
         </span>
       </div>
-      <div className={styles.headerFrontPanelDevice} data-device="vbus">
+      <div className={styles.headerFrontPanelDevice} data-device="vbus" aria-hidden="true">
         <span className={styles.headerFrontPanelLabel}>VBUS</span>
         <span
           className={styles.headerBananaJackPair}
@@ -1581,6 +1606,14 @@ export const RackView = ({
       }
 
       void disconnectDeviceRuntime(connectedState, deviceDefinitions)
+      clearCableTestCache(connectedState.record.id)
+      setCableTestCacheEpoch((epoch) => epoch + 1)
+      setCableTestLiveDevice((current) =>
+        current?.id === connectedState.record.id ? null : current,
+      )
+      setCableTestCachedDevice((current) =>
+        current?.id === connectedState.record.id ? null : current,
+      )
       setDeviceStates((states) =>
         states.map((state) =>
           state.record.id === connectedState.record.id
@@ -1672,9 +1705,117 @@ export const RackView = ({
     () => (currentRack && !showTimestrip ? hideTimestripInstrument(currentRack) : currentRack),
     [currentRack, showTimestrip],
   )
-  const [cableTestDevice, setCableTestDevice] = useState<{ driver: DRPDDriverRuntime; id: string } | null>(null)
+  const [cableTestLiveDevice, setCableTestLiveDevice] = useState<{
+    driver: DRPDDriverRuntime
+    id: string
+  } | null>(null)
+  const [cableTestCachedDevice, setCableTestCachedDevice] = useState<{
+    driver: DRPDDriverRuntime
+    id: string
+  } | null>(null)
+  const [cableTestCacheEpoch, setCableTestCacheEpoch] = useState(0)
+  const previousRoleStatusRef = useRef<CCBusRoleStatus | null>(null)
   const activeDriver = activeConnectedDeviceState?.drpdDriver
   const activeDriverState = activeDriver?.getState()
+  const activeDeviceId = activeConnectedDeviceState?.record.id
+  const cableTestCacheResult = useMemo(() => {
+    void cableTestCacheEpoch
+    return activeDeviceId ? readCableTestCache(activeDeviceId) : null
+  }, [activeDeviceId, cableTestCacheEpoch])
+
+  /** Close the cached Cable Test fly-out. */
+  const closeCableTestPanel = useCallback(() => {
+    setCableTestCachedDevice(null)
+  }, [])
+
+  /** Close the live Cable Test modal. */
+  const closeCableTestDialog = useCallback(() => {
+    setCableTestLiveDevice(null)
+  }, [])
+
+  /** Open a live Cable Test modal; hides the cached fly-out if it is open. */
+  const openLiveCableTest = useCallback(() => {
+    if (!activeDriver || !activeConnectedDeviceState) return
+    setCableTestCachedDevice(null)
+    setCableTestLiveDevice({
+      driver: activeDriver,
+      id: activeConnectedDeviceState.record.id,
+    })
+  }, [activeConnectedDeviceState, activeDriver])
+
+  /** Open or toggle the read-only cached Cable Test fly-out when a snapshot exists. */
+  const openCachedCableTest = useCallback(() => {
+    if (!activeDriver || !activeDeviceId || !cableTestCacheResult) return
+    if (cableTestLiveDevice) return
+    if (cableTestCachedDevice?.id === activeDeviceId) {
+      closeCableTestPanel()
+      return
+    }
+    setCableTestCachedDevice({
+      driver: activeDriver,
+      id: activeDeviceId,
+    })
+  }, [
+    activeDeviceId,
+    activeDriver,
+    cableTestCacheResult,
+    cableTestCachedDevice,
+    cableTestLiveDevice,
+    closeCableTestPanel,
+  ])
+
+  /** Open cached results when present; otherwise start a live Cable Test. */
+  const openCableTestFromShortcut = useCallback(() => {
+    if (cableTestCacheResult) {
+      openCachedCableTest()
+      return
+    }
+    openLiveCableTest()
+  }, [cableTestCacheResult, openCachedCableTest, openLiveCableTest])
+
+  /** Drop the session cache for one device (does not stop a live Cable Test modal). */
+  const clearDeviceCableTestCache = useCallback((deviceId: string) => {
+    clearCableTestCache(deviceId)
+    setCableTestCacheEpoch((epoch) => epoch + 1)
+  }, [])
+
+  useEffect(() => {
+    previousRoleStatusRef.current = activeDriver?.getState().ccBusRoleStatus ?? null
+  }, [activeDeviceId, activeDriver])
+
+  useEffect(() => {
+    if (!activeDriver || !activeDeviceId) return
+    const handleStateUpdated = (event: Event) => {
+      const detail = event instanceof CustomEvent ? event.detail : undefined
+      const changed = Array.isArray(detail?.changed) ? detail.changed as string[] : null
+      if (changed && !changed.includes('ccBusRoleStatus') && !changed.includes('role')) return
+      const state = activeDriver.getState()
+      const nextStatus = state.ccBusRoleStatus ?? null
+      const previousStatus = previousRoleStatusRef.current
+      previousRoleStatusRef.current = nextStatus
+      const role = state.role
+      if (
+        (role === CCBusRole.SINK || role === CCBusRole.OBSERVER) &&
+        previousStatus === CCBusRoleStatus.ATTACHED &&
+        nextStatus === CCBusRoleStatus.UNATTACHED
+      ) {
+        clearDeviceCableTestCache(activeDeviceId)
+        if (cableTestCachedDevice?.id === activeDeviceId) {
+          closeCableTestPanel()
+        }
+      }
+    }
+    activeDriver.addEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    return () => {
+      activeDriver.removeEventListener(DRPDDevice.STATE_UPDATED_EVENT, handleStateUpdated)
+    }
+  }, [
+    activeDeviceId,
+    activeDriver,
+    cableTestCachedDevice,
+    clearDeviceCableTestCache,
+    closeCableTestPanel,
+  ])
   const handleSourceInquiryResponse = useCallback((definition: InquiryDefinition) => {
     if (definition.type === SinkInquiryType.GET_SOURCE_CAP) return activeDriver?.refreshState()
   }, [activeDriver])
@@ -2985,6 +3126,9 @@ export const RackView = ({
         case 'toggle-capture':
           void handleToggleActiveDeviceCapture()
           break
+        case 'open-cable-test':
+          openCableTestFromShortcut()
+          break
         case 'reset-accumulator':
           void handleResetPowerChargeMeter()
           break
@@ -3028,6 +3172,7 @@ export const RackView = ({
     handleSetActiveDeviceRole,
     handleToggleActiveDeviceCapture,
     activeDriverState?.role,
+    openCableTestFromShortcut,
     openGlobalSinkRequestDialog,
     toggleGoodCrcMessages,
   ])
@@ -3216,9 +3361,10 @@ export const RackView = ({
       {
         id: 'mode-cable-test',
         label: 'Cable Test...',
+        meta: 'I',
         disabled: !activeDriver,
         onSelect: () => {
-          if (activeDriver && activeConnectedDeviceState) setCableTestDevice({ driver: activeDriver, id: activeConnectedDeviceState.record.id })
+          openLiveCableTest()
         },
       },
       {
@@ -3317,6 +3463,7 @@ export const RackView = ({
       handleSelectInquiry,
       handleSetActiveDeviceRole,
       handleSetActiveSinkEprEnabled,
+      openLiveCableTest,
       isSinkMode,
       openGlobalSinkRequestDialog,
     ],
@@ -3837,6 +3984,8 @@ export const RackView = ({
                     powerChargeMeterMenuItems={powerChargeMeterMenuItems}
                     protectionMenuItems={protectionMenuItems}
                     triggerMenuItems={triggerMenuItems}
+                    cableTestCacheAvailable={cableTestCacheResult != null}
+                    onOpenCachedCableTest={openCachedCableTest}
                   />
                 </div>
               </div>
@@ -3845,37 +3994,53 @@ export const RackView = ({
         </div>
       ) : null}
       <main className={styles.content}>
-        {isLoading ? (
-          <div className={`${styles.notice} ${styles.noticeInfo}`}>Loading rack...</div>
-        ) : null}
-        {!isLoading && deviceError ? (
-          <div className={`${styles.notice} ${styles.noticeError}`}>
-            Device error: {deviceError}
+        <div className={styles.contentRow}>
+          {cableTestCachedDevice ? (
+            <div className={styles.cableTestRail} data-testid="cable-test-rail">
+              <CableTestPanel
+                key={cableTestCachedDevice.id}
+                initialResult={
+                  cableTestCacheResult ?? readCableTestCache(cableTestCachedDevice.id)
+                }
+                onRetest={openLiveCableTest}
+                onClose={closeCableTestPanel}
+              />
+            </div>
+          ) : null}
+          <div className={styles.contentMain}>
+            {isLoading ? (
+              <div className={`${styles.notice} ${styles.noticeInfo}`}>Loading rack...</div>
+            ) : null}
+            {!isLoading && deviceError ? (
+              <div className={`${styles.notice} ${styles.noticeError}`}>
+                Device error: {deviceError}
+              </div>
+            ) : null}
+            {!isLoading && error ? (
+              <div className={`${styles.notice} ${styles.noticeError}`}>Error: {error}</div>
+            ) : null}
+            {!isLoading && !error && renderedRack ? (
+              <RackRenderer
+                rack={renderedRack}
+                instruments={instrumentDefinitions}
+                deviceStates={deviceStates}
+                activeDeviceRecord={activeDeviceRecord}
+                isEditMode={isRackEditMode}
+                onRemoveInstrument={handleRemoveRackInstrument}
+                onInstrumentDragStart={setDraggedRackInstrumentId}
+                onInstrumentDrop={handleRackInstrumentDrop}
+                onInstrumentDragEnd={() => setDraggedRackInstrumentId(null)}
+                onInstrumentResize={handleRackInstrumentResize}
+                onRowResize={handleRackRowResize}
+                onUpdateDeviceConfig={handleUpdateDeviceConfig}
+                messageLogMenuItems={messageLogMenuItems}
+              />
+            ) : null}
+            {!isLoading && !error && rackDocument && !activeRack ? (
+              <div className={`${styles.notice} ${styles.noticeInfo}`}>No racks available.</div>
+            ) : null}
           </div>
-        ) : null}
-        {!isLoading && error ? (
-          <div className={`${styles.notice} ${styles.noticeError}`}>Error: {error}</div>
-        ) : null}
-        {!isLoading && !error && renderedRack ? (
-          <RackRenderer
-            rack={renderedRack}
-            instruments={instrumentDefinitions}
-            deviceStates={deviceStates}
-            activeDeviceRecord={activeDeviceRecord}
-            isEditMode={isRackEditMode}
-            onRemoveInstrument={handleRemoveRackInstrument}
-            onInstrumentDragStart={setDraggedRackInstrumentId}
-            onInstrumentDrop={handleRackInstrumentDrop}
-            onInstrumentDragEnd={() => setDraggedRackInstrumentId(null)}
-            onInstrumentResize={handleRackInstrumentResize}
-            onRowResize={handleRackRowResize}
-            onUpdateDeviceConfig={handleUpdateDeviceConfig}
-            messageLogMenuItems={messageLogMenuItems}
-          />
-        ) : null}
-        {!isLoading && !error && rackDocument && !activeRack ? (
-          <div className={`${styles.notice} ${styles.noticeInfo}`}>No racks available.</div>
-        ) : null}
+        </div>
       </main>
       <FirmwareUpdateDialog
         prompt={firmwareUpdatePrompt}
@@ -4134,12 +4299,30 @@ export const RackView = ({
           })
         }}
       />
-      {cableTestDevice ? <CableTestDialog key={cableTestDevice.id} client={cableTestDevice.driver}
-        onError={setDeviceError} onClose={() => {
-          const id = cableTestDevice.id
-          setCableTestDevice(null)
-          void handleUpdateDeviceConfig(id, (current) => ({ ...current, role: CCBusRole.DISABLED, sinkRequest: undefined }))
-        }} /> : null}
+      {cableTestLiveDevice ? (
+        <CableTestDialog
+          key={cableTestLiveDevice.id}
+          client={cableTestLiveDevice.driver}
+          onError={setDeviceError}
+          onIdentity={(result) => {
+            if (writeCableTestCache(cableTestLiveDevice.id, result)) {
+              setCableTestCacheEpoch((epoch) => epoch + 1)
+            }
+          }}
+          onIdentityLost={() => {
+            clearDeviceCableTestCache(cableTestLiveDevice.id)
+          }}
+          onClose={() => {
+            const id = cableTestLiveDevice.id
+            closeCableTestDialog()
+            void handleUpdateDeviceConfig(id, (current) => ({
+              ...current,
+              role: CCBusRole.DISABLED,
+              sinkRequest: undefined,
+            }))
+          }}
+        />
+      ) : null}
       <SourceInquiryDialog
         key={sourceInquiryDefinition?.id ?? 'no-source-inquiry'}
         open={sourceInquiryDefinition !== null}
@@ -4422,6 +4605,8 @@ const HeaderVbusMetrics = ({
   powerChargeMeterMenuItems,
   protectionMenuItems,
   triggerMenuItems,
+  cableTestCacheAvailable,
+  onOpenCachedCableTest,
 }: {
   driver?: DRPDDriverRuntime
   captureMenuItems: MenuItem[]
@@ -4429,6 +4614,8 @@ const HeaderVbusMetrics = ({
   powerChargeMeterMenuItems: MenuItem[]
   protectionMenuItems: MenuItem[]
   triggerMenuItems: MenuItem[]
+  cableTestCacheAvailable: boolean
+  onOpenCachedCableTest?: () => void
 }) => {
   const [analogMonitor, setAnalogMonitor] = useState<AnalogMonitorChannels | null>(
     driver ? driver.getState().analogMonitor ?? null : null,
@@ -4658,6 +4845,8 @@ const HeaderVbusMetrics = ({
         portRailDirection={frontPanelPortRailDirection}
         role={role}
         roleStatus={roleStatus}
+        cableTestCacheAvailable={cableTestCacheAvailable}
+        onOpenCachedCableTest={onOpenCachedCableTest}
       />
       <div className={styles.headerVbusPrimaryMetrics}>
         <div className={`${styles.headerVbusMetric} ${styles.headerVbusVoltage}`}>
